@@ -252,4 +252,48 @@ def method_lines() -> list[str]:
             "The allowable pressure of the parent pack (with its settlement limit) is reported "
             "beside them as a serviceability indication; settlement is SAEngine's method."
         )
+    ] + _c5c_lines()
+
+
+def _c5c_lines() -> list[str]:
+    """Alpha 9 C5c: the retaining walls, the sizing assistant and the footings' structural
+    design by the pack's methods."""
+    from saengine.design import method_selection
+    from saengine.substructure import limit_state_retaining
+
+    lines = [
+        (
+            "The sizing assistant proposes footings for the bearing resistance rows of the "
+            "design approach (the allowable pressure where the soil gives no strength "
+            "parameters)."
+        )
     ]
+    from saengine.substructure import foundation_capacity
+
+    capacity = foundation_capacity.rules()
+    if capacity is not None:
+        lines.append(
+            "Capacity design of the foundations: the earthquake parts of their strength "
+            f"combinations × γRd Ω (γRd {capacity.gammaLow:g} for q up to {capacity.qLimit:g}, "
+            f"{capacity.gammaHigh:g} above; Ω "
+            + (f"{capacity.omega:g}" if capacity.omega is not None else "taken as q, the elastic "
+               "response, on the safe side")
+            + f"), at most q ({code_context.cite('seismic', 'foundationCapacity')})."
+        )  # fmt: skip
+    if limit_state_retaining.selected():
+        lines.append(
+            "Cantilever retaining walls by limit states in each combination of the design "
+            "approach: the earth pressure with Ka(φ'd), sliding V'd tan δd/γR,h (+ the passive "
+            "resistance/γR,e where kept), bearing on B' = B - 2e, overturning by EQU "
+            f"({limit_state_retaining.cite()}, {limit_state_retaining.cite('equilibrium')}); the "
+            "stem and base on the design strengths under γG of A1; the parent's factors of "
+            "safety reported only."
+        )
+    if method_selection.uses("footingPunching", "reducedPerimeter"):
+        lines.append(
+            "Footings, pile caps and rafts: punching on control perimeters within 2d with the "
+            "soil pressure (pile reactions) inside deducted "
+            f"({code_context.cite('concreteMethods', 'footingPunching')}); deep pile caps' ties "
+            "and nodes by the pack's strut-and-tie strengths."
+        )
+    return lines

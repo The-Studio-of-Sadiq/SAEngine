@@ -470,6 +470,23 @@ def _design_run(
         with_omega = with_omega.model_copy(
             update={"combinations": with_omega.combinations + soft_static}
         )
+    # Alpha 9 C5c: the pack's δ on the elements' earthquake effects where the analysis has no
+    # accidental eccentricity (saengine.fem.torsional_effects), as the soft storeys' factors.
+    from saengine.fem import torsional_effects
+    from saengine.fem.combinations import model_cases as _present_cases
+
+    delta_groups = torsional_effects.delta_groups(building, _present_cases(project))
+    delta_static = [
+        LoadCombination(**c)
+        for g in delta_groups
+        for c in irregularity.soft_storey_combinations(
+            settings.combinations, g["factor"], g["prefix"]
+        )
+    ]
+    if delta_static:
+        with_omega = with_omega.model_copy(
+            update={"combinations": with_omega.combinations + delta_static}
+        )
     # Integrator glue (0.0.45): the design wind load cases of the default pack's BNBC 2020 Part 6 Figure 6.2.9
     # (Sec 2.4.11.3) and the live load arrangements of Sec 6.1.12.2, from the cases the model
     # has (saengine.fem.combinations).
@@ -593,7 +610,7 @@ def _design_run(
                 return found
 
             summary = None
-            if omega_elements or soft_static:
+            if omega_elements or soft_static or delta_static:
                 summary = seismic_design.load_summary(out_dir)
                 if summary and summary.get("combinations"):
                     added = (
@@ -606,6 +623,13 @@ def _design_run(
                         if ids:
                             added += irregularity.soft_storey_rs_combinations(
                                 summary["combinations"], factor, prefix
+                            )
+                    # Alpha 9 C5c: δ unless the spectrum design has its accidental torsion.
+                    parts = (summary.get("run") or {}).get("parts") or {}
+                    if not any(str(p).startswith("A") for p in parts):
+                        for g in delta_groups:
+                            added += irregularity.soft_storey_rs_combinations(
+                                summary["combinations"], g["factor"], g["prefix"]
                             )
                     summary = {**summary, "combinations": summary["combinations"] + added}
             combinations, pieces, notes, shell_forces = seismic_design.design_demands(
@@ -685,6 +709,22 @@ def _design_run(
             + f" of the soft storey(s) {', '.join(soft['storeys'])} only"
         )
     notes += irregular_notes
+    # Alpha 9 C5c: the δ combinations act on their own elements only.
+    applied_delta = []
+    for g in delta_groups:
+        indices = [c for c, name in enumerate(combinations) if name.startswith(g["prefix"])]
+        if not indices:
+            continue
+        _drop_combinations(
+            pieces,
+            shell_forces,
+            indices,
+            keep=set(g["members"]),
+            keep_shells=_shells_of(project, set(g["walls"])),
+        )
+        applied_delta.append(g)
+    if applied_delta:
+        notes.append(torsional_effects.note(applied_delta))
     uplift_indices = [
         c for c, name in enumerate(combinations) if name.startswith(CANTILEVER_PREFIX)
     ]
@@ -790,6 +830,8 @@ def _design_run(
 
     member_rules = bar_rules.covered()
     ductility = _ductility_class(settings) if member_rules else None
+    # Alpha 9 C5c: μφ of the critical regions for the confinement ωwd of columns and walls.
+    mu_phi = _mu_phi(settings, project, ductility)
     # Alpha 9 C8: the tabulated codes' member rules (saengine.design.member_limits).
     from saengine.design import member_limits
 
@@ -1206,6 +1248,10 @@ def _design_run(
                         checks += curvature_ductility.column_rows(
                             section, column_transverse, ned_max, ductility
                         )
+                        if mu_phi is not None:  # Alpha 9 C5c
+                            checks += curvature_ductility.confinement_rows(
+                                section, column_transverse, ned_max, ductility, mu_phi
+                            )
                 if limit_rules:  # Alpha 9 C8 (see the beams)
                     checks += member_limits.column_rows(
                         section,
@@ -3816,6 +3862,19 @@ def _pack_service_rows(
     if not moments:
         return []
     return limit_state_rows.beam_service_rows(section, moments, cover)
+
+
+def _mu_phi(settings: Any, project: dict[str, Any], ductility: str | None) -> tuple | None:
+    """Alpha 9 C5c: (μφ, how) of the project's DCM/DCH critical regions
+    (:func:`saengine.design.curvature_ductility.mu_phi_of`); None without a ductility class."""
+    from saengine.design import curvature_ductility
+
+    if not ductility:
+        return None
+    try:
+        return curvature_ductility.mu_phi_of(settings, project, ductility)
+    except (KeyError, AttributeError, TypeError, ValueError):
+        return None
 
 
 def _ductility_class(settings: Any) -> str | None:

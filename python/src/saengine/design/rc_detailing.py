@@ -644,7 +644,13 @@ def beam_checks(
         for row in rows if note is not None else []:
             if row["name"] == "Crack control, top bars":
                 row["note"] += f"; {note}"
-    rows += integrity_check(section, perimeter)
+    from saengine.design import limit_state_members
+
+    if limit_state_members.tie_rules() is not None:
+        # Alpha 9 C5c: the pack's tying systems in place of the integrity bars.
+        rows += limit_state_members.tie_rows(section, perimeter, span)
+    else:
+        rows += integrity_check(section, perimeter)
     return rows
 
 
@@ -661,6 +667,43 @@ class ShearFrictionResult:
     mu: float
     phi: float
     note: str
+    #: Alpha 9 C5c: the cohesion term c fctd Ac [N] of the pack's interface shear (0 under the
+    #: parent's shear friction) and the bar stress used [MPa] (None: min(fy, fyMax)).
+    cohesion: float = 0.0
+    fy_used: float | None = None
+
+
+def _interface_shear(
+    avf: float, fy: float, fc: float, area: float, surface: str, tension: float,
+    compression: float,
+) -> ShearFrictionResult | None:  # fmt: skip
+    """Alpha 9 C5c: shear at the interface by the pack's ``interfaceShear`` method (EN 1992-1-1
+    6.2.5 type): VRdi = c fctd Ai + μ (σn Ai + As fyd) <= limitShare ν fcd Ai, c = 0 under net
+    tension, the bars at right angles to the joint; None when the pack does not pick it."""
+    from saengine.design import design_strength, method_selection, strut_shear
+
+    if not method_selection.uses("interfaceShear", "interfaceShear"):
+        return None
+    r = code_context.table("concreteMethods").interfaceShear
+    name = r.surfaceMap.get(surface, surface)
+    if name not in r.surfaces:
+        return None
+    c, mu = r.surfaces[name]
+    fctd = design_strength.fctd(fc)
+    fyd = design_strength.fyd(fy)
+    net = compression - tension
+    cohesion = c * fctd * area if net >= 0 else 0.0
+    vrdi = cohesion + mu * max(avf * fyd + net, 0.0)
+    nu = strut_shear.nu1(fc, strut_shear.rules())
+    limit = r.limitShare * nu * design_strength.fcd(fc) * area
+    note = (
+        f"VRdi = c fctd Ai + μ (σn Ai + As fyd), c = {c:g}, μ = {mu:g} ({name}), fctd = "
+        f"{fctd:.2f} MPa, As = {avf:.0f} mm², fyd = {fyd:.0f} MPa; at most {r.limitShare:g} ν "
+        f"fcd Ai = {limit / 1e3:.0f} kN ({code_context.cite('concreteMethods', 'interfaceShear')})"
+    )
+    if tension > 0:
+        note += f"; net tension {tension / 1e3:.0f} kN taken off, c = 0"
+    return ShearFrictionResult(min(vrdi, limit), vrdi, limit, mu, 1.0, note, cohesion, fyd)
 
 
 def shear_friction(
@@ -679,6 +722,9 @@ def shear_friction(
     the pack's ``mu[surface]`` λ, fy at most ``fyMax``, Vn at most the pack's limits on Ac.
     None when the pack has no shear-friction rules."""
     rule = getattr(_detailing(), "shearFriction", None)
+    found = _interface_shear(avf, fy, fc, area, surface, tension, compression)  # Alpha 9 C5c
+    if found is not None:
+        return found
     if rule is None or surface not in rule.mu:
         return None
     if phi is None:
@@ -724,8 +770,12 @@ def column_joint_check(section: Any, points: Any, fy: float) -> dict[str, Any] |
     if base is None:
         return None
     mu, phi = base.mu, base.phi
-    fy_used = min(fy, rule.fyMax)
-    capacity = phi * np.minimum(mu * np.maximum(avf * fy_used - tension, 0.0), base.limit)
+    fy_used = base.fy_used if base.fy_used is not None else min(fy, rule.fyMax)
+    # Alpha 9 C5c: the pack's interface shear adds c fctd Ac where there is no net tension.
+    cohesion = np.where(tension > 0, 0.0, base.cohesion)
+    capacity = phi * np.minimum(
+        cohesion + mu * np.maximum(avf * fy_used - tension, 0.0), base.limit
+    )
     with np.errstate(divide="ignore", invalid="ignore"):
         ratio = np.where(capacity > 0, vu / capacity, np.where(vu > 0, np.inf, 0.0))
     i = int(np.argmax(ratio))

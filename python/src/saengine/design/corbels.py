@@ -69,8 +69,11 @@ def corbel_checks(
 ) -> list[dict[str, Any]]:
     """The checks of a corbel (:class:`saengine.library.modifiers.Corbel`) under ``demand``,
     in the design report's shape."""
+    from saengine.design import stress_fields
     from saengine.design.check import _check
 
+    if stress_fields.rules() is not None:  # Alpha 9 C5c: the pack's strut-and-tie method
+        return stress_fields.corbel_rows(corbel, fc, fy, demand, label)
     table = code_context.pack_table("transfer").corbel
     phi = _phi("shear", 0.75)
     b, h = float(corbel.width), float(corbel.depth)

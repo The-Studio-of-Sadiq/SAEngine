@@ -270,7 +270,25 @@ def method_lines(code: str) -> list[str]:
         )
         if not chosen.get(area)
     ]
-    parent += ["deep beams and corbels (strut-and-tie)", "the deflection of slabs and stairs"]
+    # Alpha 9 C5c: the deep members, slab deflection, interfaces, ties, footings, walls out of
+    # their plane and the bar shapes by the pack's methods where it picks them.
+    from saengine.design import limit_state_members
+
+    lines += limit_state_members.method_lines()
+    parent += [
+        name
+        for area, name in (
+            ("strutAndTie", "deep beams and corbels (strut-and-tie)"),
+            ("deflection", "the deflection of slabs and stairs"),
+            ("interfaceShear", "construction joints (shear friction)"),
+            ("ties", "structural integrity"),
+            ("footingPunching", "the punching of footings, pile caps and rafts"),
+            ("wallSlenderness", "walls out of their plane"),
+            ("barShapes", "bends, hooks and compression laps"),
+        )
+        if not chosen.get(area)
+    ]
+    parent.append("the general strut-and-tie models of D-regions")
     lines.append(
         "By the parent pack's method and values (stated in its lines): " + ", ".join(parent) + "."
     )

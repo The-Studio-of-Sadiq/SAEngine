@@ -71,6 +71,46 @@ def density(table: Any, ground: float) -> float | None:
     return min(rule.factor * ground + rule.constant, rule.maximum)
 
 
+def shape_drift(
+    rule: Any, ground: float, step: Any, ce: float, ct: float, parapet: float | None
+) -> dict[str, Any] | None:
+    """Alpha 9 C5c: the drift by shape coefficients (method ``shapeCoefficient``, see
+    :class:`saengine.codes.tables.SnowShapeDriftRule`) at the roof step ``step`` (b1 its
+    ``upperLength``, b2 ``lowerLength``, h ``stepHeight``) and, without a step, at a parapet
+    ``parapet`` h [m] high: ``{"hd" (h), "w" (ls), "pd" (s at the step), "mu2", "muw", "ls",
+    "s1", "where", "gamma"}``."""
+    gamma = rule.density
+    lo, hi = rule.lengthRange
+    if step is not None:
+        h = float(step.stepHeight)
+        b1 = float(step.upperLength)
+        b2 = float(step.lowerLength or 0.0)
+        cap = gamma * h / ground
+        muw = min((b1 + b2) / (2 * h), cap)
+        muw = min(max(muw, rule.windRange[0]), rule.windRange[1])
+        mu2, where = muw, "roof step"
+    elif parapet:
+        h = float(parapet)
+        muw = None
+        mu2 = min(max(gamma * h / ground, rule.parapetRange[0]), rule.parapetRange[1])
+        where = "parapet"
+    else:
+        return None
+    ls = min(max(rule.lengthFactor * h, lo), hi)
+    return {
+        "hd": round(h, 4),
+        "w": round(ls, 4),
+        "pd": round(mu2 * ce * ct * ground, 4),
+        "mu2": round(mu2, 4),
+        "muw": None if muw is None else round(muw, 4),
+        "ls": round(ls, 4),
+        "s1": round(rule.lowerShape * ce * ct * ground, 4),
+        "where": where,
+        "gamma": gamma,
+        "method": "shapeCoefficient",
+    }
+
+
 def drift(table: Any, ground: float, step: Any) -> dict[str, Any] | None:
     """The leeward and windward drifts at a roof step (``step``: upperLength, lowerLength,
     stepHeight, windParameter) by the pack's ``drift`` (method ``windParameter``: hd =
@@ -171,7 +211,12 @@ def roof_snow(settings: Any) -> dict[str, Any] | None:
     else:
         mu1 = shape_coefficient(angle, list(table.shape))
         out.update(mu1=mu1, s_kPa=table.factor * mu1 * ce * ct * importance * ground)
-    found = drift(table, ground, getattr(snow, "drift", None))
+    rule = getattr(table, "drift", None)
+    if getattr(rule, "method", None) == "shapeCoefficient":  # Alpha 9 C5c
+        parapet = getattr(getattr(settings, "wind", None), "parapetHeight", None)
+        found = shape_drift(rule, ground, getattr(snow, "drift", None), ce, ct, parapet)
+    else:
+        found = drift(table, ground, getattr(snow, "drift", None))
     if found is not None:
         out["drift"] = found
     return out
@@ -198,7 +243,14 @@ def describe(snow: dict[str, Any]) -> str:
     else:
         text += f", in {snow['case']} where larger than the roof live load (not together)"
     found = snow.get("drift")
-    if found is not None:
+    if found is not None and found.get("method") == "shapeCoefficient":  # Alpha 9 C5c
+        text += (
+            f"; drift at the {found['where']} h = {found['hd']:.2f} m: μ2 = {found['mu2']:.2f}"
+            + (f" (μw = {found['muw']:.2f}, μs = 0)" if found.get("muw") is not None else "")
+            + f", s = {found['pd']:.2f} kN/m² falling to {found['s1']:.2f} over ls = "
+            f"{found['ls']:.2f} m (reported for the lower roof, not applied)"
+        )
+    elif found is not None:
         text += (
             f"; drift at the roof step hd = {found['hd']:.2f} m, w = {found['w']:.2f} m, pd = "
             f"{found['pd']:.2f} kN/m² (reported for the lower roof, not applied)"

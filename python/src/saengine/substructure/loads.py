@@ -409,6 +409,10 @@ def base_loads(
             else:
                 unsupported.append(element.id)
     strength = strength_combinations(settings, cases)
+    # Alpha 9 C5c: the pack's capacity design of foundations (EN 1998-1 4.4.2.6 type).
+    from saengine.substructure import foundation_capacity
+
+    strength, _how = foundation_capacity.capacity_combinations(strength, settings)
     level = is_strength_level_wind(strength)
     dead = {name: factors.get("D", factors.get("SD", 0.0)) for name, factors in strength}
     from saengine.fem.flood import zone_kind

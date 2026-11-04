@@ -193,6 +193,34 @@
       "title": "DesignApproachCombination",
       "type": "object"
     },
+    "EquilibriumSet": {
+      "additionalProperties": false,
+      "description": "Alpha 9 C5c: the partial factors of static equilibrium (EQU) for overturning.",
+      "properties": {
+        "permanentDestabilising": {
+          "exclusiveMinimum": 0,
+          "title": "Permanentdestabilising",
+          "type": "number"
+        },
+        "permanentStabilising": {
+          "exclusiveMinimum": 0,
+          "title": "Permanentstabilising",
+          "type": "number"
+        },
+        "variableDestabilising": {
+          "exclusiveMinimum": 0,
+          "title": "Variabledestabilising",
+          "type": "number"
+        }
+      },
+      "required": [
+        "permanentDestabilising",
+        "permanentStabilising",
+        "variableDestabilising"
+      ],
+      "title": "EquilibriumSet",
+      "type": "object"
+    },
     "FootingRules": {
       "additionalProperties": false,
       "description": "How spread footings take the soil's strength when the bearing is by limit states (alpha\n9 C5b): the characteristic soil parameters of the founding layer, the drained or undrained\ncase, and what the project's footing takes as the characteristic actions.",
@@ -302,6 +330,26 @@
         "tension"
       ],
       "title": "PileResistanceSet",
+      "type": "object"
+    },
+    "RetainingRules": {
+      "additionalProperties": false,
+      "description": "Alpha 9 C5c: retaining walls by limit states (method ``limitStates``,\n:mod:`saengine.substructure.limit_state_retaining`): the earth pressure with the design\nangle of shearing resistance of each combination's M set, sliding, bearing (the base's\neffective width) and overturning by EQU.",
+      "properties": {
+        "method": {
+          "const": "limitStates",
+          "default": "limitStates",
+          "title": "Method",
+          "type": "string"
+        },
+        "castInPlace": {
+          "default": true,
+          "description": "Base cast against the soil.",
+          "title": "Castinplace",
+          "type": "boolean"
+        }
+      },
+      "title": "RetainingRules",
       "type": "object"
     },
     "SlidingRules": {
@@ -479,6 +527,28 @@
       "anyOf": [
         {
           "$ref": "#/$defs/FootingRules"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "equilibrium": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/EquilibriumSet"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "retaining": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/RetainingRules"
         },
         {
           "type": "null"

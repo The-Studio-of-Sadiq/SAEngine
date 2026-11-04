@@ -95,6 +95,8 @@ RAFT_OVERHANG = 1000.0
 RAFT_MIN_THICKNESS = 500.0
 
 SHEAR_CHECKS = ("Punching at", "One-way shear")
+#: Alpha 9 C5c: the bearing rows of the pack's limit states (EN 1997-1 type design approach).
+LIMIT_STATE_BEARING = "Bearing resistance ("
 BEARING_CHECKS = (
     "Bearing (service)",
     "Resultant within the base (service)",
@@ -283,7 +285,10 @@ class Sizer:
             min(spec.width, spec.length),
             max(spec.width, spec.length),
         )
-        if service and bearing.qa is None:
+        from saengine.substructure import limit_state_footings
+
+        limit_states = service and limit_state_footings.selected()  # Alpha 9 C5c
+        if service and bearing.qa is None and not limit_states:
             raise Skip(
                 "no allowable bearing pressure: "
                 + (
@@ -307,11 +312,39 @@ class Sizer:
             bearing,
             stability=stability,
         )
+        if limit_states:
+            # Alpha 9 C5c: the plan sized for the bearing resistance of the pack's design
+            # approach (EN 1997-1 type); the allowable pressure row is then reported only.
+            from saengine.substructure.shallow import _limit_state_rows
+
+            more: list[str] = []
+            _limit_state_rows(ctx, placed, bearing, checks, more)
+            found = any(c["name"].startswith(LIMIT_STATE_BEARING) for c in checks)
+            if bearing.qa is None and not found:
+                raise Skip(
+                    "no allowable bearing pressure and no soil strength parameters at the "
+                    "founding level: " + "; ".join(more)
+                )
         return {c["name"]: c for c in checks}
 
     def _bearing_fails(self, trial: Trial) -> list[dict[str, Any]]:
         checks = self.evaluate(trial, strength=False)
-        return [checks[n] for n in BEARING_CHECKS if n in checks and not checks[n]["ok"]]
+        from saengine.substructure import limit_state_footings
+
+        # Alpha 9 C5c: under the pack's limit states the allowable pressure row is reported
+        # only, and the bearing resistance rows size the plan.
+        skip = {"Bearing (service)"} if limit_state_footings.selected() else set()
+        found = [
+            checks[n]
+            for n in BEARING_CHECKS
+            if n in checks and n not in skip and not checks[n]["ok"]
+        ]
+        found += [
+            c
+            for n, c in checks.items()
+            if n.startswith(LIMIT_STATE_BEARING) and not c["ok"] and not c["flag"]
+        ]
+        return found
 
     def size_bearing(self, trial: Trial) -> None:
         """The smallest plan in steps of :data:`STEP` whose service pressure is within qa: B x B

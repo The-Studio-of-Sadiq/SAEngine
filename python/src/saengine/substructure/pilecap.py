@@ -575,6 +575,21 @@ def _tie_check(
         return []
     tie, combination, where = worst
     area = as_bottom * width / 1000
+    from saengine.design import stress_fields
+
+    if stress_fields.rules() is not None:  # Alpha 9 C5c: the pack's strut-and-tie strengths
+        return [
+            _check(
+                f"Tie (bottom {bars} bars, strut-and-tie)",
+                tie / 1e3,
+                stress_fields.tie_capacity(area, spec.fy) / 1e3,
+                "kN",
+                combination,
+                f"T = M / z, M of the pile reactions beyond the column's quarter point, z = "
+                f"{tie_arm:g} d = {z:.0f} mm; As fyd, As = {area:.0f} mm² over {width:.0f} mm "
+                f"({stress_fields.cite()}); {where}",
+            )
+        ]
     return [
         _check(
             f"Tie (bottom {bars} bars, strut-and-tie)",
@@ -597,6 +612,10 @@ def _node_checks(
     from saengine.design.check import _check
 
     checks: list[dict[str, Any]] = []
+    from saengine.design import stress_fields
+
+    if stress_fields.rules() is not None:  # Alpha 9 C5c: the pack's node strengths
+        return _limit_state_nodes(spec, strength, reactions_of)
     beta_ccc, beta_cct = _strut_and_tie("betaCCC"), _strut_and_tie("betaCCT")
     effective = _strut_and_tie("effective")
     for k, column in enumerate(spec.columns):
@@ -635,6 +654,142 @@ def _node_checks(
     return checks
 
 
+def _limit_state_punching(
+    spec: CapSpec, strength: Loads, reactions_of: dict[str, np.ndarray]
+) -> list[dict[str, Any]]:
+    """Alpha 9 C5c: punching of the cap by the pack's control perimeters within 2d
+    (:func:`saengine.design.perimeter_punching.footing_punching`): at each column VEd = P less
+    the pile reactions inside each perimeter (by the share of a pile's area inside, the
+    rounded perimeter taken as its bounding rectangle); round each pile its reaction; ρl of
+    the bottom meshes. The column moments are in the pile reactions."""
+    from saengine.design import perimeter_punching as pp
+    from saengine.design.check import _check
+
+    d = spec.d
+    half_l, half_w = spec.length / 2, spec.width / 2
+    ratios = [mesh_area(m) / (1000 * d) for m in (spec.bottom_x, spec.bottom_y) if d > 0]
+    rho = math.sqrt(ratios[0] * ratios[1]) if len(ratios) == 2 else 0.0
+    checks: list[dict[str, Any]] = []
+    for k, column in enumerate(spec.columns):
+        reach = min(
+            column.u - column.cu / 2 + half_l,
+            half_l - column.u - column.cu / 2,
+            column.v - column.cv / 2 + half_w,
+            half_w - column.v - column.cv / 2,
+        )
+        if reach <= 0:
+            continue
+        worst = None
+        for combination, loads in strength.items():
+            reactions = reactions_of[combination]
+
+            def inside(a: float, reactions: np.ndarray = reactions, column: Any = column) -> float:
+                half_u, half_v = column.cu / 2 + a, column.cv / 2 + a
+                total = 0.0
+                for (pu, pv), r in zip(spec.piles, reactions, strict=True):
+                    out = _rectangle_distance(pu - column.u, pv - column.v, half_u, half_v)
+                    total += r * (1 - _share_outside(out, spec.pile_diameter))
+                return total
+
+            found = pp.footing_punching(
+                float(loads[k][0]), d, column.cu, column.cv, spec.fc, rho, inside, reach=reach
+            )
+            if found is not None and (worst is None or found.utilisation > worst[0].utilisation):
+                worst = (found, combination)
+        if worst is None:
+            continue
+        found, combination = worst
+        checks.append(
+            _check(
+                f"Punching at {column.id}",
+                found.v_ed * found.u * d / 1e3,
+                found.v_rd * found.u * d / 1e3,
+                "kN",
+                combination,
+                pp.footing_note(found, d) + f", d = {d:.0f} mm, ρl = {rho:.4f}; VEd less the "
+                "pile reactions inside",
+                utilisation=found.utilisation,
+            )
+        )
+    side = math.sqrt(math.pi) / 2 * spec.pile_diameter  # square of the same area
+    worst_pile = None
+    for i, (pu, pv) in enumerate(spec.piles):
+        reach = min(pu - side / 2 + half_l, half_l - pu - side / 2,
+                    pv - side / 2 + half_w, half_w - pv - side / 2)  # fmt: skip
+        if reach <= d / 16:
+            continue
+        for combination in strength:
+            r = float(reactions_of[combination][i])
+            if r <= 0:
+                continue
+            found = pp.footing_punching(r, d, side, side, spec.fc, rho, lambda a: 0.0, reach=reach)
+            if found is not None and (
+                worst_pile is None or found.utilisation > worst_pile[0].utilisation
+            ):
+                worst_pile = (found, combination, i)
+    if worst_pile is not None:
+        found, combination, i = worst_pile
+        checks.append(
+            _check(
+                "Punching round a pile",
+                found.v_ed * found.u * d / 1e3,
+                found.v_rd * found.u * d / 1e3,
+                "kN",
+                combination,
+                f"pile {i + 1} as a {side:.0f} mm square of the same area, perimeters within the "
+                f"cap's edges; " + pp.footing_note(found, d),
+                utilisation=found.utilisation,
+            )
+        )
+    return checks
+
+
+def _limit_state_nodes(
+    spec: CapSpec, strength: Loads, reactions_of: dict[str, np.ndarray]
+) -> list[dict[str, Any]]:
+    """Alpha 9 C5c: the column's C-C-C node and the pile heads' C-C-T nodes of a deep cap at
+    the pack's node strengths (:mod:`saengine.design.stress_fields`)."""
+    from saengine.design import stress_fields as sf
+    from saengine.design.check import _check
+
+    checks: list[dict[str, Any]] = []
+    for k, column in enumerate(spec.columns):
+        area = column.cu * column.cv
+        worst = max(((float(loads[k][0]), name) for name, loads in strength.items()), default=None)
+        if worst is None or area <= 0:
+            continue
+        checks.append(
+            _check(
+                f"Node under {column.id} (strut-and-tie)",
+                worst[0] / 1e3,
+                sf.node_strength(spec.fc, "CCC") * area / 1e3,
+                "kN",
+                worst[1],
+                f"C-C-C node, σRd,max = {sf.strength_text('CCC')} = "
+                f"{sf.node_strength(spec.fc, 'CCC'):.2f} MPa over the column {column.cu:.0f} × "
+                f"{column.cv:.0f} mm ({sf.cite()})",
+            )
+        )
+    area = math.pi * spec.pile_diameter**2 / 4
+    worst_pile = max(
+        ((float(r.max()), name) for name, r in reactions_of.items() if len(r)), default=None
+    )
+    if worst_pile is not None:
+        checks.append(
+            _check(
+                "Node over a pile (strut-and-tie)",
+                max(worst_pile[0], 0.0) / 1e3,
+                sf.node_strength(spec.fc, "CCT") * area / 1e3,
+                "kN",
+                worst_pile[1],
+                f"C-C-T node at the pile head, σRd,max = {sf.strength_text('CCT')} = "
+                f"{sf.node_strength(spec.fc, 'CCT'):.2f} MPa over the pile's area "
+                f"(Ø{spec.pile_diameter:.0f}) ({sf.cite()})",
+            )
+        )
+    return checks
+
+
 def _rectangle_distance(du: float, dv: float, half_u: float, half_v: float) -> float:
     """Signed distance [mm] of a point outside (+) a rectangle centred at the origin."""
     return max(abs(du) - half_u, abs(dv) - half_v)
@@ -643,8 +798,11 @@ def _rectangle_distance(du: float, dv: float, half_u: float, half_v: float) -> f
 def _punching(
     spec: CapSpec, strength: Loads, reactions_of: dict[str, np.ndarray]
 ) -> list[dict[str, Any]]:
+    from saengine.design import perimeter_punching
     from saengine.design.check import _check
 
+    if perimeter_punching.footing_rules() is not None:  # Alpha 9 C5c
+        return _limit_state_punching(spec, strength, reactions_of)
     d = spec.d
     outline = spec.outline()
     checks: list[dict[str, Any]] = []

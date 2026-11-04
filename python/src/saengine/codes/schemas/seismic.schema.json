@@ -570,6 +570,53 @@
       "title": "DynamicAnalysis",
       "type": "object"
     },
+    "FoundationCapacityRule": {
+      "additionalProperties": false,
+      "description": "Alpha 9 C5c: capacity design of foundations (method ``overstrengthFactor``): the\nfoundations' design action EFd = EF,G + γRd Ω EF,E with γRd = ``gammaLow`` for q up to\n``qLimit``, ``gammaHigh`` above, Ω the project's or ``omega`` (None: q, the elastic\nresponse), γRd Ω at most q.",
+      "properties": {
+        "method": {
+          "const": "overstrengthFactor",
+          "default": "overstrengthFactor",
+          "title": "Method",
+          "type": "string"
+        },
+        "qLimit": {
+          "exclusiveMinimum": 0,
+          "title": "Qlimit",
+          "type": "number"
+        },
+        "gammaLow": {
+          "exclusiveMinimum": 0,
+          "title": "Gammalow",
+          "type": "number"
+        },
+        "gammaHigh": {
+          "exclusiveMinimum": 0,
+          "title": "Gammahigh",
+          "type": "number"
+        },
+        "omega": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Omega"
+        }
+      },
+      "required": [
+        "qLimit",
+        "gammaLow",
+        "gammaHigh"
+      ],
+      "title": "FoundationCapacityRule",
+      "type": "object"
+    },
     "Irregularities": {
       "additionalProperties": false,
       "description": "Plan and vertical irregularity thresholds (each block empty: not checked).",
@@ -812,6 +859,29 @@
       "title": "LateralForceRule",
       "type": "object"
     },
+    "ModalCombinationRule": {
+      "additionalProperties": false,
+      "description": "Alpha 9 C5c: the combination of the modal maxima (method ``independence``): SRSS where\nevery pair of modes is independent (Tj <= ``ratio`` Ti), else CQC.",
+      "properties": {
+        "method": {
+          "const": "independence",
+          "default": "independence",
+          "title": "Method",
+          "type": "string"
+        },
+        "ratio": {
+          "exclusiveMaximum": 1,
+          "exclusiveMinimum": 0,
+          "title": "Ratio",
+          "type": "number"
+        }
+      },
+      "required": [
+        "ratio"
+      ],
+      "title": "ModalCombinationRule",
+      "type": "object"
+    },
     "MultiPeriodRule": {
       "additionalProperties": false,
       "description": "SMS and SM1 from a multi-period MCER spectrum (Sa [g] by T [s]): SMS = ``smsShare`` ×\nthe largest Sa from ``smsPeriods[0]`` to ``smsPeriods[1]``, at least Sa at the first;\nSM1 = the largest T·Sa from ``sm1Periods[0]`` to ``sm1Periods[1]`` (``sm1PeriodsSoft`` for\nthe ``softClasses``); SDS, SD1 = ``designShare`` × them. Used when the project gives the\nMCER spectrum and not SDS and SD1.",
@@ -932,6 +1002,109 @@
         "m"
       ],
       "title": "PeriodCoefficient",
+      "type": "object"
+    },
+    "RegularityCriteria": {
+      "additionalProperties": false,
+      "description": "Alpha 9 C5c: regularity in plan and in elevation by criteria (method ``criteria``,\n:mod:`saengine.fem.seismic_regularity`; EN 1998-1 4.2.3 type) and what follows from them.\n\nPlan: each floor's slenderness Lmax / Lmin at most ``slendernessMax``; its outline within a\nconvex envelope whose area exceeds the floor's by at most ``compactnessShare``; at each\nstorey the eccentricity e0 of the centre of stiffness (from the moments of inertia of the\ncolumns' and walls' sections) from the centre of mass (the floor's centroid) at most\n``eccentricityShare`` × the torsional radius r, and r at least the radius of gyration ls of\nthe floor (``torsionalRadius``). Elevation: the lateral systems run from the base to the\ntop (the offsets of the irregularity checks), setbacks preserving symmetry each at most\n``setbackShare`` of the dimension below, a single one in the lower ``baseHeightShare`` of\nthe height at most ``baseSetbackShare``, unsymmetric ones each at most\n``unsymmetricShare`` and in all at most ``unsymmetricTotal`` of the base dimension.\n\nConsequences: a structure not regular in elevation takes q × ``elevationFactor``; one not\nregular in plan takes αu/α1 as the mean of 1 and the system's (``planAverage``); the\nlateral force method needs regularity in elevation (``dynamicAnalysis``); a planar model\nneeds regularity in plan (SAEngine always analyses the spatial model).",
+      "properties": {
+        "method": {
+          "const": "criteria",
+          "default": "criteria",
+          "title": "Method",
+          "type": "string"
+        },
+        "slendernessMax": {
+          "exclusiveMinimum": 0,
+          "title": "Slendernessmax",
+          "type": "number"
+        },
+        "compactnessShare": {
+          "exclusiveMaximum": 1,
+          "exclusiveMinimum": 0,
+          "title": "Compactnessshare",
+          "type": "number"
+        },
+        "eccentricityShare": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Eccentricityshare",
+          "type": "number"
+        },
+        "torsionalRadius": {
+          "default": true,
+          "title": "Torsionalradius",
+          "type": "boolean"
+        },
+        "setbackShare": {
+          "exclusiveMaximum": 1,
+          "exclusiveMinimum": 0,
+          "title": "Setbackshare",
+          "type": "number"
+        },
+        "baseHeightShare": {
+          "exclusiveMaximum": 1,
+          "exclusiveMinimum": 0,
+          "title": "Baseheightshare",
+          "type": "number"
+        },
+        "baseSetbackShare": {
+          "exclusiveMaximum": 1,
+          "exclusiveMinimum": 0,
+          "title": "Basesetbackshare",
+          "type": "number"
+        },
+        "unsymmetricShare": {
+          "exclusiveMaximum": 1,
+          "exclusiveMinimum": 0,
+          "title": "Unsymmetricshare",
+          "type": "number"
+        },
+        "unsymmetricTotal": {
+          "exclusiveMaximum": 1,
+          "exclusiveMinimum": 0,
+          "title": "Unsymmetrictotal",
+          "type": "number"
+        },
+        "symmetryTolerance": {
+          "default": 0.25,
+          "description": "A setback is symmetric when its two sides differ by at most this share of it (SAEngine practice).",
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Symmetrytolerance",
+          "type": "number"
+        },
+        "elevationFactor": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Elevationfactor",
+          "type": "number"
+        },
+        "planAverage": {
+          "default": true,
+          "title": "Planaverage",
+          "type": "boolean"
+        },
+        "clauses": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Clauses",
+          "type": "object"
+        }
+      },
+      "required": [
+        "slendernessMax",
+        "compactnessShare",
+        "eccentricityShare",
+        "setbackShare",
+        "baseHeightShare",
+        "baseSetbackShare",
+        "unsymmetricShare",
+        "unsymmetricTotal",
+        "elevationFactor"
+      ],
+      "title": "RegularityCriteria",
       "type": "object"
     },
     "Separation": {
@@ -1128,6 +1301,32 @@
         "wallFactor"
       ],
       "title": "SoftStoreyDesign",
+      "type": "object"
+    },
+    "SpectrumTypeGuidance": {
+      "additionalProperties": false,
+      "description": "Alpha 9 C5c: when to choose the pack's second spectrum type: ``type`` where the\nearthquakes that contribute most to the hazard have a surface-wave magnitude Ms at most\n``magnitude``.",
+      "properties": {
+        "type": {
+          "title": "Type",
+          "type": "string"
+        },
+        "magnitude": {
+          "exclusiveMinimum": 0,
+          "title": "Magnitude",
+          "type": "number"
+        },
+        "text": {
+          "default": "",
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "magnitude"
+      ],
+      "title": "SpectrumTypeGuidance",
       "type": "object"
     },
     "StabilityRule": {
@@ -1558,6 +1757,102 @@
       },
       "title": "TimeHistoryTarget",
       "type": "object"
+    },
+    "TorsionalEffectsRule": {
+      "additionalProperties": false,
+      "description": "Alpha 9 C5c: accidental torsional effects by the factor δ = 1 + ``coefficient`` x / Le\non each element's earthquake effects (method ``deltaFactor``, EN 1998-1 4.3.3.2.4 type),\nwhere the analysis has no accidental eccentricity cases: x the element's distance from the\ncentre of mass across the earthquake, Le the plan's extent across it; the larger of the two\ndirections' δ, rounded up to ``step``.",
+      "properties": {
+        "method": {
+          "const": "deltaFactor",
+          "default": "deltaFactor",
+          "title": "Method",
+          "type": "string"
+        },
+        "coefficient": {
+          "exclusiveMinimum": 0,
+          "title": "Coefficient",
+          "type": "number"
+        },
+        "planarCoefficient": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Planarcoefficient"
+        },
+        "step": {
+          "default": 0.05,
+          "exclusiveMinimum": 0,
+          "title": "Step",
+          "type": "number"
+        }
+      },
+      "required": [
+        "coefficient"
+      ],
+      "title": "TorsionalEffectsRule",
+      "type": "object"
+    },
+    "VerticalComponentRule": {
+      "additionalProperties": false,
+      "description": "Alpha 9 C5c: the vertical seismic action (method ``verticalSpectrum``): only where avg =\n``ratio`` [spectrum type] × ag exceeds ``threshold`` g; Ev / D = share × avg × ``plateau`` /\n``behaviour`` (the vertical design spectrum's plateau, q = 1.5), with the orthogonal share\nof the combination; the members of ``members`` (applied to every member, on the safe side).",
+      "properties": {
+        "method": {
+          "const": "verticalSpectrum",
+          "default": "verticalSpectrum",
+          "title": "Method",
+          "type": "string"
+        },
+        "threshold": {
+          "exclusiveMinimum": 0,
+          "title": "Threshold",
+          "type": "number"
+        },
+        "ratio": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "title": "Ratio",
+          "type": "object"
+        },
+        "plateau": {
+          "exclusiveMinimum": 0,
+          "title": "Plateau",
+          "type": "number"
+        },
+        "behaviour": {
+          "exclusiveMinimum": 0,
+          "title": "Behaviour",
+          "type": "number"
+        },
+        "combinationShare": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Combinationshare",
+          "type": "number"
+        },
+        "members": {
+          "default": "",
+          "description": "Which members the code applies it to.",
+          "title": "Members",
+          "type": "string"
+        }
+      },
+      "required": [
+        "threshold",
+        "ratio",
+        "plateau",
+        "behaviour",
+        "combinationShare"
+      ],
+      "title": "VerticalComponentRule",
+      "type": "object"
     }
   },
   "additionalProperties": false,
@@ -1719,6 +2014,72 @@
       "anyOf": [
         {
           "$ref": "#/$defs/TimeHistoryRules"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "regularity": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/RegularityCriteria"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "torsionalEffects": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/TorsionalEffectsRule"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "modalCombination": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ModalCombinationRule"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "verticalComponent": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/VerticalComponentRule"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "foundationCapacity": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/FoundationCapacityRule"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "spectrumTypeGuidance": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/SpectrumTypeGuidance"
         },
         {
           "type": "null"

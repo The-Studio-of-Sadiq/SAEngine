@@ -1706,6 +1706,13 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 		const soil = this.sources?.soil;
 		const site = isObject(document.site) ? document.site : {};
 		const siteClass = soil?.class && site.siteClassSource !== 'entered' ? soil.class : String(site.siteClass);
+		// Alpha 9 C5c: another pack than the default sets its own category of the seismic action
+		// and detailing when the project is analysed; this editor's preview tables are the default
+		// pack's, so it does not show their category, warning or switch here.
+		if (chosenPackId(document) !== DEFAULT_CODE_PACK) {
+			append(cell, $('span.settings-source-value', undefined, localize('settings.designCategoryOtherPack', "The category of the seismic action, the detailing it asks for and the systems it permits come from {0} when the project is analysed; the design report states them.", this.codeName)));
+			return;
+		}
 		const values = codeValues(document, soil?.class ? { class: soil.class, label: soil.label } : undefined);
 		const value = (label: string) => values.find(v => v.label === label);
 		const category = designCategory(document, siteClass);
@@ -1813,10 +1820,12 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 		// A system the Seismic Design Category does not permit: say so and offer the switch.
 		const site = isObject(this.document.site) ? this.document.site : {};
 		const category = designCategory(this.document, soil?.class && site.siteClassSource !== 'entered' ? soil.class : String(site.siteClass));
-		if (problems.length) {
+		// Alpha 9 C5c: the default pack's category warnings and system switch only under it.
+		const defaultPack = chosenPackId(this.document) === DEFAULT_CODE_PACK;
+		if (problems.length && defaultPack) {
 			append(panel, $('.sa-props-note.settings-values-problem', { role: 'alert' }, problems.join(' ')));
 		}
-		if (category?.alternative) {
+		if (category?.alternative && defaultPack) {
 			const target = DEFAULT_CODE_TABLES.systems[category.alternative];
 			const button = this.valuesDisposables.add(new Button(append(panel, $('.settings-values-action')), { ...defaultButtonStyles, supportIcons: true }));
 			button.label = localize('settings.switchSystem', "Switch to {0}", target?.name ?? category.alternative);

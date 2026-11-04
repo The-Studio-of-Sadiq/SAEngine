@@ -901,6 +901,141 @@
       "title": "CpHeightRow",
       "type": "object"
     },
+    "DetailedStructuralFactor": {
+      "additionalProperties": false,
+      "description": "Alpha 9 C5c: cscd of EN 1991-1-4 Annex B (method ``annexB``,\n:func:`saengine.fem.peak_velocity_pressure.detailed_structural_factor`): cscd = (1 + 2 kp\nIv(zs) √(B² + R²)) / (1 + ``peakFactor`` Iv(zs)), zs = ``heightShare`` h; L(zs) =\n``scaleLength`` (zs / ``scaleHeight``)^α, α = ``alphaBase`` + ``alphaLog`` ln z0; B² = 1 /\n(1 + ``backgroundFactor`` ((b + h) / L)^``backgroundExponent``); SL = a fL / (1 + b fL)^(5/3);\nR² = π² / (2 δ) SL Rh Rb with η = ``admittance`` fL h / L (and b); kp = √(2 ln νT) + 0.6 /\n√(2 ln νT) at least ``kpMin``, ν at least ``upcrossingMin`` [Hz], T = ``duration`` [s]; n1 =\n``frequencyCoefficient`` / h where the project gives none; δ the logarithmic decrement:\n``structuralDamping`` by structure kind (or 2π ξ of the project's damping ratio).",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "method": {
+          "const": "annexB",
+          "default": "annexB",
+          "title": "Method",
+          "type": "string"
+        },
+        "heightShare": {
+          "exclusiveMinimum": 0,
+          "title": "Heightshare",
+          "type": "number"
+        },
+        "scaleLength": {
+          "exclusiveMinimum": 0,
+          "title": "Scalelength",
+          "type": "number"
+        },
+        "scaleHeight": {
+          "exclusiveMinimum": 0,
+          "title": "Scaleheight",
+          "type": "number"
+        },
+        "alphaBase": {
+          "title": "Alphabase",
+          "type": "number"
+        },
+        "alphaLog": {
+          "title": "Alphalog",
+          "type": "number"
+        },
+        "backgroundFactor": {
+          "exclusiveMinimum": 0,
+          "title": "Backgroundfactor",
+          "type": "number"
+        },
+        "backgroundExponent": {
+          "exclusiveMinimum": 0,
+          "title": "Backgroundexponent",
+          "type": "number"
+        },
+        "spectrum": {
+          "description": "(a, b) of SL = a fL/(1 + b fL)^(5/3).",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Spectrum",
+          "type": "array"
+        },
+        "admittance": {
+          "exclusiveMinimum": 0,
+          "title": "Admittance",
+          "type": "number"
+        },
+        "kpMin": {
+          "exclusiveMinimum": 0,
+          "title": "Kpmin",
+          "type": "number"
+        },
+        "upcrossingMin": {
+          "exclusiveMinimum": 0,
+          "title": "Upcrossingmin",
+          "type": "number"
+        },
+        "duration": {
+          "exclusiveMinimum": 0,
+          "title": "Duration",
+          "type": "number"
+        },
+        "frequencyCoefficient": {
+          "description": "n1 = c / h [Hz] (h in m).",
+          "exclusiveMinimum": 0,
+          "title": "Frequencycoefficient",
+          "type": "number"
+        },
+        "structuralDamping": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "description": "δs by kind: concrete, steel.",
+          "title": "Structuraldamping",
+          "type": "object"
+        },
+        "peakFactor": {
+          "default": 7.0,
+          "description": "The 7 of 1 + 7 Iv(zs).",
+          "exclusiveMinimum": 0,
+          "title": "Peakfactor",
+          "type": "number"
+        }
+      },
+      "required": [
+        "heightShare",
+        "scaleLength",
+        "scaleHeight",
+        "alphaBase",
+        "alphaLog",
+        "backgroundFactor",
+        "backgroundExponent",
+        "spectrum",
+        "admittance",
+        "kpMin",
+        "upcrossingMin",
+        "duration",
+        "frequencyCoefficient",
+        "structuralDamping"
+      ],
+      "title": "DetailedStructuralFactor",
+      "type": "object"
+    },
     "DomeCurve": {
       "additionalProperties": false,
       "description": "Cp at one point of a dome (A windward springline, B top, C leeward springline) against\nf/D, for one hD/D.",
@@ -1350,6 +1485,136 @@
         "roundLarge"
       ],
       "title": "LatticeCfRow",
+      "type": "object"
+    },
+    "LocalPressureZone": {
+      "additionalProperties": false,
+      "description": "Alpha 9 C5c: cpe,1 and cpe,10 of one zone of walls or flat roofs (EN 1991-1-4 Tables 7.1,\n7.2): ``ratio`` h/d of the wall row, or hp/h of the roof row (0: sharp eaves), linear between\nthe rows of a zone and sign; a zone may have a positive and a negative row.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "surface": {
+          "enum": [
+            "wall",
+            "roof"
+          ],
+          "title": "Surface",
+          "type": "string"
+        },
+        "zone": {
+          "title": "Zone",
+          "type": "string"
+        },
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "ratio": {
+          "default": 0.0,
+          "minimum": 0,
+          "title": "Ratio",
+          "type": "number"
+        },
+        "cpe10": {
+          "title": "Cpe10",
+          "type": "number"
+        },
+        "cpe1": {
+          "title": "Cpe1",
+          "type": "number"
+        }
+      },
+      "required": [
+        "surface",
+        "zone",
+        "label",
+        "cpe10",
+        "cpe1"
+      ],
+      "title": "LocalPressureZone",
+      "type": "object"
+    },
+    "LocalPressuresTable": {
+      "additionalProperties": false,
+      "description": "Alpha 9 C5c: local pressures of cladding and fixings (method ``areaDependent``,\n:mod:`saengine.fem.local_pressures`): cpe of a loaded area A by cpe,1 at A <= ``areaSmall``,\ncpe,10 at A >= ``areaLarge``, linear in log A between; w = qp(ze) (cpe - cpi), cpi the more\nonerous of ``internal``; e = min(b, ``edgeFactor`` h).",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "method": {
+          "const": "areaDependent",
+          "default": "areaDependent",
+          "title": "Method",
+          "type": "string"
+        },
+        "areaSmall": {
+          "exclusiveMinimum": 0,
+          "title": "Areasmall",
+          "type": "number"
+        },
+        "areaLarge": {
+          "exclusiveMinimum": 0,
+          "title": "Arealarge",
+          "type": "number"
+        },
+        "edgeFactor": {
+          "exclusiveMinimum": 0,
+          "title": "Edgefactor",
+          "type": "number"
+        },
+        "zones": {
+          "items": {
+            "$ref": "#/$defs/LocalPressureZone"
+          },
+          "minItems": 1,
+          "title": "Zones",
+          "type": "array"
+        },
+        "internal": {
+          "description": "(most positive, most negative) cpi.",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Internal",
+          "type": "array"
+        }
+      },
+      "required": [
+        "areaSmall",
+        "areaLarge",
+        "edgeFactor",
+        "zones",
+        "internal"
+      ],
+      "title": "LocalPressuresTable",
       "type": "object"
     },
     "LowRiseRow": {
@@ -2092,6 +2357,171 @@
         "roundTower"
       ],
       "title": "OpenStructuresTable",
+      "type": "object"
+    },
+    "OrographyRule": {
+      "additionalProperties": false,
+      "description": "Alpha 9 C5c: the orography factor co(z) of EN 1991-1-4 Annex A.3 (method ``annexA3``,\n:func:`saengine.fem.peak_velocity_pressure.orography_factor`): Φ = H / Lu; co = 1 below\n``slopeMin``; co = 1 + ``slopeFactor`` s Φ up to ``slopeMax``; above it 1 + ``steepFactor`` s\nand Le = H / ``slopeMax``; s by the location factors' polynomials (upwind of the crest,\ndownwind of hills and ridges, downwind of cliffs and escarpments). SAEngine reads the\nproject's half-height distance Lh as Lu = ``lengthFromHalfHeight`` × Lh and Ld = Lu.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "method": {
+          "const": "annexA3",
+          "default": "annexA3",
+          "title": "Method",
+          "type": "string"
+        },
+        "slopeMin": {
+          "exclusiveMinimum": 0,
+          "title": "Slopemin",
+          "type": "number"
+        },
+        "slopeMax": {
+          "exclusiveMinimum": 0,
+          "title": "Slopemax",
+          "type": "number"
+        },
+        "slopeFactor": {
+          "exclusiveMinimum": 0,
+          "title": "Slopefactor",
+          "type": "number"
+        },
+        "steepFactor": {
+          "exclusiveMinimum": 0,
+          "title": "Steepfactor",
+          "type": "number"
+        },
+        "lengthFromHalfHeight": {
+          "exclusiveMinimum": 0,
+          "title": "Lengthfromhalfheight",
+          "type": "number"
+        },
+        "upwindA": {
+          "description": "A(z/Le), polynomial coefficients, highest first.",
+          "items": {
+            "type": "number"
+          },
+          "title": "Upwinda",
+          "type": "array"
+        },
+        "upwindB": {
+          "description": "B(z/Le), upwind: s = A e^(B X/Lu).",
+          "items": {
+            "type": "number"
+          },
+          "title": "Upwindb",
+          "type": "array"
+        },
+        "hillB": {
+          "description": "B(z/Le), downwind of hills and ridges.",
+          "items": {
+            "type": "number"
+          },
+          "title": "Hillb",
+          "type": "array"
+        },
+        "cliffA": {
+          "description": "A(log z/Le), downwind of cliffs and escarpments.",
+          "items": {
+            "type": "number"
+          },
+          "title": "Cliffa",
+          "type": "array"
+        },
+        "cliffB": {
+          "items": {
+            "type": "number"
+          },
+          "title": "Cliffb",
+          "type": "array"
+        },
+        "cliffC": {
+          "items": {
+            "type": "number"
+          },
+          "title": "Cliffc",
+          "type": "array"
+        },
+        "upwindRange": {
+          "description": "X/Lu from, z/Le up to (upwind).",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Upwindrange",
+          "type": "array"
+        },
+        "hillRange": {
+          "description": "X/Ld up to, z/Le up to (hills).",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Hillrange",
+          "type": "array"
+        },
+        "cliffRange": {
+          "description": "X/Ld from, to; z/Le from, to (cliffs).",
+          "maxItems": 4,
+          "minItems": 4,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Cliffrange",
+          "type": "array"
+        }
+      },
+      "required": [
+        "slopeMin",
+        "slopeMax",
+        "slopeFactor",
+        "steepFactor",
+        "lengthFromHalfHeight",
+        "upwindA",
+        "upwindB",
+        "hillB",
+        "cliffA",
+        "cliffB",
+        "cliffC",
+        "upwindRange",
+        "hillRange",
+        "cliffRange"
+      ],
+      "title": "OrographyRule",
       "type": "object"
     },
     "PeakVelocityPressureRule": {
@@ -3003,6 +3433,18 @@
           ],
           "default": null,
           "title": "Depthratiomax"
+        },
+        "detailed": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DetailedStructuralFactor"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Alpha 9 C5c: the detailed cscd outside the simplified cases; None: the value with a note."
         }
       },
       "title": "StructuralFactorRule",
@@ -3230,32 +3672,53 @@
           "type": "number"
         },
         "simultaneous": {
-          "description": "Case 3: share of each direction.",
-          "exclusiveMinimum": 0,
-          "maximum": 1,
-          "title": "Simultaneous",
-          "type": "number"
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Case 3: share of each direction; None: no Case 3.",
+          "title": "Simultaneous"
         },
         "simultaneousTorsional": {
-          "description": "Case 4: share of each direction with both torsions.",
-          "exclusiveMinimum": 0,
-          "maximum": 1,
-          "title": "Simultaneoustorsional",
-          "type": "number"
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Case 4: share of each direction with both torsions; None: no Case 4.",
+          "title": "Simultaneoustorsional"
         },
         "exemptHeight": {
-          "description": "Exception: one-storey height limit h [m].",
-          "exclusiveMinimum": 0,
-          "title": "Exemptheight",
-          "type": "number"
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Exception: one-storey height limit h [m]; None: no exemption.",
+          "title": "Exemptheight"
         }
       },
       "required": [
         "partial",
-        "eccentricity",
-        "simultaneous",
-        "simultaneousTorsional",
-        "exemptHeight"
+        "eccentricity"
       ],
       "title": "WindDesignCasesRow",
       "type": "object"
@@ -3609,6 +4072,30 @@
       ],
       "default": null,
       "description": "Increase of the force on rooftop equipment; None: none."
+    },
+    "orography": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/OrographyRule"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "co(z) of hills, ridges and escarpments; None: topographic."
+    },
+    "localPressures": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/LocalPressuresTable"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Cladding pressures by cpe,1/cpe,10; None: the cladding table's."
     }
   },
   "required": [
