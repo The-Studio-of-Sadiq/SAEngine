@@ -75,6 +75,7 @@ practice where BNBC 2020 is silent**, except the non-building structures, which 
   pressures with the passive divided by 2.0, the least surcharge 10 kPa and an overdig of 10 % of
   H up to 0.5 m; the Eurocodes pack uses EN 1997-1 M2 strengths and q × 1.3. Wall sections,
   walers, struts and anchors stay with track P1.
+
 ## 2026-11-04: display units, SI or US customary (alpha 9 track C13)
 
 - **Stored and computed in SI only** (owner, alpha 9 plan). Project Settings › Units (`units`)
