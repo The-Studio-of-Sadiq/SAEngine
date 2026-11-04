@@ -1939,6 +1939,17 @@
       "description": "C7: the structural system of a new project under this pack.",
       "title": "Defaultsystem"
     },
+    "generatorSystems": {
+      "additionalProperties": {
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "description": "Alpha 9 C3b: the New Building generator's candidate systems by its system kind (steelMomentFrame, steelBracedFrame), least ductile first: the first one the category and the height permit is taken; a kind not listed takes the generator's own.",
+      "title": "Generatorsystems",
+      "type": "object"
+    },
     "stability": {
       "anyOf": [
         {

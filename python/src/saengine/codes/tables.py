@@ -993,6 +993,12 @@ class SeismicTable(TableModel):
     defaultSystem: str | None = Field(
         default=None, description="C7: the structural system of a new project under this pack."
     )
+    generatorSystems: dict[str, list[str]] = Field(
+        default_factory=dict,
+        description="Alpha 9 C3b: the New Building generator's candidate systems by its system "
+        "kind (steelMomentFrame, steelBracedFrame), least ductile first: the first one the "
+        "category and the height permit is taken; a kind not listed takes the generator's own.",
+    )
     stability: StabilityRule | None = Field(
         default=None,
         description="The interstorey drift sensitivity coefficient θ; empty: θ = Px δe/(I Vx "
