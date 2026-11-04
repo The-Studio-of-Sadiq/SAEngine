@@ -1,0 +1,52 @@
+{
+  "$schema": "../../../schemas/composite.schema.json",
+  "$sources": [
+    "EN 1994-1-1:2004 (+AC:2009) Sections 2-6 (composite beams and columns, recommended values)"
+  ],
+  "source": "EN 1994-1-1 (method partialFactors: design strengths, headed studs PRd, the least degree of shear connection, columns by χ and the second-order moments); the detailing rules the pack does not give are BNBC 2020 Part 6 Chapter 13's",
+  "materials": {
+    "concreteMin": 20,
+    "concreteMaxNormal": 60,
+    "steelFyMax": 460,
+    "note": "EN 1994-1-1 3.1(2): C20/25 to C60/75; 3.3(2): structural steel up to S460"
+  },
+  "stressBlock": {"concrete": 0.85},
+  "column": {
+    "encased": {"c1Base": 0.6, "c1Slope": 0.0001, "c1Max": 0.6, "barStiffnessShare": 1.0},
+    "filled": {"c2Rectangular": 1.0, "c2Circular": 1.0, "c3Base": 0.6, "c3Slope": 0.0001, "c3Max": 0.6}
+  },
+  "beam": {"webCompact": 2.78},
+  "partialFactors": {
+    "method": "partialFactors",
+    "gammaA": 1.0,
+    "gammaC": 1.5,
+    "gammaS": 1.15,
+    "gammaV": 1.25,
+    "studSteel": 0.8,
+    "studConcrete": 0.29,
+    "studAspect": [3, 4],
+    "studFuMax": 500,
+    "transverseRibs": [0.7, 0.7],
+    "transverseMax": [0.85, 0.7],
+    "parallelRibs": 0.6,
+    "modulus": [22000, 10, 0.3],
+    "fcmIncrement": 8,
+    "minimumConnection": [355, 0.75, 0.03, 0.4],
+    "columnCurves": {"encasedMajor": "b", "encasedMinor": "c", "filled": "a"},
+    "imperfection": {"encasedMajor": 200, "encasedMinor": 150, "filled": 300},
+    "secondOrderStiffness": [0.9, 0.5],
+    "beta": [0.66, 0.44, 0.44],
+    "alphaM": [[355, 0.9], [460, 0.8]]
+  },
+  "sources": {
+    "partialFactors": "EN 1994-1-1 2.4.1.2 (γC 1.5, γS 1.15, γa = γM0 1.0, γV 1.25)",
+    "positiveFlexure": "EN 1994-1-1 6.2.1.2 (plastic resistance, 0.85 fcd), 6.2.1.3 (partial connection)",
+    "minimumConnection": "EN 1994-1-1 6.6.1.2(1), Eq 6.12 (equal flanges, Le <= 25 m)",
+    "studs": "EN 1994-1-1 6.6.3.1, Eqs 6.18-6.21; 6.6.4.1 (kl), 6.6.4.2 Table 6.2 (kt,max)",
+    "encasedCompression": "EN 1994-1-1 6.7.3.2(1), 6.7.3.3 (Ncr with (EI)eff, Ke 0.6), Table 6.5 (curves)",
+    "filledCompression": "EN 1994-1-1 6.7.3.2(1) (1.0 fcd of filled sections), 6.7.3.3, Table 6.5",
+    "encasedTension": "EN 1994-1-1 6.7.3.2",
+    "filledTension": "EN 1994-1-1 6.7.3.2",
+    "interaction": "EN 1994-1-1 6.7.3.4 ((EI)eff,II, k = β / (1 - NEd/Ncr,eff), e0 of Table 6.5), 6.7.3.6-6.7.3.7 (αM, μd)"
+  }
+}

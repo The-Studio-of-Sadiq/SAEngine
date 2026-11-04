@@ -40,6 +40,7 @@ class Category(str, Enum):
     MORTAR = "mortar"
     BAMBOO = "bamboo"
     FERROCEMENT = "ferrocement"
+    ALUMINIUM = "aluminium"  # alpha 9 C6
     OTHER = "other"
 
 
@@ -196,6 +197,12 @@ class TimberProperties(_Model):
         description="Ungraded timber with defects: the slope of grain 1 in this (K1); none: "
         "graded timber.",
     )
+    strengthClass: str | None = Field(
+        default=None,
+        title="Strength class",
+        description="Alpha 9 C6: the strength class of a code pack designing timber by limit "
+        "states (e.g. C24, GL28h); none: the pack's default class.",
+    )
     liveLoadDuration: Literal["continuous", "twoMonths", "sevenDays", "impact"] = Field(
         default="continuous",
         title="Live load duration",
@@ -242,6 +249,19 @@ class FerrocementProperties(_Model):
         gt=0,
         title="f'c of the mortar",
         description="Specified compressive strength of the mortar (75 x 150 mm cylinders) [MPa].",
+    )
+
+
+class AluminiumProperties(_Model):
+    """Structural aluminium (alpha 9 C6): the alloy and temper of the code pack's table."""
+
+    alloy: str = Field(
+        description="Alloy and temper of the code pack's aluminium table (e.g. EN AW-6082 T6)."
+    )
+    welded: bool = Field(
+        default=False,
+        description="The member is welded: the heat-affected zone's reduced strengths apply "
+        "(over the whole section, on the safe side).",
     )
 
 
@@ -302,6 +322,7 @@ class Material(_Model):
     timber: TimberProperties | None = None
     bamboo: BambooProperties | None = None
     ferrocement: FerrocementProperties | None = None
+    aluminium: AluminiumProperties | None = None
     composition: Composition | None = Field(
         default=None, description="Mix of a concrete or mortar, used for quantities (BOQ)."
     )
@@ -317,10 +338,13 @@ class Material(_Model):
             Category.TIMBER: "timber",
             Category.BAMBOO: "bamboo",
             Category.FERROCEMENT: "ferrocement",
+            Category.ALUMINIUM: "aluminium",
         }.get(self.category)
         if required and getattr(self, required) is None:
             raise ValueError(f"a {self.category.value} material needs '{required}' properties")
-        for group in ("concrete", "steel", "masonry", "timber", "bamboo", "ferrocement"):
+        for group in (
+            "concrete", "steel", "masonry", "timber", "bamboo", "ferrocement", "aluminium",
+        ):  # fmt: skip
             if getattr(self, group) is not None and group != required:
                 raise ValueError(
                     f"'{group}' properties do not apply to a {self.category.value} material"
@@ -334,6 +358,7 @@ class Material(_Model):
                 Category.TIMBER,
                 Category.BAMBOO,
                 Category.FERROCEMENT,
+                Category.ALUMINIUM,
             )
             and self.mechanical.E is None
         ):

@@ -4,7 +4,7 @@
   "name": "Eurocodes (recommended values)",
   "edition": "Eurocodes",
   "region": "CEN member countries",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "extends": "bnbc2020",
   "covers": [
     "locations",
@@ -18,40 +18,200 @@
     "snow",
     "flood",
     "concreteMethods",
-    "geotechnicalMethods"
+    "geotechnicalMethods",
+    "steelLimitState",
+    "steel",
+    "steelStability",
+    "steelSeismic",
+    "composite",
+    "timber",
+    "masonry",
+    "aluminium"
   ],
-  "description": "The Eurocodes with their recommended values. Loads and seismic actions (version 0.1, alpha 9 track C4): EN 1990 (combinations 6.10 or 6.10a/b, characteristic, frequent and quasi-permanent combinations, ψ factors, partial factors of set B), EN 1991-1-1 (imposed loads by category, αA and αn), EN 1991-1-3 (snow on roofs), EN 1991-1-4 (peak velocity pressure, walls, cscd), EN 1991-1-7 Annex D (internal gas explosions) and EN 1998-1 (ground types, Type 1 and 2 spectra, importance classes, behaviour factors, lateral force and modal analysis, drift and θ). Concrete (version 0.2, alpha 9 track C5): EN 1992-1-1 design strengths with partial factors, the stress block by strength class, shear by the variable strut inclination method, torsion, punching, stress, crack and span/depth checks, cover by exposure class, anchorage, laps and member steel (concreteMethods), with EN 1998-1 Section 5 detailing for DCM and DCH, and EN 1997-1 partial factor sets, design approaches DA1-DA3, bearing (Annex D), sliding and pile resistance with the correlation factors (geotechnicalMethods). Version 0.3 (alpha 9 track C5b) designs with these methods: torsion, deflection, cracks and stresses of beams, column slenderness by nominal curvature, slabs, stairs and walls on the design strengths with the member steel, punching on the control perimeter, DCM/DCH capacity design (joints, strong column, capacity shear, ductile walls) in place of the parent's special-frame detailing, Design Reinforcement sizing, anchorage and laps in the detailing, footings by the design approach and piles with ξ. The other material and member design tables (steel, timber, masonry, deep beams ...) come from the pack it extends, BNBC 2020. A National Annex is a pack that extends this one and sets only its Nationally Determined Parameters. Every value is listed in VERIFY.md for checking against the printed codes.",
+  "description": "The Eurocodes with their recommended values. Loads and seismic actions (version 0.1, alpha 9 track C4): EN 1990 (combinations 6.10 or 6.10a/b, characteristic, frequent and quasi-permanent combinations, ψ factors, partial factors of set B), EN 1991-1-1 (imposed loads by category, αA and αn), EN 1991-1-3 (snow on roofs), EN 1991-1-4 (peak velocity pressure, walls, cscd), EN 1991-1-7 Annex D (internal gas explosions) and EN 1998-1 (ground types, Type 1 and 2 spectra, importance classes, behaviour factors, lateral force and modal analysis, drift and θ). Concrete (version 0.2, alpha 9 track C5): EN 1992-1-1 design strengths with partial factors, the stress block by strength class, shear by the variable strut inclination method, torsion, punching, stress, crack and span/depth checks, cover by exposure class, anchorage, laps and member steel (concreteMethods), with EN 1998-1 Section 5 detailing for DCM and DCH, and EN 1997-1 partial factor sets, design approaches DA1-DA3, bearing (Annex D), sliding and pile resistance with the correlation factors (geotechnicalMethods). Version 0.3 (alpha 9 track C5b) designs with these methods: torsion, deflection, cracks and stresses of beams, column slenderness by nominal curvature, slabs, stairs and walls on the design strengths with the member steel, punching on the control perimeter, DCM/DCH capacity design (joints, strong column, capacity shear, ductile walls) in place of the parent's special-frame detailing, Design Reinforcement sizing, anchorage and laps in the detailing, footings by the design approach and piles with ξ. Version 0.4 (alpha 9 track C6): steel by EN 1993-1-1 (cross-section classes 1-4 with the effective widths of EN 1993-1-5, the resistances of 6.2, buckling curves a0-d, lateral-torsional buckling by the rolled or general case with Mcr, the interaction factors of Annex B or Annex A, the global sway imperfection of 5.3) through the limit state steel table (steelLimitState), joints by EN 1993-1-8 (bolts, bearing, welds, block tearing, slip), dissipative steel frames by EN 1998-1 Section 6 (γov, Ω, section classes by ductility class, brace slenderness), composite beams and columns by EN 1994-1-1, timber by EN 1995-1-1 (strength classes of EN 338 and EN 14080, kmod, γM), masonry by EN 1996-1-1 (fk = K fb^α fm^β, Φ) and aluminium members by EN 1999-1-1. The other design tables (deep beams, corbels, the steel and masonry detailing rules the codes leave to the parent ...) come from the pack it extends, BNBC 2020. A National Annex is a pack that extends this one and sets only its Nationally Determined Parameters. Every value is listed in VERIFY.md for checking against the printed codes.",
   "sources": [
-    { "id": "EN1990", "title": "EN 1990 Eurocode: Basis of structural design (with A1, Annex A1)", "edition": "2002+A1:2005", "publisher": "CEN" },
-    { "id": "EN1991-1-1", "title": "EN 1991-1-1 Actions on structures: densities, self-weight, imposed loads for buildings", "edition": "2002", "publisher": "CEN" },
-    { "id": "EN1991-1-3", "title": "EN 1991-1-3 Actions on structures: snow loads", "edition": "2003", "publisher": "CEN" },
-    { "id": "EN1991-1-4", "title": "EN 1991-1-4 Actions on structures: wind actions", "edition": "2005", "publisher": "CEN" },
-    { "id": "EN1991-1-7", "title": "EN 1991-1-7 Actions on structures: accidental actions", "edition": "2006", "publisher": "CEN" },
-    { "id": "EN1992-1-1", "title": "EN 1992-1-1 Design of concrete structures: general rules and rules for buildings", "edition": "2004+AC:2010", "publisher": "CEN" },
-    { "id": "EN1997-1", "title": "EN 1997-1 Geotechnical design: general rules", "edition": "2004", "publisher": "CEN" },
-    { "id": "EN1998-1", "title": "EN 1998-1 Design of structures for earthquake resistance: general rules, seismic actions and rules for buildings", "edition": "2004", "publisher": "CEN" }
+    {
+      "id": "EN1990",
+      "title": "EN 1990 Eurocode: Basis of structural design (with A1, Annex A1)",
+      "edition": "2002+A1:2005",
+      "publisher": "CEN"
+    },
+    {
+      "id": "EN1991-1-1",
+      "title": "EN 1991-1-1 Actions on structures: densities, self-weight, imposed loads for buildings",
+      "edition": "2002",
+      "publisher": "CEN"
+    },
+    {
+      "id": "EN1991-1-3",
+      "title": "EN 1991-1-3 Actions on structures: snow loads",
+      "edition": "2003",
+      "publisher": "CEN"
+    },
+    {
+      "id": "EN1991-1-4",
+      "title": "EN 1991-1-4 Actions on structures: wind actions",
+      "edition": "2005",
+      "publisher": "CEN"
+    },
+    {
+      "id": "EN1991-1-7",
+      "title": "EN 1991-1-7 Actions on structures: accidental actions",
+      "edition": "2006",
+      "publisher": "CEN"
+    },
+    {
+      "id": "EN1992-1-1",
+      "title": "EN 1992-1-1 Design of concrete structures: general rules and rules for buildings",
+      "edition": "2004+AC:2010",
+      "publisher": "CEN"
+    },
+    {
+      "id": "EN1997-1",
+      "title": "EN 1997-1 Geotechnical design: general rules",
+      "edition": "2004",
+      "publisher": "CEN"
+    },
+    {
+      "id": "EN1998-1",
+      "title": "EN 1998-1 Design of structures for earthquake resistance: general rules, seismic actions and rules for buildings",
+      "edition": "2004",
+      "publisher": "CEN"
+    },
+    {
+      "id": "EN1993-1-1",
+      "title": "EN 1993-1-1 Design of steel structures: general rules and rules for buildings",
+      "edition": "2005+AC:2009+A1:2014",
+      "publisher": "CEN"
+    },
+    {
+      "id": "EN1993-1-5",
+      "title": "EN 1993-1-5 Design of steel structures: plated structural elements",
+      "edition": "2006",
+      "publisher": "CEN"
+    },
+    {
+      "id": "EN1993-1-8",
+      "title": "EN 1993-1-8 Design of steel structures: design of joints",
+      "edition": "2005+AC:2009",
+      "publisher": "CEN"
+    },
+    {
+      "id": "EN1994-1-1",
+      "title": "EN 1994-1-1 Design of composite steel and concrete structures: general rules and rules for buildings",
+      "edition": "2004+AC:2009",
+      "publisher": "CEN"
+    },
+    {
+      "id": "EN1995-1-1",
+      "title": "EN 1995-1-1 Design of timber structures: general, common rules and rules for buildings",
+      "edition": "2004+A1:2008+A2:2014",
+      "publisher": "CEN"
+    },
+    {
+      "id": "EN338",
+      "title": "EN 338 Structural timber: strength classes",
+      "edition": "2009",
+      "publisher": "CEN"
+    },
+    {
+      "id": "EN14080",
+      "title": "EN 14080 Timber structures: glued laminated timber",
+      "edition": "2013",
+      "publisher": "CEN"
+    },
+    {
+      "id": "EN1996-1-1",
+      "title": "EN 1996-1-1 Design of masonry structures: rules for reinforced and unreinforced masonry",
+      "edition": "2005+A1:2012",
+      "publisher": "CEN"
+    },
+    {
+      "id": "EN1999-1-1",
+      "title": "EN 1999-1-1 Design of aluminium structures: general structural rules",
+      "edition": "2007+A1:2009+A2:2013",
+      "publisher": "CEN"
+    }
   ],
   "clauses": {
-    "locations": ["EN 1991-1-4 Sec 4.2 and EN 1998-1 Sec 3.2.1: by the National Annex maps"],
-    "zoneCoefficients": ["SAEngine practice: bands of agR (EN 1998-1 Sec 3.2.1)"],
-    "occupancyCategories": ["EN 1998-1 Sec 4.2.5, Table 4.3"],
-    "areaLoads": ["EN 1991-1-1 Sec 6.3, Tables 6.1-6.10; Sec 6.4, Table 6.12; Annex B"],
-    "liveReduction": ["EN 1991-1-1 Sec 6.3.1.2(10)-(11)"],
-    "combinations": ["EN 1990 Sec 6.4.3, 6.5.3; Annex A1 Tables A1.1, A1.2(B)"],
-    "seismic": ["EN 1998-1 Sec 3, 4; Tables 5.1, 6.2, 9.1"],
-    "wind": ["EN 1991-1-4 Sec 4, 6.2, 7.2.2, 7.2.9"],
-    "snow": ["EN 1991-1-3 Sec 5.2, 5.3.2"],
-    "flood": ["EN 1991-1-7 Annex D (gas explosions only)"],
-    "concreteMethods": ["EN 1992-1-1 Sections 2-9; EN 1998-1 Section 5"],
-    "geotechnicalMethods": ["EN 1997-1 Sections 2.4.7, 6, 7; Annexes A, D"]
+    "locations": [
+      "EN 1991-1-4 Sec 4.2 and EN 1998-1 Sec 3.2.1: by the National Annex maps"
+    ],
+    "zoneCoefficients": [
+      "SAEngine practice: bands of agR (EN 1998-1 Sec 3.2.1)"
+    ],
+    "occupancyCategories": [
+      "EN 1998-1 Sec 4.2.5, Table 4.3"
+    ],
+    "areaLoads": [
+      "EN 1991-1-1 Sec 6.3, Tables 6.1-6.10; Sec 6.4, Table 6.12; Annex B"
+    ],
+    "liveReduction": [
+      "EN 1991-1-1 Sec 6.3.1.2(10)-(11)"
+    ],
+    "combinations": [
+      "EN 1990 Sec 6.4.3, 6.5.3; Annex A1 Tables A1.1, A1.2(B)"
+    ],
+    "seismic": [
+      "EN 1998-1 Sec 3, 4; Tables 5.1, 6.2, 9.1"
+    ],
+    "wind": [
+      "EN 1991-1-4 Sec 4, 6.2, 7.2.2, 7.2.9"
+    ],
+    "snow": [
+      "EN 1991-1-3 Sec 5.2, 5.3.2"
+    ],
+    "flood": [
+      "EN 1991-1-7 Annex D (gas explosions only)"
+    ],
+    "concreteMethods": [
+      "EN 1992-1-1 Sections 2-9; EN 1998-1 Section 5"
+    ],
+    "geotechnicalMethods": [
+      "EN 1997-1 Sections 2.4.7, 6, 7; Annexes A, D"
+    ],
+    "steelLimitState": [
+      "EN 1993-1-1 Sections 5, 6, Annexes A, B; EN 1993-1-5 4.4; EN 1993-1-8 Sections 3, 4; EN 1998-1 Section 6"
+    ],
+    "steel": [
+      "EN 1993-1-8 Table 3.3; EN 1090-2 holes"
+    ],
+    "steelStability": [
+      "EN 1993-1-1 5.2, 5.3.2"
+    ],
+    "steelSeismic": [
+      "EN 1998-1 Section 6 (by steelLimitState.seismic)"
+    ],
+    "composite": [
+      "EN 1994-1-1 Sections 2-6"
+    ],
+    "timber": [
+      "EN 1995-1-1 Sections 2, 3, 6; EN 338; EN 14080"
+    ],
+    "masonry": [
+      "EN 1996-1-1 Sections 3, 5, 6, Annex G"
+    ],
+    "aluminium": [
+      "EN 1999-1-1 Sections 3, 6"
+    ]
   },
   "basis": {
     "general": "EN 1990, EN 1991, EN 1998-1 (recommended values)",
     "concrete": "EN 1992-1-1 (partial factors: members, slabs, stairs, walls, punching, slenderness, serviceability, detailing) and EN 1998-1 Section 5 (DCM, DCH capacity design); deep beams, corbels and the methods listed in the design report from BNBC 2020 Part 6 Chapter 6",
-    "steel": "BNBC 2020 Part 6 Chapter 10 (no EN 1993 pack yet)",
-    "method": "Limit state design (EN 1990)"
+    "steel": "EN 1993-1-1 (members), EN 1993-1-8 (joints), EN 1998-1 Section 6 (dissipative frames), EN 1994-1-1 (composite); the stability bracing, torsion and the detailing rules the codes leave open from BNBC 2020 Part 6 Chapters 10 and 13",
+    "method": "Limit state design (EN 1990); timber EN 1995-1-1, masonry EN 1996-1-1, aluminium EN 1999-1-1"
   },
   "author": "SAEngine",
   "licence": "AGPL-3.0-only",
-  "hooks": null
+  "hooks": null,
+  "tableCodes": {
+    "steelLimitState": "EN 1993-1-1",
+    "steel": "EN 1993-1-8",
+    "steelStability": "EN 1993-1-1",
+    "steelSeismic": "EN 1998-1",
+    "composite": "EN 1994-1-1",
+    "timber": "EN 1995-1-1",
+    "masonry": "EN 1996-1-1",
+    "aluminium": "EN 1999-1-1"
+  }
 }

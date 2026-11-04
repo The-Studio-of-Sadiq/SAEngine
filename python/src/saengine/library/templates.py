@@ -77,6 +77,14 @@ def _material_templates() -> dict[str, dict[str, Any]]:
         "mechanical": {"E": 27800, "density": 2400},
         "ferrocement": {"fc": 35},
     }
+    # Alpha 9 C6: structural aluminium (the alloys of a code pack's aluminium table).
+    templates[f"Material:{Category.ALUMINIUM.value}"] = {
+        "id": "AW6082T6",
+        "name": "Aluminium EN AW-6082 T6",
+        "category": "aluminium",
+        "mechanical": {"E": 70000, "density": 2700, "nu": 0.3},
+        "aluminium": {"alloy": "EN AW-6082 T6"},
+    }
     templates[f"Material:{Category.OTHER.value}"] = {
         "id": "MAT",
         "name": "New material",

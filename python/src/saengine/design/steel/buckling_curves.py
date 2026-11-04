@@ -1,8 +1,9 @@
 """Steel members by design resistances with partial factors, cross-section classes, buckling
 curves and interaction factors: the member method ``bucklingCurves`` a code pack picks with
-``steel.memberMethods.resistance`` (alpha 9 C6; the Eurocodes pack: EN 1993-1-1 with the
-plates of EN 1993-1-5). Every number is the pack's ``steel.memberMethods.partialFactors``,
-every clause the pack's ``designClauses.steelMembers``.
+``steelLimitState.memberResistance`` (method ``crossSectionClasses``; alpha 9 C6, the Eurocodes
+pack: EN 1993-1-1 with the plates of EN 1993-1-5), a method of the limit state steel table of
+:mod:`saengine.design.steel.limit_state` (its χ of the buckling curves is shared). Every number
+is the group's, every clause the table's ``clauses``.
 
 What is checked, per member and enveloped over its combinations and stations:
 
@@ -53,8 +54,6 @@ from typing import Any
 
 import numpy as np
 
-from saengine.codes import context as code_context
-from saengine.design.clauses import clause as pack_clause
 from saengine.design.steel.properties import ShapeProperties
 
 METHOD_ID = "bucklingCurves"
@@ -65,15 +64,12 @@ ROOT3 = math.sqrt(3.0)
 
 
 def table() -> Any | None:
-    """The pack's ``steel.memberMethods.partialFactors`` when the pack picks the method, else
-    None (the default pack's nominal strengths)."""
-    try:
-        methods = getattr(code_context.table("steel"), "memberMethods", None)
-    except Exception:  # noqa: BLE001 - no pack machinery: the default method
-        return None
-    if methods is None or getattr(methods, "resistance", None) != METHOD_ID:
-        return None
-    return getattr(methods, "partialFactors", None)
+    """The pack's ``steelLimitState.memberResistance`` when it is this method
+    (:func:`saengine.design.steel.limit_state.member_resistance`, the one selector of the limit
+    state steel methods), else None."""
+    from saengine.design.steel.limit_state import member_resistance
+
+    return member_resistance()
 
 
 def active() -> bool:
@@ -89,8 +85,10 @@ def _t() -> Any:
 
 
 def clause(key: str) -> str:
-    """The pack's clause of ``key`` (``designClauses.steelMembers``) with its code's name."""
-    return pack_clause("steelMembers", key)
+    """The pack's clause of ``key`` (``steelLimitState.clauses``) with its code's name."""
+    from saengine.design.steel.limit_state import cite
+
+    return cite(key)
 
 
 def design_fy(shape: ShapeProperties, fy: float) -> tuple[float, str]:
@@ -476,7 +474,9 @@ def effective_modulus(shape: ShapeProperties, fy: float, axis: str) -> tuple[flo
             if flange is not None and flange.cls == 4:
                 rho = reduction_internal(flange.c, flange.t, eps)
                 gap = (1 - rho) * flange.c
-                holes.append(_Rect(big_h / 2 - gap / 2, big_h / 2 + gap / 2, big_b / 2 - t, big_b / 2, -1))
+                holes.append(
+                    _Rect(big_h / 2 - gap / 2, big_h / 2 + gap / 2, big_b / 2 - t, big_b / 2, -1)
+                )
                 notes.append(f"compression wall ρ = {rho:.3f}")
             if web is not None and web.cls == 4:
                 rho = reduction_internal(web.c, web.t, eps, -1.0)
@@ -500,6 +500,10 @@ def effective_modulus(shape: ShapeProperties, fy: float, axis: str) -> tuple[flo
 def chi(lam: float, alpha: float, plateau: float, beta: float = 1.0) -> float:
     """χ = 1 / (Φ + √(Φ² - β λ̄²)) <= 1, Φ = 0.5 [1 + α (λ̄ - λ̄0) + β λ̄²] (β = 1: the flexural
     buckling curves; also the aluminium curves with their λ̄0)."""
+    if beta == 1.0:  # the flexural buckling curves: the limit state method's χ (C9)
+        from saengine.design.steel.limit_state import chi as curve_chi
+
+        return curve_chi(lam, alpha, plateau)
     if lam <= plateau:
         return 1.0
     phi = 0.5 * (1 + alpha * (lam - plateau) + beta * lam**2)
@@ -563,9 +567,7 @@ def _ltb_curve(shape: ShapeProperties, method: str) -> str:
     return "d"
 
 
-def critical_moment(
-    shape: ShapeProperties, e: float, g: float, length: float, c1: float
-) -> float:
+def critical_moment(shape: ShapeProperties, e: float, g: float, length: float, c1: float) -> float:
     """Mcr [N·mm] = C1 π² E Iz / L² √(Iw/Iz + L² G It / (π² E Iz)) (load at the shear centre,
     k = kw = 1) of the minor inertia Iz (the profile's iy) over ``length`` [mm]."""
     if length <= 0:
@@ -771,9 +773,7 @@ def _torsional_susceptible(shape: ShapeProperties) -> bool:
     return shape.family not in ("rhs", "chs", "round")
 
 
-def _ncr_modes(
-    sec: Section, lx: float, ly: float, lz: float
-) -> list[tuple[float, str, str]]:
+def _ncr_modes(sec: Section, lx: float, ly: float, lz: float) -> list[tuple[float, str, str]]:
     """(Ncr [N], mode, axis of its curve) of the buckling modes."""
     sh, e, g = sec.shape, sec.e, sec.g
     out: list[tuple[float, str, str]] = []
@@ -782,8 +782,12 @@ def _ncr_modes(
         iv = sh.iz if sh.iz > 0 else min(sh.ix, sh.iy)
         out.append((math.pi**2 * e * iv / length**2, "flexural buckling about v-v", "v"))
         return out
-    out.append((math.pi**2 * e * sh.ix / lx**2 if lx > 0 else math.inf, "flexural buckling about y-y", "y"))
-    out.append((math.pi**2 * e * sh.iy / ly**2 if ly > 0 else math.inf, "flexural buckling about z-z", "z"))
+    out.append(
+        (math.pi**2 * e * sh.ix / lx**2 if lx > 0 else math.inf, "flexural buckling about y-y", "y")
+    )
+    out.append(
+        (math.pi**2 * e * sh.iy / ly**2 if ly > 0 else math.inf, "flexural buckling about z-z", "z")
+    )
     if sh.family in ("I", "channel", "tee"):
         torsion = g * sh.j + (math.pi**2 * e * sh.cw / lz**2 if lz > 0 else 0.0)
         ncr_t = torsion / sh.ro2
@@ -792,8 +796,10 @@ def _ncr_modes(
         else:
             ns = out[0][0] if sh.family == "channel" else out[1][0]
             h = sh.big_h
-            ft = (ns + ncr_t) / (2 * h) * (
-                1 - math.sqrt(max(0.0, 1 - 4 * ns * ncr_t * h / (ns + ncr_t) ** 2))
+            ft = (
+                (ns + ncr_t)
+                / (2 * h)
+                * (1 - math.sqrt(max(0.0, 1 - 4 * ns * ncr_t * h / (ns + ncr_t) ** 2)))
             )
             out.append((ft, "flexural-torsional buckling", "z"))
     return out
@@ -896,8 +902,10 @@ def _mn(sec: Section, n_ed: float, mpl_y: float, mpl_z: float) -> tuple[float, f
         a = min((sh.area - 2 * d["bf"] * d["tf"]) / sh.area, 0.5)
         hw = d["d"] - 2 * d["tf"]
         web_fy = hw * d["tw"] * sec.fy / float(t.gammaM0)
-        my = mpl_y if (n <= 0.25 and abs(n_ed) <= 0.5 * web_fy) else min(
-            mpl_y, mpl_y * (1 - n) / (1 - 0.5 * a)
+        my = (
+            mpl_y
+            if (n <= 0.25 and abs(n_ed) <= 0.5 * web_fy)
+            else min(mpl_y, mpl_y * (1 - n) / (1 - 0.5 * a))
         )
         if abs(n_ed) <= web_fy or n <= a:
             mz = mpl_z
@@ -940,8 +948,8 @@ def check_member(
     nc_rd = sec.area_eff * fy / g0
     vy_rd, vy_note = sec.shear_resistance("y")
     vz_rd, vz_note = sec.shear_resistance("z")
-    vpl_y = sec.av["y"] * fy / ROOT3 / g0
-    vpl_z = sec.av["z"] * fy / ROOT3 / g0
+    sec.av["y"] * fy / ROOT3 / g0
+    sec.av["z"] * fy / ROOT3 / g0
     interaction = t.interaction
     reduction_from = float(t.shear.reductionFrom)
     d = shape.dims
@@ -987,8 +995,12 @@ def check_member(
             mx, my = float(st.Mx[k]), float(st.My[k])
             vy, vz = abs(float(st.Vy[k])), abs(float(st.Vx[k]))
             # shear and the reduced moment resistance
-            worst["vy"].offer(_ratio(vy, vy_rd), vy, vy_rd, st.combination, f"{vy_note}; {where}", clause("shear"))
-            worst["vz"].offer(_ratio(vz, vz_rd), vz, vz_rd, st.combination, f"{vz_note}; {where}", clause("shear"))
+            worst["vy"].offer(
+                _ratio(vy, vy_rd), vy, vy_rd, st.combination, f"{vy_note}; {where}", clause("shear")
+            )
+            worst["vz"].offer(
+                _ratio(vz, vz_rd), vz, vz_rd, st.combination, f"{vz_note}; {where}", clause("shear")
+            )
             cls_here = combined_class(p, mx) if p > 0 else sec.bending_class["y"]
             wy = sec.modulus("y", cls_here)
             wz = sec.w["z"]
@@ -1003,7 +1015,9 @@ def check_member(
                     mcy = min(mcy, (wy - rho_y * aw**2 / (4 * d["tw"])) * fy / g0)
                 else:
                     mcy *= 1 - rho_y
-                shear_note = f"; VEd > {reduction_from:g} Vpl,Rd: ρ = {rho_y:.3f} ({clause('bendingShear')})"
+                shear_note = (
+                    f"; VEd > {reduction_from:g} Vpl,Rd: ρ = {rho_y:.3f} ({clause('bendingShear')})"
+                )
             if rho_z > 0:
                 mcz *= 1 - rho_z
             worst["my"].offer(
@@ -1027,7 +1041,7 @@ def check_member(
                     c1 = 1.0 if free else _c1(s, np.asarray(st.Mx, dtype=float), a0, b0)
                     found.append((*ltb(seg_len, c1, wy), c1))
                 best = min(found, key=lambda f: f[0])
-            chi_lt, lam_lt, mcr, lt_note, c1_here = best
+            chi_lt, lam_lt, _mcr, lt_note, c1_here = best
             mb_rd = chi_lt * wy * fy / g1
             if abs(mx) > 0 and _torsional_susceptible(shape):
                 worst["ltb"].offer(
@@ -1037,7 +1051,14 @@ def check_member(
             if p < 0:
                 tensioned = True
                 tn = -p
-                worst["ty"].offer(_ratio(tn, npl_rd), tn, npl_rd, st.combination, f"Npl,Rd = A fy / γM0; {where}", clause("tension"))
+                worst["ty"].offer(
+                    _ratio(tn, npl_rd),
+                    tn,
+                    npl_rd,
+                    st.combination,
+                    f"Npl,Rd = A fy / γM0; {where}",
+                    clause("tension"),
+                )
                 worst["tr"].offer(
                     _ratio(tn, nu_rd), tn, nu_rd, st.combination,
                     f"Nu,Rd = {float(t.netTension):g} Anet fu / γM2, Anet = {getattr(options, 'net_ratio', 1.0):g} A; {where}",
@@ -1048,11 +1069,15 @@ def check_member(
             n_rd = nc_rd if p > 0 else min(npl_rd, nu_rd)
             mpl_y = mcy
             mpl_z = mcz
-            if cls_here <= 2 and sec.bending_class["z"] <= 2 and shape.family in ("I", "rhs", "chs"):
+            if (
+                cls_here <= 2
+                and sec.bending_class["z"] <= 2
+                and shape.family in ("I", "rhs", "chs")
+            ):
                 mny, mnz, ea, eb = _mn(sec, p, mpl_y, mpl_z)
-                ratio = (_ratio(abs(mx), mny) ** ea if mny > 0 else (0 if mx == 0 else math.inf)) + (
-                    _ratio(abs(my), mnz) ** eb if mnz > 0 else (0 if my == 0 else math.inf)
-                )
+                ratio = (
+                    _ratio(abs(mx), mny) ** ea if mny > 0 else (0 if mx == 0 else math.inf)
+                ) + (_ratio(abs(my), mnz) ** eb if mnz > 0 else (0 if my == 0 else math.inf))
                 nm_note = (
                     f"(My/MN,y)^{ea:.2f} + (Mz/MN,z)^{eb:.2f}: MN,y = {mny / 1e6:.1f}, MN,z = "
                     f"{mnz / 1e6:.1f} kN·m, n = {n_abs / max(npl_rd, 1.0):.2f}"
@@ -1060,7 +1085,9 @@ def check_member(
             else:
                 ratio = _ratio(n_abs, n_rd) + _ratio(abs(mx), mcy) + _ratio(abs(my), mcz)
                 nm_note = "NEd/NRd + My/My,Rd + Mz/Mz,Rd (linear)"
-            worst["nm"].offer(ratio, ratio, 1.0, st.combination, f"{nm_note}; {where}", clause("bendingAxial"))
+            worst["nm"].offer(
+                ratio, ratio, 1.0, st.combination, f"{nm_note}; {where}", clause("bendingAxial")
+            )
             if p <= 0:
                 continue
             compressed = True
@@ -1109,8 +1136,12 @@ def check_member(
                 f"{method_name}: χy = {b.chi_y:.3f}, χz = {b.chi_z:.3f}, χLT = {chi_lt_i:.3f}, "
                 f"kyy = {kyy:.3f}, kyz = {kyz:.3f}, kzy = {kzy:.3f}, kzz = {kzz:.3f}{k_note}"
             )
-            worst["b61"].offer(r61, r61, 1.0, st.combination, f"{base}; {where}", clause("interactionMajor"))
-            worst["b62"].offer(r62, r62, 1.0, st.combination, f"{base}; {where}", clause("interactionMinor"))
+            worst["b61"].offer(
+                r61, r61, 1.0, st.combination, f"{base}; {where}", clause("interactionMajor")
+            )
+            worst["b62"].offer(
+                r62, r62, 1.0, st.combination, f"{base}; {where}", clause("interactionMinor")
+            )
 
     checks: list[dict[str, Any]] = []
     if tensioned:
@@ -1252,8 +1283,8 @@ def _annex_a(
     cmz0 = _cm0(seg_z, n_ed, ncz)
     # λ̄0: the slenderness of lateral-torsional buckling under a uniform moment (C1 = 1)
     lam0 = lam_lt / math.sqrt(max(c1, 1.0)) if lam_lt > 0 else 0.0
-    limit = float(ia.lateralLimit) * math.sqrt(max(c1, 1.0)) * (
-        max((1 - rz) * (1 - rt), 0.0) ** 0.25
+    limit = (
+        float(ia.lateralLimit) * math.sqrt(max(c1, 1.0)) * (max((1 - rz) * (1 - rt), 0.0) ** 0.25)
     )
     if lam0 <= limit or a_lt == 0:
         cmy, cmz, cmlt = cmy0, cmz0, 1.0
@@ -1269,7 +1300,9 @@ def _annex_a(
     kyz = cmz * mu_y / (1 - rz)
     kzy = cmy * cmlt * mu_z / (1 - ry)
     kzz = cmz * mu_z / (1 - rz)
-    note = f", Cmy = {cmy:.2f}, Cmz = {cmz:.2f}, CmLT = {cmlt:.2f}, μy = {mu_y:.3f}, μz = {mu_z:.3f}"
+    note = (
+        f", Cmy = {cmy:.2f}, Cmz = {cmz:.2f}, CmLT = {cmlt:.2f}, μy = {mu_y:.3f}, μz = {mu_z:.3f}"
+    )
     if cls <= 2:
         mply = sh.zx * sec.fy / g0
         mplz = sh.zy * sec.fy / g0
@@ -1280,7 +1313,13 @@ def _annex_a(
         b_lt = float(ia.bLT) * a_lt * lam0**2 * my_r * mz_r
         c_lt = ia.cLT[0] * a_lt * lam0**2 / (ia.cLT[1] + lzz**4) * my_r / max(cmy, 1e-6)
         d_lt = (
-            ia.dLT[0] * a_lt * lam0 / (ia.dLT[1] + lzz**4) * my_r / max(cmy, 1e-6) * mz_r
+            ia.dLT[0]
+            * a_lt
+            * lam0
+            / (ia.dLT[1] + lzz**4)
+            * my_r
+            / max(cmy, 1e-6)
+            * mz_r
             / max(cmz, 1e-6)
         )
         e_lt = ia.eLT[0] * a_lt * lam0 / (ia.eLT[1] + lzz**4) * my_r / max(cmy, 1e-6)
@@ -1288,7 +1327,9 @@ def _annex_a(
         q1, q2 = ia.cyz
         share = float(ia.elasticShare)
         cyy = max(
-            1 + (wy - 1) * ((2 - p1 / wy * cmy**2 * lam_max - p2 / wy * cmy**2 * lam_max**2) * npl - b_lt),
+            1
+            + (wy - 1)
+            * ((2 - p1 / wy * cmy**2 * lam_max - p2 / wy * cmy**2 * lam_max**2) * npl - b_lt),
             sh.sx / sh.zx,
         )
         cyz = max(
@@ -1300,7 +1341,9 @@ def _annex_a(
             share * math.sqrt(wy / wz) * sh.sx / sh.zx,
         )
         czz = max(
-            1 + (wz - 1) * ((2 - p1 / wz * cmz**2 * lam_max - p2 / wz * cmz**2 * lam_max**2) * npl - e_lt),
+            1
+            + (wz - 1)
+            * ((2 - p1 / wz * cmz**2 * lam_max - p2 / wz * cmz**2 * lam_max**2) * npl - e_lt),
             sh.sy / sh.zy,
         )
         kyy /= cyy

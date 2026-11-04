@@ -45,14 +45,15 @@ from saengine.design.steel.seismic import (
     _rescore,
     _role,
     _systems_in_use,
-    seismic_table,
 )
 
 
 def table() -> Any | None:
-    """The pack's ``steelSeismic.dissipative`` (None: not this method)."""
-    t = seismic_table()
-    found = getattr(t, "dissipative", None) if t is not None else None
+    """The pack's ``steelLimitState.seismic`` when it is this method (None: not this method)."""
+    from saengine.design.steel.limit_state import rules
+
+    t = rules()
+    found = getattr(t, "seismic", None) if t is not None else None
     if found is None or getattr(found, "method", None) != "dissipativeZones":
         return None
     return found
@@ -450,7 +451,11 @@ def _strong_column_rows(
             mpl_y = sec.shape.zx * sec.fy / g0
             mpl_z = sec.shape.zy * sec.fy / g0
             n = _g_part(info[c]["stations"], pairs, "P") + _e_part(info[c]["stations"], pairs, "P")
-            mny = bc._mn(sec, n, mpl_y, mpl_z)[0] if sec.shape.family in ("I", "rhs", "chs") else mpl_y
+            mny = (
+                bc._mn(sec, n, mpl_y, mpl_z)[0]
+                if sec.shape.family in ("I", "rhs", "chs")
+                else mpl_y
+            )
             mrc += mny or mpl_y
         rows.append(
             _row(

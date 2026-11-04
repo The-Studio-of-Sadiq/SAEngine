@@ -1,0 +1,31 @@
+{
+  "$schema": "../../../schemas/steelSections.schema.json",
+  "$sources": [
+    "IS 808 (ISMB, ISMC, equal angles: the dimensions as BNBC 2020's table lists them)",
+    "IS 4923 hollow sections (the sizes of the parent table)"
+  ],
+  "source": "The steel sections of the Indian market: IS 808 medium weight beams (ISMB) and channels (ISMC) and equal angles, and cold-formed hollow sections, by their nominal dimensions; the properties (A, I, S, Z, r, J, Cw) are computed from them by SAEngine, nothing is copied from a proprietary section database. Confirm the mill's catalogue before ordering.",
+  "families": [
+    "ISMB",
+    "ISMC",
+    "L",
+    "SHS",
+    "RHS",
+    "CHS"
+  ],
+  "shapeFamilies": {
+    "I": ["ISMB"],
+    "U": ["ISMC"],
+    "L": ["L"],
+    "rectangleHollow": ["SHS", "RHS"],
+    "circleHollow": ["CHS"]
+  },
+  "rolled": {
+    "$remove": ["IPE", "HEA", "HEB"]
+  },
+  "notes": [
+    "Properties computed from the nominal dimensions of IS 808 (ISMB, ISMC, equal angles) and of the hollow sections; confirm against the mill's catalogue.",
+    "ISMB and ISMC tapered flanges taken parallel at the mean thickness.",
+    "The light (ISLB), wide flange (ISWB) and column (ISHB) series are not in the list yet: enter them as custom profiles."
+  ]
+}

@@ -1,0 +1,29 @@
+{
+  "$schema": "../../../schemas/serviceability.schema.json",
+  "$sources": [
+    "IS 800:2007 5.6.1, Table 6 (deflection limits of steel members)"
+  ],
+  "deflection": {
+    "default": "floor",
+    "cantileverSpan": 2.0,
+    "combination": "1",
+    "uses": {
+      "$replace": true,
+      "floor": {"label": "Floor or roof member, elements not susceptible to cracking", "live": 300},
+      "floorBrittle": {"label": "Floor or roof member, elements susceptible to cracking", "live": 360},
+      "purlinElastic": {"label": "Purlin or girt, elastic cladding (industrial building)", "live": 150, "wind": 150},
+      "purlinBrittle": {"label": "Purlin or girt, brittle cladding (industrial building)", "live": 180, "wind": 180},
+      "industrialElastic": {"label": "Simple span member, elastic cladding (industrial building)", "live": 240, "wind": 240},
+      "industrialBrittle": {"label": "Simple span member, brittle cladding (industrial building)", "live": 300, "wind": 300},
+      "rafterSheeting": {"label": "Rafter supporting profiled metal sheeting", "live": 180},
+      "rafterPlastered": {"label": "Rafter supporting plastered sheeting", "live": 240},
+      "craneManual": {"label": "Gantry girder, manually operated crane", "live": 500},
+      "craneElectric": {"label": "Gantry girder, electric overhead crane up to 50 t", "live": 750},
+      "craneHeavy": {"label": "Gantry girder, electric overhead crane over 50 t", "live": 1000}
+    },
+    "source": "IS 800:2007 5.6.1, Table 6"
+  },
+  "sources": {
+    "deflectionIS": "IS 800:2007 5.6.1, Table 6: vertical deflection under the live (imposed) load, and under the wind for purlins, girts and industrial members; a cantilever's limits (span/150 and span/180 for floors, span/120 and span/150 industrial) are those of its double length (cantileverSpan 2). Other buildings: span/300 and span/360; industrial buildings: purlins and girts span/150 and span/180, simple spans span/240 and span/300, rafters span/180 and span/240, gantry girders span/500, 750, 1000. The storey drift and sway limits are BNBC 2020's (the pack this one extends) until covered."
+  }
+}

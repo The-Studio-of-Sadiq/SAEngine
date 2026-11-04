@@ -166,7 +166,7 @@ def check_member(
     wy, wz = b * h**2 / 6, h * b**2 / 6
     iy_r, iz_r = h / math.sqrt(12), b / math.sqrt(12)
     lam_y, lam_z = length / iy_r, length / iz_r
-    root = math.sqrt(float(sc.fc0k) / float(sc.E005)) / math.pi
+    root = math.sqrt(float(sc.fc0k) / (float(sc.E005) * 1e3)) / math.pi  # E in GPa
     kc_y = column_factor(lam_y * root, beta_c)
     kc_z = column_factor(lam_z * root, beta_c)
     sigma_crit = float(t.criticalBending) * b**2 * float(sc.E005) * 1e3 / (h * length)
@@ -193,11 +193,20 @@ def check_member(
             p = float(st.P[i])
             smy = abs(float(st.Mx[i])) / wy
             smz = abs(float(st.My[i])) / wz
-            tau = 1.5 * max(abs(float(st.Vy[i])) / (kcr * b * h), abs(float(st.Vx[i])) / (kcr * b * h))
+            tau = 1.5 * max(
+                abs(float(st.Vy[i])) / (kcr * b * h), abs(float(st.Vx[i])) / (kcr * b * h)
+            )
             where = st.where[i]
             bend = max(smy / fm_y + km * smz / fm_z, km * smy / fm_y + smz / fm_z)
             offer("m", bend, bend, 1.0, st.combination, f"fm,d = {fm_y:.2f} MPa, {label}; {where}")
-            offer("v", tau / fv, tau, fv, st.combination, f"τd = 1.5 V / (kcr b h), kcr = {kcr:g}, {label}; {where}")
+            offer(
+                "v",
+                tau / fv,
+                tau,
+                fv,
+                st.combination,
+                f"τd = 1.5 V / (kcr b h), kcr = {kcr:g}, {label}; {where}",
+            )
             if p < 0:
                 st_ = -p / area
                 offer("t", st_ / ft, st_, ft, st.combination, f"{label}; {where}")

@@ -1,4 +1,4 @@
-# Indian Standards (IS): loads, concrete and foundations
+# Indian Standards (IS): loads, concrete, foundations, steel and the other materials
 
 Code pack `is-codes`, built in. Alpha 9 track C7 covers the loads:
 
@@ -43,16 +43,42 @@ The methods by id, each a generic SAEngine module: `ultimate.method: "partialFac
 in place of the parent's Sec 8.3 rows). The project's concrete `fc` is read as fck; the exposure
 condition is `concreteMethods.defaultExposure` (moderate), changeable in Code values.
 
+## Steel and the other materials (track C9)
+
+| Table | What it holds | Code |
+| --- | --- | --- |
+| `steelLimitState` | γm0 1.10, γm1 1.25, γmb, γmf, γmw; classification (plastic, compact, semi-compact, slender in ε); tension (gross yielding, net rupture, angles by α); compression by the buckling curves a-d (α, Table 10 curves, single angles by λe); flexure (βb Zp fy/γm0 ≤ 1.2 Ze fy/γm0, high shear, LTB by Mcr and χLT); shear with web buckling (simple post-critical); combined forces (9.3.1, 9.3.2); slenderness 180 / 400; the bolt, friction grip, block shear and fillet weld strengths; the Section 12 frame rules | IS 800:2007 |
+| `steel` | The connection geometry the shared checks read: holes (Table 19), edges 1.5 / 1.7 d0, pitch 2.5 d, fillet sizes (Table 21), and the connection elements' resistance factors as IS 800 strengths | IS 800:2007 10.2, 10.5 |
+| `steelSections` | ISMB, ISMC, equal angles, SHS / RHS / CHS (the IPE / HE families removed); properties computed by SAEngine | IS 808 |
+| `serviceability` | Deflection limits of Table 6 (floors span/300 and /360, purlins, industrial members, rafters, gantry girders; cantilevers by their double length) | IS 800:2007 5.6.1 |
+| `masonry` | `method: "basicStress"`: fc = fb ks ka kp (Table 8 basic stresses by unit strength and mortar, Table 9 stress reduction by SR and e/t, the area factor), SR ≤ 27, 1.25 fc for eccentric loads, flexural tension 0.07 / 0.14 MPa, shear 0.1 + fd/6 ≤ 0.5 MPa | IS 1905:1987 |
+| `timber` | The parent's values (BNBC 2020 Chapter 11 follows IS 883) with the IS 883 clauses | IS 883:1994 |
+| `composite` | Composite beams by the design strengths (0.36 fck block, 0.87 fy) and the tabulated stud strengths, slab concrete at least M20 | IS 11384:1985 |
+| `combinations.allowable` | D, D + L, D + W, D + E, D + L + W, D + L + E for the permissible stress methods | IS 875 (Part 5) 8.1 |
+
+The methods by id, each a generic SAEngine module: the table `steelLimitState` itself chooses
+`design/steel/limit_state.py` (members, section proposals and the report go through
+`members.check_member`; the connection helpers of `design/steel_connections.py` take its bolt,
+weld and block shear strengths; `design/check.py` runs its `seismic` group, method
+`prescriptiveFrames`, in place of the steel seismic provisions of B35 / B38), masonry
+`method: "basicStress"` (`design/masonry_basic_stress.py`), composite beams
+`beam.limitState.method: "partialFactors"` (`design/steel/composite.py`). The steel seismic
+frame rules apply when a steel SMRF, OMRF or concentric braced frame (taken as SCBF) is a
+system of the project.
+
 ## Not covered yet (falls back)
 
-The pack `extends` BNBC 2020: every table not in `covers` comes from BNBC 2020 until the IS
-material packs exist (track C9). That is: the concrete tables C8 does not replace (`factors`,
-`materials`, `slabCoefficients` shear shares, `transfer` ...) for the checks the IS methods do not
-cover (column shear, construction joints, corbels, deep beams, stairs, prestress, the walls'
-axial capacity), steel (`steel`, `steelSeismic`,
-`steelStability`, `steelSections`), masonry, timber, foundations, site investigation, flood,
-fire, the building services, the nonstructural components and serviceability (deflection and
-wind drift limits). The report names the pack as "BNBC 2020 (bnbc2020), modified by: Indian
+The pack `extends` BNBC 2020: every table not in `covers` comes from BNBC 2020. That is: the
+concrete tables C8 does not replace (`factors`, `materials`, `slabCoefficients` shear shares,
+`transfer` ...) for the checks the IS methods do not cover (column shear, construction joints,
+corbels, deep beams, stairs, prestress, the walls' axial capacity), `steelSeismic` and
+`steelStability` (not used by the limit state method, except the stability method's K = 1 of
+the direct analysis), site investigation, flood, fire, the building services, the nonstructural
+components and the storey drift and sway limits. Inside the covered tables the parent's rules
+stay where IS 800 has no counterpart in SAEngine's checks, named after the parent in the notes:
+the column side under flange forces, HSS joints, base plate bearing, ponding, torsion, the
+stability bracing forces, the composite columns and deck rules, the masonry earthquake detailing
+and reinforced masonry. The report names the pack as "BNBC 2020 (bnbc2020), modified by: Indian
 Standards (IS)".
 
 Also not covered inside the loads: the gust factor method (IS 875-3 Clause 10), cladding and

@@ -40,14 +40,12 @@ _BEARING_GRADE: ContextVar[float | None] = ContextVar("joint_bearing_fub", defau
 
 
 def table() -> Any | None:
-    """The pack's ``steel.connections.resistances`` when it picks the method, else None."""
-    try:
-        from saengine.design.steel_connections import steel_table
+    """The pack's ``steelLimitState.connections`` when it is this method (the limit state
+    steel table chooses the connection strengths), else None."""
+    from saengine.design.steel.limit_state import rules
 
-        data = steel_table().connections
-    except Exception:  # noqa: BLE001 - no pack machinery: the default method
-        return None
-    found = getattr(data, "resistances", None) if data is not None else None
+    t = rules()
+    found = getattr(t, "connections", None) if t is not None else None
     if found is None or getattr(found, "method", None) != "partialFactors":
         return None
     return found
@@ -86,7 +84,7 @@ def bolt(grade: str) -> Any:
 def tensile_area(d: float) -> float:
     """As [mm²] of an M``d`` bolt (the pack's table; 0.78 of the shank area otherwise)."""
     t = _t()
-    found = t.tensileArea.get(int(round(d)))
+    found = t.tensileArea.get(round(d))
     return float(found) if found is not None else 0.78 * math.pi * d**2 / 4
 
 

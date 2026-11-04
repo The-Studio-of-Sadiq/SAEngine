@@ -390,10 +390,13 @@ def _steel_part(steel: _Layers, area: float, from_top: bool) -> tuple[float, flo
     return a, bottom - centroid
 
 
-def plastic_positive(geom: BeamGeometry, fc: float, sum_qn: float, table: Any) -> dict[str, Any]:
+def plastic_positive(
+    geom: BeamGeometry, fc: float, sum_qn: float, table: Any, alpha: float | None = None
+) -> dict[str, Any]:
     """The plastic positive moment [N·mm] with ``sum_qn`` of connection: C = min(0.85 f'c Ac,
-    As Fy, ΣQn) in the slab, the rest of the steel split at the plastic neutral axis."""
-    alpha = table.stressBlock.concrete
+    As Fy, ΣQn) in the slab, the rest of the steel split at the plastic neutral axis; ``alpha``
+    the concrete's share of f'c (default: the table's stress block)."""
+    alpha = table.stressBlock.concrete if alpha is None else alpha
     ac = geom.slab.area()
     as_fy = geom.steel_area * geom.fy
     cc = alpha * fc * ac
@@ -492,10 +495,43 @@ class _Connectors:
         return self.qn * self.per_row
 
 
+def tabulated_stud(diameter: float, height: float, fc: float, rules: Any) -> float:
+    """C9: the design strength [N] of a headed stud from the pack's table: the largest row not
+    larger than the stud (diameter, then height), linear between the concrete grades (the end
+    values outside), × the table's share; CompositeError when the stud is below every row."""
+    rows = [r for r in rules.studs if r.diameter <= diameter + 1e-9 and r.height <= height + 1e-9]
+    if not rows:
+        raise CompositeError(
+            f"stud {diameter:g} × {height:g} mm is smaller than every stud of the code pack's table"
+        )
+    row = max(rows, key=lambda r: (r.diameter, r.height))
+    grades = [float(g) for g in rules.grades]
+    values = [float(v) for v in row.strengths]
+    if fc <= grades[0]:
+        q = values[0]
+    elif fc >= grades[-1]:
+        q = values[-1]
+    else:
+        k = next(i for i in range(1, len(grades)) if fc <= grades[i])
+        f = (fc - grades[k - 1]) / (grades[k] - grades[k - 1])
+        q = values[k - 1] + f * (values[k] - values[k - 1])
+    return q * 1e3 * float(rules.studShare)
+
+
 def _connectors(beam: Any, concrete: Concrete, table: Any) -> _Connectors:
     c = beam.connectors
     if c.kind == "channel" and partial_factors(table) is not None:
         raise CompositeError("channel connectors are not covered by the code pack (studs only)")
+    ls = getattr(table.beam, "limitState", None)
+    if ls is not None and c.kind == "stud":  # C9: tabulated design strengths
+        return _Connectors(
+            tabulated_stud(c.diameter, float(c.height), concrete.fc, ls),
+            c.perRow,
+            1.0,
+            1.0,
+            "stud",
+            c.diameter,
+        )
     if c.kind == "channel":
         qn = channel_strength(c.channelFlange, c.channelWeb, c.channelLength, concrete, table)
         return _Connectors(qn, c.perRow, 1.0, 1.0, "channel", 0.0)
@@ -556,13 +592,31 @@ def beam_checks(
     concrete = concrete_of(concrete_material, table, "slab concrete")
     notes += list(concrete.notes)
     span = span_m * 1000.0
-    pf = partial_factors(table)
-    # Alpha 9 C6: the plastic resistances on the design strengths fyd and fcd (φ = 1).
-    fy_used = fy / float(pf.gammaA) if pf is not None else fy
-    fc_used = concrete.fc / float(pf.gammaC) if pf is not None else concrete.fc
-    geom = beam_geometry(shape, fy_used, steel.e, beam, span, table)
+    ls = getattr(table.beam, "limitState", None)  # C9: design strengths, no φ
+    pf = partial_factors(table)  # alpha 9 C6: the partial factors of the pack
+    alpha = None
+    fy_characteristic = fy
+    if ls is not None:
+        fy = fy / float(ls.steelGamma)
+        alpha = float(ls.concreteShare)
+        notes.append(
+            f"limit state: concrete {alpha:g} × the grade over the block, steel fy / "
+            f"{float(ls.steelGamma):g}, studs by the tabulated design strength "
+            f"({cite(table, 'limitState')})"
+        )
+    elif pf is not None:
+        # The plastic resistances on the design strengths fyd = fy / γa and the block's
+        # share of fcd = fck / γc (φ = 1).
+        fy = fy / float(pf.gammaA)
+        alpha = float(table.stressBlock.concrete) / float(pf.gammaC)
+        notes.append(
+            f"partial factors: steel fy / {float(pf.gammaA):g}, concrete "
+            f"{float(table.stressBlock.concrete):g} fck / {float(pf.gammaC):g}, studs PRd with "
+            f"γV = {float(pf.gammaV):g} ({cite(table, 'partialFactors')})"
+        )
+    geom = beam_geometry(shape, fy, steel.e, beam, span, table)
     notes += geom.notes
-    phi = 1.0 if pf is not None else table.phi.flexure
+    phi = table.phi.flexure if ls is None and pf is None else 1.0
     checks: list[dict[str, Any]] = []
     conn = _connectors(beam, concrete, table)
 
@@ -594,7 +648,7 @@ def beam_checks(
         n_rows = math.floor(row[2] / s + 1e-9)
         sum_qn = n_rows * conn.row()
         if plastic:
-            found = plastic_positive(geom, fc_used, sum_qn, table)
+            found = plastic_positive(geom, concrete.fc, sum_qn, table, alpha)
         else:
             found = _elastic_positive(geom, concrete, m_pre, table)
             found["ratio"] = 1.0
@@ -659,7 +713,7 @@ def beam_checks(
         summary["sumQn"] = round(found["sumQn"] / 1e3, 1)
         summary["Mn"] = round(found["Mn"] / 1e6, 1)
         if pf is not None and plastic:  # alpha 9 C6: the least degree of shear connection
-            eta_min = minimum_connection(fy, span, pf)
+            eta_min = minimum_connection(fy_characteristic, span, pf)
             checks.append(
                 _row(
                     "degree of shear connection η",
@@ -668,7 +722,7 @@ def beam_checks(
                     "",
                     cite(table, "minimumConnection"),
                     f"η = Nc / Nc,f = {found['ratio']:.2f} >= {eta_min:.2f} (Le = "
-                    f"{span / 1e3:.1f} m, fy = {fy:g} MPa, equal flanges)",
+                    f"{span / 1e3:.1f} m, fy = {fy_characteristic:g} MPa, equal flanges)",
                     r[0].combination,
                     upper=False,
                 )
@@ -1476,7 +1530,11 @@ def _column_checks_partial(
         kl[axis] = float(lengths.k.get(axis, 1.0)) * seg.longest() * 1000.0
         ei = effective_stiffness(sec, concrete.ec, es, axis)
         ncr[axis] = math.pi**2 * ei / kl[axis] ** 2 if kl[axis] > 0 else math.inf
-        key = "filled" if col.form == "filled" else ("encasedMajor" if axis == "x" else "encasedMinor")
+        key = (
+            "filled"
+            if col.form == "filled"
+            else ("encasedMajor" if axis == "x" else "encasedMinor")
+        )
         curve = pf.columnCurves.get(key, "b")
         lam = math.sqrt(npl_rk / ncr[axis]) if math.isfinite(ncr[axis]) else 0.0
         chis[axis] = (chi(lam, float(alphas.get(curve, 0.34)), 0.2), lam, curve)
@@ -1908,6 +1966,9 @@ _COLUMN_REPLACED = (
     "Axial force and flexure: buckling, major axis",
     "Axial force and flexure: buckling, minor axis",
     "Lateral-torsional buckling",
+    # C9: the combined force rows of the limit state steel method.
+    "Axial force and flexure: section strength",
+    "Axial force and flexure: member buckling",
 )
 
 

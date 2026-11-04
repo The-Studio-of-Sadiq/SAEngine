@@ -232,6 +232,14 @@ def method_module(method: str | None = None) -> ModuleType:
         from saengine.design import masonry_strength
 
         return masonry_strength
+    if method == "basicStress":  # C9: IS 1905
+        from saengine.design import masonry_basic_stress
+
+        return masonry_basic_stress
+    if method == "partialFactors":  # alpha 9 C6: EN 1996-1-1 type
+        from saengine.design import masonry_partial_factors
+
+        return masonry_partial_factors
     raise DesignError(f"the code pack's masonry method '{method}' is not available")
 
 

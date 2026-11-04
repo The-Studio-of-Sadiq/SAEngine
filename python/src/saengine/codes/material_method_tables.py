@@ -221,10 +221,12 @@ class SteelGlobalAnalysis(_Group):
     amplified: Positive = Field(description="αcr >= this: amplified first-order analysis.")
 
 
-class SteelPartialFactors(_Group):
-    """Alpha 9 C6, ``memberMethods.resistance = "bucklingCurves"``: the member checks by design
-    resistances (R / γM), cross-section classes, buckling curves and interaction factors."""
+class SteelMemberResistance(_Group):
+    """Alpha 9 C6, ``steelLimitState.memberResistance`` (method ``crossSectionClasses``): the
+    member checks by design resistances (R / γM), cross-section classes 1-4, buckling curves and
+    interaction factors."""
 
+    method: Literal["crossSectionClasses"] = "crossSectionClasses"
     gammaM0: Positive = Field(description="Resistance of cross-sections.")
     gammaM1: Positive = Field(description="Resistance of members to instability.")
     gammaM2: Positive = Field(description="Resistance of cross-sections in tension to fracture.")
@@ -420,7 +422,7 @@ class CompositePartialFactors(_Group):
 
 
 class TimberStrengthClass(_Group):
-    """Characteristic values of a strength class [MPa, kg/m³]."""
+    """Characteristic values of a strength class [MPa; E and G in GPa; kg/m³]."""
 
     fmk: Positive
     ft0k: Positive
@@ -470,12 +472,6 @@ class TimberLimitState(_Group):
     criticalBending: Positive = Field(
         description="σm,crit = this b² E0,05 / (h lef) (rectangular softwood)."
     )
-    deflection: dict[str, Positive] = Field(
-        default_factory=dict, description="Span / limit of the final deflection by member use."
-    )
-    psi2: dict[str, Share] = Field(
-        default_factory=dict, description="ψ2 of the creep of each variable case code."
-    )
     clauses: dict[str, str] = Field(default_factory=dict)
 
 
@@ -500,29 +496,34 @@ class MasonryPartialFactors(_Group):
     unitGroups: dict[str, MasonryUnitGroup] = Field(
         description="K, α, β by '<unit kind>.<group>' (clay.1, concrete.2 ...)."
     )
-    defaultGroup: str = Field(description="Unit group taken when the material gives none.")
+    groupOf: dict[str, str] = Field(
+        description="Unit group by the material's units (solid, hollow): SAEngine practice."
+    )
+    defaultMortar: Positive = Field(
+        description="fm [MPa] when the material's mortar grade is not known (the safe side)."
+    )
     shapeFactor: Positive = Field(
         default=1.0, description="fb = this × the unit's mean compressive strength (δ)."
     )
     fbMax: Positive = Field(description="fb taken at most this [MPa] ...")
     fmMax: Positive = Field(description="... fm at most this, and at most fmShare fb.")
     fmShare: Positive
-    fvk0: dict[str, Positive] = Field(description="fvk0 by mortar strength class (M2, M5 ...).")
+    fvk0: dict[str, list[tuple[float, Positive]]] = Field(
+        description="fvk0 [MPa] by unit kind: [[mortar fm from [MPa], fvk0], ...] ascending."
+    )
     shearCompression: Share = Field(description="fvk = fvk0 + this σd ...")
     shearMax: Share = Field(description="... <= this fb.")
     eccentricityMin: Share = Field(description="ei >= this t.")
     heightEccentricity: Positive = Field(description="einit = hef / this.")
     endReduction: Positive = Field(description="Φi = 1 - this ei / t.")
     slendernessMax: Positive = Field(description="hef / tef at most this.")
-    restraint: dict[str, Share] = Field(
-        description="ρn of the effective height: 'twoEdges', 'freeTop' (cantilever: 2.0 is "
-        "taken as the value)."
+    restraint: dict[str, Positive] = Field(
+        description="ρn of the effective height: 'braced' (restrained top and bottom), "
+        "'unbraced' (a free top)."
     )
+    creep: Positive = Field(description="φ∞ of ek = 0.002 φ∞ (hef/tef) √(t em).")
+    creepFrom: Positive = Field(description="ek = 0 while hef/tef <= this.")
     elasticModulus: Positive = Field(description="E = this fk.")
-    flexuralTension: dict[str, tuple[Positive, Positive]] = Field(
-        default_factory=dict,
-        description="fxk1, fxk2 by mortar class: [parallel to the bed joints, perpendicular].",
-    )
     stressBlock: tuple[Positive, Positive] = Field(
         description="Reinforced: the rectangular block fd over a x: [a, ε_mu (per mille)]."
     )
@@ -543,7 +544,6 @@ class AluminiumAlloy(_Group):
     rhoHazProof: Share = Field(description="ρo,haz = fo,haz / fo.")
     rhoHazUltimate: Share = Field(description="ρu,haz = fu,haz / fu.")
     bucklingClass: Literal["A", "B"]
-    exponent: Positive = Field(description="np of the Ramberg-Osgood curve (information).")
 
 
 class AluminiumClassLimits(_Group):

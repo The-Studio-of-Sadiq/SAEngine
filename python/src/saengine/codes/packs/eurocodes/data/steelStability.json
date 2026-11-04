@@ -1,0 +1,19 @@
+{
+  "$schema": "../../../schemas/steelStability.schema.json",
+  "$sources": [
+    "EN 1993-1-1:2005 5.2.1-5.2.2 (αcr, second-order analysis), 5.3.2 (global sway imperfection φ = φ0 αh αm, equivalent horizontal forces)"
+  ],
+  "notional": {
+    "swayImperfection": {
+      "phi0": 0.005,
+      "heightFactor": 2.0,
+      "heightMin": 0.6667,
+      "heightMax": 1.0,
+      "everyCombination": true,
+      "clause": "EN 1993-1-1 5.3.2(3), Eq 5.5; 5.3.2(7) equivalent horizontal forces"
+    }
+  },
+  "sources": {
+    "secondOrderNotional": "EN 1993-1-1 5.3.2(3): φ = φ0 αh αm, φ0 = 1/200, αh = 2/√h (2/3 <= αh <= 1), αm = √(0.5 (1 + 1/m)) (m taken as 1: SAEngine practice, the largest αm)"
+  }
+}

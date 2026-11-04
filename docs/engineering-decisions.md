@@ -41,6 +41,68 @@ here, newest first, with the date, the question, the decision, the reason and wh
 - **No unlicensed software.** ETABS, SAP2000 and STAAD are not used for cross-checks or cited.
   Open-source tools are used instead (2026-10-25).
 
+## 2026-11-04: Indian Standards steel and the other materials (alpha 9 track C9)
+
+The `is-codes` pack now covers IS 800:2007 (members, connections, Section 12 frames, Table 6
+deflections), the IS 808 section list, IS 1905:1987 masonry, IS 883:1994 timber and IS
+11384:1985 composite beams; every value is in the pack's `VERIFY.md` (entries 200-293) with its
+clause and a confidence, to be checked against the printed codes. Behaviour choices:
+
+- **One limit state steel method, chosen by its table.** A pack with `steelLimitState` designs
+  steel members by partial factors and buckling curves (`design/steel/limit_state.py`, the same
+  method family as EN 1993-1-1, so C6 can reuse it); `members.check_member` hands the member to
+  it, so the design run, Design Steel Sections and the report all use it. A pack without the
+  table keeps the LRFD checks of its `steel` table (the default pack unchanged). Each group
+  names its method id (`classification: epsilonLimits`, `compression: bucklingCurves`,
+  `flexure: elasticCriticalMoment`, `shear: postCritical`, `interaction: sectionMember`,
+  `connections.bolts: partialFactorBolts`, `seismic: prescriptiveFrames`). SAEngine practice
+  (the mechanism).
+- **Mcr with SAEngine's moment factor (SAEngine practice).** c1 of Mcr is the equivalent moment
+  factor SAEngine computes from the moment diagram (the Cb of the parent's method), the load at
+  the shear centre, K = Kw = 1; tees and angles with the warping constant SAEngine gives them.
+- **Effective area of slender sections (read as).** Each slender element counts up to its
+  semi-compact width (IS 800 7.3.2); in flexure βb = Ze/Zp times the worst slender element's
+  share.
+- **Tension of single angles (SAEngine practice).** The end connection is not known to the
+  member: α of 6.3.3 with 2 bolts (0.6), the member's net ratio and shear lag options override.
+  Single angles in compression by λe with "two or more bolts, hinged" (Table 12).
+- **Hollow sections on the nominal wall.** IS 800 has no ERW wall reduction: the 0.93 t of the
+  parent is not applied (`nominalHollowWall`).
+- **Connections: the shared checks with the IS strengths.** Fin plates, end plates, gussets,
+  flange plates, splices and base plates keep their geometry and limit states; the bolt shear
+  (threads in every plane, Anb 0.78 Asb), bearing (kb from the end or pitch distance; fub/fu
+  not known, taken ≥ 1), bolt tension and its interaction, friction grip slip (μf 0.20 / 0.50
+  for the library's surface classes A / B), block shear (Atg taken as Atn), fillet welds (fu
+  of the electrode, no directional increase, shop γmw) and βlj come from IS 800; the elements'
+  yield and rupture factors are the IS strengths written as factors of the shared 0.6 fy / 0.6
+  fu forms. The rules IS 800 has no counterpart for in SAEngine (the column side under flange
+  forces, HSS joints, base plate bearing) stay the parent's and their notes name BNBC 2020.
+  SAEngine practice.
+- **Section 12 in place of the parent's seismic provisions.** With the pack's `seismic` group
+  the AISC-based steel seismic provisions and braced frames of the parent are not run; IS 1893's
+  "concentric braced frame" is taken as SCBF (the stricter rules), EBF is not covered; the rules
+  apply whenever a steel frame system is in use (`rAbove` 0); the brace lines' tension share is
+  a flag on braces grouped by plan direction; K bracing is a note (not detected); the
+  connection design moment 1.2 Mp and 0.04 rad are flags. SAEngine practice, overridable.
+- **Table 6 by the shared deflection rows.** Cantilevers take the limits of their double length
+  (span/150 = 2 L/300), so one row per use holds both.
+- **Masonry by the basic stress method.** `masonry.method: "basicStress"`
+  (`design/masonry_basic_stress.py`): the wall's mortar mix picks the IS grade with at least
+  its sand; the effective height 0.75 H for every wall supported top and bottom, kp = 1 (bricks)
+  and a 25 % increase with wind or earthquake (to verify) are SAEngine choices; bars of a
+  reinforced wall type are not counted (IS 1905 is unreinforced masonry). The pack's working
+  stress combinations (IS 875 Part 5 8.1 at full factors) serve masonry and timber.
+- **Timber: the parent's values with IS 883 clauses.** BNBC 2020 Chapter 11 follows IS 883; the
+  pack keeps its numbers and species list (an Indian species not listed is designed by its
+  strength group) and cites IS 883 at the section level.
+- **Composite beams by design strengths.** `composite.beam.limitState` (method
+  `partialFactors`): the concrete 0.36 fck over xu as 0.4286 fck over 0.84 xu (same force and
+  lever arm), the steel fy/1.15, no φ, studs by the tabulated design strength (the nearest
+  smaller stud of the table). Composite columns and the deck rules stay the parent's.
+- **India left the planned code packs.** The planned-feature page and the wizard's planned entry
+  for India are removed: the built-in pack covers loads, concrete, foundations, steel, masonry,
+  timber and composite beams.
+
 ## 2026-11-04: Indian Standards concrete and foundations (alpha 9 track C8)
 
 The `is-codes` pack now covers IS 456:2000, IS 13920:2016, IS 6403 and IS 2911 (Part 1/Sec 2);
