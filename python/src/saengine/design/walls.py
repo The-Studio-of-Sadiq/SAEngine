@@ -142,6 +142,7 @@ from saengine.design.rc import (
     DesignError,
     InteractionSurface,
     RcSection,
+    alpha1,
     bar_area,
     beta1,
     phi_axial_flexure,
@@ -2948,7 +2949,7 @@ def slender_section(
     c = a/β1, Icr = n Ase (d - c)² + lw c³ / 3 with n = Es/Ec not less than
     ``minModularRatio``, Mn = Ase fy (d - a/2)."""
     ase = as_ + max(pu, 0.0) / fy * t / (2 * d)
-    a = ase * fy / (0.85 * fc * length)
+    a = ase * fy / (alpha1(fc) * fc * length)  # Alpha 9 C18: the pack's block
     c = a / beta1(fc)
     n = max(es / ec, float(rules.minModularRatio))
     icr = n * ase * (d - c) ** 2 + length * c**3 / 3
@@ -3160,7 +3161,7 @@ def grade_beam_checks(
             continue
         d = hw - bars.cover - bars.horizontal_dia - dia / 2
         area = count * bar_area(dia)
-        a = area * fy / (0.85 * fc * t)
+        a = area * fy / (alpha1(fc) * fc * t)  # Alpha 9 C18
         phi_mn = rc_value("PHI_TENSION") * area * fy * (d - a / 2) if area > 0 else 0.0
         rows.append(
             _row(

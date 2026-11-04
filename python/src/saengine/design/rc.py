@@ -104,13 +104,69 @@ class DesignError(ValueError):
     """The member cannot be checked (unsupported profile, no bars, ...)."""
 
 
+_rules_memo: tuple[Any, tuple[Any, Any, Any]] | None = None
+
+
+def _pack_rules() -> tuple[Any, Any, Any]:
+    """Alpha 9 C18: the pack's ``materials.stressBlock``, ``factors.phiTransition`` and
+    ``factors.axialCap`` (each None: ACI's), read once per pack."""
+    global _rules_memo
+    from saengine.codes import context as code_context
+
+    pack = code_context.current()
+    memo = _rules_memo
+    if memo is None or memo[0] is not pack:
+        factors = code_context.pack_table("factors")
+        found = (
+            getattr(code_context.pack_table("materials"), "stressBlock", None),
+            getattr(factors, "phiTransition", None),
+            getattr(factors, "axialCap", None),
+        )
+        memo = _rules_memo = (pack, found)
+    return memo[1]
+
+
+def _block_rule() -> Any | None:
+    """The pack's ``materials.stressBlock`` (the block's stress and depth factors as linear
+    functions of f'c within bounds, AS 3600 / NZS 3101 type); None: ACI's."""
+    return _pack_rules()[0]
+
+
 def beta1(fc: float) -> float:
-    """Depth factor of the rectangular stress block (ACI Table 22.2.2.4.3)."""
+    """Depth factor of the rectangular stress block (ACI Table 22.2.2.4.3); alpha 9 C18: the
+    pack's ``materials.stressBlock.gamma`` where it gives one (AS 3600 8.1.3 γ)."""
+    rule = _block_rule()
+    if rule is not None:
+        return rule.gamma.at(fc)
     if fc <= 28:
         return 0.85
     if fc >= 55:
         return 0.65
     return 0.85 - 0.05 * (fc - 28) / 7
+
+
+def alpha1(fc: float) -> float:
+    """Alpha 9 C18: the block's stress over f'c, 0.85 (ACI 22.2.2.4.1), or the pack's
+    ``materials.stressBlock.alpha`` (AS 3600 8.1.3 α2, NZS 3101 7.4.2.7 α1)."""
+    rule = _block_rule()
+    return 0.85 if rule is None else rule.alpha.at(fc)
+
+
+def squash_share(fc: float) -> float:
+    """Alpha 9 C18: the share of f'c in the squash load P0 = share f'c (Ag - Ast) + fy Ast:
+    0.85 (ACI 22.4.2.2), the pack's ``materials.stressBlock.squash`` (AS 3600 10.6.2.2 α1),
+    else its block stress share."""
+    rule = _block_rule()
+    if rule is None:
+        return 0.85
+    return (rule.squash or rule.alpha).at(fc)
+
+
+def _phi_rules() -> tuple[Any, Any]:
+    """Alpha 9 C18: the pack's ``factors.phiTransition`` and ``factors.axialCap`` (None:
+    ACI's)."""
+    _, transition, cap = _pack_rules()
+    return transition, cap
 
 
 def phi_axial_flexure(
@@ -130,6 +186,12 @@ def phi_strength(eps_t: float, fy: float, es: float | None = None, spiral: bool 
     their φ; :func:`phi_axial_flexure` is this without partial factors."""
     eps_ty = fy / (value("STEEL_E") if es is None else es)
     low = value("PHI_SPIRAL") if spiral else value("PHI_TIED")
+    transition = _phi_rules()[0]
+    if transition is not None:  # Alpha 9 C18: φ by kuo (AS 3600:2018 Table 2.2.2)
+        eps_cu = value("EPS_CU")
+        kuo = eps_cu / (eps_cu + eps_t) if eps_cu + eps_t > 0 else 1.0
+        phi = transition.intercept - transition.slope * kuo
+        return min(max(phi, low), value("PHI_TENSION"))
     if eps_t <= eps_ty:
         return low
     if eps_t >= eps_ty + value("EPS_CU"):
@@ -168,7 +230,7 @@ def stress_block(fc: float, fy: float) -> StressBlock:
         return StressBlock(
             p.eta * design_strength.fcd(fc, r), p.lam, p.eps_cu3, design_strength.fyd(fy, r)
         )
-    return StressBlock(0.85 * fc, beta1(fc), value("EPS_CU"), fy)
+    return StressBlock(alpha1(fc) * fc, beta1(fc), value("EPS_CU"), fy)
 
 
 def eps_cu(fc: float) -> float:
@@ -236,17 +298,21 @@ class RcSection:
             return design_strength.axial_resistance(
                 self.fc, self.fy, self.es, self.gross_area - ast, ast
             )
-        return 0.85 * self.fc * (self.gross_area - ast) + self.fy * ast
+        return squash_share(self.fc) * self.fc * (self.gross_area - ast) + self.fy * ast
 
     @property
     def phi_pn_max(self) -> float:
         """Largest design axial compression [N] (ACI Table 22.4.2.1); NRd with partial factors
-        (the minimum eccentricity takes the place of the 0.80 / 0.85 cap)."""
+        (the minimum eccentricity takes the place of the 0.80 / 0.85 cap); alpha 9 C18: the
+        pack's ``factors.axialCap`` shares where it gives them (NZS 3101 10.3.4.2: 0.85)."""
         if _partial_factors():
             return self.p0
+        cap = _phi_rules()[1]
         if self.spiral:
-            return 0.85 * value("PHI_SPIRAL") * self.p0
-        return 0.80 * value("PHI_TIED") * self.p0
+            share = 0.85 if cap is None else cap.spiral
+            return share * value("PHI_SPIRAL") * self.p0
+        share = 0.80 if cap is None else cap.tied
+        return share * value("PHI_TIED") * self.p0
 
     @property
     def phi_tension(self) -> float:
@@ -537,7 +603,7 @@ def _concrete_section(section: RcSection):
     else:
         ultimate = RectangularStressBlock(
             compressive_strength=section.fc,
-            alpha=0.85,
+            alpha=alpha1(section.fc),
             gamma=beta1(section.fc),
             ultimate_strain=value("EPS_CU"),
         )

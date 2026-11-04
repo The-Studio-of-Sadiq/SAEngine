@@ -426,12 +426,40 @@ def buckling_curves(shape: ShapeProperties, table: Any | None = None) -> tuple[s
     return rule.major, rule.minor
 
 
-def _fcd(fy: float, e: float, kl: float, r: float, curve: str, t: Any) -> tuple[float, float]:
-    """(fcd [MPa], λ) of flexural buckling over KL / r on ``curve``."""
+def alpha_c(slenderness: float, fy: float, kf: float, curve: str, rule: Any) -> float:
+    """Alpha 9 C18: the member slenderness reduction factor αc at KL/r = ``slenderness`` on
+    ``curve`` (the pack's ``compression.slendernessReduction``, AS 4100 6.3.3 type: see
+    :class:`saengine.codes.limit_state_tables.ModifiedSlenderness`)."""
+    if curve not in rule.alphaB:
+        raise ValueError(f"no αb for the curve '{curve}' (steelLimitState.compression)")
+    lam_n = slenderness * math.sqrt(max(kf, 0.0)) * math.sqrt(fy / float(rule.referenceFy))
+    if lam_n <= 0:
+        return 1.0
+    a1, a2, a3, a4 = rule.alphaA
+    alpha_a = a1 * (lam_n - a2) / (lam_n**2 - a3 * lam_n + a4)
+    lam = lam_n + alpha_a * float(rule.alphaB[curve])
+    if lam <= 0:
+        return 1.0
+    e1, e2 = rule.eta
+    eta = max(0.0, e1 * (lam - e2))
+    ratio = (lam / float(rule.scale)) ** 2
+    xi = (ratio + 1 + eta) / (2 * ratio)
+    root = 1 - (float(rule.scale) / (xi * lam)) ** 2
+    return min(1.0, xi * (1 - math.sqrt(max(root, 0.0))))
+
+
+def _fcd(
+    fy: float, e: float, kl: float, r: float, curve: str, t: Any, kf: float = 1.0
+) -> tuple[float, float]:
+    """(fcd [MPa], λ) of flexural buckling over KL / r on ``curve``; alpha 9 C18: χ = αc of
+    the pack's ``slendernessReduction`` where it gives one (``kf`` its form factor)."""
     if kl <= 0:
         return fy / t.partialFactors.gammaM0, 0.0
     lam = math.sqrt(fy / (math.pi**2 * e / (kl / r) ** 2))
     comp = t.compression
+    if comp.slendernessReduction is not None:
+        c = alpha_c(kl / r, fy, kf, curve, comp.slendernessReduction)
+        return c * fy / float(t.partialFactors.gammaM0), lam
     alpha = imperfection(comp.alpha[curve], comp.robertson, e, fy)
     c = chi(lam, alpha, float(comp.plateau))
     return c * fy / float(t.partialFactors.gammaM0), lam
@@ -480,8 +508,13 @@ def compression(
         lam_vv = (length / shape.rz) / base
         lam_phi = (shape.dims["b"] + shape.dims["d"]) / (2 * shape.dims["t"]) / base
         lam_e = math.sqrt(max(k1 + k2 * lam_vv**2 + k3 * lam_phi**2, 0.0))
-        alpha = imperfection(comp.alpha[comp.angleCurve], comp.robertson, e, fy)
-        c = chi(lam_e, alpha, float(comp.plateau))
+        if comp.slendernessReduction is not None:  # Alpha 9 C18: αc on the angle's curve
+            c = alpha_c(
+                length / shape.rz, fy, area / shape.area, comp.angleCurve, comp.slendernessReduction
+            )
+        else:
+            alpha = imperfection(comp.alpha[comp.angleCurve], comp.robertson, e, fy)
+            c = chi(lam_e, alpha, float(comp.plateau))
         pd = area * c * fy / g0
         cap = Capacity(
             1.0,
@@ -495,8 +528,9 @@ def compression(
         )
         return Compression(cap, pd, pd, lam_e, lam_e)
     major, minor = buckling_curves(shape, t)
-    fx, lam_x = _fcd(fy, e, klx, shape.rx, major, t)
-    fy_, lam_y = _fcd(fy, e, kly, shape.ry, minor, t)
+    kf = area / shape.area if shape.area > 0 else 1.0  # Alpha 9 C18: the form factor
+    fx, lam_x = _fcd(fy, e, klx, shape.rx, major, t, kf)
+    fy_, lam_y = _fcd(fy, e, kly, shape.ry, minor, t, kf)
     pdx, pdy = area * fx, area * fy_
     axis = "x (major)" if pdx <= pdy else "y (minor)"
     pd = min(pdx, pdy)
@@ -585,6 +619,28 @@ def flexure_major(
     if not _ltb_susceptible(shape) or lb <= 0:
         return Flexure(Capacity(1.0, md, "yielding", cite("flexure"), note), 0.0, md, cls)
     g = float(t.shearModulus)
+    ltb = t.flexure.slendernessReduction
+    if ltb is not None:  # Alpha 9 C18 (AS 4100 5.6.1.1): Mb = αm αs Ms <= Ms
+        mo = critical_moment(shape, e, g, lb, 1.0)
+        ms = md * g0
+        ratio = ms / mo if mo > 0 else math.inf
+        alpha_s = float(ltb.share) * (math.sqrt(ratio**2 + float(ltb.offset)) - ratio)
+        mb = min(c1 * alpha_s * ms, ms) / g0
+        lam = math.sqrt(ratio)
+        state = "lateral-torsional buckling" if mb < md else "yielding"
+        return Flexure(
+            Capacity(
+                1.0,
+                mb,
+                state,
+                cite("lateralTorsional"),
+                f"{note}; Mb = αm αs Ms ≤ Ms, Mo = {mo / 1e6:.1f} kN·m (Lb = {lb:.0f} mm), "
+                f"αs = {alpha_s:.3f}, αm = {c1:.2f}",
+            ),
+            lam,
+            md,
+            cls,
+        )
     mcr = critical_moment(shape, e, g, lb, c1)
     lam = math.sqrt(beta * zp * fy / mcr) if mcr > 0 else math.inf
     lam = min(lam, math.sqrt(float(cap_share) * ze * fy / mcr)) if mcr > 0 else lam
