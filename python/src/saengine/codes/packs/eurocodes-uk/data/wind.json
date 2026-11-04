@@ -1,0 +1,19 @@
+{
+  "$schema": "../../../schemas/wind.schema.json",
+  "$sources": [
+    "UK NA to BS EN 1991-1-4:2005+A1:2010, NA.2.4-NA.2.5 (vb,0 = vb,map × calt, Eq NA.2a), NA.2.6-NA.2.8 (cdir, cseason)"
+  ],
+  "altitude": {
+    "factor": 0.001,
+    "clause": "UK NA to BS EN 1991-1-4 NA.2.5, Eq NA.2a: calt = 1 + 0.001 A"
+  },
+  "directionality": 1.0,
+  "peakVelocityPressure": {
+    "season": 1.0
+  },
+  "sources": {
+    "altitude": "UK NA to BS EN 1991-1-4 NA.2.5 Eq NA.2a: vb,0 = vb,map × calt, calt = 1 + 0.001 A (A the site altitude in m); the height-dependent Eq NA.2b for z > 10 m is not used (Eq NA.2a is the conservative choice the NA allows)",
+    "directionality": "UK NA to BS EN 1991-1-4 Table NA.1: cdir 0.73-1.00 by direction; 1.00 taken for every direction (conservative); a project override applies",
+    "peakVelocityPressure": "UK NA to BS EN 1991-1-4 NA.2.8: cseason = 1.0 for permanent buildings. The UK NA's exposure factors (Figures NA.7, NA.8 with the town correction) are not covered: qp(z) is EN 1991-1-4 Eq 4.8 by the terrain category (SAEngine practice)"
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "$schema": "../../../schemas/wind.schema.json",
+  "$sources": [
+    "SS EN 1991-1-4 NA (cdir, cseason) and the Singapore NA to SS EN 1992-1-1 / SS EN 1990 (least horizontal load 1.5 % of the characteristic dead weight)"
+  ],
+  "directionality": 1.0,
+  "minimumLateral": {
+    "share": 0.015,
+    "clause": "Singapore NA: horizontal load at least 1.5 % of the characteristic dead weight at each floor"
+  },
+  "sources": {
+    "directionality": "SS EN 1991-1-4 NA: cdir = 1.0",
+    "minimumLateral": "Singapore NA (SS EN 1992-1-1 / SS EN 1990 NA): the design horizontal load at each floor not less than 1.5 % of the characteristic dead weight above it; SAEngine applies it as the least characteristic wind storey force (WX, WY), the combinations then factor it like the wind (on the safe side)"
+  }
+}

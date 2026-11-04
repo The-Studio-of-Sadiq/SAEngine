@@ -184,11 +184,58 @@ def peak_velocity_pressure(
 
     table = _table(wind)
     rule = table.peakVelocityPressure
-    terms = roughness_terms(height, terrain, table)
     vb = wind_factor("directionality") * rule.season * speed
+    own = profile_pressure(height, vb, terrain, table)
+    if own is not None:  # Alpha 9 C15: the National Annex's profile
+        return own * importance
+    terms = roughness_terms(height, terrain, table)
     vm = terms["cr"] * terms["co"] * vb
     qp = (1.0 + rule.peakFactor * terms["Iv"]) * 0.5 * rule.airDensity * vm**2
     return qp / 1000.0 * importance
+
+
+# ───────────── Alpha 9 C15: a National Annex's qp(z) profiles and stepped pressures ─────────────
+
+
+def profile_pressure(height: float, vb: float, terrain: str, wind: Any = None) -> float | None:
+    """qp(z) [kN/m²] at ``height`` z [m] by the pack's own profile of ``terrain`` (see
+    :class:`saengine.codes.tables.VelocityPressureSegment`) for the basic velocity ``vb``
+    [m/s]: factor × qb × (z / zref)^exponent, qb = ½ ρ vb², times co(z)² on a hill (SAEngine
+    practice: the mean velocity scales with co); None where the pack has no profile of it."""
+    table = _table(wind)
+    rule = table.peakVelocityPressure
+    segments = (getattr(rule, "profiles", None) or {}).get(terrain)
+    if not segments:
+        return None
+    z = max(height, 0.0)
+    ordered = sorted(segments, key=lambda s: s.zmax)
+    seg = next((s for s in ordered if z <= s.zmax + 1e-9), ordered[-1])
+    ratio = (max(z, 1e-6) / seg.zref) ** seg.exponent if seg.exponent else 1.0
+    qb = 0.5 * rule.airDensity * vb**2 / 1000.0
+    qp = seg.factor * ratio * (1.0 if seg.absolute else qb)
+    co = orography_factor(height, table)
+    return qp * co * co
+
+
+def simplified_pressure(
+    height: float, speed: float, terrain: str, wind: Any = None
+) -> tuple[float, Any] | None:
+    """(q [kN/m²], row) of the pack's simplified stepped pressures for a building ``height``
+    h tall at vb,0 ``speed`` on ``terrain`` when the pack (or the project's override) uses
+    them: the row of the least vb,0 at or above the site's and the step of h; None where none
+    fits (taller building, other terrain, higher speed)."""
+    rule = _table(wind).peakVelocityPressure
+    if not getattr(rule, "useSimplified", False):
+        return None
+    rows = sorted(
+        (r for r in rule.simplified if r.exposure == terrain and r.vb0 >= speed - 1e-9),
+        key=lambda r: r.vb0,
+    )
+    for row in rows[:1]:
+        for top, q in sorted(row.heights):
+            if height <= top + 1e-9:
+                return float(q), row
+    return None
 
 
 def reference_height(z: float, height: float, width: float) -> float:
@@ -310,6 +357,9 @@ def wind_levels(
     table = _table()
     top = heights[-1]
     qh = peak_velocity_pressure(top, speed, exposure, importance, table)
+    stepped = simplified_pressure(top, speed, exposure, table)  # Alpha 9 C15
+    if stepped is not None:
+        qh = stepped[0] * importance
     out = []
     for i, z in enumerate(heights):
         parts = [(i, (z - (heights[i - 1] if i else 0.0)) / 2)]
@@ -329,7 +379,11 @@ def wind_levels(
                 * structural_factor(top, depth, table, width, speed, exposure)[0]
             )
             ze = reference_height(z, top, width)
-            qp = peak_velocity_pressure(ze, speed, exposure, importance, table)
+            qp = (
+                qh
+                if stepped is not None
+                else peak_velocity_pressure(ze, speed, exposure, importance, table)
+            )
             f = (qp * windward - qh * leeward) * factor * width * tributary
             force += f
             moment += f * (low + high) / 2
@@ -350,12 +404,19 @@ def describe(height: float, width: float, depth: float, speed: float, exposure: 
     """One line for the derivation notes: qp(h), cpe, ρ and cscd of the building."""
     table = _table()
     qh = peak_velocity_pressure(height, speed, exposure)
+    stepped = simplified_pressure(height, speed, exposure, table)  # Alpha 9 C15
+    how = ""
+    if stepped is not None:
+        qh = stepped[0]
+        how = f" (the simplified pressure of vb,0 {stepped[1].vb0:g} m/s, the whole height)"
+    elif (getattr(table.peakVelocityPressure, "profiles", None) or {}).get(exposure):
+        how = " (the pack's velocity pressure profile)"
     ratio = height / depth if depth > 0 else 1.0
     windward, leeward = wall_coefficients(ratio, table)
     cscd, why = structural_factor(height, depth, table, width, speed, exposure)
     return (
         f"wind by the peak velocity pressure ({code_context.code_name()}): vb,0 = {speed:g} m/s, "
-        f"terrain {exposure}, qp(h = {height:.1f} m) = {qh:.3f} kN/m², h/d = {ratio:.2f}, cpe "
+        f"terrain {exposure}, qp(h = {height:.1f} m) = {qh:.3f} kN/m²{how}, h/d = {ratio:.2f}, cpe "
         f"D {windward:+.2f} / E {leeward:+.2f}, lack of correlation "
         f"{correlation_factor(ratio, table):.3f}, cscd {cscd:.3g} ({why}); b = {width:.1f} m"
         + _orography_note(height, table)

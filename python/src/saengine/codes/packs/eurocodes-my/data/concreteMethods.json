@@ -1,0 +1,13 @@
+{
+  "$schema": "../../../schemas/concreteMethods.schema.json",
+  "$sources": [
+    "MS EN 1992-1-1:2010 National Annex, 3.1.6(1)P (αcc)"
+  ],
+  "ultimate": {
+    "alphaCC": 0.85,
+    "alphaCCShear": 1.0
+  },
+  "sources": {
+    "ultimate": "MS EN 1992-1-1 NA 3.1.6(1)P: αcc = 0.85 in flexure and axial loading, 1.0 otherwise (the UK choice the Malaysian NA follows)"
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "$schema": "../../../schemas/concreteMethods.schema.json",
+  "$sources": [
+    "DIN EN 1992-1-1/NA:2013-04, NDP zu 3.1.6(1)P (αcc), 2.4.2.4 (γc, γs), 6.2.2 (CRd,c), 6.2.3 (ν1)"
+  ],
+  "ultimate": {
+    "alphaCC": 0.85,
+    "gammaC": 1.5,
+    "gammaS": 1.15
+  },
+  "shear": {
+    "crdcCoefficient": 0.15,
+    "nuCoefficient": 0.825,
+    "nuDivisor": 550.0,
+    "nuMax": 0.75
+  },
+  "sources": {
+    "ultimate": "DIN EN 1992-1-1/NA 3.1.6(1)P: αcc = 0.85 (normal concrete; in shear as well); 2.4.2.4: γc 1.5, γs 1.15",
+    "shear": "DIN EN 1992-1-1/NA 6.2.2(1): CRd,c = 0.15/γc; 6.2.3(3): ν1 = 0.75 ν2, ν2 = 1.1 - fck/500 ≤ 1.0, written as ν1 = 0.825 (1 - fck/550) at most 0.75. The DIN limit of cot θ by Eq 6.7aDE is not covered: the base pack's 1.0-2.5 applies (on the safe side of 3.0)"
+  }
+}

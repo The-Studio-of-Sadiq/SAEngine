@@ -1,0 +1,112 @@
+{
+  "schema": "saengine.codePack/1",
+  "id": "eurocodes-de",
+  "name": "Eurocodes with the German National Annexes (DIN EN NA)",
+  "edition": "DIN EN 1990-1998 with the National Annexes (NA)",
+  "country": "DE",
+  "version": "0.1.0",
+  "extends": "eurocodes",
+  "covers": [
+    "combinations",
+    "areaLoads",
+    "locations",
+    "zoneCoefficients",
+    "seismic",
+    "wind",
+    "snow",
+    "concreteMethods",
+    "steelLimitState",
+    "geotechnicalMethods"
+  ],
+  "description": "The Eurocodes with the German National Annexes (alpha 9 track C15): only the Nationally Determined Parameters, everything else from the base pack Eurocodes. DIN EN 1990/NA Eq 6.10 with the recommended γ and ψ; DIN EN 1991-1-1/NA imposed loads of Table 6.1DE; DIN EN 1991-1-4/NA wind zones 1-4 (vb,0 22.5-30 m/s) by town with the velocity pressure profiles of Annex NA.B (inland, coast, North Sea islands) and the simplified pressures up to 25 m; DIN EN 1991-1-3/NA snow zones 1, 1a, 2, 2a, 3 by altitude; DIN EN 1992-1-1/NA αcc 0.85, CRd,c 0.15/γc, ν1 = 0.75 ν2; DIN EN 1993-1-1/NA γM0 1.0, γM1 1.1, γM2 1.25; DIN EN 1997-1/NA with DIN 1054 design approach 2*; DIN EN 1998-1/NA seismic zones 0-3 with agR and the combined subsoil classes. Every value is listed in VERIFY.md for checking against the printed annexes.",
+  "sources": [
+    {
+      "id": "DINNA1990",
+      "title": "DIN EN 1990/NA National Annex: Basis of structural design",
+      "edition": "2010-12",
+      "publisher": "DIN"
+    },
+    {
+      "id": "DINNA1991-1-1",
+      "title": "DIN EN 1991-1-1/NA National Annex: densities, self-weight, imposed loads",
+      "edition": "2010-12",
+      "publisher": "DIN"
+    },
+    {
+      "id": "DINNA1991-1-3",
+      "title": "DIN EN 1991-1-3/NA National Annex: snow loads",
+      "edition": "2010-12",
+      "publisher": "DIN"
+    },
+    {
+      "id": "DINNA1991-1-4",
+      "title": "DIN EN 1991-1-4/NA National Annex: wind actions",
+      "edition": "2010-12",
+      "publisher": "DIN"
+    },
+    {
+      "id": "DINNA1992-1-1",
+      "title": "DIN EN 1992-1-1/NA National Annex: concrete structures",
+      "edition": "2013-04",
+      "publisher": "DIN"
+    },
+    {
+      "id": "DINNA1993-1-1",
+      "title": "DIN EN 1993-1-1/NA National Annex: steel structures",
+      "edition": "2018-12",
+      "publisher": "DIN"
+    },
+    {
+      "id": "DINNA1997-1",
+      "title": "DIN EN 1997-1/NA National Annex: geotechnical design, with DIN 1054",
+      "edition": "2010-12",
+      "publisher": "DIN"
+    },
+    {
+      "id": "DINNA1998-1",
+      "title": "DIN EN 1998-1/NA National Annex: earthquake resistance (zones of DIN 4149)",
+      "edition": "2021-07",
+      "publisher": "DIN"
+    }
+  ],
+  "clauses": {
+    "combinations": [
+      "DIN EN 1990/NA 6.4.3.2, Tables NA.A.1.1, NA.A.1.2(B)"
+    ],
+    "areaLoads": [
+      "DIN EN 1991-1-1/NA Table 6.1DE"
+    ],
+    "locations": [
+      "DIN EN 1991-1-4/NA Annex NA.A; DIN EN 1998-1/NA seismic zones"
+    ],
+    "zoneCoefficients": [
+      "DIN EN 1998-1/NA (DIN 4149 Table 2)"
+    ],
+    "seismic": [
+      "DIN EN 1998-1/NA 3.2.2.2, Table NA.4"
+    ],
+    "wind": [
+      "DIN EN 1991-1-4/NA Annex NA.B, Tables NA.B.2, NA.B.3"
+    ],
+    "snow": [
+      "DIN EN 1991-1-3/NA 4.1, Eqs NA.1-NA.3"
+    ],
+    "concreteMethods": [
+      "DIN EN 1992-1-1/NA 3.1.6, 6.2.2, 6.2.3"
+    ],
+    "steelLimitState": [
+      "DIN EN 1993-1-1/NA 6.1"
+    ],
+    "geotechnicalMethods": [
+      "DIN EN 1997-1/NA, DIN 1054 2.4.7.3.4"
+    ]
+  },
+  "basis": {
+    "general": "DIN EN 1990, DIN EN 1991, DIN EN 1998-1 with the National Annexes",
+    "concrete": "DIN EN 1992-1-1 with the National Annex and EN 1998-1 Section 5",
+    "steel": "DIN EN 1993-1-1, DIN EN 1993-1-8 with the National Annexes"
+  },
+  "author": "SAEngine",
+  "licence": "AGPL-3.0-only",
+  "hooks": null
+}

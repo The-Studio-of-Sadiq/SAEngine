@@ -1,0 +1,121 @@
+{
+  "$schema": "../../../schemas/locations.schema.json",
+  "$replace": true,
+  "$sources": [
+    "UK NA to BS EN 1991-1-4:2005+A1:2010, Figure NA.1 (vb,map) and UK NA to BS EN 1998-1 (no seismic zones)"
+  ],
+  "source": "UK NA to BS EN 1991-1-4 Figure NA.1: the fundamental basic wind velocity before the altitude correction vb,map [m/s] read near each town (to be checked against the map: VERIFY.md); the pack applies calt for the site altitude (Project Settings > Site > Site altitude). Seismic zone 0 everywhere (very low seismicity, see zoneCoefficients). Elsewhere a custom location (enter vb,map as V).",
+  "default": "london",
+  "locations": {
+    "london": {
+      "name": "London",
+      "zone": 0,
+      "windSpeed": 21.5
+    },
+    "birmingham": {
+      "name": "Birmingham",
+      "zone": 0,
+      "windSpeed": 22.0
+    },
+    "manchester": {
+      "name": "Manchester",
+      "zone": 0,
+      "windSpeed": 23.5
+    },
+    "liverpool": {
+      "name": "Liverpool",
+      "zone": 0,
+      "windSpeed": 24.0
+    },
+    "leeds": {
+      "name": "Leeds",
+      "zone": 0,
+      "windSpeed": 23.0
+    },
+    "sheffield": {
+      "name": "Sheffield",
+      "zone": 0,
+      "windSpeed": 22.5
+    },
+    "newcastle": {
+      "name": "Newcastle upon Tyne",
+      "zone": 0,
+      "windSpeed": 24.0
+    },
+    "bristol": {
+      "name": "Bristol",
+      "zone": 0,
+      "windSpeed": 22.5
+    },
+    "cardiff": {
+      "name": "Cardiff",
+      "zone": 0,
+      "windSpeed": 23.5
+    },
+    "swansea": {
+      "name": "Swansea",
+      "zone": 0,
+      "windSpeed": 24.5
+    },
+    "plymouth": {
+      "name": "Plymouth",
+      "zone": 0,
+      "windSpeed": 24.0
+    },
+    "southampton": {
+      "name": "Southampton",
+      "zone": 0,
+      "windSpeed": 22.0
+    },
+    "norwich": {
+      "name": "Norwich",
+      "zone": 0,
+      "windSpeed": 22.5
+    },
+    "cambridge": {
+      "name": "Cambridge",
+      "zone": 0,
+      "windSpeed": 21.5
+    },
+    "nottingham": {
+      "name": "Nottingham",
+      "zone": 0,
+      "windSpeed": 22.0
+    },
+    "edinburgh": {
+      "name": "Edinburgh",
+      "zone": 0,
+      "windSpeed": 25.0
+    },
+    "glasgow": {
+      "name": "Glasgow",
+      "zone": 0,
+      "windSpeed": 25.5
+    },
+    "aberdeen": {
+      "name": "Aberdeen",
+      "zone": 0,
+      "windSpeed": 26.0
+    },
+    "inverness": {
+      "name": "Inverness",
+      "zone": 0,
+      "windSpeed": 27.0
+    },
+    "belfast": {
+      "name": "Belfast",
+      "zone": 0,
+      "windSpeed": 25.0
+    },
+    "londonderry": {
+      "name": "Londonderry",
+      "zone": 0,
+      "windSpeed": 27.0
+    },
+    "lerwick": {
+      "name": "Lerwick",
+      "zone": 0,
+      "windSpeed": 31.0
+    }
+  }
+}

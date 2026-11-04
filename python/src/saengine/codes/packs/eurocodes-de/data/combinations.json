@@ -1,0 +1,10 @@
+{
+  "$schema": "../../../schemas/combinations.schema.json",
+  "$sources": [
+    "DIN EN 1990/NA:2010-12, NDP zu 6.4.3.2(3) (Eq 6.10) and Tables NA.A.1.1 (ψ), NA.A.1.2(B) (γ)"
+  ],
+  "strengthSet": "6.10",
+  "sources": {
+    "strengthSet": "DIN EN 1990/NA NDP zu 6.4.3.2(3): Eq 6.10 (Eqs 6.10a/b are not used); γG,sup 1.35, γG,inf 1.0, γQ 1.5 and ψ (A, B 0.7/0.5/0.3; snow below 1000 m 0.5/0.2/0; wind 0.6/0.2/0) equal to the recommended values the base pack holds"
+  }
+}

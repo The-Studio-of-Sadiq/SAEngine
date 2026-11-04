@@ -41,6 +41,32 @@ here, newest first, with the date, the question, the decision, the reason and wh
 - **No unlicensed software.** ETABS, SAP2000 and STAAD are not used for cross-checks or cited.
   Open-source tools are used instead (2026-10-25).
 
+## 2026-11-04: National Annex packs on the Eurocodes (alpha 9 track C15)
+
+- **What was built.** Four built-in packs that `extends: "eurocodes"` and set only Nationally
+  Determined Parameters: `eurocodes-uk` (UK NAs to BS EN 1990-1998, bar schedules by BS 8666),
+  `eurocodes-de` (DIN EN NAs, DIN 1054), `eurocodes-my` (MS EN NAs) and `eurocodes-sg` (SS EN
+  NAs). Every value is in the pack's `VERIFY.md`; no annex text was available.
+- **Generic keys the annexes needed (any pack may use them; the base packs do not set them, so
+  BNBC 2020 and Eurocodes results are unchanged):** `concreteMethods.ultimate.alphaCCShear` (αcc
+  of shear, torsion and punching), `concreteMethods.shear.nuMax` (a cap on ν1),
+  `wind.altitude` (vb,0 = vb,map × (1 + factor A) with the new Site > Site altitude),
+  `wind.peakVelocityPressure.profiles` / `simplified` / `useSimplified` (an annex's qp(z)
+  profiles and stepped pressures in place of EN Eq 4.8), `wind.minimumLateral` (the least
+  storey force as a share of the characteristic dead weight), `snow.groundLoad` (sk by the
+  zone of the snow map, Site > Snow > Snow zone, and the site altitude) and
+  `seismic.designCategories.zoneColumns` (which category column a zone id takes; zones not
+  numbered 1, 2, ... used to index the wrong column or fail).
+- **SAEngine practice.** UK: Eq NA.2a (calt = 1 + 0.001 A at every height, the conservative
+  form), cdir = 1.0 in every direction, qp by EN Eq 4.8 (the NA's exposure factor figures not
+  covered). DE: the NA.B profiles by default, the simplified stepped pressures by a Code Values
+  override; on a hill qp × co²; DA2* applied as the A1 factors on the actions; zones 0-2
+  ordinary detailing, zone 3 intermediate. SG: the 1.5 % least horizontal load applied to the
+  characteristic wind storey forces (factored like the wind; on the safe side). MY: the town
+  wind speeds are SAEngine's conversion of the MS 1553 gust speeds and the agR bands are read
+  from memory: both must be checked before design (VERIFY.md M1, M2). A zone with agR 0 takes
+  the first category column (no seismic detailing).
+
 ## 2026-11-04: bar bending schedules by the pack's standard (alpha 9 track C14)
 
 - **Where.** The schedule standard is the code pack's `barSchedule` table: `standard` picks one

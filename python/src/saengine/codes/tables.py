@@ -532,6 +532,19 @@ class DesignCategories(BaseModel):
     bySiteClass: dict[str, dict[str, list[str]]]
     #: Site classes read from another row (e.g. S1, S2 -> SE).
     aliases: dict[str, str] = Field(default_factory=dict)
+    #: Alpha 9 C15: the column of each zone id in the rows (0 the first), for zones that are
+    #: not numbered 1, 2, ... (a zone 0 without seismic action, more zones than columns);
+    #: empty: zone n takes column n - 1.
+    zoneColumns: dict[str, int] = Field(default_factory=dict)
+
+
+def category_column(table: DesignCategories, zone: Any, count: int) -> int:
+    """Alpha 9 C15: the column of ``zone`` in rows of ``count`` categories: the pack's
+    ``zoneColumns`` where it names the zone, else zone - 1 (a zone beyond the last column takes
+    the last)."""
+    own = table.zoneColumns.get(str(zone))
+    index = int(own) if own is not None else int(zone) - 1
+    return min(index, count - 1)
 
 
 class SiteSpecificStudy(BaseModel):
@@ -1630,6 +1643,62 @@ class PeakVelocityPressureRule(_Row):
     zmax: Positive = Field(description="zmax [m].")
     turbulence: Positive = Field(description="Turbulence factor kI.")
     peakFactor: Positive = Field(description="7 of (1 + 7 Iv).")
+    # Alpha 9 C15: a National Annex's own qp(z) profiles in place of Eq 4.8 (DIN EN 1991-1-4/NA
+    # Annex NA.B type) and its simplified stepped pressures for low buildings.
+    profiles: dict[str, list[VelocityPressureSegment]] | None = Field(
+        default=None,
+        description="By terrain (exposure id): qp(z) = factor × qb × (z / zref)^exponent in the "
+        "first segment with z <= zmax (qb = ½ ρ vb²); a terrain without one takes Eq 4.8.",
+    )
+    simplified: list[SimplifiedPressureRow] = Field(
+        default_factory=list,
+        description="Stepped qp by height for low buildings, by vb,0 and terrain (used with "
+        "useSimplified).",
+    )
+    useSimplified: bool = Field(
+        default=False,
+        description="Take the simplified stepped pressures where a row fits the site and the "
+        "building's height (a project override).",
+    )
+
+
+class VelocityPressureSegment(_Row):
+    """Alpha 9 C15: one height range of a qp(z) profile: qp = ``factor`` × qb × (z /
+    ``zref``)^``exponent`` up to ``zmax`` [m]; with ``absolute`` the factor is qp in kN/m²
+    (times (z / zref)^exponent) instead of a multiple of qb."""
+
+    zmax: Positive = Field(description="Upper end of the range [m].")
+    factor: Positive
+    exponent: float = Field(default=0.0, ge=0)
+    zref: Positive = Field(default=10.0, description="[m]")
+    absolute: bool = False
+
+
+class SimplifiedPressureRow(_Row):
+    """Alpha 9 C15: the simplified velocity pressure of a wind zone (by its ``vb0`` [m/s]) and
+    terrain ``exposure``: (height up to [m], q [kN/m²]) steps, the whole building at the step of
+    its height."""
+
+    vb0: Positive = Field(description="vb,0 of the wind zone [m/s].")
+    exposure: str
+    heights: list[tuple[Positive, Positive]] = Field(min_length=1)
+
+
+class AltitudeFactor(_Row):
+    """Alpha 9 C15: the altitude factor on the mapped basic wind velocity (UK NA to BS EN
+    1991-1-4 Eq NA.2a type): vb,0 = vb,map × (1 + ``factor`` × A), A the site altitude [m]."""
+
+    factor: float = Field(ge=0, description="Per metre of altitude.")
+    clause: str | None = None
+
+
+class MinimumLateral(_Row):
+    """Alpha 9 C15: a least horizontal load at each level as a share of its characteristic
+    dead weight (the Singapore NA's 1.5 % type): the wind storey force is at least ``share`` ×
+    the level's G."""
+
+    share: Share
+    clause: str | None = None
 
 
 class WallPressureRow(_Row):
@@ -1948,6 +2017,13 @@ class WindTable(TableModel):
     )
     localPressures: LocalPressuresTable | None = Field(
         default=None, description="Cladding pressures by cpe,1/cpe,10; None: the cladding table's."
+    )
+    # Alpha 9 C15: National Annex parameters.
+    altitude: AltitudeFactor | None = Field(
+        default=None, description="Altitude factor on the mapped speed; None: none."
+    )
+    minimumLateral: MinimumLateral | None = Field(
+        default=None, description="Least storey force as a share of the dead weight; None: none."
     )
 
     @model_validator(mode="after")
@@ -10130,6 +10206,33 @@ class SnowShapeDriftRule(BaseModel):
     lowerShape: Positive
 
 
+class GroundSnowZone(_Row):
+    """Alpha 9 C15: the ground snow load of one zone of a code's snow map by the site altitude
+    A [m]: sk = ``factor`` × max(``minimum``, ``base`` + ``coefficient`` × ((A + ``offset``) /
+    ``divisor``)^``exponent``) [kN/m²]."""
+
+    name: str
+    base: float
+    coefficient: float = 0.0
+    offset: float = 0.0
+    divisor: Positive = 1.0
+    exponent: Positive = 1.0
+    minimum: float | None = Field(default=None, ge=0, description="sk at least [kN/m²].")
+    factor: Positive = Field(default=1.0, description="On the whole (a zone 1a = 1.25 × 1).")
+
+
+class GroundSnowRule(_Row):
+    """Alpha 9 C15: the ground snow load from the zone of the snow map and the site altitude
+    (method ``zoneAltitude``), where the project enters no ground snow load."""
+
+    method: Literal["zoneAltitude"] = "zoneAltitude"
+    zones: dict[str, GroundSnowZone] = Field(min_length=1)
+    defaultZone: str | None = Field(
+        default=None, description="The zone where the project gives none; None: no snow then."
+    )
+    clause: str | None = None
+
+
 class SnowTable(TableModel):
     """Snow on roofs from the snow load on the ground (:mod:`saengine.fem.snow_load`; C4, C1):
     s = ``factor``·(roof factor)·Ce·Ct·Is·sg on the roof, sg the ground snow load the project
@@ -10183,6 +10286,10 @@ class SnowTable(TableModel):
     )
     seismicThreshold: Positive | None = Field(
         default=None, description="... where the flat roof snow is above this [kN/m²]."
+    )
+    # Alpha 9 C15: a National Annex's ground snow load by map zone and altitude.
+    groundLoad: GroundSnowRule | None = Field(
+        default=None, description="sk by zone and altitude; None: the project enters sk."
     )
 
     @model_validator(mode="after")

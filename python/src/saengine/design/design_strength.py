@@ -113,11 +113,17 @@ def properties(fck: float, found: Any | None = None) -> ConcreteProperties:
     )
 
 
-def fcd(fck: float, found: Any | None = None, accidental: bool = False) -> float:
-    """Design compressive strength αcc fck / γc [MPa]."""
+def fcd(
+    fck: float, found: Any | None = None, accidental: bool = False, shear: bool = False
+) -> float:
+    """Design compressive strength αcc fck / γc [MPa]; with ``shear`` the pack's αcc of shear,
+    torsion and punching (``alphaCCShear``, alpha 9 C15) where it gives one."""
     r = found or rules()
     gamma = (r.gammaCAccidental or r.gammaC) if accidental else r.gammaC
-    return r.alphaCC * fck / gamma
+    alpha = r.alphaCC
+    if shear and getattr(r, "alphaCCShear", None) is not None:
+        alpha = r.alphaCCShear
+    return alpha * fck / gamma
 
 
 def fctd(fck: float, found: Any | None = None) -> float:

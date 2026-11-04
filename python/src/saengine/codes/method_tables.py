@@ -85,6 +85,11 @@ class UltimateRules(_Group):
     gammaSAccidental: Positive | None = None
     alphaCC: Share
     alphaCT: Share
+    # Alpha 9 C15: a National Annex's αcc for shear and the other phenomena (UK NA to BS EN
+    # 1992-1-1 3.1.6(1): 0.85 flexure and axial, 1.0 others); None: alphaCC everywhere.
+    alphaCCShear: Share | None = Field(
+        default=None, description="αcc of fcd in shear, torsion and punching (none: alphaCC)."
+    )
     steelE: Positive = Field(description="Es [MPa].")
     strengthClasses: list[tuple[Positive, Positive]] = Field(
         description="(fck, fck,cube) [MPa] of the strength classes."
@@ -129,6 +134,8 @@ class StrutShearRules(_Group):
     cotTheta: tuple[Positive, Positive] = Field(description="Least and largest cot θ.")
     nuCoefficient: Positive = Field(description="ν1 = c (1 - fck / divisor).")
     nuDivisor: Positive
+    # Alpha 9 C15: a National Annex's cap of ν1 (DIN EN 1992-1-1/NA: ν1 = 0.75 ν2, ν2 <= 1).
+    nuMax: Share | None = Field(default=None, description="ν1 at most (none: no cap).")
     alphaCw: Positive
     leverArmShare: Share = Field(description="z = share × d.")
     rhoWMinCoefficient: Positive = Field(description="ρw,min = c √fck / fyk.")

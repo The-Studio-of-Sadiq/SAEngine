@@ -1,0 +1,66 @@
+{
+  "schema": "saengine.codePack/1",
+  "id": "eurocodes-sg",
+  "name": "Eurocodes with the Singapore National Annexes (SS EN)",
+  "edition": "SS EN 1990-1997 with the Singapore National Annexes",
+  "country": "SG",
+  "version": "0.1.0",
+  "extends": "eurocodes",
+  "covers": [
+    "locations",
+    "zoneCoefficients",
+    "seismic",
+    "wind",
+    "concreteMethods",
+    "steelLimitState"
+  ],
+  "description": "The Eurocodes with the Singapore National Annexes (alpha 9 track C15, group 1 of C23): vb,0 = 20 m/s (SS EN 1991-1-4 NA), the least horizontal load of 1.5 % of the characteristic dead weight, αcc 0.85 / 1.0 (SS EN 1992-1-1 NA), γM2 1.10 (SS EN 1993-1-1 NA) and no seismic design; everything else from the base pack Eurocodes. Every value is listed in VERIFY.md for checking against the printed annexes.",
+  "sources": [
+    {
+      "id": "SSNA1991-1-4",
+      "title": "SS EN 1991-1-4 National Annex: wind actions",
+      "edition": "2009",
+      "publisher": "Enterprise Singapore"
+    },
+    {
+      "id": "SSNA1992-1-1",
+      "title": "SS EN 1992-1-1 National Annex: concrete structures",
+      "edition": "2008",
+      "publisher": "Enterprise Singapore"
+    },
+    {
+      "id": "SSNA1993-1-1",
+      "title": "SS EN 1993-1-1 National Annex: steel structures",
+      "edition": "2010",
+      "publisher": "Enterprise Singapore"
+    }
+  ],
+  "clauses": {
+    "locations": [
+      "SS EN 1991-1-4 NA"
+    ],
+    "zoneCoefficients": [
+      "EN 1998 not adopted in Singapore"
+    ],
+    "seismic": [
+      "EN 1998 not adopted in Singapore"
+    ],
+    "wind": [
+      "SS EN 1991-1-4 NA; Singapore NA (1.5 % notional horizontal load)"
+    ],
+    "concreteMethods": [
+      "SS EN 1992-1-1 NA 3.1.6"
+    ],
+    "steelLimitState": [
+      "SS EN 1993-1-1 NA 6.1"
+    ]
+  },
+  "basis": {
+    "general": "SS EN 1990, SS EN 1991 with the Singapore National Annexes",
+    "concrete": "SS EN 1992-1-1 with the Singapore National Annex",
+    "steel": "SS EN 1993-1-1 with the Singapore National Annex"
+  },
+  "author": "SAEngine",
+  "licence": "AGPL-3.0-only",
+  "hooks": null
+}

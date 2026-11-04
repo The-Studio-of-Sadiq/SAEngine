@@ -1,0 +1,232 @@
+{
+  "$schema": "../../../schemas/combinations.schema.json",
+  "$sources": [
+    "UK NA to BS EN 1990:2002+A1:2005, NA.2.2.3.2 and Tables NA.A1.1 (ψ), NA.A1.2(B) (γ, ξ)"
+  ],
+  "source": "UK NA to BS EN 1990 Table NA.A1.2(B): the less favourable of Eqs 6.10a and 6.10b with γG,sup 1.35, ξ 0.925 (ξ γG = 1.25), γG,inf 1.0, γQ 1.5; ψ0 of the imposed loads A-D 0.7, of snow below 1000 m 0.5, of the wind 0.5 (Table NA.A1.1).",
+  "strengthSet": "6.10ab",
+  "strengthSets": {
+    "6.10ab": [
+      {
+        "id": "6.10a-G",
+        "name": "1.35G",
+        "factors": {
+          "D": 1.35,
+          "F": 1.35,
+          "H": 1.35
+        }
+      },
+      {
+        "id": "6.10a-Q",
+        "name": "1.35G + 1.05Q + 0.75S",
+        "factors": {
+          "D": 1.35,
+          "F": 1.35,
+          "H": 1.35,
+          "L": 1.05,
+          "Lr": 0.75
+        }
+      },
+      {
+        "id": "6.10a-QW",
+        "name": "1.35G + 1.05Q + 0.75S + 0.75W",
+        "factors": {
+          "D": 1.35,
+          "F": 1.35,
+          "H": 1.35,
+          "L": 1.05,
+          "Lr": 0.75,
+          "W": 0.75
+        }
+      },
+      {
+        "id": "6.10b-Q",
+        "name": "1.25G + 1.5Q + 0.75S",
+        "factors": {
+          "D": 1.24875,
+          "F": 1.24875,
+          "H": 1.24875,
+          "L": 1.5,
+          "Lr": 0.75
+        }
+      },
+      {
+        "id": "6.10b-QW",
+        "name": "1.25G + 1.5Q + 0.75S + 0.75W",
+        "factors": {
+          "D": 1.24875,
+          "F": 1.24875,
+          "H": 1.24875,
+          "L": 1.5,
+          "Lr": 0.75,
+          "W": 0.75
+        }
+      },
+      {
+        "id": "6.10b-S",
+        "name": "1.25G + 1.5S + 1.05Q",
+        "factors": {
+          "D": 1.24875,
+          "F": 1.24875,
+          "H": 1.24875,
+          "Lr": 1.5,
+          "L": 1.05
+        }
+      },
+      {
+        "id": "6.10b-SW",
+        "name": "1.25G + 1.5S + 1.05Q + 0.75W",
+        "factors": {
+          "D": 1.24875,
+          "F": 1.24875,
+          "H": 1.24875,
+          "Lr": 1.5,
+          "L": 1.05,
+          "W": 0.75
+        }
+      },
+      {
+        "id": "6.10b-W",
+        "name": "1.25G + 1.5W + 1.05Q + 0.75S",
+        "factors": {
+          "D": 1.24875,
+          "F": 1.24875,
+          "H": 1.24875,
+          "W": 1.5,
+          "L": 1.05,
+          "Lr": 0.75
+        }
+      },
+      {
+        "id": "6.10b-Wfav",
+        "name": "1.0G + 1.5W",
+        "factors": {
+          "D": 1.0,
+          "W": 1.5,
+          "H": 1.35
+        }
+      },
+      {
+        "id": "6.12b",
+        "name": "G + E + 0.3Q",
+        "factors": {
+          "D": 1.0,
+          "F": 1.0,
+          "H": 1.0,
+          "E": 1.0,
+          "L": 0.3
+        }
+      }
+    ],
+    "6.10": [
+      {
+        "id": "6.10-G",
+        "name": "1.35G",
+        "factors": {
+          "D": 1.35,
+          "F": 1.35,
+          "H": 1.35
+        }
+      },
+      {
+        "id": "6.10-Q",
+        "name": "1.35G + 1.5Q + 0.75S",
+        "factors": {
+          "D": 1.35,
+          "F": 1.35,
+          "H": 1.35,
+          "L": 1.5,
+          "Lr": 0.75
+        }
+      },
+      {
+        "id": "6.10-QW",
+        "name": "1.35G + 1.5Q + 0.75S + 0.75W",
+        "factors": {
+          "D": 1.35,
+          "F": 1.35,
+          "H": 1.35,
+          "L": 1.5,
+          "Lr": 0.75,
+          "W": 0.75
+        }
+      },
+      {
+        "id": "6.10-S",
+        "name": "1.35G + 1.5S + 1.05Q",
+        "factors": {
+          "D": 1.35,
+          "F": 1.35,
+          "H": 1.35,
+          "Lr": 1.5,
+          "L": 1.05
+        }
+      },
+      {
+        "id": "6.10-SW",
+        "name": "1.35G + 1.5S + 1.05Q + 0.75W",
+        "factors": {
+          "D": 1.35,
+          "F": 1.35,
+          "H": 1.35,
+          "Lr": 1.5,
+          "L": 1.05,
+          "W": 0.75
+        }
+      },
+      {
+        "id": "6.10-W",
+        "name": "1.35G + 1.5W + 1.05Q + 0.75S",
+        "factors": {
+          "D": 1.35,
+          "F": 1.35,
+          "H": 1.35,
+          "W": 1.5,
+          "L": 1.05,
+          "Lr": 0.75
+        }
+      },
+      {
+        "id": "6.10-Wfav",
+        "name": "1.0G + 1.5W",
+        "factors": {
+          "D": 1.0,
+          "W": 1.5,
+          "H": 1.35
+        }
+      },
+      {
+        "id": "6.12b",
+        "name": "G + E + 0.3Q",
+        "factors": {
+          "D": 1.0,
+          "F": 1.0,
+          "H": 1.0,
+          "E": 1.0,
+          "L": 0.3
+        }
+      }
+    ]
+  },
+  "service": [
+    {
+      "name": "Characteristic: G + Q + 0.5S + 0.6W",
+      "$remove": true
+    },
+    {
+      "id": "6.14b-Q",
+      "name": "Characteristic: G + Q + 0.5S + 0.5W",
+      "factors": {
+        "D": 1.0,
+        "L": 1.0,
+        "Lr": 0.5,
+        "W": 0.5
+      }
+    }
+  ],
+  "sources": {
+    "strengthSets": "UK NA to BS EN 1990 NA.2.2.3.2, Table NA.A1.2(B): Eqs 6.10a and 6.10b, γG,sup 1.35, ξ = 0.925 (0.925 × 1.35 = 1.249), γQ 1.5; accompanying actions at γQ ψ0 (Q 1.05, snow 0.75, wind 0.75)",
+    "strengthSet": "UK NA to BS EN 1990 NA.2.2.3.2: Eqs 6.10a and 6.10b (Eq 6.10 may be chosen by overriding combinations.strengthSet)",
+    "service": "BS EN 1990 Eqs 6.14b-6.16b with the UK ψ of Table NA.A1.1 (ψ0 wind 0.5, ψ1 wind 0.2, ψ2 0)"
+  }
+}

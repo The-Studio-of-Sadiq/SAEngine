@@ -91,7 +91,7 @@ def punching(
     crdc = r.crdcCoefficient / u.gammaC
     vmin = r.vminCoefficient * k**1.5 * math.sqrt(fck)
     v_rdc = max(crdc * k * (100 * min(rho_l, r.rhoLMax) * fck) ** (1 / 3), vmin) + r.k1 * sigma_cp
-    f_cd = design_strength.fcd(fck, u)
+    f_cd = design_strength.fcd(fck, u, shear=True)
     nu = strut_shear.nu1(fck, strut_shear.rules())  # ν of the pack's shear method
     v_rdmax = r.vmaxShare * nu * f_cd
     v_rdcs = None
@@ -180,7 +180,7 @@ def footing_punching(
     vmin = p.vminCoefficient * k**1.5 * math.sqrt(fck)
     v_rdc = max(crdc * k * (100 * min(rho_l, p.rhoLMax) * fck) ** (1 / 3), vmin)
     nu = strut_shear.nu1(fck, strut_shear.rules())
-    v_rdmax = p.vmaxShare * nu * design_strength.fcd(fck, u_rules)
+    v_rdmax = p.vmaxShare * nu * design_strength.fcd(fck, u_rules, shear=True)
     k1, k2 = moment_k(c1, c2), moment_k(c2, c1)
     largest = r.searchDistance * d
     if reach is not None:

@@ -18,7 +18,7 @@ export interface IDefaultCodeTables {
 	/** Table 6.2.19: R, Ω0, Cd; its row; the height limit [m] by Seismic Design Category (null: no limit, 0: not permitted); the frame's seismic detailing. */
 	readonly systems: { readonly [id: string]: { readonly name: string; readonly r: number; readonly omega: number; readonly cd: number; readonly row: string; readonly heightLimits: { readonly [sdc: string]: number | null }; readonly frame: string | null } };
 	/** Table 6.2.18: the Seismic Design Category by site class, occupancy group and zone (in zone order). */
-	readonly designCategories: { readonly occupancyGroups: { readonly [category: string]: string }; readonly bySiteClass: { readonly [siteClass: string]: { readonly [group: string]: readonly string[] } }; readonly aliases: { readonly [siteClass: string]: string } };
+	readonly designCategories: { readonly occupancyGroups: { readonly [category: string]: string }; readonly bySiteClass: { readonly [siteClass: string]: { readonly [group: string]: readonly string[] } }; readonly aliases: { readonly [siteClass: string]: string }; readonly zoneColumns: { readonly [zone: string]: number } };
 	/** Sec 8.3.2: the least seismic detailing by Seismic Design Category. */
 	readonly requiredDetailing: { readonly [sdc: string]: string };
 	/** Sec 2.4: Kd (Table 6.2.12), Kzt (flat terrain) and G (rigid building). */
@@ -10650,6 +10650,20 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 					description: 'Overrides the location\'s value [m/s] (the code pack\'s basic wind speed).',
 					title: 'Basic wind speed',
 				},
+				altitude: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Altitude of the site above mean sea level [m], for code packs whose basic wind velocity or ground snow load depends on it (National Annexes). Empty: 0 m.',
+					title: 'Site altitude',
+				},
 				spectral: {
 					anyOf: [
 						{
@@ -10828,8 +10842,21 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 						},
 					],
 					default: null,
-					description: 'Snow load on the ground at the site [kN/m²] (sk of EN 1991-1-3, pg of ASCE 7: the code\'s snow map or tool). Empty: no snow.',
+					description: 'Snow load on the ground at the site [kN/m²] (sk of EN 1991-1-3, pg of ASCE 7: the code\'s snow map or tool). Empty: no snow, or the code pack\'s value of the Snow zone and Site altitude where the pack has one.',
 					title: 'Ground snow load',
+				},
+				zone: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'The zone of the code\'s snow map (an id of the code pack\'s snow zones, such as 2 or 1a) for the ground snow load by zone and the site altitude, where the pack has that rule and no ground snow load is entered.',
+					title: 'Snow zone',
 				},
 				exposure: {
 					anyOf: [
@@ -13712,6 +13739,7 @@ export const DEFAULT_CODE_TABLES: IDefaultCodeTables = {
 			S1: 'SE',
 			S2: 'SE',
 		},
+		zoneColumns: {},
 	},
 	requiredDetailing: {
 		D: 'special',

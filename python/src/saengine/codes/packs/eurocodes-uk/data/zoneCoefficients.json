@@ -1,0 +1,11 @@
+{
+  "$schema": "../../../schemas/zoneCoefficients.schema.json",
+  "$replace": true,
+  "$sources": [
+    "UK NA to BS EN 1998-1:2004 and PD 6698:2009: the UK is a region of very low seismicity; no seismic design is generally required"
+  ],
+  "source": "UK NA to BS EN 1998-1 (NA.2.3, with PD 6698): very low seismicity in the UK; ordinary buildings need no EN 1998 design. Every location is zone 0 with agR = 0: the derivation makes no earthquake cases (EX, EY empty, reported). Structures of consequence class 3 or special facilities: enter agR as Z (Location: Custom) from a site study.",
+  "zones": {
+    "0": 0.0
+  }
+}
