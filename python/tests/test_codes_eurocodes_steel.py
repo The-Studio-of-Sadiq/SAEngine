@@ -222,6 +222,64 @@ def test_aluminium_en1999(ec):
     assert al._chi(1.0, 0.2, 0.1) < 1.0
 
 
+def test_dissipative_split_and_amplify(ec):
+    from saengine.design.steel import seismic_dissipative as sd
+
+    assert sd.active()
+    names = ["G + EX + 0.3Q", "G + (-EX) + 0.3Q", "1.35G"]
+    pairs = sd.earthquake_pairs(names, [0, 1])
+    assert pairs == [(0, 1)]
+    plus, minus = _stations(300e3)[0], _stations(100e3)[0]
+    # G = (F+ + F-) / 2 = 200 kN, E = (F+ - F-) / 2 = 100 kN; G ± 1.1 γov Ω E, Ω = 1.2
+    found = sd.amplified([plus, minus], pairs, 1.1 * 1.25 * 1.2)
+    assert float(found[0].P[0]) == pytest.approx(200e3 + 1.65 * 100e3)
+    assert float(found[1].P[0]) == pytest.approx(200e3 - 1.65 * 100e3)
+
+
+def test_timber_member_checks(ec):
+    from saengine.design.timber import limit_state as tl
+    from saengine.design.timber.members import Section
+    from saengine.library.materials import Material
+
+    mat = Material.model_validate(
+        {
+            "id": "C24", "name": "C24", "category": "timber",
+            "mechanical": {"E": 11000, "density": 420},
+            "timber": {"group": "B", "location": "inside", "strengthClass": "C24"},
+        }
+    )  # fmt: skip
+    stations = _stations(20e3, -10e6, length=3.0)
+    checks, summary = tl.check_member(
+        Section(100, 200), mat, stations, 3000.0, [{"D": 1.35, "L": 1.5}], "beam"
+    )
+    rows = {c["name"]: c for c in checks}
+    # 6.1.6: fm,d = kmod fm,k / γM = 0.8 × 24 / 1.3 (h = 200 >= 150: kh = 1), σm = M / W
+    sigma = 10e6 / (100 * 200**2 / 6)
+    assert rows["Bending"]["utilisation"] == pytest.approx(sigma / (0.8 * 24 / 1.3), abs=2e-3)
+    assert summary["strengthClass"] == "C24" and summary["serviceClass"] == "1"
+
+
+def test_masonry_wall_checks(ec):
+    from saengine.design import masonry as M
+    from saengine.design import masonry_partial_factors as mp
+    from saengine.design import walls as W
+
+    m = M.Masonry(5.0, "clay", None, "solid", fm_source="estimate", unit_strength=20.0)
+    geometry = W.WallGeometry(3000, 200, 3000, 2800)
+    forces = [
+        W.PierForces("ULS", 400e3, 50e3, 20e6, 0.0, 2e6, False, "bottom"),
+        W.PierForces("ULS", 380e3, 50e3, 10e6, 0.0, 1e6, False, "middle"),
+    ]
+    d = mp.wall_checks(geometry, None, forces, m)
+    rows = {c["name"]: c for c in d.checks}
+    assert {"Vertical load NEd / NRd", "In-plane shear", "Slenderness hef / tef"} <= set(rows)
+    # 6.1.2.2: Φi = 1 - 2 ei / t, ei = M/N + hef/450 >= 0.05 t; NRd = Φ t l fk / γM
+    fk = 0.55 * 20**0.7 * 2.5**0.3
+    ei = max(2e6 / 400e3 + 0.75 * 2800 / 450, 0.05 * 200)
+    nrd = (1 - 2 * ei / 200) * 200 * 3000 * fk / 2.0
+    assert rows["Vertical load NEd / NRd"]["capacity"] <= nrd / 1e3 + 0.01
+
+
 def test_portal_designed_under_the_pack(ec):
     """A small braced steel portal (two columns, a beam with a fin plate) designed under the
     pack: EN 1993-1-1 rows and clauses, EN 1993-1-8 connection notes."""

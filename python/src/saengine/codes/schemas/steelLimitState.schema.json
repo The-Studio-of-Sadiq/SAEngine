@@ -1040,7 +1040,7 @@
     },
     "SteelDissipative": {
       "additionalProperties": false,
-      "description": "Alpha 9 C6, ``steelSeismic.dissipative``: capacity design of dissipative steel frames by\nthe overstrength ratio Ω of the dissipative members and γov.",
+      "description": "Alpha 9 C6, ``steelLimitState.seismic``: capacity design of dissipative steel frames by\nthe overstrength ratio Ω of the dissipative members and γov.",
       "properties": {
         "method": {
           "const": "dissipativeZones",
@@ -1568,7 +1568,7 @@
     },
     "SteelJointResistances": {
       "additionalProperties": false,
-      "description": "Alpha 9 C6, ``connections.resistances``: bolts, bearing, welds and block tearing by design\nresistances with γM2 (``method`` its id).",
+      "description": "Alpha 9 C6, ``steelLimitState.connections``: bolts, bearing, welds and block tearing by design\nresistances with γM2 (``method`` its id).",
       "properties": {
         "method": {
           "const": "partialFactors",

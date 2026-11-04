@@ -275,3 +275,93 @@ code are not copied.
 | 214 | The founding layer's φ'k, c'k, cu,k, γ of the nearest borehole; drained and undrained where both are given; φ'cv,k = φ'k | 6.5.2, 6.5.3(10) | `footings.drained`, `phiCvShare`: overridable | SAEngine practice |
 | 215 | Piles from ground tests: Rc,cal per borehole (SAEngine's static method), n = the boreholes, Rc,k = min(mean/ξ3, min/ξ4), split base/shaft by their mean shares | 7.6.2.3(5)-(8) | | sure (the split is SAEngine practice) |
 | 216 | Rt,k = the shaft's uplift share with ξ3, ξ4; Rt,d = Rt,k/γs,t + the pile's weight | 7.6.3.3 | | SAEngine practice (the weight) |
+
+
+## Steel and the other materials (alpha 9 track C6)
+
+Tables `steelLimitState` (groups `memberResistance`, `connections`, `seismic`), `steel`,
+`steelStability`, `steelSeismic`, `composite`, `timber`, `masonry`, `aluminium`.
+
+| # | Value | Clause | Note | Certainty |
+|---|---|---|---|---|
+| 217 | γM0 = 1.00, γM1 = 1.00, γM2 = 1.25 | EN 1993-1-1 6.1(1) Note 2B | Recommended values | sure |
+| 218 | E = 210 000 MPa, G = 81 000 MPa | EN 1993-1-1 3.2.6(1) | The calculations' values (the material's E is not used by the method) | sure |
+| 219 | fy for t > 40 mm: S235 215, S275 255, S355 335, S450 410 MPa | EN 1993-1-1 Table 3.1 (EN 10025-2) | Matched by the nominal fy; t the thickest plate | sure |
+| 220 | ε = √(235/fy) | Table 5.2 | | sure |
+| 221 | Internal parts in compression 33 / 38 / 42 ε, bending 72 / 83 / 124 ε | Table 5.2 sheet 1 | | sure |
+| 222 | Bending and compression: class 1 396ε/(13α - 1) (α > 0.5) else 36ε/α; class 2 456ε/(13α - 1) else 41.5ε/α; class 3 42ε/(0.67 + 0.33ψ) (ψ > -1) else 62ε(1 - ψ)√(-ψ) | Table 5.2 sheet 1 | α plastic of the web under N, ψ elastic on the gross section | sure |
+| 223 | Outstand flanges 9 / 10 / 14 ε | Table 5.2 sheet 2 | Also used for minor-axis bending tips (14ε, on the safe side) | sure |
+| 224 | Tubes d/t 50 / 70 / 90 ε²; angles h/t <= 15ε and (b + h)/2t <= 11.5ε (class 3) | Table 5.2 sheet 3 | Class 4 tubes not covered (EN 1993-1-6) | sure |
+| 225 | λ̄p = (b/t)/(28.4 ε √kσ); ρ = (λ̄p - 0.055(3 + ψ))/λ̄p² for λ̄p > 0.5 + √(0.085 - 0.055ψ) (internal); ρ = (λ̄p - 0.188)/λ̄p² for λ̄p > 0.748 (outstand) | EN 1993-1-5 4.4(2) Eqs 4.2, 4.3 | | sure |
+| 226 | kσ internal: 4.0 (ψ = 1), 8.2/(1.05 + ψ) (1 > ψ > 0), 7.81 - 6.29ψ + 9.78ψ² (0 > ψ > -1), 23.9 (ψ = -1); outstand 0.43 (uniform), 0.57 (tip compression, root zero) | EN 1993-1-5 Tables 4.1, 4.2 | | sure (0.57: verify the row of Table 4.2 used) |
+| 227 | Web effective zone be1 = 0.4 beff, be2 = 0.6 beff of the compression zone | EN 1993-1-5 Table 4.1 | One pass (no iteration of the neutral axis): SAEngine practice | sure (the method: SAEngine practice) |
+| 228 | α: a0 0.13, a 0.21, b 0.34, c 0.49, d 0.76; Φ = 0.5[1 + α(λ̄ - 0.2) + λ̄²] | Table 6.1, Eq 6.49 | | sure |
+| 229 | Rolled I curves: h/b > 1.2, tf <= 40: a/b (S460: a0/a0); 40 < tf <= 100: b/c (a/a); h/b <= 1.2, tf <= 100: b/c (a/a); tf > 100: d/d (c/c) | Table 6.2 | | sure |
+| 230 | Welded I: tf <= 40: b/c; tf > 40: c/d. Hot-finished hollow a (S460 a0), cold-formed c; U, T, solid c; L b | Table 6.2 | SAEngine sections taken as rolled; ERW hollow sections as cold-formed (the run's option) | sure |
+| 231 | Torsional and flexural-torsional modes with the z-z curve | 6.3.1.4(1) | Ncr,T = (G It + π² E Iw / LT²)/i0² | sure |
+| 232 | Single angles about v-v, curve b | Table 6.2 | Annex BB.1.2 (truss angles) not applied | SAEngine practice |
+| 233 | LTB general case curves: rolled I h/b <= 2 a, > 2 b; welded c / d; other d | Table 6.4 | | sure |
+| 234 | LTB rolled case: λ̄LT,0 = 0.4, β = 0.75; rolled I h/b <= 2 b, > 2 c; welded c / d; χLT <= 1/λ̄LT² | 6.3.2.3(1), Table 6.5 | Default method `rolled`; f = 1 (`modification: none`) or kc = 1/√C1 (option) | sure (kc = 1/√C1 is an NCCI approximation: SAEngine practice) |
+| 235 | Mcr = C1 π²EIz/L² √(Iw/Iz + L²GIt/(π²EIz)), k = kw = 1, zg = 0; C1 = the moment diagram's equivalent factor, at most 2.7 | (not in EN 1993-1-1: the elastic critical moment) | Cantilever segments L × 2, C1 = 1: SAEngine practice | SAEngine practice |
+| 236 | Annex B class 1-2: kyy = Cmy(1 + (λ̄y - 0.2)nY) <= Cmy(1 + 0.8nY); kzz (I) = Cmz(1 + (2λ̄z - 0.6)nZ) <= Cmz(1 + 1.4nZ), (RHS) as kyy; kyz = 0.6 kzz; kzy = 0.6 kyy (not susceptible) or 1 - 0.1λ̄z nZ/(CmLT - 0.25) >= 1 - 0.1 nZ/(CmLT - 0.25) (λ̄z >= 0.4), 0.6 + λ̄z below | Annex B Tables B.1, B.2 | | sure |
+| 237 | Annex B class 3-4: kyy = Cmy(1 + 0.6λ̄y nY) <= Cmy(1 + 0.6nY); kzz likewise; kyz = kzz; kzy = 0.8 kyy or 1 - 0.05λ̄z nZ/(CmLT - 0.25) >= ... | Annex B Tables B.1, B.2 | | sure |
+| 238 | Cm = 0.6 + 0.4ψ >= 0.4 of a linear diagram; 1.0 with transverse load | Table B.3 | The transverse-load rows of Table B.3 not used (1.0 on the safe side): SAEngine practice | sure (the 1.0: SAEngine practice) |
+| 239 | Annex A: Cmi,0 = 0.79 + 0.21ψ + 0.36(ψ - 0.33)NEd/Ncr,i; non-linear diagrams 1 + 0.03 NEd/Ncr | Annex A Table A.2 | The second: the uniformly loaded span row | unsure (the non-linear row) |
+| 240 | Annex A: μ, wy, wz <= 1.5, npl, aLT = 1 - It/Iy, Cyy, Cyz, Czy, Czz with 1.6, 14, w^5, bLT 0.5, cLT 10/(5 + λ̄z⁴), dLT 2/(0.1 + λ̄z⁴), eLT 1.7/(0.1 + λ̄z⁴), λ̄0 <= 0.2√C1[(1 - NEd/Ncr,z)(1 - NEd/Ncr,TF)]^¼ | Annex A Tables A.1, A.2 | λ̄0 from λ̄LT with C1 | unsure (transcribed from memory: check every constant) |
+| 241 | Shear area of rolled I A - 2btf + (tw + 2r)tf >= η hw tw; channels A - 2btf + (tw + r)tf; T 0.9(A - btf); RHS Ah/(b + h); CHS 2A/π; solid A | 6.2.6(3) | Minor axis of I 2 b tf; angles the leg | sure (the minor-axis and angle areas: SAEngine practice) |
+| 242 | η = 1.2; shear buckling when hw/tw > 72ε/η; λ̄w = hw/(37.4 tw ε √kτ), kτ = 5.34; χw = η (λ̄w < 0.83/η) else 0.83/λ̄w | EN 1993-1-1 6.2.6(6); EN 1993-1-5 5.2-5.3 Table 5.1 | Non-rigid end post, the flanges not counted | sure |
+| 243 | Bending and shear: ρ = (2VEd/Vpl,Rd - 1)² above 0.5 Vpl,Rd; I-sections My,V,Rd = (Wpl - ρAw²/4tw) fy/γM0 | 6.2.8 | Other shapes (1 - ρ) Mc,Rd: SAEngine practice | sure |
+| 244 | MN,y = Mpl,y(1 - n)/(1 - 0.5a), a <= 0.5; MN,z by n vs a; exponents α 2, β 5n >= 1 (I); RHS 1.66/(1 - 1.13n²) <= 6; CHS (1 - n^1.7), 2 | 6.2.9.1(4)-(6) | Other shapes and class 3-4 linear | sure |
+| 245 | Nu,Rd = 0.9 Anet fu / γM2 | 6.2.3(2) | Anet from the run's net area ratio | sure |
+| 246 | αcr >= 10 for first-order analysis | 5.2.1(3) Eq 5.1 | αcr ≈ r/(r - 1) from r = Δ2nd/Δ1st: SAEngine practice | sure (the estimate: SAEngine practice) |
+| 247 | φ = φ0 αh αm, φ0 = 1/200, αh = 2/√h, 2/3 <= αh <= 1, αm taken as 1 | 5.3.2(3) Eq 5.5 | Every combination; h the model's height | sure (αm = 1: SAEngine practice) |
+| 248 | Bolt classes fyb/fub: 4.6 240/400, 4.8 320/400, 5.6 300/500, 5.8 400/500, 6.8 480/600, 8.8 640/800, 10.9 900/1000 | EN 1993-1-8 Table 3.1 | A307 as 4.6, A325 as 8.8, A490 as 10.9: SAEngine practice | sure |
+| 249 | Fv,Rd = αv fub As/γM2, αv 0.6 (4.6, 5.6, 8.8), 0.5 (4.8, 5.8, 6.8, 10.9) | Table 3.4 | The shear plane through the threads (As) on the safe side | sure |
+| 250 | Ft,Rd = 0.9 fub As/γM2; Fv/Fv,Rd + Ft/(1.4 Ft,Rd) <= 1 | Table 3.4, 3.6.1 | Punching shear Bp,Rd not checked | sure |
+| 251 | As M12 84.3, M14 115, M16 157, M18 192, M20 245, M22 303, M24 353, M27 459, M30 561, M33 694, M36 817 mm² | EN ISO 898-1 / the bolt standards | | sure |
+| 252 | Fb,Rd = k1 αb fu d t/γM2, αd = e1/3d0 (end), p1/3d0 - 1/4 (inner), αb = min(αd, fub/fu, 1), k1 = 2.5 | Table 3.4 | k1 at its largest (the transverse edges e2, p2 not known to the line: assumes e2 >= 1.5 d0, p2 >= 3 d0) | unsure (k1 assumption, check the edges) |
+| 253 | Fillet welds fvw,d = fu/(√3 βw γM2) (simplified); directional F/a <= fu/(βw γM2 √(3 - sin²θ)), σ⊥ <= 0.9 fu/γM2; βw 0.80 (fu <= 360), 0.85 (<= 430), 0.90 (<= 510), 1.00 above | EN 1993-1-8 4.5.3.2-4.5.3.3, Table 4.1 | fu of the weaker part (the member and plate); the least listed fu when not known | sure |
+| 254 | Block tearing Veff = fu Ant/γM2 + fy Anv/(√3 γM0) (0.5 fu Ant eccentric) | 3.10.2 Eqs 3.9, 3.10 | | sure |
+| 255 | Slip Fs,Rd = ks n μ (Fp,C - 0.8 Ft,Ed)/γM3, Fp,C = 0.7 fub As, γM3 1.25 (ULS) / 1.1 (SLS); μ A 0.5, B 0.4; ks 1.0 normal, 0.85 oversize/short slot, 0.7 long slot | 3.9.1, 3.9.2, Tables 3.6, 3.7, Table 2.1 | The type's surface classes A, B read as EN classes A, B | sure (the class mapping: SAEngine practice) |
+| 256 | Holes d + 1 (M12, M14), d + 2 (M16-M24), d + 3 (M27+); e1, e2 >= 1.2 d0; spacing 2.5 d | EN 1090-2 Table 11; EN 1993-1-8 Table 3.3 | 2.5 d covers p1 >= 2.2 d0: SAEngine practice | sure |
+| 257 | Plate checks of the shared connection module: φ 1.00 (A fy, Wpl fy), 0.72 (0.9 Anet fu/γM2), shear 0.9623 × 0.6 = 1/√3, 0.7698 × 0.6 = 1/(√3 γM2) | EN 1993-1-1 6.2.3, 6.2.6; EN 1993-1-8 3.10.2 | The equivalents of the EN formulas in the φ form | sure |
+| 258 | γov = 1.25 | EN 1998-1 6.2(3) Note 1 | | sure |
+| 259 | Section classes: DCM (q <= 4) class 1 or 2, DCH (q > 4) class 1; DCL no rule | 6.5.3 Table 6.3 | DCM 1.5 < q <= 2 would allow class 3 (not used: the systems' q are 4) | sure |
+| 260 | Non-dissipative members NEd = NEd,G + 1.1 γov Ω NEd,E | 6.6.3(1) Eq 6.6, 6.7.4(1) Eq 6.12, 6.8.3(1) | G and E from each earthquake combination and its opposite sign: SAEngine practice | sure (the split: SAEngine practice) |
+| 261 | MRF beams NEd/Npl,Rd <= 0.15, (VG + VM)/Vpl,Rd <= 0.5, VM = 2 Mpl,Rd/L; columns VEd/Vpl,Rd <= 0.5 | 6.6.2(2) Eqs 6.3-6.5, 6.6.3(4) | | sure |
+| 262 | ΣMRc >= 1.3 ΣMRb | EN 1998-1 4.4.2.3(4) Eq 4.29 | Both directions' beams summed (on the safe side) | sure |
+| 263 | X braces 1.3 < λ̄ <= 2.0; Ωmax <= 1.25 Ωmin | 6.7.3(1), (8) | Lower bound a flag (V bracing has none) | sure |
+| 264 | EBF links as short: Vp,link = (fy/√3) tw (d - tf), Ω = 1.5 Vp,link/VEd | 6.8.2(3), 6.8.3(1) | The link length is not identified: SAEngine practice | unsure (method) |
+| 265 | Composite: γC 1.5, γS 1.15, γa 1.0, γV 1.25 | EN 1994-1-1 2.4.1.2 | | sure |
+| 266 | PRd = min(0.8 fu πd²/4, 0.29 α d² √(fck Ecm))/γV, α = 0.2(hsc/d + 1) for 3 <= hsc/d <= 4, 1 above, fu <= 500 | 6.6.3.1 Eqs 6.18-6.21 | | sure |
+| 267 | kt = 0.7/√nr (b0/hp)(hsc/hp - 1) <= 0.85 (nr 1) / 0.70 (nr 2); kl = 0.6 (b0/hp)(hsc/hp - 1) <= 1 | 6.6.4.1-6.6.4.2, Table 6.2 | kt,max of through-welded studs, t <= 1 mm | unsure (kt,max row) |
+| 268 | Ecm = 22 000 ((fck + 8)/10)^0.3 | EN 1992-1-1 Table 3.1 (EN 1994-1-1 3.1) | | sure |
+| 269 | η >= 1 - (355/fy)(0.75 - 0.03 Le) >= 0.4 (Le <= 25 m) | EN 1994-1-1 6.6.1.2(1) Eq 6.12 | Equal flanges; Le the member's span | sure |
+| 270 | Plastic moment 0.85 fcd, fyd; web compact limit 2.78 √(E/fy) (= 83ε with E 210 000) | 6.2.1.2, Table 5.2 | | sure |
+| 271 | C20/25 to C60/75, fy <= 460 | 3.1(2), 3.3(2) | | sure |
+| 272 | Columns: Npl,Rd = Aa fyd + 0.85 fcd Ac (1.0 filled) + As fsd; (EI)eff = Ea Ia + Es Is + 0.6 Ecm Ic; curves encased y b, z c, filled a; χ with λ̄ = √(Npl,Rk/Ncr) | 6.7.3.2-6.7.3.3, Table 6.5 | Filled: ρs <= 3 % row | sure |
+| 273 | (EI)eff,II = 0.9 (Ea Ia + Es Is + 0.5 Ecm Ic); k = β/(1 - NEd/Ncr,eff), β = 0.66 + 0.44ψ >= 0.44 (1.0 for e0); e0 = L/200 (encased y), L/150 (z), L/300 (filled) | 6.7.3.4, Table 6.4, Table 6.5 | The imperfection in the plane with the larger ratio | sure |
+| 274 | MEd <= αM μd Mpl,Rd, αM 0.9 (S235-S355), 0.8 (S420-S460) | 6.7.3.6(1) | | sure |
+| 275 | Timber γM solid 1.3, glulam 1.25 | EN 1995-1-1 Table 2.3 | | sure |
+| 276 | kmod solid / glulam: SC1, SC2 0.60 / 0.70 / 0.80 / 0.90 / 1.10; SC3 0.50 / 0.55 / 0.65 / 0.70 / 0.90 | Table 3.1 | Permanent / long / medium / short / instantaneous | sure |
+| 277 | kdef SC1 0.6, SC2 0.8, SC3 2.0 | Table 3.2 | Reported only (deflection not checked) | sure |
+| 278 | Load durations: G permanent, imposed medium, roof live, snow and wind short, earthquake instantaneous | Table 2.2 (examples) | Wind short-term (some National Annexes: instantaneous) | unsure (wind) |
+| 279 | Service class by location: inside 1, outside 2, wet 3 | 2.3.1.3 | SAEngine practice | SAEngine practice |
+| 280 | kh solid min((150/h)^0.2, 1.3), glulam min((600/h)^0.1, 1.1); kcr 0.67; km 0.7; βc 0.2 / 0.1 | 3.2(3), 3.3(3), 6.1.7(2), 6.1.6(2), 6.3.2(3) Eq 6.29 | kh on tension too | sure |
+| 281 | kc by λrel = λ/π √(fc,0,k/E0,05), k = 0.5(1 + βc(λrel - 0.3) + λrel²) | 6.3.2 Eqs 6.21-6.28 | | sure |
+| 282 | σm,crit = 0.78 b² E0,05/(h lef); kcrit 1 (<= 0.75), 1.56 - 0.75λrel,m (<= 1.4), 1/λ² | 6.3.3 Eqs 6.32, 6.34 | lef = the member's length (simply supported, load at the centroid): SAEngine practice | sure |
+| 283 | EN 338 C14-C40 and D30-D70 values (fm, ft0, ft90, fc0, fc90, fv, E0mean, E0,05, Gmean, ρk) | EN 338:2009 Table 1 | The 2009 edition (EN 338:2016 changed ft0 and fv) | unsure (edition; each value) |
+| 284 | EN 14080 GL24h-GL32h, GL24c-GL32c values | EN 14080:2013 Tables 4, 5 | | unsure (each value) |
+| 285 | Masonry fk = K fb^α fm^β, α 0.7, β 0.3; K clay groups 1/2/3 0.55/0.45/0.35, concrete 0.55/0.45/0.40 | EN 1996-1-1 3.6.1.2 Eq 3.1, Table 3.3 | General purpose mortar; group by units solid 1, hollow 2: SAEngine practice | sure (grouping: SAEngine practice) |
+| 286 | fb <= 75, fm <= 20 and <= 2 fb | 3.6.1.2(1) | | sure |
+| 287 | γM = 2.0 | 2.4.3 Table NA (class of execution) | One of the recommended classes chosen: overridable | unsure (the class) |
+| 288 | Φi = 1 - 2ei/t, ei = M/N + einit >= 0.05t, einit = hef/450; Φm of Annex G with E = 1000 fk, ek = 0.002 φ∞ (hef/tef)√(t em) above hef/tef 15, φ∞ 1.5 | 6.1.2.2, 5.5.1.1, Annex G, 3.7.2, 3.7.4 | φ∞ 1.5 of Table 3.8 (clay range 0.5-1.5) | unsure (φ∞) |
+| 289 | ρ2 = 0.75 (braced top and bottom), 2.0 free top; hef/tef <= 27 | 5.5.1.2, 5.5.1.4 | | sure |
+| 290 | fvk = fvk0 + 0.4 σd <= 0.065 fb; fvk0 clay 0.1/0.2/0.3, concrete 0.1/0.15/0.2 by mortar M1-M2 / M2.5-M9 / M10-M20 | 3.6.2, Table 3.4 | The mortar's strength from its grade (the parent's grade table), else 2.5 MPa | sure (values) |
+| 291 | Reinforced walls MRd = As fyd z, z = d(1 - 0.5 As fyd/(b d fd)) <= 0.95 d | 6.6.2 Eqs 6.23-6.24 | The bars at mid-thickness (d = t/2): SAEngine practice | sure |
+| 292 | Aluminium γM1 1.10, γM2 1.25; E 70 000, G 27 000 MPa | EN 1999-1-1 6.1.3, 3.2.5 | | sure |
+| 293 | Alloys f0/fu and ρo,haz/ρu,haz: 6082 T6 (t <= 5) 250/290, 0.50/0.64; (5-15) 260/310, 0.48/0.60; 6061 T6 240/260, 0.48/0.67; 6063 T6 170/215, 0.38/0.51; 6005A T6 225/270, 0.51/0.61; 7020 T6 290/350, 0.71/0.80; 5083 O 110/270, 1/1 | Table 3.2b | Extrusions | unsure (each value) |
+| 294 | Class limits β/ε internal A 11/16/22, A welded 9/13/18, B 13/16.5/18, B welded 10/13.5/15; outstand A 3/4.5/6, A welded 2.5/4/5, B 3.5/4.5/5, B welded 3/3.5/4; ε = √(250/f0) | Table 6.2 | Webs in bending β = 0.4 b/t; CHS β = 3√(D/t) | unsure (each value) |
+| 295 | ρc = C1/(β/ε) - C2/(β/ε)²: internal A 32/220, A welded 29/198, B 29/198, B welded 25/150; outstand A 10/24, A welded 9/20, B 9/20, B welded 8/16 | Table 6.3 | Weff = ρc Wel: SAEngine practice | unsure (each value) |
+| 296 | Flexural buckling class A α 0.20, λ̄0 0.10; class B 0.32, 0.00; LTB α 0.10, λ̄0 0.6 (class 1-2), 0.20, 0.4 (3-4) | Table 6.6, 6.3.2.2 | | unsure |
+| 297 | Combined: exponents ξ 0.8 (the conservative values); section linear; shear Av f0/(√3 γM1) while hw/tw <= 39 ε | 6.3.3, 6.2.9, 6.5.5 | HAZ over the whole section of welded members (on the safe side) | unsure (exponent form) |

@@ -4,15 +4,15 @@ aluminium design that a pack chooses by id (alpha 9 C6).
 The groups plug into the existing tables (a pack without them keeps the default pack's
 methods, unchanged):
 
-- ``steel.memberMethods.resistance = "bucklingCurves"`` with ``steel.memberMethods.
-  partialFactors``: members by cross-section classes, design resistances with γM and the
+- ``steelLimitState.memberResistance`` (method ``crossSectionClasses``, a group of the limit
+  state steel table of :mod:`saengine.codes.limit_state_tables`): members by cross-section classes, design resistances with γM and the
   buckling curves with their imperfection factors, lateral-torsional buckling by χLT and the
   interaction factors of the combined checks (:mod:`saengine.design.steel.buckling_curves`);
-- ``steel.connections.resistances`` (``method = "partialFactors"``): bolts, bearing, welds and
+- ``steelLimitState.connections`` (``method = "partialFactors"``): bolts, bearing, welds and
   block tearing by design resistances with γM2 (:mod:`saengine.design.steel.joint_resistances`);
 - ``steelStability.notional.swayImperfection``: the global sway imperfection φ = φ0 αh αm in
   place of a fixed notional coefficient (:mod:`saengine.fem.notional_loads`);
-- ``steelSeismic.dissipative``: capacity design of dissipative steel frames by the overstrength
+- ``steelLimitState.seismic`` (``method = "dissipativeZones"``): capacity design of dissipative steel frames by the overstrength
   factor, the ductility class's section classes and the brace slenderness limits
   (:mod:`saengine.design.steel.seismic_dissipative`);
 - ``composite.partialFactors``: shear connectors by PRd with γV, the secant modulus Ecm, the
@@ -292,7 +292,7 @@ class SteelJointSlip(_Group):
 
 
 class SteelJointResistances(_Group):
-    """Alpha 9 C6, ``connections.resistances``: bolts, bearing, welds and block tearing by design
+    """Alpha 9 C6, ``steelLimitState.connections``: bolts, bearing, welds and block tearing by design
     resistances with γM2 (``method`` its id)."""
 
     method: Literal["partialFactors"] = "partialFactors"
@@ -348,7 +348,7 @@ class DissipativeFrame(_Group):
 
 
 class SteelDissipative(_Group):
-    """Alpha 9 C6, ``steelSeismic.dissipative``: capacity design of dissipative steel frames by
+    """Alpha 9 C6, ``steelLimitState.seismic``: capacity design of dissipative steel frames by
     the overstrength ratio Ω of the dissipative members and γov."""
 
     method: Literal["dissipativeZones"] = "dissipativeZones"

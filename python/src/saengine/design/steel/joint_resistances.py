@@ -1,6 +1,6 @@
 """Bolts, bearing, welds and block tearing of steel joints by design resistances with partial
 factors: the connection method ``partialFactors`` a code pack picks with
-``steel.connections.resistances`` (alpha 9 C6; the Eurocodes pack: EN 1993-1-8 Table 3.4,
+``steelLimitState.connections`` (alpha 9 C6; the Eurocodes pack: EN 1993-1-8 Table 3.4,
 3.9, 3.10.2 and 4.5.3).
 
 :mod:`saengine.design.steel_connections` asks this module for the resistance of one bolt in

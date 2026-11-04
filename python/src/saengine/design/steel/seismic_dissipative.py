@@ -1,6 +1,6 @@
 """Capacity design of dissipative steel frames by the overstrength of the dissipative members:
-the steel seismic method ``dissipativeZones`` a code pack picks with ``steelSeismic.
-dissipative`` (alpha 9 C6; the Eurocodes pack: EN 1998-1 Section 6). It takes the place of the
+the steel seismic method ``dissipativeZones`` a code pack picks with the limit state steel
+table's ``seismic`` group (``steelLimitState.seismic``; alpha 9 C6; the Eurocodes pack: EN 1998-1 Section 6). It takes the place of the
 default pack's moment and braced frame provisions (:mod:`saengine.design.steel.seismic`,
 :mod:`saengine.design.steel.seismic_braced`) when the pack gives it; the member resistances
 are the pack's partial-factor ones (:mod:`saengine.design.steel.buckling_curves`).

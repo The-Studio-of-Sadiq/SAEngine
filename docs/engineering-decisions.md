@@ -774,6 +774,31 @@ against the printed standard). Its behaviour choices:
     is not in the pack), named so. εmu 0.0025 (the clay masonry value) for all units, γg = 1.0.
   - Timber stays BNBC 2020 Chapter 11: the NDS needs its own reference values and method.
 
+## 2026-11-04: Eurocodes steel and the other materials (alpha 9, track C6)
+
+- **One selector for limit state steel.** The EN 1993 methods are method ids of the limit state
+  steel table `steelLimitState` that C9 (IS 800) introduced, not a second selector:
+  `memberResistance` (`crossSectionClasses`: classes 1-4 with effective widths, curves a0-d,
+  the rolled or general LTB case, Annex A or B), `connections` (`partialFactors`: EN 1993-1-8
+  bolts, bearing, welds, block tearing, slip) and `seismic` (`dissipativeZones`: EN 1998-1
+  Section 6). The IS groups of the table became optional when `memberResistance` is given;
+  χ of the buckling curves is shared. SAEngine practice (owner direction of the integrator).
+- **Pack defaults** (all overridable per project): LTB by the rolled case 6.3.2.3 with f = 1,
+  interaction factors by Annex B (Annex A an option), the simplified weld method, masonry
+  γM 2.0, timber service class from the location of use (inside 1, outside 2, wet 3), wind as
+  a short-term action for kmod. SAEngine practice.
+- **SAEngine practice where the codes leave it open or the model does not know**: C1 of Mcr from
+  the moment diagram's equivalent moment factor (load at the shear centre, k = kw = 1); Cm 1.0 for
+  diagrams with transverse load (Annex B); αm = 1 in the sway imperfection; αcr estimated from
+  Δ2nd/Δ1st; bearing k1 at 2.5 (the transverse edges not known to the bolt line); EBF links
+  taken as short links; the gravity and earthquake parts of the forces from each earthquake
+  combination and its opposite-sign partner; masonry unit group 1 (solid) / 2 (hollow); the
+  heat-affected zone over the whole section of a welded aluminium member; Weff = ρ Wel of class 4
+  shapes other than I, channel and RHS.
+- **Aluminium** is a material category (`aluminium`, the alloy and whether welded); its members
+  use the steel members' shapes, lengths and stations. Timber materials gain an optional
+  `strengthClass` for the limit state method.
+
 ## Earlier owner decisions
 
 - **2026-10-28, piling.** Typical foundations are bored piles with pile caps, on a pile grid of
