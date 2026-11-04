@@ -149,6 +149,8 @@ TEMPLATES: dict[str, dict[str, Any]] = {
     },
     "BeamCorbels": {},
     "Helipad": {},
+    "SnowDrift": {"upperLength": 10.0, "stepHeight": 2.0},  # alpha 9 C1: a roof step
+    "SpectralSite": {},  # alpha 9 C1: the site's mapped spectral values, all optional
     "AirRaidShelter": {"storeysAbove": 1},
     "PDeltaFactors": {},
     "SlabShrinkage": {"freeStrain": 0.0004, "coefficient": 1.0, "aging": 0.8, "creep": 2.0},

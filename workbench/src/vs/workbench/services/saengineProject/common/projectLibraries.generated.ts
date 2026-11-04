@@ -18456,6 +18456,11 @@ export const TEMPLATES: { readonly [defName: string]: object } = {
 	},
 	BeamCorbels: {},
 	Helipad: {},
+	SnowDrift: {
+		upperLength: 10.0,
+		stepHeight: 2.0,
+	},
+	SpectralSite: {},
 	AirRaidShelter: {
 		storeysAbove: 1,
 	},
