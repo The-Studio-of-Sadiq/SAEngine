@@ -375,6 +375,12 @@ class CombinationsTable(TableModel):
     temperature: list[Combination] = Field(
         default_factory=list, description="Strength combinations with T (rise +, fall -)."
     )
+    # Alpha 9 P2: the creep and shrinkage forces case CS (fem.staged), a self-straining action.
+    creepShrinkage: list[Combination] = Field(
+        default_factory=list,
+        description="Strength combinations with the creep and shrinkage forces case CS (the "
+        "factor the code gives a self-straining action); empty: CS is analysed, not designed for.",
+    )
     gravity: list[Combination] = Field(
         default_factory=list, description="The strength combinations with gravity loads only."
     )
@@ -8877,15 +8883,158 @@ class PrestressTime(_Row):
     note: str = Field(default="")
 
 
+# Alpha 9 P2: the parametric creep and shrinkage models (fem.concrete_time), chosen by method id.
+CementClass = Literal["S", "N", "R"]
+
+
+class CreepAci209(_Row):
+    """Method ``aci209`` (ACI 209R-92 Eqs 2-8, 2-11 and the correction factors of Sec 2.5):
+    φ(t, t0) = (t - t0)^ψ / (d + (t - t0)^ψ) φu, φu = ultimate × γla γλ γvs × other, with
+    γla = loadingAge[0] t0^loadingAge[1] (moist cured), γλ = humidity[0] - humidity[1] h (h the
+    relative humidity as a decimal, at least humidityMin), γvs = volumeSurface[0] (1 +
+    volumeSurface[1] exp(-volumeSurface[2] V/S)), V/S [mm] half the effective thickness.
+    Relative to the modulus at the age of loading."""
+
+    method: Literal["aci209"] = Field(description="Method id.")
+    ultimate: Positive = Field(description="Ultimate creep coefficient at standard conditions.")
+    timeExponent: Positive = Field(description="ψ of the time function.")
+    timeConstant: Positive = Field(description="d [days] of the time function.")
+    loadingAge: tuple[float, float] = Field(description="(a, b) of γla = a t0^b.")
+    humidity: tuple[float, float] = Field(description="(a, b) of γλ = a - b h.")
+    humidityMin: Positive = Field(description="Least relative humidity [%] the factor is for.")
+    volumeSurface: tuple[float, float, float] = Field(
+        description="(a, b, c) of γvs = a (1 + b exp(-c V/S)), V/S in mm."
+    )
+    otherFactor: Positive = Field(
+        default=1.0, description="Product of the slump, fines and air factors (1 at standard)."
+    )
+    note: str = Field(default="")
+
+
+class CreepEn1992(_Row):
+    """Method ``en1992AnnexB`` (EN 1992-1-1 Annex B, Eqs B.1-B.10): φ(t, t0) = φ0 βc(t, t0),
+    φ0 = φRH β(fcm) β(t0), fcm = fck + fcmMargin, t0 adjusted for the cement class; relative
+    to the 28-day tangent modulus Ec = tangentFactor × Ecm."""
+
+    method: Literal["en1992AnnexB"] = Field(description="Method id.")
+    fcmMargin: Positive = Field(description="fcm = fck + this [MPa].")
+    tangentFactor: Positive = Field(description="Ec = this × Ecm (the tangent modulus).")
+    cementClass: CementClass = Field(default="N", description="Cement class S, N or R.")
+    cementExponent: dict[str, float] = Field(description="α of the t0 adjustment by class.")
+    note: str = Field(default="")
+
+
+class CreepFib2010(_Row):
+    """Method ``fibMC2010`` (fib Model Code 2010 Sec 5.1.9.4.3): φ = φbc + φdc, basic and
+    drying creep; relative to the 28-day tangent modulus Eci = tangentFactor × Ecm."""
+
+    method: Literal["fibMC2010"] = Field(description="Method id.")
+    fcmMargin: Positive = Field(description="fcm = fck + this [MPa].")
+    tangentFactor: Positive = Field(description="Eci = this × Ecm.")
+    cementClass: CementClass = Field(default="N", description="Cement class S, N or R.")
+    cementExponent: dict[str, float] = Field(description="α of the t0 adjustment by class.")
+    note: str = Field(default="")
+
+
+class ShrinkageAci209(_Row):
+    """Method ``aci209`` (ACI 209R-92 Eq 2-10 and Sec 2.5): εsh(t) = (t - tc)^α / (f + (t -
+    tc)^α) εshu, εshu = ultimate × γcp γλ γvs × other; γcp by the days of moist curing,
+    γλ = a - b h per humidity band, γvs = a exp(-b V/S)."""
+
+    method: Literal["aci209"] = Field(description="Method id.")
+    ultimate: Positive = Field(description="Ultimate shrinkage strain at standard conditions.")
+    timeExponent: Positive = Field(description="α of the time function.")
+    timeConstant: Positive = Field(description="f [days] of the time function.")
+    curing: list[tuple[Positive, Positive]] = Field(
+        min_length=1, description="(days of moist curing, γcp), interpolated."
+    )
+    humidity: list[tuple[Positive, float, float]] = Field(
+        min_length=1, description="(up to relative humidity [%], a, b) of γλ = a - b h."
+    )
+    humidityMin: Positive = Field(description="Least relative humidity [%] the factor is for.")
+    volumeSurface: tuple[float, float] = Field(description="(a, b) of γvs = a exp(-b V/S).")
+    otherFactor: Positive = Field(default=1.0, description="Slump, fines, air (1 at standard).")
+    note: str = Field(default="")
+
+
+class ShrinkageEn1992(_Row):
+    """Method ``en1992AnnexB`` (EN 1992-1-1 3.1.4(6), Eqs 3.8-3.13 and B.11-B.12): εcs = εcd +
+    εca, εcd = βds kh εcd,0, εcd,0 = 0.85 ((220 + 110 αds1) exp(-αds2 fcm / 10)) 10⁻⁶ βRH,
+    εca = βas 2.5 (fck - 10) 10⁻⁶."""
+
+    method: Literal["en1992AnnexB"] = Field(description="Method id.")
+    fcmMargin: Positive = Field(description="fcm = fck + this [MPa].")
+    cementClass: CementClass = Field(default="N")
+    alphaDs1: dict[str, Positive] = Field(description="αds1 by cement class.")
+    alphaDs2: dict[str, Positive] = Field(description="αds2 by cement class.")
+    kh: list[tuple[Positive, Positive]] = Field(
+        min_length=1, description="(h0 [mm], kh), interpolated (Table 3.3)."
+    )
+    autogenous: bool = Field(default=True, description="Add the autogenous shrinkage εca.")
+    note: str = Field(default="")
+
+
+class ShrinkageFib2010(_Row):
+    """Method ``fibMC2010`` (fib Model Code 2010 Sec 5.1.9.4.4): εcs = εcbs + εcds, basic and
+    drying shrinkage."""
+
+    method: Literal["fibMC2010"] = Field(description="Method id.")
+    fcmMargin: Positive = Field(description="fcm = fck + this [MPa].")
+    cementClass: CementClass = Field(default="N")
+    alphaBs: dict[str, Positive] = Field(description="αbs by cement class.")
+    alphaDs1: dict[str, Positive] = Field(description="αds1 by cement class.")
+    alphaDs2: dict[str, Positive] = Field(description="αds2 by cement class.")
+    note: str = Field(default="")
+
+
+class StrengthGainExponential(_Row):
+    """Method ``exponential`` (EN 1992-1-1 Eq 3.2, fib MC2010 Eq 5.1-51): fcm(t) / fcm =
+    exp(s (1 - √(28 / t))), capped at 1 when ``capAt28``; Et from the pack's Ec rule."""
+
+    method: Literal["exponential"] = Field(description="Method id.")
+    s: Positive = Field(description="s of the cement class.")
+    capAt28: bool = Field(default=True, description="No gain beyond 28 days (SAEngine practice).")
+    note: str = Field(default="")
+
+
+class Ageing(_Row):
+    """The ageing coefficient χ of the age-adjusted effective modulus E(t0) / (1 + χ φ)."""
+
+    chi: Share = Field(description="χ (about 0.8 for loads applied at once).")
+    note: str = Field(default="")
+
+
+class TimeAnalysis(_Row):
+    """How the shortening is worked out from the models (fem.staged): ``superposition`` sums
+    each load increment's creep with the steel restraining only the elastic strain (and the
+    pack's reinforced shrinkage ε / (1 + K ρ) where it gives K); ``ageAdjusted`` also lets the
+    steel restrain the creep and the shrinkage by the age-adjusted effective modulus."""
+
+    method: Literal["superposition", "ageAdjusted"] = Field(description="Method id.")
+    note: str = Field(default="")
+
+
 class ConcreteTimeTable(TableModel):
     """Time-dependent properties of concrete: creep, shrinkage, exposure, the strength gain for
     the modulus at the age of loading, and the lump values of the prestress losses."""
 
-    creep: CreepModel
-    shrinkage: ShrinkageModel
+    creep: Annotated[
+        CreepModel | CreepAci209 | CreepEn1992 | CreepFib2010, Field(discriminator="method")
+    ]
+    shrinkage: Annotated[
+        ShrinkageModel | ShrinkageAci209 | ShrinkageEn1992 | ShrinkageFib2010,
+        Field(discriminator="method"),
+    ]
     exposure: ConcreteExposure
-    strengthGain: StrengthGain
+    strengthGain: Annotated[StrengthGain | StrengthGainExponential, Field(discriminator="method")]
     prestress: PrestressTime | None = None
+    # Alpha 9 P2: the AAEM ageing coefficient and the analysis method of the shortening.
+    ageing: Ageing | None = Field(
+        default=None, description="χ of the age-adjusted effective modulus (none: 0.8, generic)."
+    )
+    analysis: TimeAnalysis | None = Field(
+        default=None, description="The shortening's analysis method (none: superposition)."
+    )
 
 
 # ──────────────────────────── steel-concrete composite members (B32) ────────────────────────────

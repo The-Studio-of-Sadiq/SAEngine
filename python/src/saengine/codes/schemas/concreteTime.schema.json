@@ -1,5 +1,41 @@
 {
   "$defs": {
+    "Ageing": {
+      "additionalProperties": false,
+      "description": "The ageing coefficient χ of the age-adjusted effective modulus E(t0) / (1 + χ φ).",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "chi": {
+          "description": "χ (about 0.8 for loads applied at once).",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Chi",
+          "type": "number"
+        },
+        "note": {
+          "default": "",
+          "title": "Note",
+          "type": "string"
+        }
+      },
+      "required": [
+        "chi"
+      ],
+      "title": "Ageing",
+      "type": "object"
+    },
     "ConcreteExposure": {
       "additionalProperties": false,
       "description": "Ambient conditions of the exposures the figures mark.",
@@ -34,6 +70,265 @@
         "outdoor"
       ],
       "title": "ConcreteExposure",
+      "type": "object"
+    },
+    "CreepAci209": {
+      "additionalProperties": false,
+      "description": "Method ``aci209`` (ACI 209R-92 Eqs 2-8, 2-11 and the correction factors of Sec 2.5):\nφ(t, t0) = (t - t0)^ψ / (d + (t - t0)^ψ) φu, φu = ultimate × γla γλ γvs × other, with\nγla = loadingAge[0] t0^loadingAge[1] (moist cured), γλ = humidity[0] - humidity[1] h (h the\nrelative humidity as a decimal, at least humidityMin), γvs = volumeSurface[0] (1 +\nvolumeSurface[1] exp(-volumeSurface[2] V/S)), V/S [mm] half the effective thickness.\nRelative to the modulus at the age of loading.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "method": {
+          "const": "aci209",
+          "description": "Method id.",
+          "title": "Method",
+          "type": "string"
+        },
+        "ultimate": {
+          "description": "Ultimate creep coefficient at standard conditions.",
+          "exclusiveMinimum": 0,
+          "title": "Ultimate",
+          "type": "number"
+        },
+        "timeExponent": {
+          "description": "ψ of the time function.",
+          "exclusiveMinimum": 0,
+          "title": "Timeexponent",
+          "type": "number"
+        },
+        "timeConstant": {
+          "description": "d [days] of the time function.",
+          "exclusiveMinimum": 0,
+          "title": "Timeconstant",
+          "type": "number"
+        },
+        "loadingAge": {
+          "description": "(a, b) of γla = a t0^b.",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Loadingage",
+          "type": "array"
+        },
+        "humidity": {
+          "description": "(a, b) of γλ = a - b h.",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Humidity",
+          "type": "array"
+        },
+        "humidityMin": {
+          "description": "Least relative humidity [%] the factor is for.",
+          "exclusiveMinimum": 0,
+          "title": "Humiditymin",
+          "type": "number"
+        },
+        "volumeSurface": {
+          "description": "(a, b, c) of γvs = a (1 + b exp(-c V/S)), V/S in mm.",
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Volumesurface",
+          "type": "array"
+        },
+        "otherFactor": {
+          "default": 1.0,
+          "description": "Product of the slump, fines and air factors (1 at standard).",
+          "exclusiveMinimum": 0,
+          "title": "Otherfactor",
+          "type": "number"
+        },
+        "note": {
+          "default": "",
+          "title": "Note",
+          "type": "string"
+        }
+      },
+      "required": [
+        "method",
+        "ultimate",
+        "timeExponent",
+        "timeConstant",
+        "loadingAge",
+        "humidity",
+        "humidityMin",
+        "volumeSurface"
+      ],
+      "title": "CreepAci209",
+      "type": "object"
+    },
+    "CreepEn1992": {
+      "additionalProperties": false,
+      "description": "Method ``en1992AnnexB`` (EN 1992-1-1 Annex B, Eqs B.1-B.10): φ(t, t0) = φ0 βc(t, t0),\nφ0 = φRH β(fcm) β(t0), fcm = fck + fcmMargin, t0 adjusted for the cement class; relative\nto the 28-day tangent modulus Ec = tangentFactor × Ecm.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "method": {
+          "const": "en1992AnnexB",
+          "description": "Method id.",
+          "title": "Method",
+          "type": "string"
+        },
+        "fcmMargin": {
+          "description": "fcm = fck + this [MPa].",
+          "exclusiveMinimum": 0,
+          "title": "Fcmmargin",
+          "type": "number"
+        },
+        "tangentFactor": {
+          "description": "Ec = this × Ecm (the tangent modulus).",
+          "exclusiveMinimum": 0,
+          "title": "Tangentfactor",
+          "type": "number"
+        },
+        "cementClass": {
+          "default": "N",
+          "description": "Cement class S, N or R.",
+          "enum": [
+            "S",
+            "N",
+            "R"
+          ],
+          "title": "Cementclass",
+          "type": "string"
+        },
+        "cementExponent": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "description": "α of the t0 adjustment by class.",
+          "title": "Cementexponent",
+          "type": "object"
+        },
+        "note": {
+          "default": "",
+          "title": "Note",
+          "type": "string"
+        }
+      },
+      "required": [
+        "method",
+        "fcmMargin",
+        "tangentFactor",
+        "cementExponent"
+      ],
+      "title": "CreepEn1992",
+      "type": "object"
+    },
+    "CreepFib2010": {
+      "additionalProperties": false,
+      "description": "Method ``fibMC2010`` (fib Model Code 2010 Sec 5.1.9.4.3): φ = φbc + φdc, basic and\ndrying creep; relative to the 28-day tangent modulus Eci = tangentFactor × Ecm.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "method": {
+          "const": "fibMC2010",
+          "description": "Method id.",
+          "title": "Method",
+          "type": "string"
+        },
+        "fcmMargin": {
+          "description": "fcm = fck + this [MPa].",
+          "exclusiveMinimum": 0,
+          "title": "Fcmmargin",
+          "type": "number"
+        },
+        "tangentFactor": {
+          "description": "Eci = this × Ecm.",
+          "exclusiveMinimum": 0,
+          "title": "Tangentfactor",
+          "type": "number"
+        },
+        "cementClass": {
+          "default": "N",
+          "description": "Cement class S, N or R.",
+          "enum": [
+            "S",
+            "N",
+            "R"
+          ],
+          "title": "Cementclass",
+          "type": "string"
+        },
+        "cementExponent": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "description": "α of the t0 adjustment by class.",
+          "title": "Cementexponent",
+          "type": "object"
+        },
+        "note": {
+          "default": "",
+          "title": "Note",
+          "type": "string"
+        }
+      },
+      "required": [
+        "method",
+        "fcmMargin",
+        "tangentFactor",
+        "cementExponent"
+      ],
+      "title": "CreepFib2010",
       "type": "object"
     },
     "CreepModel": {
@@ -261,6 +556,320 @@
       "title": "PrestressTime",
       "type": "object"
     },
+    "ShrinkageAci209": {
+      "additionalProperties": false,
+      "description": "Method ``aci209`` (ACI 209R-92 Eq 2-10 and Sec 2.5): εsh(t) = (t - tc)^α / (f + (t -\ntc)^α) εshu, εshu = ultimate × γcp γλ γvs × other; γcp by the days of moist curing,\nγλ = a - b h per humidity band, γvs = a exp(-b V/S).",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "method": {
+          "const": "aci209",
+          "description": "Method id.",
+          "title": "Method",
+          "type": "string"
+        },
+        "ultimate": {
+          "description": "Ultimate shrinkage strain at standard conditions.",
+          "exclusiveMinimum": 0,
+          "title": "Ultimate",
+          "type": "number"
+        },
+        "timeExponent": {
+          "description": "α of the time function.",
+          "exclusiveMinimum": 0,
+          "title": "Timeexponent",
+          "type": "number"
+        },
+        "timeConstant": {
+          "description": "f [days] of the time function.",
+          "exclusiveMinimum": 0,
+          "title": "Timeconstant",
+          "type": "number"
+        },
+        "curing": {
+          "description": "(days of moist curing, γcp), interpolated.",
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              },
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "minItems": 1,
+          "title": "Curing",
+          "type": "array"
+        },
+        "humidity": {
+          "description": "(up to relative humidity [%], a, b) of γλ = a - b h.",
+          "items": {
+            "maxItems": 3,
+            "minItems": 3,
+            "prefixItems": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "minItems": 1,
+          "title": "Humidity",
+          "type": "array"
+        },
+        "humidityMin": {
+          "description": "Least relative humidity [%] the factor is for.",
+          "exclusiveMinimum": 0,
+          "title": "Humiditymin",
+          "type": "number"
+        },
+        "volumeSurface": {
+          "description": "(a, b) of γvs = a exp(-b V/S).",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Volumesurface",
+          "type": "array"
+        },
+        "otherFactor": {
+          "default": 1.0,
+          "description": "Slump, fines, air (1 at standard).",
+          "exclusiveMinimum": 0,
+          "title": "Otherfactor",
+          "type": "number"
+        },
+        "note": {
+          "default": "",
+          "title": "Note",
+          "type": "string"
+        }
+      },
+      "required": [
+        "method",
+        "ultimate",
+        "timeExponent",
+        "timeConstant",
+        "curing",
+        "humidity",
+        "humidityMin",
+        "volumeSurface"
+      ],
+      "title": "ShrinkageAci209",
+      "type": "object"
+    },
+    "ShrinkageEn1992": {
+      "additionalProperties": false,
+      "description": "Method ``en1992AnnexB`` (EN 1992-1-1 3.1.4(6), Eqs 3.8-3.13 and B.11-B.12): εcs = εcd +\nεca, εcd = βds kh εcd,0, εcd,0 = 0.85 ((220 + 110 αds1) exp(-αds2 fcm / 10)) 10⁻⁶ βRH,\nεca = βas 2.5 (fck - 10) 10⁻⁶.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "method": {
+          "const": "en1992AnnexB",
+          "description": "Method id.",
+          "title": "Method",
+          "type": "string"
+        },
+        "fcmMargin": {
+          "description": "fcm = fck + this [MPa].",
+          "exclusiveMinimum": 0,
+          "title": "Fcmmargin",
+          "type": "number"
+        },
+        "cementClass": {
+          "default": "N",
+          "enum": [
+            "S",
+            "N",
+            "R"
+          ],
+          "title": "Cementclass",
+          "type": "string"
+        },
+        "alphaDs1": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "description": "αds1 by cement class.",
+          "title": "Alphads1",
+          "type": "object"
+        },
+        "alphaDs2": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "description": "αds2 by cement class.",
+          "title": "Alphads2",
+          "type": "object"
+        },
+        "kh": {
+          "description": "(h0 [mm], kh), interpolated (Table 3.3).",
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              },
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "minItems": 1,
+          "title": "Kh",
+          "type": "array"
+        },
+        "autogenous": {
+          "default": true,
+          "description": "Add the autogenous shrinkage εca.",
+          "title": "Autogenous",
+          "type": "boolean"
+        },
+        "note": {
+          "default": "",
+          "title": "Note",
+          "type": "string"
+        }
+      },
+      "required": [
+        "method",
+        "fcmMargin",
+        "alphaDs1",
+        "alphaDs2",
+        "kh"
+      ],
+      "title": "ShrinkageEn1992",
+      "type": "object"
+    },
+    "ShrinkageFib2010": {
+      "additionalProperties": false,
+      "description": "Method ``fibMC2010`` (fib Model Code 2010 Sec 5.1.9.4.4): εcs = εcbs + εcds, basic and\ndrying shrinkage.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "method": {
+          "const": "fibMC2010",
+          "description": "Method id.",
+          "title": "Method",
+          "type": "string"
+        },
+        "fcmMargin": {
+          "description": "fcm = fck + this [MPa].",
+          "exclusiveMinimum": 0,
+          "title": "Fcmmargin",
+          "type": "number"
+        },
+        "cementClass": {
+          "default": "N",
+          "enum": [
+            "S",
+            "N",
+            "R"
+          ],
+          "title": "Cementclass",
+          "type": "string"
+        },
+        "alphaBs": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "description": "αbs by cement class.",
+          "title": "Alphabs",
+          "type": "object"
+        },
+        "alphaDs1": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "description": "αds1 by cement class.",
+          "title": "Alphads1",
+          "type": "object"
+        },
+        "alphaDs2": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "description": "αds2 by cement class.",
+          "title": "Alphads2",
+          "type": "object"
+        },
+        "note": {
+          "default": "",
+          "title": "Note",
+          "type": "string"
+        }
+      },
+      "required": [
+        "method",
+        "fcmMargin",
+        "alphaBs",
+        "alphaDs1",
+        "alphaDs2"
+      ],
+      "title": "ShrinkageFib2010",
+      "type": "object"
+    },
     "ShrinkageModel": {
       "additionalProperties": false,
       "description": "Drying shrinkage of plain concrete and of reinforced sections (``fem.concrete_time``).\nMethod ``tabulatedStrain``: strains tabulated by thickness and humidity at a few drying\ntimes (a digitised figure); reinforced: ε / (1 + K ρ).",
@@ -457,6 +1066,92 @@
       "title": "StrengthGain",
       "type": "object"
     },
+    "StrengthGainExponential": {
+      "additionalProperties": false,
+      "description": "Method ``exponential`` (EN 1992-1-1 Eq 3.2, fib MC2010 Eq 5.1-51): fcm(t) / fcm =\nexp(s (1 - √(28 / t))), capped at 1 when ``capAt28``; Et from the pack's Ec rule.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "method": {
+          "const": "exponential",
+          "description": "Method id.",
+          "title": "Method",
+          "type": "string"
+        },
+        "s": {
+          "description": "s of the cement class.",
+          "exclusiveMinimum": 0,
+          "title": "S",
+          "type": "number"
+        },
+        "capAt28": {
+          "default": true,
+          "description": "No gain beyond 28 days (SAEngine practice).",
+          "title": "Capat28",
+          "type": "boolean"
+        },
+        "note": {
+          "default": "",
+          "title": "Note",
+          "type": "string"
+        }
+      },
+      "required": [
+        "method",
+        "s"
+      ],
+      "title": "StrengthGainExponential",
+      "type": "object"
+    },
+    "TimeAnalysis": {
+      "additionalProperties": false,
+      "description": "How the shortening is worked out from the models (fem.staged): ``superposition`` sums\neach load increment's creep with the steel restraining only the elastic strain (and the\npack's reinforced shrinkage ε / (1 + K ρ) where it gives K); ``ageAdjusted`` also lets the\nsteel restrain the creep and the shrinkage by the age-adjusted effective modulus.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "method": {
+          "description": "Method id.",
+          "enum": [
+            "superposition",
+            "ageAdjusted"
+          ],
+          "title": "Method",
+          "type": "string"
+        },
+        "note": {
+          "default": "",
+          "title": "Note",
+          "type": "string"
+        }
+      },
+      "required": [
+        "method"
+      ],
+      "title": "TimeAnalysis",
+      "type": "object"
+    },
     "TimeShare": {
       "additionalProperties": false,
       "description": "A point of a development curve: the share of the final value reached after ``days``.",
@@ -522,16 +1217,77 @@
       "type": "object"
     },
     "creep": {
-      "$ref": "#/$defs/CreepModel"
+      "discriminator": {
+        "mapping": {
+          "aci209": "#/$defs/CreepAci209",
+          "en1992AnnexB": "#/$defs/CreepEn1992",
+          "fibMC2010": "#/$defs/CreepFib2010",
+          "tabulatedCoefficient": "#/$defs/CreepModel"
+        },
+        "propertyName": "method"
+      },
+      "oneOf": [
+        {
+          "$ref": "#/$defs/CreepModel"
+        },
+        {
+          "$ref": "#/$defs/CreepAci209"
+        },
+        {
+          "$ref": "#/$defs/CreepEn1992"
+        },
+        {
+          "$ref": "#/$defs/CreepFib2010"
+        }
+      ],
+      "title": "Creep"
     },
     "shrinkage": {
-      "$ref": "#/$defs/ShrinkageModel"
+      "discriminator": {
+        "mapping": {
+          "aci209": "#/$defs/ShrinkageAci209",
+          "en1992AnnexB": "#/$defs/ShrinkageEn1992",
+          "fibMC2010": "#/$defs/ShrinkageFib2010",
+          "tabulatedStrain": "#/$defs/ShrinkageModel"
+        },
+        "propertyName": "method"
+      },
+      "oneOf": [
+        {
+          "$ref": "#/$defs/ShrinkageModel"
+        },
+        {
+          "$ref": "#/$defs/ShrinkageAci209"
+        },
+        {
+          "$ref": "#/$defs/ShrinkageEn1992"
+        },
+        {
+          "$ref": "#/$defs/ShrinkageFib2010"
+        }
+      ],
+      "title": "Shrinkage"
     },
     "exposure": {
       "$ref": "#/$defs/ConcreteExposure"
     },
     "strengthGain": {
-      "$ref": "#/$defs/StrengthGain"
+      "discriminator": {
+        "mapping": {
+          "exponential": "#/$defs/StrengthGainExponential",
+          "hyperbolic": "#/$defs/StrengthGain"
+        },
+        "propertyName": "method"
+      },
+      "oneOf": [
+        {
+          "$ref": "#/$defs/StrengthGain"
+        },
+        {
+          "$ref": "#/$defs/StrengthGainExponential"
+        }
+      ],
+      "title": "Strengthgain"
     },
     "prestress": {
       "anyOf": [
@@ -543,6 +1299,30 @@
         }
       ],
       "default": null
+    },
+    "ageing": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Ageing"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "χ of the age-adjusted effective modulus (none: 0.8, generic)."
+    },
+    "analysis": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/TimeAnalysis"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "The shortening's analysis method (none: superposition)."
     }
   },
   "required": [

@@ -62,6 +62,9 @@
     { "name": "1.35G + 0.9T + 1.5Q + 0.75S", "factors": { "D": 1.35, "T": 0.9, "L": 1.5, "Lr": 0.75 } },
     { "name": "1.35G - 0.9T + 1.5Q + 0.75S", "factors": { "D": 1.35, "T": -0.9, "L": 1.5, "Lr": 0.75 } }
   ],
+  "creepShrinkage": [
+    { "name": "1.35G + 1.0CS + 1.5Q + 0.75S", "factors": { "D": 1.35, "CS": 1.0, "L": 1.5, "Lr": 0.75 }, "source": "EN 1990 Eq 6.10 with the creep and shrinkage effects as a permanent action at γSH = 1.0 (EN 1992-1-1 2.4.2.1(1))" }
+  ],
   "gravity": [
     { "name": "1.35G", "factors": { "D": 1.35 } },
     { "name": "1.35G + 1.5Q", "factors": { "D": 1.35, "L": 1.5 } }

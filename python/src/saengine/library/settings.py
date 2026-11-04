@@ -1380,6 +1380,13 @@ class Settlement(_Model):
     )
 
 
+class CastDay(_Model):
+    """The day a level's floor is cast (alpha 9 P2)."""
+
+    level: str = Field(min_length=1, description="The level's (storey's) name.")
+    day: float = Field(ge=0, description="Days from the start of construction.")
+
+
 class TimeDependent(_Model):
     """Creep, shrinkage and column shortening (B25): the time-dependent shortening of the
     concrete columns of a building built storey by storey, by the creep and shrinkage model of
@@ -1450,6 +1457,64 @@ class TimeDependent(_Model):
         gt=0,
         title="Water content",
         description="Free water of the mix [litre/m³]. Empty: the code pack's reference mix.",
+    )
+    # Alpha 9 P2: the analysis method, walls and cores, the construction days, the forces case.
+    method: Literal["pack", "superposition", "ageAdjusted"] = Field(
+        default="pack",
+        title="Analysis method",
+        description="How the shortening is worked out: the code pack's choice; superposition "
+        "of each load's creep (the steel restrains the elastic strain only); or the "
+        "age-adjusted effective modulus (the steel also restrains the creep and shrinkage).",
+        json_schema_extra=_labels(["Code pack's", "Superposition", "Age-adjusted modulus"]),
+    )
+    walls: bool = Field(
+        default=False,
+        title="Walls and cores",
+        description="Also work out the shortening of the shell walls and cores, storey by "
+        "storey from their membrane forces, and compare them with the columns beside them.",
+    )
+    wallSteelRatio: float = Field(
+        default=0.005,
+        ge=0,
+        le=0.08,
+        title="Wall steel ratio",
+        description="Vertical steel ratio ρ of the walls.",
+    )
+    strength: float | None = Field(
+        default=None,
+        gt=0,
+        title="Concrete strength",
+        description="f'c (fck) [MPa] for the creep and shrinkage models that depend on it. "
+        "Empty: each member's from its modulus by the code pack's Ec rule.",
+    )
+    castDays: list[CastDay] = Field(
+        default_factory=list,
+        title="Casting days",
+        description="The day a level's floor (and the storey below it) is cast, where it is "
+        "not the floor cycle's; the storey is loaded one cycle later.",
+    )
+    liveAfterDays: float | None = Field(
+        default=None,
+        ge=0,
+        title="Occupancy",
+        description="Days after the frame is complete that the sustained live load is applied. "
+        "Empty: with the finishes.",
+    )
+    finalDays: float | None = Field(
+        default=None,
+        gt=0,
+        title="Final time",
+        description="Days from the start of construction the final shortening is worked out at "
+        "(e.g. 10000). Empty: the service life after completion.",
+    )
+    forcesCase: bool = Field(
+        default=False,
+        title="Creep and shrinkage forces",
+        description="Add the load case CS: the creep and shrinkage strains of the columns and "
+        "walls after their floors are cast, stage by stage, as imposed strains on the model, "
+        "with the forces relaxed by the age-adjusted effective modulus. The combinations take "
+        "it with the code pack's factor (Reset Combinations adds them). Runs the gravity cases "
+        "once more while the model is derived.",
     )
 
 
@@ -2333,6 +2398,15 @@ class LoadCombination(_Model):
         "settlement): differential settlement is a self-straining effect T, so it takes T's "
         "factor of the code pack's combination.",
     )
+    # Alpha 9 P2: the creep and shrinkage forces case (Analysis model → Creep, shrinkage and
+    # column shortening → Creep and shrinkage forces), left out of the file while 0.
+    CS: float = Field(
+        default=0,
+        exclude_if=lambda value: not value,
+        title="CS",
+        description="Factor on the creep and shrinkage forces case CS, a self-straining action "
+        "with the factor of the code pack's combinations with CS.",
+    )
     F: float | None = Field(
         default=None,
         title="F",
@@ -2787,6 +2861,7 @@ def strength_combinations(
     pack: CodePack | None = None,
     settlement: bool = False,
     settings: ProjectSettings | None = None,
+    creep_shrinkage: bool = False,
 ) -> list[LoadCombination]:
     """The code pack's strength combinations, with wind and earthquake in ±X and ±Y
     (:func:`saengine.fem.combinations.expand_rows`); with ``thermal``, combination 2 also with
@@ -2822,6 +2897,10 @@ def strength_combinations(
 
             for st_name, st_factors in strength_combinations_with_st(thermal):
                 result.append(LoadCombination(name=st_name, **st_factors))
+        if creep_shrinkage:
+            # Alpha 9 P2: the pack's rows with the creep and shrinkage forces case CS.
+            for cs_name, cs_factors, _row in fc.expand_rows(list(table.creepShrinkage)):
+                result.append(LoadCombination(name=cs_name, **{"F": 0.0, "H": 0.0, **cs_factors}))
     # B16: the pack's combinations of the project's flood or tidal surge zone (Fa with the
     # wind in its direction), with the same permitted factor changes.
     if settings is not None:

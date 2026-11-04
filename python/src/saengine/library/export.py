@@ -244,6 +244,15 @@ def generate_typescript() -> str:
                 if c.ST
             ],
         ),
+        (
+            "CREEP_SHRINKAGE_COMBINATIONS",
+            "readonly object[]",
+            [
+                c.model_dump(mode="json", by_alias=True, exclude_none=True)
+                for c in strength_combinations(creep_shrinkage=True)
+                if c.CS
+            ],
+        ),
         ("REDUCED_LIVE", "object", reduced_live()),
         ("DEFAULT_CODE_TABLES", "IDefaultCodeTables", default_code_tables()),
         ("FLOOR_PLAN_SCHEMA", "IJSONSchema", json_schema(FloorPlan, "SAEngine floor plan")),

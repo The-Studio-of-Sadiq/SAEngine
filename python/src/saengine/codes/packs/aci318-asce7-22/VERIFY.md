@@ -672,3 +672,22 @@ The floor vibration and pile values are the default pack's (see bnbc2020/VERIFY.
 | P1U4 | excavationSupport.anchors.lockOffShare | 1.0 × DL | FHWA GEC No. 4 (75-100 % DL) | Check |
 | P1U5 | excavationSupport.anchors.freeLengthMin, fixedLengthMin, fixedLengthMax | 4.5 m, 4.5 m, 12 m | FHWA GEC No. 4 (strand tendons) | Check |
 | P1U6 | excavationSupport (rest) | as bnbc2020 ES1-ES31 (1.6H of ASCE 7-22 2.3) | SAEngine practice | see bnbc2020 |
+
+## Alpha 9 P2: creep, shrinkage and column shortening (concreteTime)
+
+| # | Path | Value | Source | Sure? |
+|---|---|---|---|---|
+| P2U1 | concreteTime.creep.ultimate, timeExponent, timeConstant | φu = 2.35, ψ = 0.6, d = 10 days | ACI 209R-92 Eq 2-8 | Sure |
+| P2U2 | concreteTime.creep.loadingAge | γla = 1.25 t0^-0.118 (moist cured) | ACI 209R-92 Eq 2-11 | Sure |
+| P2U3 | concreteTime.creep.humidity, humidityMin | γλ = 1.27 - 0.67 h, h ≥ 0.40 | ACI 209R-92 Eq 2-14 | Sure |
+| P2U4 | concreteTime.creep.volumeSurface | γvs = (2/3)(1 + 1.13 e^(-0.0213 V/S)), V/S in mm | ACI 209R-92 Eq 2-21 | Check (the SI form) |
+| P2U5 | concreteTime.creep.otherFactor | 1.0 (slump, fines, air at standard conditions) | ACI 209R-92 Eqs 2-17 to 2-19 | SAEngine practice |
+| P2U6 | concreteTime.shrinkage.ultimate, timeConstant, timeExponent | εshu = 780 × 10⁻⁶, f = 35 days (moist cured), α = 1.0 | ACI 209R-92 Eq 2-10 | Sure |
+| P2U7 | concreteTime.shrinkage.curing | γcp 1.2, 1.1, 1.0, 0.93, 0.86, 0.79, 0.75 at 1, 3, 7, 14, 28, 60, 90 days | ACI 209R-92 Table 2.5.3 | Check |
+| P2U8 | concreteTime.shrinkage.humidity | γλ = 1.40 - 1.02 h (0.40-0.80), 3.00 - 3.0 h (0.80-1.00) | ACI 209R-92 Eq 2-15 | Sure |
+| P2U9 | concreteTime.shrinkage.volumeSurface | γvs = 1.2 e^(-0.00472 V/S), V/S in mm | ACI 209R-92 Eq 2-22 | Check |
+| P2U10 | concreteTime.strengthGain | f'c(t) = t / (4.0 + 0.85 t) f'c | ACI 209R-92 Eq 2-1, Table 2.2.1 (moist cured, Type I) | Sure |
+| P2U11 | concreteTime.exposure | indoor 50 %, outdoor 70 % | none: ACI 209R-92 takes the site's humidity | SAEngine practice |
+| P2U12 | concreteTime.ageing.chi | χ = 0.8 | the usual AAEM value | SAEngine practice |
+| P2U13 | combinations.creepShrinkage | 1.2D + 1.0CS + 1.6L + 0.5Lr | ASCE 7-22 Sec 2.3.4 (T factor at least 1.0) | Check |
+| P2U14 | concreteTime.sources.effects | ACI 318-19 Sec 5.3.6, self-straining effects | ACI 318-19 | Unsure (section number from memory) |

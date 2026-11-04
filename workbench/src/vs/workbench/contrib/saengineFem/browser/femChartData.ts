@@ -340,11 +340,26 @@ export interface IFemColumnShortening {
 	readonly reason?: string;
 	readonly inputs?: { readonly humidity: number; readonly exposure: string; readonly cycle: number; readonly superimposedAfter: number; readonly sustainedLive: number; readonly serviceLife: number; readonly steelRatio: number; readonly staged: boolean };
 	readonly times?: { readonly complete: number; readonly superimposed: number; readonly end: number };
-	readonly lines?: readonly { readonly line: string; readonly x: number; readonly y: number; readonly storeys: readonly { readonly storey: string; readonly thickness: number; readonly coefficient: number }[]; readonly rows: readonly IFemShorteningRow[] }[];
+	readonly lines?: readonly { readonly line: string; readonly kind?: 'column' | 'wall'; readonly x: number; readonly y: number; readonly storeys: readonly { readonly storey: string; readonly thickness: number; readonly coefficient: number }[]; readonly rows: readonly IFemShorteningRow[] }[];
 	readonly differential?: readonly { readonly beam: string; readonly level: string; readonly length: number; readonly difference: number; readonly rotation: number; readonly moment: number }[];
 	readonly history?: { readonly days: readonly number[]; readonly lines: readonly { readonly line: string; readonly values: readonly number[] }[] };
 	readonly clauses?: { readonly [key: string]: string };
 	readonly notes?: readonly string[];
+	/** Alpha 9 P2: the code pack's models and the analysis method. */
+	readonly model?: { readonly name: string; readonly creep: string; readonly shrinkage: string; readonly analysis: string; readonly chi: number | null; readonly basis: string };
+	/** Alpha 9 P2: each line and its nearest neighbours (a column and the nearest wall): the largest difference after casting. */
+	readonly pairs?: readonly { readonly a: string; readonly b: string; readonly kinds: string; readonly distance: number; readonly level: string; readonly difference: number; readonly slope: number }[];
+	/** Alpha 9 P2: the pre-set of each line at each level (cast the level higher by `preset`). */
+	readonly camber?: readonly { readonly line: string; readonly kind: string; readonly level: string; readonly preset: number; readonly storey: number; readonly relative: number }[];
+	/** Alpha 9 P2: the creep and shrinkage forces case CS of the run. */
+	readonly induced?: {
+		readonly redistribution: readonly { readonly line: string; readonly kind: string; readonly force: number; readonly share: number }[];
+		readonly beams: readonly { readonly beam: string; readonly level: string; readonly moment: number }[];
+		readonly columns: number;
+		readonly walls: number;
+		readonly relaxation?: number | null;
+		readonly phi?: number | null;
+	};
 }
 
 export interface IFemMemberResult {

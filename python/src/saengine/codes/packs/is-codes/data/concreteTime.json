@@ -1,0 +1,72 @@
+{
+  "$schema": "../../../schemas/concreteTime.schema.json",
+  "$sources": [
+    "IS 456:2000 Cl 6.2.4.1: total shrinkage strain 0.0003",
+    "IS 456:2000 Cl 6.2.5.1: ultimate creep coefficient 2.2, 1.6 and 1.1 for loading at 7 days, 28 days and 1 year",
+    "IS 456:2000 Annex C (C-3, C-4): shrinkage and creep in the long-term deflection"
+  ],
+  "source": "IS 456:2000 Cl 6.2.4-6.2.5",
+  "sources": {
+    "analysis": "IS 456:2000 Cl 6.2.4-6.2.5: shrinkage and creep of concrete",
+    "phased": "IS 456:2000 Cl 6.2.5.1: the age of loading of each storey (construction sequence: SAEngine practice)",
+    "effects": "IS 875 (Part 5): creep and shrinkage effects where significant (the pack gives no combination with them)",
+    "creep": "IS 456:2000 Cl 6.2.5.1: creep strain = ultimate creep coefficient × elastic strain",
+    "creepFigure": "IS 456:2000 Cl 6.2.5.1: 2.2 (7 days), 1.6 (28 days), 1.1 (1 year)",
+    "creepDevelopment": "SAEngine practice: the ACI 209R-92 time-ratio, normalised to 1 at 30 years (IS 456 gives the ultimate value only)",
+    "thickness": "IS 456:2000 gives no thickness dependence: the coefficients apply to every member",
+    "shrinkage": "IS 456:2000 Cl 6.2.4.1: total shrinkage strain 0.0003",
+    "shrinkageFigure": "SAEngine practice: the ACI 209R-92 shrinkage time-ratio, normalised to 0.0003 at 30 years",
+    "reinforced": "Age-adjusted effective modulus: the steel restrains the creep and shrinkage of the section (SAEngine practice)",
+    "modulus": "IS 456:2000 Cl 6.2.3.1 (Ec = 5000 √fck) through the pack's Ec rule, at the strength reached at the age of loading"
+  },
+  "creep": {
+    "$replace": true,
+    "method": "tabulatedCoefficient",
+    "finalAgeDays": 10950,
+    "sealedThickness": 600,
+    "thicknesses": [300],
+    "relativeHumidity": [40, 100],
+    "agesAtLoading": [7, 28, 365],
+    "coefficients": {
+      "300": {
+        "7": [2.2, 2.2],
+        "28": [1.6, 1.6],
+        "365": [1.1, 1.1]
+      }
+    },
+    "development": [
+      { "days": 30, "share": 0.451 },
+      { "days": 182.5, "share": 0.721 },
+      { "days": 912.5, "share": 0.889 },
+      { "days": 10950, "share": 1.0 }
+    ],
+    "source": "IS 456:2000 Cl 6.2.5.1",
+    "note": "One value per age of loading for every thickness and humidity (IS 456 gives no dependence on them); between the ages interpolated on a log scale. The ultimate value is taken at 30 years. Its development in time follows the ACI 209R-92 time-ratio (t^0.6 / (10 + t^0.6), normalised to 1 at 30 years): SAEngine practice."
+  },
+  "shrinkage": {
+    "$replace": true,
+    "method": "tabulatedStrain",
+    "thicknesses": [300],
+    "relativeHumidity": [40, 100],
+    "points": [
+      { "days": 28, "strains": { "300": [134, 134] } },
+      { "days": 182.5, "strains": { "300": [253, 253] } },
+      { "days": 10950, "strains": { "300": [300, 300] } }
+    ],
+    "strainUnit": 1e-6,
+    "referenceWater": 190,
+    "waterRange": [190, 190],
+    "reinforcementCoefficient": { "internal": 0, "external": 0 },
+    "source": "IS 456:2000 Cl 6.2.4.1",
+    "note": "The total shrinkage strain 0.0003 at 30 years for every member; its development follows the ACI 209R-92 time-ratio t / (35 + t) normalised to it (SAEngine practice). IS 456 gives no water-content or reinforcement factor (the steel's restraint comes from the age-adjusted analysis)."
+  },
+  "ageing": {
+    "chi": 0.8,
+    "source": "SAEngine practice: the usual ageing coefficient of the age-adjusted effective modulus method",
+    "note": "IS 456 does not give χ."
+  },
+  "analysis": {
+    "method": "ageAdjusted",
+    "source": "SAEngine practice"
+  }
+}

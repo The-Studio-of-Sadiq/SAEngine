@@ -167,6 +167,49 @@ practice where BNBC 2020 is silent**, except the non-building structures, which 
   H up to 0.5 m; the Eurocodes pack uses EN 1997-1 M2 strengths and q × 1.3. Wall sections,
   walers, struts and anchors stay with track P1.
 
+## 2026-11-04: creep, shrinkage and column shortening by the pack's models (alpha 9 track P2)
+
+The B25 column shortening (`fem/staged.py`, `fem/concrete_time.py`) now takes the creep and
+shrinkage model the pack names by id in `concreteTime` and extends to walls, pre-sets and a forces
+case. The bnbc2020 results are unchanged: its tabulated figures by superposition stay the B25
+arithmetic, and every new part is behind a setting that is off by default.
+
+- **Models by method id.** `aci209` (ACI 209R-92: US pack), `en1992AnnexB` (EN 1992-1-1 Annex B and
+  3.1.4: Eurocodes and its National Annexes), `fibMC2010` (fib Model Code 2010: for a pack that
+  wants it), and the BNBC `tabulatedCoefficient`/`tabulatedStrain` (bnbc2020; the IS pack enters
+  IS 456 6.2.4-6.2.5's values in the same form). Strength in time `hyperbolic` (ACI 209R-92 Eq 2-1)
+  or `exponential` (EN 1992-1-1 Eq 3.2).
+- **SAEngine practice.** The modulus at an age comes from the pack's Ec rule at the strength
+  reached (EN takes (fcm(t)/fcm)^0.3). The models' f'c/fck comes from each member's modulus by the
+  pack's Ec rule unless the project enters it. IS 456 gives only ultimate values: their
+  development in time follows ACI 209R-92's time-ratios, normalised to 30 years. ACI 209R-92
+  gives no indoor/outdoor humidity: 50 % and 70 % are SAEngine defaults. χ = 0.8 where the pack
+  gives no ageing coefficient.
+- **Analysis method** (pack's `concreteTime.analysis`, overridable per project): `superposition`
+  (B25, the default when a pack names none; bnbc2020) or `ageAdjusted` (the steel restrains the
+  creep and shrinkage by the age-adjusted effective modulus; the US, Eurocodes and IS packs).
+- **Construction sequence.** Casting days per level (else the floor cycle), the sustained live
+  load at its own day after completion (else with the finishes), a final time in days (else the
+  service life).
+- **Walls and cores** (setting `walls`, off by default): the vertical shells of a wall per storey
+  band, their axial force from the shells' nodal forces at the band's bottom and top. Beams that
+  frame into a wall, and each column with its nearest wall, get the differential shortening.
+- **Pre-set.** The shortening after casting of each level is the amount to cast it higher; the
+  storey's extra length is its increase over the level below; relative to the line that shortens
+  least.
+- **The forces case CS** (setting `forcesCase`, off by default): while the model is derived its
+  gravity cases are run once more for the columns' and walls' axial forces; each storey's creep
+  and shrinkage after its floor is cast, per construction stage, is imposed on the model as
+  fixed-end loads (the temperature case's method), staged like the dead load. The forces are
+  relaxed by 1 / (1 + χ φ̄) (φ̄ the mean creep coefficient of the vertical members), so the case's
+  deflections are of the relaxed forces too; the shortening itself is in the shortening tables.
+  Its fixed-end forces are kept in `thermal.json` under `more`. The combinations take it from the
+  pack's new `combinations.creepShrinkage` rows: bnbc2020 1.2D + 1.2CS + 1.6L + 0.5Lr (T includes
+  creep and shrinkage, Sec 2.7.3.1 comb. 2), US 1.2D + 1.0CS + 1.6L + 0.5Lr (ASCE 7-22 2.3.4),
+  Eurocodes 1.35G + 1.0CS + 1.5Q + 0.75S (γSH = 1.0, SAEngine practice for the creep part); IS and
+  the legacy packs give none (analysed, not designed for).
+- **Still planned:** construction loads and shoring of the partly built structure.
+
 ## 2026-11-04: staged excavation support and shoring (alpha 9 track P1)
 
 The pack's new `excavationSupport` table holds the method ids and values; BNBC 2020 asks for

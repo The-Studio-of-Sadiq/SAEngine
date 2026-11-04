@@ -123,3 +123,10 @@ a method: every value below except ES2 and ES16 is SAEngine practice.
 | ES29 | deflectionShare | 0.5 % of the excavation depth (reported) | SAEngine practice | Practice |
 | ES30 | sheet pile U sections (saengine.library.sheet_piles) | 400×100×10.5: W 874 cm³/m, I 8 740 cm⁴/m, 120 kg/m²; 400×125×13: 1 340, 16 800, 150; 400×170×15.5: 2 270, 38 600, 190; 600×130×10.3: 1 000, 13 000, 102; 600×180×13.4: 1 800, 32 400, 136; 600×210×18: 2 700, 56 700, 176 | JIS A 5523 / A 5528 types II-IV, IIw-IVw (from memory) | Check |
 | ES31 | sheet pile Z sections | generic nominal W 1 100-3 000 cm³/m, I ≈ W h / 2 | SAEngine nominal | Unsure (use the supplier's) |
+
+## Alpha 9 P2: the creep and shrinkage forces case
+
+| # | Path | Value | Source | Sure? |
+|---|---|---|---|---|
+| P2B1 | combinations.creepShrinkage | 1.2D + 1.2CS + 1.6L + 0.5Lr | Part 6 Sec 2.7.3.1 combination 2, 1.2(D + F + T), T including creep and shrinkage (Sec 2.1 notation, part 1 p. 525) | Sure |
+| P2B2 | concreteTime (no ageing, no analysis) | χ = 0.8 generic for the forces' relaxation; superposition for the shortening (B25 unchanged) | SAEngine practice | Practice |

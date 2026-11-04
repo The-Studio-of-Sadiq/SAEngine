@@ -3417,6 +3417,30 @@ def _derive_fem(
                 }
                 summary["nodes"] = len(project["nodes"])
                 summary["elements"] = len(project["elements"])
+    # ── alpha 9 P2: the creep and shrinkage forces case CS (saengine.fem.staged), on the final
+    # model; its fixed-end forces go beside the temperature case's (thermal.json, "more") ──
+    td = getattr(options, "timeDependent", None)
+    if td is not None and td.enabled and getattr(td, "forcesCase", False) and not special:
+        from saengine.fem import staged as time_staged
+
+        cs, more = time_staged.derive_case(
+            project, time_staged.levels_of(project, building.stories), td
+        )
+        b.notes.extend(more)
+        if cs is not None:
+            if thermal_corrections is None:
+                thermal_corrections = {"schema": 1, "case": None, "frames": {}, "shells": {}}
+            thermal_corrections.setdefault("more", {})[time_staged.CASE] = cs
+            if not any(getattr(c, "CS", 0) for c in settings.combinations):
+                b.notes.append(
+                    "creep and shrinkage forces: no load combination has a CS factor, so CS is "
+                    "analysed but not designed for"
+                    + (
+                        "; Project Settings, Reset Combinations adds the code pack's"
+                        if code_context.table("combinations").creepShrinkage
+                        else " (the code pack gives no combinations with it)"
+                    )
+                )
     return Derivation(
         project=project,
         notes=b.notes,

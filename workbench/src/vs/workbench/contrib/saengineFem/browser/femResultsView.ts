@@ -953,12 +953,18 @@ export class FemResultsEditor extends EditorPane {
 	private renderColumnShortening(found: IFemColumnShortening): void {
 		const section = this.section(
 			localize('femResults.shorteningHeading', "Column Shortening"),
-			localize('femResults.shorteningHelp', "Elastic, creep and shrinkage shortening of each concrete column line, storey by storey in time, by the creep and shrinkage model of the code pack in force. After casting: what the storeys below shorten after a floor is cast level, which the floors and the beams between lines feel."),
+			localize('femResults.shorteningHelp', "Elastic, creep and shrinkage shortening of each concrete column line (and wall, when the settings take walls), storey by storey in time, by the creep and shrinkage model of the code pack in force. After casting: what the storeys below shorten after a floor is cast level, which the floors and the beams between lines feel."),
 		);
 		if (!found.available || !found.lines) {
 			append(section, $('.fem-results-note', undefined, localize('femResults.noShortening', "No column shortening: {0}", found.reason ?? '')));
-			this.renderStore.add(appendPlannedChips(section, undefined, [FemPlanned.stagedConstructionLoads, FemPlanned.creepShrinkageForces, FemPlanned.wallShortening], this.commandService));
+			this.renderStore.add(appendPlannedChips(section, undefined, [FemPlanned.stagedConstructionLoads], this.commandService));
 			return;
+		}
+		if (found.model) {
+			const method = found.model.analysis === 'ageAdjusted'
+				? localize('femResults.shorteningAaem', "age-adjusted effective modulus, χ = {0}", found.model.chi ?? '')
+				: localize('femResults.shorteningSuperposition', "superposition of each load's creep");
+			append(section, $('.fem-results-note', undefined, localize('femResults.shorteningModel', "Models: {0}; analysis by {1}.", found.model.name, method)));
 		}
 		const length = this.units.length.scale;
 		const colors: ChartColor[] = ['blue', 'orange', 'green', 'red', 'purple', 'yellow'];
@@ -1011,8 +1017,54 @@ export class FemResultsEditor extends EditorPane {
 				notes: [localize('femResults.differentialNote', "The indicative end moment of a beam fixed at both ends, with its section's E and I, without relief by its own creep.")],
 			});
 		}
-		// What stays planned: construction loads and shoring, the forces as a load case, walls.
-		this.renderStore.add(appendPlannedChips(section, undefined, [FemPlanned.stagedConstructionLoads, FemPlanned.creepShrinkageForces, FemPlanned.wallShortening], this.commandService));
+		// Alpha 9 P2: adjacent members, the pre-sets, the creep and shrinkage forces case.
+		if (found.pairs?.length) {
+			renderSheet(section, {
+				name: localize('femResults.pairsTable', "Differential shortening between adjacent columns and walls"),
+				columns: [
+					localize('femResults.lineA', "Line"), localize('femResults.lineB', "Neighbour"), withUnit(localize('femResults.distanceCol', "Distance"), this.units.length),
+					localize('femResults.levelCol', "Level"), localize('femResults.differenceCol', "Differential"), localize('femResults.rotationCol', "Δ/L"),
+				],
+				rows: found.pairs.map(r => [r.a, r.b, fixed(r.distance * length, 0), r.level, value(r.difference), `1/${r.slope > 0 ? Math.round(1 / r.slope) : '∞'}`]),
+				notes: [localize('femResults.pairsNote', "Each line with its nearest neighbour, and each column with its nearest wall: the largest difference of their shortening after casting over the levels.")],
+			});
+		}
+		if (found.camber?.length) {
+			renderSheet(section, {
+				name: localize('femResults.camberTable', "Pre-set (camber) of the levels at casting"),
+				columns: [
+					localize('femResults.lineCol', "Column line"), localize('femResults.levelCol', "Level"),
+					localize('femResults.presetCol', "Cast higher by"), localize('femResults.storeyPresetCol', "Storey longer by"), localize('femResults.relativeCol', "Relative to the least"),
+				],
+				rows: found.camber.map(r => [r.line, r.level, value(r.preset), value(r.storey), value(r.relative)]),
+				notes: [localize('femResults.camberNote', "Cast each level higher by its shortening after casting; the storey below it is made longer by the increase over the level below. Relative: over the line that shortens least at that level (often the core), for a correction relative to it.")],
+			});
+		}
+		const induced = found.induced;
+		if (induced) {
+			renderSheet(section, {
+				name: localize('femResults.redistributionTable', "Creep and shrinkage forces CS: axial force change at the base"),
+				columns: [
+					localize('femResults.lineCol', "Column line"), localize('femResults.kindCol', "Kind"),
+					localize('femResults.forceChange', "Compression change"), localize('femResults.shareCol', "Of D + SD"),
+				],
+				rows: induced.redistribution.map(r => [r.line, r.kind === 'wall' ? localize('femResults.kindWall', "wall") : localize('femResults.kindColumn', "column"), this.format('force', r.force), `${(r.share * 100).toFixed(1)} %`]),
+				notes: [
+					localize('femResults.redistributionNote', "Columns {0}, walls {1} in all: the load the creep and shrinkage move between the columns and the walls (compression positive).", this.format('force', induced.columns), this.format('force', induced.walls)),
+					...(induced.relaxation ? [localize('femResults.relaxationNote', "The forces are relaxed by the age-adjusted effective modulus, 1 / (1 + χ φ̄) = {0}.", induced.relaxation.toFixed(2))] : []),
+				],
+			});
+			if (induced.beams.length) {
+				renderSheet(section, {
+					name: localize('femResults.inducedBeams', "Creep and shrinkage forces CS: the largest beam end moments"),
+					columns: [localize('femResults.beamCol', "Beam"), localize('femResults.levelCol', "Level"), withUnit(localize('femResults.momentCol2', "Moment"), this.units.moment)],
+					rows: induced.beams.map(r => [r.beam, r.level, fixed(r.moment * this.units.moment.scale, 1)]),
+					notes: [localize('femResults.inducedNote', "The case CS is a load case of the run: its forces in every member and slab are in the results, and the combinations take it with the code pack's factor.")],
+				});
+			}
+		}
+		// What stays planned: construction loads and shoring.
+		this.renderStore.add(appendPlannedChips(section, undefined, [FemPlanned.stagedConstructionLoads], this.commandService));
 	}
 
 	/** The linear time-history design (B19): each suite's spectrum against the code's criterion, the suites' base shears and factors, the drifts. */
