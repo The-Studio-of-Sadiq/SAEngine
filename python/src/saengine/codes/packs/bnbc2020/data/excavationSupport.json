@@ -46,7 +46,7 @@
     "walerShear": 0.6
   },
   "anchors": {
-    "standard": "BS 8081:2015 (SAEngine practice where BNBC 2020 is silent)",
+    "standard": "BS 8081:2015 (SAEngine practice)",
     "tendonFactor": 1.4,
     "groundFactor": 2.0,
     "permanentTendonFactor": 2.0,
