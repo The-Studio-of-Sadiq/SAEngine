@@ -5303,6 +5303,14 @@ class MasonryAllowableAxial(_Group):
     slenderness: Positive
     exponent: Positive
     columnSteelArea: Positive
+    # Alpha 9 C3b (TMS 402-22 Eqs 8-12, 8-13 in h'/t of solid sections): slender members.
+    longAbove: float | None = Field(
+        default=None,
+        gt=0,
+        description="h'/t above which Fa = fmShare f'm (longCoefficient t / h')² (none: the "
+        "formula above at every slenderness).",
+    )
+    longCoefficient: float | None = Field(default=None, gt=0)
 
 
 class MasonryShareCap(_Group):
@@ -5310,6 +5318,10 @@ class MasonryShareCap(_Group):
 
     fmShare: Share
     cap: Positive
+    # Alpha 9 C3b (TMS 402-22 Sec 8.3.4.2.2): reinforced masonry's own share.
+    reinforcedShare: Share | None = Field(
+        default=None, description="Fb of reinforced masonry = this × f'm (none: fmShare)."
+    )
 
 
 class MasonryRootCap(_Group):
@@ -5332,9 +5344,28 @@ class MasonryBeamShear(_Group):
     reinforced: MasonryRootCap
 
 
+class MasonryAxialFriction(_Group):
+    """Alpha 9 C3b (TMS 402-22 Sec 8.2.6.2): Fv of unreinforced masonry, the least of
+    rootFactor √f'm, cap and base + friction × fa (groutedBase in running bond, solid grouted;
+    stackBond in stack bond) [MPa]."""
+
+    rootFactor: Positive
+    cap: Positive
+    base: Positive
+    groutedBase: Positive
+    friction: Positive
+    stackBond: Positive
+
+
 class MasonryPlainWallShear(_Group):
     clay: MasonryRootCap
     concrete: dict[str, Positive] = Field(description="Fv by mortar grade [MPa].")
+    method: Literal["byUnit", "axialFriction"] = Field(
+        default="byUnit",
+        description="``byUnit`` (clay by √f'm, concrete by mortar grade) or ``axialFriction`` "
+        "(alpha 9 C3b: the least of √f'm, a cap and base + friction × fa).",
+    )
+    axialFriction: MasonryAxialFriction | None = None
     note: str = ""
 
 
@@ -5350,9 +5381,39 @@ class MasonryShearRow(_Group):
     maxAbove: Positive
 
 
+class MasonryAdditiveShear(_Group):
+    """Alpha 9 C3b (TMS 402-22 Sec 8.3.5.1): Fv = Fvm + Fvs, Fvm = masonryFactor (first - slope
+    M/(V dv)) √f'm + axialShare P/An, Fvs = steelShare ρh Fs; at most maxLow √f'm up to
+    M/(V dv) = ratioLow and maxHigh √f'm from 1.0, linear between; fv = V / An [MPa]."""
+
+    masonryFactor: Positive
+    first: Positive
+    slope: Positive
+    axialShare: float = Field(ge=0)
+    steelShare: Positive
+    ratioLow: float = Field(ge=0, lt=1)
+    maxLow: Positive
+    maxHigh: Positive
+
+
 class MasonryReinforcedWallShear(_Group):
     masonry: MasonryShearRow
     reinforcement: MasonryShearRow
+    method: Literal["alternative", "additive"] = Field(
+        default="alternative",
+        description="``alternative`` (the masonry or the reinforcement taking all the shear, "
+        "fv = V/(t j d)) or ``additive`` (alpha 9 C3b: Fv = Fvm + Fvs, fv = V/An).",
+    )
+    additive: MasonryAdditiveShear | None = None
+
+
+class MasonrySteelStep(BaseModel):
+    """Alpha 9 C3b: an allowable steel stress by grade: ``value`` for fy up to ``fyMax``."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    fyMax: float | None = Field(gt=0, description="[MPa]; null: any above.")
+    value: Positive = Field(description="[MPa]")
 
 
 class MasonrySteelCap(_Group):
@@ -5360,6 +5421,11 @@ class MasonrySteelCap(_Group):
 
     fyShare: Share
     cap: Positive
+    steps: list[MasonrySteelStep] | None = Field(
+        default=None,
+        description="Alpha 9 C3b: the stress by grade (the first step whose fyMax the bar's fy "
+        "does not exceed); none: fyShare × fy at most cap.",
+    )
 
 
 class MasonryAllowableSteel(_Group):
@@ -5383,6 +5449,9 @@ class MasonryAllowable(_Group):
 
 class MasonryElastic(_Group):
     emRatio: Positive = Field(description="Em = emRatio × f'm.")
+    emRatioByUnit: dict[MasonryUnitKind, Positive] | None = Field(
+        default=None, description="Alpha 9 C3b: emRatio by the units (clay, concrete)."
+    )
     emCap: Positive = Field(description="Em at most this [MPa].")
     es: Positive = Field(description="Es [MPa].")
     shearRatio: Positive = Field(description="G = shearRatio × Em.")

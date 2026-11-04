@@ -66,7 +66,8 @@ class Masonry:
     def em(self) -> float:
         """Em = ratio · f'm, at most the cap [MPa] (code pack ``elastic``)."""
         e = table().elastic
-        return min(float(e.emRatio) * self.fm, float(e.emCap))
+        ratio = (getattr(e, "emRatioByUnit", None) or {}).get(self.kind, e.emRatio)
+        return min(float(ratio) * self.fm, float(e.emCap))
 
     @property
     def g(self) -> float:

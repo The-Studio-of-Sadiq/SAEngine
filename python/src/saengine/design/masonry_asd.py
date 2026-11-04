@@ -51,6 +51,8 @@ def method_text() -> list[str]:
     a = _t().allowable
     share = float(_t().quality.reducedShare)
     increase = float(_t().lateralIncrease.factor)
+    if a.wallShearReinforced.method == "additive":
+        return _method_text_additive()
     return [
         (
             f"Masonry walls ({M.clause('chapter')}, allowable stress design): structural walls of "
@@ -75,12 +77,59 @@ def method_text() -> list[str]:
     ]
 
 
+def _method_text_additive() -> list[str]:
+    """Alpha 9 C3b: the method paragraph when the pack's allowable stresses follow TMS 402-22
+    Chapter 8 (reinforced shear ``additive``, slender members, Fb of reinforced masonry, Fs by
+    grade, unreinforced shear with the axial stress)."""
+    a = _t().allowable
+    ax = a.axial
+    fb = a.flexuralCompression
+    long = (
+        f", above h'/t = {float(ax.longAbove):g} Fa = {float(ax.fmShare):g} f'm "
+        f"({float(ax.longCoefficient):g} t/h')²"
+        if ax.longAbove is not None and ax.longCoefficient is not None
+        else ""
+    )
+    add = a.wallShearReinforced.additive
+    increase = float(_t().lateralIncrease.factor)
+    return [
+        (
+            f"Masonry walls ({M.clause('chapter')}, allowable stress design): structural walls of "
+            "a masonry material, from the pier forces of the shell model under the code pack's "
+            "allowable stress combinations. Fa = "
+            f"{float(ax.fmShare):g} f'm [1 - (h'/{float(ax.slenderness):.4g}t)^"
+            f"{float(ax.exponent):g}]{long} ({M.clause('axial')}); Fb = "
+            f"{float(fb.fmShare):g} f'm unreinforced, "
+            f"{float(fb.reinforcedShare if fb.reinforcedShare is not None else fb.fmShare):g} "
+            f"f'm reinforced ({M.clause('flexuralCompression')}); Ft by the units and mortar "
+            f"({M.clause('flexuralTension')}); unreinforced shear the least of √f'm, a cap and "
+            f"a base plus the friction of the axial stress ({M.clause('wallShearPlain')}); "
+            f"reinforced in-plane shear fv = V/An against Fv = Fvm + Fvs, Fvm = "
+            f"{float(add.masonryFactor):g} ({float(add.first):g} - {float(add.slope):g} "
+            f"M/(V dv)) √f'm + {float(add.axialShare):g} P/An, Fvs = {float(add.steelShare):g} "
+            f"ρh Fs ({M.clause('wallShearReinforced')}); steel Fs by grade "
+            f"({M.clause('steel')}); combined fa/Fa + fb/Fb ≤ 1 ({M.clause('interaction')})"
+            + (
+                f"; × {increase:.3g} with wind or earthquake ({M.clause('lateralIncrease')})"
+                if increase > 1
+                else "; no increase of the allowable stresses with wind or earthquake"
+            )
+            + ". Plain masonry on the gross section; reinforced masonry on the cracked "
+            "transformed section (n = Es/Em). "
+            f"Slenderness h'/t ≤ {D.slenderness_limit('wall'):g} ({M.clause('slenderness')})."
+        )
+    ]
+
+
 # ─────────────────────────────────────── allowable stresses ───────────────────────────────────────
 
 
 def allowable_axial(fm: float, h_eff: float, t: float) -> float:
     """Fa [MPa] of unreinforced walls and columns and reinforced walls (full value)."""
     a = _t().allowable.axial
+    if a.longAbove is not None and a.longCoefficient is not None and h_eff / t > a.longAbove:
+        # Alpha 9 C3b (TMS 402-22 Eq 8-13): slender members.
+        return float(a.fmShare) * fm * (float(a.longCoefficient) * t / h_eff) ** 2
     return float(a.fmShare) * fm * (1.0 - (h_eff / (float(a.slenderness) * t)) ** float(a.exponent))
 
 
@@ -91,13 +140,17 @@ def allowable_axial_column(
     (h'/42t)³]."""
     a = _t().allowable.axial
     reduction = 1.0 - (h_eff / (float(a.slenderness) * t)) ** float(a.exponent)
+    if a.longAbove is not None and a.longCoefficient is not None and h_eff / t > a.longAbove:
+        reduction = (float(a.longCoefficient) * t / h_eff) ** 2  # alpha 9 C3b
     return (float(a.fmShare) * fm + steel * fsc / (float(a.columnSteelArea) * gross)) * reduction
 
 
-def allowable_flexural_compression(fm: float) -> float:
-    """Fb [MPa] (full value)."""
+def allowable_flexural_compression(fm: float, reinforced: bool = False) -> float:
+    """Fb [MPa] (full value); ``reinforced``: reinforced masonry's share where the pack gives
+    one (alpha 9 C3b)."""
     b = _t().allowable.flexuralCompression
-    return min(float(b.fmShare) * fm, float(b.cap))
+    share = b.reinforcedShare if reinforced and b.reinforcedShare is not None else b.fmShare
+    return min(float(share) * fm, float(b.cap))
 
 
 def allowable_flexural_tension(m: M.Masonry, normal_to: str = "bed") -> float:
@@ -128,10 +181,20 @@ def allowable_beam_shear(fm: float, reinforced: bool = False) -> float:
     return min(float(row.factor) * math.sqrt(fm), float(row.cap))
 
 
-def allowable_wall_shear_plain(m: M.Masonry) -> float:
+def allowable_wall_shear_plain(m: M.Masonry, fa: float = 0.0) -> float:
     """Fv [MPa] of unreinforced shear walls (full value): clay units by √f'm, concrete units by
-    mortar grade (none with a grade the pack does not list)."""
+    mortar grade (none with a grade the pack does not list); alpha 9 C3b, method
+    ``axialFriction``: the least of a √f'm, the cap and base + friction × fa (the axial stress
+    ``fa`` [MPa], compression positive), fully grouted walls in running bond with their own
+    base, stack bond its own value."""
     s = _t().allowable.wallShearPlain
+    if s.method == "axialFriction" and s.axialFriction is not None:
+        f = s.axialFriction
+        if m.bond == "stack":
+            return float(f.stackBond)
+        base = float(f.groutedBase if m.grouted else f.base)
+        friction = base + float(f.friction) * max(fa, 0.0)
+        return min(float(f.rootFactor) * math.sqrt(m.fm), float(f.cap), friction)
     if m.kind == "clay":
         return min(float(s.clay.factor) * math.sqrt(m.fm), float(s.clay.cap))
     return float(s.concrete.get(m.mortar or "", 0.0))
@@ -155,9 +218,36 @@ def allowable_wall_shear_reinforced(fm: float, ratio: float, reinforcement: bool
 
 def allowable_steel(fy: float, kind: str = "tensionDeformed") -> float:
     """Fs or Fsc [MPa]: ``kind`` tensionDeformed, tensionPlain, compressionWalls or
-    compressionFlexural."""
+    compressionFlexural; by grade where the pack gives ``steps`` (alpha 9 C3b)."""
     row = _t().allowable.steel[kind]
+    if row.steps:
+        for step in row.steps:
+            if step.fyMax is None or fy <= float(step.fyMax) + 1e-9:
+                return float(step.value)
+        return float(row.steps[-1].value)
     return min(float(row.fyShare) * fy, float(row.cap))
+
+
+def additive_wall_shear(
+    fm: float, ratio: float, fa: float, rho: float, fs: float
+) -> tuple[float, float, float]:
+    """Alpha 9 C3b, ``wallShearReinforced.method = additive`` (TMS 402-22 Sec 8.3.5.1): (Fv,
+    Fvm, Fvs) [MPa] at M/(V dv) = ``ratio`` (taken 0 to 1), the axial stress ``fa`` = P/An
+    (compression positive, none in tension) and the shear bars' ratio ``rho`` = Av / (t s)
+    with Fs ``fs``: Fv = Fvm + Fvs at most the pack's maximum."""
+    a = _t().allowable.wallShearReinforced.additive
+    r = min(max(ratio, 0.0), 1.0)
+    root = math.sqrt(fm)
+    fvm = float(a.masonryFactor) * (float(a.first) - float(a.slope) * r) * root
+    fvm += float(a.axialShare) * max(fa, 0.0)
+    fvs = float(a.steelShare) * rho * fs
+    low = float(a.ratioLow)
+    if r <= low:
+        cap = float(a.maxLow) * root
+    else:
+        share = (r - low) / (1.0 - low)
+        cap = (float(a.maxLow) + (float(a.maxHigh) - float(a.maxLow)) * share) * root
+    return min(fvm + fvs, cap), fvm, fvs
 
 
 def bond_stress(deformed: bool = True) -> float:
@@ -407,10 +497,13 @@ def wall_checks(
     if bars is None:
         ft_full = allowable_flexural_tension(m, "bed")
         fv_full = allowable_wall_shear_plain(m)
+        friction = _t().allowable.wallShearPlain.method == "axialFriction"
         tension, shear = [], []
         for f in forces:
             k = factor(f)
             fa = f.P / ae
+            if friction:  # alpha 9 C3b: Fv with the axial stress of the combination
+                fv_full = allowable_wall_shear_plain(m, fa)
             fb = abs(f.M3) / s_in + abs(f.M2) / s_out
             combined.append(
                 _row(
@@ -473,8 +566,9 @@ def _reinforced(
     h_eff = D.effective_height(h, geometry.braced)
     n = float(table.elastic.es) / m.em
     fa_full = allowable_axial(m.fm, h_eff, t)
-    fb_full = allowable_flexural_compression(m.fm)
+    fb_full = allowable_flexural_compression(m.fm, reinforced=True)
     fs_allow = allowable_steel(fy, "tensionDeformed")
+    additive = table.allowable.wallShearReinforced.method == "additive"
     layout = _wall_bars(lw, bars)
     one = bar_area(bars.vertical_dia)
     d_in = max(x for x, _ in layout)
@@ -533,6 +627,9 @@ def _reinforced(
             )
         )
         v = abs(f.V2)
+        if additive:
+            shear.append(_additive_shear_row(f, k, m, t, lw, d_in, av_s, fs_allow, where))
+            continue
         fv = v / (t * j_in * d_in)
         ratio = abs(f.M3) / (v * d_in) if v > 0 else 1.0
         masonry_fv = k * allowable_wall_shear_reinforced(m.fm, ratio, reinforcement=False)
@@ -599,7 +696,7 @@ def _reinforced(
             f"{D.least_cover('soil'):g} mm exposed to soil",
         )
     )
-    if needs_steel:
+    if needs_steel or additive:
         rows.append(
             _row(
                 f"Shear bar spacing ≤ d/2 and {float(r.shearSpacing['max']):g} mm "
@@ -625,8 +722,38 @@ def _reinforced(
     return rows
 
 
+def _additive_shear_row(
+    f: W.PierForces,
+    k: float,
+    m: M.Masonry,
+    t: float,
+    lw: float,
+    d_in: float,
+    av_s: float,
+    fs_allow: float,
+    where: Any,
+) -> dict[str, Any]:
+    """Alpha 9 C3b: the in-plane shear row of the ``additive`` method: fv = V/An against Fv =
+    Fvm + Fvs (An = t lw, fully grouted; dv = d)."""
+    v = abs(f.V2)
+    an = t * lw
+    ratio = abs(f.M3) / (v * d_in) if v > 0 else 1.0
+    rho = av_s / t
+    fv_allow, fvm, fvs = additive_wall_shear(m.fm, ratio, max(f.P, 0.0) / an, rho, fs_allow)
+    return _row(
+        f"In-plane shear fv = V/An ≤ Fv = Fvm + Fvs ({M.clause('wallShearReinforced')})",
+        v / an,
+        k * fv_allow,
+        "MPa",
+        f.combination,
+        f"{where(f)}; M/(V dv) = {min(max(ratio, 0.0), 1.0):.2f}, Fvm = {fvm:.3f}, Fvs = "
+        f"{fvs:.3f} MPa (ρh = {rho:.5f}, Fs = {fs_allow:.0f} MPa)",
+    )
+
+
 __all__ = [
     "COMBINATIONS",
+    "additive_wall_shear",
     "allowable_axial",
     "allowable_axial_column",
     "allowable_beam_shear",
