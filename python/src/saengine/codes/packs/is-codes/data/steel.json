@@ -3,14 +3,15 @@
   "$sources": [
     "IS 800:2007 Section 10 (connections: holes, spacing, edges, welds) and Sections 6 and 8 (the connection elements in tension and shear)"
   ],
-  "source": "IS 800:2007 (limit state; the member, bolt and weld strengths are in steelLimitState). This table changes the BNBC 2020 steel table it extends where the connection checks read it: the hole sizes, spacing and edges, the fillet weld sizes, and the resistance factors of the connection elements written as the IS 800 strengths (1/γm and the 1/√3 of shear). The other entries (HSS joints, the column side under flange forces, base plate bearing, ponding, bracing) are BNBC 2020's.",
+  "source": "IS 800:2007 (limit state; the member, bolt and weld strengths are in steelLimitState). This table changes the BNBC 2020 steel table it extends where the connection checks read it: the hole sizes, spacing and edges, the fillet weld sizes, and the resistance factors of the connection elements written as the IS 800 strengths (1/γm and the 1/√3 of shear). The base plate bearing is IS 800 7.4.1 (alpha 9 C9b); the other entries (HSS joints, the column side under flange forces, ponding, bracing) are BNBC 2020's.",
   "phi": {
     "tensionYield": 0.9091,
     "tensionRupture": 0.72,
     "compression": 0.9091,
     "plateFlexure": 0.9091,
     "shearYielding": 0.8748,
-    "shearRupture": 0.6928
+    "shearRupture": 0.6928,
+    "concreteBearing": 1.0
   },
   "connections": {
     "holes": {
@@ -73,6 +74,9 @@
     ],
     "filletMaxThin": 1.5,
     "filletMaxReduce": 1.5,
+    "concreteBearingFull": 0.6,
+    "concreteBearingPartial": 0.6,
+    "concreteBearingMax": 0.6,
     "references": {
       "Eqs 6.10.169-170a": "IS 800:2007 10.3.6",
       "Eq 6.10.168": "IS 800:2007 10.3.3",
@@ -99,7 +103,9 @@
       "Sec 10.10.4.2": "IS 800:2007 8.4",
       "Sec 10.10.4.3": "IS 800:2007 6.4.1",
       "Sec 10.10.4.1": "IS 800:2007 6.2-6.3",
-      "Sec 10.2.3.13.2": "IS 800:2007 10.2.1"
+      "Sec 10.2.3.13.2": "IS 800:2007 10.2.1",
+      "Sec 10.10.8": "IS 800:2007 7.4.1",
+      "Eqs 6.10.183-184": "IS 800:2007 7.4.1"
     }
   },
   "sources": {
@@ -109,6 +115,7 @@
     "spacingIS": "IS 800:2007 10.2.2: least pitch 2.5 d",
     "maxEdgeIS": "IS 800:2007 10.2.4.3: largest edge distance 12 t ε (ε = √(250/fy)); taken as 12 t (ε = 1, E250 steel) with no upper limit in mm",
     "filletIS": "IS 800:2007 10.5.2.3, Table 21: least fillet size 3, 5, 6, 8 mm for the thicker part up to 10, 20, 32 mm and above (SAEngine's check passes the thinner part: less strict where the parts differ); 10.5.8.1: the largest size along a square edge t - 1.5 mm",
+    "concreteBearingIS": "IS 800:2007 7.4.1: the design bearing strength of the concrete under a base plate 0.6 fck (the project's concrete strength read as fck), no φ and no increase for a larger supporting area (SAEngine reading; IS 456 34.4 allows 0.45 fck √(A1/A2) at a column base); alpha 9 C9b",
     "referencesIS": "The connection notes name the IS 800:2007 clauses of the strengths and rules the pack replaces; the rules it keeps from the parent are named as BNBC 2020's (steelLimitState connections.parentCode)"
   }
 }

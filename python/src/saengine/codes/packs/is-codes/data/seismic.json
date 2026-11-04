@@ -415,8 +415,9 @@
   "driftAmplification": "designForces",
   "dampingEta": 1.0,
   "dampingCorrection": {
-    "method": "none",
-    "referenceDamping": 0.05
+    "method": "table",
+    "referenceDamping": 0.05,
+    "points": [[0.0, 3.2], [0.02, 1.4], [0.05, 1.0], [0.07, 0.9], [0.1, 0.8], [0.15, 0.7], [0.2, 0.6], [0.25, 0.55], [0.3, 0.5]]
   },
   "systemCombination": {
     "R": "min",
@@ -560,7 +561,7 @@
   "torsionExtreme": 1.1667,
   "torsionAmplificationMax": 1.0,
   "pgaFactor": 0.5,
-  "verticalFactor": 0.0,
+  "verticalFactor": 0.667,
   "clauses": {
     "scale": "Clause 7.7.3",
     "torsion": "Clause 7.8.2",
@@ -593,7 +594,7 @@
     "allowableDrift": "IS 1893 (Part 1):2016 Clause 7.11.1.1: storey drift at most 0.004 times the storey height under the design lateral force with partial load factor 1.0",
     "driftAmplification": "IS 1893 (Part 1):2016 Clause 7.11.1: the drift of the design forces is checked as computed",
     "separation": "IS 1893 (Part 1):2016 Clause 7.11.3: separation of R times the sum of the displacements of the two units, half of it where the floor levels match (SAEngine reading of the two parts of the clause)",
-    "dampingCorrection": "IS 1893 (Part 1):2016 Table 4: the damping factors other than at 5 % are not modelled (1.0 at 5 %)",
+    "dampingCorrection": "IS 1893 (Part 1):2016 Table 4 (alpha 9 C9b): the spectrum's multiplying factors for damping other than 5 %: 0 % 3.2, 2 % 1.4, 5 % 1.0, 7 % 0.9, 10 % 0.8, 15 % 0.7, 20 % 0.6, 25 % 0.55, 30 % 0.5 (linear between; the project's damping ratio, Project Settings > Seismic)",
     "irregularities": "IS 1893 (Part 1):2016 Tables 5 and 6; soft and weak storey: lateral stiffness or strength less than that of the storey above (ratio 1.0); mass: seismic weight over 2 times an adjacent storey's; geometry: plan dimension over 125 % of the storey below",
     "torsionIrregular": "IS 1893 (Part 1):2016 Table 5 (i): Δmax over 1.2 Δmin at the two ends of the floor; as Δmax/Δavg of the two ends, 2(1.2)/(1 + 1.2) = 1.0909, and 1.4 (revise the configuration) gives 1.1667",
     "torsionAmplificationMax": "IS 1893 (Part 1):2016: no amplification of the accidental torsion (1.0); a torsionally irregular building needs the 3D dynamic analysis of Table 5 (i)",
@@ -606,7 +607,7 @@
     "orthogonalShare": "IS 1893 (Part 1):2016 Clause 6.3.4.1 (100 % + 30 %)",
     "massParticipation": "IS 1893 (Part 1):2016 Clause 7.7.5.2: modes to 90 % of the mass",
     "pgaFactor": "IS 1893 (Part 1):2016 Clause 6.4.2: Z/2, the peak ground acceleration of the design basis earthquake",
-    "verticalFactor": "IS 1893 (Part 1):2016 Clause 6.3.3.1: the vertical motion only for the structures it lists (not applied: 0)",
+    "verticalFactor": "IS 1893 (Part 1):2016 Clause 6.4.6 (alpha 9 C9b): the vertical design acceleration two-thirds of the horizontal; as SAEngine's Ev = verticalFactor · a_h · D with a_h = Z/2 (the vertical response taken rigid, Sa/g = 1), in the combinations that carry Ev; 6.3.3.1 lists the structures that need it (cantilevers, long spans, zones IV and V): SAEngine applies it wherever Ev is used",
     "partitionWeight": "SAEngine practice: partitions as dead load in the seismic weight",
     "periodUpperFactor": "IS 1893 (Part 1):2016 Clause 7.6.2 and 7.7.3: VB is found with the approximate period Ta; a period from the modal analysis is not taken above it (1.0)"
   }

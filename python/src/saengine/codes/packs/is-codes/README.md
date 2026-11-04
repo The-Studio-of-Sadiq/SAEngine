@@ -66,25 +66,45 @@ weld and block shear strengths; `design/check.py` runs its `seismic` group, meth
 frame rules apply when a steel SMRF, OMRF or concentric braced frame (taken as SCBF) is a
 system of the project.
 
+## The remainder (track C9b)
+
+| Table | What it adds | Code |
+| --- | --- | --- |
+| `concreteMethods.shear` | `axialFactor` 3, `axialMax` 1.5: column shear by δ τc (net tension: the line continued, not below 0) | IS 456 40.2.2 |
+| `concreteMethods.walls` | the empirical axial strength Puw and Hwe/t (now checked) | IS 456 32.2.3-32.2.5 |
+| `concreteMethods.twoWaySlabs` | the corner torsion steel (now checked, in place of the parent's corner rows) | IS 456 D-1.8 to D-1.10 |
+| `concreteMethods.deepBeams` | `method: "leverArm"`: deep by l/D, z by the support, the tension zone, the side face steel as walls | IS 456 29 |
+| `concreteMethods.corbels` | `method: "rootTie"`: av < d, the outer edge, the tie for Vu av + Nuc (h - d), shear with 2 d/av, links, bearing | IS 456 28, 34.4 |
+| `stairMethods`, `designClauses` | the stairs' spans, built-in and open well rules cited from IS 456 33 (the parent's values); flights and landings by the slab rules | IS 456 33 |
+| `steel` | the base plate bearing 0.6 fck | IS 800 7.4.1 |
+| `steelSections` | ISLB, ISWB, ISHB (one section per size, the root radius from the published mass) | IS 808:1989 |
+| `seismic` | `dampingCorrection.method: "table"` (Table 4 factors), `verticalFactor` 2/3 | IS 1893 (Part 1):2016 Table 4, 6.4.6 |
+| `wind.speedFactors` | `cyclonic` (off; set it in Code Values), `cyclonicImportance` (k4 1.30 for the 100-year class), `cyclonicDirectionality` (Kd 1.0) | IS 875 (Part 3):2015 6.3.4, 7.2.1 |
+| `masonry.seismic` | the strengthening by IS zones (III-V; V as the parent's highest group) | IS 4326:2013 |
+
+Also: Design Reinforcement sizes the closed links of beams in torsion by IS 456 41.4.3 and
+26.5.1.7 (the whole Asv/sv on the closed links, the IS spacing in place of the parent's ph/8)
+and the required steel lists them; the IS 13920 joints are listed in the design report's
+`joints` (the joints view); bolts of property class 4.6 are in the object library's grade list.
+
 ## Not covered yet (falls back)
 
 The pack `extends` BNBC 2020: every table not in `covers` comes from BNBC 2020. That is: the
 concrete tables C8 does not replace (`factors`, `materials`, `slabCoefficients` shear shares,
-`transfer` ...) for the checks the IS methods do not cover (column shear, construction joints,
-corbels, deep beams, stairs, prestress, the walls' axial capacity), `steelSeismic` and
-`steelStability` (not used by the limit state method, except the stability method's K = 1 of
-the direct analysis), site investigation, flood, fire, the building services, the nonstructural
-components and the storey drift and sway limits. Inside the covered tables the parent's rules
-stay where IS 800 has no counterpart in SAEngine's checks, named after the parent in the notes:
-the column side under flange forces, HSS joints, base plate bearing, ponding, torsion, the
-stability bracing forces, the composite columns and deck rules, the masonry earthquake detailing
-and reinforced masonry. The report names the pack as "BNBC 2020 (bnbc2020), modified by: Indian
-Standards (IS)".
+`transfer` ...) for the checks the IS methods do not cover (construction joints, prestress),
+`steelSeismic` and `steelStability` (not used by the limit state method, except the stability
+method's K = 1 of the direct analysis), site investigation, flood, fire, the building services,
+the nonstructural components and the storey drift and sway limits. Inside the covered tables the
+parent's rules stay where IS has no counterpart in SAEngine's checks, named after the parent in
+the notes: the column side under flange forces, HSS joints, ponding, torsion of steel members,
+the stability bracing forces, eccentrically braced frames, IS 801 cold-formed members, the
+composite columns and deck rules, reinforced masonry, IS 8009 settlement, IS 2950 rafts and the
+IS 3370 tanks (their crack limit 0.2 mm is the IS 3370 (Part 2) value). The report names the pack
+as "BNBC 2020 (bnbc2020), modified by: Indian Standards (IS)".
 
 Also not covered inside the loads: the gust factor method (IS 875-3 Clause 10), cladding and
 roof pressures, k3 by Annex C (enter k3 as the topographic factor), the 1.5 esi of the design
-eccentricity, the RC wall-building period form (b), damping other than 5 %, vertical motion,
-IS 16700 tall-building limits.
+eccentricity, the RC wall-building period form (7.6.2 (b)), IS 16700 tall-building limits.
 
 Every value is listed with its clause in [VERIFY.md](VERIFY.md), for checking against the
 printed codes (no code text was available when the pack was written).

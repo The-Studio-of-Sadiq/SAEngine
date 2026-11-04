@@ -48,6 +48,15 @@ def damping_correction(damping: float | None = None) -> float:
     rule = seismic.dampingCorrection
     if rule.method == "none" or damping is None or damping == rule.referenceDamping:
         return seismic.dampingEta
+    if rule.method == "table" and rule.points:  # Alpha 9 C9b: tabulated factors
+        points = sorted(rule.points)
+        xi = float(damping)
+        if xi <= points[0][0]:
+            return float(points[0][1])
+        for (x0, y0), (x1, y1) in pairwise(points):
+            if xi <= x1:
+                return float(y0 + (y1 - y0) * (xi - x0) / (x1 - x0))
+        return float(points[-1][1])
     eta = math.sqrt(rule.numerator / (rule.offset + 100.0 * float(damping)))
     return max(rule.minimum, eta)
 
