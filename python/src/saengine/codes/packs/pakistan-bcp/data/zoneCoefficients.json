@@ -1,0 +1,15 @@
+{
+  "$schema": "../../../schemas/zoneCoefficients.schema.json",
+  "$replace": true,
+  "$sources": [
+    "BCP SP-2007 Table 5.10: seismic zones 1, 2A, 2B, 3, 4 with Z 0.075, 0.15, 0.2, 0.3, 0.4 (ids 1-5)"
+  ],
+  "source": "BCP SP-2007: zone factor Z of the zones 1, 2A, 2B, 3 and 4 (ids 1 to 5 in SAEngine)",
+  "zones": {
+    "1": 0.075,
+    "2": 0.15,
+    "3": 0.2,
+    "4": 0.3,
+    "5": 0.4
+  }
+}

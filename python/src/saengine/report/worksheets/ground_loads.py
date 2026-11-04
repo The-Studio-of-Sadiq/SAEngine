@@ -692,8 +692,16 @@ def _zones() -> list[tuple[str, str]]:
 )
 def _seismic(s: Sheet) -> None:
     table = code_context.table("seismic")
-    from saengine.fem.spectral_hazard import uses_mapped
+    from saengine.fem.spectral_hazard import takes_mapped_values, uses_mapped
 
+    if uses_mapped() and not takes_mapped_values():  # Alpha 9 C16: the ubc97 method
+        s.note(
+            f"{code_context.code_name()} finds the design spectrum from the seismic "
+            "coefficients Ca and Cv of the zone and the soil profile: this worksheet works with "
+            "the zone spectrum and does not cover it. The analysis model's derivation states "
+            "Ca, Cv, V and the forces per level."
+        )
+        return
     if uses_mapped():  # C1: this worksheet's inputs are a zone's; not covered for mapped values
         s.note(
             f"{code_context.code_name()} takes the seismic hazard from the site's mapped "

@@ -1947,7 +1947,7 @@ def _column_shortening(model_path: Path, results_dir: Path, warnings: list[str])
         f"{clauses.get('shrinkageFigure', '')}, {clauses.get('reinforced', '')}. Required by "
         f"{clauses.get('phased', '')}; {clauses.get('effects', '')}."
     )
-    return {
+    out = {
         "available": True,
         "intro": intro,
         "levels": level_rows,
@@ -1955,6 +1955,41 @@ def _column_shortening(model_path: Path, results_dir: Path, warnings: list[str])
         "differential": differential,
         "notes": [str(n) for n in found.get("notes", [])],
     }
+    # Alpha 9 P2: the models, adjacent members, the pre-sets and the forces case CS.
+    model = found.get("model") or {}
+    if model and not (
+        model.get("creep") == "tabulatedCoefficient" and model.get("analysis") == "superposition"
+    ):
+        method = (
+            f"the age-adjusted effective modulus (χ = {fmt(model.get('chi') or 0.0, 2)})"
+            if model.get("analysis") == "ageAdjusted"
+            else "superposition of each load's creep"
+        )
+        out["model"] = f"Models: {model.get('name', '')}; analysis by {method}."
+    out["pairs"] = [
+        [r["a"], r["b"], fmt(r["distance"], 2), r["level"], fmt(1e3 * r["difference"], 1)]
+        for r in (found.get("pairs") or [])[:10]
+    ]
+    top = {}
+    for r in found.get("camber") or []:
+        top[r["line"]] = r  # the top level of each line
+    out["camber"] = [
+        [r["line"], r["level"], fmt(1e3 * r["preset"], 1), fmt(1e3 * r["relative"], 1)]
+        for r in sorted(top.values(), key=lambda r: -r["preset"])[:10]
+    ]
+    induced = found.get("induced")
+    if induced:
+        out["induced"] = {
+            "redistribution": [
+                [r["line"], r["kind"], fmt(r["force"] / 1e3, 1), fmt(100 * r["share"], 1)]
+                for r in induced["redistribution"]
+            ],
+            "beams": [
+                [r["beam"], r["level"], fmt(r["moment"] / 1e3, 1)] for r in induced["beams"][:10]
+            ],
+            "relaxation": induced.get("relaxation"),
+        }
+    return out
 
 
 def _pushover(folder: Path, warnings: list[str]) -> list[dict[str, Any]]:
@@ -3699,7 +3734,7 @@ def _mapped_site_rows(rows: list[list[str]], values: dict[str, Any]) -> list[lis
         return rows
     out = [r for r in rows if r[0] not in ("Seismic zone", "Seismic zone coefficient Z")]
     at = next((i for i, r in enumerate(out) if r[0] == "Basic wind speed V"), len(out))
-    out.insert(at, ["Mapped spectral values", describe(hazard)])
+    out.insert(at, [hazard.label.capitalize(), describe(hazard)])  # C16: ubc97 coefficients
     return out
 
 

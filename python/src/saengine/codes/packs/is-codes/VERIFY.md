@@ -526,3 +526,14 @@ the parent's), with no IS 2502 minimum radius.
 | BS6 | barSchedule.standards.is2502.shapes.77 | C √((π(A - d))² + B²) | geometry | Helix | Sure (geometry) |
 | BS7 | barSchedule.standards.is2502.shapes (codes) | 00, 11, 13, 21, 23, 26, 31, 41, 51, 77, 99 | SAEngine practice | Shape references | Practice (IS 2502's own designations not used) |
 | BS8 | barSchedule.standards.is2502.roundTo | 10 mm, up | SAEngine practice | Rounding | Practice |
+
+## Alpha 9 P2: creep, shrinkage and column shortening (concreteTime)
+
+| # | Path | Value | Clause | What | Confidence |
+|---|---|---|---|---|---|
+| P2I1 | concreteTime.creep.coefficients | 2.2, 1.6, 1.1 at 7 days, 28 days, 1 year | IS 456:2000 Cl 6.2.5.1 | Ultimate creep coefficient | Sure |
+| P2I2 | concreteTime.creep.development | 0.451, 0.721, 0.889, 1.0 after 30 days, 6 months, 30 months, 30 years | ACI 209R-92 time-ratio normalised (IS 456 gives none) | Development in time | SAEngine practice |
+| P2I3 | concreteTime.shrinkage.points | 300 × 10⁻⁶ at 30 years (134 and 253 at 28 days and 6 months) | IS 456:2000 Cl 6.2.4.1 (0.0003); the intermediate points by the ACI 209R-92 time-ratio | Total shrinkage | Sure (0.0003); practice (development) |
+| P2I4 | concreteTime.shrinkage.reinforcementCoefficient | 0 (no factor) | IS 456 gives none | The steel restrains it in the age-adjusted analysis | SAEngine practice |
+| P2I5 | concreteTime.analysis, ageing.chi | ageAdjusted, χ = 0.8 | none in IS 456 | Analysis method | SAEngine practice |
+| P2I6 | combinations.creepShrinkage | none | IS 875 (Part 5), IS 456 Table 18 | CS analysed but not designed for | Check (whether IS 875-5 takes creep and shrinkage with the temperature load) |

@@ -1,0 +1,62 @@
+{
+  "schema": "saengine.codePack/1",
+  "id": "pakistan-bcp",
+  "name": "Building Code of Pakistan (Seismic Provisions 2007) with ACI 318",
+  "edition": "BCP SP-2007",
+  "country": "PK",
+  "units": "SI",
+  "version": "0.1.0",
+  "extends": "aci318-asce7-22",
+  "covers": [
+    "locations",
+    "zoneCoefficients",
+    "seismic",
+    "occupancyCategories",
+    "barSchedule"
+  ],
+  "description": "The Building Code of Pakistan, Seismic Provisions 2007 (alpha 9 track C16), a pack that extends the US pack aci318-asce7-22: the seismic zones 1, 2A, 2B, 3 and 4 with Z 0.075 to 0.4, the soil profiles SA-SF and the UBC 1997 form of the static and dynamic procedures (seismic coefficients Ca and Cv, near-source factors Na and Nv in zone 4, V = Cv I W / R T within 2.5 Ca I W / R and 0.11 Ca I W, the response modification factors R and Ω0, the period Ct hn^(3/4), the storey drift), the towns' zones and the importance factors. The structural concrete is ACI 318 (the base pack's ACI 318-19, US bar sizes as rolled in Pakistan); the wind, the live loads and the load combinations are the base pack's ASCE 7-22 (BCP SP-2007 covers the seismic provisions only); the wind speeds of the towns are placeholders. Every value is listed in VERIFY.md; the town zones are uncertain and must be checked against the zoning map before design.",
+  "sources": [
+    {
+      "id": "BCPSP2007",
+      "title": "Building Code of Pakistan: Seismic Provisions (BCP SP-2007)",
+      "edition": "2007",
+      "publisher": "Ministry of Housing and Works, Government of Pakistan"
+    },
+    {
+      "id": "UBC97",
+      "title": "Uniform Building Code, Volume 2, Chapter 16 (the form BCP SP-2007 follows)",
+      "edition": "1997",
+      "publisher": "International Conference of Building Officials"
+    }
+  ],
+  "clauses": {
+    "locations": [
+      "BCP SP-2007 seismic zoning map and list of towns"
+    ],
+    "zoneCoefficients": [
+      "BCP SP-2007 Table 5.10 (Z by zone)"
+    ],
+    "seismic": [
+      "BCP SP-2007 Chapter 5 (UBC 1997 form)"
+    ],
+    "occupancyCategories": [
+      "BCP SP-2007 Table 5.11 (importance factor)"
+    ],
+    "barSchedule": [
+      "ACI 315 bar types with metric lengths (SAEngine practice)"
+    ]
+  },
+  "basis": {
+    "general": "BCP SP-2007 (seismic); ASCE 7-22 of the base pack for wind, live loads and combinations",
+    "concrete": "ACI 318-19 (the base pack's)",
+    "steel": "AISC 360-22 (the base pack's)"
+  },
+  "tableCodes": {
+    "seismic": "BCP SP-2007",
+    "zoneCoefficients": "BCP SP-2007",
+    "locations": "BCP SP-2007",
+    "occupancyCategories": "BCP SP-2007"
+  },
+  "author": "SAEngine contributors",
+  "licence": "AGPL-3.0-only"
+}

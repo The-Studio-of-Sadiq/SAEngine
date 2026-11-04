@@ -1,0 +1,21 @@
+{
+  "$schema": "../../../schemas/concrete.schema.json",
+  "$sources": [
+    "SNI 2052:2017 (deformed bars D10-D36, named D + diameter)"
+  ],
+  "barNames": {
+    "$replace": true,
+    "10": "D10",
+    "13": "D13",
+    "16": "D16",
+    "19": "D19",
+    "22": "D22",
+    "25": "D25",
+    "29": "D29",
+    "32": "D32",
+    "36": "D36"
+  },
+  "sources": {
+    "barNames": "SNI 2052:2017: deformed bars D10, D13, D16, D19, D22, D25, D29, D32, D36 (the base pack's diameters)"
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "$schema": "../../../schemas/occupancyCategories.schema.json",
+  "$sources": [
+    "BCP SP-2007 Table 5.11 (importance factor I)"
+  ],
+  "categories": {
+    "III": {
+      "seismicImportance": 1.25,
+      "description": "Hazardous facilities (and special occupancies, I = 1.0 in the code: SAEngine takes 1.25)"
+    },
+    "IV": {
+      "seismicImportance": 1.25,
+      "description": "Essential facilities (hospitals, fire and police stations, emergency centres)"
+    }
+  },
+  "sources": {
+    "categories": "BCP SP-2007 Table 5.11: I = 1.25 essential and hazardous facilities, 1.0 special and standard occupancies; the wind importance stays 1.0 (the speed of the site's map)"
+  }
+}

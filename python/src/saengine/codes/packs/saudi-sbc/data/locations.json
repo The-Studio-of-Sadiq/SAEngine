@@ -1,0 +1,109 @@
+{
+  "$schema": "../../../schemas/locations.schema.json",
+  "$replace": true,
+  "$sources": [
+    "SBC 301-2018 Sec 11.4.2 (SS, S1 of the cities) and Sec 26.5.1 (basic wind speed V of risk category II)"
+  ],
+  "source": "SBC 301-2018: the mapped SS and S1 and the basic wind speed of each city (to be checked against the code's tables and maps, VERIFY.md S1-S3). Elsewhere a custom location: enter SS and S1 (or SDS and SD1) and V.",
+  "default": "riyadh",
+  "locations": {
+    "riyadh": {
+      "name": "Riyadh",
+      "zone": 0,
+      "windSpeed": 46.0,
+      "ss": 0.06,
+      "s1": 0.02
+    },
+    "jeddah": {
+      "name": "Jeddah",
+      "zone": 0,
+      "windSpeed": 47.0,
+      "ss": 0.24,
+      "s1": 0.07
+    },
+    "makkah": {
+      "name": "Makkah",
+      "zone": 0,
+      "windSpeed": 46.0,
+      "ss": 0.2,
+      "s1": 0.06
+    },
+    "madinah": {
+      "name": "Madinah",
+      "zone": 0,
+      "windSpeed": 46.0,
+      "ss": 0.18,
+      "s1": 0.06
+    },
+    "taif": {
+      "name": "Taif",
+      "zone": 0,
+      "windSpeed": 45.0,
+      "ss": 0.18,
+      "s1": 0.06
+    },
+    "dammam": {
+      "name": "Dammam",
+      "zone": 0,
+      "windSpeed": 49.0,
+      "ss": 0.12,
+      "s1": 0.04
+    },
+    "yanbu": {
+      "name": "Yanbu",
+      "zone": 0,
+      "windSpeed": 47.0,
+      "ss": 0.2,
+      "s1": 0.07
+    },
+    "tabuk": {
+      "name": "Tabuk",
+      "zone": 0,
+      "windSpeed": 44.0,
+      "ss": 0.34,
+      "s1": 0.11
+    },
+    "haql": {
+      "name": "Haql",
+      "zone": 0,
+      "windSpeed": 45.0,
+      "ss": 1.0,
+      "s1": 0.33
+    },
+    "jazan": {
+      "name": "Jazan",
+      "zone": 0,
+      "windSpeed": 47.0,
+      "ss": 0.38,
+      "s1": 0.12
+    },
+    "abha": {
+      "name": "Abha",
+      "zone": 0,
+      "windSpeed": 44.0,
+      "ss": 0.18,
+      "s1": 0.06
+    },
+    "najran": {
+      "name": "Najran",
+      "zone": 0,
+      "windSpeed": 44.0,
+      "ss": 0.15,
+      "s1": 0.05
+    },
+    "hail": {
+      "name": "Hail",
+      "zone": 0,
+      "windSpeed": 45.0,
+      "ss": 0.1,
+      "s1": 0.04
+    },
+    "buraydah": {
+      "name": "Buraydah",
+      "zone": 0,
+      "windSpeed": 46.0,
+      "ss": 0.07,
+      "s1": 0.03
+    }
+  }
+}

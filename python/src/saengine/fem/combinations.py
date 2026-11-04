@@ -49,6 +49,7 @@ _FACTOR_CASES = {
     "FaX": ("FaX",),
     "FaY": ("FaY",),
     "S": ("S",),  # C1: the roof snow of a pack whose snow is its own case
+    "CS": ("CS",),  # alpha 9 P2: the creep and shrinkage forces (fem.staged)
 }
 #: Cases a combination may name that a model need not have: the fluid case F exists only when
 #: 07 MEP puts equipment contents in it, so a combination without its results is formed without

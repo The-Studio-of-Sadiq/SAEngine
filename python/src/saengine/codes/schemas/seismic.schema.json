@@ -197,7 +197,7 @@
     },
     "DesignSpectrumRule": {
       "additionalProperties": false,
-      "description": "The design spectrum: a method id the pack picks (C4, C1). Empty: ``reducedElastic``.\n\n- ``reducedElastic`` (the default pack's): Sa = pgaFactor·Z·I/R·Cs(T), Cs the elastic shape\n  of the site class (S, TB, TC, TD; :func:`saengine.fem.loads.design_acceleration`).\n- ``behaviourFactor`` (EN 1998-1 3.2.2.5): ag = Z·I, Sd = ag·S·[2/3 + T/TB·(2.5/q - 2/3)] up\n  to TB, ag·S·2.5/q to TC, ·TC/T to TD, ·TC·TD/T² beyond, at least ``lowerBound``·ag from TC\n  (:mod:`saengine.fem.spectra`); R stands for q.\n- ``mappedSpectral`` (ASCE 7-22 Ch 11-12, :mod:`saengine.fem.spectral_hazard`): the site's\n  SDS and SD1 (and S1, TL) entered from the code's hazard tool (Site > Mapped spectral\n  values) instead of a zone: a two-period spectrum (T0 = ``t0Share``·TS, TS = SD1/SDS;\n  ``rampStart``·SDS at T = 0 up to SDS at T0, SDS to TS, SD1/T to TL, SD1·TL/T² beyond) or\n  the site's multi-period design spectrum, × I/R; the equivalent lateral force coefficient\n  Cs = SDS/(R/Ie) ≤ SD1/(T R/Ie) (SD1 TL/(T² R/Ie) beyond TL) within ``csLimits``; the\n  Seismic Design Category read by the band of SDS and SD1 (``sdsBands``, ``sd1Bands``, the\n  more severe; the band after the last where S1 ≥ ``s1Extreme``) as zone packs read it by\n  zone; the period's upper limit Cu·Ta from ``periodUpper`` by SD1. The fields after\n  ``lowerBound`` are this method's.",
+      "description": "The design spectrum: a method id the pack picks (C4, C1). Empty: ``reducedElastic``.\n\n- ``reducedElastic`` (the default pack's): Sa = pgaFactor·Z·I/R·Cs(T), Cs the elastic shape\n  of the site class (S, TB, TC, TD; :func:`saengine.fem.loads.design_acceleration`).\n- ``behaviourFactor`` (EN 1998-1 3.2.2.5): ag = Z·I, Sd = ag·S·[2/3 + T/TB·(2.5/q - 2/3)] up\n  to TB, ag·S·2.5/q to TC, ·TC/T to TD, ·TC·TD/T² beyond, at least ``lowerBound``·ag from TC\n  (:mod:`saengine.fem.spectra`); R stands for q.\n- ``mappedSpectral`` (ASCE 7-22 Ch 11-12, :mod:`saengine.fem.spectral_hazard`): the site's\n  SDS and SD1 (and S1, TL) entered from the code's hazard tool (Site > Mapped spectral\n  values) instead of a zone: a two-period spectrum (T0 = ``t0Share``·TS, TS = SD1/SDS;\n  ``rampStart``·SDS at T = 0 up to SDS at T0, SDS to TS, SD1/T to TL, SD1·TL/T² beyond) or\n  the site's multi-period design spectrum, × I/R; the equivalent lateral force coefficient\n  Cs = SDS/(R/Ie) ≤ SD1/(T R/Ie) (SD1 TL/(T² R/Ie) beyond TL) within ``csLimits``; the\n  Seismic Design Category read by the band of SDS and SD1 (``sdsBands``, ``sd1Bands``, the\n  more severe; the band after the last where S1 ≥ ``s1Extreme``) as zone packs read it by\n  zone; the period's upper limit Cu·Ta from ``periodUpper`` by SD1. The fields after\n  ``lowerBound`` are this method's. Alpha 9 C23: with ``siteCoefficients`` SMS, SM1 also\n  from SS, S1 by Fa, Fv, and a town may carry SS, S1, TL.\n- ``ubc97`` (alpha 9 C16, UBC 1997 Sec 1629-1630 and the codes that adopt it): the same\n  two-period spectrum and Cs bounds with 2.5 Ca for SDS and Cv for SD1, Ca and Cv from the\n  zone's Z and the soil profile by ``ubc97`` (:class:`Ubc97Rule`).",
       "properties": {
         "method": {
           "default": "reducedElastic",
@@ -205,6 +205,7 @@
             "reducedElastic",
             "behaviourFactor",
             "mappedSpectral",
+            "ubc97",
             "ductilityOverstrength"
           ],
           "title": "Method",
@@ -427,6 +428,17 @@
           "anyOf": [
             {
               "$ref": "#/$defs/SiteCoefficients"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "ubc97": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Ubc97Rule"
             },
             {
               "type": "null"
@@ -2402,6 +2414,164 @@
         "coefficient"
       ],
       "title": "TorsionalEffectsRule",
+      "type": "object"
+    },
+    "Ubc97Rule": {
+      "additionalProperties": false,
+      "description": "Alpha 9 C16: the seismic coefficients Ca and Cv of the UBC-97 form (UBC 1997 Tables\n16-Q, 16-R; adopted by NSCP 2015 Sec 208 and BCP SP-2007) by soil profile and Z, given at\nthe zone factors ``zValues`` (linear between them for an entered Z, held beyond). From\n``nearSourceFrom`` (Z) up, Ca × Na and Cv × Nv, the near-source factors by the seismic\nsource type and the distance to the source [km] (``na`` / ``nv``: (distance, factor)\npoints, linear between, held beyond; the project may enter Na and Nv instead; without\neither they are 1.0 and the settings check says so). The spectrum is the two-period one\nof ``mappedSpectral`` with the plateau 2.5 Ca and Cv/T (T0 = 0.2 TS, TS = Cv / 2.5 Ca, Ca\nat T = 0), so V = Cv I W / (R T) ≤ 2.5 Ca I W / R (``csLimits.sdsFactor`` 0.044 gives the\nleast 0.11 Ca I W); from ``nearSourceFrom`` V ≥ ``nearSourceFactor`` Z Nv I W / R. The zone\nof the town (or the zone nearest the entered Z) reads the category table.",
+      "properties": {
+        "zValues": {
+          "description": "Z of the Ca / Cv columns.",
+          "items": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "minItems": 1,
+          "title": "Zvalues",
+          "type": "array"
+        },
+        "ca": {
+          "additionalProperties": {
+            "items": {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            "type": "array"
+          },
+          "description": "Ca by soil profile, one per zValues.",
+          "title": "Ca",
+          "type": "object"
+        },
+        "cv": {
+          "additionalProperties": {
+            "items": {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            "type": "array"
+          },
+          "description": "Cv by soil profile, one per zValues.",
+          "title": "Cv",
+          "type": "object"
+        },
+        "assumedClass": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The row a soil profile without one (SF: site-specific) takes meanwhile; empty: no hazard.",
+          "title": "Assumedclass"
+        },
+        "nearSourceFrom": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Z from which the near-source factors apply; empty: never.",
+          "title": "Nearsourcefrom"
+        },
+        "na": {
+          "additionalProperties": {
+            "items": {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            "type": "array"
+          },
+          "description": "Na by seismic source type: (distance [km], Na).",
+          "title": "Na",
+          "type": "object"
+        },
+        "nv": {
+          "additionalProperties": {
+            "items": {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            "type": "array"
+          },
+          "description": "Nv by seismic source type: (distance [km], Nv).",
+          "title": "Nv",
+          "type": "object"
+        },
+        "nearSourceFactor": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "V ≥ this × Z Nv I W / R from nearSourceFrom; empty: none.",
+          "title": "Nearsourcefactor"
+        },
+        "periodUpper": {
+          "description": "(Z from, Cu) steps: T from the structure's properties ≤ Cu·Ta, Cu of the last step at or below the site's Z; empty: the pack's periodUpperFactor.",
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "title": "Periodupper",
+          "type": "array"
+        },
+        "clauses": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Clauses",
+          "type": "object"
+        }
+      },
+      "required": [
+        "zValues",
+        "ca",
+        "cv"
+      ],
+      "title": "Ubc97Rule",
       "type": "object"
     },
     "VerticalComponentRule": {

@@ -182,7 +182,7 @@ def design_acceleration(
             rule.plateau,
             rule.lowerBound,
         )
-    if rule is not None and rule.method == "mappedSpectral":
+    if rule is not None and rule.method in ("mappedSpectral", "ubc97"):  # C16: ubc97 the same
         return importance / r * normalized_spectrum(period, site_class, damping, z)
     if rule is not None and rule.method == "ductilityOverstrength":  # Alpha 9 C17
         from saengine.fem.ductility_spectrum import design_ordinate

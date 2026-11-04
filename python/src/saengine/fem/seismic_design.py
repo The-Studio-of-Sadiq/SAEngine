@@ -754,9 +754,14 @@ def modal_force_model(
     return model, cases
 
 
-def _run(model: dict[str, Any], folder: Path, ids: list[int] | None = None) -> Path:
+def _run(
+    model: dict[str, Any],
+    folder: Path,
+    ids: list[int] | None = None,
+    what: str = "the response spectrum force run",
+) -> Path:
     """Run every case of ``model`` with OpenSees Studio's runner (its own process, as the app)
-    into ``folder/results``. Raises ``ValueError`` when the run fails."""
+    into ``folder/results``. Raises ``ValueError`` when the run fails (``what`` names it)."""
     folder.mkdir(parents=True, exist_ok=True)
     path = folder / "rs-design.osmodel"
     path.write_text(json.dumps(model), encoding="utf-8")
@@ -788,7 +793,7 @@ def _run(model: dict[str, Any], folder: Path, ids: list[int] | None = None) -> P
             if isinstance(message, dict) and message.get("type") == "error":
                 errors.append(str(message.get("message", "")))
         reason = errors[-1] if errors else f"OpenSees stopped (exit code {done.returncode})"
-        raise ValueError(f"the response spectrum force run failed: {reason}")
+        raise ValueError(f"{what} failed: {reason}")
     return out
 
 

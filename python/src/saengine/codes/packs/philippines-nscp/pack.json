@@ -1,0 +1,77 @@
+{
+  "schema": "saengine.codePack/1",
+  "id": "philippines-nscp",
+  "name": "National Structural Code of the Philippines (NSCP 2015, Volume 1)",
+  "edition": "NSCP 2015",
+  "country": "PH",
+  "units": "SI",
+  "version": "0.1.0",
+  "extends": "aci318-asce7-22",
+  "covers": [
+    "locations",
+    "zoneCoefficients",
+    "seismic",
+    "wind",
+    "occupancyCategories",
+    "concrete",
+    "barSchedule",
+    "citations"
+  ],
+  "description": "The National Structural Code of the Philippines 2015, Volume 1 (alpha 9 track C16), a pack that extends the US pack aci318-asce7-22: Section 208 earthquake loads in the UBC 1997 form (seismic zones 2 and 4 with Z 0.20 and 0.40, soil profiles SA-SF, seismic coefficients Ca and Cv, near-source factors Na and Nv from the seismic source type and distance, V = Cv I W / R T within 2.5 Ca I W / R, 0.11 Ca I W and 0.8 Z Nv I W / R, R and Ω0, the period Ct hn^(3/4), the storey drift, the importance factors of Table 208-1), Section 207 wind in the ASCE 7-10 form (the basic wind speed of each province, the ASCE 7-10 velocity pressure constants), Chapter 4 structural concrete (ACI 318-14 numbered 4xx: the clause references in that numbering, the base pack's ACI 318-19 rules, PNS 49 bar sizes) and Chapter 5 steel (AISC 360, the base pack's). Combinations and live loads are the base pack's (ASCE 7-22, the same form as NSCP 2015 Sec 203 and 205 for the cases SAEngine builds). Every value is listed in VERIFY.md; the province wind speeds are uncertain and must be checked before design.",
+  "sources": [
+    {
+      "id": "NSCP2015",
+      "title": "National Structural Code of the Philippines, Volume 1: Buildings, Towers and Other Vertical Structures (NSCP 2015)",
+      "edition": "2015 (7th edition)",
+      "publisher": "Association of Structural Engineers of the Philippines"
+    },
+    {
+      "id": "PNS49",
+      "title": "Steel bars for concrete reinforcement (PNS 49)",
+      "edition": "2020",
+      "publisher": "Bureau of Philippine Standards"
+    }
+  ],
+  "clauses": {
+    "locations": [
+      "NSCP 2015 Sec 208.4.4.1 (zones) and Table 207A.5-1 (wind speeds)"
+    ],
+    "zoneCoefficients": [
+      "NSCP 2015 Table 208-3"
+    ],
+    "seismic": [
+      "NSCP 2015 Section 208 (UBC 1997 form)"
+    ],
+    "wind": [
+      "NSCP 2015 Section 207A (ASCE 7-10 form)"
+    ],
+    "occupancyCategories": [
+      "NSCP 2015 Table 103-1, Table 208-1"
+    ],
+    "concrete": [
+      "PNS 49 (bar sizes: SAEngine practice)"
+    ],
+    "barSchedule": [
+      "ACI 315 bar types with metric lengths (SAEngine practice)"
+    ],
+    "citations": [
+      "NSCP 2015 Chapter 4 (ACI 318-14 numbered 4xx)"
+    ]
+  },
+  "basis": {
+    "general": "NSCP 2015 Chapter 2 (with ASCE 7-22 where it gives the same rule)",
+    "concrete": "NSCP 2015 Chapter 4 (ACI 318-19 rules of the base pack)",
+    "steel": "NSCP 2015 Chapter 5 (AISC 360-22 rules of the base pack)"
+  },
+  "tableCodes": {
+    "seismic": "NSCP 2015",
+    "zoneCoefficients": "NSCP 2015",
+    "locations": "NSCP 2015",
+    "wind": "NSCP 2015",
+    "occupancyCategories": "NSCP 2015",
+    "concrete": "NSCP 2015",
+    "citations": "NSCP 2015"
+  },
+  "author": "SAEngine contributors",
+  "licence": "AGPL-3.0-only"
+}

@@ -340,6 +340,31 @@ class SpectralSite(_Model):
         description="(T [s], Sa [g]) points of the site's multi-period MCER spectrum: SDS and "
         "SD1 from it by the code pack's rule when they are not given.",
     )
+    # Alpha 9 C16: the near-source factors of packs whose spectrum is ubc97 (UBC-97 form).
+    sourceType: Literal["A", "B", "C"] | None = Field(
+        default=None,
+        title="Seismic source type",
+        description="Type of the nearest seismic source (A, B or C), for code packs with "
+        "near-source factors Na and Nv (the UBC 1997 form). Empty: not given.",
+    )
+    sourceDistance: float | None = Field(
+        default=None,
+        ge=0,
+        title="Distance to the seismic source",
+        description="Closest distance to the known seismic source [km], for Na and Nv.",
+    )
+    na: float | None = Field(
+        default=None,
+        gt=0,
+        title="Na",
+        description="Near-source factor Na (replaces the one from the source type and distance).",
+    )
+    nv: float | None = Field(
+        default=None,
+        gt=0,
+        title="Nv",
+        description="Near-source factor Nv (replaces the one from the source type and distance).",
+    )
 
 
 class SnowDrift(_Model):
@@ -1355,6 +1380,13 @@ class Settlement(_Model):
     )
 
 
+class CastDay(_Model):
+    """The day a level's floor is cast (alpha 9 P2)."""
+
+    level: str = Field(min_length=1, description="The level's (storey's) name.")
+    day: float = Field(ge=0, description="Days from the start of construction.")
+
+
 class TimeDependent(_Model):
     """Creep, shrinkage and column shortening (B25): the time-dependent shortening of the
     concrete columns of a building built storey by storey, by the creep and shrinkage model of
@@ -1425,6 +1457,64 @@ class TimeDependent(_Model):
         gt=0,
         title="Water content",
         description="Free water of the mix [litre/m³]. Empty: the code pack's reference mix.",
+    )
+    # Alpha 9 P2: the analysis method, walls and cores, the construction days, the forces case.
+    method: Literal["pack", "superposition", "ageAdjusted"] = Field(
+        default="pack",
+        title="Analysis method",
+        description="How the shortening is worked out: the code pack's choice; superposition "
+        "of each load's creep (the steel restrains the elastic strain only); or the "
+        "age-adjusted effective modulus (the steel also restrains the creep and shrinkage).",
+        json_schema_extra=_labels(["Code pack's", "Superposition", "Age-adjusted modulus"]),
+    )
+    walls: bool = Field(
+        default=False,
+        title="Walls and cores",
+        description="Also work out the shortening of the shell walls and cores, storey by "
+        "storey from their membrane forces, and compare them with the columns beside them.",
+    )
+    wallSteelRatio: float = Field(
+        default=0.005,
+        ge=0,
+        le=0.08,
+        title="Wall steel ratio",
+        description="Vertical steel ratio ρ of the walls.",
+    )
+    strength: float | None = Field(
+        default=None,
+        gt=0,
+        title="Concrete strength",
+        description="f'c (fck) [MPa] for the creep and shrinkage models that depend on it. "
+        "Empty: each member's from its modulus by the code pack's Ec rule.",
+    )
+    castDays: list[CastDay] = Field(
+        default_factory=list,
+        title="Casting days",
+        description="The day a level's floor (and the storey below it) is cast, where it is "
+        "not the floor cycle's; the storey is loaded one cycle later.",
+    )
+    liveAfterDays: float | None = Field(
+        default=None,
+        ge=0,
+        title="Occupancy",
+        description="Days after the frame is complete that the sustained live load is applied. "
+        "Empty: with the finishes.",
+    )
+    finalDays: float | None = Field(
+        default=None,
+        gt=0,
+        title="Final time",
+        description="Days from the start of construction the final shortening is worked out at "
+        "(e.g. 10000). Empty: the service life after completion.",
+    )
+    forcesCase: bool = Field(
+        default=False,
+        title="Creep and shrinkage forces",
+        description="Add the load case CS: the creep and shrinkage strains of the columns and "
+        "walls after their floors are cast, stage by stage, as imposed strains on the model, "
+        "with the forces relaxed by the age-adjusted effective modulus. The combinations take "
+        "it with the code pack's factor (Reset Combinations adds them). Runs the gravity cases "
+        "once more while the model is derived.",
     )
 
 
@@ -2308,6 +2398,15 @@ class LoadCombination(_Model):
         "settlement): differential settlement is a self-straining effect T, so it takes T's "
         "factor of the code pack's combination.",
     )
+    # Alpha 9 P2: the creep and shrinkage forces case (Analysis model → Creep, shrinkage and
+    # column shortening → Creep and shrinkage forces), left out of the file while 0.
+    CS: float = Field(
+        default=0,
+        exclude_if=lambda value: not value,
+        title="CS",
+        description="Factor on the creep and shrinkage forces case CS, a self-straining action "
+        "with the factor of the code pack's combinations with CS.",
+    )
     F: float | None = Field(
         default=None,
         title="F",
@@ -2733,9 +2832,10 @@ def _choices(table: Any) -> dict[str, list[dict[str, str]]]:
         rows = []
         for key, v in locations.locations.items():
             z = zones.get(v.zone)
-            hazard = f"zone {v.zone}, Z {z:.2f}, " if z is not None else f"zone {v.zone}, "
+            label = v.zoneLabel or v.zone  # Alpha 9 C16: the code's name of the zone
+            hazard = f"zone {label}, Z {z:.2f}, " if z is not None else f"zone {label}, "
             if v.ss is not None and v.s1 is not None:  # Alpha 9 C23: the town's mapped values
-                hazard = f"zone {v.zone}, SS {v.ss:g}, S1 {v.s1:g}, "
+                hazard = f"zone {label}, SS {v.ss:g}, S1 {v.s1:g}, "
             if v.spectrum:  # Alpha 9 C17: the town's uniform hazard spectrum
                 short = min(v.spectrum, key=lambda p: abs(p[0] - 0.2))
                 hazard = f"Sa({short[0]:g}) {short[1]:g}, "
@@ -2764,6 +2864,7 @@ def strength_combinations(
     pack: CodePack | None = None,
     settlement: bool = False,
     settings: ProjectSettings | None = None,
+    creep_shrinkage: bool = False,
 ) -> list[LoadCombination]:
     """The code pack's strength combinations, with wind and earthquake in ±X and ±Y
     (:func:`saengine.fem.combinations.expand_rows`); with ``thermal``, combination 2 also with
@@ -2799,6 +2900,10 @@ def strength_combinations(
 
             for st_name, st_factors in strength_combinations_with_st(thermal):
                 result.append(LoadCombination(name=st_name, **st_factors))
+        if creep_shrinkage:
+            # Alpha 9 P2: the pack's rows with the creep and shrinkage forces case CS.
+            for cs_name, cs_factors, _row in fc.expand_rows(list(table.creepShrinkage)):
+                result.append(LoadCombination(name=cs_name, **{"F": 0.0, "H": 0.0, **cs_factors}))
     # B16: the pack's combinations of the project's flood or tidal surge zone (Fa with the
     # wind in its direction), with the same permitted factor changes.
     if settings is not None:
@@ -3014,9 +3119,13 @@ def derived(settings: ProjectSettings) -> dict[str, Any]:
     from saengine.fem import spectral_hazard as sh
 
     if sh.uses_mapped(pack):
-        # Alpha 9 C23: the town's mapped SS, S1, TL where the project enters none.
+        # Alpha 9 C23: the town's mapped SS, S1, TL where the project enters none; C16: for
+        # ubc97 the Z and its zone (the zone nearest an entered Z).
         spectral = sh.with_location(settings.site.spectral, location)
-        z = sh.site_hazard(spectral, settings.site.siteClass, pack)
+        given = settings.site.zoneCoefficient is not None
+        z = sh.site_hazard(
+            spectral, settings.site.siteClass, pack, z=z, zone=None if given else zone
+        )
         zone = sh.band(z, pack) if z is not None else None
     speed = settings.site.windSpeed or (location.windSpeed if location else None)
     # Alpha 9 C15: a pack's altitude factor on the mapped speed (vb,0 = vb,map × calt).
@@ -3279,9 +3388,11 @@ def problems(settings: ProjectSettings) -> list[tuple[str, str]]:
 
 
 def _uses_mapped(pack: CodePack) -> bool:
-    from saengine.fem.spectral_hazard import uses_mapped
+    """Whether the pack takes the site's mapped values instead of Z (alpha 9 C16: a ubc97
+    pack takes Z)."""
+    from saengine.fem.spectral_hazard import takes_mapped_values
 
-    return uses_mapped(pack)
+    return takes_mapped_values(pack)
 
 
 def _pack_problems(settings: ProjectSettings, pack: CodePack) -> list[tuple[str, str]]:
@@ -3372,6 +3483,8 @@ def _mapped_problems(settings: ProjectSettings, pack: CodePack) -> list[tuple[st
 
     if not sh.uses_mapped(pack):
         return []
+    if not sh.takes_mapped_values(pack):  # Alpha 9 C16: ubc97 takes Z
+        return _ubc97_problems(settings, pack)
     locations = pack.table("locations").locations if pack.has("locations") else {}
     spectral = sh.with_location(settings.site.spectral, locations.get(settings.site.location))
     if sh.site_hazard(spectral, settings.site.siteClass, pack) is not None:
@@ -3399,6 +3512,44 @@ def _mapped_problems(settings: ProjectSettings, pack: CodePack) -> list[tuple[st
             ),
         )
     ]
+
+
+def _ubc97_problems(settings: ProjectSettings, pack: CodePack) -> list[tuple[str, str]]:
+    """Alpha 9 C16: a ubc97 pack needs the near-source data where its factors apply and a soil
+    profile it gives Ca and Cv for."""
+    edition = pack.edition or pack.name
+    rule = pack.table("seismic").designSpectrum
+    ubc = rule.ubc97 if rule is not None else None
+    if ubc is None:
+        return []
+    out: list[tuple[str, str]] = []
+    site_class = settings.site.siteClass
+    if site_class not in ubc.ca:
+        assumed = f" (taken as {ubc.assumedClass} meanwhile)" if ubc.assumedClass else ""
+        text = (
+            f"{edition} gives no seismic coefficients Ca, Cv for soil profile {site_class}: "
+            f"a site-specific study is needed{assumed}"
+        )
+        out.append(("site.siteClass", text))
+    try:
+        z = getattr(derived(settings)["Z"], "zValue", None)
+    except (KeyError, ValueError):  # an unknown system or category: reported elsewhere
+        z = None
+    start = ubc.nearSourceFrom
+    if start is not None and z is not None and z >= float(start) - 1e-9:
+        spectral = settings.site.spectral
+        has = spectral is not None and (
+            (spectral.na is not None and spectral.nv is not None)
+            or (spectral.sourceType is not None and spectral.sourceDistance is not None)
+        )
+        if not has:
+            text = (
+                f"{edition}: the site is in the zone of the near-source factors: enter the "
+                "seismic source type and the distance to it (or Na and Nv); until then Na = "
+                "Nv = 1.0"
+            )
+            out.append(("site.spectral", text))
+    return out
 
 
 def _exception_problems(settings: ProjectSettings, pack: CodePack) -> list[tuple[str, str]]:

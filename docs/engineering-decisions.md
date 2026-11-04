@@ -77,6 +77,37 @@ here, newest first, with the date, the question, the decision, the reason and wh
   barometric G of the CFE pressure is the town's pressure factor (the speed × √G). Group A's
   wind importance 1.21 is an SAEngine estimate.
 
+## 2026-11-04: packs that adopt the US codes with local values (alpha 9 track C16)
+
+- **What was built.** Four built-in packs that `extends: "aci318-asce7-22"`, start in SI units
+  and set only what the local code changes: `saudi-sbc` (SBC 301-2018 in the ASCE 7-16 form,
+  SBC 304 / 306), `pakistan-bcp` (BCP SP-2007, the UBC 1997 form), `philippines-nscp` (NSCP 2015
+  Vol 1: Section 208 in the UBC 1997 form, Section 207 ASCE 7-10, Chapter 4 numbered 4xx) and
+  `indonesia-sni` (SNI 1726:2019 in the ASCE 7-16 form, SNI 1727, 2847, 1729). Every value is in
+  the pack's `VERIFY.md`; no code text was available. UAE / Gulf was left to track C23 (which
+  built Qatar). Saudi Arabia and Indonesia use C23's `seismic.designSpectrum.siteCoefficients`
+  (Fa, Fv) and the towns' `ss`, `s1`, `tl`.
+- **Generic keys the packs needed (any pack may use them; the existing packs do not set them,
+  so their results are unchanged):** a town's `zoneLabel` in `locations` (zones named 2A, 2B),
+  and the design spectrum method `ubc97`
+  (`seismic.designSpectrum.ubc97`: Ca, Cv by soil profile and Z, the near-source factors Na, Nv
+  from Site > Mapped spectral values > seismic source type and distance, or Na, Nv entered; the
+  least 0.8 Z Nv I W / R; Cu by Z). `ubc97` draws the same two-period spectrum and Cs bounds as
+  `mappedSpectral` with 2.5 Ca for SDS and Cv for SD1 (UBC 1997 Figure 16-3 and Eqs 30-4 to 30-7
+  are that form), and the zone of the town reads the category table.
+- **SAEngine practice.** UBC-form codes have no Seismic Design Category: the zone takes the
+  category whose detailing the code asks (Z below 0.15 B, 0.15-0.2 C, 0.3-0.4 D); Cd = 0.7 R
+  (ΔM = 0.7 R ΔS); the drift limit 0.020 h for every period (the 0.025 h of T < 0.7 s not used);
+  near-source factors 1.0 until the source is entered (the settings check warns in zone 4) and
+  no Na ≤ 1.1 cap; SF takes SE's Ca, Cv (or Fa, Fv) with the site-specific warning. Occupancy
+  category III takes I = 1.25 under BCP and NSCP (hazardous; special occupancies have 1.0 in the
+  code). The town wind speeds of Saudi Arabia and Pakistan and Indonesia's 30 m/s are
+  placeholders to replace; the bar sizes (SASO 8-32 mm, PNS 49 10-36 mm, SNI D10-D36, US #3-#11
+  in Pakistan) and bar schedules (BS 8666 in Saudi Arabia, ACI 315 with 12 m stock elsewhere)
+  are SAEngine's choice. SBC 304, NSCP Chapter 4 and SNI 2847 adopt ACI 318-14; the base pack's
+  ACI 318-19 rules apply (the ACI 318-14 forms are not built in) and the clause references are
+  named after the local code (NSCP renumbered 4xx).
+
 ## 2026-11-04: thin country packs (alpha 9 track C23)
 
 - **What was built.** Four built-in packs that set only what their country changes:
@@ -171,6 +202,49 @@ practice where BNBC 2020 is silent**, except the non-building structures, which 
   pressures with the passive divided by 2.0, the least surcharge 10 kPa and an overdig of 10 % of
   H up to 0.5 m; the Eurocodes pack uses EN 1997-1 M2 strengths and q × 1.3. Wall sections,
   walers, struts and anchors stay with track P1.
+
+## 2026-11-04: creep, shrinkage and column shortening by the pack's models (alpha 9 track P2)
+
+The B25 column shortening (`fem/staged.py`, `fem/concrete_time.py`) now takes the creep and
+shrinkage model the pack names by id in `concreteTime` and extends to walls, pre-sets and a forces
+case. The bnbc2020 results are unchanged: its tabulated figures by superposition stay the B25
+arithmetic, and every new part is behind a setting that is off by default.
+
+- **Models by method id.** `aci209` (ACI 209R-92: US pack), `en1992AnnexB` (EN 1992-1-1 Annex B and
+  3.1.4: Eurocodes and its National Annexes), `fibMC2010` (fib Model Code 2010: for a pack that
+  wants it), and the BNBC `tabulatedCoefficient`/`tabulatedStrain` (bnbc2020; the IS pack enters
+  IS 456 6.2.4-6.2.5's values in the same form). Strength in time `hyperbolic` (ACI 209R-92 Eq 2-1)
+  or `exponential` (EN 1992-1-1 Eq 3.2).
+- **SAEngine practice.** The modulus at an age comes from the pack's Ec rule at the strength
+  reached (EN takes (fcm(t)/fcm)^0.3). The models' f'c/fck comes from each member's modulus by the
+  pack's Ec rule unless the project enters it. IS 456 gives only ultimate values: their
+  development in time follows ACI 209R-92's time-ratios, normalised to 30 years. ACI 209R-92
+  gives no indoor/outdoor humidity: 50 % and 70 % are SAEngine defaults. χ = 0.8 where the pack
+  gives no ageing coefficient.
+- **Analysis method** (pack's `concreteTime.analysis`, overridable per project): `superposition`
+  (B25, the default when a pack names none; bnbc2020) or `ageAdjusted` (the steel restrains the
+  creep and shrinkage by the age-adjusted effective modulus; the US, Eurocodes and IS packs).
+- **Construction sequence.** Casting days per level (else the floor cycle), the sustained live
+  load at its own day after completion (else with the finishes), a final time in days (else the
+  service life).
+- **Walls and cores** (setting `walls`, off by default): the vertical shells of a wall per storey
+  band, their axial force from the shells' nodal forces at the band's bottom and top. Beams that
+  frame into a wall, and each column with its nearest wall, get the differential shortening.
+- **Pre-set.** The shortening after casting of each level is the amount to cast it higher; the
+  storey's extra length is its increase over the level below; relative to the line that shortens
+  least.
+- **The forces case CS** (setting `forcesCase`, off by default): while the model is derived its
+  gravity cases are run once more for the columns' and walls' axial forces; each storey's creep
+  and shrinkage after its floor is cast, per construction stage, is imposed on the model as
+  fixed-end loads (the temperature case's method), staged like the dead load. The forces are
+  relaxed by 1 / (1 + χ φ̄) (φ̄ the mean creep coefficient of the vertical members), so the case's
+  deflections are of the relaxed forces too; the shortening itself is in the shortening tables.
+  Its fixed-end forces are kept in `thermal.json` under `more`. The combinations take it from the
+  pack's new `combinations.creepShrinkage` rows: bnbc2020 1.2D + 1.2CS + 1.6L + 0.5Lr (T includes
+  creep and shrinkage, Sec 2.7.3.1 comb. 2), US 1.2D + 1.0CS + 1.6L + 0.5Lr (ASCE 7-22 2.3.4),
+  Eurocodes 1.35G + 1.0CS + 1.5Q + 0.75S (γSH = 1.0, SAEngine practice for the creep part); IS and
+  the legacy packs give none (analysed, not designed for).
+- **Still planned:** construction loads and shoring of the partly built structure.
 
 ## 2026-11-04: staged excavation support and shoring (alpha 9 track P1)
 

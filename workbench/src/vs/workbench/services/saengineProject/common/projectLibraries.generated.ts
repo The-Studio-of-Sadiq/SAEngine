@@ -8722,6 +8722,27 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 			title: 'AreaLoad',
 			type: 'object',
 		},
+		CastDay: {
+			additionalProperties: false,
+			description: 'The day a level\'s floor is cast (alpha 9 P2).',
+			properties: {
+				level: {
+					description: 'The level\'s (storey\'s) name.',
+					minLength: 1,
+					title: 'Level',
+					type: 'string',
+				},
+				day: {
+					description: 'Days from the start of construction.',
+					minimum: 0,
+					title: 'Day',
+					type: 'number',
+				},
+			},
+			required: ['level', 'day'],
+			title: 'CastDay',
+			type: 'object',
+		},
 		CladdingRoof: {
 			additionalProperties: false,
 			description: 'The building\'s roof as the components-and-cladding figures see it (B14;\n:func:`saengine.fem.loads.cladding_pressures`).',
@@ -10031,6 +10052,12 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 					title: 'ST',
 					type: 'number',
 				},
+				CS: {
+					default: 0,
+					description: 'Factor on the creep and shrinkage forces case CS, a self-straining action with the factor of the code pack\'s combinations with CS.',
+					title: 'CS',
+					type: 'number',
+				},
 				F: {
 					anyOf: [
 						{
@@ -11203,6 +11230,62 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 					title: 'Multi-period MCER spectrum',
 					type: 'array',
 				},
+				sourceType: {
+					anyOf: [
+						{
+							enum: ['A', 'B', 'C'],
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Type of the nearest seismic source (A, B or C), for code packs with near-source factors Na and Nv (the UBC 1997 form). Empty: not given.',
+					title: 'Seismic source type',
+				},
+				sourceDistance: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Closest distance to the known seismic source [km], for Na and Nv.',
+					title: 'Distance to the seismic source',
+				},
+				na: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Near-source factor Na (replaces the one from the source type and distance).',
+					title: 'Na',
+				},
+				nv: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Near-source factor Nv (replaces the one from the source type and distance).',
+					title: 'Nv',
+				},
 			},
 			title: 'SpectralSite',
 			type: 'object',
@@ -11340,6 +11423,84 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 					default: null,
 					description: 'Free water of the mix [litre/m³]. Empty: the code pack\'s reference mix.',
 					title: 'Water content',
+				},
+				method: {
+					default: 'pack',
+					description: 'How the shortening is worked out: the code pack\'s choice; superposition of each load\'s creep (the steel restrains the elastic strain only); or the age-adjusted effective modulus (the steel also restrains the creep and shrinkage).',
+					enum: ['pack', 'superposition', 'ageAdjusted'],
+					enumDescriptions: ['Code pack\'s', 'Superposition', 'Age-adjusted modulus'],
+					title: 'Analysis method',
+					type: 'string',
+				},
+				walls: {
+					default: false,
+					description: 'Also work out the shortening of the shell walls and cores, storey by storey from their membrane forces, and compare them with the columns beside them.',
+					title: 'Walls and cores',
+					type: 'boolean',
+				},
+				wallSteelRatio: {
+					default: 0.005,
+					description: 'Vertical steel ratio ρ of the walls.',
+					maximum: 0.08,
+					minimum: 0,
+					title: 'Wall steel ratio',
+					type: 'number',
+				},
+				strength: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'f\'c (fck) [MPa] for the creep and shrinkage models that depend on it. Empty: each member\'s from its modulus by the code pack\'s Ec rule.',
+					title: 'Concrete strength',
+				},
+				castDays: {
+					description: 'The day a level\'s floor (and the storey below it) is cast, where it is not the floor cycle\'s; the storey is loaded one cycle later.',
+					items: {
+						$ref: '#/$defs/CastDay',
+					},
+					title: 'Casting days',
+					type: 'array',
+				},
+				liveAfterDays: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Days after the frame is complete that the sustained live load is applied. Empty: with the finishes.',
+					title: 'Occupancy',
+				},
+				finalDays: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Days from the start of construction the final shortening is worked out at (e.g. 10000). Empty: the service life after completion.',
+					title: 'Final time',
+				},
+				forcesCase: {
+					default: false,
+					description: 'Add the load case CS: the creep and shrinkage strains of the columns and walls after their floors are cast, stage by stage, as imposed strains on the model, with the forces relaxed by the age-adjusted effective modulus. The combinations take it with the code pack\'s factor (Reset Combinations adds them). Runs the gravity cases once more while the model is derived.',
+					title: 'Creep and shrinkage forces',
+					type: 'boolean',
 				},
 			},
 			title: 'TimeDependent',
@@ -12348,6 +12509,11 @@ export const DEFAULT_SETTINGS: object = {
 			sustainedLive: 0.25,
 			serviceLifeYears: 30.0,
 			steelRatio: 0.01,
+			method: 'pack',
+			walls: false,
+			wallSteelRatio: 0.005,
+			castDays: [],
+			forcesCase: false,
 		},
 		fireResistance: {
 			columns: 0,
@@ -12443,6 +12609,26 @@ export const SETTLEMENT_COMBINATIONS: readonly object[] = [
 		ST: 1.2,
 		F: 1.2,
 		H: 1.6,
+		FaX: 0.0,
+		FaY: 0.0,
+	},
+];
+
+export const CREEP_SHRINKAGE_COMBINATIONS: readonly object[] = [
+	{
+		name: '1.2D + 1.2CS + 1.6L + 0.5Lr',
+		D: 1.2,
+		L: 1.6,
+		Lr: 0.5,
+		WX: 0.0,
+		WY: 0.0,
+		EX: 0.0,
+		EY: 0.0,
+		T: 0.0,
+		ST: 0.0,
+		CS: 1.2,
+		F: 0.0,
+		H: 0.0,
 		FaX: 0.0,
 		FaY: 0.0,
 	},
@@ -18270,6 +18456,11 @@ export const TEMPLATES: { readonly [defName: string]: object } = {
 	},
 	BeamCorbels: {},
 	Helipad: {},
+	SnowDrift: {
+		upperLength: 10.0,
+		stepHeight: 2.0,
+	},
+	SpectralSite: {},
 	AirRaidShelter: {
 		storeysAbove: 1,
 	},
@@ -18870,6 +19061,14 @@ export const TEMPLATES: { readonly [defName: string]: object } = {
 			serviceLifeYears: 30.0,
 			steelRatio: 0.01,
 			waterContent: null,
+			method: 'pack',
+			walls: false,
+			wallSteelRatio: 0.005,
+			strength: null,
+			castDays: [],
+			liveAfterDays: null,
+			finalDays: null,
+			forcesCase: false,
 		},
 		fireResistance: {
 			columns: 0,

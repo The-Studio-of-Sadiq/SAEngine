@@ -304,6 +304,14 @@
       "title": "Temperature",
       "type": "array"
     },
+    "creepShrinkage": {
+      "description": "Strength combinations with the creep and shrinkage forces case CS (the factor the code gives a self-straining action); empty: CS is analysed, not designed for.",
+      "items": {
+        "$ref": "#/$defs/Combination"
+      },
+      "title": "Creepshrinkage",
+      "type": "array"
+    },
     "gravity": {
       "description": "The strength combinations with gravity loads only.",
       "items": {

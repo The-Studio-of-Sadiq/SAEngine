@@ -104,6 +104,10 @@ class Location(_Row):
         description="Factor on the velocity pressure of the town's wind speed (the speed is "
         "taken × √factor); empty: 1.",
     )
+    # Alpha 9 C16: the zone as the code names it (zones 2A, 2B numbered 2, 3 in the data).
+    zoneLabel: str | None = Field(
+        default=None, description="The zone as the code names it (e.g. '2A'); empty: its number."
+    )
 
 
 class Town(_Row):
@@ -393,6 +397,12 @@ class CombinationsTable(TableModel):
     )
     temperature: list[Combination] = Field(
         default_factory=list, description="Strength combinations with T (rise +, fall -)."
+    )
+    # Alpha 9 P2: the creep and shrinkage forces case CS (fem.staged), a self-straining action.
+    creepShrinkage: list[Combination] = Field(
+        default_factory=list,
+        description="Strength combinations with the creep and shrinkage forces case CS (the "
+        "factor the code gives a self-straining action); empty: CS is analysed, not designed for.",
     )
     gravity: list[Combination] = Field(
         default_factory=list, description="The strength combinations with gravity loads only."
@@ -1098,6 +1108,58 @@ class DuctilityOverstrength(BaseModel):
     clauses: dict[str, str] = Field(default_factory=dict)
 
 
+class Ubc97Rule(BaseModel):
+    """Alpha 9 C16: the seismic coefficients Ca and Cv of the UBC-97 form (UBC 1997 Tables
+    16-Q, 16-R; adopted by NSCP 2015 Sec 208 and BCP SP-2007) by soil profile and Z, given at
+    the zone factors ``zValues`` (linear between them for an entered Z, held beyond). From
+    ``nearSourceFrom`` (Z) up, Ca × Na and Cv × Nv, the near-source factors by the seismic
+    source type and the distance to the source [km] (``na`` / ``nv``: (distance, factor)
+    points, linear between, held beyond; the project may enter Na and Nv instead; without
+    either they are 1.0 and the settings check says so). The spectrum is the two-period one
+    of ``mappedSpectral`` with the plateau 2.5 Ca and Cv/T (T0 = 0.2 TS, TS = Cv / 2.5 Ca, Ca
+    at T = 0), so V = Cv I W / (R T) ≤ 2.5 Ca I W / R (``csLimits.sdsFactor`` 0.044 gives the
+    least 0.11 Ca I W); from ``nearSourceFrom`` V ≥ ``nearSourceFactor`` Z Nv I W / R. The zone
+    of the town (or the zone nearest the entered Z) reads the category table."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    zValues: list[Positive] = Field(min_length=1, description="Z of the Ca / Cv columns.")
+    ca: dict[str, list[Positive]] = Field(description="Ca by soil profile, one per zValues.")
+    cv: dict[str, list[Positive]] = Field(description="Cv by soil profile, one per zValues.")
+    assumedClass: str | None = Field(
+        default=None,
+        description="The row a soil profile without one (SF: site-specific) takes meanwhile; "
+        "empty: no hazard.",
+    )
+    nearSourceFrom: Positive | None = Field(
+        default=None, description="Z from which the near-source factors apply; empty: never."
+    )
+    na: dict[str, list[tuple[float, Positive]]] = Field(
+        default_factory=dict, description="Na by seismic source type: (distance [km], Na)."
+    )
+    nv: dict[str, list[tuple[float, Positive]]] = Field(
+        default_factory=dict, description="Nv by seismic source type: (distance [km], Nv)."
+    )
+    nearSourceFactor: Positive | None = Field(
+        default=None, description="V ≥ this × Z Nv I W / R from nearSourceFrom; empty: none."
+    )
+    periodUpper: list[tuple[float, Positive]] = Field(
+        default_factory=list,
+        description="(Z from, Cu) steps: T from the structure's properties ≤ Cu·Ta, Cu of the "
+        "last step at or below the site's Z; empty: the pack's periodUpperFactor.",
+    )
+    clauses: dict[str, str] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def _lengths(self) -> Ubc97Rule:
+        rows = [*self.ca.items(), *self.cv.items()]
+        bad = [k for k, v in rows if len(v) != len(self.zValues)]
+        bad += [k for k in self.ca if k not in self.cv]
+        if bad:
+            raise ValueError(f"Ca / Cv rows of the wrong length or missing: {sorted(set(bad))}")
+        return self
+
+
 class DesignSpectrumRule(BaseModel):
     """The design spectrum: a method id the pack picks (C4, C1). Empty: ``reducedElastic``.
 
@@ -1115,12 +1177,16 @@ class DesignSpectrumRule(BaseModel):
       Seismic Design Category read by the band of SDS and SD1 (``sdsBands``, ``sd1Bands``, the
       more severe; the band after the last where S1 ≥ ``s1Extreme``) as zone packs read it by
       zone; the period's upper limit Cu·Ta from ``periodUpper`` by SD1. The fields after
-      ``lowerBound`` are this method's."""
+      ``lowerBound`` are this method's. Alpha 9 C23: with ``siteCoefficients`` SMS, SM1 also
+      from SS, S1 by Fa, Fv, and a town may carry SS, S1, TL.
+    - ``ubc97`` (alpha 9 C16, UBC 1997 Sec 1629-1630 and the codes that adopt it): the same
+      two-period spectrum and Cs bounds with 2.5 Ca for SDS and Cv for SD1, Ca and Cv from the
+      zone's Z and the soil profile by ``ubc97`` (:class:`Ubc97Rule`)."""
 
     model_config = ConfigDict(extra="forbid")
 
     method: Literal[
-        "reducedElastic", "behaviourFactor", "mappedSpectral", "ductilityOverstrength"
+        "reducedElastic", "behaviourFactor", "mappedSpectral", "ubc97", "ductilityOverstrength"
     ] = "reducedElastic"
     plateau: float = Field(default=2.5, gt=0, description="Spectral amplification of the plateau.")
     lowerBound: float = Field(default=0.0, ge=0, lt=1, description="β: least Sd / ag.")
@@ -1185,6 +1251,8 @@ class DesignSpectrumRule(BaseModel):
     multiPeriod: MultiPeriodRule | None = None
     # Alpha 9 C23: Fa and Fv by site class (empty: SDS, SD1 or SMS, SM1 must be given).
     siteCoefficients: SiteCoefficients | None = None
+    # Alpha 9 C16: Ca, Cv of the ubc97 method.
+    ubc97: Ubc97Rule | None = None
     # Alpha 9 C17: S(T) and the base shear from the uniform hazard spectrum (NBCC 2020 type).
     ordinates: SpectrumOrdinates | None = None
     # Alpha 9 C17: the method ductilityOverstrength (NTC-Sismo CDMX type).
@@ -1192,7 +1260,9 @@ class DesignSpectrumRule(BaseModel):
     clauses: dict[str, str] = Field(default_factory=dict)
 
     @model_validator(mode="after")
-    def _ductility(self) -> DesignSpectrumRule:
+    def _ubc97_block(self) -> DesignSpectrumRule:
+        if self.method == "ubc97" and self.ubc97 is None:
+            raise ValueError("the design spectrum method ubc97 needs its ubc97 block (Ca, Cv)")
         if self.method == "ductilityOverstrength" and self.ductility is None:
             raise ValueError("ductilityOverstrength: the method needs its 'ductility' block")
         return self
@@ -8977,15 +9047,158 @@ class PrestressTime(_Row):
     note: str = Field(default="")
 
 
+# Alpha 9 P2: the parametric creep and shrinkage models (fem.concrete_time), chosen by method id.
+CementClass = Literal["S", "N", "R"]
+
+
+class CreepAci209(_Row):
+    """Method ``aci209`` (ACI 209R-92 Eqs 2-8, 2-11 and the correction factors of Sec 2.5):
+    φ(t, t0) = (t - t0)^ψ / (d + (t - t0)^ψ) φu, φu = ultimate × γla γλ γvs × other, with
+    γla = loadingAge[0] t0^loadingAge[1] (moist cured), γλ = humidity[0] - humidity[1] h (h the
+    relative humidity as a decimal, at least humidityMin), γvs = volumeSurface[0] (1 +
+    volumeSurface[1] exp(-volumeSurface[2] V/S)), V/S [mm] half the effective thickness.
+    Relative to the modulus at the age of loading."""
+
+    method: Literal["aci209"] = Field(description="Method id.")
+    ultimate: Positive = Field(description="Ultimate creep coefficient at standard conditions.")
+    timeExponent: Positive = Field(description="ψ of the time function.")
+    timeConstant: Positive = Field(description="d [days] of the time function.")
+    loadingAge: tuple[float, float] = Field(description="(a, b) of γla = a t0^b.")
+    humidity: tuple[float, float] = Field(description="(a, b) of γλ = a - b h.")
+    humidityMin: Positive = Field(description="Least relative humidity [%] the factor is for.")
+    volumeSurface: tuple[float, float, float] = Field(
+        description="(a, b, c) of γvs = a (1 + b exp(-c V/S)), V/S in mm."
+    )
+    otherFactor: Positive = Field(
+        default=1.0, description="Product of the slump, fines and air factors (1 at standard)."
+    )
+    note: str = Field(default="")
+
+
+class CreepEn1992(_Row):
+    """Method ``en1992AnnexB`` (EN 1992-1-1 Annex B, Eqs B.1-B.10): φ(t, t0) = φ0 βc(t, t0),
+    φ0 = φRH β(fcm) β(t0), fcm = fck + fcmMargin, t0 adjusted for the cement class; relative
+    to the 28-day tangent modulus Ec = tangentFactor × Ecm."""
+
+    method: Literal["en1992AnnexB"] = Field(description="Method id.")
+    fcmMargin: Positive = Field(description="fcm = fck + this [MPa].")
+    tangentFactor: Positive = Field(description="Ec = this × Ecm (the tangent modulus).")
+    cementClass: CementClass = Field(default="N", description="Cement class S, N or R.")
+    cementExponent: dict[str, float] = Field(description="α of the t0 adjustment by class.")
+    note: str = Field(default="")
+
+
+class CreepFib2010(_Row):
+    """Method ``fibMC2010`` (fib Model Code 2010 Sec 5.1.9.4.3): φ = φbc + φdc, basic and
+    drying creep; relative to the 28-day tangent modulus Eci = tangentFactor × Ecm."""
+
+    method: Literal["fibMC2010"] = Field(description="Method id.")
+    fcmMargin: Positive = Field(description="fcm = fck + this [MPa].")
+    tangentFactor: Positive = Field(description="Eci = this × Ecm.")
+    cementClass: CementClass = Field(default="N", description="Cement class S, N or R.")
+    cementExponent: dict[str, float] = Field(description="α of the t0 adjustment by class.")
+    note: str = Field(default="")
+
+
+class ShrinkageAci209(_Row):
+    """Method ``aci209`` (ACI 209R-92 Eq 2-10 and Sec 2.5): εsh(t) = (t - tc)^α / (f + (t -
+    tc)^α) εshu, εshu = ultimate × γcp γλ γvs × other; γcp by the days of moist curing,
+    γλ = a - b h per humidity band, γvs = a exp(-b V/S)."""
+
+    method: Literal["aci209"] = Field(description="Method id.")
+    ultimate: Positive = Field(description="Ultimate shrinkage strain at standard conditions.")
+    timeExponent: Positive = Field(description="α of the time function.")
+    timeConstant: Positive = Field(description="f [days] of the time function.")
+    curing: list[tuple[Positive, Positive]] = Field(
+        min_length=1, description="(days of moist curing, γcp), interpolated."
+    )
+    humidity: list[tuple[Positive, float, float]] = Field(
+        min_length=1, description="(up to relative humidity [%], a, b) of γλ = a - b h."
+    )
+    humidityMin: Positive = Field(description="Least relative humidity [%] the factor is for.")
+    volumeSurface: tuple[float, float] = Field(description="(a, b) of γvs = a exp(-b V/S).")
+    otherFactor: Positive = Field(default=1.0, description="Slump, fines, air (1 at standard).")
+    note: str = Field(default="")
+
+
+class ShrinkageEn1992(_Row):
+    """Method ``en1992AnnexB`` (EN 1992-1-1 3.1.4(6), Eqs 3.8-3.13 and B.11-B.12): εcs = εcd +
+    εca, εcd = βds kh εcd,0, εcd,0 = 0.85 ((220 + 110 αds1) exp(-αds2 fcm / 10)) 10⁻⁶ βRH,
+    εca = βas 2.5 (fck - 10) 10⁻⁶."""
+
+    method: Literal["en1992AnnexB"] = Field(description="Method id.")
+    fcmMargin: Positive = Field(description="fcm = fck + this [MPa].")
+    cementClass: CementClass = Field(default="N")
+    alphaDs1: dict[str, Positive] = Field(description="αds1 by cement class.")
+    alphaDs2: dict[str, Positive] = Field(description="αds2 by cement class.")
+    kh: list[tuple[Positive, Positive]] = Field(
+        min_length=1, description="(h0 [mm], kh), interpolated (Table 3.3)."
+    )
+    autogenous: bool = Field(default=True, description="Add the autogenous shrinkage εca.")
+    note: str = Field(default="")
+
+
+class ShrinkageFib2010(_Row):
+    """Method ``fibMC2010`` (fib Model Code 2010 Sec 5.1.9.4.4): εcs = εcbs + εcds, basic and
+    drying shrinkage."""
+
+    method: Literal["fibMC2010"] = Field(description="Method id.")
+    fcmMargin: Positive = Field(description="fcm = fck + this [MPa].")
+    cementClass: CementClass = Field(default="N")
+    alphaBs: dict[str, Positive] = Field(description="αbs by cement class.")
+    alphaDs1: dict[str, Positive] = Field(description="αds1 by cement class.")
+    alphaDs2: dict[str, Positive] = Field(description="αds2 by cement class.")
+    note: str = Field(default="")
+
+
+class StrengthGainExponential(_Row):
+    """Method ``exponential`` (EN 1992-1-1 Eq 3.2, fib MC2010 Eq 5.1-51): fcm(t) / fcm =
+    exp(s (1 - √(28 / t))), capped at 1 when ``capAt28``; Et from the pack's Ec rule."""
+
+    method: Literal["exponential"] = Field(description="Method id.")
+    s: Positive = Field(description="s of the cement class.")
+    capAt28: bool = Field(default=True, description="No gain beyond 28 days (SAEngine practice).")
+    note: str = Field(default="")
+
+
+class Ageing(_Row):
+    """The ageing coefficient χ of the age-adjusted effective modulus E(t0) / (1 + χ φ)."""
+
+    chi: Share = Field(description="χ (about 0.8 for loads applied at once).")
+    note: str = Field(default="")
+
+
+class TimeAnalysis(_Row):
+    """How the shortening is worked out from the models (fem.staged): ``superposition`` sums
+    each load increment's creep with the steel restraining only the elastic strain (and the
+    pack's reinforced shrinkage ε / (1 + K ρ) where it gives K); ``ageAdjusted`` also lets the
+    steel restrain the creep and the shrinkage by the age-adjusted effective modulus."""
+
+    method: Literal["superposition", "ageAdjusted"] = Field(description="Method id.")
+    note: str = Field(default="")
+
+
 class ConcreteTimeTable(TableModel):
     """Time-dependent properties of concrete: creep, shrinkage, exposure, the strength gain for
     the modulus at the age of loading, and the lump values of the prestress losses."""
 
-    creep: CreepModel
-    shrinkage: ShrinkageModel
+    creep: Annotated[
+        CreepModel | CreepAci209 | CreepEn1992 | CreepFib2010, Field(discriminator="method")
+    ]
+    shrinkage: Annotated[
+        ShrinkageModel | ShrinkageAci209 | ShrinkageEn1992 | ShrinkageFib2010,
+        Field(discriminator="method"),
+    ]
     exposure: ConcreteExposure
-    strengthGain: StrengthGain
+    strengthGain: Annotated[StrengthGain | StrengthGainExponential, Field(discriminator="method")]
     prestress: PrestressTime | None = None
+    # Alpha 9 P2: the AAEM ageing coefficient and the analysis method of the shortening.
+    ageing: Ageing | None = Field(
+        default=None, description="χ of the age-adjusted effective modulus (none: 0.8, generic)."
+    )
+    analysis: TimeAnalysis | None = Field(
+        default=None, description="The shortening's analysis method (none: superposition)."
+    )
 
 
 # ──────────────────────────── steel-concrete composite members (B32) ────────────────────────────

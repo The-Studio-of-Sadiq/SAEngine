@@ -771,10 +771,15 @@ def work_out_story_response(out_dir: str | Path, project_path: str | Path) -> di
         options = getattr(getattr(found, "analysis", None), "timeDependent", None)
         if options is not None and options.enabled:
             from saengine.fem import staged
+            from saengine.fem.thermal import load_corrections
 
             try:
                 shortening = staged.column_shortening(
-                    project, {code: v[1] for code, v in static.items()}, level_rows, options
+                    project,
+                    {code: v[1] for code, v in static.items()},
+                    level_rows,
+                    options,
+                    load_corrections(project_path),  # P2: the case CS's fixed-end forces
                 )
             except Exception as error:  # noqa: BLE001 - the charts show without it
                 notes.append(f"the column shortening could not be worked out: {error}")

@@ -142,6 +142,19 @@
           "default": null,
           "description": "Factor on the velocity pressure of the town's wind speed (the speed is taken × √factor); empty: 1.",
           "title": "Pressurefactor"
+        },
+        "zoneLabel": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The zone as the code names it (e.g. '2A'); empty: its number.",
+          "title": "Zonelabel"
         }
       },
       "required": [

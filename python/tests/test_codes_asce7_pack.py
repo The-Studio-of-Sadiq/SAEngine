@@ -46,11 +46,11 @@ def test_pack_is_usable_and_extends_bnbc_for_the_materials(pack):
     assert info.usable and not info.problems
     assert info.extends == "bnbc2020"
     assert set(info.covers) >= {"combinations", "seismic", "wind", "snow", "areaLoads"}
-    # C2 gives the concrete tables (ACI 318-19), C3 the steel (AISC 360-22); timber still falls
-    # back to the pack it extends.
+    # C2 gives the concrete tables (ACI 318-19), C3 the steel (AISC 360-22) and C3b its own
+    # timber (NDS 2018), so none of them is the parent's.
     for table in ("timber",):
         assert pack.has(table)
-        assert pack.table(table) == registry.load("bnbc2020").table(table), table
+        assert pack.table(table) != registry.load("bnbc2020").table(table), table
     assert pack.basis["concrete"] == "ACI 318-19"
     assert pack.basis["general"] == "ASCE 7-22"
 

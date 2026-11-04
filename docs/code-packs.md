@@ -671,6 +671,31 @@ The generic keys they use, open to any pack (a pack without them behaves as befo
 
 The US and Indian packs have none of their tables, values or clause text included yet.
 
+### Codes that adopt the US codes with local values
+
+Built-in packs that `extends: "aci318-asce7-22"` (alpha 9 C16; README and `VERIFY.md` in each
+pack folder), all starting in SI units:
+
+| Pack | Code | What it sets |
+| --- | --- | --- |
+| `saudi-sbc` | SBC 301-2018, SBC 304, SBC 306 | Cities with SS, S1 and V; site classes A-F with Fa, Fv (ASCE 7-16 form); ASCE 7-16 Kz constants; bars 8-32 mm, BS 8666 schedules |
+| `pakistan-bcp` | BCP SP-2007 | Zones 1, 2A, 2B, 3, 4 by town; the `ubc97` method (Ca, Cv, Na, Nv); R, Ω0, Ct; importance factors |
+| `philippines-nscp` | NSCP 2015 Vol 1 | Zones 2 and 4 and V by province; the `ubc97` method; ASCE 7-10 Kz constants; importance factors; PNS 49 bars; the concrete clause references numbered 4xx |
+| `indonesia-sni` | SNI 1726:2019, SNI 1727:2020, SNI 2847:2019 | Cities with SS, S1, TL; site classes SA-SF with Fa, Fv; ASCE 7-16 Kz constants; D-bar names |
+
+Saudi Arabia and Indonesia use the site coefficients and the towns' SS, S1, TL of the thin
+country packs (below). The generic keys these packs add, open to any pack (a pack without them
+behaves as before):
+
+| Key | What it does |
+| --- | --- |
+| `locations.<town>.zoneLabel` | The zone as the code names it (2A) in the location list |
+| `seismic.designSpectrum.method: ubc97` with `ubc97` | Ca, Cv by soil profile at `zValues`; × Na, Nv (`na`, `nv` by source type: (km, factor) points) from `nearSourceFrom`; V ≥ `nearSourceFactor` Z Nv I W/R; `periodUpper` (Z from, Cu) steps. The spectrum and Cs are `mappedSpectral`'s with 2.5 Ca for SDS and Cv for SD1; the town's zone reads `designCategories` |
+
+A project under a `ubc97` pack enters the seismic source type and distance (or Na and Nv) in
+Site > Mapped spectral values; without them Na = Nv = 1.0 and the settings check warns where the
+factors apply.
+
 ### Legacy British Standards: `bs8110`
 
 The built-in pack `bs8110` (alpha 9 C10) covers BS 6399-1/-2/-3 (imposed loads and their
