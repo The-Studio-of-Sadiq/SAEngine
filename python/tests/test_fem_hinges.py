@@ -382,3 +382,44 @@ def test_hinges_of_a_pushed_frame(bay) -> None:
         eu = H.evaluate(model, results, {**target, "hazards": []}, library=types)
     assert eu["available"] and eu["checkedLevel"] == "SD"
     assert all("thetaUm" in r["variables"] for r in eu["rows"] if r["covered"])
+    # The report's hinge section.
+    from saengine.report.build import MAX_PUSHOVER_MEMBERS, _pushover_hinges
+
+    report = _pushover_hinges(found, "PX", [])
+    assert len(report["hinges"]) == min(len(found["rows"]), MAX_PUSHOVER_MEMBERS)
+    assert [row[0] for row in report["hingeHazards"]] == ["BSE-1N", "BSE-2N"]
+
+
+def test_report_rows_of_the_other_target_methods() -> None:
+    from saengine.report.build import _pushover_target_rows
+
+    d, v = epp(1e7, 2e5, 0.2)
+    found = pt.displacement_coefficient(
+        d,
+        v,
+        t1=0.5,
+        c0=1.3,
+        weight=1e6,
+        spectrum=lambda t: 0.6,
+        corners={},
+        rule=rule_of(US),
+        site_class="SD",
+    )
+    found.update(pt.capacity_checks(d, v, found["target"], 1.5, None))
+    rows = _pushover_target_rows(found, {True: "yes", False: "no", None: "not reached"})
+    assert any(r[0] == "C2" for r in rows) and not any(r[0].startswith("No drop") for r in rows)
+    first = {"weights": [1e6], "shape": [1.0]}
+    for method in (pt.equivalent_linearization, pt.n2):
+        found = method(
+            d,
+            v,
+            t1=0.6,
+            c0=1.0,
+            weight=1e6,
+            spectrum=lambda t: 0.6,
+            corners={"TC": 0.5},
+            rule=rule_of(US if method is pt.equivalent_linearization else EU),
+            first=first,
+        )
+        found.update(pt.capacity_checks(d, v, found["target"], 1.5, None))
+        assert _pushover_target_rows(found, {True: "yes", False: "no", None: "–"})

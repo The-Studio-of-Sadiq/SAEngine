@@ -28,6 +28,8 @@ from typing import Any
 
 import numpy as np
 
+from saengine.codes import context as code_context
+
 
 def table() -> Any | None:
     from saengine.fem.pushover_target import table as pushover_table
@@ -354,6 +356,7 @@ def analysis_settings(project_path: Any) -> Any:
     return resolve_site_class(settings, read_soil_text(root))[0]
 
 
+@code_context.in_project_pack(path_params=("project_path",))
 def evaluate_run(
     project: dict[str, Any],
     analysis: dict[str, Any],
@@ -362,8 +365,37 @@ def evaluate_run(
     project_path: Any = None,
 ) -> dict[str, Any]:
     """``{"target", "acceptance"}`` of one pushover run (``project_path``: the model's file,
-    for the object types the hinges read)."""
+    for the object types the hinges read), under the code pack the project's ``settings``
+    choose, with its overrides (P3)."""
     from saengine.fem import pushover_target
 
     target = pushover_target.evaluate(project, analysis, results, settings)
     return {"target": target, "acceptance": evaluate(project, results, target, project_path)}
+
+
+@code_context.in_project_pack(path_params=("project_path",))
+def hinge_ratios(
+    project: dict[str, Any],
+    analysis: dict[str, Any],
+    results: Any,
+    settings: Any,
+    step: int,
+    project_path: Any = None,
+) -> dict[str, Any] | None:
+    """P3: ``{"level", "ratios": {element id: demand / limit}}`` of the hinges of a pushover
+    run at ``step`` against the main performance level, for colouring the members by state;
+    None when the project's code pack checks no hinges."""
+    from saengine.fem import hinges, pushover_target
+
+    rule = table()
+    rules = hinges.table()
+    if rule is None or rule.method != "hingeRotation" or rules is None:
+        return None
+    target = pushover_target.evaluate(project, analysis, results, settings)
+    if not target.get("available") or target.get("targetStep") is None:
+        return None
+    levels = [lv.id for lv in rules.levels]
+    found = target.get("hazards") or []
+    level = found[0]["level"] if found else hinges.checked_level(levels, rule)
+    ratios = hinges.step_ratios(project, results, target, step, project_path)
+    return {"level": level, "ratios": {str(k): round(v, 4) for k, v in ratios.items()}}

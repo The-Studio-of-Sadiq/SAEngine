@@ -792,7 +792,46 @@ def _pushover_blocks(pushovers: list[dict[str, Any]]) -> list[Block]:
                 "lrl",
             ),
         )
-        out.append(p(str(push.get("acceptanceText", ""))))
+        if push.get("hazards"):  # P3: the target displacement of each hazard level
+            out.append(
+                table(
+                    ["Hazard level", "Performance level", "Spectrum scale", "Target"],
+                    push["hazards"],
+                    ["1fr", "auto", "auto", "auto"],
+                    "llrr",
+                )
+            )
+        if push.get("hinges") is not None:  # P3: the hinges against their performance level
+            out.append(p(str(push.get("hingeText", ""))))
+            if push.get("hingeHazards"):
+                out.append(
+                    table(
+                        ["Hazard level", "Level", "Hinges exceeding", "Largest ratio", "Result"],
+                        push["hingeHazards"],
+                        ["1fr"] + ["auto"] * 4,
+                        "llrrc",
+                    )
+                )
+            out.append(
+                table(
+                    [
+                        "Hinge",
+                        "Component",
+                        "State",
+                        "Backbone",
+                        "Demand",
+                        "Limit",
+                        "Ratio",
+                        "Result",
+                    ],
+                    push["hinges"],
+                    ["1fr"] + ["auto"] * 7,
+                    "lllcrrrc",
+                    bad=push.get("hingeFails"),
+                )
+            )
+        if push.get("acceptanceText"):
+            out.append(p(str(push.get("acceptanceText", ""))))
         if push.get("acceptance"):
             out.append(
                 table(
