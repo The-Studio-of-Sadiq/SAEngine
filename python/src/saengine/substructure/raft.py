@@ -574,6 +574,44 @@ def neighbour_pairs(columns: list[RaftColumn]) -> list[tuple[int, int]]:
     return sorted(pairs)
 
 
+def raft_stiffness(spec: RaftSpec) -> dict[str, Any] | None:
+    """C12: the raft's class by the pack's ``foundations.shallow.raftStiffness`` (None without
+    it, or with fewer than two columns): λ = (3 ks / (Ec t³))^¼ [1/m] of a unit strip, the
+    largest nearest-neighbour column spacing L, rigid when L < spacingFactor / λ and the
+    nearest spacings vary by at most spacingVariation."""
+    from saengine.substructure.shallow_rules import clause, rules
+
+    found = rules()
+    criterion = getattr(found, "raftStiffness", None) if found is not None else None
+    if criterion is None or len(spec.columns) < 2 or spec.ks <= 0 or spec.thickness <= 0:
+        return None
+    t = spec.thickness / 1e3  # m
+    lam = (3 * spec.ks / (spec.E * 1e3 * t**3)) ** 0.25  # ks kN/m³, E kN/m²
+    points = np.array([(c.x, c.y) for c in spec.columns], dtype=float) / 1e3
+    gaps = []
+    for i, p in enumerate(points):
+        others = np.delete(points, i, axis=0)
+        gaps.append(float(np.min(np.linalg.norm(others - p, axis=1))))
+    spacing = max(gaps)
+    variation = (max(gaps) - min(gaps)) / max(gaps) if max(gaps) > 0 else 0.0
+    bound = criterion.spacingFactor / lam
+    rigid = spacing < bound and variation <= criterion.spacingVariation
+    return {
+        "lambda": lam,
+        "spacing": spacing,
+        "bound": bound,
+        "variation": variation,
+        "rigid": rigid,
+        "note": (
+            f"raft stiffness: λ = (3 ks / (Ec t³))^¼ = {lam:.3f} 1/m, largest column spacing "
+            f"{spacing:.2f} m {'<' if spacing < bound else '>='} {criterion.spacingFactor:g}/λ = "
+            f"{bound:.2f} m, spacings vary by {variation:.0%} (at most "
+            f"{criterion.spacingVariation:.0%} for rigid): {'rigid' if rigid else 'flexible'} "
+            f"({clause('raftStiffness')}); the plate on springs analysis covers both"
+        ),
+    }
+
+
 def raft_design(
     spec: RaftSpec,
     service: dict[str, list[np.ndarray]],
@@ -611,6 +649,9 @@ def raft_design(
     mesh = results.mesh
     notes = list(spec.notes) + results.notes
     checks: list[dict[str, Any]] = []
+    stiffness = raft_stiffness(spec)  # C12: the pack's rigid / flexible class, a note
+    if stiffness is not None:
+        notes.append(stiffness["note"])
     gravity = [n for n in service if (gravity is None and _gravity(n)) or n in (gravity or [])]
     if not gravity:
         gravity = list(service)

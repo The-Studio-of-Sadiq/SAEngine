@@ -1188,6 +1188,74 @@
           "minItems": 1,
           "title": "Combinations",
           "type": "array"
+        },
+        "crackLimit": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Crack width limit [mm] (a project's crackLimit overrides).",
+          "title": "Cracklimit"
+        },
+        "crackControl": {
+          "default": "crackWidth",
+          "description": "'crackWidth' (wk <= crackLimit) or 'steelStress' (the service stress of the bars within steelStress: the working stress method).",
+          "enum": [
+            "crackWidth",
+            "steelStress"
+          ],
+          "title": "Crackcontrol",
+          "type": "string"
+        },
+        "steelStress": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TankSteelStress"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "surfaceZone": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TankSurfaceZone"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "spacingMax": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Bars at most this apart [mm]; empty: concrete.walls'.",
+          "title": "Spacingmax"
         }
       },
       "required": [
@@ -1201,6 +1269,94 @@
         "combinations"
       ],
       "title": "TankRules",
+      "type": "object"
+    },
+    "TankSteelStress": {
+      "additionalProperties": false,
+      "description": "Service stress limits of the bars of liquid-retaining sections [MPa] (crackControl\n``steelStress``).",
+      "properties": {
+        "tension": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "description": "The whole section in tension (direct tension).",
+          "title": "Tension"
+        },
+        "flexure": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "description": "Flexural tension at a face in contact with the liquid.",
+          "title": "Flexure"
+        },
+        "flexureAway": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "description": "Flexural tension at a face away from the liquid.",
+          "title": "Flexureaway"
+        }
+      },
+      "required": [
+        "tension",
+        "flexure",
+        "flexureAway"
+      ],
+      "title": "TankSteelStress",
+      "type": "object"
+    },
+    "TankSurfaceZone": {
+      "additionalProperties": false,
+      "description": "Least steel of each face as a share of its surface zone: ratio × min(h/2, depthMax).",
+      "properties": {
+        "ratio": {
+          "description": "Share of the surface zone per face and direction.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Ratio",
+          "type": "number"
+        },
+        "depthMax": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "description": "Depth of a surface zone at most this [mm].",
+          "title": "Depthmax"
+        }
+      },
+      "required": [
+        "ratio",
+        "depthMax"
+      ],
+      "title": "TankSurfaceZone",
       "type": "object"
     },
     "TrapUnits": {

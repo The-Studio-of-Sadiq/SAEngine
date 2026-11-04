@@ -2446,6 +2446,20 @@ def _derive_fem(
             for level, h in enumerate(heights):
                 for node_id, share in level_shares(h).items():
                     nodal.setdefault(node_id, np.zeros(6))[axis] += forces[level] * share
+        # C12: a pack's design eccentricity a·es (IS 1893 7.8.2), es per level from the plan.
+        from saengine.fem import design_eccentricity as de
+
+        amplify = de.rule() if eccentric else None
+        static_e: dict[float, tuple[float, float]] = {}
+        if amplify is not None:
+            for h in heights:
+                masses = [
+                    (float(b.coords[n][0]), float(b.coords[n][1]), float(share))
+                    for n, share in level_shares(h).items()
+                ]
+                found = de.static_eccentricity(de.members(building.elements, types, h / MM), masses)
+                if found is not None:
+                    static_e[h] = found
         if eccentric:
             for case, (source, sign) in ECCENTRIC_CASES.items():
                 nodal = {n: v.copy() for n, v in out[source].items()}
@@ -2456,7 +2470,11 @@ def _derive_fem(
                     force = forces_of[source][level]
                     # Masses shifted by +e along Y turn the X forces by -F·e about Z; shifted by
                     # +e along X, the Y forces by +F·e (eq. 6.2.43).
-                    moment = sign * eccentricity * span * force * (-1 if source == "EX" else 1)
+                    shift = sign * eccentricity * span
+                    if amplify is not None and h in static_e:
+                        es = static_e[h][0 if source == "EX" else 1]
+                        shift += de.extra(es, sign, amplify.staticAmplification)
+                    moment = shift * force * (-1 if source == "EX" else 1)
                     for node_id, vector in _torsion_forces(
                         b.coords, level_shares(h), retained_of.get(h), moment
                     ).items():
@@ -2467,8 +2485,13 @@ def _derive_fem(
                             "z": round(h, 6),
                             "force_kN": force / 1e3,
                             "L_m": span,
-                            "e_m": eccentricity * span,
+                            "e_m": abs(shift) if amplify is not None else eccentricity * span,
                             "moment_kNm": moment / 1e3,
+                            **(
+                                {"es_m": round(static_e[h][0 if source == "EX" else 1], 4)}
+                                if amplify is not None and h in static_e
+                                else {}
+                            ),
                         }
                     )
                 out[case] = nodal
@@ -2487,10 +2510,33 @@ def _derive_fem(
             else 0.0
             for k in (0, 1)
         ]
+        # C12: the first storey's structural walls along each direction (Awi m², Lwi m), for a
+        # pack's period by the walls' effective area.
+        base_walls: list[list[tuple[float, float]]] = [[], []]
+        for wall_el in building.elements:
+            wall_type = types.get(wall_el.type)
+            if not isinstance(wall_el, WallElement) or not getattr(wall_type, "structural", False):
+                continue
+            if wall_el.bottom > base + 1.0:
+                continue
+            wdx = (wall_el.end[0] - wall_el.start[0]) * MM
+            wdy = (wall_el.end[1] - wall_el.start[1]) * MM
+            wall_len = math.hypot(wdx, wdy)
+            wall_t = float(getattr(wall_type, "thickness", 0.0) or 0.0) * MM
+            if wall_len <= 0 or wall_t <= 0:
+                continue
+            for wk, along in enumerate((abs(wdx), abs(wdy))):
+                if along >= 0.9 * wall_len:
+                    base_walls[wk].append((wall_len * wall_t, wall_len))
         approximate_y = fl.approximate_period(
-            hn, settings.seismic.systemY or settings.seismic.system, extent[1] or None
+            hn,
+            settings.seismic.systemY or settings.seismic.system,
+            extent[1] or None,
+            base_walls[1],
         )
-        approximate = fl.approximate_period(hn, settings.seismic.system, extent[0] or None)
+        approximate = fl.approximate_period(
+            hn, settings.seismic.system, extent[0] or None, base_walls[0]
+        )
         loads, info = seismic_loads({"X": approximate, "Y": approximate_y})
         for case, nodal in loads.items():
             target = patterns.setdefault(case, {"nodal": {}, "element": {}})["nodal"]
@@ -3323,7 +3369,13 @@ def _derive_fem(
     # ── the gust-effect factor of a flexible building (the default pack's Part 6 Sec 2.4.8.2) ──
     if summary.get("wind"):
         _wind_gust(
-            project, summary, b.notes, settings.wind, values["windSpeed"], settings.wind.exposure
+            project,
+            summary,
+            b.notes,
+            settings.wind,
+            values["windSpeed"],
+            settings.wind.exposure,
+            float(values["windImportance"]),
         )
     # ── B37: seismic isolators under the columns (saengine.fem.isolation), after the fixed-base
     # period and every case exist ──
@@ -4567,6 +4619,76 @@ def _wind_site_extras(
     return topography, rooftop
 
 
+def _gust_factor_method(
+    project: dict[str, Any],
+    summary: dict[str, Any],
+    notes: list[str],
+    settings: Any,
+    speed: float,
+    exposure: str,
+    importance: float,
+    frequencies: dict[str, float],
+    source: str,
+    height: float,
+) -> None:
+    """C12: the pack's gust factor method (:mod:`saengine.fem.gust_response`): a tall or
+    flexible building's wind cases (and their torsion cases) scale level by level by
+    G (k̄2 / k2)²; a building neither tall nor flexible keeps the static loads."""
+    from saengine.fem import gust_response
+
+    wind = summary["wind"]
+    rows = wind.get("levels") or {}
+    base = wind.get("base_m", 0.0)
+    gust: dict[str, Any] = {"G": fl.wind_factor("gust"), "source": source, "method": "gustFactor"}
+    by_name = {p.get("name"): p for p in project.get("load_patterns", [])}
+    z_of = {n["id"]: round(float(n["coords"][2]), 6) for n in project.get("nodes", [])}
+    cite = code_context.cite("wind", "gustFactor")
+    texts = []
+    for axis, case in (("X", "WX"), ("Y", "WY")):
+        levels = rows.get(case) or []
+        if not levels:
+            continue
+        n1 = frequencies[axis]
+        breadth = max(row["B_m"] for row in levels)
+        entry: dict[str, Any] = {"n1_Hz": n1, "applies": gust_response.applies(height, breadth, n1)}
+        gust[axis] = entry
+        if not entry["applies"]:
+            texts.append(f"{axis}: h/b = {height / breadth:.2f}, f0 = {n1:.3f} Hz: static loads")
+            continue
+        terms = gust_response.gust_factor(
+            height, breadth, n1, speed, exposure, importance, getattr(settings, "damping", None)
+        )
+        entry.update(terms)
+        ratio = {
+            round(row["z"], 6): gust_response.level_ratio(row["z"] - base, terms["G"], exposure)
+            for row in levels
+        }
+        for name in (case, fl.WIND_TORSION_CASES[case]):
+            pattern = by_name.get(name)
+            for load in (pattern or {}).get("nodal_loads", []):
+                f = ratio.get(z_of.get(load["node_id"]), terms["G"])
+                load["forces"] = [round(float(v) * f, 3) for v in load["forces"]]
+        total_before = sum(row["force_kN"] for row in levels)
+        for row in levels:
+            f = ratio.get(round(row["z"], 6), terms["G"])
+            row["force_kN"] *= f
+            if "torsion_kNm" in row:
+                row["torsion_kNm"] *= f
+        total_after = sum(row["force_kN"] for row in levels)
+        if total_before:
+            summary[f"wind_{axis}_kN"] = (
+                summary.get(f"wind_{axis}_kN", 0.0) * total_after / total_before
+            )
+        texts.append(
+            f"{axis}: h/b = {height / breadth:.2f}, f0 = {n1:.3f} Hz from {source}, G = "
+            f"{terms['G']:.3f} (Ih {terms['Ih']:.3f}, Bs {terms['Bs']:.3f}, S {terms['S']:.3f}, "
+            f"E {terms['E']:.3f}, gR {terms['gR']:.2f}, β {terms['beta']:.3f}), the storey forces "
+            "× G (k̄2/k2)²"
+        )
+    wind["gust"] = gust
+    notes.append(f"wind gust factor method ({cite}): " + "; ".join(texts))
+
+
 def _wind_gust(
     project: dict[str, Any],
     summary: dict[str, Any],
@@ -4574,6 +4696,7 @@ def _wind_gust(
     settings: Any,
     speed: float,
     exposure: str,
+    importance: float = 1.0,
 ) -> None:
     """The gust-effect factor of a flexible building (the default pack's Part 6 Sec 2.4.8.2): with the
     natural frequency n1 in each wind direction (the settings' ``naturalFrequency``, else the
@@ -4612,6 +4735,14 @@ def _wind_gust(
         source = "the modal analysis"
     rigid = fl.wind_factor("gust")
     height = max(row["z"] for row in rows.get("WX") or rows["WY"]) - wind.get("base_m", 0.0)
+    from saengine.fem import gust_response
+
+    if gust_response.rules() is not None:  # C12: the pack's gust factor method
+        _gust_factor_method(
+            project, summary, notes, settings, speed, exposure, importance, frequencies, source,
+            height,
+        )  # fmt: skip
+        return
     gust: dict[str, Any] = {"G": rigid, "source": source}
     by_name = {p.get("name"): p for p in project.get("load_patterns", [])}
     for axis, case in (("X", "WX"), ("Y", "WY")):

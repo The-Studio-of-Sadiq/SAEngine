@@ -224,7 +224,8 @@
       "simple": {"coefficient": 0.2, "depthFactor": 2.0, "shortShare": 0.6},
       "continuous": {"coefficient": 0.2, "depthFactor": 1.5, "shortShare": 0.5}
     },
-    "tensionZone": [0.25, 0.05]
+    "tensionZone": [0.25, 0.05],
+    "hogging": {"topShare": [0.5, 0.5], "topZone": 0.2, "middleZone": 0.3, "evenRatio": 1.0, "evenZone": 0.8}
   },
   "corbels": {
     "method": "rootTie",
@@ -363,7 +364,7 @@
     "footings": "IS 456 34.1.2 (150 mm on soil, 300 mm on piles), 34.4 (0.45 fck √(A1/A2), the root at most 2)",
     "shear.axialFactor": "IS 456 40.2.2: members under axial compression, τc × δ, δ = 1 + 3 Pu/(Ag fck) <= 1.5; under net tension SAEngine continues the line, not below 0 (no IS rule; on the safe side)",
     "shear.enhancement": "IS 456 40.5.1: τc × 2 d / av within 2 d of a support (used for corbels); 40.5.2: beams carrying distributed loads checked at d from the face (SAEngine's checks do so), the enhancement not taken for beams (on the safe side)",
-    "deepBeams": "IS 456 29.1 (deep when l/D < 2.0 simply supported, < 2.5 continuous; l the lesser of c/c and 1.15 clear span), 29.2 (z = 0.2 (l + 2D) for 1 <= l/D <= 2, 0.6 l below 1, simply supported; 0.2 (l + 1.5 D) for 1 <= l/D <= 2.5, 0.5 l below 1, continuous), 29.3.1 (tension bars within 0.25 D - 0.05 l of the tension face), 29.3.4 (side face steel as the least steel of walls, 32.5); the hogging steel zones of 29.3.2 are not checked",
+    "deepBeams": "IS 456 29.1 (deep when l/D < 2.0 simply supported, < 2.5 continuous; l the lesser of c/c and 1.15 clear span), 29.2 (z = 0.2 (l + 2D) for 1 <= l/D <= 2, 0.6 l below 1, simply supported; 0.2 (l + 1.5 D) for 1 <= l/D <= 2.5, 0.5 l below 1, continuous), 29.3.1 (tension bars within 0.25 D - 0.05 l of the tension face), 29.3.4 (side face steel as the least steel of walls, 32.5); 29.3.2 (b) the support steel of continuous deep beams: 0.5 (l/D - 0.5) of it within 0.2 D of the tension face, the rest within 0.3 D each side of the mid-depth, spread over 0.8 D at l/D <= 1 (alpha 9 C12)",
     "corbels": "IS 456 28.1 (av < d; outer edge at least half the depth at the face), 28.2.1-28.2.3 (the tie at the root; horizontal force resisted at least 0.5 Vu), 28.2.2 with 34.4 (bearing 0.45 fck), 28.2.4 (shear at the face by 40 with the enhancement of 40.5; horizontal links in the upper 2/3 d at least half the main tension steel)",
     "walls.axial": "IS 456 32.2.5 (Puw = 0.3 (t - 1.2 e - 2 ea) fck Lw, e >= t/20, ea = Hwe²/(2500 t)), 32.2.3-32.2.4 (Hwe/t <= 30; Hwe 0.75 H braced and restrained, 1.0 H braced, 2.0 H unbraced: SAEngine's bracing flags)",
     "twoWaySlabs.corner": "IS 456 D-1.8 (both edges discontinuous: top and bottom meshes each way of 3/4 of the largest midspan steel over lx/5), D-1.9 (one edge continuous: half of that), D-1.10 (both continuous: none)",

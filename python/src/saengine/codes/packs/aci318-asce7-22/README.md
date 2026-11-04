@@ -8,8 +8,7 @@ default masonry method), the rest of AISC 360-22 (built-up members, stability br
 ponding, tension field stiffeners, HSS connections, fatigue) and of AISC 341-22 (moment frame
 connections and panel zones, links, BRBF, SPSW, composite systems) and the steel systems of
 the New Building generator. The pack extends `bnbc2020`: every table or value it does not give
-(the masonry empirical and seismic rules, the geotechnical tables, the building services, dead
-load unit weights ...) is BNBC 2020's, and the report and the design notes cite those as BNBC
+(the masonry empirical and seismic rules, the building services, dead load unit weights ...) is BNBC 2020's, and the report and the design notes cite those as BNBC
 2020's.
 
 Each table's clause references are named after the code they come from (`tableCodes` in
@@ -87,6 +86,17 @@ equations; split rings and disc-dowels are flagged not covered under this method
 | `steel.json` `bracing.rows` | the Appendix 6 brace strength and stiffness listed as flagged rows of the members (they were notes) | AISC 360-22 Appendix 6 |
 
 The protection of the steel (thickness, conductivity, density, specific heat; default none) is set under Code Values (`steelFire.protection`). Values: VERIFY.md rows S1-S18.
+
+### Foundations, anchors, tanks, deflections (C12, concrete and loads half)
+
+| File | What it holds | Clauses |
+| --- | --- | --- |
+| `foundations.json` | presumptive load-bearing values (classes 1-5, no water reduction), sliding 0.25, no one-third increase, the ASCE 7-22 Sec 2.4 combinations for the soil pressure and 0.6D stability, depth 305 mm, FS 2 by load test, retaining walls 1.5; raft stiffness by ACI 336.2R; the values without a US code number cited as SAEngine practice | IBC 2021 Ch 18, ASCE 7-22 2.4, ACI 318-19 13, 22.8, 23 |
+| `anchors.json` | ACI 318-19 Chapter 17: Vb at most 3.7 λa √f'c ca1^1.5, da up to 100 mm, SDC C-F; the other values (the same as the default pack's) cited by Chapter 17 | ACI 318-19 Ch 17 |
+| `plumbing.json` `tanks` | water tanks by the service steel stress (138 MPa), shrinkage steel 0.003, cover 50 mm, w/cm 0.45, spacing 300 mm, the ACI 350 combinations | ACI 350-06 |
+| `serviceability.json` | member deflections (IBC Table 1604.3, plaster walls l/360), wind drift and sway h/400 (SAEngine practice) | IBC 2021 1604.3, ASCE 7-22 App C |
+
+Values: VERIFY.md rows U1-U20.
 
 The New Building wizard's "Steel moment frame" and "Steel braced frame" generate steel columns
 (HEB), beams (IPE), X braces (SHS, BIM inclined members) and RC slabs, with the first system of

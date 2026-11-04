@@ -134,6 +134,20 @@
           "exclusiveMinimum": 0,
           "title": "Eccentricity",
           "type": "number"
+        },
+        "capCoefficient": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Vb at most this × λa √f'c ca1^exponent; empty: no bound.",
+          "title": "Capcoefficient"
         }
       },
       "required": [

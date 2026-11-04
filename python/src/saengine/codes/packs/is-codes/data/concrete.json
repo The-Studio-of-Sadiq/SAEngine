@@ -1,12 +1,41 @@
 {
   "$schema": "../../../schemas/concrete.schema.json",
   "$sources": [
-    "IS 456:2000 6.2.3.1: the short-term modulus Ec = 5000 √fck"
+    "IS 456:2000 6.2.3.1: the short-term modulus Ec = 5000 √fck",
+    "IS 1343:1980 Clauses 18-22: prestressed concrete (alpha 9 track C12): losses, the stress limits at transfer and in service by type (tension limits as stresses)"
   ],
   "modulus": {
     "normal": 5000.0
   },
+  "prestress": {
+    "tensionForm": "absolute",
+    "jackingFpu": 0.76,
+    "transferCompression": 0.54,
+    "transferCompressionEnds": 0.54,
+    "transferTension": 1.0,
+    "transferTensionEnds": 1.0,
+    "sustainedCompression": 0.33,
+    "totalCompression": 0.41,
+    "tensionClassU": 3.0,
+    "tensionClassT": null,
+    "tensionTwoWay": 3.0,
+    "bondedPositiveTension": 3.0,
+    "note": "IS 1343 gives the tension limits as stresses (tensionForm 'absolute'). Type 1 members (no tension) and Type 2 (tension up to 3 MPa, no visible cracking) are taken together as Class U with 3 MPa; Type 3 (cracked) as Class C with the crack-control spacing of the default pack. Flexural strength, unbonded fps, punching, bonded reinforcement, integrity and anchorage zones are the default pack's (ACI 318 based) rules, named after it. Two-way slabs: IS 1343 has no slab class; the Type 2 limit is used (SAEngine practice)."
+  },
+  "clauses": {
+    "prestressClass": "Clause 22.7.1 (Types 1, 2, 3)",
+    "prestressTransfer": "Clause 22.8 (stresses at transfer)",
+    "prestressService": "Clause 22.7 (stresses at service)",
+    "prestressJacking": "Clause 18.5.1 (maximum initial prestress)",
+    "prestressRelaxation": "Clause 18.5.2.4, Table 4",
+    "prestressCreep": "Clause 5.2.5.1 (creep coefficient)",
+    "prestressShrinkage": "Clause 5.2.4.1 (shrinkage strain)",
+    "prestressElastic": "Clause 18.5.2.1 (elastic shortening)",
+    "prestressFriction": "Clause 18.5.2.5 (friction, P e^-(μα + kx))",
+    "prestressSet": "Clause 18.5.2.6 (slip in anchorage)"
+  },
   "sources": {
-    "modulus": "IS 456:2000 6.2.3.1 (Ec = 5000 √fck, fck the characteristic cube strength: the project's concrete fc is read as fck under this pack); the other values of the table are BNBC 2020's (the parent pack)"
+    "modulus": "IS 456:2000 6.2.3.1 (Ec = 5000 √fck, fck the characteristic cube strength: the project's concrete fc is read as fck under this pack); the other values of the table are BNBC 2020's (the parent pack)",
+    "prestress": "IS 1343:1980: jacking at most 0.76 fpu (18.5.1); at transfer compression 0.54 fci (post-tensioned, 22.8.1, Figure 8 at M30-M40), tension 1 MPa (22.8.2); in service compression 0.41 fck in bending (22.7.1, Figure 7) and 0.33 fck under the sustained load, tension 3 MPa for Type 2 members; losses by Table 4 (relaxation 0, 35, 70, 90 MPa at 0.5-0.8 fpu), creep coefficients 2.2, 1.6, 1.1 at 7, 28, 365 days (5.2.5.1), shrinkage 0.0003 pre-tensioned and 0.0002 / log10(t + 2) post-tensioned (5.2.4.1); the rest of the prestress rules are the default pack's (BNBC 2020 Part 6 Chapter 9)"
   }
 }

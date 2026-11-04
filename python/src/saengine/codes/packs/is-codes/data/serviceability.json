@@ -3,6 +3,10 @@
   "$sources": [
     "IS 800:2007 5.6.1, Table 6 (deflection limits of steel members)"
   ],
+  "sway": {
+    "ratio": 0.002,
+    "source": "IS 16700:2017 Clause 5.4.1: lateral deflection at the top under wind at most H/500 (tall buildings; the same value as the parent pack for the others), under D + 0.8L + 0.8W (IS 456 Table 18 serviceability; SAEngine practice for the combination)"
+  },
   "deflection": {
     "default": "floor",
     "cantileverSpan": 2.0,

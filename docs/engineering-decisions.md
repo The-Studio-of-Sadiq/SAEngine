@@ -1004,6 +1004,41 @@ against the printed standard). Its behaviour choices:
   load ratio 0.6 (US, IS) and 0.65 (EN); ca constant 600 J/kgK; the EBF link rotation from the
   drift limit (the whole drift as plastic).
 
+## 2026-11-04: concrete, foundations and loads leftovers of the IS and US packs (alpha 9, track C12, concrete half)
+
+Each is a pack value or method id, overridable in Code Values; the default pack is unchanged.
+
+- **SAEngine practice, US foundations.** Where IBC 2021, ASCE 7-22 and ACI 318-19 give no value
+  (permissible settlements, subgrade moduli, pile static methods, machine foundations, FS 3 on a
+  static pile analysis, FS 1.5 against sliding and overturning of footings), the US pack keeps
+  the default pack's numbers and cites them as SAEngine practice, no longer as BNBC. The soil
+  pressure uses the ASCE 7-22 Sec 2.4 combinations without the one-third increase (IBC 1806.1);
+  the presumptive rows keep the ids the Substructure editor lists, mapped to the IBC classes;
+  soft clay has no presumptive value (by investigation).
+- **SAEngine practice, tanks.** A pack picks the crack control of water tanks:
+  `crackWidth` (IS 3370 limit state, 0.2 mm) or `steelStress` (the service stress of the bars:
+  the IS 3370 working stress method, ACI 350's fs limits). ACI 350: the flexural fs taken at the
+  20 ksi floor of its relation, and the durability factor Sd not applied separately (the service
+  stress check stands for it). The surface zone minimum steel is an added lower bound.
+- **SAEngine practice, IS 1343.** The tension limits are stresses (`tensionForm: absolute`);
+  Types 1 and 2 are taken together as Class U (3 MPa) and Type 3 as Class C; two-way slabs use
+  the Type 2 limit. The flexural strength, punching and the bonded reinforcement stay the
+  parent's rules.
+- **SAEngine practice, settlement and rafts.** The IS 8009 rigidity factor 0.8 reduces only the
+  elastic (Steinbrenner, flexible centre) settlement of clay under isolated footings. The raft
+  class (rigid when the column spacing < 1.75/λ, IS 2950 / ACI 336.2R) is reported as a note:
+  the plate on springs analysis covers both classes.
+- **SAEngine practice, IS 1893.** The design eccentricity 1.5 esi ± 0.05 bi adds 0.5 esi to the
+  static torsion case on esi's side; esi is estimated from the centre of mass and a centre of
+  rigidity from the vertical members' b d³ (columns, structural walls), the code giving no
+  method. The wall-building period takes the first storey's structural walls within about 25° of
+  the shaking.
+- **SAEngine practice, IS 875-3.** Annex C k3 uses s = 1.0 (the figures' peak at the crest)
+  unless set in Code Values, and L = 2 Lh of the topography settings. The gust factor method
+  scales the static storey forces level by level by G (k̄2/k2)² (the code's Cf taken as the wall
+  coefficients). Cladding Cp (Tables 5-8), the across-wind response and the IS 16700
+  slenderness and acceleration limits are not built (SAEngine has no matching checks).
+
 ## Earlier owner decisions
 
 - **2026-10-28, piling.** Typical foundations are bored piles with pile caps, on a pile grid of

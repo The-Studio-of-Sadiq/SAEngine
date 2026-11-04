@@ -227,7 +227,7 @@
       "specialWalls": false,
       "concrete": true,
       "momentFrame": false,
-      "periodFamily": null,
+      "periodFamily": "concreteWall",
       "group": "buildingFrame",
       "dual": false
     },
@@ -246,7 +246,7 @@
       "specialWalls": true,
       "concrete": true,
       "momentFrame": false,
-      "periodFamily": null,
+      "periodFamily": "concreteWall",
       "group": "buildingFrame",
       "dual": false
     },
@@ -341,12 +341,20 @@
       "specialWalls": true,
       "concrete": true,
       "momentFrame": false,
-      "periodFamily": null,
+      "periodFamily": "concreteWall",
       "group": "buildingFrame",
       "dual": false
     }
   },
   "periodCoefficients": {
+    "concreteWall": {
+      "Ct": 0.075,
+      "m": 0.75,
+      "wallArea": true,
+      "wallBase": 0.2,
+      "wallRatioMax": 0.9,
+      "lowerFamily": "other"
+    },
     "concreteMomentFrame": {
       "Ct": 0.075,
       "m": 0.75
@@ -555,6 +563,7 @@
   },
   "minimumScale": 1.0,
   "accidentalEccentricity": 0.05,
+  "designEccentricity": {"method": "amplifiedStatic", "staticAmplification": 1.5},
   "orthogonalShare": 0.3,
   "massParticipation": 0.9,
   "torsionIrregular": 1.0909,
@@ -588,7 +597,7 @@
     "siteClasses": "IS 1893 (Part 1):2016 Table 4 (soil types I, II, III) and Clause 6.4.2: Sa/g = 2.5 up to 0.40 / 0.55 / 0.67 s, then 1.00/T, 1.36/T, 1.67/T to 4 s, constant beyond; TC = 1.36/2.5 = 0.544 s and 1.67/2.5 = 0.668 s make the falling branch the code's (the code's printed plateau end 0.55 / 0.67 s differs by under 1.2 %); S = 1 (the soil enters through TC); TB = 0.10 s: the rising branch 1 + 15T of the response spectrum method",
     "designSpectrum": "IS 1893 (Part 1):2016 Clause 6.4.2: Ah = (Z/2)(I/R)(Sa/g); Figure 2(a) (equivalent static: the plateau from T = 0) and 2(b) (response spectrum: 1 + 15T below 0.1 s); Sa/g constant beyond 4 s",
     "systems": "IS 1893 (Part 1):2016 Table 9: R of the systems SAEngine models; Cd = R (the displacement estimate of Clause 7.11.3 is R times the elastic one); Ω0 = 2.5 is SAEngine's (IS gives no system overstrength); the ordinary (non-ductile) systems are not permitted in zones III-V (Table 9 note, SAEngine reading), shown as height limit 0 in categories C and D",
-    "periodCoefficients": "IS 1893 (Part 1):2016 Clause 7.6.2: (a) bare RC moment frame 0.075 h^0.75, bare steel frame 0.085 h^0.75; (c) all other buildings 0.09 h/√d. The wall-building form (b) 0.075 h^0.75/√Aw is not modelled: such buildings take (c)",
+    "periodCoefficients": "IS 1893 (Part 1):2016 Clause 7.6.2: (a) bare RC moment frame 0.075 h^0.75, bare steel frame 0.085 h^0.75; (c) all other buildings 0.09 h/√d. (b) RC structural wall buildings (the systems of RC walls) 0.075 h^0.75/√Aw >= 0.09 h/√d, Aw = Σ Awi (0.2 + (Lwi/h)²) with Lwi/h at most 0.9, the first storey walls along the shaking (alpha 9 C12)",
     "designCategories": "SAEngine practice: IS 1893 has no Seismic Design Category; zone II reads as category B (ordinary detailing permitted) and zones III-V as C (ductile detailing, IS 13920), with 100 % + 30 % only for non-parallel systems",
     "requiredDetailing": "IS 13920:2016 Clause 1 (ductile detailing in zones III, IV and V; SAEngine reading)",
     "allowableDrift": "IS 1893 (Part 1):2016 Clause 7.11.1.1: storey drift at most 0.004 times the storey height under the design lateral force with partial load factor 1.0",
@@ -603,7 +612,8 @@
     "lateralForce.minimumShare": "IS 1893 (Part 1):2016 Clause 7.2.2, Table 7: least design base shear 0.7 %, 1.1 %, 1.6 %, 2.4 % of W in zones II-V",
     "lateralForce.distribution": "IS 1893 (Part 1):2016 Clause 7.6.3: Qi = VB Wi hi² / Σ Wj hj²",
     "minimumScale": "IS 1893 (Part 1):2016 Clause 7.7.3: the dynamic base shear scaled up to the equivalent static VB (of Ta)",
-    "accidentalEccentricity": "IS 1893 (Part 1):2016 Clause 7.8.2: ± 0.05 bi (the 1.5 factor on the static eccentricity esi is not modelled: the 3D model carries esi itself)",
+    "accidentalEccentricity": "IS 1893 (Part 1):2016 Clause 7.8.2: ± 0.05 bi",
+    "designEccentricity": "IS 1893 (Part 1):2016 Clause 7.8.2: design eccentricity edi = 1.5 esi + 0.05 bi or esi - 0.05 bi in the static torsion cases; the 3D model carries esi, the cases add 0.5 esi on its side; esi from the centres of mass and of rigidity, the rigidity estimated from the vertical members b d³ (SAEngine practice, alpha 9 C12)",
     "orthogonalShare": "IS 1893 (Part 1):2016 Clause 6.3.4.1 (100 % + 30 %)",
     "massParticipation": "IS 1893 (Part 1):2016 Clause 7.7.5.2: modes to 90 % of the mass",
     "pgaFactor": "IS 1893 (Part 1):2016 Clause 6.4.2: Z/2, the peak ground acceleration of the design basis earthquake",

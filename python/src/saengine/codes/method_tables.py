@@ -884,6 +884,18 @@ class LeverArm(_Group):
     shortShare: Positive
 
 
+class DeepBeamHogging(_Group):
+    """The tension steel over the supports of continuous deep beams: a share a (l/D - b) of
+    it within ``topZone`` D of the tension face, the rest within ``middleZone`` D each side of
+    the mid-depth; at l/D up to ``evenRatio`` spread evenly over ``evenZone`` D."""
+
+    topShare: tuple[Positive, float] = Field(description="(a, b): share = a (l/D - b), 0-1.")
+    topZone: Share = Field(description="The top zone's depth / D.")
+    middleZone: Share = Field(description="Half the middle zone's depth / D (about mid-depth).")
+    evenRatio: Positive = Field(description="At l/D up to this the steel is spread evenly.")
+    evenZone: Share = Field(description="... over this × D from the tension face.")
+
+
 class LeverArmDeepBeamRules(_Group):
     """Deep beams by the lever arm method (method ``leverArm``): a span is deep when l / D is
     below ``spanRatio`` (simply supported or continuous), l the smaller of the centre-to-centre
@@ -896,6 +908,8 @@ class LeverArmDeepBeamRules(_Group):
     clearFactor: Positive = Field(description="l at most this × the clear span.")
     leverArm: dict[str, LeverArm] = Field(description="By support: simple, continuous.")
     tensionZone: tuple[Positive, float] = Field(description="(a, b): the zone a D - b l deep.")
+    # Alpha 9 C12: the support (hogging) steel of continuous deep beams; empty: not checked.
+    hogging: DeepBeamHogging | None = None
 
 
 class TieCorbelRules(_Group):

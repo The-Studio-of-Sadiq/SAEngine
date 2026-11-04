@@ -1381,6 +1381,198 @@
       "title": "FlexibleGustRow",
       "type": "object"
     },
+    "GustFactorRules": {
+      "additionalProperties": false,
+      "description": "The gust factor method of tall or flexible buildings (:mod:`saengine.fem.gust_response`):\nG = 1 + r √(gv² Bs (1 + φ)² + Hs gR² S E / β), the along-wind force F = Cf Ae p̄ G with the\nhourly mean pressure p̄ = airFactor V̄², V̄ = Vb k1 k̄2 k3 k4.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "heightRatio": {
+          "description": "Applies when h / b exceeds this ...",
+          "exclusiveMinimum": 0,
+          "title": "Heightratio",
+          "type": "number"
+        },
+        "frequencyLimit": {
+          "description": "... or the first frequency is below [Hz].",
+          "exclusiveMinimum": 0,
+          "title": "Frequencylimit",
+          "type": "number"
+        },
+        "meanFactors": {
+          "additionalProperties": {
+            "items": {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            "type": "array"
+          },
+          "description": "k̄2: terrain -> (height [m], hourly mean speed factor) points.",
+          "title": "Meanfactors",
+          "type": "object"
+        },
+        "roughness": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "description": "z0 [m] by terrain.",
+          "title": "Roughness",
+          "type": "object"
+        },
+        "turbulence": {
+          "description": "(a1, b1, a4, b4): I1 = a1 - b1 log10(z/z0,1), I4 = a4 - b4 log10(z/z0,4).",
+          "maxItems": 4,
+          "minItems": 4,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Turbulence",
+          "type": "array"
+        },
+        "terrainShares": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "description": "I = I1 + share (I4 - I1) by terrain (0 for the first, 1 for the last).",
+          "title": "Terrainshares",
+          "type": "object"
+        },
+        "peakFactor": {
+          "description": "gv, the peak factor of the upwind velocity.",
+          "exclusiveMinimum": 0,
+          "title": "Peakfactor",
+          "type": "number"
+        },
+        "scaleCoefficients": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "description": "Lh = coefficient (h / 10)^0.25 [m] by terrain.",
+          "title": "Scalecoefficients",
+          "type": "object"
+        },
+        "backgroundTerms": {
+          "description": "Bs = 1 / (1 + √(c1 (h - s)² + c2 bsh²) / Lh): (c1, c2).",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Backgroundterms",
+          "type": "array"
+        },
+        "sizeTerms": {
+          "description": "S = 1 / ((1 + c1 f0 h / V̄h)(1 + c2 f0 b0h / V̄h)): (c1, c2).",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Sizeterms",
+          "type": "array"
+        },
+        "spectrumTerms": {
+          "description": "E = π N / (1 + c1 N²)^c2: (c1, c2), N = f0 Lh / V̄h.",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Spectrumterms",
+          "type": "array"
+        },
+        "duration": {
+          "description": "gR = √(2 ln(duration f0)) [s].",
+          "exclusiveMinimum": 0,
+          "title": "Duration",
+          "type": "number"
+        },
+        "damping": {
+          "description": "β, the default damping ratio.",
+          "exclusiveMaximum": 1,
+          "exclusiveMinimum": 0,
+          "title": "Damping",
+          "type": "number"
+        },
+        "accelerationReturn": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The speed of the comfort check × this (empty: same).",
+          "title": "Accelerationreturn"
+        }
+      },
+      "required": [
+        "heightRatio",
+        "frequencyLimit",
+        "meanFactors",
+        "roughness",
+        "turbulence",
+        "terrainShares",
+        "peakFactor",
+        "scaleCoefficients",
+        "backgroundTerms",
+        "sizeTerms",
+        "spectrumTerms",
+        "duration",
+        "damping"
+      ],
+      "title": "GustFactorRules",
+      "type": "object"
+    },
     "InternalPressureTable": {
       "additionalProperties": false,
       "description": "Internal pressure coefficients (GCpi) by enclosure classification and the reduction\nfactor Ri of a partially enclosed building with one unpartitioned large volume:\nRi = reductionBase·(1 + 1/√(1 + Vi/(volumeFactor·Aog))) ≤ 1, Vi the internal volume [m³],\nAog the total area of openings in the envelope [m²]\n(read by :func:`saengine.fem.loads.internal_pressure_coefficient`).",
@@ -3035,6 +3227,71 @@
       "title": "RooftopTable",
       "type": "object"
     },
+    "SlopeTopography": {
+      "additionalProperties": false,
+      "description": "k3 = 1 + C s of a site on a hill, ridge or escarpment (:func:`saengine.fem.\nwind_speed_factors.slope_factor`).",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "flatSlope": {
+          "description": "θ up to this [°]: k3 = 1.",
+          "exclusiveMinimum": 0,
+          "title": "Flatslope",
+          "type": "number"
+        },
+        "steepSlope": {
+          "description": "θ above this [°]: C = steepFactor.",
+          "exclusiveMinimum": 0,
+          "title": "Steepslope",
+          "type": "number"
+        },
+        "gentleFactor": {
+          "description": "C = this × Z / L between the slopes.",
+          "exclusiveMinimum": 0,
+          "title": "Gentlefactor",
+          "type": "number"
+        },
+        "steepFactor": {
+          "description": "C above steepSlope.",
+          "exclusiveMinimum": 0,
+          "title": "Steepfactor",
+          "type": "number"
+        },
+        "speedUp": {
+          "description": "s, the factor of the figures (a project sets it).",
+          "exclusiveMinimum": 0,
+          "title": "Speedup",
+          "type": "number"
+        },
+        "upwindLengthFactor": {
+          "default": 2.0,
+          "description": "L = this × the settings' Lh (half-height distance).",
+          "exclusiveMinimum": 0,
+          "title": "Upwindlengthfactor",
+          "type": "number"
+        }
+      },
+      "required": [
+        "flatSlope",
+        "steepSlope",
+        "gentleFactor",
+        "steepFactor",
+        "speedUp"
+      ],
+      "title": "SlopeTopography",
+      "type": "object"
+    },
     "SolidSignRegion": {
       "additionalProperties": false,
       "description": "A region of a long sign (case C) up to ``end``·s from the windward edge (None: the rest):\nCf by the aspect ratios of the table, None where the sign is not that long.",
@@ -3391,6 +3648,28 @@
           "default": null,
           "description": "Kd in a cyclone-prone region (None: unchanged).",
           "title": "Cyclonicdirectionality"
+        },
+        "topography": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SlopeTopography"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "gustFactor": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/GustFactorRules"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         }
       },
       "required": [

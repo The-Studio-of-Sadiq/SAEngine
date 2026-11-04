@@ -1,0 +1,46 @@
+{
+  "$schema": "../../../schemas/serviceability.schema.json",
+  "$sources": [
+    "IBC 2021 Sec 1604.3 and Table 1604.3 with notes a-i (member deflection limits), alpha 9 track C12",
+    "ASCE 7-22 Appendix C and its commentary CC.1.2 (storey drift and sway under wind, not mandatory)"
+  ],
+  "source": "IBC 2021 Sec 1604.3: member deflections within Table 1604.3; storey drift and sway by the ASCE 7-22 Appendix C commentary (SAEngine practice) under the service combination D + 0.5L + 0.6W",
+  "storeyDrift": {
+    "shortPeriod": 0.0025,
+    "longPeriod": 0.0025,
+    "unreinforcedMasonry": 0.0025,
+    "source": "SAEngine practice after ASCE 7-22 Appendix C commentary CC.1.2: storey drift under wind h/400 (the commentary names 1/600 to 1/400 in common use; ASCE 7-22 and IBC 2021 set no limit), under D + 0.5L + 0.6W"
+  },
+  "sway": {
+    "ratio": 0.0025,
+    "source": "SAEngine practice after ASCE 7-22 Appendix C commentary CC.1.2: overall sway at the top H/400 under D + 0.5L + 0.6W (no code limit)"
+  },
+  "deflection": {
+    "uses": {
+      "wallPlaster": {
+        "label": "Exterior wall with plaster or stucco finishes",
+        "wind": 360,
+        "source": "IBC 2021 Table 1604.3: exterior walls with plaster or stucco finishes, l/360 under W"
+      },
+      "metalSheeting": {
+        "label": "Structural roofing or siding of formed metal sheets",
+        "deadLive": 60,
+        "source": "IBC 2021 Table 1604.3 note a: total load deflection of formed metal sheets <= l/60"
+      },
+      "metalRoofSecondary": {
+        "label": "Secondary roof member (purlin) supporting formed metal roofing",
+        "live": 150,
+        "source": "IBC 2021 Table 1604.3 note a: secondary roof members supporting formed metal roofing, live load deflection <= l/150"
+      },
+      "metalWallSecondary": {
+        "label": "Secondary wall member (girt) supporting formed metal siding",
+        "wind": 90,
+        "source": "IBC 2021 Table 1604.3 note a: secondary wall members supporting formed metal siding, design wind load deflection <= l/90"
+      }
+    },
+    "source": "IBC 2021 Sec 1604.3, Table 1604.3: roof members supporting plaster or stucco ceilings l/360 (L, S or W), l/240 (D + L); non-plaster ceilings l/240, l/180; no ceiling l/180, l/120; floor members l/360 (L), l/240 (D + L); exterior walls with brittle finishes l/240, flexible finishes l/120 (W; note f permits 0.42 times the components and cladding wind, not applied: SAEngine takes the service wind); farm buildings l/180, greenhouses l/120 (D + L); note h: a cantilever's l is twice its length. The roofs' live column includes snow (S)"
+  },
+  "overturning": {
+    "source": "SAEngine practice: the base overturning moment at most 2/3 of the dead load resisting moment (FS 1.5), the default pack's rule kept; ASCE 7-22 and IBC 2021 cover overturning by the 0.6D combinations (Sec 2.4.1 combination 7, Sec 2.4.5 combination 10)"
+  }
+}

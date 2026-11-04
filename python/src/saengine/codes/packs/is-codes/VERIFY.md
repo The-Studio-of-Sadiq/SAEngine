@@ -471,11 +471,40 @@ Rows numbered S1-S16 (their own series, so the parallel tracks do not collide).
 | S15 | steelFire.critical (linear) | Tl = 905 - 690 rf | IS 800:2007 16.3 | Limiting steel temperature, every member (compression too) | Check |
 | S16 | steelFire | rf = 0.6 × the ambient utilisation; heating by the lumped heat capacity in the ISO 834 curve (IS 3809), αc 25, εm 0.7, ca 600, ρa 7850 | IS 800:2007 16.4-16.6 | The load ratio and the steel temperature (IS 800's own time-temperature formulas not used) | Uncertain (SAEngine practice) |
 
-Still the parent's after C9b (named after it in the notes): the column construction joint (shear
-friction; IS 456 13.4 only places the joints), prestressed concrete (IS 1343), IS 8009 settlement,
-IS 2950 rafts and IS 3370 tanks (the tank crack limit is 0.2 mm, the IS 3370 (Part 2) value, by the
-parent's crack width formula), reinforced masonry, HSS joints, eccentrically braced frames, the
-composite columns and deck rules (C12: not in IS 800:2007 / IS 11384:1985), the hogging steel zones of continuous deep beams
-(29.3.2); in the loads the gust factor method (IS 875-3 Clause 10), cladding and roof pressure
-coefficients, k3 by Annex C (enter it as the topographic factor), the 1.5 esi of the design
-eccentricity, the RC wall-building period form (7.6.2 (b)) and the IS 16700 tall-building limits.
+## Alpha 9 C12 (concrete, foundations and loads half)
+
+Rows L1-L20 (their own series).
+
+| # | Path | Value | Clause | What | Confidence |
+| --- | --- | --- | --- | --- | --- |
+| L1 | concrete.prestress.tensionForm | absolute (tension limits in MPa) | IS 1343:1980 22.7, 22.8 | IS gives stresses, not k √f'c | Check |
+| L2 | concrete.prestress.jackingFpu | 0.76 fpu | IS 1343:1980 18.5.1 | Largest initial prestress | Uncertain (0.76 or 0.80 by edition) |
+| L3 | concrete.prestress.transferCompression, transferTension | 0.54 fci (post-tensioned, M30-M40 of Figure 8); 1 MPa | IS 1343:1980 22.8.1, 22.8.2 | Stresses at transfer | Uncertain (from memory; the figure varies with grade) |
+| L4 | concrete.prestress.totalCompression, sustainedCompression, tensionClassU, tensionTwoWay | 0.41 fck in bending; 0.33 fck sustained; 3 MPa (Type 2); two-way slabs 3 MPa | IS 1343:1980 22.7.1, Figure 7 | Service stresses; Types 1-2 as Class U, Type 3 as Class C | Uncertain (0.33 and the slab use are SAEngine practice) |
+| L5 | concreteTime (parent) | relaxation 0, 35, 70, 90 MPa at 0.5-0.8 fpu; creep 2.2, 1.6, 1.1 at 7, 28, 365 days; shrinkage 0.0003 and 0.0002 / log10(t + 2) | IS 1343:1980 Table 4, 5.2.5.1, 5.2.4.1 | The parent's values are the same; cited now by concrete.clauses | Check |
+| L6 | plumbing.tanks.crackLimit, crackControl | 0.2 mm, crackWidth (limit state); steelStress selectable | IS 3370 (Part 2):2009 4.1-4.2 | Crack control | Check |
+| L7 | plumbing.tanks.steelStress | 130 MPa direct tension and liquid face, 190 MPa away from the liquid (HYSD) | IS 3370 (Part 2):2009 Table 2 | Working stress method | Uncertain |
+| L8 | plumbing.tanks.surfaceZone | 0.35 % of the surface zone, h/2 up to 250 mm | IS 3370 (Part 2):2009 8.1.1, Figure 1 | Least steel each face and direction | Uncertain (ratio and the zone depth) |
+| L9 | plumbing.tanks.cover, maxWaterCement, spacingMax, combinations | 45 mm liquid and weather faces (M30 least), 30 mm moderate; w/c 0.45; 300 mm; 1.5(D + F (+ H, + Lr)), 0.9D + 1.5H, service at 1.0 | IS 3370 (Part 1):2009 8.2, Table 1; IS 456 Table 18, 26.3.3 | Tank cover, durability, spacing, combinations | Check |
+| L10 | concreteMethods.deepBeams.hogging | 0.5 (l/D - 0.5) within 0.2 D of the tension face, the rest within 0.3 D of mid-depth; even over 0.8 D at l/D <= 1 | IS 456:2000 29.3.2 (b) | Support steel of continuous deep beams (the side face bars across the middle zone counted) | Check |
+| L11 | foundations.shallow.settlementRigidity | 0.8 (the elastic settlement of clay under an isolated footing) | IS 8009 (Part 1):1976 9.2.3 | Rigid footing correction (not on Schmertmann or consolidation: SAEngine practice) | Uncertain (clause number) |
+| L12 | foundations.shallow.settlementLimits, settlementGuide | the parent's table (the same values) | IS 1904:1986 Table 1 | Permissible settlements | Check |
+| L13 | foundations.shallow.raftStiffness | rigid when the column spacing < 1.75/λ, spacings within 20 % | IS 2950 (Part 1):1981 5.3.2 | Rigid / flexible raft (a note; the plate on springs runs either way) | Uncertain (clause number) |
+| L14 | seismic.periodCoefficients.concreteWall | Ta = 0.075 h^0.75 / √Aw >= 0.09 h/√d, Aw = Σ Awi (0.2 + (Lwi/h)²), Lwi/h <= 0.9; systems rcOrdinaryWallFrame, rcSpecialWallFrame, rcFlatSlabWalls | IS 1893 (Part 1):2016 7.6.2 (b) | Wall-building period (the first storey's structural walls within 25° of the shaking) | Check |
+| L15 | seismic.designEccentricity | edi = 1.5 esi + 0.05 bi or esi - 0.05 bi (the static cases add 0.5 esi on its side) | IS 1893 (Part 1):2016 7.8.2 | esi from the centre of mass and a plan estimate of the centre of rigidity (b d³ of the vertical members) | Check / Uncertain (the CR estimate is SAEngine practice) |
+| L16 | wind.speedFactors.topography | k3 = 1 + C s; C = 1.2 Z/L (3°-17°), 0.36 above 17°; s 1.0; L = 2 Lh | IS 875 (Part 3):2015 Annex C | k3 from the topography settings | Uncertain (s at its crest peak; L from Lh: SAEngine practice) |
+| L17 | wind.speedFactors.gustFactor | h/b > 5 or f0 < 1 Hz; G = 1 + r √(gv² Bs (1 + φ)² + Hs gR² S E/β); gv 3; Lh 85 (h/10)^0.25 (70 terrain 4); Bs 0.26, 0.46; S 3.5, 4; E 70.8, 5/6; gR √(2 ln 3600 f0); β 0.02 | IS 875 (Part 3):2015 10.2 | Gust factor method | Check |
+| L18 | wind.speedFactors.gustFactor.turbulence, roughness, terrainShares | Iz,1 = 0.3507 - 0.0535 log10(z/0.002); Iz,4 = 0.466 - 0.1358 log10(z/2.0); terrains 2, 3 at 1/7, 3/7 | IS 875 (Part 3):2015 6.5 | Turbulence intensity | Check |
+| L19 | wind.speedFactors.gustFactor.meanFactors | k̄2 at 10-300 m: TC1 0.78-1.09, TC2 0.67-1.04, TC3 0.50-0.95, TC4 0.50-0.80 | IS 875 (Part 3):2015 Table 4 (hourly mean) | Hourly mean speed factors | Uncertain (from memory: check every row) |
+| L20 | serviceability.sway | H/500 under D + 0.8L + 0.8W | IS 16700:2017 5.4.1 | Lateral sway of tall buildings (the parent's value too) | Uncertain (clause number) |
+
+Still the parent's after C12 (named after it in the notes): the column construction joint (shear
+friction; IS 456 13.4 only places the joints), the IS 1343 flexural strength (Table 11), unbonded
+fps, punching, bonded reinforcement and anchorage zones of prestressed slabs (the parent's ACI
+318 based rules), the strength design of tank sections (φ of the parent), reinforced masonry
+(IS 1905:1987 covers unreinforced masonry only; the IS 4326 bands are in masonry.seismic since
+C9b), HSS joints, eccentrically braced frames, the composite columns and deck rules (not in IS
+800:2007 / IS 11384:1985); in the loads the cladding and roof pressure coefficients (IS 875-3
+Tables 5-8: SAEngine's components and cladding check is built on the area-dependent (GCp) form,
+not the local Cpe zones), the across-wind response and the IS 16700 slenderness and acceleration
+limits (SAEngine has no such checks).

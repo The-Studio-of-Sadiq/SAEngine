@@ -2362,6 +2362,37 @@
       "title": "PresumptiveBearing",
       "type": "object"
     },
+    "RaftStiffness": {
+      "additionalProperties": false,
+      "description": "The rigid / flexible classification of a raft by the beam on elastic foundation:\nλ = (ks / (4 Ec I / b))^¼ of a unit strip; rigid when the largest column spacing is below\n``spacingFactor`` / λ and adjacent spacings vary by at most ``spacingVariation``.",
+      "properties": {
+        "method": {
+          "const": "beamOnElasticFoundation",
+          "default": "beamOnElasticFoundation",
+          "title": "Method",
+          "type": "string"
+        },
+        "spacingFactor": {
+          "description": "Rigid when the spacing < this / λ.",
+          "exclusiveMinimum": 0,
+          "title": "Spacingfactor",
+          "type": "number"
+        },
+        "spacingVariation": {
+          "description": "Adjacent spacings within this share.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Spacingvariation",
+          "type": "number"
+        }
+      },
+      "required": [
+        "spacingFactor",
+        "spacingVariation"
+      ],
+      "title": "RaftStiffness",
+      "type": "object"
+    },
     "RetainingWallFactors": {
       "additionalProperties": false,
       "properties": {
@@ -2842,6 +2873,33 @@
           ],
           "default": null,
           "description": "Tie beams between foundations; empty: not covered."
+        },
+        "settlementRigidity": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The elastic (Steinbrenner, flexible centre) settlement of clay under an isolated footing × this for a rigid footing; empty: not reduced.",
+          "title": "Settlementrigidity"
+        },
+        "raftStiffness": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RaftStiffness"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Rafts classed rigid when the column spacing is below spacingFactor / λ (method ``beamOnElasticFoundation``); empty: not classified."
         },
         "bearingFactors": {
           "anyOf": [

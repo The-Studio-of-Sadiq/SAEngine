@@ -116,6 +116,22 @@ def limits() -> Any:
     return found
 
 
+def _absolute() -> bool:
+    """Whether the pack gives its tension limits as stresses (``tensionForm`` 'absolute')."""
+    return getattr(limits(), "tensionForm", "root") == "absolute"
+
+
+def tension_cap(coefficient: float, strength: float) -> float:
+    """A tension limit [MPa]: ``coefficient`` √strength, or the stress itself when the pack
+    gives its limits as stresses (C12)."""
+    return float(coefficient) if _absolute() else float(coefficient) * math.sqrt(strength)
+
+
+def tension_text(coefficient: float, symbol: str = "f'c") -> str:
+    """How a tension limit reads: "0.5 √f'c" or "3 MPa"."""
+    return f"{coefficient:g} MPa" if _absolute() else f"{coefficient:g} √{symbol}"
+
+
 def clause(key: str) -> str:
     """The pack's clause of a prestressed result (``concrete.clauses`` key ``prestress<Key>``),
     after the pack's edition; empty when it gives none."""
@@ -700,10 +716,9 @@ def member_class(ft: float, fc: float) -> str:
     [MPa]: "U", "T" or "C" by the pack's √f'c limits ("C" above Class U when the pack has no
     Class T limit)."""
     lim = limits()
-    root = math.sqrt(fc)
-    if ft <= lim.tensionClassU * root:
+    if ft <= tension_cap(lim.tensionClassU, fc):
         return "U"
-    if lim.tensionClassT is not None and ft <= lim.tensionClassT * root:
+    if lim.tensionClassT is not None and ft <= tension_cap(lim.tensionClassT, fc):
         return "T"
     return "C"
 
@@ -960,9 +975,13 @@ def tendon_design(
         total,
         p_e,
         lim.totalCompression * fc,
-        lim.tensionTwoWay * root if two_way else 0.0,
+        tension_cap(lim.tensionTwoWay, fc) if two_way else 0.0,
         f"D + SD + L with the effective force; {lim.totalCompression:g} f'c"
-        + (f", two-way slabs Class U: tension <= {lim.tensionTwoWay:g} √f'c" if two_way else "")
+        + (
+            f", two-way slabs Class U: tension <= {tension_text(lim.tensionTwoWay)}"
+            if two_way
+            else ""
+        )
         + f"{_cite('service')}{_cite('class') if two_way else ''}",
     )
     stress_check(
@@ -974,10 +993,13 @@ def tendon_design(
         f"D + SD with the effective force; {lim.sustainedCompression:g} f'c{_cite('service')}",
     )
     if not two_way:
-        class_t = f", T up to {lim.tensionClassT:g} √f'c" if lim.tensionClassT is not None else ""
+        class_t = (
+            f", T up to {tension_text(lim.tensionClassT)}" if lim.tensionClassT is not None else ""
+        )
+        in_root = "" if _absolute() else f" = {ft / root:.2f} √f'c"
         notes.append(
-            f"{tendon.id}: Class {klass}, service tension {ft:.2f} MPa = {ft / root:.2f} √f'c "
-            f"(Class U up to {lim.tensionClassU:g} √f'c{class_t}){_cite('class')}"
+            f"{tendon.id}: Class {klass}, service tension {ft:.2f} MPa{in_root} "
+            f"(Class U up to {tension_text(lim.tensionClassU)}{class_t}){_cite('class')}"
         )
     if klass == "C":
         bottom_face = bool(-bottom[i_t] >= -top[i_t])
@@ -1199,13 +1221,15 @@ def _transfer_checks(
         ends = np.zeros(len(stations), dtype=bool)
     compression_ends = lim.transferCompressionEnds or lim.transferCompression
     c_limit = np.where(ends, compression_ends, lim.transferCompression) * fci
-    t_limit = np.where(ends, lim.transferTensionEnds, lim.transferTension) * math.sqrt(fci)
+    t_limit = np.where(ends, lim.transferTensionEnds, lim.transferTension) * (
+        1.0 if _absolute() else math.sqrt(fci)
+    )
     compression = np.maximum(top, bottom)
     i_c = int(np.argmax(compression / c_limit))
     tension = np.maximum(np.maximum(-top, -bottom), 0.0)
     i_t = int(np.argmax(tension / t_limit))
     end_text = (
-        f", {compression_ends:g} f'ci and {lim.transferTensionEnds:g} √f'ci within "
+        f", {compression_ends:g} f'ci and {tension_text(lim.transferTensionEnds, "f'ci")} within "
         f"{region:.0f} mm of the ends (two supports)"
         if simply
         else ""
@@ -1231,8 +1255,8 @@ def _transfer_checks(
                 float(t_limit[i_t]),
                 "MPa",
                 None,
-                f"{lim.transferTension:g} √f'ci{end_text}{_cite('transfer')}; {where(i_t)}"
-                + missing,
+                f"{tension_text(lim.transferTension, "f'ci")}{end_text}{_cite('transfer')}; "
+                f"{where(i_t)}" + missing,
             )
         )
         return out
@@ -1530,7 +1554,7 @@ def _bonded_checks(
     bottom = p_e / area - total / modulus
     i = int(np.argmin(bottom))
     ft = -float(bottom[i])
-    if ft > lim.bondedPositiveTension * math.sqrt(fc):
+    if ft > tension_cap(lim.bondedPositiveTension, fc):
         depth = h * ft / (ft + max(float(top[i]), 0.0)) if ft > 0 else 0.0
         nc = 0.5 * ft * depth * b
         fy_b = min(fy, lim.bondedFyMax) if lim.bondedFyMax is not None else fy
@@ -1543,7 +1567,8 @@ def _bonded_checks(
                 provided,
                 "mm²",
                 None,
-                f"service tension {ft:.2f} MPa > {lim.bondedPositiveTension:g} √f'c: As = Nc / "
+                f"service tension {ft:.2f} MPa > {tension_text(lim.bondedPositiveTension)}: "
+                f"As = Nc / "
                 f"({lim.bondedPositiveStress:g} fy), fy = {fy_b:g} MPa, Nc = {nc / 1e3:.0f} kN"
                 f"{_cite('bondedPositive')}; {where(i)}",
                 utilisation=needed / provided if provided > 0 else math.inf,

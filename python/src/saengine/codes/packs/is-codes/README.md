@@ -99,6 +99,23 @@ and the required steel lists them; the IS 13920 joints are listed in the design 
 
 Values: VERIFY.md rows S1-S16.
 
+## Concrete, foundations and loads leftovers (track C12)
+
+| Table | What it adds | Code |
+| --- | --- | --- |
+| `concrete.prestress` | post-tensioned slabs: jacking 0.76 fpu, transfer 0.54 fci and 1 MPa, service 0.41 fck and 3 MPa (Types 1-2 as Class U), `tensionForm: "absolute"` (the limits as stresses); the losses' values are the parent's (the same as IS 1343) | IS 1343:1980 18, 22 |
+| `plumbing.tanks` | water tanks: crack width 0.2 mm (limit state) or `crackControl: "steelStress"` (working stress, 130 / 190 MPa), surface zone steel 0.35 %, cover 45 mm, w/c 0.45, IS 456 Table 18 combinations | IS 3370 (Parts 1-2):2009 |
+| `concreteMethods.deepBeams.hogging` | the support steel of continuous deep beams by zone | IS 456:2000 29.3.2 |
+| `foundations.shallow` | `settlementRigidity` 0.8, `raftStiffness` 1.75/λ (a note), the permissible settlements cited by IS 1904 | IS 8009 (Part 1), IS 1904, IS 2950 (Part 1) |
+| `seismic` | `periodCoefficients.concreteWall` (0.075 h^0.75/√Aw >= 0.09 h/√d for the RC wall systems), `designEccentricity` (1.5 esi ± 0.05 bi in the static torsion cases) | IS 1893 (Part 1):2016 7.6.2 (b), 7.8.2 |
+| `wind.speedFactors` | `topography` (k3 by Annex C from Project Settings > Wind > Topography), `gustFactor` (Clause 10 for h/b > 5 or f0 < 1 Hz: the storey forces × G (k̄2/k2)²) | IS 875 (Part 3):2015 |
+| `serviceability.sway` | H/500 | IS 16700:2017 |
+
+The generic modules: `fem/gust_response.py` (gust factor), `fem/design_eccentricity.py`
+(es and the design eccentricity), `fem/wind_speed_factors.slope_factor`, the wall-area period
+of `fem/loads.approximate_period`, the tension forms of `design/prestress.py`, the crack control
+methods of `plumbing/tanks.py`, `substructure/raft.raft_stiffness`. Values: VERIFY.md rows L1-L20.
+
 ## Not covered yet (falls back)
 
 The pack `extends` BNBC 2020: every table not in `covers` comes from BNBC 2020. That is: the
@@ -109,13 +126,12 @@ method's K = 1 of the direct analysis), site investigation, flood, fire, the bui
 the nonstructural components and the storey drift and sway limits. Inside the covered tables the
 parent's rules stay where IS has no counterpart in SAEngine's checks, named after the parent in
 the notes: HSS joints, ponding, eccentrically braced frames, the composite columns and deck
-rules (IS 800:2007 and IS 11384:1985 have none), reinforced masonry, IS 8009 settlement, IS 2950 rafts and the
-IS 3370 tanks (their crack limit 0.2 mm is the IS 3370 (Part 2) value). The report names the pack
+rules (IS 800:2007 and IS 11384:1985 have none), reinforced masonry (IS 1905 covers unreinforced masonry only), the IS 1343 flexural strength,
+shear and anchorage zones (the parent's ACI 318 based rules) and the strength design of tank sections. The report names the pack
 as "BNBC 2020 (bnbc2020), modified by: Indian Standards (IS)".
 
-Also not covered inside the loads: the gust factor method (IS 875-3 Clause 10), cladding and
-roof pressures, k3 by Annex C (enter k3 as the topographic factor), the 1.5 esi of the design
-eccentricity, the RC wall-building period form (7.6.2 (b)), IS 16700 tall-building limits.
+Also not covered inside the loads: cladding and roof pressures (IS 875-3 Tables 5-8), the
+across-wind response, the IS 16700 slenderness and acceleration limits.
 
 Every value is listed with its clause in [VERIFY.md](VERIFY.md), for checking against the
 printed codes (no code text was available when the pack was written).

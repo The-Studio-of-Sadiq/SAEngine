@@ -398,6 +398,8 @@ def breakout_shear(g: Group, table: Any, edge: int, row: list[int], eccentricity
         * math.sqrt(fc)
         * ca1**bs.exponent
     )
+    if bs.capCoefficient is not None:  # C12: the bound of the later editions
+        vb = min(vb, bs.capCoefficient * spec.lightweightFactor * math.sqrt(fc) * ca1**bs.exponent)
     factors = {
         "ca1": ca1,
         "AVc": avc,

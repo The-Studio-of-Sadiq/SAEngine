@@ -33,6 +33,7 @@ Units: m, m/s; :func:`design_pressure` returns kN/m².
 from __future__ import annotations
 
 import itertools
+import math
 from typing import Any
 
 from saengine.codes import context as code_context
@@ -86,6 +87,33 @@ def cyclonic_importance(importance: float, table: Any | None = None) -> float:
     return float(rows.get("other", 1.0))
 
 
+def slope_factor() -> dict[str, Any] | None:
+    """C12: k3 of a hill, ridge or escarpment by the pack's ``speedFactors.topography`` from
+    the project's topography (Project Settings > Wind > Topography: H the feature's height Z,
+    Lh; L = ``upwindLengthFactor`` × Lh the upwind slope's length): θ = atan(Z / L); k3 = 1 up
+    to ``flatSlope``, else 1 + C s with C = ``gentleFactor`` Z/L up to ``steepSlope`` and
+    ``steepFactor`` above, s the pack's ``speedUp`` (the peak of the code's figures at the
+    crest unless changed in Code Values). None: no rule, no feature, or the project sets k3."""
+    from saengine.fem.loads import _TOPOGRAPHY, _WIND_OVERRIDES
+
+    rule = getattr(_table(), "topography", None)
+    topo = _TOPOGRAPHY.get()
+    if rule is None or topo is None:
+        return None
+    if (_WIND_OVERRIDES.get() or {}).get("topographic") is not None:
+        return None
+    z = float(topo.height)
+    length = rule.upwindLengthFactor * float(topo.length)
+    theta = math.degrees(math.atan2(z, length))
+    if theta <= rule.flatSlope:
+        c = 0.0
+    elif theta <= rule.steepSlope:
+        c = rule.gentleFactor * z / length
+    else:
+        c = rule.steepFactor
+    return {"k3": 1.0 + c * rule.speedUp, "theta": theta, "C": c, "s": rule.speedUp}
+
+
 def factors(height: float, speed: float, exposure: str, importance: float) -> dict[str, float]:
     """Every factor of the design pressure at ``height``: k1, k2, k3, k4, Kd, Ka, Kc, the
     product K (at least the pack's minimum share), Vz [m/s], pz and pd [kN/m²]."""
@@ -95,6 +123,9 @@ def factors(height: float, speed: float, exposure: str, importance: float) -> di
     k1 = risk_coefficient(speed, importance)
     k2 = height_factor(height, exposure)
     k3 = wind_factor("topographic")
+    slope = slope_factor()  # C12: k3 from the site's slope where the pack gives the rule
+    if slope is not None:
+        k3 = slope["k3"]
     k4 = float(table.importance)
     kd = wind_factor("directionality")
     if table.cyclonic:  # Alpha 9 C9b: a cyclone-prone site
