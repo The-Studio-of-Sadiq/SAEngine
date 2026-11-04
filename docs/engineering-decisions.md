@@ -583,6 +583,11 @@ against the printed standard). Its behaviour choices:
   Speed (Design Reinforcement on the Sample Frame now takes minutes, not seconds) moves to alpha 10.
   Only the BNBC 2020 text is at hand: the other packs list every value with its clause in the pack's
   `VERIFY.md`, to be checked against the printed codes.
+  Owner, later the same day: alpha 9 also gets US customary units throughout, bar schedules by
+  the pack's standard (ACI 315, IS 2502, EN ISO 3766 beside BS 8666), National Annex packs,
+  packs for the codes that adopt ACI/ASCE (Saudi Arabia, Pakistan, the Philippines, Indonesia),
+  Canada, Mexico, Australia and New Zealand, Japan, China, Turkey, Nepal and Sri Lanka, and an
+  opt-in hazard lookup by site coordinates. Report and drawing languages come with i18n.
   The US pack's steel shapes come from SAEngine's own shape list, not the AISC shapes
   database, whose redistribution terms are not checked (owner).
 - **Eurocodes pack, loads and seismic (alpha 9 track C4).** The built-in pack `eurocodes`
