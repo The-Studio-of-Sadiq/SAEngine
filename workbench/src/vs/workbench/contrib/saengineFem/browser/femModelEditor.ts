@@ -6,6 +6,7 @@
 import './media/femModelEditor.css';
 import type { FemMeasureMode, FemMeasurement, FemModel, FemResultDisplay, FemSelection, FemViewer, FemViewerTheme } from '@saengine/fem-viewer';
 import { $, addDisposableListener, append, Dimension, clearNode, EventType } from '../../../../base/browser/dom.js';
+import { hasKey } from '../../../../base/common/types.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { InputBox } from '../../../../base/browser/ui/inputbox/inputBox.js';
 import { DomScrollableElement } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
@@ -1500,11 +1501,11 @@ export class FemModelEditor extends EditorPane {
 			value: initial ? formatPlanPath(initial) : '',
 			validateInput: async value => {
 				const parsed = parsePlanPath(value);
-				return 'error' in parsed ? parsed.error : undefined;
+				return hasKey(parsed, { error: true }) ? parsed.error : undefined;
 			},
 		});
 		const parsed = text === undefined ? undefined : parsePlanPath(text);
-		if (!parsed || 'error' in parsed || !model) {
+		if (!parsed || hasKey(parsed, { error: true }) || !model) {
 			this.updateViews(model ?? { nodes: [], elements: [] }); // the picker shows the view shown
 			return;
 		}

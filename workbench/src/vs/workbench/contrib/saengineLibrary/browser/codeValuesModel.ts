@@ -167,7 +167,7 @@ export function codeOverrides(document: JsonObject | undefined): JsonObject {
 export function setCodeOverride(document: JsonObject, path: string, value: JsonValue | undefined): boolean {
 	const overrides = { ...codeOverrides(document) };
 	if (value === undefined) {
-		if (!(path in overrides)) {
+		if (overrides[path] === undefined) {
 			return false;
 		}
 		delete overrides[path];
