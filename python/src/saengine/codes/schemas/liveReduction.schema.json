@@ -342,7 +342,8 @@
       "enum": [
         "influenceArea",
         "areaAndStoreys",
-        "floorCount"
+        "floorCount",
+        "frameValue"
       ],
       "title": "Method",
       "type": "string"

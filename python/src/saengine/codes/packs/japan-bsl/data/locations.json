@@ -1,0 +1,685 @@
+{
+  "$schema": "../../../schemas/locations.schema.json",
+  "$replace": true,
+  "$sources": [
+    "MOC Notification No. 1793 of 1980 Art. 1 (the regions of the seismic zone factor Z by municipality)",
+    "MOC Notification No. 1454 of 2000 Art. 2 and its table (the standard wind speed V0 by municipality)"
+  ],
+  "source": "The prefectures' capitals (the 23 special wards for Tokyo) with the region's Z (N1793 Art. 1: zone 4 Z = 1.0, 3 Z = 0.9, 2 Z = 0.8, 1 Z = 0.7) and V0 of N1454. Written from SAEngine's reading of the notifications' lists, NOT checked against the official text: every value is in VERIFY.md to be checked against the notifications; a municipality between region boundaries takes its own entry (enter Z and V0 in Project Settings > Site). The vertical snow depth is set by each prefecture's rules (N1455 Art. 1): no town carries one, enter the ground snow load.",
+  "default": "tokyo",
+  "locations": {
+    "sapporo": {
+      "name": "Sapporo (Hokkaido)",
+      "zone": 3,
+      "zoneLabel": "Z = 0.9",
+      "windSpeed": 32.0
+    },
+    "aomori": {
+      "name": "Aomori (Aomori)",
+      "zone": 3,
+      "zoneLabel": "Z = 0.9",
+      "windSpeed": 34.0
+    },
+    "morioka": {
+      "name": "Morioka (Iwate)",
+      "zone": 3,
+      "zoneLabel": "Z = 0.9",
+      "windSpeed": 30.0
+    },
+    "sendai": {
+      "name": "Sendai (Miyagi)",
+      "zone": 4,
+      "zoneLabel": "Z = 1.0",
+      "windSpeed": 30.0
+    },
+    "akita": {
+      "name": "Akita (Akita)",
+      "zone": 3,
+      "zoneLabel": "Z = 0.9",
+      "windSpeed": 34.0
+    },
+    "yamagata": {
+      "name": "Yamagata (Yamagata)",
+      "zone": 3,
+      "zoneLabel": "Z = 0.9",
+      "windSpeed": 30.0
+    },
+    "fukushima": {
+      "name": "Fukushima (Fukushima)",
+      "zone": 4,
+      "zoneLabel": "Z = 1.0",
+      "windSpeed": 30.0
+    },
+    "mito": {
+      "name": "Mito (Ibaraki)",
+      "zone": 4,
+      "zoneLabel": "Z = 1.0",
+      "windSpeed": 32.0
+    },
+    "utsunomiya": {
+      "name": "Utsunomiya (Tochigi)",
+      "zone": 4,
+      "zoneLabel": "Z = 1.0",
+      "windSpeed": 30.0
+    },
+    "maebashi": {
+      "name": "Maebashi (Gunma)",
+      "zone": 4,
+      "zoneLabel": "Z = 1.0",
+      "windSpeed": 32.0
+    },
+    "saitama": {
+      "name": "Saitama (Saitama)",
+      "zone": 4,
+      "zoneLabel": "Z = 1.0",
+      "windSpeed": 32.0
+    },
+    "chiba": {
+      "name": "Chiba (Chiba)",
+      "zone": 4,
+      "zoneLabel": "Z = 1.0",
+      "windSpeed": 36.0
+    },
+    "tokyo": {
+      "name": "Tokyo (23 special wards)",
+      "zone": 4,
+      "zoneLabel": "Z = 1.0",
+      "windSpeed": 34.0
+    },
+    "yokohama": {
+      "name": "Yokohama (Kanagawa)",
+      "zone": 4,
+      "zoneLabel": "Z = 1.0",
+      "windSpeed": 34.0
+    },
+    "niigata": {
+      "name": "Niigata (Niigata)",
+      "zone": 3,
+      "zoneLabel": "Z = 0.9",
+      "windSpeed": 32.0
+    },
+    "toyama": {
+      "name": "Toyama (Toyama)",
+      "zone": 3,
+      "zoneLabel": "Z = 0.9",
+      "windSpeed": 30.0
+    },
+    "kanazawa": {
+      "name": "Kanazawa (Ishikawa)",
+      "zone": 3,
+      "zoneLabel": "Z = 0.9",
+      "windSpeed": 32.0
+    },
+    "fukui": {
+      "name": "Fukui (Fukui)",
+      "zone": 4,
+      "zoneLabel": "Z = 1.0",
+      "windSpeed": 32.0
+    },
+    "kofu": {
+      "name": "Kofu (Yamanashi)",
+      "zone": 4,
+      "zoneLabel": "Z = 1.0",
+      "windSpeed": 30.0
+    },
+    "nagano": {
+      "name": "Nagano (Nagano)",
+      "zone": 4,
+      "zoneLabel": "Z = 1.0",
+      "windSpeed": 30.0
+    },
+    "gifu": {
+      "name": "Gifu (Gifu)",
+      "zone": 4,
+      "zoneLabel": "Z = 1.0",
+      "windSpeed": 32.0
+    },
+    "shizuoka": {
+      "name": "Shizuoka (Shizuoka)",
+      "zone": 4,
+      "zoneLabel": "Z = 1.0",
+      "windSpeed": 32.0
+    },
+    "nagoya": {
+      "name": "Nagoya (Aichi)",
+      "zone": 4,
+      "zoneLabel": "Z = 1.0",
+      "windSpeed": 34.0
+    },
+    "tsu": {
+      "name": "Tsu (Mie)",
+      "zone": 4,
+      "zoneLabel": "Z = 1.0",
+      "windSpeed": 34.0
+    },
+    "otsu": {
+      "name": "Otsu (Shiga)",
+      "zone": 4,
+      "zoneLabel": "Z = 1.0",
+      "windSpeed": 32.0
+    },
+    "kyoto": {
+      "name": "Kyoto (Kyoto)",
+      "zone": 4,
+      "zoneLabel": "Z = 1.0",
+      "windSpeed": 32.0
+    },
+    "osaka": {
+      "name": "Osaka (Osaka)",
+      "zone": 4,
+      "zoneLabel": "Z = 1.0",
+      "windSpeed": 34.0
+    },
+    "kobe": {
+      "name": "Kobe (Hyogo)",
+      "zone": 4,
+      "zoneLabel": "Z = 1.0",
+      "windSpeed": 34.0
+    },
+    "nara": {
+      "name": "Nara (Nara)",
+      "zone": 4,
+      "zoneLabel": "Z = 1.0",
+      "windSpeed": 32.0
+    },
+    "wakayama": {
+      "name": "Wakayama (Wakayama)",
+      "zone": 4,
+      "zoneLabel": "Z = 1.0",
+      "windSpeed": 36.0
+    },
+    "tottori": {
+      "name": "Tottori (Tottori)",
+      "zone": 3,
+      "zoneLabel": "Z = 0.9",
+      "windSpeed": 32.0
+    },
+    "matsue": {
+      "name": "Matsue (Shimane)",
+      "zone": 3,
+      "zoneLabel": "Z = 0.9",
+      "windSpeed": 32.0
+    },
+    "okayama": {
+      "name": "Okayama (Okayama)",
+      "zone": 3,
+      "zoneLabel": "Z = 0.9",
+      "windSpeed": 32.0
+    },
+    "hiroshima": {
+      "name": "Hiroshima (Hiroshima)",
+      "zone": 3,
+      "zoneLabel": "Z = 0.9",
+      "windSpeed": 32.0
+    },
+    "yamaguchi": {
+      "name": "Yamaguchi (Yamaguchi)",
+      "zone": 2,
+      "zoneLabel": "Z = 0.8",
+      "windSpeed": 34.0
+    },
+    "tokushima": {
+      "name": "Tokushima (Tokushima)",
+      "zone": 4,
+      "zoneLabel": "Z = 1.0",
+      "windSpeed": 36.0
+    },
+    "takamatsu": {
+      "name": "Takamatsu (Kagawa)",
+      "zone": 3,
+      "zoneLabel": "Z = 0.9",
+      "windSpeed": 34.0
+    },
+    "matsuyama": {
+      "name": "Matsuyama (Ehime)",
+      "zone": 3,
+      "zoneLabel": "Z = 0.9",
+      "windSpeed": 32.0
+    },
+    "kochi": {
+      "name": "Kochi (Kochi)",
+      "zone": 4,
+      "zoneLabel": "Z = 1.0",
+      "windSpeed": 38.0
+    },
+    "fukuoka": {
+      "name": "Fukuoka (Fukuoka)",
+      "zone": 2,
+      "zoneLabel": "Z = 0.8",
+      "windSpeed": 34.0
+    },
+    "saga": {
+      "name": "Saga (Saga)",
+      "zone": 2,
+      "zoneLabel": "Z = 0.8",
+      "windSpeed": 34.0
+    },
+    "nagasaki": {
+      "name": "Nagasaki (Nagasaki)",
+      "zone": 2,
+      "zoneLabel": "Z = 0.8",
+      "windSpeed": 36.0
+    },
+    "kumamoto": {
+      "name": "Kumamoto (Kumamoto)",
+      "zone": 3,
+      "zoneLabel": "Z = 0.9",
+      "windSpeed": 34.0
+    },
+    "oita": {
+      "name": "Oita (Oita)",
+      "zone": 3,
+      "zoneLabel": "Z = 0.9",
+      "windSpeed": 34.0
+    },
+    "miyazaki": {
+      "name": "Miyazaki (Miyazaki)",
+      "zone": 3,
+      "zoneLabel": "Z = 0.9",
+      "windSpeed": 36.0
+    },
+    "kagoshima": {
+      "name": "Kagoshima (Kagoshima)",
+      "zone": 2,
+      "zoneLabel": "Z = 0.8",
+      "windSpeed": 38.0
+    },
+    "naha": {
+      "name": "Naha (Okinawa)",
+      "zone": 1,
+      "zoneLabel": "Z = 0.7",
+      "windSpeed": 46.0
+    }
+  },
+  "towns": {
+    "area": "Japan",
+    "bounds": [
+      24.0,
+      122.9,
+      45.6,
+      146.0
+    ],
+    "zClause": "MOC Notification 1793 Art. 1",
+    "windClause": "MOC Notification 1454 Art. 2",
+    "governs": "the notifications' municipality lists govern (a region's boundary may pass between neighbouring towns)",
+    "source": "Coordinates (WGS 84, city centre, about 0.01 degrees) from general geographic knowledge, not from the notifications; Z and V0 as the locations' (VERIFY.md).",
+    "towns": [
+      {
+        "name": "Sapporo (Hokkaido)",
+        "latitude": 43.06,
+        "longitude": 141.35,
+        "z": 0.9,
+        "windSpeed": 32.0,
+        "location": "sapporo"
+      },
+      {
+        "name": "Aomori (Aomori)",
+        "latitude": 40.82,
+        "longitude": 140.74,
+        "z": 0.9,
+        "windSpeed": 34.0,
+        "location": "aomori"
+      },
+      {
+        "name": "Morioka (Iwate)",
+        "latitude": 39.7,
+        "longitude": 141.15,
+        "z": 0.9,
+        "windSpeed": 30.0,
+        "location": "morioka"
+      },
+      {
+        "name": "Sendai (Miyagi)",
+        "latitude": 38.27,
+        "longitude": 140.87,
+        "z": 1.0,
+        "windSpeed": 30.0,
+        "location": "sendai"
+      },
+      {
+        "name": "Akita (Akita)",
+        "latitude": 39.72,
+        "longitude": 140.1,
+        "z": 0.9,
+        "windSpeed": 34.0,
+        "location": "akita"
+      },
+      {
+        "name": "Yamagata (Yamagata)",
+        "latitude": 38.24,
+        "longitude": 140.36,
+        "z": 0.9,
+        "windSpeed": 30.0,
+        "location": "yamagata"
+      },
+      {
+        "name": "Fukushima (Fukushima)",
+        "latitude": 37.75,
+        "longitude": 140.47,
+        "z": 1.0,
+        "windSpeed": 30.0,
+        "location": "fukushima"
+      },
+      {
+        "name": "Mito (Ibaraki)",
+        "latitude": 36.37,
+        "longitude": 140.47,
+        "z": 1.0,
+        "windSpeed": 32.0,
+        "location": "mito"
+      },
+      {
+        "name": "Utsunomiya (Tochigi)",
+        "latitude": 36.56,
+        "longitude": 139.88,
+        "z": 1.0,
+        "windSpeed": 30.0,
+        "location": "utsunomiya"
+      },
+      {
+        "name": "Maebashi (Gunma)",
+        "latitude": 36.39,
+        "longitude": 139.06,
+        "z": 1.0,
+        "windSpeed": 32.0,
+        "location": "maebashi"
+      },
+      {
+        "name": "Saitama (Saitama)",
+        "latitude": 35.86,
+        "longitude": 139.65,
+        "z": 1.0,
+        "windSpeed": 32.0,
+        "location": "saitama"
+      },
+      {
+        "name": "Chiba (Chiba)",
+        "latitude": 35.61,
+        "longitude": 140.12,
+        "z": 1.0,
+        "windSpeed": 36.0,
+        "location": "chiba"
+      },
+      {
+        "name": "Tokyo (23 special wards)",
+        "latitude": 35.69,
+        "longitude": 139.69,
+        "z": 1.0,
+        "windSpeed": 34.0,
+        "location": "tokyo"
+      },
+      {
+        "name": "Yokohama (Kanagawa)",
+        "latitude": 35.44,
+        "longitude": 139.64,
+        "z": 1.0,
+        "windSpeed": 34.0,
+        "location": "yokohama"
+      },
+      {
+        "name": "Niigata (Niigata)",
+        "latitude": 37.9,
+        "longitude": 139.02,
+        "z": 0.9,
+        "windSpeed": 32.0,
+        "location": "niigata"
+      },
+      {
+        "name": "Toyama (Toyama)",
+        "latitude": 36.7,
+        "longitude": 137.21,
+        "z": 0.9,
+        "windSpeed": 30.0,
+        "location": "toyama"
+      },
+      {
+        "name": "Kanazawa (Ishikawa)",
+        "latitude": 36.56,
+        "longitude": 136.66,
+        "z": 0.9,
+        "windSpeed": 32.0,
+        "location": "kanazawa"
+      },
+      {
+        "name": "Fukui (Fukui)",
+        "latitude": 36.06,
+        "longitude": 136.22,
+        "z": 1.0,
+        "windSpeed": 32.0,
+        "location": "fukui"
+      },
+      {
+        "name": "Kofu (Yamanashi)",
+        "latitude": 35.66,
+        "longitude": 138.57,
+        "z": 1.0,
+        "windSpeed": 30.0,
+        "location": "kofu"
+      },
+      {
+        "name": "Nagano (Nagano)",
+        "latitude": 36.65,
+        "longitude": 138.18,
+        "z": 1.0,
+        "windSpeed": 30.0,
+        "location": "nagano"
+      },
+      {
+        "name": "Gifu (Gifu)",
+        "latitude": 35.42,
+        "longitude": 136.76,
+        "z": 1.0,
+        "windSpeed": 32.0,
+        "location": "gifu"
+      },
+      {
+        "name": "Shizuoka (Shizuoka)",
+        "latitude": 34.98,
+        "longitude": 138.38,
+        "z": 1.0,
+        "windSpeed": 32.0,
+        "location": "shizuoka"
+      },
+      {
+        "name": "Nagoya (Aichi)",
+        "latitude": 35.18,
+        "longitude": 136.91,
+        "z": 1.0,
+        "windSpeed": 34.0,
+        "location": "nagoya"
+      },
+      {
+        "name": "Tsu (Mie)",
+        "latitude": 34.73,
+        "longitude": 136.51,
+        "z": 1.0,
+        "windSpeed": 34.0,
+        "location": "tsu"
+      },
+      {
+        "name": "Otsu (Shiga)",
+        "latitude": 35.0,
+        "longitude": 135.87,
+        "z": 1.0,
+        "windSpeed": 32.0,
+        "location": "otsu"
+      },
+      {
+        "name": "Kyoto (Kyoto)",
+        "latitude": 35.01,
+        "longitude": 135.77,
+        "z": 1.0,
+        "windSpeed": 32.0,
+        "location": "kyoto"
+      },
+      {
+        "name": "Osaka (Osaka)",
+        "latitude": 34.69,
+        "longitude": 135.5,
+        "z": 1.0,
+        "windSpeed": 34.0,
+        "location": "osaka"
+      },
+      {
+        "name": "Kobe (Hyogo)",
+        "latitude": 34.69,
+        "longitude": 135.2,
+        "z": 1.0,
+        "windSpeed": 34.0,
+        "location": "kobe"
+      },
+      {
+        "name": "Nara (Nara)",
+        "latitude": 34.69,
+        "longitude": 135.83,
+        "z": 1.0,
+        "windSpeed": 32.0,
+        "location": "nara"
+      },
+      {
+        "name": "Wakayama (Wakayama)",
+        "latitude": 34.23,
+        "longitude": 135.17,
+        "z": 1.0,
+        "windSpeed": 36.0,
+        "location": "wakayama"
+      },
+      {
+        "name": "Tottori (Tottori)",
+        "latitude": 35.5,
+        "longitude": 134.24,
+        "z": 0.9,
+        "windSpeed": 32.0,
+        "location": "tottori"
+      },
+      {
+        "name": "Matsue (Shimane)",
+        "latitude": 35.47,
+        "longitude": 133.05,
+        "z": 0.9,
+        "windSpeed": 32.0,
+        "location": "matsue"
+      },
+      {
+        "name": "Okayama (Okayama)",
+        "latitude": 34.66,
+        "longitude": 133.93,
+        "z": 0.9,
+        "windSpeed": 32.0,
+        "location": "okayama"
+      },
+      {
+        "name": "Hiroshima (Hiroshima)",
+        "latitude": 34.39,
+        "longitude": 132.46,
+        "z": 0.9,
+        "windSpeed": 32.0,
+        "location": "hiroshima"
+      },
+      {
+        "name": "Yamaguchi (Yamaguchi)",
+        "latitude": 34.18,
+        "longitude": 131.47,
+        "z": 0.8,
+        "windSpeed": 34.0,
+        "location": "yamaguchi"
+      },
+      {
+        "name": "Tokushima (Tokushima)",
+        "latitude": 34.07,
+        "longitude": 134.55,
+        "z": 1.0,
+        "windSpeed": 36.0,
+        "location": "tokushima"
+      },
+      {
+        "name": "Takamatsu (Kagawa)",
+        "latitude": 34.34,
+        "longitude": 134.04,
+        "z": 0.9,
+        "windSpeed": 34.0,
+        "location": "takamatsu"
+      },
+      {
+        "name": "Matsuyama (Ehime)",
+        "latitude": 33.84,
+        "longitude": 132.77,
+        "z": 0.9,
+        "windSpeed": 32.0,
+        "location": "matsuyama"
+      },
+      {
+        "name": "Kochi (Kochi)",
+        "latitude": 33.56,
+        "longitude": 133.53,
+        "z": 1.0,
+        "windSpeed": 38.0,
+        "location": "kochi"
+      },
+      {
+        "name": "Fukuoka (Fukuoka)",
+        "latitude": 33.59,
+        "longitude": 130.4,
+        "z": 0.8,
+        "windSpeed": 34.0,
+        "location": "fukuoka"
+      },
+      {
+        "name": "Saga (Saga)",
+        "latitude": 33.25,
+        "longitude": 130.3,
+        "z": 0.8,
+        "windSpeed": 34.0,
+        "location": "saga"
+      },
+      {
+        "name": "Nagasaki (Nagasaki)",
+        "latitude": 32.75,
+        "longitude": 129.88,
+        "z": 0.8,
+        "windSpeed": 36.0,
+        "location": "nagasaki"
+      },
+      {
+        "name": "Kumamoto (Kumamoto)",
+        "latitude": 32.8,
+        "longitude": 130.71,
+        "z": 0.9,
+        "windSpeed": 34.0,
+        "location": "kumamoto"
+      },
+      {
+        "name": "Oita (Oita)",
+        "latitude": 33.24,
+        "longitude": 131.61,
+        "z": 0.9,
+        "windSpeed": 34.0,
+        "location": "oita"
+      },
+      {
+        "name": "Miyazaki (Miyazaki)",
+        "latitude": 31.91,
+        "longitude": 131.42,
+        "z": 0.9,
+        "windSpeed": 36.0,
+        "location": "miyazaki"
+      },
+      {
+        "name": "Kagoshima (Kagoshima)",
+        "latitude": 31.6,
+        "longitude": 130.56,
+        "z": 0.8,
+        "windSpeed": 38.0,
+        "location": "kagoshima"
+      },
+      {
+        "name": "Naha (Okinawa)",
+        "latitude": 26.21,
+        "longitude": 127.68,
+        "z": 0.7,
+        "windSpeed": 46.0,
+        "location": "naha"
+      }
+    ]
+  }
+}

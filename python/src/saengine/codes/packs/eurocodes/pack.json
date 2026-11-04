@@ -30,6 +30,7 @@
     "coldFormed",
     "steelFire",
     "pushover",
+    "nonlinearHistory",
     "floorVibration",
     "windComfort",
     "embeddedWalls",
@@ -233,6 +234,9 @@
     "pushover": [
       "EN 1998-1:2004 Annex B (N2 target displacement); EN 1998-3:2005 Annexes A and B (chord rotation capacities, limit states DL, SD, NC)"
     ],
+    "nonlinearHistory": [
+      "EN 1998-1:2004 Sec 3.2.3.1 and 4.3.3.4.3 (accelerograms, the elastic spectrum criterion, mean of 7), Sec 4.4.3.2 (drift); EN 1998-3:2005 Annex A hinges at SD (SAEngine practice)"
+    ],
     "floorVibration": [
       "EN 1990 Annex A1.4.4 with SCI P354 and CCIP-016 (response factor), ISO 10137"
     ],
@@ -263,6 +267,7 @@
     "aluminium": "EN 1999-1-1",
     "coldFormed": "EN 1993-1-3",
     "steelFire": "EN 1993-1-2",
+    "nonlinearHistory": "EN 1998-1",
     "pushover": "EN 1998-1"
   }
 }

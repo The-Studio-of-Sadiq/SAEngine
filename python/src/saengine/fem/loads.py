@@ -111,6 +111,10 @@ def normalized_spectrum(
         from saengine.fem.ductility_spectrum import elastic_ordinate
 
         return elastic_ordinate(period, site_class, rule.ductility)
+    if rule is not None and rule.method == "standardShearCoefficient":  # Alpha 9 C19: Rt
+        from saengine.fem import shear_coefficient as sc
+
+        return sc.vibration_factor(period, sc.site_corner(site_class), rule.shearCoefficient)
     site = seismic.siteClasses[site_class]
     if site.shape:  # Alpha 9 C18: the class's spectral shape factor Ch(T) (AS 1170.4 type)
         from saengine.fem.spectra import shape_factor
@@ -193,6 +197,10 @@ def design_acceleration(
         from saengine.fem.ductility_spectrum import design_ordinate
 
         return importance * design_ordinate(period, site_class, r, rule.ductility)
+    if rule is not None and rule.method == "standardShearCoefficient":  # Alpha 9 C19
+        from saengine.fem import shear_coefficient as sc
+
+        return sc.coefficient(period, site_class, z, importance, r)
     if rule is not None and rule.method == "shapeFactors":  # Alpha 9 C18: R stands for μ
         from saengine.fem.spectra import shape_factor_acceleration
 
@@ -301,12 +309,18 @@ def vertical_distribution(
 
     k = 1 for T ≤ 0.5 s, 2 for T ≥ 2.5 s, linear in between; k = 1 always with the pack's
     ``seismic.lateralForce.distribution`` "linear" (C4: EN 1998-1 4.3.3.2.3, Fi ∝ zi·mi).
+    Alpha 9 C19: "shearCoefficientAi" the storey shears V·Ai·αi
+    (:func:`saengine.fem.shear_coefficient.level_forces`).
     """
+    rule = getattr(code_context.table("seismic"), "lateralForce", None)
+    if rule is not None and rule.distribution == "shearCoefficientAi":  # Alpha 9 C19: Ai
+        from saengine.fem import shear_coefficient as sc
+
+        return sc.level_forces(levels, base_shear, period)
     k = _distribution_exponent(period)
     weights = [w * h**k for h, w in levels]
     total = sum(weights)
     # Alpha 9 C10: the pack's concentrated top force Ft (BNBC 1993 / 2006 Sec 2.5.7.2).
-    rule = getattr(code_context.table("seismic"), "lateralForce", None)
     top = getattr(rule, "topForce", None) if rule is not None else None
     if top is not None and period > top.periodFrom and levels:
         ft = min(top.factor * period * base_shear, top.maxShare * base_shear)
@@ -353,6 +367,29 @@ def wind_factor(name: str) -> float:
     terrain's (or the override); :func:`topographic_factor` gives it at a height on a hill."""
     own = (_WIND_OVERRIDES.get() or {}).get(name)
     return own if own is not None else float(getattr(code_context.table("wind"), name))
+
+
+def gust_factor(height: float, exposure: str) -> float:
+    """G of a building ``height`` H [m] tall in ``exposure``: the project's override, else
+    (alpha 9 C19, MLIT Notification 1454 Gf by terrain category and H) the exposure's
+    ``gustByHeight`` points at H (linear between, the end values outside), else the pack's
+    ``gust`` (:func:`wind_factor`)."""
+    own = (_WIND_OVERRIDES.get() or {}).get("gust")
+    if own is not None:
+        return own
+    table = code_context.table("wind")
+    profile = (getattr(table, "exposures", None) or {}).get(exposure)
+    points = getattr(profile, "gustByHeight", None) if profile is not None else None
+    if not points:
+        return wind_factor("gust")
+    ordered = sorted(points)
+    h = float(height)
+    if h <= ordered[0][0]:
+        return float(ordered[0][1])
+    for (h0, g0), (h1, g1) in pairwise(ordered):
+        if h <= h1:
+            return float(g0 + (g1 - g0) * (h - h0) / (h1 - h0))
+    return float(ordered[-1][1])
 
 
 # ─────────────── wind: topographic factor Kzt of hills, ridges and escarpments ───────────────
@@ -594,14 +631,16 @@ def wind_levels(
         )
     qh = velocity_pressure(heights[-1], speed, exposure, importance)
     by_height = getattr(wind, "cpByHeight", None)
+    # Alpha 9 C19: G of the building's height where the exposure gives it (gust_factor).
+    gust = gust_factor(heights[-1], exposure)
 
     def leeward(i: int) -> float:
         width = spans[i][1] - spans[i][0]
         if width <= 0:
             return 0.0
         if by_height:  # C7: Cp by h/w and l/w
-            return qh * wind_factor("gust") * wall_coefficients(heights[-1], width, depths[i])[1]
-        return qh * wind_factor("gust") * leeward_coefficient(depths[i] / width)
+            return qh * gust * wall_coefficients(heights[-1], width, depths[i])[1]
+        return qh * gust * leeward_coefficient(depths[i] / width)
 
     def windward_cp(i: int) -> float:
         if by_height:
@@ -611,9 +650,7 @@ def wind_levels(
 
     out = []
     for i, z in enumerate(heights):
-        windward = (
-            velocity_pressure(z, speed, exposure, importance) * wind_factor("gust") * windward_cp(i)
-        )
+        windward = velocity_pressure(z, speed, exposure, importance) * gust * windward_cp(i)
         parts = [(i, (z - (heights[i - 1] if i else 0.0)) / 2)]
         if i + 1 < n:
             parts.append((i + 1, (heights[i + 1] - z) / 2))
@@ -1553,7 +1590,7 @@ def building_mwfrs_pressures(
     if mwfrs is None or height <= 0 or depth <= 0 or width <= 0:
         return None
     qh = velocity_pressure(height, speed, exposure, importance)
-    gust = wind_factor("gust")
+    gust = gust_factor(height, exposure)  # Alpha 9 C19: by the height where the pack gives it
     wind = code_context.table("wind")
     gcpi, ri = internal_pressure_coefficient(enclosure, opening_area, volume)
     inner = gcpi * ri * qh

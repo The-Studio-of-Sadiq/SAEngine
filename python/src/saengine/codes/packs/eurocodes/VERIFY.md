@@ -587,3 +587,20 @@ length along the bar's centre line (SAEngine practice), with the mandrel diamete
 | P2E11 | concreteTime.ageing.chi | χ = 0.8 | not in EN 1992-1-1 | SAEngine practice |
 | P2E12 | combinations.creepShrinkage | 1.35G + 1.0CS + 1.5Q + 0.75S | EN 1992-1-1 2.4.2.1(1) γSH = 1.0, with EN 1990 Eq 6.10 | unsure (1.0 on the creep part too is SAEngine practice) |
 | P2E13 | concreteTime.creep.cementClass, shrinkage.cementClass | N by default | SAEngine practice | practice |
+
+## Alpha 9 P5: time histories and non-linear time-history analysis (seismic.timeHistory, nonlinearHistory)
+
+| # | Key | Value | Clause | Confidence |
+|---|---|---|---|---|
+| P5E1 | seismic.timeHistory.minimumRecords | 3 accelerograms | EN 1998-1 Sec 3.2.3.1.2(4) | Sure |
+| P5E2 | seismic.timeHistory.periodLower, periodUpper | 0.2 T1 to 2 T1 | EN 1998-1 Sec 3.2.3.1.2(4)c | Sure |
+| P5E3 | seismic.timeHistory.singleRatio, pairRatio | 90 % of the elastic spectrum | EN 1998-1 Sec 3.2.3.1.2(4)c | Sure |
+| P5E4 | seismic.timeHistory.pairCombination | each component's mean meets the criterion | EN 1998-1 Sec 3.2.3.1.1, 4.3.3.5.1 | Check |
+| P5E5 | seismic.timeHistory.meanFrom | 7 (fewer: the most unfavourable) | EN 1998-1 Sec 4.3.3.4.3(3) | Sure |
+| P5E6 | seismic.timeHistory.targets.nonlinear | the elastic response spectrum, q = 1, ag = γI agR | EN 1998-1 Sec 3.2.2.2 (Eqs 3.2-3.5), 3.2.3.1.2 | Sure |
+| P5E7 | zero-period condition (mean PGA ≥ ag S) | not checked | EN 1998-1 Sec 3.2.3.1.2(4)b | Not built |
+| P5E8 | seismic.timeHistory.baseShearShare (linear) | 1.0 × the lateral force base shear | none in EN 1998-1 | SAEngine practice |
+| P5E9 | seismic.timeHistory.matching | frequency domain, 0.8 × lower to 1.25 × upper bound, 10 %, 20 iterations | EN 1998-1 Sec 3.2.3.1.2 (artificial accelerograms) | SAEngine practice |
+| P5E10 | nonlinearHistory.drift.limitFactor | 1.0 × the allowable α/ν of Sec 4.4.3.2 | EN 1998-1 Sec 4.4.3.2 | Check |
+| P5E11 | nonlinearHistory.acceptance | EN 1998-3 chord rotation hinges at Significant Damage | none in EN 1998-1 for new buildings | SAEngine practice |
+| P5E12 | nonlinearHistory.procedure.damping | each record's ratio on the first mode, committed stiffness | none | SAEngine practice |

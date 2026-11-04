@@ -192,6 +192,16 @@ TABLE_HELP: dict[str, str] = {
     "subgrade modulus, the struts' temperature and buckling length, the ground anchors' factors, "
     "test and lock-off loads and bond stresses, and the basal heave and piping factors. A pack "
     "without it does not analyse staged excavations or design their supports.",
+    "allowableStress": "Allowable stress design of members (alpha 9 C19): the combination "
+    "rows of the long-term allowable stresses, the allowable concrete stresses as shares of Fc, "
+    "the modular ratio and lever arm, the bars' allowable stresses by grade, the allowable "
+    "shear with alpha and the shear reinforcement, and the steel's allowable tension, shear, "
+    "compression and bending. A pack without it checks no member by allowable stresses.",
+    "horizontalCapacity": "The required horizontal capacity of storeys (alpha 9 C19): the "
+    "storey drift at which a pushover gives Qu, Ds by material, member rank and the share of "
+    "walls or braces, Fs and Fe from the stiffness and eccentricity ratios, the member rank "
+    "limits and the mean shear strength of concrete members. A pack without it does not check "
+    "the horizontal capacity.",
     "snow": "Snow on roofs from the ground snow load: the exposure coefficients Ce, the thermal "
     "coefficient Ct, the roof shape coefficient mu1 by pitch and the load case the roof snow "
     "goes into. A pack without it does not cover snow.",

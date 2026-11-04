@@ -203,6 +203,19 @@ class AreaUse(_Row):
         description="The code's category of use (A, B, C1 ...), where the code groups the uses "
         "(the area-and-storeys reduction reads it); empty: none.",
     )
+    # Alpha 9 C19 (BSL Enforcement Order Art. 85: the floor live load for slabs, for frames and
+    # for the seismic force separately): the use's live load on the frames (beams, columns,
+    # foundations; liveReduction method frameValue) and in the seismic weight (seismic
+    # liveWeight byUse); empty: the live load.
+    frameLive: float | None = Field(
+        default=None, ge=0, description="Live load of the frames [kN/m²] (empty: live)."
+    )
+    seismicLive: float | None = Field(
+        default=None,
+        ge=0,
+        description="Live load in the seismic weight [kN/m²] (empty: by "
+        "the seismic table's liveShare).",
+    )
 
 
 class RoofLiveRow(_Row):
@@ -955,12 +968,53 @@ class DiaphragmConnections(BaseModel):
 
 class TimeHistoryTarget(BaseModel):
     """The spectrum records are scaled to: the design spectrum with ``R`` and ``I`` (empty: the
-    building's own)."""
+    building's own). P5: ``factor`` times it (e.g. the maximum considered earthquake as a
+    multiple of the design spectrum); the other fields, when given, replace the table's own
+    for this procedure (empty: the table's)."""
 
     model_config = ConfigDict(extra="forbid")
 
     R: float | None = Field(default=None, gt=0)
     I: float | None = Field(default=None, gt=0)
+    factor: float = Field(default=1.0, gt=0, description="Factor on the target spectrum.")
+    spectrum: Literal["design", "elastic"] = Field(
+        default="design",
+        description="The design spectrum with R and I, or (packs whose design spectrum is "
+        "by a behaviour factor) the elastic response spectrum of the same shape with I.",
+    )
+    minimumRecords: int | None = Field(default=None, ge=1)
+    periodLower: float | None = Field(default=None, gt=0)
+    periodUpper: float | None = Field(default=None, gt=0)
+    periodBasis: Literal["governing", "bounds"] | None = None
+    singleRatio: float | None = Field(default=None, gt=0)
+    pairRatio: float | None = Field(default=None, gt=0)
+    matchedRatio: float | None = Field(default=None, gt=0)
+    modification: Literal["amplitude", "matching"] = Field(
+        default="amplitude",
+        description="How the records of this procedure are modified to the target by default: "
+        "amplitude scaling over the period range, or spectral matching (the table's "
+        "``matching``).",
+    )
+
+
+class SpectralMatching(BaseModel):
+    """P5: spectral matching of a record to the target (``fem.spectral_matching``), by method
+    id: ``frequencyDomain`` (the Fourier amplitudes adjusted by the ratio of the target to the
+    record's spectrum, iterated, with a baseline correction). The record is matched from ``lowerShare`` × the lower to ``upperShare`` × the upper bound
+    of the procedure's period range on ``points`` periods, until every ordinate there is within
+    ``tolerance`` of the target or after ``iterations``; ``baselineOrder``: the degree of the
+    polynomial taken off the displacement."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    method: Literal["frequencyDomain"]
+    lowerShare: float = Field(default=0.8, gt=0, le=1)
+    upperShare: float = Field(default=1.25, ge=1)
+    tolerance: float = Field(default=0.1, gt=0, lt=1)
+    iterations: int = Field(default=20, ge=1, le=200)
+    points: int = Field(default=40, ge=8, le=200)
+    baselineOrder: int = Field(default=3, ge=1, le=6)
+    note: str = ""
 
 
 class TimeHistoryRules(BaseModel):
@@ -990,6 +1044,26 @@ class TimeHistoryRules(BaseModel):
     simultaneousPairs: bool = True
     targets: dict[str, TimeHistoryTarget] = Field(default_factory=dict)
     clauses: dict[str, str] = Field(default_factory=dict)
+    # ── P5: how a pair is combined, the period range of pairs, spectral matching ──
+    pairCombination: Literal["srss", "maxDirection", "eachComponent"] = Field(
+        default="srss",
+        description="The spectrum of a pair: the SRSS of its two components, the maximum-"
+        "direction (RotD100) spectrum, or each component's own (the mean of each component "
+        "must meet the criterion).",
+    )
+    periodBasis: Literal["governing", "bounds"] = Field(
+        default="governing",
+        description="The period range of a pair: periodLower to periodUpper times the longer "
+        "fundamental period (governing), or periodLower times the shorter to periodUpper times "
+        "the longer (bounds).",
+    )
+    matchedRatio: float | None = Field(
+        default=None,
+        gt=0,
+        description="The criterion of a suite of spectrally matched records (empty: the "
+        "single or pair ratio).",
+    )
+    matching: SpectralMatching | None = None
 
 
 # ── C1: the seismic hazard of the site from mapped spectral values (saengine.fem.spectral_hazard) ──
@@ -1204,6 +1278,32 @@ class Ubc97Rule(BaseModel):
         return self
 
 
+class ShearCoefficientRule(BaseModel):
+    """Alpha 9 C19: the standard shear coefficient method (BSL Enforcement Order Art. 88, MLIT
+    Notification 1793 type): the storey shear Qi = Ci ΣWi, Ci = Z Rt Ai C0 (the design spectrum
+    method ``standardShearCoefficient``, :mod:`saengine.fem.shear_coefficient`).
+
+    Rt (the vibration characteristic factor) of the period T and the site class's corner TC:
+    1 while T < TC, 1 - ``transition`` (T/TC - 1)² up to ``transitionEnd`` TC, ``longFactor``
+    TC / T beyond. Ai (the distribution of the storey shear coefficient over the height) of
+    αi = the weight above storey i over the total: 1 + (1/√αi - αi) ``aiNumerator`` T / (1 +
+    ``aiDenominator`` T), when the lateral force distribution is ``shearCoefficientAi``. C0 the
+    standard shear coefficient of the primary design (``standardCoefficient``) and of the
+    required horizontal capacity (``ultimateCoefficient``)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    standardCoefficient: Positive = Field(description="C0 of the primary design.")
+    ultimateCoefficient: Positive = Field(description="C0 of the required horizontal capacity.")
+    transition: float = Field(ge=0)
+    transitionEnd: Positive = Field(description="× TC: the end of the parabolic transition.")
+    longFactor: Positive
+    least: float = Field(default=0.0, ge=0, description="Rt at least this.")
+    aiNumerator: Positive
+    aiDenominator: Positive
+    clauses: dict[str, str] = Field(default_factory=dict)
+
+
 class ShapeFactorsRule(BaseModel):
     """Alpha 9 C18: the terms of the method ``shapeFactors`` (AS 1170.4 Section 6, NZS 1170.5
     Section 5 type, :mod:`saengine.fem.spectra`): Cd(T) = (Z I) Ch(T) N(T, D) Sp / kμ, the
@@ -1279,6 +1379,7 @@ class DesignSpectrumRule(BaseModel):
         "mappedSpectral",
         "ubc97",
         "ductilityOverstrength",
+        "standardShearCoefficient",
         "shapeFactors",
     ] = "reducedElastic"
     plateau: float = Field(default=2.5, gt=0, description="Spectral amplification of the plateau.")
@@ -1350,6 +1451,8 @@ class DesignSpectrumRule(BaseModel):
     ordinates: SpectrumOrdinates | None = None
     # Alpha 9 C17: the method ductilityOverstrength (NTC-Sismo CDMX type).
     ductility: DuctilityOverstrength | None = None
+    # Alpha 9 C19: the method standardShearCoefficient (Ci = Z Rt Ai C0).
+    shearCoefficient: ShearCoefficientRule | None = None
     # Alpha 9 C18: the terms of the shapeFactors method.
     shapeFactors: ShapeFactorsRule | None = None
     clauses: dict[str, str] = Field(default_factory=dict)
@@ -1360,6 +1463,10 @@ class DesignSpectrumRule(BaseModel):
             raise ValueError("the design spectrum method ubc97 needs its ubc97 block (Ca, Cv)")
         if self.method == "ductilityOverstrength" and self.ductility is None:
             raise ValueError("ductilityOverstrength: the method needs its 'ductility' block")
+        if self.method == "standardShearCoefficient" and self.shearCoefficient is None:
+            raise ValueError(
+                "standardShearCoefficient: the method needs its 'shearCoefficient' block"
+            )
         if self.method == "shapeFactors" and self.shapeFactors is None:
             raise ValueError("the design spectrum method shapeFactors needs its shapeFactors block")
         return self
@@ -1386,8 +1493,12 @@ class LateralForceRule(BaseModel):
     correction: float = Field(default=1.0, gt=0, le=1)
     periodTcFactor: float | None = Field(default=None, gt=0)
     minStoreys: int = Field(default=0, ge=0)
-    # C7: "heightSquared" (IS 1893 7.6.3, Qi ∝ Wi·hi² whatever the period).
-    distribution: Literal["heightPower", "linear", "heightSquared"] = "heightPower"
+    # C7: "heightSquared" (IS 1893 7.6.3, Qi ∝ Wi·hi² whatever the period). Alpha 9 C19:
+    # "shearCoefficientAi" (the storey shear Qi = V Ai αi, Ai of the design spectrum's
+    # shearCoefficient block, BSL Art. 88 type).
+    distribution: Literal["heightPower", "linear", "heightSquared", "shearCoefficientAi"] = (
+        "heightPower"
+    )
     minimumShare: dict[int, Annotated[float, Field(gt=0, lt=1)]] = Field(
         default_factory=dict,
         description="C7: least base shear V / W by seismic zone (IS 1893 Table 7); empty: none.",
@@ -1473,6 +1584,14 @@ class SeismicTable(TableModel):
     )
     heavyLiveShare: float | None = Field(
         default=None, ge=0, le=1, description="Share of a heavy live load in the seismic weight."
+    )
+    # Alpha 9 C19 (BSL Enforcement Order Art. 85: the floor live load for the seismic force):
+    # "byUse" counts each floor's live load in W as its use's seismicLive / live (areaLoads),
+    # liveShare where the use gives none; "share" (default) liveShare and the heavy rule.
+    liveWeight: Literal["share", "byUse"] = Field(
+        default="share",
+        description="share: liveShare (and the heavy-live rule); byUse: the share of each use's "
+        "seismicLive over its live load (areaLoads), liveShare where it gives none.",
     )
     partitionWeight: Literal["full", "withLiveShare"] | None = Field(
         default=None,
@@ -1594,6 +1713,14 @@ class Exposure(_Row):
     # the table's kzFactor and kzMinHeight.
     kzFactor: float | None = Field(default=None, gt=0, description="Factor of Kz.")
     kzMinHeight: float | None = Field(default=None, gt=0, description="Kz below this [m].")
+    # Alpha 9 C19 (MLIT Notification 1454: Gf by terrain category and the building's height
+    # H, linear between H 10 m and 40 m): the gust factor of this exposure by height; empty:
+    # the table's gust.
+    gustByHeight: list[tuple[Annotated[float, Field(ge=0)], Positive]] | None = Field(
+        default=None,
+        description="(building height H [m], G) points, linear between, the end values "
+        "outside; empty: the table's gust.",
+    )
 
 
 class WindDesignCasesRow(_Row):
@@ -5879,7 +6006,9 @@ class LiveReductionTable(TableModel):
     or (C4, ``method`` areaAndStoreys) by the loaded area and the number of storeys, or (C7,
     ``floorCount``) by the number of floors carried."""
 
-    method: Literal["influenceArea", "areaAndStoreys", "floorCount"] = "influenceArea"
+    # Alpha 9 C19: "frameValue" (BSL Enforcement Order Art. 85: the beams and columns take
+    # the use's live load for frames, areaLoads.uses[].frameLive, in place of the slabs' one).
+    method: Literal["influenceArea", "areaAndStoreys", "floorCount", "frameValue"] = "influenceArea"
     areaAndStoreys: AreaAndStoreys | None = None
     floorCount: FloorCountReduction | None = None
     influenceMin: Positive | None = Field(
@@ -5930,6 +6059,8 @@ class LiveReductionTable(TableModel):
         if self.method == "floorCount":
             if self.floorCount is None:
                 raise ValueError("floorCount: the method needs its rows")
+            return self
+        if self.method == "frameValue":  # Alpha 9 C19: the uses' frameLive
             return self
         names = ("influenceMin", "constant", "coefficient", "minOneFloor", "minFloors")
         missing = [n for n in (*names, "heavyFactor", "kll") if getattr(self, n) is None]
@@ -10417,6 +10548,16 @@ class NonlinearHistoryProcedure(_Row):
     designReview: bool = Field(
         default=False, description="The code asks for an independent design review."
     )
+    unacceptableResponses: dict[str, int] = Field(
+        default_factory=dict,
+        description="P5: by occupancy (risk) category, how many records of a suite may stop "
+        "early (an unacceptable response) and the suite still be accepted (absent: none).",
+    )
+    damping: NonlinearHistoryDamping | None = Field(
+        default=None,
+        description="P5: the damping of the runs (empty: the first-mode, committed-stiffness "
+        "ratio of each time history).",
+    )
     note: str = Field(default="", description="Why the values are what they are.")
 
 
@@ -10439,30 +10580,96 @@ class NonlinearHistoryDrift(_Row):
 class NonlinearHistoryAcceptance(_Row):
     """Acceptance of the members over the records (``fem.acceptance``). Method
     ``fibreStrain``: each fibre's peak strain at the member's end sections against a share of
-    the strain at which its material fails."""
+    the strain at which its material fails. P5: method ``hingeRotation``: the hinges of the
+    pack's ``pushover.hinges`` (``fem.hinges``) at the member ends, their peak deformation over
+    each record against the limit of ``performanceLevel``."""
 
-    method: Literal["fibreStrain"] = Field(
+    method: Literal["fibreStrain", "hingeRotation"] = Field(
         description="Method id (the engine's generic implementation)."
     )
-    deformationShare: Share = Field(
+    deformationShare: Share | None = Field(
+        default=None,
         description="A member's deformation may reach at most this × the deformation at which "
-        "it fails."
+        "it fails (fibreStrain).",
     )
-    residualStrengthShare: Share = Field(
-        description="Strength (share of the peak) below which the component has failed."
+    residualStrengthShare: Share | None = Field(
+        default=None,
+        description="Strength (share of the peak) below which the component has failed "
+        "(fibreStrain).",
     )
     gravityLossAllMembers: bool = Field(
         default=True,
         description="The smaller of the gravity-loss and the strength-loss deformation for "
         "every member (false: the gravity loss only for members carrying gravity loads).",
     )
-    reinforcementFractureStrain: Positive = Field(
-        description="Strain at which a reinforcing bar is taken as lost (fracture or buckling)."
+    reinforcementFractureStrain: Positive | None = Field(
+        default=None,
+        description="Strain at which a reinforcing bar is taken as lost (fracture or buckling; "
+        "fibreStrain).",
     )
-    steelFractureStrain: Positive = Field(
-        description="Strain at which a structural steel fibre is taken as lost."
+    steelFractureStrain: Positive | None = Field(
+        default=None,
+        description="Strain at which a structural steel fibre is taken as lost (fibreStrain).",
+    )
+    performanceLevel: str | None = Field(
+        default=None,
+        description="hingeRotation: the level of ``pushover.hinges.levels`` the hinges are "
+        "checked against (empty: the last, the most lenient).",
     )
     note: str = Field(default="", description="Why the values are what they are.")
+
+    @model_validator(mode="after")
+    def _fibre_values(self) -> NonlinearHistoryAcceptance:
+        if self.method == "fibreStrain" and None in (
+            self.deformationShare,
+            self.residualStrengthShare,
+            self.reinforcementFractureStrain,
+            self.steelFractureStrain,
+        ):
+            raise ValueError(
+                "method fibreStrain needs deformationShare, residualStrengthShare, "
+                "reinforcementFractureStrain and steelFractureStrain"
+            )
+        return self
+
+
+class NonlinearHistoryDamping(_Row):
+    """P5: the damping of the nonlinear time histories, by method id: ``mode1Stiffness`` (the
+    ratio on the first mode, in proportion to the committed stiffness) or ``rayleigh`` (mass and
+    committed stiffness proportional, the ratio at the first mode's period and at
+    ``secondPeriodShare`` times it)."""
+
+    method: Literal["mode1Stiffness", "rayleigh"] = "mode1Stiffness"
+    ratio: Share | None = Field(
+        default=None, description="Damping ratio (empty: each time history's own)."
+    )
+    secondPeriodShare: Share | None = Field(
+        default=None, description="rayleigh: the second period as a share of the first."
+    )
+    note: str = ""
+
+
+class NonlinearHistoryForceAction(_Row):
+    """P5: a force-controlled action of the members checked over the records: ``action``
+    (``columnAxial``: the compression of the columns, ``shear``: the shear of the beams and
+    columns), its class and the factor on its earthquake part, γ·(Fu − Fg) + Fg ≤ the design
+    strength of the member design (Fu the design value over the suite, Fg the force under
+    gravity alone)."""
+
+    action: Literal["columnAxial", "shear"]
+    category: str = Field(description="The code's class of the action (e.g. critical).")
+    factor: Positive = Field(description="γ on the earthquake part of the demand.")
+
+
+class NonlinearHistoryForceControlled(_Row):
+    """P5: force-controlled actions (``actions``), the importance factor on their earthquake part
+    when ``importance``, and how the strength is read (``strength``: the member design's design
+    strength, the safe side of an expected strength)."""
+
+    actions: list[NonlinearHistoryForceAction] = Field(min_length=1)
+    importance: bool = False
+    strength: Literal["designStrength"] = "designStrength"
+    note: str = ""
 
 
 class NonlinearHistoryTable(TableModel):
@@ -10472,6 +10679,7 @@ class NonlinearHistoryTable(TableModel):
     procedure: NonlinearHistoryProcedure
     drift: NonlinearHistoryDrift
     acceptance: NonlinearHistoryAcceptance
+    forceControlled: NonlinearHistoryForceControlled | None = None
 
 
 # ───────────────────────────────── seismically isolated buildings (B37) ─────────────────────────────────
@@ -11021,6 +11229,10 @@ class SnowTable(TableModel):
 # imperfection (and the steel groups of steelLimitState, in limit_state_tables).
 # Alpha 9 C9: steel by limit state design with partial factors and buckling curves.
 from saengine.codes.bar_schedule_tables import BarScheduleTable  # C14
+from saengine.codes.capacity_tables import (  # C19
+    AllowableStressTable,
+    HorizontalCapacityTable,
+)
 from saengine.codes.excavation_tables import ExcavationSupportTable  # P1: staged excavations
 from saengine.codes.limit_state_tables import SteelLimitStateTable
 from saengine.codes.material_method_tables import (
@@ -11123,6 +11335,9 @@ TABLE_MODELS: dict[str, type[TableModel]] = {
     "barSchedule": BarScheduleTable,
     # Alpha 9 P1: staged excavations, their walls and supports.
     "excavationSupport": ExcavationSupportTable,
+    # Alpha 9 C19: allowable stress design of members, the storeys' horizontal capacity.
+    "allowableStress": AllowableStressTable,
+    "horizontalCapacity": HorizontalCapacityTable,
 }
 
 

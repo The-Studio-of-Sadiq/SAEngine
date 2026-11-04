@@ -1,0 +1,287 @@
+{
+  "$schema": "../../../schemas/seismic.schema.json",
+  "$replace": true,
+  "$sources": [
+    "BSL Enforcement Order Art. 88 (the seismic storey shear Qi = Ci ΣWi, Ci = Z Rt Ai C0)",
+    "MOC Notification No. 1793 of 1980: Art. 1 Z, Art. 2 Rt and the period T, Art. 3 Ai, Art. 4 the soil types",
+    "BSL Enforcement Order Art. 82-2 (storey drift 1/200), Art. 82-6 (Rs >= 0.6, Re <= 0.15)"
+  ],
+  "source": "BSL Enforcement Order Art. 88 and MOC Notification 1793",
+  "generatorSystems": {
+    "steelMomentFrame": [
+      "steelSmf"
+    ],
+    "steelBracedFrame": [
+      "steelScbf"
+    ],
+    "$comment": "SAEngine practice: the law has no ductility classes of systems (the member ranks give Ds), one system of each kind"
+  },
+  "designSpectrum": {
+    "method": "standardShearCoefficient",
+    "shearCoefficient": {
+      "standardCoefficient": 0.2,
+      "ultimateCoefficient": 1.0,
+      "transition": 0.2,
+      "transitionEnd": 2.0,
+      "longFactor": 1.6,
+      "least": 0.0,
+      "aiNumerator": 2.0,
+      "aiDenominator": 3.0,
+      "clauses": {
+        "spectrum": "Art. 88(1); N1793 Art. 2 (Rt)",
+        "elf": "Art. 88(1); N1793 Art. 3 (Ai)",
+        "standard": "Art. 88(2) (C0 = 0.2)",
+        "ultimate": "Art. 88(3) (C0 = 1.0)",
+        "period": "N1793 Art. 2: T = h (0.02 + 0.01 α)"
+      }
+    },
+    "clauses": {
+      "spectrum": "Art. 88(1); N1793 Art. 2 (Rt)",
+      "elf": "Art. 88(1); N1793 Art. 3 (Ai)",
+      "standard": "Art. 88(2) (C0 = 0.2)",
+      "ultimate": "Art. 88(3) (C0 = 1.0)",
+      "period": "N1793 Art. 2: T = h (0.02 + 0.01 α)"
+    }
+  },
+  "stability": {
+    "method": "designDrift",
+    "ignoreBelow": 0.1,
+    "thetaCap": 0.3,
+    "clause": "the law has no P-delta rule (SAEngine practice for θ)"
+  },
+  "siteClasses": {
+    "S1": {
+      "description": "Soil type 1: rock, hard sandy gravel and the like (Tertiary or older), or a site whose period is equally short (Tc = 0.4 s)",
+      "TC": 0.4
+    },
+    "S2": {
+      "description": "Soil type 2: neither type 1 nor type 3 (Tc = 0.6 s)",
+      "TC": 0.6
+    },
+    "S3": {
+      "description": "Soil type 3: alluvium with humus or mud and the like, or reclaimed land, of the depth of N1793 Art. 2, or a site whose period is equally long (Tc = 0.8 s)",
+      "TC": 0.8
+    }
+  },
+  "systems": {
+    "rcSmf": {
+      "name": "RC moment-resisting frame (rahmen)",
+      "R": 1.0,
+      "Omega0": 2.0,
+      "Cd": 1.0,
+      "row": "RC frame",
+      "heightLimits": {},
+      "concrete": true,
+      "periodFamily": "concrete",
+      "group": "momentFrame",
+      "frame": "ordinary",
+      "momentFrame": true
+    },
+    "rcSpecialWallFrame": {
+      "name": "RC frame with shear walls",
+      "R": 1.0,
+      "Omega0": 2.0,
+      "Cd": 1.0,
+      "row": "RC frame with walls",
+      "heightLimits": {},
+      "concrete": true,
+      "periodFamily": "concrete",
+      "group": "buildingFrame"
+    },
+    "rcDualSpecial": {
+      "name": "RC frame and shear walls (both resisting)",
+      "R": 1.0,
+      "Omega0": 2.0,
+      "Cd": 1.0,
+      "row": "RC frame with walls",
+      "heightLimits": {},
+      "concrete": true,
+      "periodFamily": "concrete",
+      "group": "dualSpecial",
+      "frame": "ordinary",
+      "dual": true
+    },
+    "rcSpecialBearingWall": {
+      "name": "RC wall structure",
+      "R": 1.0,
+      "Omega0": 2.0,
+      "Cd": 1.0,
+      "row": "RC walls",
+      "heightLimits": {},
+      "concrete": true,
+      "periodFamily": "concrete",
+      "group": "bearingWall"
+    },
+    "steelSmf": {
+      "name": "Steel moment-resisting frame",
+      "R": 1.0,
+      "Omega0": 2.0,
+      "Cd": 1.0,
+      "row": "Steel frame",
+      "heightLimits": {},
+      "concrete": false,
+      "periodFamily": "steel",
+      "group": "momentFrame",
+      "momentFrame": true
+    },
+    "steelScbf": {
+      "name": "Steel braced frame",
+      "R": 1.0,
+      "Omega0": 2.0,
+      "Cd": 1.0,
+      "row": "Steel braced frame",
+      "heightLimits": {},
+      "concrete": false,
+      "periodFamily": "steel",
+      "group": "buildingFrame"
+    },
+    "steelDualSmfScbf": {
+      "name": "Steel moment-resisting frame with braces",
+      "R": 1.0,
+      "Omega0": 2.0,
+      "Cd": 1.0,
+      "row": "Steel frame with braces",
+      "heightLimits": {},
+      "concrete": false,
+      "periodFamily": "steel",
+      "group": "dualSpecial",
+      "dual": true
+    }
+  },
+  "periodCoefficients": {
+    "concrete": {
+      "Ct": 0.02,
+      "m": 1.0
+    },
+    "steel": {
+      "Ct": 0.03,
+      "m": 1.0
+    },
+    "other": {
+      "Ct": 0.02,
+      "m": 1.0
+    }
+  },
+  "designCategories": {
+    "occupancyGroups": {
+      "I": "all",
+      "II": "all",
+      "III": "all",
+      "IV": "all"
+    },
+    "bySiteClass": {
+      "all": {
+        "all": [
+          "C",
+          "C",
+          "D",
+          "D"
+        ]
+      }
+    }
+  },
+  "siteSpecificStudy": {
+    "classes": [],
+    "assumedClass": "S3",
+    "clause": "N1793 Art. 2",
+    "warning": ""
+  },
+  "requiredDetailing": {
+    "B": "ordinary",
+    "C": "ordinary",
+    "D": "ordinary"
+  },
+  "allowableDrift": {
+    "I": 0.005,
+    "II": 0.005,
+    "III": 0.005,
+    "IV": 0.005
+  },
+  "allowableDriftLabel": "All buildings (BSL Enforcement Order Art. 82-2: 1/200; 1/120 where the finishes and the like are shown not to be damaged)",
+  "driftLimits": [],
+  "driftRedundancyCategories": [],
+  "dampingEta": 1.0,
+  "dampingCorrection": {
+    "method": "none",
+    "referenceDamping": 0.05
+  },
+  "systemCombination": {
+    "R": "min",
+    "Cd": "max",
+    "Omega0": "max",
+    "heightLimit": "min"
+  },
+  "separation": {
+    "propertyLineFactor": 1.0,
+    "sameProperty": "sum",
+    "equalFloorLevelsFactor": 1.0
+  },
+  "diaphragmDeflection": {
+    "limit": null
+  },
+  "irregularities": null,
+  "dynamicAnalysis": null,
+  "softStorey": null,
+  "diaphragmConnections": null,
+  "timeHistory": null,
+  "lateralForce": {
+    "distribution": "shearCoefficientAi",
+    "clause": "Art. 88(1), N1793 Art. 3"
+  },
+  "liveShare": 0.5,
+  "liveWeight": "byUse",
+  "partitionWeight": "full",
+  "periodUpperFactor": null,
+  "minimumScale": 1.0,
+  "accidentalEccentricity": 0.05,
+  "orthogonalShare": 0.3,
+  "massParticipation": 0.9,
+  "torsionIrregular": 1.2,
+  "torsionExtreme": 1.4,
+  "torsionAmplificationMax": 1.0,
+  "pgaFactor": 0.4,
+  "verticalFactor": 0.0,
+  "stabilityGravity": {
+    "D": 1.0,
+    "SD": 1.0,
+    "F": 1.0,
+    "L": 1.0
+  },
+  "driftAmplification": "overImportance",
+  "defaultSiteClass": "S2",
+  "defaultSystem": "rcSmf",
+  "sources": {
+    "designSpectrum": "BSL Enforcement Order Art. 88(1): Ci = Z Rt Ai C0; MOC Notification 1793 Art. 2: Rt = 1 (T < Tc), 1 - 0.2 (T/Tc - 1)² (Tc <= T < 2 Tc), 1.6 Tc / T (2 Tc <= T); Art. 3: Ai = 1 + (1/√αi - αi) 2T / (1 + 3T); Art. 88(2): C0 at least 0.2 (0.3 on very soft ground designated by the authority for wooden buildings: not covered); Art. 88(3): C0 at least 1.0 for the required horizontal capacity. The response spectrum of a modal analysis is Z C0 Rt(T) (SAEngine practice).",
+    "siteClasses": "MOC Notification 1793 Art. 2 table: the soil types 1-3 and Tc = 0.4, 0.6, 0.8 s (ids S1-S3)",
+    "systems": "The law has no R: R = 1 (C0 is the design level), Cd = 1 (the drift of the primary design is the elastic one under the C0 = 0.2 forces); Ω0 = 2.0 SAEngine practice; the systems' Ds in horizontalCapacity",
+    "periodCoefficients": "MOC Notification 1793 Art. 2: T = h (0.02 + 0.01 α), α the share of the height of steel storeys: 0.02 h concrete (α = 0), 0.03 h steel (α = 1); mixed structures take the family of their system (SAEngine practice)",
+    "designCategories": "The law has no seismic design categories: SAEngine's letters C (Z 0.7, 0.8) and D (Z 0.9, 1.0) for the parent's modules, the detailing ordinary (the member ranks give Ds)",
+    "allowableDrift": "BSL Enforcement Order Art. 82-2: the storey drift angle under the primary seismic force at most 1/200 (1/120 where the finishes and the like are shown not to be damaged: raise it under Code Values)",
+    "lateralForce": "BSL Enforcement Order Art. 88(1) and N1793 Art. 3: the storey shear Qi = Ci ΣWi with Ai, the level forces the differences of the storey shears",
+    "liveShare": "BSL Enforcement Order Art. 85(1) column (iii): the seismic weight takes each use's value for the seismic force (liveWeight byUse); the uses without one 50 % (SAEngine practice)",
+    "accidentalEccentricity": "The law has no accidental eccentricity (Re, Fe instead): 0.05 only where the project asks for the eccentric cases (SAEngine practice)",
+    "torsionAmplificationMax": "No amplification of the accidental torsion: 1.0",
+    "pgaFactor": "SAEngine's mapping of Z to the peak ground acceleration for the checks that ask for it (0.4 Z, not the law's)",
+    "verticalFactor": "The law has no vertical seismic component in the combinations: 0",
+    "periodUpperFactor": "N1793 Art. 2 allows a period from a special investigation (Rt at least 3/4 of the formula's): not applied, the formula's T is used",
+    "minimumScale": "The law has no scaling of a modal analysis to the static shear: 1.0 (SAEngine practice)",
+    "stability": "The law has no P-delta rule: θ = P dr / (V h), ignored below 0.10 (SAEngine practice)"
+  },
+  "clauses": {
+    "scale": "SAEngine practice",
+    "torsion": "Art. 82-6 (Re)",
+    "orthogonal": "each direction on its own (Art. 88)",
+    "combinations": "Art. 82(2)",
+    "drift": "Art. 82-2",
+    "sdc": "SAEngine practice",
+    "modes": "SAEngine practice",
+    "systems": "N1792 (Ds by structure)",
+    "period": "N1793 Art. 2",
+    "weight": "Art. 85(1) column (iii), Art. 88(1) ΣWi",
+    "elf": "Art. 88(1), N1793",
+    "spectrum": "Art. 88(1), N1793 Art. 2",
+    "damping": "N1793 (5 %)",
+    "pDelta": "SAEngine practice",
+    "stability": "SAEngine practice"
+  }
+}

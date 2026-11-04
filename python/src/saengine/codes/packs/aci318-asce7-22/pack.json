@@ -38,6 +38,7 @@
     "anchors",
     "serviceability",
     "pushover",
+    "nonlinearHistory",
     "floorVibration",
     "windComfort",
     "nonBuilding",
@@ -223,6 +224,9 @@
     "pushover": [
       "ASCE/SEI 41-17 Ch 7 (nonlinear static procedure, target displacement), Ch 9-10 (hinges and acceptance); FEMA 440 equivalent linearization (selectable)"
     ],
+    "nonlinearHistory": [
+      "ASCE 7-22 Chapter 16 (nonlinear response history: records, MCER target, maximum-direction scaling or matching, drift 1.5x, ASCE 41 hinges, force-controlled actions)"
+    ],
     "floorVibration": [
       "AISC Design Guide 11 (2nd ed.) for floors on steel beams; CCIP-016 / SCI P354 for concrete floors (SAEngine practice where ASCE 7-22 Appendix C gives no method)"
     ],
@@ -291,6 +295,7 @@
     "plumbing": "ACI 350-06",
     "serviceability": "IBC 2021",
     "foundations.subgradeModulus": "ACI",
+    "nonlinearHistory": "ASCE 7-22",
     "pushover": "ASCE 41-17"
   },
   "author": "SAEngine contributors",

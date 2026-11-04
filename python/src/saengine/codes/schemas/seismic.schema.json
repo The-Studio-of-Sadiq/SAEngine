@@ -248,6 +248,7 @@
             "mappedSpectral",
             "ubc97",
             "ductilityOverstrength",
+            "standardShearCoefficient",
             "shapeFactors"
           ],
           "title": "Method",
@@ -503,6 +504,17 @@
           "anyOf": [
             {
               "$ref": "#/$defs/DuctilityOverstrength"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "shearCoefficient": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ShearCoefficientRule"
             },
             {
               "type": "null"
@@ -1146,7 +1158,8 @@
           "enum": [
             "heightPower",
             "linear",
-            "heightSquared"
+            "heightSquared",
+            "shearCoefficientAi"
           ],
           "title": "Distribution",
           "type": "string"
@@ -1764,6 +1777,75 @@
       "title": "ShapeFactorsRule",
       "type": "object"
     },
+    "ShearCoefficientRule": {
+      "additionalProperties": false,
+      "description": "Alpha 9 C19: the standard shear coefficient method (BSL Enforcement Order Art. 88, MLIT\nNotification 1793 type): the storey shear Qi = Ci ΣWi, Ci = Z Rt Ai C0 (the design spectrum\nmethod ``standardShearCoefficient``, :mod:`saengine.fem.shear_coefficient`).\n\nRt (the vibration characteristic factor) of the period T and the site class's corner TC:\n1 while T < TC, 1 - ``transition`` (T/TC - 1)² up to ``transitionEnd`` TC, ``longFactor``\nTC / T beyond. Ai (the distribution of the storey shear coefficient over the height) of\nαi = the weight above storey i over the total: 1 + (1/√αi - αi) ``aiNumerator`` T / (1 +\n``aiDenominator`` T), when the lateral force distribution is ``shearCoefficientAi``. C0 the\nstandard shear coefficient of the primary design (``standardCoefficient``) and of the\nrequired horizontal capacity (``ultimateCoefficient``).",
+      "properties": {
+        "standardCoefficient": {
+          "description": "C0 of the primary design.",
+          "exclusiveMinimum": 0,
+          "title": "Standardcoefficient",
+          "type": "number"
+        },
+        "ultimateCoefficient": {
+          "description": "C0 of the required horizontal capacity.",
+          "exclusiveMinimum": 0,
+          "title": "Ultimatecoefficient",
+          "type": "number"
+        },
+        "transition": {
+          "minimum": 0,
+          "title": "Transition",
+          "type": "number"
+        },
+        "transitionEnd": {
+          "description": "× TC: the end of the parabolic transition.",
+          "exclusiveMinimum": 0,
+          "title": "Transitionend",
+          "type": "number"
+        },
+        "longFactor": {
+          "exclusiveMinimum": 0,
+          "title": "Longfactor",
+          "type": "number"
+        },
+        "least": {
+          "default": 0.0,
+          "description": "Rt at least this.",
+          "minimum": 0,
+          "title": "Least",
+          "type": "number"
+        },
+        "aiNumerator": {
+          "exclusiveMinimum": 0,
+          "title": "Ainumerator",
+          "type": "number"
+        },
+        "aiDenominator": {
+          "exclusiveMinimum": 0,
+          "title": "Aidenominator",
+          "type": "number"
+        },
+        "clauses": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Clauses",
+          "type": "object"
+        }
+      },
+      "required": [
+        "standardCoefficient",
+        "ultimateCoefficient",
+        "transition",
+        "transitionEnd",
+        "longFactor",
+        "aiNumerator",
+        "aiDenominator"
+      ],
+      "title": "ShearCoefficientRule",
+      "type": "object"
+    },
     "SiteClass": {
       "additionalProperties": false,
       "properties": {
@@ -2051,6 +2133,68 @@
         "wallFactor"
       ],
       "title": "SoftStoreyDesign",
+      "type": "object"
+    },
+    "SpectralMatching": {
+      "additionalProperties": false,
+      "description": "P5: spectral matching of a record to the target (``fem.spectral_matching``), by method\nid: ``frequencyDomain`` (the Fourier amplitudes adjusted by the ratio of the target to the\nrecord's spectrum, iterated, with a baseline correction). The record is matched from ``lowerShare`` × the lower to ``upperShare`` × the upper bound\nof the procedure's period range on ``points`` periods, until every ordinate there is within\n``tolerance`` of the target or after ``iterations``; ``baselineOrder``: the degree of the\npolynomial taken off the displacement.",
+      "properties": {
+        "method": {
+          "const": "frequencyDomain",
+          "title": "Method",
+          "type": "string"
+        },
+        "lowerShare": {
+          "default": 0.8,
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Lowershare",
+          "type": "number"
+        },
+        "upperShare": {
+          "default": 1.25,
+          "minimum": 1,
+          "title": "Uppershare",
+          "type": "number"
+        },
+        "tolerance": {
+          "default": 0.1,
+          "exclusiveMaximum": 1,
+          "exclusiveMinimum": 0,
+          "title": "Tolerance",
+          "type": "number"
+        },
+        "iterations": {
+          "default": 20,
+          "maximum": 200,
+          "minimum": 1,
+          "title": "Iterations",
+          "type": "integer"
+        },
+        "points": {
+          "default": 40,
+          "maximum": 200,
+          "minimum": 8,
+          "title": "Points",
+          "type": "integer"
+        },
+        "baselineOrder": {
+          "default": 3,
+          "maximum": 6,
+          "minimum": 1,
+          "title": "Baselineorder",
+          "type": "integer"
+        },
+        "note": {
+          "default": "",
+          "title": "Note",
+          "type": "string"
+        }
+      },
+      "required": [
+        "method"
+      ],
+      "title": "SpectralMatching",
       "type": "object"
     },
     "SpectrumOrdinates": {
@@ -2630,6 +2774,52 @@
           },
           "title": "Clauses",
           "type": "object"
+        },
+        "pairCombination": {
+          "default": "srss",
+          "description": "The spectrum of a pair: the SRSS of its two components, the maximum-direction (RotD100) spectrum, or each component's own (the mean of each component must meet the criterion).",
+          "enum": [
+            "srss",
+            "maxDirection",
+            "eachComponent"
+          ],
+          "title": "Paircombination",
+          "type": "string"
+        },
+        "periodBasis": {
+          "default": "governing",
+          "description": "The period range of a pair: periodLower to periodUpper times the longer fundamental period (governing), or periodLower times the shorter to periodUpper times the longer (bounds).",
+          "enum": [
+            "governing",
+            "bounds"
+          ],
+          "title": "Periodbasis",
+          "type": "string"
+        },
+        "matchedRatio": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The criterion of a suite of spectrally matched records (empty: the single or pair ratio).",
+          "title": "Matchedratio"
+        },
+        "matching": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SpectralMatching"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         }
       },
       "required": [
@@ -2645,7 +2835,7 @@
     },
     "TimeHistoryTarget": {
       "additionalProperties": false,
-      "description": "The spectrum records are scaled to: the design spectrum with ``R`` and ``I`` (empty: the\nbuilding's own).",
+      "description": "The spectrum records are scaled to: the design spectrum with ``R`` and ``I`` (empty: the\nbuilding's own). P5: ``factor`` times it (e.g. the maximum considered earthquake as a\nmultiple of the design spectrum); the other fields, when given, replace the table's own\nfor this procedure (empty: the table's).",
       "properties": {
         "R": {
           "anyOf": [
@@ -2672,6 +2862,127 @@
           ],
           "default": null,
           "title": "I"
+        },
+        "factor": {
+          "default": 1.0,
+          "description": "Factor on the target spectrum.",
+          "exclusiveMinimum": 0,
+          "title": "Factor",
+          "type": "number"
+        },
+        "spectrum": {
+          "default": "design",
+          "description": "The design spectrum with R and I, or (packs whose design spectrum is by a behaviour factor) the elastic response spectrum of the same shape with I.",
+          "enum": [
+            "design",
+            "elastic"
+          ],
+          "title": "Spectrum",
+          "type": "string"
+        },
+        "minimumRecords": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Minimumrecords"
+        },
+        "periodLower": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Periodlower"
+        },
+        "periodUpper": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Periodupper"
+        },
+        "periodBasis": {
+          "anyOf": [
+            {
+              "enum": [
+                "governing",
+                "bounds"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Periodbasis"
+        },
+        "singleRatio": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Singleratio"
+        },
+        "pairRatio": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Pairratio"
+        },
+        "matchedRatio": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Matchedratio"
+        },
+        "modification": {
+          "default": "amplitude",
+          "description": "How the records of this procedure are modified to the target by default: amplitude scaling over the period range, or spectral matching (the table's ``matching``).",
+          "enum": [
+            "amplitude",
+            "matching"
+          ],
+          "title": "Modification",
+          "type": "string"
         }
       },
       "title": "TimeHistoryTarget",
@@ -3229,6 +3540,16 @@
       "default": null,
       "description": "Share of a heavy live load in the seismic weight.",
       "title": "Heavyliveshare"
+    },
+    "liveWeight": {
+      "default": "share",
+      "description": "share: liveShare (and the heavy-live rule); byUse: the share of each use's seismicLive over its live load (areaLoads), liveShare where it gives none.",
+      "enum": [
+        "share",
+        "byUse"
+      ],
+      "title": "Liveweight",
+      "type": "string"
     },
     "partitionWeight": {
       "anyOf": [

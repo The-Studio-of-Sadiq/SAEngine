@@ -1,0 +1,101 @@
+{
+  "$schema": "../../../schemas/horizontalCapacity.schema.json",
+  "$sources": [
+    "BSL Enforcement Order Art. 82-3: the horizontal capacity Qu of each storey at least the required capacity Qun = Ds Fes Qud",
+    "MOC Notification No. 1792 of 1980: Art. 2 (Qud with C0 = 1.0), Art. 3-4 (Ds of steel and RC structures by the member ranks FA-FD and βu), Art. 5 (Fes = Fs Fe of Rs and Re), the member rank limits",
+    "BSL Enforcement Order Art. 82-6: the primary design's limits Rs >= 0.6, Re <= 0.15",
+    "AIJ / BSL commentary: the mean shear strength of RC members (Arakawa's mean form) and the flexural strengths of the member rank calculation"
+  ],
+  "source": "BSL Enforcement Order Art. 82-3 and MOC Notification 1792",
+  "method": "requiredCapacity",
+  "capacityDrift": 0.01,
+  "ds": {
+    "concrete": {
+      "ranks": {
+        "FA": {"bands": [[0.3, 0.30], [0.7, 0.35], [1.0, 0.40]]},
+        "FB": {"bands": [[0.3, 0.35], [0.7, 0.40], [1.0, 0.45]]},
+        "FC": {"bands": [[0.3, 0.40], [0.7, 0.45], [1.0, 0.50]]},
+        "FD": {"bands": [[0.3, 0.45], [0.7, 0.50], [1.0, 0.55]]}
+      }
+    },
+    "steel": {
+      "ranks": {
+        "FA": {"bands": [[0.3, 0.25], [0.7, 0.30], [1.0, 0.35]]},
+        "FB": {"bands": [[0.3, 0.30], [0.7, 0.35], [1.0, 0.40]]},
+        "FC": {"bands": [[0.3, 0.35], [0.7, 0.40], [1.0, 0.45]]},
+        "FD": {"bands": [[0.3, 0.40], [0.7, 0.45], [1.0, 0.50]]}
+      }
+    }
+  },
+  "systems": {
+    "rcSmf": {"material": "concrete", "betaU": 0.0},
+    "rcSpecialWallFrame": {"material": "concrete", "betaU": 0.5},
+    "rcDualSpecial": {"material": "concrete", "betaU": 0.5},
+    "rcSpecialBearingWall": {"material": "concrete", "betaU": 1.0},
+    "steelSmf": {"material": "steel", "betaU": 0.0},
+    "steelScbf": {"material": "steel", "betaU": 0.8},
+    "steelDualSmfScbf": {"material": "steel", "betaU": 0.5}
+  },
+  "defaultSystem": {"material": "concrete", "betaU": 0.0},
+  "defaultRank": "FD",
+  "shapeFactors": {
+    "stiffness": [[0.0, 2.0], [0.6, 1.0], [10.0, 1.0]],
+    "eccentricity": [[0.0, 1.0], [0.15, 1.0], [0.45, 1.5], [10.0, 1.5]],
+    "rsLimit": 0.6,
+    "reLimit": 0.15
+  },
+  "memberRanks": {
+    "order": ["FA", "FB", "FC", "FD"],
+    "columns": {
+      "FA": {"clearRatio": 2.5, "axialRatio": 0.35, "tensionRatio": 0.8, "shearRatio": 0.1},
+      "FB": {"clearRatio": 2.0, "axialRatio": 0.45, "tensionRatio": 1.0, "shearRatio": 0.125},
+      "FC": {"axialRatio": 0.55, "shearRatio": 0.15}
+    },
+    "beams": {
+      "FA": {"shearRatio": 0.15},
+      "FB": {"shearRatio": 0.2}
+    },
+    "steelColumns": {
+      "FA": {"flange": 9.5, "web": 43.0, "tube": 33.0, "pipe": 50.0},
+      "FB": {"flange": 12.0, "web": 45.0, "tube": 37.0, "pipe": 70.0},
+      "FC": {"flange": 15.5, "web": 48.0, "tube": 48.0, "pipe": 100.0}
+    },
+    "steelBeams": {
+      "FA": {"flange": 9.0, "web": 60.0},
+      "FB": {"flange": 11.0, "web": 65.0},
+      "FC": {"flange": 15.5, "web": 71.0}
+    },
+    "steelReference": 235.0,
+    "shearFailureRank": "FD"
+  },
+  "shearStrength": {
+    "method": "meanEmpirical",
+    "coefficient": 0.068,
+    "ptExponent": 0.23,
+    "offset": 18.0,
+    "spanOffset": 0.12,
+    "spanRange": [1.0, 3.0],
+    "bars": 0.85,
+    "axial": 0.1,
+    "pwMax": 0.012,
+    "beam": 0.9,
+    "column": 0.8,
+    "axialShare": 0.5,
+    "yieldFactor": 1.1
+  },
+  "sources": {
+    "capacityDrift": "The law asks Qu at the mechanism (the collapse mechanism of an incremental analysis); SAEngine reads it at a storey drift of 1/100 or the largest shear before (SAEngine practice, as the brief of the track: raise or lower it under Code Values)",
+    "ds": "MOC Notification 1792 Art. 3 (steel: the columns' and beams' rank FA-FD with the braces' share βu: 0.25-0.50) and Art. 4 (RC: the frames' rank FA-FD with the walls' share βu: 0.30-0.55), the bands βu <= 0.3, <= 0.7, above; one rank for the frames and the walls or braces (the worse of the two in the law: SAEngine takes the frames' worst member rank)",
+    "systems": "SAEngine practice: βu of each system (frames 0, frames with walls or braces 0.5, wall structures 1.0, braced frames 0.8); the law takes βu from the horizontal capacity the walls or braces carry: enter it under Code Values",
+    "defaultRank": "SAEngine practice: rank FD (the largest Ds) where the design run gives no member ranks",
+    "shapeFactors": "MOC Notification 1792 Art. 5: Fs = 1.0 (Rs >= 0.6), 2.0 - Rs/0.6 (Rs < 0.6); Fe = 1.0 (Re <= 0.15), linear to 1.5 at Re = 0.45, 1.5 beyond; BSL EO Art. 82-6: Rs >= 0.6, Re <= 0.15 for the buildings of route 2",
+    "memberRanks": "MOC Notification 1792 Art. 4 (RC columns: h0/D at least 2.5 / 2.0, σ0/Fc at most 0.35 / 0.45 / 0.55, pt at most 0.8 / 1.0 %, τu/Fc at most 0.1 / 0.125 / 0.15 for FA / FB / FC; beams τu/Fc at most 0.15 / 0.2 for FA / FB; a member failing in shear FD) and Art. 3 (steel width-thickness ratios × √(235/F): H columns flange 9.5 / 12 / 15.5, web 43 / 45 / 48; box columns 33 / 37 / 48; pipes 50 / 70 / 100 × 235/F; H beams flange 9 / 11 / 15.5, web 60 / 65 / 71)",
+    "shearStrength": "The mean shear strength (Arakawa mean form of the AIJ and BSL commentary): Qsu = {0.068 pt^0.23 (Fc + 18) / (M/(Q d) + 0.12) + 0.85 √(pw σwy) + 0.1 σ0} b j, 1 <= M/(Q d) <= 3, pw <= 1.2 %; the flexural strengths Mu = 0.9 at σy d (beams), 0.8 at σy D + 0.5 N D (1 - N/(b D Fc)) (columns), σy = 1.1 F (the bars' strength in the ultimate calculation of MLIT Notification 2464)"
+  },
+  "clauses": {
+    "required": "Art. 82-3, N1792",
+    "ranks": "N1792 Art. 4",
+    "steelRanks": "N1792 Art. 3",
+    "shape": "Art. 82-6, N1792 Art. 5"
+  }
+}

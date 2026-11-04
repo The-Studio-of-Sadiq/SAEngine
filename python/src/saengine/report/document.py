@@ -829,6 +829,7 @@ def _pushover_blocks(pushovers: list[dict[str, Any]]) -> list[Block]:
     for push in pushovers:
         if not push.get("available"):
             out.append(p(f"{push['label']}: no target displacement ({push.get('reason', '')})."))
+            out += _capacity_blocks(push)  # Alpha 9 C19
             continue
         out += full(
             p(f"{push['label']}: target displacement of the control point at the roof."),
@@ -889,8 +890,60 @@ def _pushover_blocks(pushovers: list[dict[str, Any]]) -> list[Block]:
                     bad=push.get("acceptanceFails"),
                 )
             )
+        out += _capacity_blocks(push)  # Alpha 9 C19
         if push.get("notes"):
             out.append(bullets([str(n) for n in push["notes"]], 8.5))
+    return out
+
+
+def _shape_ratio_blocks(found: dict[str, Any] | None) -> list[Block]:
+    """Alpha 9 C19: the stiffness and eccentricity ratios of the primary design."""
+    if not found or not found.get("rows"):
+        return []
+    return [
+        h(2, "Stiffness and eccentricity ratios"),
+        p(str(found.get("text", ""))),
+        table(
+            ["Storey", "Dir", "Drift", "Rs", "Re", "Fs", "Fe", "Result"],
+            found["rows"],
+            ["1fr"] + ["auto"] * 7,
+            "lcrrrrrc",
+            bad=found.get("fails"),
+        ),
+        bullets([str(n) for n in found.get("notes") or []], 8.5),
+    ]
+
+
+def _capacity_blocks(push: dict[str, Any]) -> list[Block]:
+    """Alpha 9 C19: the storeys' horizontal capacity Qu against Qun = Ds Fes Qud of a pushover,
+    with the stiffness and eccentricity ratios behind Fs and Fe."""
+    out: list[Block] = []
+    if push.get("capacityText"):
+        out.append(p(str(push["capacityText"])))
+    if push.get("capacity"):
+        out.append(
+            table(
+                [
+                    "Storey", "Dir", "ΣW [kN]", "Ai", "Qud [kN]", "Ds", "Fs", "Fe",
+                    "Qun [kN]", "Qu [kN]", "Qu/Qun", "Result",
+                ],
+                push["capacity"],
+                ["1fr"] + ["auto"] * 11,
+                "lcrrrrrrrrrc",
+                bad=push.get("capacityFails"),
+            )
+        )  # fmt: skip
+    if push.get("capacityShape"):
+        out.append(
+            table(
+                ["Storey", "Dir", "Drift", "Rs", "Re", "Fs", "Fe"],
+                push["capacityShape"],
+                ["1fr"] + ["auto"] * 6,
+                "lcrrrrr",
+            )
+        )
+    if push.get("capacityNotes"):
+        out.append(bullets([str(n) for n in push["capacityNotes"]], 8.5))
     return out
 
 
@@ -930,15 +983,51 @@ def _nonlinear_history_blocks(nh: dict[str, Any]) -> list[Block]:
                 bad=nh.get("driftFails"),
             )
         )
-    out.append(p(str(nh.get("membersText", ""))))
-    if nh.get("members"):
+    if nh.get("records"):  # P5: the records of the suites
         out.append(
             table(
-                ["Member", "Suite", "End", "Fibre", "Strain [‰]", "Limit [‰]", "Ratio", "Result"],
+                ["Record", "Suite", "Mw", "R [km]", "Vs30 [m/s]", "PGA [g]", "Matching", "Source"],
+                nh["records"],
+                ["1fr"] + ["auto"] * 6 + ["1fr"],
+                "llrrrrll",
+            )
+        )
+    out.append(p(str(nh.get("membersText", ""))))
+    if nh.get("members"):
+        heads = (
+            ["Member", "Suite", "End", "Hinge", "Demand", "Limit", "Ratio", "Result"]
+            if nh.get("hinged")
+            else ["Member", "Suite", "End", "Fibre", "Strain [‰]", "Limit [‰]", "Ratio", "Result"]
+        )
+        out.append(
+            table(
+                heads,
                 nh["members"],
                 ["1fr"] + ["auto"] * 7,
                 "llllrrrc",
                 bad=nh.get("memberFails"),
+            )
+        )
+    if nh.get("forces"):  # P5: force-controlled actions
+        out.append(p(str(nh.get("forcesText", ""))))
+        out.append(
+            table(
+                [
+                    "Member",
+                    "Action",
+                    "Class",
+                    "Suite",
+                    "Fu [kN]",
+                    "Fg [kN]",
+                    "Demand [kN]",
+                    "Strength [kN]",
+                    "Ratio",
+                    "Result",
+                ],
+                nh["forces"],
+                ["1fr"] + ["auto"] * 9,
+                "lllrrrrrrc",
+                bad=nh.get("forceFails"),
             )
         )
     if nh.get("notes"):
@@ -1292,6 +1381,7 @@ def _results(data: dict[str, Any], ctx: Context) -> dict[str, Any]:
     out += _irregularity_blocks(results.get("irregularity") or {})
     out += _nonstructural_blocks(results.get("nonstructural") or {})
     out += _isolation_blocks(results.get("isolation"))  # B37
+    out += _shape_ratio_blocks(results.get("shapeRatios"))  # Alpha 9 C19
     out += _pushover_blocks(results.get("pushover") or [])
     out += _nonlinear_history_blocks(results.get("nonlinearHistory") or {})
     out += _column_shortening_blocks(results.get("columnShortening") or {})

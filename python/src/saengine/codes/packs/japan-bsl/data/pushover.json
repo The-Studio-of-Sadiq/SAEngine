@@ -1,0 +1,23 @@
+{
+  "$schema": "../../../schemas/pushover.schema.json",
+  "$sources": [
+    "BSL Enforcement Order Art. 82-3 (the horizontal capacity by an incremental analysis) with the parent's target displacement (ASCE 41-17)"
+  ],
+  "procedure": {
+    "loadPattern": "seismic",
+    "source": "BSL Enforcement Order Art. 82-3 (the incremental analysis under the Ai-distributed seismic forces: SAEngine practice for the load pattern)",
+    "note": "The pushover takes the equivalent static seismic forces (Ai distribution) as its pattern; the storeys' Qu for the horizontal capacity check are read from it (horizontalCapacity). The target displacement, the hinges and the member acceptance stay the parent's ASCE 41-17 methods (not the law's), with the spectrum at the ultimate level Z Rt C0 = 1.0."
+  },
+  "targetDisplacement": {
+    "spectrumR": 0.2,
+    "spectrumImportance": 1.0,
+    "coefficients": {
+      "siteFactors": {"S1": 90, "S2": 60, "S3": 60}
+    },
+    "hazards": [
+      {"id": "ultimate", "label": "Ultimate level (C0 = 1.0)", "spectrumScale": 1.0, "level": "LS"}
+    ],
+    "source": "The parent's ASCE 41-17 displacement coefficient method on the pack's spectrum Z Rt C0 with C0 = 0.2 / R, R = 0.2: the ultimate level C0 = 1.0 (SAEngine practice)",
+    "note": "The law has no target displacement: SAEngine reads Sa at the ultimate standard shear coefficient (R = 0.2 on C0 = 0.2). The site factor a of C1 (ASCE 41 Table 7-3) is taken 90 for soil type 1 and 60 for types 2 and 3 (SAEngine practice)."
+  }
+}

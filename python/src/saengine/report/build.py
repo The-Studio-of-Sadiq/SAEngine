@@ -1789,6 +1789,8 @@ def _results(
     out["secondOrder"] = _second_order(model, results_dir, settings, parts)
     # B20: the pushovers' target displacement and member acceptance.
     out["pushover"] = _pushover(model_path.parent, warnings)
+    # Alpha 9 C19: the stiffness and eccentricity ratios of the primary design (Rs, Re).
+    out["shapeRatios"] = _shape_ratios(model, model_path, results_dir, warnings)
     # B25: the column shortening with creep and shrinkage.
     out["columnShortening"] = _column_shortening(model_path, results_dir, warnings)
     # B36: the nonlinear time histories: suites, storey drift, member acceptance.
@@ -1846,18 +1848,68 @@ def _nonlinear_history(folder: Path, warnings: list[str]) -> dict[str, Any]:
     ]
     accepted = found["acceptance"]
     rows = accepted["rows"]
-    members = [
+    hinged = accepted.get("method") == "hingeRotation"  # P5: P3's hinges over the records
+    if hinged:
+        members = [
+            [
+                r["member"],
+                r["suite"],
+                r["end"],
+                str(r.get("component", "")),
+                f"{r['demand']:.4f}",
+                f"{(r.get('limits') or {}).get(accepted.get('level') or '', 0.0) or 0.0:.4f}",
+                fmt(r["ratio"], 2),
+                "OK" if r["ok"] else "FAIL",
+            ]
+            for r in rows[:MAX_PUSHOVER_MEMBERS]
+        ]
+    else:
+        members = [
+            [
+                r["member"],
+                r["suite"],
+                r["end"],
+                r["fibre"],
+                f"{1e3 * r['strain']:.2f}",
+                f"{1e3 * r['limit']:.2f}",
+                fmt(r["ratio"], 2),
+                "OK" if r["ok"] else "FAIL",
+            ]
+            for r in rows[:MAX_PUSHOVER_MEMBERS]
+        ]
+    # P5: the records of the suites (metadata, PGA, matching) and the force-controlled actions.
+    records = []
+    for s in found["suites"]:
+        for c in s.get("cases", []):
+            matching = c.get("matching") or []
+            records.append(
+                [
+                    str(c.get("name", "")).removeprefix("NTH: "),
+                    s["key"],
+                    fmt(c.get("magnitude"), 1) if c.get("magnitude") is not None else "-",
+                    fmt(c.get("distance"), 1) if c.get("distance") is not None else "-",
+                    fmt(c.get("vs30"), 0) if c.get("vs30") is not None else "-",
+                    " / ".join(f"{v:.3f}" for v in c.get("pga") or []) or "-",
+                    " / ".join(f"{100 * float(m.get('misfit') or 0):.0f} %" for m in matching)
+                    or "scaled",
+                    str(c.get("source", "")) or "-",
+                ]
+            )
+    forced = found.get("forceControlled") or {}
+    force_rows = [
         [
             r["member"],
+            r["action"],
+            r["category"],
             r["suite"],
-            r["end"],
-            r["fibre"],
-            f"{1e3 * r['strain']:.2f}",
-            f"{1e3 * r['limit']:.2f}",
-            fmt(r["ratio"], 2),
-            "OK" if r["ok"] else "FAIL",
+            f"{r['Fu']:.0f}",
+            f"{r['Fg']:.0f}",
+            f"{r['demand']:.0f}",
+            f"{r['capacity']:.0f}" if r.get("capacity") else "-",
+            fmt(r["ratio"], 2) if r.get("ratio") is not None else "-",
+            "-" if r.get("ok") is None else "OK" if r["ok"] else "FAIL",
         ]
-        for r in rows[:MAX_PUSHOVER_MEMBERS]
+        for r in (forced.get("rows") or [])[:MAX_PUSHOVER_MEMBERS]
     ]
     limit = found["limit"]
     if not found.get("ok"):
@@ -1877,6 +1929,17 @@ def _nonlinear_history(folder: Path, warnings: list[str]) -> dict[str, Any]:
         ),
         "members": members,
         "memberFails": [row[-1] == "FAIL" for row in members],
+        "hinged": hinged,
+        "records": records,
+        "forces": force_rows,
+        "forceFails": [row[-1] == "FAIL" for row in force_rows],
+        "forcesText": (
+            f"Force-controlled actions: γ·(Fu − Fg) + Fg against the member design strength; "
+            f"{forced.get('failed', 0)} of {len(forced.get('rows') or [])} fail "
+            f"({forced.get('clause', '')})."
+            if forced
+            else ""
+        ),
         "membersText": (
             f"{accepted['failed']} of {len(rows)} members fail; the "
             f"{min(len(rows), MAX_PUSHOVER_MEMBERS)} with the largest ratios are listed "
@@ -1992,6 +2055,57 @@ def _column_shortening(model_path: Path, results_dir: Path, warnings: list[str])
     return out
 
 
+def _shape_ratios(
+    model: dict[str, Any], model_path: Path, results_dir: Path, warnings: list[str]
+) -> dict[str, Any] | None:
+    """Alpha 9 C19: Rs >= rsLimit and Re <= reLimit of every storey and direction under the
+    pack's ``horizontalCapacity`` (:func:`saengine.fem.horizontal_capacity.
+    stiffness_eccentricity`), as report rows; None without the table."""
+    from saengine.fem import horizontal_capacity
+
+    rule = horizontal_capacity.table()
+    if rule is None:
+        return None
+    try:
+        found = horizontal_capacity.stiffness_eccentricity(model, results_dir, model_path)
+    except Exception as error:  # noqa: BLE001 - the report goes on without them
+        warnings.append(f"The stiffness and eccentricity ratios could not be worked out: {error}")
+        return None
+    limits = rule.shapeFactors
+    rows, fails = [], []
+    for r in reversed(found["rows"]):
+        ok = bool(r["rsOk"] and r["reOk"])
+        rows.append(
+            [
+                r["storey"],
+                r["direction"],
+                f"1/{fmt(1 / r['drift'], 0)}" if r.get("drift") else "-",
+                fmt(r["Rs"], 2) if r.get("Rs") is not None else "-",
+                fmt(r["Re"], 3) if r.get("Re") is not None else "-",
+                fmt(r["Fs"], 2),
+                fmt(r["Fe"], 2),
+                "OK" if ok else "FAIL",
+            ]
+        )
+        fails.append(not ok)
+    if any(fails):
+        warnings.append(
+            f"Primary design: {sum(fails)} storeys have a stiffness ratio Rs below "
+            f"{fmt(limits.rsLimit, 2)} or an eccentricity ratio Re above {fmt(limits.reLimit, 2)}."
+        )
+    clause = code_context.cite("horizontalCapacity", "shape") or rule.source
+    return {
+        "rows": rows,
+        "fails": fails,
+        "text": (
+            f"Stiffness ratio Rs at least {fmt(limits.rsLimit, 2)} and eccentricity ratio Re at "
+            f"most {fmt(limits.reLimit, 2)} ({clause}); Fs and Fe enter the required horizontal "
+            "capacity."
+        ),
+        "notes": found["notes"],
+    }
+
+
 def _pushover(folder: Path, warnings: list[str]) -> list[dict[str, Any]]:
     """B20: per pushover of ``08 FEM/pushover.osmodel`` (when it has been run) its target
     displacement and member acceptance (:func:`saengine.fem.acceptance.pushover_results`), as
@@ -2012,6 +2126,8 @@ def _pushover(folder: Path, warnings: list[str]) -> list[dict[str, Any]]:
         section: dict[str, Any] = {"label": item["label"], "available": target.get("available")}
         if not target.get("available"):
             section["reason"] = str(target.get("reason", ""))
+            if item.get("capacity") is not None:  # Alpha 9 C19: without a target too
+                section.update(_capacity_rows(item["capacity"], item["label"], warnings))
             sections.append(section)
             continue
         clauses = target.get("clauses", {})
@@ -2057,6 +2173,9 @@ def _pushover(folder: Path, warnings: list[str]) -> list[dict[str, Any]]:
             ]
         section["ok"] = bool(target.get("ok"))
         section["notes"] = [*target.get("notes", []), target.get("note", "")]
+        capacity = item.get("capacity")
+        if capacity is not None:  # Alpha 9 C19: the storeys' Qu >= Qun = Ds Fes Qud
+            section.update(_capacity_rows(capacity, item["label"], warnings))
         if accepted.get("available") and accepted.get("method") == "hingeRotation":
             section.update(_pushover_hinges(accepted, item["label"], warnings))
             section["notes"] += [*accepted.get("notes", []), accepted.get("note", "")]
@@ -2096,6 +2215,62 @@ def _pushover(folder: Path, warnings: list[str]) -> list[dict[str, Any]]:
         section["notes"] = [n for n in section["notes"] if n]
         sections.append(section)
     return sections
+
+
+def _capacity_rows(capacity: dict[str, Any], label: str, warnings: list[str]) -> dict[str, Any]:
+    """Alpha 9 C19: the report rows of the storeys' horizontal capacity check
+    (:func:`saengine.fem.horizontal_capacity.evaluate`) of one pushover."""
+    if not capacity.get("available"):
+        return {"capacityText": f"No horizontal capacity check: {capacity.get('reason', '')}."}
+    rows = [
+        [
+            r["storey"],
+            r["direction"],
+            fmt(r["weight_kN"], 0),
+            fmt(r["Ai"], 3),
+            fmt(r["Qud_kN"], 0),
+            fmt(r["Ds"], 2),
+            fmt(r["Fs"], 2),
+            fmt(r["Fe"], 2),
+            fmt(r["Qun_kN"], 0),
+            fmt(r["Qu_kN"], 0),
+            fmt(r["ratio"], 2) if r["ratio"] is not None else "-",
+            "OK" if r["ok"] else "FAIL",
+        ]
+        for r in reversed(capacity["rows"])
+    ]
+    shape = [
+        [
+            r["storey"],
+            r["direction"],
+            f"1/{fmt(1 / r['drift'], 0)}" if r.get("drift") else "-",
+            fmt(r["Rs"], 2) if r.get("Rs") is not None else "-",
+            fmt(r["Re"], 3) if r.get("Re") is not None else "-",
+            fmt(r["Fs"], 2),
+            fmt(r["Fe"], 2),
+        ]
+        for r in reversed(capacity.get("shape") or [])
+    ]
+    failed = [r for r in capacity["rows"] if not r["ok"]]
+    if failed:
+        warnings.append(
+            f"Pushover {label}: {len(failed)} storeys have a horizontal capacity Qu below the "
+            "required Qun = Ds Fes Qud."
+        )
+    text = (
+        f"Horizontal capacity in {capacity['direction']} ({capacity['clause']}): Qu of each "
+        f"storey at a storey drift of {fmt(capacity['capacityDrift'], 4)}"
+        + ("" if capacity["reached"] else " (not reached: the largest base shear)")
+        + f"; Ds = {fmt(capacity['Ds'], 2)} ({capacity['material']}, member rank "
+        f"{capacity['rank']}, βu = {fmt(capacity['betaU'], 2)})."
+    )
+    return {
+        "capacity": rows,
+        "capacityFails": [not r["ok"] for r in reversed(capacity["rows"])],
+        "capacityShape": shape,
+        "capacityText": text,
+        "capacityNotes": list(capacity.get("notes") or []),
+    }
 
 
 def _pushover_target_rows(target: dict[str, Any], yes: dict[Any, str]) -> list[list[str]]:

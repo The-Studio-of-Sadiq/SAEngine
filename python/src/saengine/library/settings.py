@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import functools
 from dataclasses import dataclass
+from dataclasses import field as dataclass_field
 from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, WithJsonSchema, model_validator
@@ -1161,6 +1162,25 @@ class NonlinearHistory(_Model):
         description="Damping ratio of the first mode [-], in proportion to the committed "
         "stiffness. Empty: each time history's own.",
     )
+    dampingModel: Literal["pack", "mode1Stiffness", "rayleigh"] = Field(
+        default="pack",
+        title="Damping model",
+        description="By the code pack: its damping for the nonlinear runs (the ratio above "
+        "still wins when given). First mode, stiffness: the ratio on the first mode in "
+        "proportion to the committed stiffness. Rayleigh: in proportion to the mass and the "
+        "committed stiffness, the ratio at the first mode and at the code pack's second period "
+        "(a fifth of the first when the pack gives none).",
+        json_schema_extra=_labels(
+            ["By the code pack", "First mode, stiffness proportional", "Rayleigh"]
+        ),
+    )
+    checkHinges: bool = Field(
+        default=True,
+        title="Hinges",
+        description="Where the code pack checks the members by hinges (its pushover hinges), "
+        "the runs keep the end sections' deformations so that each hinge's peak over the "
+        "record is read (a larger results file).",
+    )
 
 
 class TimeHistory(_Model):
@@ -1172,7 +1192,8 @@ class TimeHistory(_Model):
         title="Record file",
         description="Acceleration record in the project folder, e.g. "
         "'02 Project Settings/records/ElCentro.AT2': PEER .AT2, two columns (time, "
-        "acceleration) or one value per line.",
+        "acceleration; spaces or commas, a CSV file may start with a header line) or one value "
+        "per line. SAEngine bundles no third-party records: use records whose terms allow it.",
     )
     units: Literal["g", "m/s2"] = Field(
         default="g",
@@ -1209,6 +1230,29 @@ class TimeHistory(_Model):
         "factor above. Automatic: Code when the earthquake design uses the time histories, "
         "Manual otherwise.",
         json_schema_extra=_labels(["Automatic", "To the code spectrum", "Manual factor"]),
+    )
+    # ── P5: the record's metadata (shown with the suite, not used in the analysis) ──
+    magnitude: float | None = Field(
+        default=None, gt=0, le=10, title="Magnitude Mw", description="Moment magnitude."
+    )
+    distance: float | None = Field(
+        default=None,
+        ge=0,
+        title="Distance R",
+        description="Source-to-site distance [km] (as the record's database gives it, e.g. "
+        "the rupture distance).",
+    )
+    vs30: float | None = Field(
+        default=None,
+        gt=0,
+        title="Vs30",
+        description="Time-averaged shear-wave velocity of the top 30 m at the station [m/s].",
+    )
+    source: str = Field(
+        default="",
+        title="Source and licence",
+        description="Where the record comes from and under which terms it may be used (e.g. "
+        "the database and its record number).",
     )
 
 
@@ -2012,6 +2056,25 @@ class Analysis(_Model):
         "factor on every record as recorded.",
         json_schema_extra=_labels(["Fitted, then one factor", "One factor"]),
     )
+    timeHistoryModification: Literal["pack", "amplitude", "matching"] = Field(
+        default="pack",
+        title="Time history: modification",
+        description="How the records scaled to the code spectrum are brought to it. By the "
+        "code pack: its choice for each procedure (linear, nonlinear). Amplitude scaling: one "
+        "factor per record (or pair) over the period range. Spectral matching: each record "
+        "adjusted until its spectrum matches the target over the range (the code pack's "
+        "matching method and its criterion for matched records), written to 08 FEM/matched-"
+        "records.",
+        json_schema_extra=_labels(["By the code pack", "Amplitude scaling", "Spectral matching"]),
+    )
+    timeHistoryMatching: Literal["pack", "frequencyDomain"] = Field(
+        default="pack",
+        title="Time history: matching method",
+        description="The spectral matching method: the code pack's, or matching in the "
+        "frequency domain (the Fourier amplitudes adjusted by the ratio of the target to the "
+        "record's spectrum, with a baseline correction).",
+        json_schema_extra=_labels(["By the code pack", "Frequency domain"]),
+    )
     seismicOrthogonal: Literal["auto", "always", "never"] = Field(
         default="auto",
         title="Orthogonal effects",
@@ -2279,11 +2342,17 @@ class SeismicWeightRule:
     heavy_share: float | None
     user_live_share: float | None
     partitions: PartitionWeight
+    #: Alpha 9 C19 (seismic liveWeight "byUse"): the share in W of each area use's live load,
+    #: its seismicLive over its live load (areaLoads); empty: by the shares above.
+    use_shares: dict[str, float] = dataclass_field(default_factory=dict)
 
-    def live(self, kpa: float | None = None) -> float:
-        """The share of a live load of ``kpa`` [kN/m²] in W (unknown: the light-load share)."""
+    def live(self, kpa: float | None = None, use: str | None = None) -> float:
+        """The share of a live load of ``kpa`` [kN/m²] in W (unknown: the light-load share);
+        ``use``: the area use it is of, for a pack that counts each use's own share."""
         if self.user_live_share is not None:
             return float(self.user_live_share)
+        if use is not None and use in self.use_shares:
+            return float(self.use_shares[use])
         if (
             kpa is not None
             and self.heavy_limit is not None
@@ -2293,20 +2362,20 @@ class SeismicWeightRule:
             return max(self.live_share, self.heavy_share)
         return self.live_share
 
-    def area(self, live: float, partitions: float) -> tuple[float, float]:
+    def area(self, live: float, partitions: float, use: str | None = None) -> tuple[float, float]:
         """(share of the live load, share of the partition allowance) in W of a floor area of
-        ``live`` and ``partitions`` [kN/m²]."""
+        ``live`` and ``partitions`` [kN/m²] (of area use ``use``, where known)."""
         rule = self.partitions
         if rule.separate:
-            return self.live(live), rule.share()
+            return self.live(live, use), rule.share()
         if rule.case == "L":
-            both = self.live(live + partitions)
+            both = self.live(live + partitions, use)
             return both, both
-        return self.live(live), 1.0
+        return self.live(live, use), 1.0
 
-    def weight(self, live: float, partitions: float) -> float:
+    def weight(self, live: float, partitions: float, use: str | None = None) -> float:
         """The live load and partition allowance [kN/m²] that count in W."""
-        a, b = self.area(live, partitions)
+        a, b = self.area(live, partitions, use)
         return a * live + b * partitions
 
 
@@ -2361,12 +2430,19 @@ def seismic_weight_rule(
     heavy_share = getattr(table, "heavyLiveShare", None)
     heavy_limit = getattr(table, "heavyLiveLimit", None) if heavy_share is not None else None
     user = _field(_mass_source(settings), "liveShare", None)
+    # Alpha 9 C19: each use's seismicLive / live where the pack counts W by use.
+    use_shares: dict[str, float] = {}
+    if getattr(table, "liveWeight", "share") == "byUse" and pack.has("areaLoads"):
+        for use_id, row in pack.table("areaLoads").uses.items():
+            if row.seismicLive is not None and row.live:
+                use_shares[use_id] = min(float(row.seismicLive) / float(row.live), 1.0)
     return SeismicWeightRule(
         live_share=float(table.liveShare),
         heavy_limit=None if heavy_limit is None else float(heavy_limit),
         heavy_share=None if heavy_share is None else float(heavy_share),
         user_live_share=None if user is None else float(user),
         partitions=partition_weight_basis(settings, pack),
+        use_shares=use_shares,
     )
 
 

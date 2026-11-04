@@ -22,8 +22,8 @@ export const FemPlanned = {
 	/** T22: existing RC buildings. */
 	existingAssessment: 'fem.existingAssessment',
 	retrofit: 'fem.retrofit',
-	/** T35 / B36: what stays planned of the time histories: record search and spectral matching (the nonlinear time history is built). */
-	recordScaling: 'fem.recordScaling',
+	/** T35 / B36 / P5: what stays planned of the time histories: searching open record databases and time-domain wavelet matching (scaling, frequency-domain matching and the NLTH design are built). */
+	recordSearch: 'fem.recordSearch',
 	/** T36: dampers (seismic isolators are built: B37). */
 	dampers: 'fem.dampers',
 	/** T14: cracked long-term FE deflection of slabs, and crack widths. */
