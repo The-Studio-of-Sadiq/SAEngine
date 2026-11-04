@@ -569,3 +569,21 @@ length along the bar's centre line (SAEngine practice), with the mandrel diamete
 | P1E4 | excavationSupport.anchors.proofFactor | 1.25 × working (temporary and permanent) | EN 1537 / EN ISO 22477-5 acceptance test | Unsure |
 | P1E5 | excavationSupport.heave.pipingFactor | 1.5 = γG,dst 1.35 / γG,stb 0.9 | EN 1997-1 2.4.7.5 (HYD) | Check |
 | P1E6 | excavationSupport (rest) | as bnbc2020 ES1-ES31 | SAEngine practice | see bnbc2020 |
+
+## Alpha 9 P2: creep, shrinkage and column shortening (concreteTime)
+
+| # | Path | Value | Clause | Confidence |
+| --- | --- | --- | --- | --- |
+| P2E1 | concreteTime.creep (method en1992AnnexB) | φ = φ0 βc(t, t0), φ0 = φRH β(fcm) β(t0); φRH with α1, α2 above fcm 35 MPa; β(fcm) = 16.8/√fcm; β(t0) = 1/(0.1 + t0^0.2); βc = ((t - t0)/(βH + t - t0))^0.3; βH = 1.5(1 + (0.012 RH)^18) h0 + 250 α3 ≤ 1500 α3 | EN 1992-1-1 Annex B Eqs B.1-B.8 | sure |
+| P2E2 | concreteTime.creep.cementExponent | α = -1 (S), 0 (N), 1 (R) in t0 = t0,T (9/(2 + t0,T^1.2) + 1)^α ≥ 0.5 | Annex B Eq B.9 | sure |
+| P2E3 | concreteTime.creep.tangentFactor | Ec = 1.05 Ecm | Sec 3.1.4(2) | sure |
+| P2E4 | concreteTime.creep.fcmMargin, shrinkage.fcmMargin | fcm = fck + 8 MPa | Table 3.1 | sure |
+| P2E5 | concreteTime.shrinkage.alphaDs1, alphaDs2 | 3/4/6 and 0.13/0.12/0.11 (S/N/R) | Annex B Eq B.11 | sure |
+| P2E6 | concreteTime.shrinkage (εcd,0) | 0.85 ((220 + 110 αds1) exp(-αds2 fcm/10)) 10⁻⁶ βRH, βRH = 1.55 (1 - (RH/100)³) | Annex B Eqs B.11-B.12 | sure |
+| P2E7 | concreteTime.shrinkage.kh | 1.0, 0.85, 0.75, 0.70 at h0 100, 200, 300, ≥ 500 mm | Table 3.3 | sure |
+| P2E8 | concreteTime.shrinkage (βds, εca) | βds = (t - ts)/((t - ts) + 0.04 √h0³); εca(∞) = 2.5 (fck - 10) 10⁻⁶, βas = 1 - exp(-0.2 √t) | Eqs 3.10-3.13 | sure |
+| P2E9 | concreteTime.strengthGain.s | s = 0.25 (class N) | Sec 3.1.2(6) Eq 3.2 | sure |
+| P2E10 | concreteTime.exposure | inside 50 %, outside 80 % | Figure 3.1 | sure |
+| P2E11 | concreteTime.ageing.chi | χ = 0.8 | not in EN 1992-1-1 | SAEngine practice |
+| P2E12 | combinations.creepShrinkage | 1.35G + 1.0CS + 1.5Q + 0.75S | EN 1992-1-1 2.4.2.1(1) γSH = 1.0, with EN 1990 Eq 6.10 | unsure (1.0 on the creep part too is SAEngine practice) |
+| P2E13 | concreteTime.creep.cementClass, shrinkage.cementClass | N by default | SAEngine practice | practice |

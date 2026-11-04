@@ -242,10 +242,10 @@ registerWorkbenchContribution2(FemModelEditorResolverContribution.ID, FemModelEd
 // Analyses and designs that need a guide beyond BNBC 2020: shown, not computed, in this MVP.
 // Remove a registration in the PR that builds its feature.
 
-// T17 / B25: the construction sequence's staged dead load and the column shortening with the code
-// pack's creep and shrinkage (fem/staged.py, fem/concrete_time.py) are built. Still planned: the
-// construction loads and shoring of the partly built structure, the creep and shrinkage forces as a
-// load case of the combinations, and the shortening of shell walls and cores.
+// T17 / B25 / P2: the construction sequence's staged dead load, the column and wall shortening with
+// the code pack's creep and shrinkage models and the creep and shrinkage forces case CS
+// (fem/staged.py, fem/concrete_time.py) are built. Still planned: the construction loads and
+// shoring of the partly built structure.
 registerPlannedFeature({
 	id: FemPlanned.stagedConstructionLoads,
 	part: 'fem',
@@ -267,39 +267,6 @@ registerPlannedFeature({
 	references: [
 		localize('planned.stagedLoads.ref1', "The code pack requires erection and construction loads to be considered but gives no values"),
 		localize('planned.stagedLoads.ref2', "ACI 347.2R (shoring and reshoring of multistorey buildings)"),
-	],
-});
-registerPlannedFeature({
-	id: FemPlanned.creepShrinkageForces,
-	part: 'fem',
-	title: localize('planned.creepForces.title', "Creep and Shrinkage Forces"),
-	summary: localize('planned.creepForces.summary', "Turns the differential shortening into a load case of imposed strains, analysed with the long-term (age-adjusted) moduli, so that the forces it causes in the beams and slabs enter the design combinations as a self-straining action. Today the column shortening gives each beam's differential shortening and an indicative fixed-end moment."),
-	steps: [
-		localize('planned.creepForces.step1', "Work out the column shortening after each floor is cast (built)."),
-		localize('planned.creepForces.step2', "Apply it as imposed strains with the age-adjusted effective moduli."),
-		localize('planned.creepForces.step3', "Add the case to the combinations with the self-straining factor."),
-	],
-	outputs: [
-		localize('planned.creepForces.out1', "Creep and shrinkage forces in the members"),
-		localize('planned.creepForces.out2', "The self-straining case in the design combinations"),
-	],
-	references: [
-		localize('planned.creepForces.ref1', "Age-adjusted effective modulus method (Bazant 1972)"),
-	],
-});
-registerPlannedFeature({
-	id: FemPlanned.wallShortening,
-	part: 'fem',
-	title: localize('planned.wallShortening.title', "Wall and Core Shortening"),
-	summary: localize('planned.wallShortening.summary', "Extends the column shortening to the shell walls and cores, storey by storey from their membrane forces, with their own effective thickness, and compares them with the columns next to them. Today the column shortening covers the frame columns."),
-	steps: [
-		localize('planned.wallShortening.step1', "Sum each wall's vertical membrane force per storey from the staged results."),
-		localize('planned.wallShortening.step2', "Work out its elastic, creep and shrinkage shortening by the code pack's model."),
-		localize('planned.wallShortening.step3', "Compare it with the neighbouring columns."),
-	],
-	outputs: [
-		localize('planned.wallShortening.out1', "Shortening per wall and storey"),
-		localize('planned.wallShortening.out2', "Differential shortening between walls and columns"),
 	],
 });
 

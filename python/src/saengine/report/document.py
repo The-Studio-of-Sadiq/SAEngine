@@ -978,6 +978,55 @@ def _column_shortening_blocks(cs: dict[str, Any]) -> list[Block]:
                 "llrrr",
             )
         )
+    # Alpha 9 P2: the models, adjacent members, the pre-sets and the forces case CS.
+    if cs.get("model"):
+        out.append(p(str(cs["model"])))
+    if cs.get("pairs"):
+        out.append(
+            table(
+                ["Line", "Neighbour", "Distance [m]", "Level", "Differential [mm]"],
+                cs["pairs"],
+                ["1fr", "1fr"] + ["auto"] * 3,
+                "llrlr",
+            )
+        )
+    if cs.get("camber"):
+        out.append(
+            table(
+                ["Line (top level)", "Level", "Cast higher by [mm]", "Relative [mm]"],
+                cs["camber"],
+                ["1fr"] + ["auto"] * 3,
+                "llrr",
+            )
+        )
+    induced = cs.get("induced") or {}
+    if induced.get("redistribution"):
+        out.append(h(3, "Creep and shrinkage forces (case CS)"))
+        if induced.get("relaxation"):
+            out.append(
+                p(
+                    "The creep and shrinkage strains after casting imposed stage by stage on the "
+                    "model, the forces relaxed by the age-adjusted effective modulus, "
+                    f"1 / (1 + χ φ̄) = {float(induced['relaxation']):.2f}."
+                )
+            )
+        out.append(
+            table(
+                ["Line", "Kind", "Compression change [kN]", "Of D + SD [%]"],
+                induced["redistribution"],
+                ["1fr"] + ["auto"] * 3,
+                "llrr",
+            )
+        )
+        if induced.get("beams"):
+            out.append(
+                table(
+                    ["Beam", "Level", "End moment [kN·m]"],
+                    induced["beams"],
+                    ["1fr"] + ["auto"] * 2,
+                    "llr",
+                )
+            )
     if cs.get("notes"):
         out.append(bullets(cs["notes"], 8.5))
     return out

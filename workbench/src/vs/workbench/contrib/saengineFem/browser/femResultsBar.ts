@@ -1507,7 +1507,7 @@ export class FemResultsBar extends Disposable {
 		} else if (entry.kind === 'history') {
 			this.appendPlanned(container, [FemPlanned.recordScaling]);
 		} else if (entry.kind === 'static' && entry.frames?.length) {
-			this.appendPlanned(container, [FemPlanned.stagedConstructionLoads, FemPlanned.creepShrinkageForces]);
+			this.appendPlanned(container, [FemPlanned.stagedConstructionLoads]);
 		}
 		if (!selection && !isDesignShow(this.show)) {
 			this.ssi.render(container);

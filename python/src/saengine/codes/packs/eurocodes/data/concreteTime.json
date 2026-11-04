@@ -1,0 +1,67 @@
+{
+  "$schema": "../../../schemas/concreteTime.schema.json",
+  "$sources": [
+    "EN 1992-1-1 Sec 3.1.2(6) Eq 3.2: strength at an age t",
+    "EN 1992-1-1 Sec 3.1.4 (Eqs 3.6, 3.8-3.13, Table 3.3, Figure 3.1) and Annex B (Eqs B.1-B.12): creep and shrinkage",
+    "EN 1992-1-1 Sec 2.3.2.2 and 2.4.2.1: creep and shrinkage in the analysis, γSH = 1.0"
+  ],
+  "source": "EN 1992-1-1 Sec 3.1.4 and Annex B",
+  "sources": {
+    "analysis": "EN 1992-1-1 Sec 2.3.2.2: creep and shrinkage taken into account where significant",
+    "phased": "EN 1992-1-1 Sec 3.1.4(2): the age at first loading of each storey (construction sequence: SAEngine practice)",
+    "effects": "EN 1992-1-1 Sec 2.4.2.1(1): the partial factor of shrinkage γSH = 1.0",
+    "creep": "EN 1992-1-1 Sec 3.1.4(3) Eq 3.6 and Annex B Eq B.1: εcc = φ(t, t0) σc / Ec, Ec = 1.05 Ecm",
+    "creepFigure": "EN 1992-1-1 Annex B Eqs B.2-B.5, B.8-B.9: φ0 = φRH β(fcm) β(t0), t0 adjusted for the cement class",
+    "creepDevelopment": "EN 1992-1-1 Annex B Eqs B.7-B.8: βc(t, t0) = ((t - t0) / (βH + t - t0))^0.3",
+    "thickness": "EN 1992-1-1 Sec 3.1.4(5): notional size h0 = 2Ac / u",
+    "shrinkage": "EN 1992-1-1 Sec 3.1.4(6) Eqs 3.8-3.13: εcs = εcd + εca",
+    "shrinkageFigure": "EN 1992-1-1 Annex B Eqs B.11-B.12 and Table 3.3: εcd,0 and kh",
+    "reinforced": "Age-adjusted effective modulus: the steel restrains the creep and shrinkage of the section (SAEngine practice)",
+    "modulus": "EN 1992-1-1 Eq 3.2: βcc(t) = exp(s (1 - √(28 / t))) and the pack's Ec rule at that strength"
+  },
+  "creep": {
+    "$replace": true,
+    "method": "en1992AnnexB",
+    "fcmMargin": 8,
+    "tangentFactor": 1.05,
+    "cementClass": "N",
+    "cementExponent": { "S": -1, "N": 0, "R": 1 },
+    "source": "EN 1992-1-1 Annex B Eqs B.1-B.9, Sec 3.1.4(3)",
+    "note": "fcm = fck + 8 MPa (Table 3.1). The cement class is N by default: override concreteTime.creep.cementClass (Project Settings > Code values). The temperature adjustment of the age (Eq B.10) is not applied (20 °C)."
+  },
+  "shrinkage": {
+    "$replace": true,
+    "method": "en1992AnnexB",
+    "fcmMargin": 8,
+    "cementClass": "N",
+    "alphaDs1": { "S": 3, "N": 4, "R": 6 },
+    "alphaDs2": { "S": 0.13, "N": 0.12, "R": 0.11 },
+    "kh": [[100, 1.0], [200, 0.85], [300, 0.75], [500, 0.70]],
+    "autogenous": true,
+    "source": "EN 1992-1-1 Sec 3.1.4(6) Eqs 3.8-3.13, Table 3.3, Annex B Eqs B.11-B.12",
+    "note": "kh is interpolated linearly between the h0 of Table 3.3 and held beyond 500 mm. The drying starts at the end of curing (ts); the autogenous shrinkage from casting."
+  },
+  "exposure": {
+    "indoor": { "relativeHumidity": 50, "reinforcement": "internal" },
+    "outdoor": { "relativeHumidity": 80, "reinforcement": "external" },
+    "source": "EN 1992-1-1 Figure 3.1: inside conditions RH = 50 %, outside conditions RH = 80 %"
+  },
+  "strengthGain": {
+    "$replace": true,
+    "method": "exponential",
+    "s": 0.25,
+    "capAt28": true,
+    "source": "EN 1992-1-1 Sec 3.1.2(6) Eq 3.2: s = 0.25 for cement class N (0.20 R, 0.38 S)",
+    "note": "The modulus at an age from the pack's Ec rule at that strength (EN 1992-1-1 Eq 3.5 takes (fcm(t) / fcm)^0.3: SAEngine practice). No gain beyond 28 days."
+  },
+  "ageing": {
+    "chi": 0.8,
+    "source": "SAEngine practice: the usual ageing coefficient of the age-adjusted effective modulus method",
+    "note": "EN 1992-1-1 does not give χ; 0.8 is the usual value for loads applied at once."
+  },
+  "analysis": {
+    "method": "ageAdjusted",
+    "source": "SAEngine practice",
+    "note": "The steel restrains the creep and shrinkage by the age-adjusted effective modulus."
+  }
+}

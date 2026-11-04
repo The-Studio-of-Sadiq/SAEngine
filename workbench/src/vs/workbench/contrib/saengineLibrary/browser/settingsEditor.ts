@@ -37,7 +37,7 @@ import { IEditorGroup } from '../../../services/editor/common/editorGroupsServic
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
 import { ILocaleService } from '../../../services/localization/common/locale.js';
-import { DEFAULT_CODE_TABLES, DEFAULT_SETTINGS, REDUCED_LIVE, SETTINGS_SCHEMA, SETTLEMENT_COMBINATIONS, TEMPLATES, THERMAL_COMBINATIONS } from '../../../services/saengineProject/common/projectLibraries.generated.js';
+import { CREEP_SHRINKAGE_COMBINATIONS, DEFAULT_CODE_TABLES, DEFAULT_SETTINGS, REDUCED_LIVE, SETTINGS_SCHEMA, SETTLEMENT_COMBINATIONS, TEMPLATES, THERMAL_COMBINATIONS } from '../../../services/saengineProject/common/projectLibraries.generated.js';
 import { convertText, setActiveDisplayUnits } from '../../../services/saengineProject/common/displayUnits.js';
 import { IPartSectionPane, sectionOption } from '../../../services/saengineProject/common/partSections.js';
 import { IPartCheckItem, ISaenginePartStatusService } from '../../../services/saengineProject/common/partStatus.js';
@@ -133,7 +133,10 @@ export function codeCombinations(settings: JsonObject): JsonValue[] {
 	const settlement = analysis && isObject(analysis.settlement) ? analysis.settlement : undefined;
 	const withT = thermal?.enabled === true;
 	const withSt = settlement?.enabled === true;
-	if (!withT && !withSt) {
+	// Alpha 9 P2: the code pack's combinations with the creep and shrinkage forces case CS.
+	const timeDependent = analysis && isObject(analysis.timeDependent) ? analysis.timeDependent : undefined;
+	const withCs = timeDependent?.enabled === true && timeDependent.forcesCase === true;
+	if (!withT && !withSt && !withCs) {
 		return combinations;
 	}
 	const at = combinations.findIndex(c => isObject(c) && c.name === '1.2D + 1.6L + 0.5Lr');
@@ -148,6 +151,9 @@ export function codeCombinations(settings: JsonObject): JsonValue[] {
 				added.push({ ...(clone(t as JsonValue) as JsonObject), name, ST: 1.2 });
 			}
 		}
+	}
+	if (withCs) {
+		added.push(...clone(CREEP_SHRINKAGE_COMBINATIONS as JsonValue) as JsonValue[]);
 	}
 	combinations.splice(at < 0 ? combinations.length : at + 1, 0, ...added);
 	return combinations;

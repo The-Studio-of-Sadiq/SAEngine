@@ -168,6 +168,13 @@
       "factors": {"D": 1.2, "T": -1.2, "L": 1.6, "Lr": 0.5}
     }
   ],
+  "creepShrinkage": [
+    {
+      "name": "1.2D + 1.2CS + 1.6L + 0.5Lr",
+      "factors": {"D": 1.2, "CS": 1.2, "L": 1.6, "Lr": 0.5},
+      "source": "BNBC 2020 Part 6 Sec 2.7.3.1 combination 2, 1.2(D + F + T) (p. 685), with T the self-straining forces including creep and shrinkage (Sec 2.1 notation, as used in Sec 2.7)"
+    }
+  ],
   "gravity": [
     {"name": "1.4D", "factors": {"D": 1.4}},
     {"name": "1.2D + 1.6L", "factors": {"D": 1.2, "L": 1.6}}

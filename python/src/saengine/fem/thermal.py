@@ -562,17 +562,32 @@ def load_corrections(model_path: str | Path) -> dict[str, Any] | None:
     return data if isinstance(data, dict) and data.get("schema") == 1 else None
 
 
+def _of_case(corrections: dict[str, Any] | None, case: str) -> dict[str, Any] | None:
+    """The fixed-end forces of ``case``: the temperature case's, or another imposed-strain
+    case's kept beside them under ``more`` (alpha 9 P2: the creep and shrinkage case CS of
+    :mod:`saengine.fem.staged`, with ``case`` None when T is off)."""
+    if not corrections:
+        return None
+    if case == corrections.get("case"):
+        return corrections
+    found = (corrections.get("more") or {}).get(case)
+    return found if isinstance(found, dict) else None
+
+
 def end_force_corrections(corrections: dict[str, Any] | None, case: str) -> dict[int, np.ndarray]:
     """What to add to the frame end forces (``localForce``, 12 values) of ``case``'s results:
-    the fixed-end forces for the temperature case, nothing for any other."""
-    if not corrections or case != corrections.get("case"):
+    the fixed-end forces for the temperature case (and the other imposed-strain cases of
+    ``more``), nothing for any other."""
+    found = _of_case(corrections, case)
+    if found is None:
         return {}
-    return {int(k): np.asarray(v, dtype=float) for k, v in corrections.get("frames", {}).items()}
+    return {int(k): np.asarray(v, dtype=float) for k, v in found.get("frames", {}).items()}
 
 
 def shell_force_corrections(corrections: dict[str, Any] | None, case: str) -> dict[int, np.ndarray]:
     """What to add to each shell's section forces (N11 N22 N12 M11 M22 M12 Q13 Q23, at every
     integration point) of ``case``'s results."""
-    if not corrections or case != corrections.get("case"):
+    found = _of_case(corrections, case)
+    if found is None:
         return {}
-    return {int(k): np.asarray(v, dtype=float) for k, v in corrections.get("shells", {}).items()}
+    return {int(k): np.asarray(v, dtype=float) for k, v in found.get("shells", {}).items()}

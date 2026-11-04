@@ -54,6 +54,9 @@
     {"name": "1.2D + 1.0T + 1.6L + 0.5Lr", "factors": {"D": 1.2, "T": 1.0, "L": 1.6, "Lr": 0.5}},
     {"name": "1.2D - 1.0T + 1.6L + 0.5Lr", "factors": {"D": 1.2, "T": -1.0, "L": 1.6, "Lr": 0.5}}
   ],
+  "creepShrinkage": [
+    {"name": "1.2D + 1.0CS + 1.6L + 0.5Lr", "factors": {"D": 1.2, "CS": 1.0, "L": 1.6, "Lr": 0.5}, "source": "ASCE 7-22 Sec 2.3.4: self-straining loads (creep and shrinkage) with a factor of at least 1.0 (1.0 taken) in combination 2"}
+  ],
   "gravity": [
     {"name": "1.4D", "factors": {"D": 1.4}},
     {"name": "1.2D + 1.6L", "factors": {"D": 1.2, "L": 1.6}}
