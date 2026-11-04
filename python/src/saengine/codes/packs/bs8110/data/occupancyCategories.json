@@ -1,0 +1,30 @@
+{
+  "$schema": "../../../schemas/occupancyCategories.schema.json",
+  "$replace": true,
+  "$sources": [
+    "BS 6399-2:1997 2.2.2.5 and Annex D (probability factor Sp)"
+  ],
+  "source": "BS 6399-2:1997: the standard design takes Sp = 1.0 (annual probability of exceedance 0.02) for every building; the categories I-IV are SAEngine's slots, all with wind importance 1.0 (Sp of another probability by Annex D: override wind.speedFactors.importance). Seismic importance 1.0: no earthquake loading (not covered).",
+  "categories": {
+    "I": {
+      "description": "Buildings of low risk (Sp = 1.0 in the standard method)",
+      "seismicImportance": 1.0,
+      "windImportance": 1.0
+    },
+    "II": {
+      "description": "Normal buildings (Sp = 1.0, Q = 0.02)",
+      "seismicImportance": 1.0,
+      "windImportance": 1.0
+    },
+    "III": {
+      "description": "Buildings of high occupancy (Sp = 1.0; a lower probability by Annex D)",
+      "seismicImportance": 1.0,
+      "windImportance": 1.0
+    },
+    "IV": {
+      "description": "Essential buildings (Sp = 1.0; a lower probability by Annex D)",
+      "seismicImportance": 1.0,
+      "windImportance": 1.0
+    }
+  }
+}

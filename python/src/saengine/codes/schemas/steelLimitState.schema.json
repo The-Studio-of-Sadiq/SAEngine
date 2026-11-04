@@ -1174,6 +1174,12 @@
           "description": "The buckling curve of single angles on λe.",
           "title": "Anglecurve",
           "type": "string"
+        },
+        "robertson": {
+          "default": false,
+          "description": "``alpha`` holds Robertson constants a: α = a π √(E / fy) / 1000.",
+          "title": "Robertson",
+          "type": "boolean"
         }
       },
       "required": [
@@ -1493,6 +1499,12 @@
           "maximum": 1,
           "title": "Highshare",
           "type": "number"
+        },
+        "robertson": {
+          "default": false,
+          "description": "``alphaLT`` holds BS type constants: α = αLT π √(E / fy) / 1000.",
+          "title": "Robertson",
+          "type": "boolean"
         }
       },
       "required": [
@@ -2832,6 +2844,20 @@
           "exclusiveMinimum": 0,
           "title": "Lambdaslope",
           "type": "number"
+        },
+        "yieldShare": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Shear yield stress = share × fy (none: fy / √3).",
+          "title": "Yieldshare"
         }
       },
       "required": [
@@ -3103,14 +3129,14 @@
           "type": "number"
         },
         "kCap": {
-          "description": "Ky, Kz at most 1 + cap × n.",
-          "exclusiveMinimum": 0,
+          "description": "Ky, Kz at most 1 + cap × n (C10: 0 allowed).",
+          "minimum": 0,
           "title": "Kcap",
           "type": "number"
         },
         "ltbFactor": {
           "description": "KLT = 1 - f λLT ny / (CmLT - offset).",
-          "exclusiveMinimum": 0,
+          "minimum": 0,
           "title": "Ltbfactor",
           "type": "number"
         },
@@ -3128,8 +3154,8 @@
         },
         "tensionPsi": {
           "description": "ψ of Meff = M - ψ T Zec / A (T and M varying independently).",
-          "exclusiveMinimum": 0,
           "maximum": 1,
+          "minimum": 0,
           "title": "Tensionpsi",
           "type": "number"
         }
@@ -3408,6 +3434,28 @@
         }
       ],
       "default": null
+    },
+    "designStrength": {
+      "additionalProperties": {
+        "items": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "type": "array"
+        },
+        "type": "array"
+      },
+      "title": "Designstrength",
+      "type": "object"
     }
   },
   "title": "SteelLimitStateTable",

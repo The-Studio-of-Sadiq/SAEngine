@@ -605,6 +605,35 @@
       "title": "CrackWidthRules",
       "type": "object"
     },
+    "DepthFactor": {
+      "additionalProperties": false,
+      "description": "A depth factor on the tabulated τc: (reference / d)^exponent, at least ``min``.",
+      "properties": {
+        "reference": {
+          "description": "[mm]",
+          "exclusiveMinimum": 0,
+          "title": "Reference",
+          "type": "number"
+        },
+        "exponent": {
+          "exclusiveMinimum": 0,
+          "title": "Exponent",
+          "type": "number"
+        },
+        "min": {
+          "default": 1.0,
+          "exclusiveMinimum": 0,
+          "title": "Min",
+          "type": "number"
+        }
+      },
+      "required": [
+        "reference",
+        "exponent"
+      ],
+      "title": "DepthFactor",
+      "type": "object"
+    },
     "DetailingRules": {
       "additionalProperties": false,
       "description": "Bends, hooks, compression laps and column splices (method ``barShapes``).",
@@ -1717,11 +1746,9 @@
           "minItems": 2,
           "prefixItems": [
             {
-              "exclusiveMinimum": 0,
               "type": "number"
             },
             {
-              "exclusiveMinimum": 0,
               "type": "number"
             }
           ],
@@ -2906,6 +2933,20 @@
           "exclusiveMinimum": 0,
           "title": "Maxratio",
           "type": "number"
+        },
+        "unbracedLimit": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Short in a sway storey up to this (none: ``limit``).",
+          "title": "Unbracedlimit"
         }
       },
       "required": [
@@ -3105,6 +3146,50 @@
           "exclusiveMinimum": 0,
           "maximum": 1,
           "title": "Stressshare",
+          "type": "number"
+        },
+        "tensionMoment": {
+          "anyOf": [
+            {
+              "maxItems": 5,
+              "minItems": 5,
+              "prefixItems": [
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                },
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                },
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "(a, b, c, d0, max) of kt = a + (b - fs) / (c (d0 + M / b d²)) in place of ``tension`` (M / b d² from pt at fy / γs and z = leverArm d); none: ``tension``.",
+          "title": "Tensionmoment"
+        },
+        "leverArm": {
+          "default": 0.9,
+          "description": "z / d of M / b d² (tensionMoment).",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Leverarm",
           "type": "number"
         },
         "compression": {
@@ -3462,6 +3547,13 @@
         "ecmExponent": {
           "exclusiveMinimum": 0,
           "title": "Ecmexponent",
+          "type": "number"
+        },
+        "ecmOffset": {
+          "default": 0.0,
+          "description": "Ecm = offset + ... [MPa].",
+          "minimum": 0,
+          "title": "Ecmoffset",
           "type": "number"
         },
         "epsC2": {
@@ -4005,6 +4097,18 @@
           "default": null,
           "description": "δ at most this.",
           "title": "Axialmax"
+        },
+        "depthFactor": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DepthFactor"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "τc × (reference / d)^exponent >= min (none: 1)."
         }
       },
       "required": [
@@ -4329,8 +4433,8 @@
           "type": "number"
         },
         "eccentricityMin": {
-          "description": "[mm]",
-          "exclusiveMinimum": 0,
+          "description": "[mm] (C10: 0 allowed)",
+          "minimum": 0,
           "title": "Eccentricitymin",
           "type": "number"
         },
@@ -4420,6 +4524,20 @@
           "default": null,
           "description": "e0 = l / this + h / eccentricityDivisor (none: h only).",
           "title": "Eccentricitylengthdivisor"
+        },
+        "eccentricityMax": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "e0 at most this [mm] (none: no cap).",
+          "title": "Eccentricitymax"
         }
       },
       "required": [

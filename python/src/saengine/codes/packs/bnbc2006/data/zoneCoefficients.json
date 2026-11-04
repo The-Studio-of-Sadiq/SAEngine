@@ -1,0 +1,13 @@
+{
+  "$schema": "../../../schemas/zoneCoefficients.schema.json",
+  "$replace": true,
+  "$sources": [
+    "BNBC 1993 Part 6 Table 6.2.22 (seismic zone coefficient Z)"
+  ],
+  "source": "BNBC 1993 / 2006 Part 6 Table 6.2.22: three seismic zones, Z = 0.075, 0.15, 0.25",
+  "zones": {
+    "1": 0.075,
+    "2": 0.15,
+    "3": 0.25
+  }
+}

@@ -91,7 +91,7 @@ class UltimateRules(_Group):
     )
     relations: StrengthRelations
     eccentricityDivisor: Positive = Field(description="e0 = h / divisor, at least eccentricityMin.")
-    eccentricityMin: Positive = Field(description="[mm]")
+    eccentricityMin: float = Field(ge=0, description="[mm] (C10: 0 allowed)")
     pureCompressionStrain: Literal["epsC2", "epsC3"] = Field(
         default="epsC2", description="The strain limit of a section under axial compression."
     )
@@ -539,7 +539,7 @@ class ExposureConditionRules(_Group):
     conditions: dict[str, ExposureCondition]
     columnCover: Positive = Field(description="Longitudinal bars of columns at least [mm].")
     footingCover: Positive = Field(description="Footings at least [mm].")
-    smallBarReduction: tuple[Positive, Positive] = Field(
+    smallBarReduction: tuple[float, float] = Field(
         description="(mm less, bars up to mm) in the mildest condition."
     )
     gradeReduction: tuple[Positive, Positive] = Field(

@@ -1,0 +1,18 @@
+{
+  "$schema": "../../../schemas/factors.schema.json",
+  "$sources": [
+    "BNBC 1993 / 2006 Part 6 Sec 6.2.3 (strength reduction factors)"
+  ],
+  "phi": {
+    "tension": 0.9,
+    "compressionTied": 0.7,
+    "compressionSpiral": 0.75,
+    "shear": 0.85,
+    "punching": 0.85,
+    "bearing": 0.7,
+    "plain": 0.65
+  },
+  "sources": {
+    "phi": "BNBC 1993 Part 6 6.2.3.2 (the ACI 318-89 type factors): flexure 0.90, axial compression tied 0.70, spiral 0.75 (to 0.90 at small axial loads), shear and torsion 0.85, bearing 0.70, plain concrete 0.65; the other φ are BNBC 2020's (the parent pack)"
+  }
+}

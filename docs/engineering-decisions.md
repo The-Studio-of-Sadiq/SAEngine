@@ -41,6 +41,34 @@ here, newest first, with the date, the question, the decision, the reason and wh
 - **No unlicensed software.** ETABS, SAP2000 and STAAD are not used for cross-checks or cited.
   Open-source tools are used instead (2026-10-25).
 
+## 2026-11-04: the legacy packs BS 8110 and BNBC 2006 (alpha 9 track C10)
+
+Two built-in packs that extend BNBC 2020 (owner: wanted after all, gaps CD-4): `bs8110` (BS 8110,
+BS 6399, BS 5950) and `bnbc2006` (BNBC 1993 / 2006). No text of either code was available: every
+value is in the packs' `VERIFY.md` (bs8110 rows L1-S18 with two transcribed tables, bnbc2006
+rows Q1-F14 with the district list). A pack without the new generic keys (BNBC 2020 and the
+others) runs exactly as before. SAEngine practice where the code leaves a gap (each overridable
+per project):
+
+- **No earthquake under BS.** The British Standards give no seismic loading: every BS location
+  has Z = 0, so no EX / EY cases are made and the derivation reports it. A Z entered per project
+  uses the parent's spectrum and systems and the report names them BNBC 2020.
+- **BS 8110 forms.** x <= 0.5 d (K' = 0.156) for every section; vc of Table 3.8 tabulated from its
+  formula with the depth factor applied to every member; punching vc as 0.10 √fcu (the punching
+  rows carry no slab steel ratio) on SAEngine's d/2 sections; Table 3.10's M/bd² from pt at 0.95
+  fy and z = 0.9 d; the compression lap 1.25 × folded into the compression bond (the anchorage
+  then 25 % long); biaxial column bending by the interaction surface; Nbal from the balanced
+  strains; creep and shrinkage of the calculated deflection as fixed values.
+- **BS 6399-2.** The effective height is the height (no displacement height), Ca = 1.0, Sd = 1.0,
+  Cpe of D/H <= 1 for every building, the dynamic augmentation not applied.
+- **BS 5950.** The generic limit state steel method with Perry-Robertson curves, the moment factor
+  in Mcr (not mLT on the moment), the member interaction with K = 1 on the plastic moment
+  capacities, single angles λ = 0.85 L/r, rupture 0.9 An fu / 1.1 for Ke An py.
+- **BNBC 1993 / 2006.** The default pack's site classes read as soil types (SA, SB S1; SC S2; SD
+  S3; SE S4); the dynamic spectrum rises from 1.0 to the plateau at 0.1 s; the member detailing by
+  zone (1 ordinary, 2 intermediate, 3 special); drift, Ω0 and Cd stay BNBC 2020's; the wind
+  tables Cz and CG by their power-law forms (k2 = √(Cz CG)).
+
 ## 2026-11-04: the rest of the Eurocodes concrete, foundation and load parts (alpha 9 track C5c)
 
 The `eurocodes` pack (0.5.0) now designs the parts C4, C5 and C5b left to BNBC 2020. Every value

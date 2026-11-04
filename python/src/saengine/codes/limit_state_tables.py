@@ -187,12 +187,12 @@ class SteelInteraction(_Group):
     flangeShare: Share = Field(description="a = (A - 2 b tf) / A at most this.")
     majorReduction: Share = Field(description="Mndz = Mdz (1 - n) / (1 - share a) ≤ Mdz.")
     minorShare: Share = Field(description="Equation (b): this × Ky Cmy My / Mdy.")
-    kCap: Positive = Field(description="Ky, Kz at most 1 + cap × n.")
-    ltbFactor: Positive = Field(description="KLT = 1 - f λLT ny / (CmLT - offset).")
+    kCap: float = Field(ge=0, description="Ky, Kz at most 1 + cap × n (C10: 0 allowed).")
+    ltbFactor: float = Field(ge=0, description="KLT = 1 - f λLT ny / (CmLT - offset).")
     ltbOffset: Positive
     cmMin: Share = Field(description="Cm at least this.")
-    tensionPsi: Share = Field(
-        description="ψ of Meff = M - ψ T Zec / A (T and M varying independently)."
+    tensionPsi: float = Field(
+        ge=0, le=1, description="ψ of Meff = M - ψ T Zec / A (T and M varying independently)."
     )
 
 

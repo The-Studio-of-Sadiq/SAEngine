@@ -1,0 +1,302 @@
+{
+  "$schema": "../../../schemas/steelLimitState.schema.json",
+  "$sources": [
+    "BS 5950-1:2000 Structural use of steelwork in building (Sections 3-4, Annexes B-C)"
+  ],
+  "source": "BS 5950-1:2000: limit state design of steel members with the design strength py (Table 9) and γm = 1.0; the generic limit state steel method of SAEngine with the BS curves (Perry-Robertson, Annex C), lateral-torsional buckling (Annex B), shear 0.6 py Av and the simplified interaction (4.8.3)",
+  "partialFactors": {
+    "gammaM0": 1.0,
+    "gammaM1": 1.1,
+    "gammaMb": 1.0,
+    "gammaMf": 1.0,
+    "gammaMfService": 1.0,
+    "gammaMw": 1.0,
+    "gammaMwField": 1.0
+  },
+  "designStrength": {
+    "275": [
+      [
+        16,
+        275
+      ],
+      [
+        40,
+        265
+      ],
+      [
+        63,
+        255
+      ],
+      [
+        80,
+        245
+      ],
+      [
+        100,
+        235
+      ]
+    ],
+    "355": [
+      [
+        16,
+        355
+      ],
+      [
+        40,
+        345
+      ],
+      [
+        63,
+        335
+      ],
+      [
+        80,
+        325
+      ],
+      [
+        100,
+        315
+      ]
+    ]
+  },
+  "classification": {
+    "method": "epsilonLimits",
+    "referenceFy": 275,
+    "outstandRolled": {
+      "plastic": 9.0,
+      "compact": 10.0,
+      "semiCompact": 15.0
+    },
+    "outstandWelded": {
+      "plastic": 8.0,
+      "compact": 9.0,
+      "semiCompact": 13.0
+    },
+    "internalFlange": {
+      "plastic": 28.0,
+      "compact": 32.0,
+      "semiCompact": 40.0
+    },
+    "internalAxial": 40.0,
+    "web": {
+      "plastic": 80.0,
+      "compact": 100.0,
+      "semiCompact": 120.0
+    },
+    "webAxial": 40.0,
+    "webAxialFactors": [
+      1.0,
+      1.5,
+      2.0
+    ],
+    "channelWeb": {
+      "plastic": 40.0,
+      "compact": 40.0,
+      "semiCompact": 40.0
+    },
+    "angleBending": {
+      "plastic": 9.0,
+      "compact": 10.0,
+      "semiCompact": 15.0
+    },
+    "angleAxial": [
+      15.0,
+      24.0
+    ],
+    "teeStem": {
+      "plastic": 8.0,
+      "compact": 9.0,
+      "semiCompact": 18.0
+    },
+    "circularBending": {
+      "plastic": 40.0,
+      "compact": 50.0,
+      "semiCompact": 140.0,
+      "squared": true
+    },
+    "circularAxial": 80.0
+  },
+  "compression": {
+    "method": "bucklingCurves",
+    "robertson": true,
+    "alpha": {
+      "a": 2.0,
+      "b": 3.5,
+      "c": 5.5,
+      "d": 8.0
+    },
+    "plateau": 0.2,
+    "rolledI": [
+      [
+        0.0,
+        40,
+        "a",
+        "b"
+      ],
+      [
+        0.0,
+        100000,
+        "b",
+        "c"
+      ]
+    ],
+    "weldedI": [
+      [
+        40,
+        "b",
+        "c"
+      ],
+      [
+        100000,
+        "c",
+        "d"
+      ]
+    ],
+    "families": {
+      "channel": {
+        "major": "c",
+        "minor": "c"
+      },
+      "tee": {
+        "major": "c",
+        "minor": "c"
+      },
+      "angle": {
+        "major": "c",
+        "minor": "c"
+      },
+      "rhs": {
+        "major": "a",
+        "minor": "a"
+      },
+      "chs": {
+        "major": "a",
+        "minor": "a"
+      },
+      "bar": {
+        "major": "b",
+        "minor": "b"
+      },
+      "round": {
+        "major": "b",
+        "minor": "b"
+      }
+    },
+    "angleConstants": {
+      "twoBolts": [
+        0.0,
+        0.7225,
+        0.0
+      ],
+      "oneBolt": [
+        0.0,
+        1.0,
+        0.0
+      ]
+    },
+    "angleCondition": "twoBolts",
+    "angleCurve": "c"
+  },
+  "tension": {
+    "method": "yieldRupture",
+    "ruptureShare": 0.9,
+    "angleAlpha": [
+      [
+        1000,
+        0.55
+      ]
+    ],
+    "angleBolts": 2
+  },
+  "flexure": {
+    "method": "elasticCriticalMoment",
+    "elasticCap": 1.2,
+    "elasticCapCantilever": 1.5,
+    "alphaLT": {
+      "rolled": 7.0,
+      "welded": 7.0
+    },
+    "robertson": true,
+    "ltbPlateau": 0.4,
+    "ltbBase": 0.4,
+    "highShare": 0.6
+  },
+  "shear": {
+    "method": "postCritical",
+    "bucklingLimit": 70.0,
+    "poisson": 0.3,
+    "kvUnstiffened": 5.35,
+    "kvStiffened": [
+      4.0,
+      5.35
+    ],
+    "lambdaLimits": [
+      0.8,
+      1.2
+    ],
+    "lambdaSlope": 0.8,
+    "yieldShare": 0.6
+  },
+  "interaction": {
+    "method": "sectionMember",
+    "plastic": false,
+    "alphaMinor": 1.0,
+    "alphaMajor": 1.0,
+    "flangeShare": 0.5,
+    "majorReduction": 0.5,
+    "minorShare": 1.0,
+    "kCap": 0.0,
+    "ltbFactor": 0.0,
+    "ltbOffset": 0.25,
+    "cmMin": 0.4,
+    "tensionPsi": 0.0
+  },
+  "slenderness": {
+    "compression": 180.0,
+    "tension": 350.0
+  },
+  "shearModulus": 79000.0,
+  "welded": false,
+  "nominalHollowWall": true,
+  "bracing": {
+    "method": "forceShare",
+    "share": 0.025,
+    "clauses": {
+      "bracing": "BS 5950-1:2000 4.3.2.2 (restraint force 2.5 % of the compression flange force)"
+    }
+  },
+  "clauses": {
+    "code": "Section 4",
+    "designStrength": "3.1.1, Table 9",
+    "partialFactors": "2.4.4 (γm 1.0)",
+    "classification": "3.5, Tables 11-12",
+    "slenderness": "4.7.3.2",
+    "tensionYield": "4.6.1",
+    "tensionRupture": "4.6.1, 3.4.3",
+    "tensionAngle": "4.6.3",
+    "compression": "4.7.5, Tables 23-24, Annex C",
+    "compressionAngle": "4.7.10",
+    "flexure": "4.2.5",
+    "lateralTorsional": "4.3.6, Annex B",
+    "shear": "4.2.3",
+    "shearBuckling": "4.4.5",
+    "section": "4.8.3.2",
+    "sectionPlastic": "4.8.3.2",
+    "sectionLinear": "4.8.3.2",
+    "memberCompression": "4.8.3.3.1",
+    "memberTension": "4.8.2"
+  },
+  "sources": {
+    "partialFactors": "BS 5950-1:2000 2.4.4: γm = 1.0 on py (the design strengths include it); γm1 1.1 stands for the effective net area Ae = Ke An (Ke 1.2 S275, 1.1 S355, 3.4.3) with 0.9 An fu / γm1 (within 2 % of Ke An py for S275 and S355: SAEngine form); the bolt and weld factors are not used (connections from the parent pack)",
+    "designStrength": "BS 5950-1:2000 Table 9: py of S275 and S355 by thickness (16, 40, 63, 80, 100 mm), the flange thickness of rolled I and channel sections",
+    "classification": "BS 5950-1:2000 Table 11 (rolled outstands 9, 10, 15 ε; welded 8, 9, 13 ε; webs 80, 100, 120 ε at the mid-depth neutral axis, reduced by the axial force r1, r2 with the 1, 1.5, 2 factors, at least 40 ε; CHS 40, 50, 140 ε²), Table 12 (RHS flanges 28, 32, 40 ε), ε = √(275/py)",
+    "compression": "BS 5950-1:2000 Annex C.1-C.2: pc by Perry-Robertson, η = a (λ - λ0)/1000, λ0 = 0.2 π √(E/py), a 2.0, 3.5, 5.5, 8.0 for curves a-d; Table 23 (rolled I: about x-x a, y-y b up to 40 mm, b and c above; welded I: b and c, c and d; hot-finished hollow a; channels, angles, tees c; solid bars b taken)",
+    "angles": "BS 5950-1:2000 4.7.10.2: single angles with two or more bolts λ = 0.85 Lv/rv (the lower bounds 0.7 L/r + 15 and the axis rules not modelled: SAEngine form of λe; uncertain), one bolt 1.0 Lv/rv",
+    "tension": "BS 5950-1:2000 4.6.1 (Pt = Ae py), 4.6.3.1 (angles connected through one leg: Pt = py (Ae - 0.5 a2); SAEngine α 0.55 on An fu / γm1, uncertain)",
+    "flexure": "BS 5950-1:2000 4.2.5.1 (Mc = py Sx <= 1.2 py Zx; 1.5 py Zx of cantilevers), 4.2.5.3 (high shear above 0.6 Pv), Annex B.2.2 (pb by ηLT = αLT (λLT - λL0)/1000, αLT 7.0, λL0 = 0.4 π √(E/py)); λLT from Mcr of the member with the moment factor in Mcr (in place of mLT on the moment: SAEngine form); welded sections take the rolled αLT (Table 17's reduced py not modelled)",
+    "shear": "BS 5950-1:2000 4.2.3 (Pv = 0.6 py Av), 4.4.5 (shear buckling where d/t > 70 ε; the simple post-critical method in place of Annex H: SAEngine form, uncertain)",
+    "interaction": "BS 5950-1:2000 4.8.3.2 (section: Fc/(Ag py) + Mx/Mcx + My/Mcy <= 1, linear), 4.8.3.3.1 simplified (Fc/Pc + mx Mx/(py Zx) + my My/(py Zy) <= 1 and Fc/Pcy + mLT MLT/Mb + my My/(py Zy) <= 1) as the generic form with K = 1 and the moment capacities Mc (the plastic capacity in place of py Z: less conservative for class 1 and 2 sections, uncertain), m at least 0.4",
+    "slenderness": "BS 5950-1:2000 4.7.3.2 (180 for members resisting loads other than wind), 4.6 tension members 350 (SAEngine practice; BS 5950 has no tension limit: uncertain)",
+    "shearModulus": "G = E / (2 (1 + ν)) with E 205 kN/mm² and ν 0.3 (BS 5950-1:2000 3.1.3)"
+  }
+}

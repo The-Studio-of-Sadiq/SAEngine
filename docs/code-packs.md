@@ -327,8 +327,8 @@ Where SAEngine finds packs (the same id in a higher place wins):
    elsewhere): available to every project on this computer;
 3. **built-in**: `bnbc2020`, shipped with SAEngine; `eurocodes` (below); `aci318-asce7-22`, the ASCE 7-22 loads
    (its materials still fall back to `bnbc2020`; the site's SDS, SD1, S1, TL and V are entered
-   from the ASCE Hazard Tool; values to check in its `VERIFY.md`); and `is-codes`, the Indian
-   Standards loads (below).
+   from the ASCE Hazard Tool; values to check in its `VERIFY.md`); `is-codes`, the Indian
+   Standards loads (below); and the two legacy packs `bs8110` and `bnbc2006` (below).
 
 To use a pack, choose it in **02 Project Settings → Design code**, or in **New Project →
 Design code**, which lists the packs installed on this computer. A project without a choice
@@ -647,6 +647,38 @@ For example, `data/combinations.json` can be `{"strengthSet": "6.10ab"}` and
 `data/seismic.json` `{"spectrumType": "2", "designSpectrum": {"lowerBound": 0.1}}`.
 
 The US and Indian packs have none of their tables, values or clause text included yet.
+
+### Legacy British Standards: `bs8110`
+
+The built-in pack `bs8110` (alpha 9 C10) covers BS 6399-1/-2/-3 (imposed loads and their
+reduction, wind by the standard method with Sb by height and distance from the sea), the BS 8110-1
+Table 2.1 combinations, BS 8110-1:1997 concrete (with BS 8110-2 crack widths and deflections) by
+the C8 family of tabulated methods, and BS 5950-1:2000 steel members by the limit state steel
+method. The British Standards give no seismic loading: its towns have Z = 0 and no earthquake
+cases are made. It extends BNBC 2020 for the rest (torsion, flat slabs, walls, footings,
+connections, masonry, timber), named BNBC 2020 in the report. README and `VERIFY.md`:
+`python/src/saengine/codes/packs/bs8110/`.
+
+### The previous Bangladesh code: `bnbc2006`
+
+The built-in pack `bnbc2006` (BNBC 1993, reissued 2006) extends BNBC 2020 and overrides only the
+three seismic zones, the base shear V = Z I C W / R with C = 1.25 S / T^(2/3) <= 2.75, the period,
+R, the top force, the fastest-mile wind method with Cz and CG, the load combinations and the
+strength reduction factors of its ultimate strength design. README and `VERIFY.md`:
+`python/src/saengine/codes/packs/bnbc2006/`.
+
+The generic keys these two packs add, open to any pack (absent: the behaviour before):
+
+| Key | What it does |
+| --- | --- |
+| `concreteMethods.shear.depthFactor` | τc × (reference / d)^exponent, at least min (BS 8110 (400/d)^1/4) |
+| `concreteMethods.ultimate.eccentricityMax`, `relations.ecmOffset` | e0 at most this; Ecm = offset + c (fcm/div)^e |
+| `concreteMethods.deflection.tensionMoment`, `leverArm` | kt = a + (b - fs) / (c (d0 + M/bd²)) (BS 8110 Table 3.10) |
+| `concreteMethods.columns.slenderness.unbracedLimit` | the short-column limit of sway storeys |
+| `steelLimitState.compression.robertson`, `flexure.robertson` | the curves' constants as Robertson's a (α = a π √(E/fy) / 1000) |
+| `steelLimitState.shear.yieldShare`, `designStrength` | shear yield = share × fy; py by thickness per grade |
+| `seismic.designSpectrum.shapePlateau`, `descendingExponent`, `leastCoefficient` | the plateau, the power of TC/T and the least C/R of `reducedElastic` |
+| `seismic.lateralForce.topForce` | Ft = factor T V at most maxShare V when T > periodFrom |
 
 ## Other package kinds
 

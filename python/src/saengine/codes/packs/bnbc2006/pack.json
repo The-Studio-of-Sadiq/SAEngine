@@ -1,0 +1,45 @@
+{
+  "schema": "saengine.codePack/1",
+  "id": "bnbc2006",
+  "name": "BNBC 1993 / 2006 (previous Bangladesh code)",
+  "edition": "BNBC 2006",
+  "country": "BD",
+  "version": "0.1.0",
+  "extends": "bnbc2020",
+  "covers": [
+    "locations",
+    "zoneCoefficients",
+    "occupancyCategories",
+    "seismic",
+    "wind",
+    "combinations",
+    "factors"
+  ],
+  "description": "The Bangladesh National Building Code of 1993 (reissued as BNBC 2006), the code before BNBC 2020 (alpha 9 track C10). It extends BNBC 2020 and replaces only what the older code gives differently: the three seismic zones (Z = 0.075, 0.15, 0.25) and the districts' zones, the equivalent static base shear V = Z I C W / R with C = 1.25 S / T^(2/3) <= 2.75 and C/R >= 0.075, the soil types S1-S4, T = Ct hn^(3/4), R of the structural systems, the top force Ft = 0.07 T V <= 0.25 V, the structure importance factors; wind by qz = Cc CI Cz Vb² with the fastest-mile basic wind speeds of the districts, Cz and the gust factor CG by exposure A, B, C, the overall pressure coefficients; the load combinations of the ultimate strength design (1.4D + 1.7L, 0.75 (1.4D + 1.7L + 1.7W), 0.9D + 1.3W, 0.75 (1.4D + 1.7L + 1.87E), 0.9D + 1.43E) and the strength reduction factors of that design (0.90, 0.70 tied, 0.75 spiral, 0.85 shear). Everything else (live loads, concrete and steel design, foundations, the services) is BNBC 2020's, named BNBC 2020 in the report. The working stress design of the older code is not covered. No copy of the 1993 / 2006 text was available: every value is listed in VERIFY.md for checking against the printed code.",
+  "sources": [
+    {
+      "id": "BNBC1993",
+      "title": "Bangladesh National Building Code",
+      "edition": "1993 (reissued 2006)",
+      "publisher": "Housing and Building Research Institute and Bangladesh Standards and Testing Institution"
+    }
+  ],
+  "clauses": {
+    "locations": ["BNBC 1993 Part 6 Table 6.2.8", "BNBC 1993 Part 6 Figure 6.2.24"],
+    "zoneCoefficients": ["BNBC 1993 Part 6 Table 6.2.22"],
+    "occupancyCategories": ["BNBC 1993 Part 6 Tables 6.1.1, 6.2.9, 6.2.23"],
+    "seismic": ["BNBC 1993 Part 6 Sec 2.5"],
+    "wind": ["BNBC 1993 Part 6 Sec 2.4"],
+    "combinations": ["BNBC 1993 Part 6 Sec 2.7, 6.2.2"],
+    "factors": ["BNBC 1993 Part 6 Sec 6.2.3"]
+  },
+  "basis": {
+    "general": "BNBC 1993 / 2006 (loads, wind and earthquake); live loads BNBC 2020",
+    "concrete": "BNBC 2020 Part 6 Chapter 6 with the load and strength reduction factors of BNBC 1993 / 2006 (ultimate strength design)",
+    "steel": "BNBC 2020 Part 6 Chapter 10",
+    "method": "Ultimate strength design (BNBC 1993 / 2006 load factors)"
+  },
+  "author": "SAEngine contributors",
+  "licence": "AGPL-3.0-only",
+  "hooks": null
+}

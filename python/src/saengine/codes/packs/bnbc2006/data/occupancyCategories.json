@@ -1,0 +1,37 @@
+{
+  "$schema": "../../../schemas/occupancyCategories.schema.json",
+  "$sources": [
+    "BNBC 1993 Part 6 Table 6.1.1 (structure categories)",
+    "Table 6.2.9 (CI)",
+    "Table 6.2.23 (I)"
+  ],
+  "source": "BNBC 1993 / 2006 Part 6: the structure importance coefficient CI of wind (Table 6.2.9) and the structure importance factor I of earthquake (Table 6.2.23) by the occupancy categories of Table 6.1.1, in SAEngine's four slots (I low risk, II standard, III special occupancy, IV essential and hazardous). The windImportance is CI itself; the speed factor k1 = √CI (CI multiplies the pressure: wind.speedFactors.riskCoefficients).",
+  "categories": {
+    "I": {
+      "description": "Low-risk structures (CI 0.80; I 1.00)",
+      "seismicImportance": 1.0,
+      "windImportance": 0.8
+    },
+    "II": {
+      "description": "Standard occupancy structures (CI 1.00; I 1.00)",
+      "seismicImportance": 1.0,
+      "windImportance": 1.0
+    },
+    "III": {
+      "description": "Special occupancy structures (CI 1.00; I 1.00)",
+      "seismicImportance": 1.0,
+      "windImportance": 1.0
+    },
+    "IV": {
+      "description": "Essential facilities and hazardous facilities (CI 1.25; I 1.25)",
+      "seismicImportance": 1.25,
+      "windImportance": 1.25
+    }
+  },
+  "sources": {
+    "categories.I": "BNBC 1993 Table 6.2.9 (low-risk 0.80), Table 6.2.23 (I 1.00)",
+    "categories.II": "BNBC 1993 Tables 6.2.9 and 6.2.23 (standard occupancy 1.00 / 1.00)",
+    "categories.III": "BNBC 1993 Tables 6.2.9 and 6.2.23 (special occupancy 1.00 / 1.00)",
+    "categories.IV": "BNBC 1993 Tables 6.2.9 and 6.2.23 (essential and hazardous 1.25 / 1.25)"
+  }
+}

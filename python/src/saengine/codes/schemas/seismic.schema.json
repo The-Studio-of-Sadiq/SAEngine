@@ -230,6 +230,49 @@
           "title": "Staticplateau",
           "type": "boolean"
         },
+        "shapePlateau": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "reducedElastic: the normalized plateau (empty: 2.5); the descending branch plateau × S × (TC / T)^descendingExponent.",
+          "title": "Shapeplateau"
+        },
+        "descendingExponent": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "reducedElastic: the power of TC / T (empty: 1).",
+          "title": "Descendingexponent"
+        },
+        "leastCoefficient": {
+          "anyOf": [
+            {
+              "exclusiveMaximum": 1,
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "reducedElastic: Sa at least factor × Z × I × this (C / R >= this; empty: no least value).",
+          "title": "Leastcoefficient"
+        },
         "designShare": {
           "anyOf": [
             {
@@ -868,6 +911,18 @@
           "description": "C7: least base shear V / W by seismic zone (IS 1893 Table 7); empty: none.",
           "title": "Minimumshare",
           "type": "object"
+        },
+        "topForce": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TopForce"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Ft = factor T V <= maxShare V at the top when T > periodFrom; the rest distributed (empty: none)."
         },
         "clause": {
           "default": "",
@@ -1775,6 +1830,38 @@
         }
       },
       "title": "TimeHistoryTarget",
+      "type": "object"
+    },
+    "TopForce": {
+      "additionalProperties": false,
+      "description": "Alpha 9 C10: the concentrated top force Ft of the equivalent static method.",
+      "properties": {
+        "periodFrom": {
+          "description": "Ft = 0 while T <= this [s].",
+          "exclusiveMinimum": 0,
+          "title": "Periodfrom",
+          "type": "number"
+        },
+        "factor": {
+          "description": "Ft = factor × T × V.",
+          "exclusiveMinimum": 0,
+          "title": "Factor",
+          "type": "number"
+        },
+        "maxShare": {
+          "description": "Ft at most this × V.",
+          "exclusiveMaximum": 1,
+          "exclusiveMinimum": 0,
+          "title": "Maxshare",
+          "type": "number"
+        }
+      },
+      "required": [
+        "periodFrom",
+        "factor",
+        "maxShare"
+      ],
+      "title": "TopForce",
       "type": "object"
     },
     "TorsionalEffectsRule": {

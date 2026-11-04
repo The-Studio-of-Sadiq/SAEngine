@@ -1,0 +1,724 @@
+{
+  "$schema": "../../../schemas/concreteMethods.schema.json",
+  "$sources": [
+    "BS 8110-1:1997 Sections 2-3",
+    "BS 8110-2:1985 Sections 3 and 7"
+  ],
+  "source": "BS 8110-1:1997 (structural use of concrete: limit state design) and BS 8110-2:1985 (serviceability calculations). Entered from knowledge of the code, every value to be checked against the printed code (VERIFY.md of the pack). The project's concrete fc is read as the characteristic cube strength fcu.",
+  "ultimate": {
+    "method": "partialFactors",
+    "stressBlock": "rectangular",
+    "gammaC": 1.5,
+    "gammaS": 1.05,
+    "alphaCC": 0.67,
+    "alphaCT": 1.0,
+    "steelE": 200000.0,
+    "strengthClasses": [
+      [
+        25,
+        25
+      ],
+      [
+        30,
+        30
+      ],
+      [
+        35,
+        35
+      ],
+      [
+        40,
+        40
+      ],
+      [
+        45,
+        45
+      ],
+      [
+        50,
+        50
+      ]
+    ],
+    "relations": {
+      "highFrom": 100,
+      "fcmIncrement": 0,
+      "fctmCoefficient": 0.55,
+      "fctmExponent": 0.5,
+      "fctmHighCoefficient": 0.55,
+      "fctmHighDivisor": 10,
+      "fctkShares": [
+        1.0,
+        1.0
+      ],
+      "ecmCoefficient": 200,
+      "ecmDivisor": 1,
+      "ecmExponent": 1.0,
+      "ecmOffset": 20000,
+      "epsC2": {
+        "base": 2.0
+      },
+      "epsCu2": {
+        "base": 3.5
+      },
+      "n": {
+        "base": 2.0
+      },
+      "epsC3": {
+        "base": 2.0
+      },
+      "epsCu3": {
+        "base": 3.5
+      },
+      "eta": {
+        "base": 1.007463
+      },
+      "lambda": {
+        "base": 0.9
+      }
+    },
+    "eccentricityDivisor": 20,
+    "eccentricityMin": 0.0,
+    "eccentricityMax": 20,
+    "pureCompressionStrain": "epsC2",
+    "gradePrefix": "C",
+    "axialShares": [
+      0.4,
+      0.8
+    ],
+    "neutralAxisLimit": [
+      0.5,
+      1.0
+    ]
+  },
+  "shear": {
+    "method": "tabulatedStress",
+    "grades": [
+      25,
+      30,
+      35,
+      40
+    ],
+    "steelRatios": [
+      0.15,
+      0.25,
+      0.5,
+      0.75,
+      1.0,
+      1.5,
+      2.0,
+      3.0
+    ],
+    "tauC": [
+      [
+        0.336,
+        0.357,
+        0.376,
+        0.393
+      ],
+      [
+        0.398,
+        0.423,
+        0.445,
+        0.466
+      ],
+      [
+        0.502,
+        0.533,
+        0.561,
+        0.587
+      ],
+      [
+        0.574,
+        0.61,
+        0.642,
+        0.672
+      ],
+      [
+        0.632,
+        0.672,
+        0.707,
+        0.739
+      ],
+      [
+        0.723,
+        0.769,
+        0.809,
+        0.846
+      ],
+      [
+        0.796,
+        0.846,
+        0.891,
+        0.931
+      ],
+      [
+        0.912,
+        0.969,
+        1.02,
+        1.066
+      ]
+    ],
+    "maxStress": [
+      4.0,
+      4.38,
+      4.73,
+      5.0
+    ],
+    "minStirrupStress": 0.4,
+    "fyMax": 460,
+    "spacing": [
+      0.75,
+      10000
+    ],
+    "slabDepths": [],
+    "enhancement": 2.0,
+    "depthFactor": {
+      "reference": 400,
+      "exponent": 0.25,
+      "min": 1.0
+    }
+  },
+  "punching": {
+    "method": "rootStress",
+    "perimeterDistance": 1.5,
+    "coefficient": 0.1,
+    "ratioBase": 1.0,
+    "reinforcedMax": 2.0,
+    "concreteShare": 1.0
+  },
+  "deflection": {
+    "method": "spanDepthModification",
+    "basic": {
+      "cantilever": 7,
+      "simple": 20,
+      "continuous": 26
+    },
+    "longSpan": 10000,
+    "tension": [
+      0.225,
+      0.00322,
+      0.625,
+      2.0
+    ],
+    "stressShare": 0.667,
+    "tensionMoment": [
+      0.55,
+      477,
+      120,
+      0.9,
+      2.0
+    ],
+    "leverArm": 0.9,
+    "compression": [
+      3.0,
+      1.5
+    ],
+    "flange": [
+      [
+        0.3,
+        0.8
+      ],
+      [
+        1.0,
+        1.0
+      ]
+    ],
+    "flatSlabFactor": 0.9,
+    "flangeT": [
+      5,
+      0.001
+    ],
+    "flangeL": [
+      10,
+      0.001
+    ],
+    "shrinkageStrain": 0.0003,
+    "shrinkageK3": {
+      "cantilever": 0.5,
+      "simple": 0.125,
+      "continuousOne": 0.086,
+      "continuous": 0.063
+    },
+    "shrinkageK4": [
+      [
+        0.25,
+        0.72
+      ],
+      [
+        1.0,
+        0.65
+      ]
+    ],
+    "creep": [
+      [
+        7,
+        2.8
+      ],
+      [
+        28,
+        2.5
+      ],
+      [
+        365,
+        1.5
+      ]
+    ],
+    "loadingAge": 28,
+    "ruptureCoefficient": 0.55,
+    "limitTotal": 250,
+    "limitAfter": 350,
+    "limitAfterMax": 20
+  },
+  "cracking": {
+    "method": "strainSpacing",
+    "width": {
+      "mild": 0.3,
+      "moderate": 0.3,
+      "severe": 0.3,
+      "verySevere": 0.3,
+      "mostSevere": 0.3
+    },
+    "stiffeningDivisor": 3,
+    "tankWidth": 0.2
+  },
+  "cover": {
+    "method": "exposureCondition",
+    "conditions": {
+      "mild": {
+        "cover": 25,
+        "cement": 275,
+        "waterCement": 0.65,
+        "grade": 30
+      },
+      "moderate": {
+        "cover": 35,
+        "cement": 300,
+        "waterCement": 0.6,
+        "grade": 35
+      },
+      "severe": {
+        "cover": 40,
+        "cement": 325,
+        "waterCement": 0.55,
+        "grade": 40
+      },
+      "verySevere": {
+        "cover": 50,
+        "cement": 325,
+        "waterCement": 0.55,
+        "grade": 40
+      },
+      "mostSevere": {
+        "cover": 50,
+        "cement": 400,
+        "waterCement": 0.45,
+        "grade": 50
+      }
+    },
+    "columnCover": 25,
+    "footingCover": 75,
+    "smallBarReduction": [
+      0.0,
+      0.0
+    ],
+    "gradeReduction": [
+      5,
+      40
+    ],
+    "gradeReductionConditions": [
+      "moderate"
+    ]
+  },
+  "anchorage": {
+    "method": "bondStressTable",
+    "grades": [
+      25,
+      30,
+      35,
+      40
+    ],
+    "bond": [
+      1.4,
+      1.534,
+      1.657,
+      1.771
+    ],
+    "deformedFactor": 1.7857,
+    "compressionFactor": 1.008,
+    "lapTension": 15,
+    "lapCompression": 15,
+    "lapDirectTension": 1.0,
+    "lapLargeBar": 50
+  },
+  "exposureClasses": {
+    "mild": {
+      "name": "Mild",
+      "fckMin": 30
+    },
+    "moderate": {
+      "name": "Moderate",
+      "fckMin": 35
+    },
+    "severe": {
+      "name": "Severe",
+      "fckMin": 40
+    },
+    "verySevere": {
+      "name": "Very severe",
+      "fckMin": 40
+    },
+    "mostSevere": {
+      "name": "Most severe",
+      "fckMin": 50
+    }
+  },
+  "defaultExposure": "moderate",
+  "memberLimits": {
+    "beamMin": 0.66,
+    "beamMax": 0.04,
+    "sideFaceDepth": 750,
+    "sideFaceShare": 0.001,
+    "sideFaceSpacing": 250,
+    "slabMin": [
+      0.0013,
+      0.0024
+    ],
+    "plainFy": 250,
+    "slabBarShare": 0.125,
+    "slabSpacing": [
+      3,
+      750
+    ],
+    "slabDistributionSpacing": [
+      3,
+      750
+    ],
+    "columnRho": [
+      0.004,
+      0.06
+    ],
+    "columnBars": [
+      4,
+      6
+    ],
+    "columnBarDia": 12,
+    "tieDiaShare": 0.25,
+    "tieDiaMin": 6,
+    "tiePitch": [
+      12,
+      10000
+    ],
+    "neutralAxisStrain": 0.0013
+  },
+  "columns": {
+    "slenderness": {
+      "method": "additionalMoment",
+      "limit": 15,
+      "unbracedLimit": 10,
+      "divisor": 2000,
+      "maxRatio": 60
+    },
+    "biaxial": {
+      "method": "surface",
+      "alphaN": [
+        [
+          0.2,
+          1.0
+        ],
+        [
+          0.8,
+          1.0
+        ]
+      ],
+      "puzShares": [
+        0.45,
+        0.95
+      ]
+    }
+  },
+  "twoWaySlabs": {
+    "method": "restrainedPanel",
+    "ratios": [
+      1.0,
+      1.1,
+      1.2,
+      1.3,
+      1.4,
+      1.5,
+      1.75,
+      2.0
+    ],
+    "cases": {
+      "2,2": {
+        "name": "interior panel",
+        "shortNegative": [
+          0.031,
+          0.037,
+          0.042,
+          0.046,
+          0.05,
+          0.053,
+          0.059,
+          0.063
+        ],
+        "shortPositive": [
+          0.024,
+          0.028,
+          0.032,
+          0.035,
+          0.037,
+          0.04,
+          0.044,
+          0.048
+        ],
+        "longNegative": 0.032,
+        "longPositive": 0.024
+      },
+      "2,1": {
+        "name": "one short edge discontinuous",
+        "shortNegative": [
+          0.039,
+          0.044,
+          0.048,
+          0.052,
+          0.055,
+          0.058,
+          0.063,
+          0.067
+        ],
+        "shortPositive": [
+          0.029,
+          0.033,
+          0.036,
+          0.039,
+          0.041,
+          0.043,
+          0.047,
+          0.05
+        ],
+        "longNegative": 0.037,
+        "longPositive": 0.028
+      },
+      "1,2": {
+        "name": "one long edge discontinuous",
+        "shortNegative": [
+          0.039,
+          0.049,
+          0.056,
+          0.062,
+          0.068,
+          0.073,
+          0.082,
+          0.089
+        ],
+        "shortPositive": [
+          0.03,
+          0.036,
+          0.042,
+          0.047,
+          0.051,
+          0.055,
+          0.062,
+          0.067
+        ],
+        "longNegative": 0.037,
+        "longPositive": 0.028
+      },
+      "1,1": {
+        "name": "two adjacent edges discontinuous",
+        "shortNegative": [
+          0.047,
+          0.056,
+          0.063,
+          0.069,
+          0.074,
+          0.078,
+          0.087,
+          0.093
+        ],
+        "shortPositive": [
+          0.036,
+          0.042,
+          0.047,
+          0.051,
+          0.055,
+          0.059,
+          0.065,
+          0.07
+        ],
+        "longNegative": 0.045,
+        "longPositive": 0.034
+      },
+      "2,0": {
+        "name": "two short edges discontinuous",
+        "shortNegative": [
+          0.046,
+          0.05,
+          0.054,
+          0.057,
+          0.06,
+          0.062,
+          0.067,
+          0.07
+        ],
+        "shortPositive": [
+          0.034,
+          0.038,
+          0.04,
+          0.043,
+          0.045,
+          0.047,
+          0.05,
+          0.053
+        ],
+        "longPositive": 0.034
+      },
+      "0,2": {
+        "name": "two long edges discontinuous",
+        "shortPositive": [
+          0.034,
+          0.046,
+          0.056,
+          0.065,
+          0.072,
+          0.078,
+          0.091,
+          0.1
+        ],
+        "longNegative": 0.045,
+        "longPositive": 0.034
+      },
+      "1,0": {
+        "name": "three edges discontinuous (one long edge continuous)",
+        "shortNegative": [
+          0.057,
+          0.065,
+          0.071,
+          0.076,
+          0.081,
+          0.084,
+          0.092,
+          0.098
+        ],
+        "shortPositive": [
+          0.043,
+          0.048,
+          0.053,
+          0.057,
+          0.06,
+          0.063,
+          0.069,
+          0.074
+        ],
+        "longPositive": 0.044
+      },
+      "0,1": {
+        "name": "three edges discontinuous (one short edge continuous)",
+        "shortPositive": [
+          0.042,
+          0.054,
+          0.063,
+          0.071,
+          0.078,
+          0.084,
+          0.096,
+          0.105
+        ],
+        "longNegative": 0.058,
+        "longPositive": 0.044
+      },
+      "0,0": {
+        "name": "four edges discontinuous",
+        "shortPositive": [
+          0.055,
+          0.065,
+          0.074,
+          0.081,
+          0.087,
+          0.092,
+          0.103,
+          0.111
+        ],
+        "longPositive": 0.056
+      }
+    },
+    "simpleRatios": [
+      1.0,
+      1.1,
+      1.2,
+      1.3,
+      1.4,
+      1.5,
+      1.75,
+      2.0
+    ],
+    "simpleShort": [
+      0.062,
+      0.074,
+      0.084,
+      0.093,
+      0.099,
+      0.104,
+      0.113,
+      0.118
+    ],
+    "simpleLong": [
+      0.062,
+      0.061,
+      0.059,
+      0.055,
+      0.051,
+      0.046,
+      0.037,
+      0.029
+    ],
+    "middleStrip": 0.75,
+    "torsionShare": 0.75,
+    "torsionLength": 0.2,
+    "torsionOneEdgeShare": 0.5
+  },
+  "clauses": {
+    "designStrength": "2.4.4.1, Table 2.2",
+    "ultimate": "3.4.4.1, Figure 3.3",
+    "neutralAxis": "3.4.4.4 (K' = 0.156, x <= 0.5 d)",
+    "minimumEccentricity": "3.8.2.4",
+    "axial": "3.8.4.3, equation 38",
+    "slenderness": "3.8.1.3, 3.8.3",
+    "biaxial": "3.8.4.5 (by the interaction surface)",
+    "shear": "3.4.5, Tables 3.7 and 3.8",
+    "shearMinimum": "Table 3.7",
+    "shearSpacing": "3.4.5.5",
+    "punching": "3.7.7",
+    "deflection": "3.4.6 (calculated: BS 8110-2:1985 3.2.1, 3.7)",
+    "spanDepth": "3.4.6.3-3.4.6.7, Tables 3.9-3.11",
+    "calculatedDeflection": "3.2.1, 3.6-3.7",
+    "cracking": "3.2.4, 3.8 (equations 12-13)",
+    "cover": "3.3, Table 3.3",
+    "durability": "Table 3.3",
+    "anchorage": "3.12.8.3-3.12.8.4, Table 3.26",
+    "laps": "3.12.8.11-3.12.8.13",
+    "beamSteel": "3.12.5.3, 3.12.6.1, Table 3.25",
+    "sideFace": "3.12.5.4",
+    "slabSteel": "3.12.5.3, 3.12.11.2.7",
+    "columnSteel": "3.12.5.3, 3.12.6.2",
+    "columnLinks": "3.12.7",
+    "twoWaySlabs": "3.5.3.4, Tables 3.13-3.14",
+    "nearSupport": "3.4.5.8-3.4.5.10"
+  },
+  "sources": {
+    "ultimate": "BS 8110-1:1997 3.4.4.1 (the simplified block 0.45 fcu over 0.9 x: η = 0.45 / (0.67/1.5), λ = 0.9), Table 2.2 (γm 1.5 concrete, 1.05 reinforcement: the 1997 text with Amendment 3; 1.15 before), 3.4.4.4 (x at most 0.5 d: K' = 0.156, the limit with up to 10 % redistribution, taken for every section: SAEngine practice), εcu 0.0035",
+    "ultimate.relations": "BS 8110-2:1985 7.2 (Ec,28 = 20 + 0.2 fcu kN/mm²); the flexural tensile strength 0.55 √fcu (uncertain: VERIFY.md); the high-strength relations of the generic form are not used (highFrom 100 MPa)",
+    "ultimate.axialShares": "BS 8110-1:1997 3.8.4.3 equation 38: N = 0.4 fcu Ac + 0.80 fy Asc with γm 1.05 (0.75 fy Asc with 1.15), taken as the cap of the interaction surface (SAEngine practice)",
+    "ultimate.eccentricity": "BS 8110-1:1997 3.8.2.4: emin = 0.05 h, at most 20 mm",
+    "shear": "BS 8110-1:1997 Table 3.8 by its formula vc = 0.79 (100 As/bv d)^1/3 (400/d)^1/4 / γm, γm 1.25, × (fcu/25)^1/3 (fcu at most 40), 100 As/bv d at most 3, (400/d)^1/4 at least 1 (the depth factor of every member); 3.4.5.2 (v at most 0.8 √fcu and 5 N/mm²); Table 3.7 (least links 0.4 bv sv / 0.95 fyv where v > 0.5 vc; fyv at most 460); 3.4.5.5 (link spacing at most 0.75 d)",
+    "punching": "BS 8110-1:1997 3.7.7: v = V / (u d) on the perimeter 1.5 d from the loaded area against vc of Table 3.8. SAEngine's punching rows have no slab steel ratio: vc is taken as 0.10 √fcu (Table 3.8 at 100 As/bd about 0.4 % and d 250 mm for fcu 25; uncertain, on the d/2 sections of SAEngine's perimeter search, which are more severe than 1.5 d), links where v <= 2 vc (3.7.7.5)",
+    "deflection": "BS 8110-1:1997 Table 3.9 (7, 20, 26; flanged × 0.8 at bw/b <= 0.3), 3.4.6.4 (× 10/span beyond 10 m), Table 3.10 (MF = 0.55 + (477 - fs)/(120 (0.9 + M/bd²)) <= 2, fs = 2/3 fy As,req/As,prov; M/bd² from pt at 0.95 fy and z = 0.9 d: SAEngine practice), Table 3.11 (1 + pc/(3 + pc) <= 1.5), 3.7.8 (flat slabs × 0.9), 3.4.1.5 (effective flange bw + lz/5, bw + lz/10 with lz the span: SAEngine practice, on the safe side). The tension field of the IS-type fit is not used (tensionMoment replaces it). Calculated: BS 8110-2:1985 3.2.1 (span/250 final; span/350 or 20 mm after the partitions), 3.7 shrinkage curvature with the k3 of the support (equation 9 values); the creep coefficients and the shrinkage strain are SAEngine practice (uncertain: BS 8110-2 Figures 7.1, 7.2 by humidity and section)",
+    "cracking": "BS 8110-2:1985 3.2.4.1 (0.3 mm), 3.8.3 equation 12 (w = 3 acr εm / (1 + 2 (acr - cmin)/(h - x))), equation 13 (εm with the stiffening b (h - x)(a' - x)/(3 Es As (d - x))); BS 8007 0.2 mm for liquid-retaining members. The bar spacing rules of BS 8110-1 3.12.11.2 are the alternative the calculation replaces (3.12.11.1)",
+    "cover": "BS 8110-1:1997 Table 3.3: nominal cover by exposure at the least grade allowed (mild 25 mm C30; moderate 35 mm C35, 30 mm at C40 and above; severe 40 C40; very severe 50 C40; most severe 50 C50), the least cement content and the largest free w/c of the same column; 3.3.1.4 (concrete cast against earth 75 mm); fire covers of Table 3.4 not covered here",
+    "anchorage": "BS 8110-1:1997 3.12.8.4: fbu = β √fcu, β 0.28 plain bars in tension, 0.5 type 2 deformed bars in tension (deformedFactor 0.5/0.28), 0.63 in compression; anchorage l = 0.95 fy φ / (4 fbu); 3.12.8.13 laps: at least the tension anchorage, 15 φ or 300 mm; compression laps 1.25 × the compression anchorage (compressionFactor 1.008 = 0.63/0.5 / 1.25, so the compression anchorage itself is 25 % long: on the safe side); the 1.4 and 2.0 factors of top and corner laps (3.12.8.13) are not applied",
+    "memberLimits": "BS 8110-1:1997 Table 3.25 (tension steel 0.13 % of b h at fy 460, 0.24 % at 250; beamMin = 0.13 % × 460 / 0.9 on b d: SAEngine form), 3.12.6.1 (4 %), 3.12.5.4 (side bars of beams deeper than 750 mm at most 250 mm apart; their size rule √(sb b / fy) taken as 0.1 % of the web: SAEngine practice), 3.12.11.2.7 (slab bars at most 3 d or 750 mm apart), 3.12.5.3 and 3.12.6.2 (columns 0.4 % to 6 %), 3.12.5 (4 bars rectangular, 6 circular, 12 mm least), 3.12.7.1 (links φ/4 and 6 mm, at most 12 φ of the smallest compression bar)",
+    "columns": "BS 8110-1:1997 3.8.1.3 (short when le/h < 15 braced, < 10 unbraced), 3.8.1.7-3.8.1.8 (le at most 60 b'), 3.8.3.1 (Madd = N au, au = βa K h, βa = (le/b')²/2000), 3.8.3.1 equation 33 (K = (Nuz - N)/(Nuz - Nbal) <= 1, Nuz = 0.45 fcu Ac + 0.95 fy Asc; Nbal from the balanced strains, SAEngine practice in place of 0.25 fcu b d), biaxial bending by the interaction surface (in place of 3.8.4.5's enhanced moment)",
+    "twoWaySlabs": "BS 8110-1:1997 Table 3.14 (restrained panels, nine cases, ly/lx 1.0-2.0), Table 3.13 (simply supported), 3.5.3.4 (middle strip 3/4 of the width), 3.5.3.5 (torsion steel at corners: 3/4 of the largest midspan steel over lx/5, half with one edge continuous)",
+    "shear.enhancement": "BS 8110-1:1997 3.4.5.8: vc × 2 d / av within 2 d of a support (used for corbels); beams checked at d from the face, the enhancement not taken (on the safe side)"
+  }
+}
