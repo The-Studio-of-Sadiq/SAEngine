@@ -27,7 +27,7 @@ import math
 from typing import Any, Literal, NamedTuple
 
 from saengine.codes import context as code_context
-from saengine.design.clauses import Clauses, clause, short_clause, short_name, text
+from saengine.design.clauses import Clauses, Rows, clause, short_clause, short_name, text
 
 FrameType = Literal["special", "intermediate", "ordinary"]
 
@@ -36,6 +36,76 @@ LEVELS: tuple[FrameType, ...] = ("ordinary", "intermediate", "special")
 
 #: The clause of each provision, from the code pack in force (``designClauses.seismicRules``).
 CLAUSES: Clauses = Clauses("seismicRules")
+
+#: C11: the clause numbers the check rows and notes cite (``designClauses.seismicRulesRows``:
+#: the clause without the code's name, e.g. "8.3.3.3, p. 1089" in the default pack); a pack
+#: without them names the rows without a clause.
+R = Rows("seismicRulesRows")
+
+
+def _sec(label: str, key: str) -> str:
+    """``label (Sec <clause>)`` of :data:`R` ``key``; ``label`` alone without it."""
+    found = R.ref(key)
+    return f"{label} (Sec {found})" if found else label
+
+
+def _and(*parts: str) -> str:
+    """The non-empty ``parts`` as "a, b and c"."""
+    found = [p for p in parts if p]
+    return ", ".join(found[:-1]) + f" and {found[-1]}" if len(found) > 1 else "".join(found)
+
+
+def _table_row(row: str) -> str:
+    """ "<systems table> row <row>" (the pack's table of the structural systems); a row the pack
+    names with its table ("Table 9 (i)(a)") as it is."""
+    own = row if "Table" in row else f"row {row}"
+    return " ".join(t for t in (R.ref("systems"), own) if t)
+
+
+#: The :data:`R` key of each provision id of :func:`_member_provisions` (the ids are the default
+#: pack's section numbers).
+PROVISION_KEYS = {
+    "8.3.4": "smfBeams",
+    "8.3.5": "smfColumns",
+    "8.3.7": "joints",
+    "8.3.8": "shear",
+    "8.3.9": "omf",
+    "8.3.10": "imf",
+    "8.3.12": "nonSfrs",
+}
+
+
+def _welding_exceptions() -> str:
+    """ "except as <clauses> allow" of the welding the pack permits."""
+    allowed = _and(R.ref("weldedBeams"), R.ref("weldedColumns"))
+    return f"except as {allowed} allow" if allowed else "except where the code allows it"
+
+
+def _splice_types() -> str:
+    """Where Type 1 and Type 2 mechanical connections are defined: the pack's clause, else
+    that the code does not define them (ACI 318 18.2.7 does)."""
+    own = R.ref("spliceTypes")
+    if own:
+        return f"Type 1/Type 2 as {short_name()} {own} defines them"
+    return (
+        f"{short_clause('seismicRulesNotes', 'chapter')} does not define Type 1/Type 2 itself "
+        "(ACI 318 18.2.7 does)"
+    )
+
+
+def _within(text: str) -> str:
+    """ " (text)", or "" for an empty ``text``."""
+    return f" ({text})" if text else ""
+
+
+def _of(text: str) -> str:
+    """ " of text", or "" for an empty ``text``."""
+    return f" of {text}" if text else ""
+
+
+def provision_clauses(provisions: list[str]) -> str:
+    """The pack's clauses of provision ids ``provisions``, comma separated ("" for none)."""
+    return R.ref(*(PROVISION_KEYS[p] for p in provisions if p in PROVISION_KEYS))
 
 
 def system_name(system: str) -> str:
@@ -232,13 +302,14 @@ def system_checks(
     if limit == NP:
         checks.append(
             _check(
-                f"System permitted in Seismic Design Category {sdc} (Table 6.2.19 row {row.row})",
+                f"System permitted in Seismic Design Category {sdc} ({_table_row(row.row)})",
                 1.0,
                 0.0,
                 "-",
-                f"Table 6.2.19 row {row.row}: {name} is NP (not permitted) in Category {sdc}"
+                f"{_table_row(row.row)}: {name} is NP (not permitted) in Category {sdc}"
                 + (
-                    f"; Sec 8.3.2 requires {required_level(sdc)} seismic detailing in Category "
+                    f"; {R.sec('levels') or 'the code'} requires {required_level(sdc)} seismic "
+                    "detailing in Category "
                     f"{sdc}: choose a system with it (and its R, Ω0, Cd)"
                     if row.frame and not _level_at_least(row.frame, required_level(sdc))
                     else ""
@@ -250,11 +321,11 @@ def system_checks(
         if height is None:
             checks.append(
                 _check(
-                    f"Height limit of the system in Category {sdc} (Table 6.2.19)",
+                    R.named(f"Height limit of the system in Category {sdc}", "systems"),
                     0.0,
                     limit,
                     "m",
-                    f"Table 6.2.19 row {row.row}: at most {limit:g} m; the building has no "
+                    f"{_table_row(row.row)}: at most {limit:g} m; the building has no "
                     "columns or walls to take its height from",
                     flag=True,
                 )
@@ -262,12 +333,11 @@ def system_checks(
         else:
             checks.append(
                 _check(
-                    f"Height limit of the system in Category {sdc} (Table 6.2.19)",
+                    R.named(f"Height limit of the system in Category {sdc}", "systems"),
                     height,
                     limit,
                     "m",
-                    f"Table 6.2.19 row {row.row}: {name} at most {limit:g} m high in Category "
-                    f"{sdc}",
+                    f"{_table_row(row.row)}: {name} at most {limit:g} m high in Category {sdc}",
                 )
             )
     return checks
@@ -357,9 +427,11 @@ def material_checks(
             continue
         fc = float(m.concrete.fc)
         used = ", ".join(types)
+        fc_name = f"f'c ≥ {fc_min:g} MPa"
+        light_name = f"Lightweight f'c ≤ {fc_max_light:g} MPa"
         checks.append(
             _check(
-                f"f'c ≥ {fc_min:g} MPa (Sec 8.3.3.3, p. 1089): {mid}",
+                f"{_sec(fc_name, 'concrete')}: {mid}",
                 fc_min,
                 fc,
                 "MPa",
@@ -370,12 +442,13 @@ def material_checks(
         if density is not None and density <= light_density:
             checks.append(
                 _check(
-                    f"Lightweight f'c ≤ {fc_max_light:g} MPa (Sec 8.3.3.3, p. 1089): {mid}",
+                    f"{_sec(light_name, 'concrete')}: {mid}",
                     fc,
                     fc_max_light,
                     "MPa",
                     f"density {density:g} kg/m³ is lightweight concrete ({CLAUSES['lightweight']});"
-                    " higher strengths need experimental evidence; λ per Sec 6.1.8",
+                    " higher strengths need experimental evidence"
+                    + (f"; λ per Sec {R.ref('lambda')}" if R.ref("lambda") else ""),
                 )
             )
     for mid, types in sorted(rebar_used.items()):
@@ -400,7 +473,7 @@ def material_checks(
             remark = f"; fy {fy:g} MPa is not one of these grades"
         checks.append(
             _check(
-                f"Reinforcement grade (Sec 8.3.3.4(b), p. 1090): {mid}",
+                f"{_sec('Reinforcement grade', 'grade')}: {mid}",
                 fy,
                 fy_max,
                 "MPa",
@@ -416,7 +489,7 @@ def material_checks(
         if actual_fy is not None:
             checks.append(
                 _check(
-                    f"Actual fy ≤ fy + {margin:g} MPa (Sec 8.3.3.4(b)(i), p. 1090): {mid}",
+                    f"{_sec(f'Actual fy ≤ fy + {margin:g} MPa', 'actualFy')}: {mid}",
                     float(actual_fy),
                     fy + margin,
                     "MPa",
@@ -426,7 +499,7 @@ def material_checks(
         else:
             checks.append(
                 _check(
-                    f"Actual fy ≤ fy + {margin:g} MPa (Sec 8.3.3.4(b)(i), p. 1090): {mid}",
+                    f"{_sec(f'Actual fy ≤ fy + {margin:g} MPa', 'actualFy')}: {mid}",
                     fy,
                     fy + margin,
                     "MPa",
@@ -442,7 +515,7 @@ def material_checks(
             actual = actual_fu is not None and actual_fy is not None
             checks.append(
                 _check(
-                    f"fu/fy ≥ {fu_fy_min:g} (Sec 8.3.3.4(b)(ii), p. 1090): {mid}",
+                    f"{_sec(f'fu/fy ≥ {fu_fy_min:g}', 'fuFy')}: {mid}",
                     fu_fy_min,
                     ratio,
                     "-",
@@ -458,7 +531,7 @@ def material_checks(
         else:
             checks.append(
                 _check(
-                    f"fu/fy ≥ {fu_fy_min:g} (Sec 8.3.3.4(b)(ii), p. 1090): {mid}",
+                    f"{_sec(f'fu/fy ≥ {fu_fy_min:g}', 'fuFy')}: {mid}",
                     fu_fy_min,
                     0.0,
                     "-",
@@ -474,7 +547,7 @@ def material_checks(
         if steel.elongation is not None:
             checks.append(
                 _check(
-                    f"Elongation in 200 mm (Sec 8.3.3.4(b)(iii), p. 1090): {mid}",
+                    f"{_sec('Elongation in 200 mm', 'elongation')}: {mid}",
                     need,
                     float(steel.elongation),
                     "%",
@@ -485,7 +558,7 @@ def material_checks(
         else:
             checks.append(
                 _check(
-                    f"Elongation in 200 mm (Sec 8.3.3.4(b)(iii), p. 1090): {mid}",
+                    f"{_sec('Elongation in 200 mm', 'elongation')}: {mid}",
                     need,
                     0.0,
                     "%",
@@ -514,17 +587,17 @@ def material_checks(
     )
     notes.append(
         f"{CLAUSES['welding']}: reinforcement required by the earthquake combinations is not to "
-        "be welded except as 8.3.4.2(d) and 8.3.5.3(b) allow, and stirrups, ties and inserts "
+        "be welded " + _welding_exceptions() + ", and stirrups, ties and inserts "
         "are not to be welded to the longitudinal bars (a drawing note; the model holds no "
         "welds)"
     )
     notes.append(
-        f"{CLAUSES['splices']}: welded splices and mechanical connections to Sec 8.2.12.3(a)-(d) "
-        "only at alternate bars of a layer, 600 mm apart along the member; welded splices and "
+        f"{CLAUSES['splices']}: welded splices and mechanical connections"
+        + (f" to Sec {R.ref('mechanical')}" if R.ref("mechanical") else "")
+        + " only at alternate bars of a layer, 600 mm apart along the member; welded splices and "
         "Type 1 mechanical connections not within twice the member depth of a joint face or "
-        f"where yielding is likely. {short_clause('seismicRulesNotes', 'chapter')} does not define "
-        "Type 1/Type 2 itself (ACI 318 "
-        "18.2.7 does); the model holds no splice positions, so this is a drawing note"
+        f"where yielding is likely. {_splice_types()}; the model holds no splice positions, so "
+        "this is a drawing note"
     )
     return checks, notes
 
@@ -962,18 +1035,20 @@ def seismic_detailing_scope(
         if row.frame and required and LEVELS.index(row.frame) > LEVELS.index(required):
             notes.append(
                 f"{row.frame} detailing in Category {sdc} is permitted to use its lower design "
-                f"forces (Sec 8.3.2(e), p. 1089)"
+                f"forces{_within(R.sec('higherLevel'))}"
             )
         system_entry = code_context.table("seismic").systems.get(system)
         if system_entry is not None and system_entry.masonry:
             notes.append(
-                "a masonry bearing wall system: its walls are designed as masonry (Part 6 "
-                "Chapter 7); the RC detailing of Sec 8.3 applies to its concrete members only"
+                "a masonry bearing wall system: its walls are designed as masonry"
+                + _within(R.ref("masonry"))
+                + f"; the RC detailing{_of(R.sec('chapter'))} applies to its concrete members "
+                "only"
             )
         elif not row.concrete:
             notes.append(
-                "a steel system: the RC detailing of Sec 8.3 does not apply to its members "
-                "(Part 6 Chapter 10)"
+                f"a steel system: the RC detailing{_of(R.sec('chapter'))} does not apply to its "
+                f"members{_within(R.ref('steel'))}"
             )
             # B35: the steel seismic provisions (saengine.design.steel.seismic) say whether
             # they apply (R above the pack's limit) and to which frames.
@@ -1005,13 +1080,13 @@ def seismic_detailing_scope(
     if flat and frame_type == "special" and row is not None and row.frame == "special":
         checks.append(
             _check(
-                "Slabs without beams in a special moment frame (Sec 8.3.2(b), p. 1088)",
+                _sec("Slabs without beams in a special moment frame", "flatSlabs"),
                 1.0,
                 0.0,
                 "-",
                 f"flat slab types {', '.join(flat)}: a slab without beams is not permitted as "
                 "part of the seismic force-resisting system of a special moment frame; design "
-                "them as gravity members (Sec 8.3.12.4)",
+                "them as gravity members" + _within(R.sec("flatSlabsGravity")),
                 flag=True,
                 utilisation=99.0,
             )
@@ -1032,7 +1107,8 @@ def seismic_detailing_scope(
                 f"{', '.join(found_walls[:6])}{' ...' if len(found_walls) > 6 else ''} resist "
                 f"lateral forces in the analysis: Category {sdc} requires special detailing of "
                 f"every RC structure ({CLAUSES['provisions']}), so they are designed as special "
-                "structural walls (8.3.6); R, Ω0 and Cd stay the declared system's until it is "
+                f"structural walls{_within(R.ref('walls'))}; R, Ω0 and Cd stay the declared "
+                "system's until it is "
                 "changed (a dual system with special walls, or the walls made non-structural)"
             )
         walls_special = True
@@ -1063,7 +1139,9 @@ def seismic_detailing_scope(
     if level and frame_type is None and row is not None and row.concrete:
         notes.append(
             f"{system_name(system)}"
-            " has no moment frame in its seismic force-resisting system (Table 6.2.19 group B): "
+            " has no moment frame in its seismic force-resisting system"
+            + _within(R.ref("systemsGroup"))
+            + ": "
             "its beams and columns are gravity members unless marked lateral, so the special or "
             "intermediate moment frame sections apply only to members marked lateral"
         )
@@ -1160,12 +1238,12 @@ def seismic_detailing_scope(
             "'collector')"
         )
     notes.append(
-        f"{CLAUSES['phi']}: strength reduction factors of Sec 6.2.3.2-6.2.3.4, as the design "
+        f"{CLAUSES['phi']}: strength reduction factors{_of(R.sec('phiFactors'))}, as the design "
         "uses already"
     )
     notes.append(
-        f"{CLAUSES['analysis']}(c): members below the base that carry earthquake forces to the "
-        "foundation follow Sec 8.3 too"
+        f"{CLAUSES['analysis']}{R.ref('belowBase')}: members below the base that carry "
+        f"earthquake forces to the foundation follow {R.sec('chapter') or 'these provisions'} too"
     )
     return {
         "system": system,

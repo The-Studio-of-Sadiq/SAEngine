@@ -99,7 +99,7 @@ from typing import Any, Literal
 
 from saengine.codes import context as code_context
 from saengine.design.bars import round_down, spacing_step
-from saengine.design.clauses import short_clause
+from saengine.design.clauses import Rows, own_text, short_clause
 from saengine.design.rc import (
     ROW_CLEAR,
     Bar,
@@ -142,11 +142,23 @@ def _column_rho() -> tuple[float, float]:
 # Bars of one row: their outer edges within this of each other [mm].
 EDGE_TOLERANCE = 1.0
 
+#: C11: the clause numbers the rows and notes cite, from the pack in force
+#: (``designClauses.ductileMembersRows``: the clause without the code's name, e.g. "8.3.4.1(d)"
+#: in the default pack); a pack without them names the rows without a clause.
+R = Rows("ductileMembersRows")
+
+#: The :data:`R` key of the beam rules of each frame type.
 _CLAUSES = {
-    "special": "8.3.4",
-    "intermediate": "8.3.10.4",
-    "ordinary": "8.3.9",
+    "special": "smfBeams",
+    "intermediate": "imfBeams",
+    "ordinary": "omf",
 }
+
+
+def splice_note() -> str:
+    """The start of the beams' lap splice note ("lap splices (8.3.4.2(b))" in the default
+    pack), which :mod:`saengine.design.seismic_detailing` drops where it does not apply."""
+    return R.named("lap splices", "beamSplices")
 
 
 # ─────────────────────────────────── transverse zones ───────────────────────────────────
@@ -355,6 +367,7 @@ def held_required(face: list[tuple[float, float]]) -> int:
 def _support_rows(
     section: RcSection, zones: Zones, clause: str, faces: Iterable[tuple[str, int]]
 ) -> list[dict[str, Any]]:
+    """``clause``: the :data:`R` key of the hoop rule the rows follow."""
     rows = []
     for axis, sign in faces:
         face = _face_bars(section, axis, sign)
@@ -367,7 +380,7 @@ def _support_rows(
         ]
         rows.append(
             _at_least(
-                f"Lateral support of the {name} bars ({clause}, 8.1.9.4(c))",
+                R.named(f"Lateral support of the {name} bars", clause, "lateralSupport"),
                 need,
                 legs,
                 "legs",
@@ -470,14 +483,20 @@ def beam_checks(
     dia = zones.dia if zones else 0.0
     need = beam_need(section, frame, dia, lateral)
     out.need = need
-    clause = _CLAUSES[frame] if lateral else ("8.3.12.3" if frame == "special" else "8.3.9.1")
+    clause = _CLAUSES[frame] if lateral else ("nonSfrs" if frame == "special" else "omfNonSfrs")
     pu, combination = axial
     ag_fc = b * h * section.fc
     if frame == "ordinary" and lateral:
+        # C11: the pack's own clause of the ordinary frames; without one, no other code's.
         out.notes.append(
-            f"{short_clause('ductileMembers', 'ordinary')} sets no rule for the beams of an "
-            "ordinary moment frame that resist the "
-            "earthquake: Chapter 6 governs them"
+            (
+                f"{short_clause('ductileMembers', 'ordinary')} sets no rule for the beams of an "
+                "ordinary moment frame that resist the "
+                "earthquake: Chapter 6 governs them"
+            )
+            if own_text("ductileMembers", "ordinary")
+            else "no detailing rule for the beams of an ordinary moment frame that resist the "
+            "earthquake: the member design governs them"
         )
         return out
     if not lateral:
@@ -485,24 +504,25 @@ def beam_checks(
             "not part of the seismic-force-resisting system: the moments induced by the design "
             "displacement are not computed, so "
             + (
-                "Sec 8.3.12.3 applies (8.3.12.1)"
+                f"{R.sec('nonSfrs') or 'the rule for induced forces not computed'} applies"
+                + R.within("nonSfrsScope")
                 if frame == "special"
-                else "Sec 8.3.9.1(b) is applied; 8.3.9.1(a) (members whose induced moment under "
+                else f"{R.sec('omfNonSfrsWithin') or 'the rule within φMn'} is applied; "
+                f"{R.ref('omfNonSfrsBeyond') or 'the rule'} (members whose induced moment under "
                 "twice the lateral displacement exceeds φMn) is not checked"
             )
         )
     if pu > _special("axialShare") * ag_fc:
-        note = (
-            "Pu above 0.1 Ag f'c: detail the member as a column ("
-            + {"special": "8.3.5", "intermediate": "8.3.10.5", "ordinary": "8.3.9.2"}[frame]
-            + ")"
+        column_key = {"special": "smfColumns", "intermediate": "imfColumns"}.get(
+            frame, "omfColumns"
         )
-        axial_clause = {"special": "8.3.4.1(a)", "intermediate": "8.3.10.2"}.get(
-            frame, "8.3.9.1(a)"
+        note = "Pu above 0.1 Ag f'c: detail the member as a column" + R.within(column_key)
+        axial_clause = {"special": "smfBeamAxial", "intermediate": "imfAxial"}.get(
+            frame, "omfNonSfrsBeyond"
         )
         out.checks.append(
             _at_most(
-                f"Axial force of a flexural member ({axial_clause})",
+                R.named("Axial force of a flexural member", axial_clause),
                 pu / 1e3,
                 _special("axialShare") * ag_fc / 1e3,
                 "kN",
@@ -515,7 +535,7 @@ def beam_checks(
         if clear_span is not None:
             out.checks.append(
                 _at_least(
-                    "Clear span ≥ 4d (8.3.4.1(b))",
+                    R.named("Clear span ≥ 4d", "beamSpan"),
                     4 * need.d,
                     clear_span,
                     "mm",
@@ -523,10 +543,11 @@ def beam_checks(
                 )
             )
         else:
-            out.notes.append("clear span not given: 8.3.4.1(b) ln ≥ 4d not checked")
+            span_rule = " ".join(t for t in (R.ref("beamSpan"), "ln ≥ 4d") if t)
+            out.notes.append(f"clear span not given: {span_rule} not checked")
         out.checks.append(
             _at_least(
-                "Width to depth ≥ 0.3 (8.3.4.1(c))",
+                R.named("Width to depth ≥ 0.3", "beamRatio"),
                 _special("beamMinRatio"),
                 b / h,
                 "",
@@ -534,17 +555,18 @@ def beam_checks(
             )
         )
         out.checks.append(
-            _at_least("Width ≥ 250 mm (8.3.4.1(d))", _special("beamMinWidth"), b, "mm")
+            _at_least(R.named("Width ≥ 250 mm", "beamWidth"), _special("beamMinWidth"), b, "mm")
         )
         for k, (c1, c2) in enumerate(supports):
             limit = c2 + 2 * min(c2, 0.75 * c1)
             out.checks.append(
                 _at_most(
-                    f"Width within the supporting column, end {k + 1} (8.3.4.1(d))",
+                    R.named(f"Width within the supporting column, end {k + 1}", "beamWidthColumn"),
                     b,
                     limit,
                     "mm",
-                    f"c2 + 2 min(c2, 0.75 c1) with c1 = {c1:g}, c2 = {c2:g} mm (Figure 6.8.1)",
+                    f"c2 + 2 min(c2, 0.75 c1) with c1 = {c1:g}, c2 = {c2:g} mm"
+                    + R.within("beamWidthFigure"),
                 )
             )
 
@@ -558,17 +580,17 @@ def beam_checks(
             rho = area / (b * d_face)
             out.checks.append(
                 _at_least(
-                    f"Least steel ratio, {face} (8.3.4.2(a))",
+                    R.named(f"Least steel ratio, {face}", "beamBars"),
                     100 * need.rho_min,
                     100 * rho,
                     "%",
-                    f"max(0.25 √f'c, 1.4)/fy (Figure 6.8.2); As = {area:.0f} mm² of the "
-                    f"{face} rows (side bars not counted), d = {d_face:.0f} mm",
+                    f"max(0.25 √f'c, 1.4)/fy{R.within('beamRhoFigure')}; As = {area:.0f} mm² of "
+                    f"the {face} rows (side bars not counted), d = {d_face:.0f} mm",
                 )
             )
             out.checks.append(
                 _at_most(
-                    f"Largest steel ratio, {face} (8.3.4.2(a))",
+                    R.named(f"Largest steel ratio, {face}", "beamBars"),
                     100 * rho,
                     100 * _special("beamRhoMax"),
                     "%",
@@ -576,7 +598,7 @@ def beam_checks(
             )
         out.checks.append(
             _at_least(
-                "Continuous bars top and bottom (8.3.4.2(a))",
+                R.named("Continuous bars top and bottom", "beamBars"),
                 2,
                 min(counts),
                 "bars",
@@ -589,10 +611,10 @@ def beam_checks(
         caps = capacities or {hog: flexure(section, hog) for hog in (False, True)}
         positive, negative = caps[False].mn, caps[True].mn
         fraction = "one-half" if need.positive_share == 0.5 else "one-third"
-        moment_clause = "8.3.10.4(a)" if lateral and frame == "intermediate" else "8.3.4.2(a)"
+        moment_clause = "imfBeamMoments" if lateral and frame == "intermediate" else "beamMoments"
         out.checks.append(
             _at_least(
-                f"Positive moment strength at the face ({moment_clause})",
+                R.named("Positive moment strength at the face", moment_clause),
                 need.positive_share * negative / 1e6,
                 positive / 1e6,
                 "kN·m",
@@ -602,7 +624,7 @@ def beam_checks(
         largest = max(positive, negative)
         out.checks.append(
             _at_least(
-                f"Moment strength along the member ({moment_clause})",
+                R.named("Moment strength along the member", moment_clause),
                 need.any_share * largest / 1e6,
                 min(positive, negative) / 1e6,
                 "kN·m",
@@ -615,7 +637,7 @@ def beam_checks(
         if zones is not None and zones.splice_spacing is not None:
             out.checks.append(
                 _at_most(
-                    "Hoops over lap splices (8.3.4.2(b))",
+                    R.named("Hoops over lap splices", "beamSplices"),
                     zones.splice_spacing,
                     need.splice_spacing,
                     "mm",
@@ -623,7 +645,7 @@ def beam_checks(
                 )
             )
         out.notes.append(
-            f"lap splices (8.3.4.2(b)): not within the joints nor within 2h = {2 * h:.0f} mm of "
+            f"{splice_note()}: not within the joints nor within 2h = {2 * h:.0f} mm of "
             f"their faces, enclosed by hoops at ≤ {need.splice_spacing:.0f} mm"
         )
 
@@ -632,7 +654,7 @@ def beam_checks(
     if zones is None:
         out.checks.append(
             _row(
-                f"Transverse reinforcement ({clause})",
+                R.named("Transverse reinforcement", clause),
                 1,
                 0,
                 "",
@@ -643,7 +665,7 @@ def beam_checks(
         return out
     kind = "Hoop" if frame == "special" else "Stirrup"
     if need.zone_spacing is not None:
-        zone_clause = "8.3.4.3(b)" if frame == "special" else "8.3.10.4(b)"
+        zone_clause = "beamHoopSpacing" if frame == "special" else "imfBeamStirrups"
         if not zones.has_zone:
             out.notes.append(
                 f"no confinement zone given: spacing {zones.spacing:g} mm used for the whole length"
@@ -651,7 +673,10 @@ def beam_checks(
         if zones.zone_length is not None:
             out.checks.append(
                 _at_least(
-                    f"{kind} zone length ({'8.3.4.3(a)' if frame == 'special' else '8.3.10.4(b)'})",
+                    R.named(
+                        f"{kind} zone length",
+                        "beamHoopZone" if frame == "special" else "imfBeamStirrups",
+                    ),
                     need.zone_length,
                     zones.zone_length,
                     "mm",
@@ -660,7 +685,7 @@ def beam_checks(
             )
         out.checks.append(
             _at_most(
-                f"{kind} spacing at the ends ({zone_clause})",
+                R.named(f"{kind} spacing at the ends", zone_clause),
                 zones.in_zone,
                 need.zone_spacing,
                 "mm",
@@ -672,7 +697,7 @@ def beam_checks(
         if zones.zone_first is not None:
             out.checks.append(
                 _at_most(
-                    f"First {kind.lower()} from the face ({zone_clause})",
+                    R.named(f"First {kind.lower()} from the face", zone_clause),
                     zones.zone_first,
                     _special("beamFirstHoop"),
                     "mm",
@@ -680,24 +705,25 @@ def beam_checks(
             )
         else:
             out.notes.append(
-                f"first {kind.lower()} within {_special('beamFirstHoop'):g} mm of the support face "
-                f"({zone_clause})"
+                f"first {kind.lower()} within {_special('beamFirstHoop'):g} mm of the support face"
+                + R.within(zone_clause)
             )
         if frame == "special":
-            out.checks += _support_rows(section, zones, "8.3.4.3(c)", (("y", 1), ("y", -1)))
+            out.checks += _support_rows(section, zones, "beamHoopElsewhere", (("y", 1), ("y", -1)))
             out.notes.append(
-                "hoops in the end zones: closed, with 135° seismic hooks (8.3.4.3(d)); "
-                "also over 2h on both sides of any other section where flexural yielding may "
-                "occur (8.3.4.3(a)(ii))"
+                "hoops in the end zones: closed, with 135° seismic hooks"
+                + R.within("beamHoopHooks")
+                + "; also over 2h on both sides of any other section where flexural yielding "
+                "may occur" + R.within("beamHoopOther")
             )
     if need.outside_spacing is not None:
         outside_clause = {
-            "special": "8.3.4.3(c)" if lateral else "8.3.12.3(b)",
-            "intermediate": "8.3.10.4(c)",
+            "special": "beamHoopElsewhere" if lateral else "nonSfrsStirrups",
+            "intermediate": "imfBeamElsewhere",
         }.get(frame, clause)
         out.checks.append(
             _at_most(
-                f"{kind if lateral else 'Stirrup'} spacing elsewhere ({outside_clause})",
+                R.named(f"{kind if lateral else 'Stirrup'} spacing elsewhere", outside_clause),
                 zones.spacing,
                 need.outside_spacing,
                 "mm",
@@ -732,7 +758,8 @@ class ColumnNeed:
     full_height: bool = False
     notes: tuple[str, ...] = ()
     first_rule: str = "so/2"
-    #: Clauses of the zone rows (length, spacing, first, outside); None: by frame type.
+    #: The :data:`R` keys of the zone rows' clauses (length, spacing, first, outside), several
+    #: keys comma separated; None: by frame type.
     clauses: tuple[tuple[str, str], ...] | None = None
 
 
@@ -846,11 +873,17 @@ def column_need(
             None,
             None,
             d / 2,
-            "d/2 (8.3.12.3(b))",
+            R.named("d/2", "nonSfrsStirrups"),
             None,
             None,
             None,
-            notes=("Pu ≤ Ag f'c/10: 8.3.12.3(b) flexural-member rules",),
+            notes=(
+                " ".join(
+                    t
+                    for t in ("Pu ≤ Ag f'c/10:", R.ref("nonSfrsStirrups"), "flexural-member rules")
+                    if t
+                ),
+            ),
         )
     if special:
         lo_parts = {"h": largest, "ln/6": (clear_height or 0) / 6, "450 mm": 450.0}
@@ -886,14 +919,16 @@ def column_need(
             lo_rule = "max(h, ln/6, 450 mm, 2h)"
             outside["d/2"] = d / 2
             notes.append(
-                "Pu ≤ 0.1 Ag f'c: a flexural member (8.3.4.1(a), 8.3.5.1); SAEngine applies "
-                "the column rules of 8.3.5.4 and the hoop rules of 8.3.4.3 (2h, d/4, 8 db, "
+                "Pu ≤ 0.1 Ag f'c: a flexural member"
+                + R.within("smfBeamAxial", "columnScope")
+                + f"; SAEngine applies the column rules{_of('columnHoops')} and the hoop rules"
+                f"{_of('beamHoops')} (2h, d/4, 8 db, "
                 f"24 dh, 300 mm, d/2 elsewhere), the stricter of each; d = {d:.0f} mm"
             )
             clauses = (
-                ("length", "8.3.5.4(d), 8.3.4.3(a)"),
-                ("spacing", "8.3.5.4(b), 8.3.4.3(b)"),
-                ("outside", "8.3.5.4(f), 8.3.4.3(c)"),
+                ("length", "columnLength,beamHoopZone"),
+                ("spacing", "columnSpacing,beamHoopSpacing"),
+                ("outside", "columnOutside,beamHoopElsewhere"),
             )
         governing = min(limits, key=lambda k: limits[k])
         out_governing = min(outside, key=lambda k: outside[k])
@@ -955,14 +990,15 @@ def column_need(
             full_height=full_height,
             notes=(
                 *notes,
-                "Pu ≤ 0.1 Ag f'c: the reinforcement details of 8.3.10.4 apply (8.3.10.2)",
+                f"Pu ≤ 0.1 Ag f'c: the reinforcement details{_of('imfBeams')} apply"
+                + R.within("imfAxial"),
             ),
             first_rule="50 mm",
             clauses=(
-                ("length", "8.3.10.4(b), 8.3.10.5(a)"),
-                ("spacing", "8.3.10.4(b)"),
-                ("first", "8.3.10.4(b)"),
-                ("outside", "8.3.10.4(c)"),
+                ("length", "imfBeamStirrups,imfColumnLength"),
+                ("spacing", "imfBeamStirrups"),
+                ("first", "imfBeamStirrups"),
+                ("outside", "imfBeamElsewhere"),
             ),
         )
     # Intermediate (8.3.10.5) and ordinary (8.3.9.2, Pu > 0.1 Ag f'c only) columns, and the
@@ -985,7 +1021,7 @@ def column_need(
             None,
             None,
             None,
-            notes=("Pu ≤ 0.1 Ag f'c: no tie rule of Sec 8.3.9.2",),
+            notes=(f"Pu ≤ 0.1 Ag f'c: no tie rule{_of('omfColumns', sec=True)}",),
         )
     limits = {"8 db": 8 * db, "24 dt": 24 * dt, "least dimension/2": least / 2}
     if imf:
@@ -1049,13 +1085,15 @@ def column_checks(
     if frame == "special" and lateral:
         if not above:
             out.notes.append(
-                "Pu ≤ 0.1 Ag f'c: outside the scope of 8.3.5 (8.3.5.1); the column rules are "
-                "applied with the hoop rules of 8.3.4.3, the stricter of each"
+                f"Pu ≤ 0.1 Ag f'c: outside the scope{_of('smfColumns')}"
+                + R.within("columnScope")
+                + f"; the column rules are applied with the hoop rules{_of('beamHoops')}, the "
+                "stricter of each"
             )
         if not circle:
             out.checks.append(
                 _at_least(
-                    "Least dimension ≥ 300 mm (8.3.5.1(a))",
+                    R.named("Least dimension ≥ 300 mm", "columnLeast"),
                     _special("columnMinDimension"),
                     least,
                     "mm",
@@ -1063,7 +1101,7 @@ def column_checks(
             )
             out.checks.append(
                 _at_least(
-                    "Least to perpendicular dimension ≥ 0.4 (8.3.5.1(b))",
+                    R.named("Least to perpendicular dimension ≥ 0.4", "columnRatio"),
                     _special("columnMinRatio"),
                     least / largest,
                     "",
@@ -1073,7 +1111,7 @@ def column_checks(
         else:
             out.checks.append(
                 _at_least(
-                    "Least dimension ≥ 300 mm (8.3.5.1(a))",
+                    R.named("Least dimension ≥ 300 mm", "columnLeast"),
                     _special("columnMinDimension"),
                     2 * section.profile.radius,
                     "mm",
@@ -1083,12 +1121,14 @@ def column_checks(
     if smf_bars:
         rho = section.steel_area / ag
         low, high = _column_rho()
-        clause = "8.3.5.3(a)" if lateral else "8.3.12.3(c), 8.3.5.3(a)"
-        out.checks.append(_at_least(f"Least steel ratio ({clause})", 100 * low, 100 * rho, "%"))
-        out.checks.append(_at_most(f"Largest steel ratio ({clause})", 100 * rho, 100 * high, "%"))
+        keys = ("columnRho",) if lateral else ("nonSfrsColumns", "columnRho")
+        out.checks.append(_at_least(R.named("Least steel ratio", *keys), 100 * low, 100 * rho, "%"))
+        out.checks.append(
+            _at_most(R.named("Largest steel ratio", *keys), 100 * rho, 100 * high, "%")
+        )
         out.notes.append(
             "lap splices only within the centre half of the column height, designed as tension "
-            "splices (8.3.5.3(b))"
+            "splices" + R.within("columnSplices")
         )
     if zones is None:
         # Whether Sec 8.3 asks for ties at all does not depend on them: ask with a stand-in.
@@ -1099,7 +1139,9 @@ def column_checks(
         if not need.applies:
             out.notes += list(need.notes)
             return out
-        out.checks.append(_row("Ties (8.3)", 1, 0, "", note="no ties", utilisation=math.inf))
+        out.checks.append(
+            _row(R.named("Ties", "ties"), 1, 0, "", note="no ties", utilisation=math.inf)
+        )
         return out
     if not circle and min(zones.legs, zones.across_depth) < 2:
         out.notes.append(
@@ -1123,7 +1165,7 @@ def column_checks(
     if need.zone_length is None:  # 8.3.12.3(b): stirrups <= d/2 throughout
         out.checks.append(
             _at_most(
-                "Tie spacing (8.3.12.3(b))",
+                R.named("Tie spacing", "nonSfrsStirrups"),
                 zones.spacing,
                 need.outside_spacing,
                 "mm",
@@ -1133,24 +1175,26 @@ def column_checks(
         return out
 
     if frame == "special":
-        zc = {"length": "8.3.5.4(d)", "spacing": "8.3.5.4(b)", "outside": "8.3.5.4(f)"}
+        zk = {"length": "columnLength", "spacing": "columnSpacing", "outside": "columnOutside"}
     elif frame == "intermediate" and lateral:
-        zc = {
-            "length": "8.3.10.5(a)",
-            "spacing": "8.3.10.5(a)",
-            "first": "8.3.10.5(b)",
-            "outside": "8.3.10.5(d)",
+        zk = {
+            "length": "imfColumnLength",
+            "spacing": "imfColumnLength",
+            "first": "imfColumnFirst",
+            "outside": "imfColumnOutside",
         }
     else:
-        zc = {
-            "length": "8.3.9.2(b)",
-            "spacing": "8.3.9.2(b)",
-            "first": "8.3.9.2(c)",
-            "outside": "8.3.9.2(d)",
+        zk = {
+            "length": "omfColumnLength",
+            "spacing": "omfColumnLength",
+            "first": "omfColumnFirst",
+            "outside": "omfColumnOutside",
         }
-    zc.setdefault("first", "Figure 6.8.8")
+    zk.setdefault("first", "columnFigure")
     if need.clauses:
-        zc.update(dict(need.clauses))
+        zk.update(dict(need.clauses))
+    # The pack's clauses of each zone row ("" without: the row is named without a clause).
+    zc = {k: R.ref(*v.split(",")) for k, v in zk.items()}
     if not zones.has_zone:
         out.notes.append(
             f"no confinement zone given: spacing {zones.spacing:g} mm used for the whole length"
@@ -1158,7 +1202,7 @@ def column_checks(
     if zones.zone_length is not None:
         out.checks.append(
             _at_least(
-                f"Confinement length lo ({zc['length']})",
+                _paren("Confinement length lo", zc["length"]),
                 need.zone_length,
                 zones.zone_length,
                 "mm",
@@ -1168,11 +1212,12 @@ def column_checks(
     else:
         out.notes.append(
             f"ties at the zone spacing over lo = {need.zone_length:.0f} mm "
-            f"({need.zone_length_rule}) from each joint face ({zc['length']})"
+            f"({need.zone_length_rule}) from each joint face"
+            + (f" ({zc['length']})" if zc["length"] else "")
         )
     out.checks.append(
         _at_most(
-            f"Tie spacing in lo ({zc['spacing']})",
+            _paren("Tie spacing in lo", zc["spacing"]),
             zones.in_zone,
             need.zone_spacing,
             "mm",
@@ -1182,7 +1227,7 @@ def column_checks(
     if zones.zone_first is not None:
         out.checks.append(
             _at_most(
-                f"First tie from the face ({zc['first']})",
+                _paren("First tie from the face", zc["first"]),
                 zones.zone_first,
                 need.first,
                 "mm",
@@ -1205,11 +1250,12 @@ def column_checks(
                     provided = legs_by_bc[k] * bar_area(zones.dia)
                     out.checks.append(
                         _at_least(
-                            f"Confinement Ash, bc along {axis}, {where} (8.3.5.4(a)(ii))",
+                            ash_name(axis, where),
                             required,
                             provided,
                             "mm²",
-                            f"max(Eq. 6.8.7, Eq. 6.8.8) at s = {s:g} mm; "
+                            f"max({R.ref('ashEquations') or 'the Ash expressions'}) at s = "
+                            f"{s:g} mm; "
                             f"{legs_by_bc[k]} legs Ø{zones.dia:g}",
                         )
                     )
@@ -1218,17 +1264,18 @@ def column_checks(
                 provided = 4 * bar_area(zones.dia) / (dc * s)
                 out.checks.append(
                     _at_least(
-                        f"Confinement ρs, {where} (8.3.5.4(a)(i))",
+                        R.named(f"Confinement ρs, {where}", "columnSpiral"),
                         100 * need.rho_s,
                         100 * provided,
                         "%",
-                        f"max(Eq. 6.8.6, Eq. 6.6.12); Dc = {dc:.0f} mm, s = {s:g} mm",
+                        f"max({R.ref('spiralEquations') or 'the ρs expressions'}); Dc = "
+                        f"{dc:.0f} mm, s = {s:g} mm",
                     )
                 )
         if need.hx is not None:
             out.checks.append(
                 _at_most(
-                    "Cross-tie spacing hx (8.3.5.4(c))",
+                    R.named("Cross-tie spacing hx", "columnHx"),
                     need.hx,
                     _special("hxMax"),
                     "mm",
@@ -1236,12 +1283,12 @@ def column_checks(
                 )
             )
             out.checks += _support_rows(
-                section, zones, "8.3.5.4(a)(iii)", (("y", 1), ("y", -1), ("x", 1), ("x", -1))
+                section, zones, "columnSupport", (("y", 1), ("y", -1), ("x", 1), ("x", -1))
             )
         if zones.splice_spacing is not None:
             out.checks.append(
                 _at_most(
-                    "Ties over lap splices (Figure 6.8.8)",
+                    R.named("Ties over lap splices", "columnFigure"),
                     zones.splice_spacing,
                     need.splice_spacing,
                     "mm",
@@ -1251,9 +1298,9 @@ def column_checks(
     outside_limit = need.zone_spacing if full_height else need.outside_spacing
     out.checks.append(
         _at_most(
-            "Tie spacing over the full height (8.3.5.2(c))"
+            R.named("Tie spacing over the full height", "columnFullHeight")
             if full_height
-            else f"Tie spacing outside lo ({zc['outside']})",
+            else _paren("Tie spacing outside lo", zc["outside"]),
             zones.spacing,
             outside_limit,
             "mm",
@@ -1261,6 +1308,24 @@ def column_checks(
         )
     )
     return out
+
+
+def ash_name(axis: str, where: str) -> str:
+    """The name of a column's confinement Ash row (``where`` "in lo" or "over the full
+    height"), which :mod:`saengine.design.seismic_detailing` finds the spacing Ash allows by."""
+    return R.named(f"Confinement Ash, bc along {axis}, {where}", "columnAsh")
+
+
+def _of(key: str, sec: bool = False) -> str:
+    """ " of <clause>" ("of Sec <clause>" with ``sec``) of :data:`R` key ``key``; "" without."""
+    found = R.ref(key)
+    if not found:
+        return ""
+    return f" of Sec {found}" if sec else f" of {found}"
+
+
+def _paren(label: str, inner: str) -> str:
+    return f"{label} ({inner})" if inner else label
 
 
 # ─────────────────────────────────────── design mode ───────────────────────────────────────

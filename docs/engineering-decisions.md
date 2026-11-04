@@ -41,6 +41,22 @@ here, newest first, with the date, the question, the decision, the reason and wh
 - **No unlicensed software.** ETABS, SAP2000 and STAAD are not used for cross-checks or cited.
   Open-source tools are used instead (2026-10-25).
 
+## 2026-11-04: detailing clause references from the code pack (alpha 9, track C11)
+
+- **Row clauses come from the pack.** The RC frame detailing, capacity design and seismic system
+  rows (beams, columns, joints, capacity shear, members outside the seismic-force-resisting
+  system, materials, system permitted) take their clause numbers from the pack's
+  `designClauses` groups `ductileMembersRows`, `ductileJointsRows`, `seismicDetailingRows` and
+  `seismicRulesRows`. The default pack's rows read exactly as before.
+- **No inherited clause numbers (SAEngine practice).** A pack that extends another and does not
+  give a row's clause itself names the row without a clause, rather than showing the clause
+  number of the pack it extends. This also applies to the wall rows (`wallsRows`). A project
+  override of a clause still shows.
+- **Worksheet formula text follows the method.** The wind and seismic worksheets print the
+  formula of the method the pack picks (power-law Kz with the pack's factor, the speed-factor or
+  peak velocity pressure methods, the behaviour-factor spectrum, the pack's spectrum factor)
+  instead of the default pack's.
+
 ## 2026-11-04: the rest of the US pack (alpha 9, track C3b)
 
 SAEngine practice where the NDS 2018, TMS 402-22, AISC 360-22 or AISC 341-22 leave a gap or the

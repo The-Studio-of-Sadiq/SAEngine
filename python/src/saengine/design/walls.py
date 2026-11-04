@@ -134,7 +134,7 @@ from saengine.design.bars import (
     spacing_step,
 )
 from saengine.design.clauses import Clauses
-from saengine.design.clauses import text as clause_text
+from saengine.design.clauses import own_text as clause_text
 from saengine.design.ductile_members import _row, so_special
 from saengine.design.rc import (
     Bar,
@@ -159,8 +159,8 @@ ROWS = "wallsRows"
 
 
 def ref(key: str) -> str:
-    """The clause row ``key`` cites, from the pack in force ("" when it has none: the row is
-    then named without a clause)."""
+    """The clause row ``key`` cites, from the pack in force ("" when it has none, C11 also when
+    it would only inherit another code's number: the row is then named without a clause)."""
     return clause_text(ROWS, key)
 
 
