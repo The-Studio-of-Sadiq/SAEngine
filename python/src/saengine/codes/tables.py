@@ -6085,14 +6085,51 @@ class MasonryPrismEstimate(BaseModel):
     concrete: MasonryPrisms
 
 
+class MasonryBasicStress(_Group):
+    """C9: unreinforced masonry by permissible stresses from a basic compressive stress (method
+    ``basicStress``, :mod:`saengine.design.masonry_basic_stress`): fc = fb ks ka kp with fb by
+    the unit strength and the mortar (``mortars``: IS grade -> (sand parts per cement part, fb
+    by ``unitStrengths``), the mix of the wall's mortar picks the row), ks by the slenderness
+    ratio and the eccentricity ratio (``reduction``: a row per ``eccentricities`` e/t, a column
+    per ``slenderness``; null: not permitted), ka = areaBase + areaSlope A below areaBelow m²,
+    kp the units' shape factor."""
+
+    method: Literal["basicStress"] = "basicStress"
+    unitStrengths: list[Positive] = Field(min_length=2, description="[MPa]")
+    mortars: dict[str, tuple[Positive, list[Positive]]] = Field(
+        description="Grade -> (sand parts per cement part, fb [MPa] by unitStrengths)."
+    )
+    slenderness: list[Positive] = Field(min_length=2)
+    eccentricities: list[float] = Field(min_length=2, description="e/t of the rows.")
+    reduction: list[list[float | None]] = Field(description="ks; null: not permitted.")
+    areaBelow: Positive = Field(description="[m²]")
+    areaBase: Positive
+    areaSlope: Positive
+    shapeFactor: Positive = Field(description="kp of the units.")
+    effectiveHeight: Positive = Field(description="× the clear height, supported top and bottom.")
+    slendernessMax: Positive = Field(description="SR of walls at most.")
+    eccentricityIncrease: tuple[float, Positive] = Field(
+        description="(e/t above, factor): the face stress at most factor × fc."
+    )
+    tension: tuple[Positive, Positive] = Field(
+        description="Flexural tension [MPa]: normal to the bed joints, parallel to them."
+    )
+    tensionMix: Positive = Field(description="Tension only with mortars of at most this sand.")
+    shear: tuple[Positive, Positive, Positive] = Field(
+        description="fs = a + fd / b, at most c [MPa]."
+    )
+    lateralIncrease: float = Field(ge=1, description="× with wind or earthquake.")
+
+
 class MasonryTable(TableModel):
     """Masonry walls: the design method (by id), the mortar grades, the allowable stresses,
     the dimension rules, the reinforcement details and the values of the strength design and
     the earthquake provisions."""
 
-    method: Literal["allowableStress", "strength"] = Field(
+    method: Literal["allowableStress", "strength", "basicStress"] = Field(
         description="The masonry design method: 'allowableStress' (working stress, linear "
-        "stress-strain) or 'strength' (strength design of reinforced walls)."
+        "stress-strain), 'strength' (strength design of reinforced walls) or 'basicStress' "
+        "(C9: permissible stresses from a basic compressive stress, group basicStress)."
     )
     mortars: dict[str, MasonryMortar] = Field(min_length=1, description="Mortar grades by id.")
     quality: MasonryQuality
@@ -6110,13 +6147,14 @@ class MasonryTable(TableModel):
     clauses: dict[str, str] = Field(description="Clause reference of each check, by key.")
     # B34: the methods a wall type may choose instead of ``method``; high wind; anchor bolts;
     # confined masonry. A pack without one does not cover it.
-    alternatives: list[Literal["allowableStress", "strength"]] = Field(
+    alternatives: list[Literal["allowableStress", "strength", "basicStress"]] = Field(
         default_factory=list,
         description="Methods a wall type may choose in lieu of 'method' (none: only 'method').",
     )
     highWind: MasonryHighWind | None = None
     anchorBolts: MasonryAnchorBolts | None = None
     confined: MasonryConfined | None = None
+    basicStress: MasonryBasicStress | None = None  # C9
 
     @model_validator(mode="after")
     def _known_mortars(self) -> MasonryTable:
@@ -8042,6 +8080,27 @@ class CompositeSlab(_Group):
     endBarDiameter: Positive = Field(description="[mm]")
 
 
+class CompositeStudRow(_Group):
+    diameter: Positive = Field(description="[mm]")
+    height: Positive = Field(description="[mm]")
+    strengths: list[Positive] = Field(description="Design strength [kN] by the table's grades.")
+
+
+class CompositeBeamLimitState(_Group):
+    """C9: the plastic positive moment of composite beams with design strengths (method
+    ``partialFactors``): the concrete at ``concreteShare`` × the grade over the block depth,
+    the steel at fy / ``steelGamma``, no φ; headed studs by their tabulated design strength
+    (``studs``: rows by size, columns by ``grades``, linear between the grades; a stud takes
+    the largest row not larger than it) × ``studShare``."""
+
+    method: Literal["partialFactors"] = "partialFactors"
+    concreteShare: Share = Field(description="Design concrete stress of the block / the grade.")
+    steelGamma: Positive = Field(description="γ of the steel beam's yield stress.")
+    grades: list[Positive] = Field(min_length=2, description="Concrete grade [MPa].")
+    studs: list[CompositeStudRow] = Field(min_length=1)
+    studShare: Share = Field(description="× the tabulated strength.")
+
+
 class CompositeBeamRules(_Group):
     spanShare: Share = Field(description="Effective width per side at most this × span.")
     spacingShare: Share = Field(description="... and this × the distance to the next beam.")
@@ -8055,6 +8114,8 @@ class CompositeBeamRules(_Group):
     spacing: CompositeSpacing
     deflection: CompositeDeflection
     slab: CompositeSlab
+    # C9: composite beams by limit state with partial factors on the materials (IS 11384).
+    limitState: CompositeBeamLimitState | None = None
 
 
 class CompositeConnections(_Group):
@@ -9393,6 +9454,8 @@ class SnowTable(TableModel):
 
 
 # Alpha 9 C5: the partial-factor concrete and geotechnical methods (their own module).
+# Alpha 9 C9: steel by limit state design with partial factors and buckling curves.
+from saengine.codes.limit_state_tables import SteelLimitStateTable
 from saengine.codes.method_tables import (
     ConcreteMethodsTable,
     GeotechnicalMethodsTable,
@@ -9454,6 +9517,8 @@ TABLE_MODELS: dict[str, type[TableModel]] = {
     # Alpha 9 C5.
     "concreteMethods": ConcreteMethodsTable,
     "geotechnicalMethods": GeotechnicalMethodsTable,
+    # Alpha 9 C9.
+    "steelLimitState": SteelLimitStateTable,
 }
 
 

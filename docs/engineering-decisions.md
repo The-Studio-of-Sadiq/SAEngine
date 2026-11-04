@@ -86,6 +86,68 @@ VERIFY.md):
   action, every member within the system's width-thickness limits; the sizes are rules of thumb
   (the notes state them), Design mode sizes the members.
 
+## 2026-11-04: Indian Standards steel and the other materials (alpha 9 track C9)
+
+The `is-codes` pack now covers IS 800:2007 (members, connections, Section 12 frames, Table 6
+deflections), the IS 808 section list, IS 1905:1987 masonry, IS 883:1994 timber and IS
+11384:1985 composite beams; every value is in the pack's `VERIFY.md` (entries 200-293) with its
+clause and a confidence, to be checked against the printed codes. Behaviour choices:
+
+- **One limit state steel method, chosen by its table.** A pack with `steelLimitState` designs
+  steel members by partial factors and buckling curves (`design/steel/limit_state.py`, the same
+  method family as EN 1993-1-1, so C6 can reuse it); `members.check_member` hands the member to
+  it, so the design run, Design Steel Sections and the report all use it. A pack without the
+  table keeps the LRFD checks of its `steel` table (the default pack unchanged). Each group
+  names its method id (`classification: epsilonLimits`, `compression: bucklingCurves`,
+  `flexure: elasticCriticalMoment`, `shear: postCritical`, `interaction: sectionMember`,
+  `connections.bolts: partialFactorBolts`, `seismic: prescriptiveFrames`). SAEngine practice
+  (the mechanism).
+- **Mcr with SAEngine's moment factor (SAEngine practice).** c1 of Mcr is the equivalent moment
+  factor SAEngine computes from the moment diagram (the Cb of the parent's method), the load at
+  the shear centre, K = Kw = 1; tees and angles with the warping constant SAEngine gives them.
+- **Effective area of slender sections (read as).** Each slender element counts up to its
+  semi-compact width (IS 800 7.3.2); in flexure βb = Ze/Zp times the worst slender element's
+  share.
+- **Tension of single angles (SAEngine practice).** The end connection is not known to the
+  member: α of 6.3.3 with 2 bolts (0.6), the member's net ratio and shear lag options override.
+  Single angles in compression by λe with "two or more bolts, hinged" (Table 12).
+- **Hollow sections on the nominal wall.** IS 800 has no ERW wall reduction: the 0.93 t of the
+  parent is not applied (`nominalHollowWall`).
+- **Connections: the shared checks with the IS strengths.** Fin plates, end plates, gussets,
+  flange plates, splices and base plates keep their geometry and limit states; the bolt shear
+  (threads in every plane, Anb 0.78 Asb), bearing (kb from the end or pitch distance; fub/fu
+  not known, taken ≥ 1), bolt tension and its interaction, friction grip slip (μf 0.20 / 0.50
+  for the library's surface classes A / B), block shear (Atg taken as Atn), fillet welds (fu
+  of the electrode, no directional increase, shop γmw) and βlj come from IS 800; the elements'
+  yield and rupture factors are the IS strengths written as factors of the shared 0.6 fy / 0.6
+  fu forms. The rules IS 800 has no counterpart for in SAEngine (the column side under flange
+  forces, HSS joints, base plate bearing) stay the parent's and their notes name BNBC 2020.
+  SAEngine practice.
+- **Section 12 in place of the parent's seismic provisions.** With the pack's `seismic` group
+  the AISC-based steel seismic provisions and braced frames of the parent are not run; IS 1893's
+  "concentric braced frame" is taken as SCBF (the stricter rules), EBF is not covered; the rules
+  apply whenever a steel frame system is in use (`rAbove` 0); the brace lines' tension share is
+  a flag on braces grouped by plan direction; K bracing is a note (not detected); the
+  connection design moment 1.2 Mp and 0.04 rad are flags. SAEngine practice, overridable.
+- **Table 6 by the shared deflection rows.** Cantilevers take the limits of their double length
+  (span/150 = 2 L/300), so one row per use holds both.
+- **Masonry by the basic stress method.** `masonry.method: "basicStress"`
+  (`design/masonry_basic_stress.py`): the wall's mortar mix picks the IS grade with at least
+  its sand; the effective height 0.75 H for every wall supported top and bottom, kp = 1 (bricks)
+  and a 25 % increase with wind or earthquake (to verify) are SAEngine choices; bars of a
+  reinforced wall type are not counted (IS 1905 is unreinforced masonry). The pack's working
+  stress combinations (IS 875 Part 5 8.1 at full factors) serve masonry and timber.
+- **Timber: the parent's values with IS 883 clauses.** BNBC 2020 Chapter 11 follows IS 883; the
+  pack keeps its numbers and species list (an Indian species not listed is designed by its
+  strength group) and cites IS 883 at the section level.
+- **Composite beams by design strengths.** `composite.beam.limitState` (method
+  `partialFactors`): the concrete 0.36 fck over xu as 0.4286 fck over 0.84 xu (same force and
+  lever arm), the steel fy/1.15, no φ, studs by the tabulated design strength (the nearest
+  smaller stud of the table). Composite columns and the deck rules stay the parent's.
+- **India left the planned code packs.** The planned-feature page and the wizard's planned entry
+  for India are removed: the built-in pack covers loads, concrete, foundations, steel, masonry,
+  timber and composite beams.
+
 ## 2026-11-04: Indian Standards concrete and foundations (alpha 9 track C8)
 
 The `is-codes` pack now covers IS 456:2000, IS 13920:2016, IS 6403 and IS 2911 (Part 1/Sec 2);
@@ -410,6 +472,68 @@ against the printed standard). Its behaviour choices:
     `perimeter_punching.py`, `crack_control.py`, `bar_rules.py`, `curvature_ductility.py`;
     `substructure/limit_state_geotechnics.py`; glue in `design/rc.py`, `design/check.py`,
     `substructure/load_tests.py`.
+- **Eurocodes pack designs with its own methods (alpha 9 track C5b).** Every design area asks
+  `design/method_selection.py` which method the pack picks (`concreteMethods.<area>.method`,
+  `geotechnicalMethods`); no id is the default strength design with φ, so BNBC 2020 is
+  unchanged. The `eurocodes` pack (0.3.0) now designs by EN 1992-1-1, EN 1998-1 and EN 1997-1:
+  beam torsion, span/depth deflection, crack widths and stress limits, column slenderness by
+  the nominal curvature method, slabs, stairs and walls on the design strengths with the member
+  steel, punching on the control perimeter, DCM/DCH capacity design (joints, ΣMRc ≥ 1.3 ΣMRb,
+  capacity shear, ductile walls), Design Reinforcement's sizing, anchorage and laps, footings by
+  the design approach and piles with ξ. VERIFY.md rows 191-216 list the new values. Decisions
+  (SAEngine practice unless said otherwise; each one overridable):
+  - One set of rules per area: where the pack has a method, the parent's rows for the same rule
+    are dropped (bar-spacing crack control, slab and wall minimum steel and spacing, wall
+    in-plane shear, the special-frame detailing of Sec 8.3); where the pack's limit state rows
+    decide a footing or a pile, the allowable-pressure and allowable-load rows stay as
+    reported-only rows (serviceability indication).
+  - A project sets an area back to the default method with the override
+    `concreteMethods.parentMethods` (or `geotechnicalMethods.parentMethods`), a list of areas.
+  - Slenderness: l0 = k lu with SAEngine's frame k (the alignment chart); φef = 2.0 × the
+    sustained share of the axial force (0.65 without one); i of the gross section, d = h/2 + is.
+  - Slabs, stairs and the proposal's beams keep xu/d ≤ (1 - k1)/k2 = 0.448 (EN 1992-1-1 5.5(4)
+    with δ = 1) as their ductility limit, in place of the parent's εt ≥ 0.004.
+  - Crack and stress rows use the pack's quasi-permanent (6.16b) and characteristic (6.14b-Q)
+    service combinations of the analysis cases, αe = Es/Ecm, the exposure class XC1 by default.
+  - Span/depth takes As,req = As,prov and beff,i = 0.2 l0; a span that exceeds the ratio shows
+    the parent's calculated deflection after it, which then decides.
+  - Capacity design: VEd of beams with both end moments in full (min(1, ΣMRc/ΣMRb) = 1),
+    columns with 2 MRc at the largest moment over the axial range, joint shear with VC = 0
+    (all on the safe side); DCH beams' critical regions with cot θ = 1; walls VEd × 1.5. A DCL
+    system has no capacity design (EN 1998-1 5.3), and the report says so.
+  - Walls: in-plane shear by 6.2 with bw = t, d = 0.8 lw and the horizontal bars as links.
+  - Footings: A2 actions from the A1 strength combinations scaled by γG and γQ; the founding
+    layer's characteristic parameters of the nearest borehole; φ'cv,k = φ'k; cast in place;
+    water may reach the base. Without strength parameters there the allowable pressure decides
+    and a note says so.
+  - Piles: Rc,k from load tests (ξ1, ξ2) where they reached failure, else from the calculated
+    resistance at every borehole (ξ3, ξ4, n = the boreholes), split into base and shaft by the
+    mean shares; tension from the shaft's uplift share plus the pile's weight.
+  - A pack with partial factors integrates every section on the design strengths
+    (`rc.stress_block`): the walls' and flanged walls' P-M diagrams, lintels and footing strips
+    took φ = 1 with characteristic strengths before (C5's φ = 1 reached them); the prestressed
+    strips and tank walls, which a pack does not replace yet, keep their φ (`rc.phi_strength`).
+  - The required steel (`required.design_required`) and the detailing model (bar schedule,
+    drawings) ran under the default pack whatever the project's. They now run under the
+    project's pack by the rule C8 gave Design Reinforcement (`proposal._in_project_pack`):
+    another pack than the default one; a BNBC 2020 project runs exactly as before.
+  - One selection mechanism with C8: a `concreteMethods` group holds one method by id; the
+    partial-factor strip, section and sizing functions serve the EN and IS packs alike, C8's
+    tabulated rules first where their ids are in force.
+  - C4's fixes: the equivalent-frame, direct design, wall, stair and composite clause lines
+    named BNBC clauses after the pack in force ("Eurocodes Part 6 Sec 6.5.7"): a clause a pack
+    inherits is now named after the pack that wrote it. A pack's systems without height limits
+    (EN 1998-1) made the seismic detailing scope fail (KeyError): they are open now.
+  - Still the parent's (listed in the design report): deep beams and corbels, slab and stair
+    deflection, column and wall confinement ωwd, the footings' and pile caps' structural shear
+    and punching, rafts, retaining walls, hooks, compression laps and column splices in the
+    detailing, the footing sizing assistant, flanged wall group shear, out-of-plane wall rows.
+  - Where it lives: `design/method_selection.py`, `design/limit_state_rows.py`,
+    `design/capacity_design.py`, `substructure/limit_state_footings.py`,
+    `substructure/limit_state_piles.py`; hooks in `check.py`, `slab.py`, `slab_frames.py`,
+    `stairs.py`, `slender.py`, `bars.py`, `proposal.py`, `walls.py`, `wall_design.py`,
+    `wall_flanges.py`, `lintels.py`, `rc.py`, `drawings/detailing.py`, `shallow.py`,
+    `pilecap.py`, `substructure/report.py` (each marked "Alpha 9 C5b").
 - **Wall piers and the remaining coupling-beam checks of special structural walls.**
   - Question: SAEngine checked special walls' piers as walls only, and diagonally reinforced
     coupling beams by 8.3.6.7(d)(iv) hoops alone. What do wall piers (BNBC 2020 Part 6 Sec

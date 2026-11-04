@@ -163,6 +163,15 @@ def __getattr__(name: str) -> Any:
 # ─────────────────────────────────────── helpers ───────────────────────────────────────
 
 
+def _ls() -> Any | None:
+    """C9: the connection strengths of the pack's limit state steel method (bolts, bearing,
+    block shear, fillet welds by partial safety factors); None: the steel table's φ and
+    formulas (the default pack)."""
+    from saengine.design.steel import limit_state
+
+    return limit_state.connection_rules()
+
+
 def references(text: str) -> str:
     """Alpha 9 C3: ``text`` with the default pack's clause references of the connection notes
     replaced by the pack's (``connections.references``, longest first); unchanged without it."""
@@ -188,6 +197,11 @@ def _check(name, demand, capacity, unit, combination, note="", flag=False) -> di
     """A check in the design_report format (saengine.design.check._check)."""
     u = demand / capacity if capacity > 0 else (0.0 if demand <= 0 else math.inf)
     u = round(float(u), 3) if math.isfinite(u) else 99.0
+    note = references(note)
+    if note and _ls() is not None:  # C9: a parent clause the pack does not map, named so
+        from saengine.design.steel import limit_state
+
+        note = limit_state.rewrite_note(note)
     return {
         "name": name,
         "demand": round(float(demand), 2),
@@ -196,7 +210,7 @@ def _check(name, demand, capacity, unit, combination, note="", flag=False) -> di
         "utilisation": u,
         "combination": combination,
         "ok": bool(u <= 1.0),
-        "note": references(note),
+        "note": note,
         "flag": flag,
     }
 
@@ -245,9 +259,14 @@ def min_spacing(d: float) -> float:
     return connection_data().minSpacing * d
 
 
-def long_joint_factor(length: float, tension_splice: bool) -> float:
+def long_joint_factor(length: float, tension_splice: bool, d: float | None = None) -> float:
     """Factor on Fnv of a bearing-type tension splice with a bolt pattern ``length`` [mm] long
-    along the force (1 below the pack's ``longJointLength``)."""
+    along the force (1 below the pack's ``longJointLength``); C9: βlj of every long joint of
+    bolts ``d`` [mm] under the pack's limit state method."""
+    if _ls() is not None:
+        from saengine.design.steel import limit_state
+
+        return limit_state.long_joint(length, d)
     data = connection_data()
     if tension_splice and length > data.longJointLength:
         return data.longJointFactor
@@ -256,12 +275,20 @@ def long_joint_factor(length: float, tension_splice: bool) -> float:
 
 def bolt_shear_capacity(grade: str, d: float, planes: int = 1, factor: float = 1.0) -> float:
     """φRn of one bolt in shear [N], Rn = Fnv Ab (``factor``: the long-joint reduction)."""
+    if _ls() is not None:  # C9
+        from saengine.design.steel import limit_state
+
+        return limit_state.bolt_shear(grade, d, planes, factor)
     return phi("bolt", 0.75) * factor * bolt_grade(grade)["Fnv"] * math.pi * d**2 / 4 * planes
 
 
 def bolt_tension_capacity(grade: str, d: float, frv: float = 0.0) -> tuple[float, str]:
     """φRn of one bolt in tension [N] with the required shear stress ``frv`` [MPa]: Fnt Ab, or
     F'nt = 1.3 Fnt - Fnt / (φ Fnv) frv <= Fnt with shear; and the note."""
+    if _ls() is not None:  # C9
+        from saengine.design.steel import limit_state
+
+        return limit_state.bolt_tension(grade, d, frv)
     g = bolt_grade(grade)
     p = phi("bolt", 0.75)
     ab = math.pi * d**2 / 4
@@ -276,6 +303,10 @@ def slip_capacity(c: Any, d: float, planes: int = 1, tension: float = 0.0) -> tu
     """φRn of one pretensioned bolt against slip [N], Rn = μ Du hsc Tb Ns, times ks = 1 - Tu /
     (Du Tb) under the bolt's applied tension ``tension`` [N]; and the note. 0 when the grade is
     not pretensioned."""
+    if _ls() is not None:  # C9
+        from saengine.design.steel import limit_state
+
+        return limit_state.slip_resistance(c, d, planes, tension)
     data = connection_data()
     g = data.boltGrades[grade_id(c.boltGrade)]
     family = data.pretension.get(g.pretension or "")
@@ -327,8 +358,13 @@ def slip_checks(
     ]
 
 
-def bearing_capacity(d: float, t: float, fu: float, lc: float) -> float:
-    """φRn of one bolt hole in bearing/tear-out [N], Eq 6.10.173a, φ 0.75."""
+def bearing_capacity(d: float, t: float, fu: float, lc: float, at: str | None = None) -> float:
+    """φRn of one bolt hole in bearing/tear-out [N], Eq 6.10.173a, φ 0.75; C9: under the
+    pack's limit state method by kb of the end (``at`` "end") or pitch ("pitch") distance."""
+    if _ls() is not None:
+        from saengine.design.steel import limit_state
+
+        return limit_state.bearing(d, t, fu, lc, hole_diameter(d), at)
     return phi("bearing", 0.75) * min(1.2 * max(lc, 0.0) * t * fu, 2.4 * d * t * fu)
 
 
@@ -337,15 +373,19 @@ def bearing_line(d, t, fu, rows, pitch, end) -> float:
     close by, the 2.4 d t Fu limit)."""
     dh = hole_diameter(d)
     first = (
-        bearing_capacity(d, t, fu, end - dh / 2)
+        bearing_capacity(d, t, fu, end - dh / 2, "end")
         if end is not None
         else bearing_capacity(d, t, fu, math.inf)
     )
-    return first + (rows - 1) * bearing_capacity(d, t, fu, pitch - dh)
+    return first + (rows - 1) * bearing_capacity(d, t, fu, pitch - dh, "pitch")
 
 
 def block_shear(fy, fu, agv, anv, ant, ubs: float = 1.0) -> float:
     """φRn, Eq 6.10.178, φ 0.75."""
+    if _ls() is not None:  # C9
+        from saengine.design.steel import limit_state
+
+        return limit_state.block_shear(fy, fu, agv, anv, ant)
     return phi("blockShear", 0.75) * min(
         0.6 * fu * anv + ubs * fu * ant, 0.6 * fy * agv + ubs * fu * ant
     )
@@ -353,6 +393,10 @@ def block_shear(fy, fu, agv, anv, ant, ubs: float = 1.0) -> float:
 
 def fillet_capacity_per_mm(w: float, fexx: float, theta_deg: float = 0.0) -> float:
     """φRn of a fillet weld per mm of length [N/mm], Eq 6.10.162-163, φ 0.75, throat 0.707 w."""
+    if _ls() is not None:  # C9: no directional increase
+        from saengine.design.steel import limit_state
+
+        return limit_state.fillet_per_mm(w, fexx)
     s = math.sin(math.radians(theta_deg))
     return phi("weld", 0.75) * 0.6 * fexx * (1.0 + 0.5 * s**1.5) * 0.707 * w
 
@@ -1044,7 +1088,7 @@ def _flange_force_checks(
     edge_flange = (flange.b - (m - 1) * c.gauge) / 2
     bolts = n * m
     pattern = (n - 1) * s
-    factor = long_joint_factor(pattern, tension_splice and not compression)
+    factor = long_joint_factor(pattern, tension_splice and not compression, d)
     note = f"Eq 6.10.168, {bolts} bolts in single shear"
     if factor < 1:
         note += f"; Table 6.10.10 [f]: bolt pattern {pattern:.0f} mm long, Fnv × {factor:g}"

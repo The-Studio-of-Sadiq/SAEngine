@@ -100,7 +100,8 @@ from typing import Any
 import numpy as np
 
 from saengine.codes import context as code_context
-from saengine.design.rc import beta1, phi_axial_flexure
+from saengine.design.rc import beta1
+from saengine.design.rc import phi_strength as phi_axial_flexure  # alpha 9 C5b
 from saengine.design.rc import value as rc_value
 
 #: Elements per profile segment of the strip's beam model.

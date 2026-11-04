@@ -113,7 +113,8 @@ from typing import Any
 import numpy as np
 
 from saengine.design.bars import diameters as bar_diameters
-from saengine.design.rc import EPS_CU, PHI_SHEAR, STEEL_E, bar_area, beta1, phi_axial_flexure
+from saengine.design.rc import EPS_CU, PHI_SHEAR, STEEL_E, bar_area, beta1
+from saengine.design.rc import phi_strength as phi_axial_flexure  # alpha 9 C5b
 from saengine.design.slab import min_steel_ratio, one_way_shear, wood_armer
 from saengine.mep import code_pack
 from saengine.plumbing import tables as plumbing_tables

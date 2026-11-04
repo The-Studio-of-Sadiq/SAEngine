@@ -27,12 +27,13 @@ export interface IPlannedCodePack {
 
 export const PLANNED_CODE_PACK_US = 'settings.codePackUs';
 export const PLANNED_CODE_PACK_EUROCODES = 'settings.codePackEurocodes';
-export const PLANNED_CODE_PACK_INDIA = 'settings.codePackIndia';
 
 export function plannedCodePacks(): readonly IPlannedCodePack[] {
 	return [
 		{ feature: PLANNED_CODE_PACK_US, name: localize('plannedPack.us', "ACI 318-19 + ASCE 7-22"), region: localize('plannedPack.usRegion', "United States"), coveredBy: { packId: 'aci318-asce7-22', what: localize('plannedPack.usCovered', "The loads (ASCE 7-22: combinations, live loads, seismic from the site's mapped SDS and SD1, wind, snow) and structural concrete (ACI 318-19: members, slabs, walls and special walls, seismic detailing, development and splices, strut-and-tie), structural steel (AISC 360-22 members, connections, stability, ponding, fatigue and composite members, LRFD or ASD; AISC 341-22 seismic provisions), timber (NDS 2018, ASD or LRFD) and masonry (TMS 402-22 allowable stress and strength design) are covered by the built-in ACI 318-19 + ASCE 7-22 pack; the geotechnical tables and the steel fire design (AISC 360-22 Appendix 4) are planned.") } },
-		{ feature: PLANNED_CODE_PACK_EUROCODES, name: localize('plannedPack.eurocodes', "Eurocodes steel and other materials (EN 1993–1999) with National Annexes"), region: localize('plannedPack.eurocodesRegion', "Europe"), coveredBy: { packId: 'eurocodes', what: localize('plannedPack.eurocodesCovered', "Loads and seismic actions (EN 1990, EN 1991, EN 1998-1), concrete (EN 1992-1-1, EN 1998-1 Section 5) and the geotechnical partial factors (EN 1997-1) are covered by the built-in Eurocodes pack; steel, composite, timber, masonry and aluminium (EN 1993 to EN 1999) and the National Annexes are planned.") } },
-		{ feature: PLANNED_CODE_PACK_INDIA, name: localize('plannedPack.india', "IS steel and other materials (IS 800, 1905, 883)"), region: localize('plannedPack.indiaRegion', "India"), coveredBy: { packId: 'is-codes', what: localize('plannedPack.indiaCovered', "Loads and seismic actions (IS 875 Parts 1, 2, 3 and 5, IS 1893 Part 1), concrete (IS 456, IS 13920) and the foundations (IS 6403, IS 2911) are covered by the built-in Indian Standards (IS) pack; steel (IS 800), masonry (IS 1905) and timber (IS 883) are planned.") } },
+		{ feature: PLANNED_CODE_PACK_EUROCODES, name: localize('plannedPack.eurocodes', "Eurocodes steel and other materials (EN 1993–1999) with National Annexes"), region: localize('plannedPack.eurocodesRegion', "Europe"), coveredBy: { packId: 'eurocodes', what: localize('plannedPack.eurocodesCovered', "Loads and seismic actions (EN 1990, EN 1991, EN 1998-1), concrete design (EN 1992-1-1: members, slabs, stairs, walls, punching, slenderness, cracks and deflection, anchorage and laps; EN 1998-1 Section 5: DCM and DCH capacity design) and the geotechnical design (EN 1997-1: footings by the design approach, piles with the correlation factors) are covered by the built-in Eurocodes pack; steel, composite, timber, masonry and aluminium (EN 1993 to EN 1999) and the National Annexes are planned.") } },
+		// Alpha 9 C9: India left the list; the built-in Indian Standards (IS) pack covers the loads,
+		// concrete, foundations, steel (IS 800), masonry (IS 1905), timber (IS 883) and composite
+		// beams (IS 11384).
 	];
 }

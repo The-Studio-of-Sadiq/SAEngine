@@ -41,6 +41,7 @@ from saengine.design import (
     deep_beams,
     design_strength,
     live_reduction,
+    method_selection,
     rc_detailing,
     seismic_rules,
     slab,
@@ -1046,19 +1047,31 @@ def _design_run(
                 # (saengine.design.deflection) of beams of the building model.
                 if isinstance(element, BeamElement):
                     framing = framing or _BeamFraming(building, types)
-                    torsion_rows, torsion_found = _beam_torsion_checks(
-                        element,
-                        object_type,
-                        section,
-                        own,
-                        combinations,
-                        _turned(element, exact),
-                        framing,
-                        bars.steel.fy,
-                        drop,
-                    )
+                    if method_selection.uses("torsion", "thinWalledVariableStrut"):
+                        # Alpha 9 C5b: the pack's torsion method (limit_state_rows).
+                        torsion_rows, torsion_found = _pack_torsion(
+                            element,
+                            section,
+                            object_type.reinforcement.transverse,
+                            own,
+                            combinations,
+                            _turned(element, exact),
+                            framing,
+                        )
+                    else:
+                        torsion_rows, torsion_found = _beam_torsion_checks(
+                            element,
+                            object_type,
+                            section,
+                            own,
+                            combinations,
+                            _turned(element, exact),
+                            framing,
+                            bars.steel.fy,
+                            drop,
+                        )
                     checks += torsion_rows
-                    checks += _beam_deflection_checks(
+                    deflection_rows = _beam_deflection_checks(
                         element,
                         section,
                         joints_own,
@@ -1071,6 +1084,12 @@ def _design_run(
                         bars.steel.fy,
                         notes,
                     )
+                    if method_selection.uses("deflection", "spanDepthK"):
+                        # Alpha 9 C5b: the pack's span/depth ratios (limit_state_rows).
+                        deflection_rows = _pack_deflection(
+                            element, section, framing, deflection_rows, settings
+                        )
+                    checks += deflection_rows
                     # Integrator glue (T3): deep spans and transfer girders by the strut-and-tie
                     # model (saengine.design.deep_beams, the default pack's BNBC 2020 Part 6 Sec 6.4.6), and the corbels
                     # under the beam's ends (saengine.design.corbels, Sec 6.4.7).
@@ -1095,14 +1114,31 @@ def _design_run(
                     # integrity (saengine.design.rc_detailing); a beam with a slab on one side
                     # only is a perimeter beam.
                     hf, sides = framing.slab_beside(element, section.width)
+                    detail_rows = []
                     if not limit_rules:  # C8: the pack's crack width and side face rows instead
-                        checks += rc_detailing.beam_checks(
+                        detail_rows = rc_detailing.beam_checks(
                             section,
                             checks,
                             perimeter=sides == 1,
                             span=_longest_span(element, framing),
                             flange=(hf, sides),
                         )
+                    if method_selection.uses("cracking", "directWidth") or method_selection.uses(
+                        "serviceStress", "stressLimits"
+                    ):
+                        # Alpha 9 C5b: crack widths and stresses by the pack's methods take the
+                        # place of the bar-spacing crack control.
+                        detail_rows = [
+                            r for r in detail_rows if not r["name"].startswith("Crack control")
+                        ]
+                        detail_rows += _pack_service_rows(
+                            section,
+                            joints_own,
+                            service,
+                            _turned(element, exact),
+                            float(object_type.reinforcement.cover or 0.0),
+                        )
+                    checks += detail_rows
                     if deep_rows:
                         for row in checks:
                             if row["name"] == "Shear" or row["name"].startswith("Minimum stirrups"):
@@ -1238,7 +1274,29 @@ def _design_run(
     # B35: the steel seismic provisions (saengine.design.steel.seismic): member, joint and
     # connection checks on the steel entries, the project's own checks with the seismic ones.
     steel_seismic_found = None
-    if steel_members:
+    from saengine.design.steel import limit_state as steel_limit_state
+
+    if steel_members and steel_limit_state.seismic_rules() is not None:
+        # Alpha 9 C9: the pack's steel seismic frame rules (IS 800 Section 12) in place of
+        # the steel seismic provisions and the braced frames of B35 / B38.
+        try:
+            ls_found = steel_limit_state.seismic_apply(
+                building,
+                types,
+                steel_members,
+                combinations,
+                seismic_detailing.earthquake_indices(extra, len(combinations)),
+                resolved,
+            )
+        except (ValueError, KeyError, AttributeError, TypeError) as error:
+            ls_found = None
+            notes.append(f"the steel seismic rules could not be checked: {error}")
+        if ls_found is not None:
+            notes += ls_found["notes"]
+            if scope is not None:
+                scope["steelLimitStateSeismic"] = ls_found
+                scope["checks"] = scope.get("checks", []) + ls_found["checks"]
+    elif steel_members:
         try:
             steel_seismic_found = steel_seismic.apply(
                 project,
@@ -1279,19 +1337,18 @@ def _design_run(
     joints: list[dict[str, Any]] = []
     from saengine.design import ductile_detailing
 
-    if scope is not None and ductile_detailing.rules() is not None:
+    args = (project, building, types, designed, combinations, extra, scope)
+    if scope is not None and method_selection.uses("seismic", "curvatureDuctility"):
+        # Alpha 9 C5b: the pack's capacity design by ductility class (DCM, DCH) takes the place
+        # of the parent pack's special-frame detailing (saengine.design.capacity_design).
+        from saengine.design import capacity_design
+
+        found = capacity_design.apply(*args, ductility, _profile_forces)
+        joints = found["joints"]
+        notes += found["notes"]
+    elif scope is not None and ductile_detailing.rules() is not None:
         # Alpha 9 C8: the pack's ductile detailing (IS 13920) in place of Sec 8.3's rows.
-        found = ductile_detailing.apply(
-            project,
-            building,
-            types,
-            designed,
-            combinations,
-            extra,
-            scope,
-            settings,
-            _profile_forces,
-        )
+        found = ductile_detailing.apply(*args, settings, _profile_forces)
         joints = found["joints"]
         notes += found["notes"]
     elif scope is not None:
@@ -1844,8 +1901,19 @@ def _assemble(
             # C8: the tabulated methods' lines replace the basis to the columns (six lines).
             method = lines + method[6:]
         else:
-            method = lines[:3] + method[3:5] + lines[3:]
-    if columns_seen:
+            # Alpha 9 C5b: the parent's torsion and deflection lines only where the pack has no
+            # method of its own (those are in limit_state_rows.method_lines, within ``lines``).
+            parent = [
+                line
+                for line, (area, own) in zip(
+                    method[3:5],
+                    (("torsion", "thinWalledVariableStrut"), ("deflection", "spanDepthK")),
+                    strict=True,
+                )
+                if not method_selection.uses(area, own)
+            ]
+            method = lines[:3] + parent + lines[3:]
+    if columns_seen and not method_selection.uses("slenderness", "nominalCurvature"):
         method += slenderness_design.method(slender_options, context.model.lateral_cracked)
     if faced_any:
         method += face_forces.METHOD
@@ -1855,6 +1923,10 @@ def _assemble(
         from saengine.design.steel.stability import method_lines
 
         method += steel_design.METHOD + method_lines(steel_stability)
+        if ((scope or {}).get("steelLimitStateSeismic") or {}).get("applies"):  # C9
+            from saengine.design.steel import limit_state as steel_limit_state
+
+            method += steel_limit_state.seismic_method_lines()
         if ((scope or {}).get("steelSeismic") or {}).get("applies"):  # B35
             from saengine.design.steel import seismic as steel_seismic
 
@@ -1910,7 +1982,9 @@ def _assemble(
     if scope is not None and scope.get("detailingLevel"):
         from saengine.design import ductile_detailing
 
-        if ductile_detailing.rules() is not None:  # C8: the pack's ductile detailing
+        if method_selection.uses("seismic", "curvatureDuctility"):
+            pass  # Alpha 9 C5b: its lines are the pack's (design_strength.method_lines)
+        elif ductile_detailing.rules() is not None:  # C8: the pack's ductile detailing
             method += ductile_detailing.method_lines()
         else:
             method += seismic_detailing.METHOD
@@ -3267,14 +3341,20 @@ def _steel_amplified_columns(
 ) -> set[str]:
     """B35: the steel column elements of a steel seismic system (not marked gravity) when the
     steel seismic provisions apply (:func:`saengine.design.steel.seismic.provisions`)."""
+    from saengine.design.steel import limit_state as steel_limit_state  # C9
     from saengine.design.steel import seismic as steel_seismic
     from saengine.design.steel import seismic_braced  # B38: braced frames' columns too
 
     try:
-        if building is None or not (
-            steel_seismic.provisions(settings).applies
-            or seismic_braced.braced_provisions(settings).applies
-        ):
+        ls_rules = steel_limit_state.seismic_rules()
+        if ls_rules is not None:
+            applies = bool(ls_rules.columnAmplified and steel_limit_state.seismic_frames(settings))
+        else:
+            applies = (
+                steel_seismic.provisions(settings).applies
+                or seismic_braced.braced_provisions(settings).applies
+            )
+        if building is None or not applies:
             return set()
     except (ValueError, KeyError, AttributeError, TypeError):
         return set()
@@ -3571,6 +3651,171 @@ def _check(
         "note": note,
         "flag": flag,
     }
+
+
+# ───────────── Alpha 9 C5b: beams by the pack's partial-factor methods (glue) ─────────────
+
+
+def _pack_torsion(
+    element: BeamElement,
+    section: RcSection,
+    transverse: Any,
+    pieces: list[_Piece],
+    combinations: list[str],
+    turned: bool,
+    framing: _BeamFraming,
+    limit: int = 40,
+) -> tuple[list[dict[str, Any]], Any]:
+    """The torsion rows of a beam by the pack's method
+    (:func:`saengine.design.limit_state_rows.beam_torsion`) at the stations of the largest
+    torques and shears of every combination, and what it needs for Design Reinforcement."""
+    from saengine.design import limit_state_rows
+
+    held = framing.end_held(element, 0) and framing.end_held(element, 1)
+    kind, _parent_why = torsion_design.torsion_kind(
+        held, framing.carries_cantilever(element, section.width)
+    )
+    why = (
+        "framed at both ends: compatibility torsion"
+        if kind == "compatibility"
+        else "an end free or a cantilever carried: equilibrium torsion"
+    )
+    found: list[tuple[float, float, float, str, str]] = []
+    for piece in pieces:
+        for first, forces, values in _profile_blocks(piece, turned):
+            tu = np.abs(forces[..., 3]) * 1e3  # N·m -> N·mm
+            vu = np.abs(values["Vy"])
+            mu = values["Mx"]
+            count = forces.shape[1]
+            flat_t, flat_v = tu.ravel(), vu.ravel()
+            picks = set(np.argsort(-flat_t, kind="stable")[:limit].tolist())
+            picks |= set(np.argsort(-flat_v, kind="stable")[: limit // 4].tolist())
+            for i in sorted(picks):
+                c, k = divmod(int(i), count)
+                found.append(
+                    (
+                        float(flat_t[i]),
+                        float(flat_v[i]),
+                        float(mu.ravel()[i]),
+                        combinations[first + c],
+                        _where(piece, k, count),
+                    )
+                )
+    found.sort(key=lambda p: -p[0])
+    return limit_state_rows.beam_torsion(
+        section, transverse, found[: 2 * limit], kind == "compatibility", why
+    )
+
+
+def _pack_deflection(
+    element: BeamElement,
+    section: RcSection,
+    framing: _BeamFraming,
+    calculated: list[dict[str, Any]],
+    settings: ProjectSettings,
+) -> list[dict[str, Any]]:
+    """The span/depth row of each span of a beam (the spans of :func:`_beam_deflection_checks`);
+    where a span exceeds its limit, the calculated rows of that span follow it and decide (the
+    span/depth row is then reported only)."""
+    from saengine.design import limit_state_rows
+
+    mode = getattr(settings.analysis, "deflection", "sensitive") or "sensitive"
+    if mode == "off":
+        return calculated
+    a, c = np.array(element.start, dtype=float), np.array(element.end, dtype=float)
+    length = float(np.linalg.norm(c - a))
+    if length <= 0:
+        return calculated
+    supports = framing.support_stations(element)
+    spans: list[tuple[float, float, str]] = []
+    if len(supports) >= 2:
+        spans += [(t0, t1, "span") for t0, t1 in itertools.pairwise(supports)]
+    for end in (0, 1):
+        edge = (supports[0] if end == 0 else supports[-1]) if supports else None
+        if (
+            edge is not None
+            and abs(edge - end) > 1e-3
+            and not framing.end_held(element, end)
+            and not framing.continues(element, end)
+        ):
+            spans.append((0.0, edge, "start") if end == 0 else (edge, 1.0, "end"))
+    if not spans and framing.end_held(element, 0) and framing.end_held(element, 1):
+        spans = [(0.0, 1.0, "span")]
+    _hf, sides = framing.slab_beside(element, section.width)
+    rows: list[dict[str, Any]] = []
+    for number, (t0, t1, kind) in enumerate(spans, start=1):
+        span_mm = (t1 - t0) * length
+        if span_mm <= 0:
+            continue
+        cantilever = kind != "span"
+        where = f"{element.id}" + (f" span {number}" if len(spans) > 1 else "")
+        ends = int(t0 > 1e-3 or framing.continues(element, 0)) + int(
+            t1 < 1 - 1e-3 or framing.continues(element, 1)
+        )
+        # beff of a T or L beam with the flange at 0.2 l0 a side, l0 = 0.85 l (EN 1992-1-1
+        # 5.3.2.1 with a wide slab; SAEngine practice for the flange ratio only).
+        beff = section.width + sides * 0.2 * 0.85 * span_mm
+        try:
+            row = limit_state_rows.span_depth_row(
+                section, span_mm, ends, cantilever, beff / section.width, where
+            )
+        except DesignError:
+            continue
+        mine = [
+            r
+            for r in calculated
+            if r["note"].endswith(where) or r["note"].endswith(where + " (cantilever)")
+        ]
+        if not row["ok"] and mine:
+            row["flag"] = True
+            row["note"] += (
+                "; exceeded: the calculated deflection that follows decides (the parent pack's "
+                "method)"
+            )
+            rows += [row, *mine]
+        else:
+            rows.append(row)
+    return rows
+
+
+def _pack_service_rows(
+    section: RcSection,
+    pieces: list[_Piece],
+    service: dict[str, Any],
+    turned: bool,
+    cover: float,
+) -> list[dict[str, Any]]:
+    """Crack width and stress rows of a beam (:func:`saengine.design.limit_state_rows.
+    beam_service_rows`) under the pack's quasi-permanent and characteristic combinations of
+    the unfactored analysis cases."""
+    from saengine.design import limit_state_rows
+
+    forces = service.get("forces") or {}
+    moments: dict[str, dict[bool, tuple[float, str]]] = {}
+    for kind in ("quasiPermanent", "characteristic"):
+        factors = limit_state_rows.service_factors(kind)
+        if not factors:
+            continue
+        best: dict[bool, tuple[float, str]] = {True: (0.0, ""), False: (0.0, "")}
+        for piece in pieces:
+            total = None
+            for case, factor in factors.items():
+                rows = forces.get(case, {}).get(piece.id)
+                if rows is None or not factor:
+                    continue
+                values = _profile_forces(piece, turned, np.asarray(rows, dtype=float))["Mx"]
+                part = factor * np.asarray(values, dtype=float)
+                total = part if total is None or total.shape != part.shape else total + part
+            if total is None:
+                continue
+            for k, value in enumerate(total.tolist()):
+                top = value > 0  # + hogging: the top bars in tension
+                if abs(value) > best[top][0]:
+                    best[top] = (abs(value), _where(piece, k, len(total)))
+        moments[kind] = best
+    if not moments:
+        return []
+    return limit_state_rows.beam_service_rows(section, moments, cover)
 
 
 def _ductility_class(settings: Any) -> str | None:

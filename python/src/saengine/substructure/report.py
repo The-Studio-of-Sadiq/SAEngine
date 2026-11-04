@@ -220,6 +220,28 @@ def report(ctx: Context) -> dict[str, Any]:
             notes.append(requirement_text(concrete))
     if "shallow" in used:
         method = list(SHALLOW_METHOD) + method
+    # Alpha 9 C5b: the design approach and the limit state methods of the pack, stated.
+    from saengine.substructure import limit_state_footings, limit_state_piles
+
+    if "shallow" in used and limit_state_footings.selected():
+        method = limit_state_footings.method_lines() + method
+    if limit_state_piles.selected() and any(f.get("pile") for f in foundations):
+        method.append(
+            "Pile caps' piles by limit states: Rc,k from the pile type's static load tests "
+            "(ξ1, ξ2) or from the calculated resistance at every borehole (ξ3, ξ4, n the "
+            "boreholes), Rc,d = Rb,k/γb + Rs,k/γs of the design approach's pile resistance set "
+            "against the factored pile loads of the rigid cap ("
+            + ", ".join(
+                filter(
+                    None,
+                    (
+                        code_context.cite("geotechnicalMethods", "pileGroundTests"),
+                        code_context.cite("geotechnicalMethods", "pileLoadTests"),
+                    ),
+                )
+            )
+            + "); the allowable pile loads are reported beside them."
+        )
 
     if building is not None:
         walls.append(building)

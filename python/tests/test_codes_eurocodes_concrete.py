@@ -332,6 +332,120 @@ def test_pile_resistance_with_correlation_factors(ec):
         assert lg.load_test_summary([{"kind": "compression", "ultimate": 1.0}], "bored") is None
 
 
+# ───────────────────────────── C5b: the method selection and its wiring ─────────────────────────────
+
+
+def test_method_selection_picks_the_pack_methods(ec):
+    from saengine.design import method_selection as ms
+
+    chosen = ms.summary()
+    assert chosen["ultimate"] == "partialFactors"
+    assert chosen["slenderness"] == "nominalCurvature"  # EN 1992-1-1 5.8.8
+    assert chosen["seismic"] == "curvatureDuctility"
+    assert chosen["bearing"] == "effectiveArea" and chosen["piles"] == "correlationFactors"
+    with code_context.using(registry.load("bnbc2020")):
+        assert set(ms.summary().values()) == {None}  # the default: strength design with φ
+
+
+def test_parent_methods_override_sets_an_area_back(ec, monkeypatch):
+    from saengine.design import method_selection as ms
+
+    table = ec.table("concreteMethods")
+    monkeypatch.setattr(table, "parentMethods", ["torsion", "seismic"])
+    assert ms.concrete("torsion") is None and ms.concrete("seismic") is None
+    assert ms.concrete("shear") == "variableStrut"
+
+
+def test_slab_strip_on_design_strengths(ec):
+    from saengine.design import slab
+
+    # Ø12 @ 200 = 565 mm²/m at d = 125 mm, C30/37, B500: x = As fyd / (η fcd λ b).
+    area, d = 565.5, 125.0
+    fyd = 500 / 1.15
+    x = area * fyd / (1.0 * 20.0 * 0.8 * 1000)
+    cap = slab.layer_capacity(area, d, 30.0, 500.0)
+    assert cap.phi == 1.0 and cap.c == pytest.approx(x)
+    assert cap.phi_mn == pytest.approx(area * fyd * (d - 0.8 * x / 2))  # EN 1992-1-1 6.1
+    assert cap.c_d_limit == pytest.approx((1 - 0.44) / 1.25)  # 5.5(4), δ = 1
+    assert slab.required_area(cap.phi_mn, d, 30.0, 500.0) == pytest.approx(area, rel=1e-6)
+    from saengine.design import strut_shear
+
+    v, k = slab.one_way_shear(area / (1000 * d), d, 30.0)
+    assert v == pytest.approx(strut_shear.concrete_resistance(1000, d, area / (1000 * d), 30.0))
+    assert k == pytest.approx(2.0)  # 1 + √(200/125) capped at 2.0 (6.2.2(1))
+
+
+def test_slab_steel_rows_by_member_steel(ec):
+    from saengine.design import limit_state_rows, slab
+
+    layer = slab.Layer("bottomX", 10.0, 300.0, 120.0)
+    cap = slab.layer_capacity(layer.area, layer.d, 30.0, 500.0)
+    rows = limit_state_rows.slab_steel_rows(
+        "twoWay", 150.0, 30.0, 500.0, {"bottomX": cap, "bottomY": None, "topX": None,
+                                        "topY": None},
+        {"bottomX": (1e4, "c", "")}, {"bottomX": layer}, None, 50.0,
+    )  # fmt: skip
+    least = rows[0]
+    # 9.2.1.1(1): max(0.26 fctm/fyk, 0.0013) b d per metre; no bottom Y bars in a span direction.
+    assert least["name"].startswith("Min. reinforcement") and not least["ok"]
+    spacing = rows[1]
+    assert spacing["capacity"] == pytest.approx(min(3 * 150.0, 400.0))  # 9.3.1.1(3)
+
+
+def test_nominal_curvature_column(ec):
+    from saengine.design import limit_state_rows
+
+    # 400 x 400, C30/37, 8Ø20 (2513 mm²), NEd 1500 kN, l0 6.0 m, braced, M01 = +30, M02 = 60 kN·m.
+    ac, steel, pu = 400.0 * 400.0, 2513.0, 1.5e6
+    i, d = 400 / math.sqrt(12), 200 + 150.0
+    f = limit_state_rows.nominal_curvature(
+        pu, 30e6, 60e6, False, False, 6000.0, i, d, 30.0, 500.0, 200000.0, ac, steel, None
+    )
+    fyd = 500 / 1.15
+    omega = steel * fyd / (ac * 20.0)
+    n = pu / (ac * 20.0)
+    phi_ef = 2.0 * 0.65
+    lam_lim = 20 * (1 / (1 + 0.2 * phi_ef)) * math.sqrt(1 + 2 * omega) * (1.7 - 0.5) / math.sqrt(n)
+    assert f["lambda"] == pytest.approx(6000 / i)  # 5.8.3.2
+    assert f["lambdaLim"] == pytest.approx(lam_lim)  # 5.8.3.1 Eq 5.13N
+    assert f["slender"]
+    kr = min(1.0, (1 + omega - n) / (1 + omega - 0.4))  # Eq 5.36
+    kphi = max(1.0, 1 + (0.35 + 30 / 200 - (6000 / i) / 150) * phi_ef)  # Eq 5.37
+    e2 = kr * kphi * (fyd / 200000) / (0.45 * d) * 6000**2 / 10  # 5.8.8.2(4), 5.8.8.3
+    m0e = max(0.6 * 60e6 + 0.4 * 30e6, 0.4 * 60e6)
+    assert f["med"] == pytest.approx(max(m0e + pu * e2, 60e6, 30e6 + 0.5 * pu * e2))
+
+
+def test_proposal_sizing_by_the_pack(ec):
+    from saengine.design import bar_rules, bars
+
+    fyd, k = 500 / 1.15, 1.0 * 20.0
+    mu, b, d = 150e6, 300.0, 450.0
+    expected = k * b * d * (1 - math.sqrt(1 - 2 * mu / (k * b * d * d))) / fyd
+    need = bars.beam_flexure_need(mu, b, d, 50.0, 30.0, 500.0, ratio_max=0.04, h=500.0)
+    assert need.area == pytest.approx(expected) and need.compression == 0.0
+    assert bars.beam_min_area(b, d, 30.0, 500.0) == pytest.approx(
+        bar_rules.beam_min_steel(b, d, 30.0, 500.0)
+    )  # 9.2.1.1(1)
+    assert bars.with_minimum(100.0, 200.0) == 200.0  # no 4/3 relief
+    assert bars.column_rho() == (0.002, 0.04)  # 9.5.2(2), (3)
+    shear = bars.beam_shear_need(200e3, b, d, 30.0, 500.0)
+    assert shear.s_max == pytest.approx(0.75 * d)  # 9.2.2(6)
+    z = 0.9 * d
+    assert shear.av_s == pytest.approx(200e3 / (z * fyd * 2.5))  # cot θ = 2.5 carries it
+
+
+def test_default_pack_unchanged_by_the_hooks():
+    from saengine.design import bars, slab
+
+    with code_context.using(registry.load("bnbc2020")):
+        cap = slab.layer_capacity(565.5, 125.0, 28.0, 420.0)
+        a = 565.5 * 420 / (0.85 * 28 * 1000)
+        assert cap.mn == pytest.approx(565.5 * 420 * (125 - a / 2))
+        assert bars.column_rho() == (0.01, 0.08)
+        assert bars.with_minimum(100.0, 200.0) == pytest.approx(400 / 3)
+
+
 # ───────────────────────────── a small building ─────────────────────────────
 
 
@@ -389,3 +503,89 @@ def test_generated_building_is_designed_under_the_pack(tmp_path):
     assert {"Least tension steel, bottom", "Least column steel", "Shear along x"} <= names
     # The generator's frame is the DCH system: the curvature-ductility rows are there.
     assert any(n.startswith("Hoop spacing in critical regions (DCH)") for n in names)
+    # C5b: the pack's methods on the members: torsion, span/depth, crack widths, slenderness.
+    assert {"Deflection: span/depth", "Crack width, bottom"} <= names
+    assert any(n.startswith("Torsion: TEd/TRd,max") for n in names)
+    assert any(n.startswith("Slenderness about x") for n in names)
+
+
+def test_generated_building_slabs_wall_footing_by_the_pack(tmp_path):
+    """C5b: a small frame with core walls, a soil report and its footings under the pack: the
+    slabs, the walls, the DCH capacity design and the footings by the pack's methods; the
+    parent's special-frame detailing and allowable bearing do not decide."""
+    import json
+    from pathlib import Path
+
+    from saengine.library.settings import SOIL_FILE
+    from saengine.pipeline.run_all import run_all
+    from saengine.project.new_building import create_building
+    from saengine.rpc import handlers
+    from saengine.substructure.report import substructure_report
+
+    spec = {
+        "name": "EC Walls", "gridsX": [5000, 5000], "gridsY": [4000, 4000], "storyCount": 1,
+        "typicalHeight": 3000, "system": "rcFrameWithWalls", "codePack": "eurocodes",
+        "zoneCoefficient": 0.1, "windSpeed": 25.0, "windExposure": "II", "siteClass": "SC",
+        "siteClassSource": "entered", "lateralSizing": "gravity",
+    }  # fmt: skip
+    root = Path(create_building(spec, tmp_path)["root"])
+    sand = {
+        "id": "BH-1", "x": 5000, "y": 4000, "waterTable": 6000, "depth": 20000,
+        "layers": [{"top": 0, "bottom": 20000, "soilType": "sand", "unitWeight": 18,
+                    "saturatedUnitWeight": 20, "phi": 30}],
+        "spt": [{"depth": d * 1000, "N": 20} for d in (2, 4, 6, 8, 10)],
+    }  # fmt: skip
+    (root / SOIL_FILE).parent.mkdir(parents=True, exist_ok=True)
+    (root / SOIL_FILE).write_text(json.dumps({"boreholes": [sand]}), encoding="utf-8")
+    result = run_all(root, steps=["derive", "analysis"])
+    assert [s.status for s in result.steps] == ["ok", "ok"], [s.message for s in result.steps]
+    with code_context.project(root):
+        proposal = handlers.design_proposal(
+            str(root / "08 FEM/model.results"), str(root / "08 FEM/model.osmodel")
+        )
+    # Design Reinforcement sized under the pack: DCH beams' bars along the span (EN 1998-1
+    # 5.5.3.1.3) and the pack's clause in its notes.
+    notes = " ".join(n for t in proposal["types"] for n in t.get("notes") or [])
+    assert "bars along the beam (DCH)" in notes
+    objects_path, bim_path = root / "04 Objects/objects.json", root / "06 BIM/bim.json"
+    applied = handlers.design_apply_proposal(
+        objects_path.read_text(encoding="utf-8"), bim_path.read_text(encoding="utf-8"), proposal
+    )
+    objects_path.write_text(applied["objectsText"], encoding="utf-8")
+    bim_path.write_text(applied["bimText"], encoding="utf-8")
+    result = run_all(root, steps=["derive", "analysis", "design"])
+    assert result.steps[-1].status in ("ok", "warning"), [s.message for s in result.steps]
+    report = json.loads(
+        (root / "08 FEM/model.results/design-report.json").read_text(encoding="utf-8")
+    )["result"]
+    by_kind: dict[str, dict[str, dict]] = {}
+    for e in report["elements"]:
+        for c in e.get("checks", []):
+            by_kind.setdefault(e["kind"], {})[c["name"]] = c
+    slab, wall, beam = by_kind["slab"], by_kind["wall"], by_kind["beam"]
+    # Slabs: EN 1992-1-1 9.3.1.1 least steel and spacing, 5.5(4) x/d, VRd,c, punching 6.4.
+    assert any(n.startswith("Min. reinforcement") and "9.3.1.1" in n for n in slab)
+    assert any(n.startswith("Neutral axis depth x/d") for n in slab)
+    assert "VRd,c" in slab["One-way shear"]["note"]
+    assert any(n.startswith("Punching at") and "β =" in c["note"] for n, c in slab.items())
+    # Walls: 9.6 steel and spacings, 6.2 in-plane shear with ε = 1.5 (DCH ductile walls).
+    assert {"Least vertical steel", "Least horizontal steel", "Vertical bar spacing"} <= set(wall)
+    assert "VEd × ε = 1.5" in wall["In-plane shear"]["note"]
+    assert not any(n.startswith("Vertical web ratio") for n in wall)
+    # DCH capacity design in place of the parent's special-frame detailing (one set of rules).
+    assert "Detailing: Capacity design shear (DCH)" in beam
+    assert not any("8.3.4" in (c.get("clause") or "") for c in beam.values())
+    assert any("capacity design by ductility class DCH" in n for n in report["notes"])
+    # Footings by EN 1997-1 DA1 (both combinations), the allowable pressure reported only.
+    sub_path = root / "09 Substructure/substructure.json"
+    sub = json.loads(sub_path.read_text(encoding="utf-8"))
+    mesh = {"dia": 16, "spacing": 150}
+    for f in sub["foundations"]:
+        f["reinforcement"] = {"material": "B500DWR", "cover": 75, "bottomX": mesh, "bottomY": mesh}
+    sub_path.write_text(json.dumps(sub), encoding="utf-8")
+    found = substructure_report(root, supersede=False)
+    rows = {c["name"]: c for f in found["foundations"] for c in f["checks"]}
+    assert {"Bearing resistance (DA1-C1)", "Bearing resistance (DA1-C2)"} <= set(rows)
+    assert "Sliding resistance (DA1-C2)" in rows
+    assert rows["Bearing (service)"]["flag"]
+    assert any("design approach DA1" in line for line in found["method"])

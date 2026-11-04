@@ -1,0 +1,32 @@
+{
+  "$schema": "../../../schemas/composite.schema.json",
+  "$sources": [
+    "IS 11384:1985 Code of practice for composite construction in structural steel and concrete"
+  ],
+  "source": "IS 11384:1985 for composite beams (the plastic positive moment with the design strengths of the concrete and the steel, the tabulated design strength of headed studs); composite columns, the deck rules, the effective width, the slab and connector detailing, the elastic modulus and the deflections are BNBC 2020 Chapter 13's (the pack this one extends) until covered.",
+  "materials": {
+    "concreteMin": 20
+  },
+  "beam": {
+    "limitState": {
+      "method": "partialFactors",
+      "concreteShare": 0.4286,
+      "steelGamma": 1.15,
+      "grades": [20, 25, 30, 40],
+      "studs": [
+        {"diameter": 12, "height": 62, "strengths": [26, 28, 29, 31]},
+        {"diameter": 16, "height": 75, "strengths": [44, 46, 49, 55]},
+        {"diameter": 20, "height": 75, "strengths": [60, 63, 67, 75]},
+        {"diameter": 20, "height": 100, "strengths": [63, 66, 70, 79]},
+        {"diameter": 22, "height": 100, "strengths": [77, 83, 90, 101]},
+        {"diameter": 25, "height": 100, "strengths": [86, 93, 101, 113]}
+      ],
+      "studShare": 1.0
+    }
+  },
+  "sources": {
+    "materialsIS": "IS 11384:1985: the slab concrete at least M20 (concreteMin 20 MPa, the grade fck; the other material limits are the parent's)",
+    "limitState": "IS 11384:1985 (limit state of collapse in flexure, Appendix B; shear connectors, Table 1): the concrete at 0.36 fck over the depth xu with its resultant at 0.42 xu, taken as a uniform 0.4286 fck over 0.84 xu (the same force and lever arm), the steel at 0.87 fy (fy / 1.15), headed studs by the design strength of Table 1 for M20, M25, M30, M40 concrete (linear between, the end values outside); the project's concrete fc is read as fck",
+    "limitStateValues": "The Table 1 stud strengths and the 0.36 fck / 0.87 fy of the composite section are entered from memory of IS 11384 and must be verified against the printed code (VERIFY.md)"
+  }
+}

@@ -1475,6 +1475,25 @@ def design_required(
     options: dict[str, Any] | None = None,
     gathered: Gathered | None = None,
 ) -> dict[str, Any]:
+    """:func:`_design_required` under the project's code pack, as Design Reinforcement
+    (alpha 9 C5b, the rule of C8's ``proposal._in_project_pack``: another pack than the default
+    one; a pack in force is kept; the default pack's projects as before)."""
+    from saengine.codes import context as code_context
+
+    gathered = gathered or gather(out_dir, project_path)
+    pack_id = getattr(gathered.settings, "codePack", None)
+    if code_context.in_force() is not None or not pack_id or pack_id == code_context.DEFAULT_PACK:
+        return _design_required(out_dir, project_path, options, gathered)
+    with code_context.using(code_context.pack_for(gathered.settings, gathered.root)):
+        return _design_required(out_dir, project_path, options, gathered)
+
+
+def _design_required(
+    out_dir: str | Path,
+    project_path: str | Path,
+    options: dict[str, Any] | None = None,
+    gathered: Gathered | None = None,
+) -> dict[str, Any]:
     """The reinforcement required by every element :func:`saengine.design.design_report`
     designs, and by the foundations of 9 Substructure: ``{"code", "elements": [rows],
     "summary", "notes", "combinations"}`` (rows: see the module notes). ``summary``: ``{"rows",

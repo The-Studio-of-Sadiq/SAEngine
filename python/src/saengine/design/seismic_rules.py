@@ -93,7 +93,9 @@ def system_row(system: str) -> SystemRow | None:
         float(entry.R),
         float(entry.Omega0),
         float(entry.Cd),
-        tuple(None if limits[c] is None else float(limits[c]) for c in "BCD"),  # type: ignore[arg-type]
+        # A pack whose systems give no height limits (EN 1998-1 has none) leaves them open
+        # (alpha 9 C5b: the scope failed with a KeyError under such a pack).
+        tuple(None if limits.get(c) is None else float(limits[c]) for c in "BCD"),  # type: ignore[arg-type]
         frame,
         specialWalls=bool(entry.specialWalls),
         concrete=bool(entry.concrete),
@@ -975,10 +977,24 @@ def seismic_detailing_scope(
             )
             # B35: the steel seismic provisions (saengine.design.steel.seismic) say whether
             # they apply (R above the pack's limit) and to which frames.
+            from saengine.design.steel import limit_state as steel_limit_state
             from saengine.design.steel import seismic as steel_seismic
 
-            steel = steel_seismic.provisions(settings)
-            if steel.applies:
+            ls_frames = (
+                steel_limit_state.seismic_frames(settings)
+                if steel_limit_state.seismic_rules() is not None
+                else None
+            )
+            steel = steel_seismic.provisions(settings) if ls_frames is None else None
+            if ls_frames:  # C9: the pack's steel seismic frame rules
+                notes.append(
+                    "the steel seismic frame rules of the code pack apply to the "
+                    + ", ".join(f.upper() for f in sorted(ls_frames))
+                    + " members and joints"
+                )
+            elif steel is None:
+                pass
+            elif steel.applies:
                 notes.append(
                     f"the steel seismic provisions apply (R = {steel.r:g}): the steel members, "
                     f"joints and connections are capacity designed as a {steel.frame} frame"

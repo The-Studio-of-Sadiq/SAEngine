@@ -75,8 +75,8 @@ from saengine.design.rc import (
     InteractionSurface,
     _encloses_origin,
     bar_area,
-    beta1,
     phi_axial_flexure,
+    stress_block,
 )
 from saengine.design.rc import value as rc_value
 
@@ -655,19 +655,21 @@ class FlangedInteraction(InteractionSurface):
         top = y1
         dist = top - local[:, 1]
         d_bar = float(dist.max())
+        # Alpha 9 C5b: the pack's block (η fcd, λ, εcu3, fyd with partial factors).
+        bk = stress_block(s.fc, s.fy)
         if math.isfinite(c):
-            a = min(beta1(s.fc) * c, y1 - y0)
+            a = min(bk.beta * c, y1 - y0)
             block = clip_by_rect(rotated, x0 - 1, top - a, x1 + 1, top + 1)
-            strain = rc_value("EPS_CU") * (c - dist) / c
-            eps_t = rc_value("EPS_CU") * (d_bar - c) / c
+            strain = bk.eps_cu * (c - dist) / c
+            eps_t = bk.eps_cu * (d_bar - c) / c
         else:
             a = y1 - y0
             block = rotated
-            strain = np.full(len(dist), rc_value("EPS_CU"))
-            eps_t = -rc_value("EPS_CU")
-        stress = np.clip(s.es * strain, -s.fy, s.fy) - np.where(dist < a, 0.85 * s.fc, 0.0)
+            strain = np.full(len(dist), bk.eps_cu)
+            eps_t = -bk.eps_cu
+        stress = np.clip(s.es * strain, -bk.fy, bk.fy) - np.where(dist < a, bk.k, 0.0)
         force = stress * area
-        conc = 0.85 * s.fc * float(block.area) if not block.is_empty else 0.0
+        conc = bk.k * float(block.area) if not block.is_empty else 0.0
         if not moments:
             return (conc + float(force.sum()),)
         if conc > 0:

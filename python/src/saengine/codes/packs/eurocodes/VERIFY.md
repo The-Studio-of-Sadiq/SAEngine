@@ -244,3 +244,34 @@ code are not copied.
 | 188 | ξ3 / ξ4 for n = 1, 2, 3, 4, 5, 7, 10: 1.40/1.40, 1.35/1.27, 1.33/1.23, 1.31/1.20, 1.29/1.15, 1.27/1.12, 1.25/1.08 | Table A.10 | Ground tests; linear between rows | sure (interpolation SAEngine practice) |
 | 189 | ξ ÷ 1.1 for stiff structures (ξ1 ≥ 1.0) | 7.6.2.2(9), 7.6.2.3(9) | | unsure (which ξ the division applies to) |
 | 190 | Rc,k from the initial tests' failure loads, Rc,d = Rc,k/γt per DA combination | 7.6.2.2(8), (14) | Reported in the pile type's load-test results | sure |
+
+## Alpha 9 C5b: values added with the design wiring
+
+| # | Value | Clause | Description | Confidence |
+| --- | --- | --- | --- | --- |
+| 191 | λlim = 20 A B C / √n; A = 1/(1 + 0.2 φef), B = √(1 + 2ω), C = 1.7 - rm | EN 1992-1-1 5.8.3.1(1) Eq 5.13N | `slenderness.limitCoefficient`, `creepShare`, `mechanicalShare`, `momentRatioBase` | sure |
+| 192 | rm = 1.0 for unbraced members and first-order moments mainly from imperfections or transverse load | 5.8.3.1(1) | `unbracedRatio`; SAEngine takes "transverse" from a curved moment diagram, a free end or a spectrum combination | sure |
+| 193 | φ(∞, t0) = 2.0, φef = φ × M0Eqp/M0Ed with the share = the sustained share of the axial force (else 0.65) | 5.8.4(2), 3.1.4 Fig 3.1 | `creepCoefficient`, `sustainedShare`: SAEngine practice, overridable | unsure (practice values) |
+| 194 | 1/r0 = εyd/(0.45 d), d = h/2 + is | 5.8.8.3(1)-(2) | `curvatureDepthShare` | sure |
+| 195 | Kr = (nu - n)/(nu - nbal) ≤ 1, nu = 1 + ω, nbal = 0.4 | 5.8.8.3(3) Eq 5.36 | `balancedAxial` | sure |
+| 196 | Kφ = 1 + β φef ≥ 1, β = 0.35 + fck/200 - λ/150 | 5.8.8.3(4) Eq 5.37 | `betaBase`, `betaFckDivisor`, `betaLambdaDivisor` | sure |
+| 197 | e2 = (1/r) l0²/c, c = 10 | 5.8.8.2(4) | `curvatureDistribution` | sure |
+| 198 | Braced: M0e = 0.6 M02 + 0.4 M01 ≥ 0.4 M02; MEd ≥ M01 + 0.5 M2 and M02 | 5.8.8.2(2)-(3) Eqs 5.32, 5.33 | `equivalentMoment`, `curvatureShareEnd`; unbraced MEd = M02 + M2 | sure |
+| 199 | l0 = k lu with k of SAEngine's frame (the parent's alignment chart) | 5.8.3.2 | Eqs 5.15/5.16 not used | SAEngine practice |
+| 200 | xu/d ≤ (1 - k1)/k2, k1 = 0.44, k2 = 1.25 (δ = 1) for slabs, stairs and the proposal's beams | 5.5(4) | `ultimate.neutralAxisLimit`; fck ≤ 50 MPa values | sure (its use as a ductility limit is SAEngine practice) |
+| 201 | Quasi-permanent combination 6.16b (G + 0.3Q), characteristic 6.14b-Q for the stress and crack rows | EN 1990 6.5.3; EN 1992-1-1 7.2, 7.3 | `serviceStress.quasiPermanent`, `characteristic` (ids of `combinations.service`) | sure |
+| 202 | Crack and stress rows with αe = Es/Ecm on the cracked rectangle; exposure `defaultExposure` XC1 | 7.2, 7.3.4 | No effective modulus | SAEngine practice |
+| 203 | Span/depth with As,req = As,prov; beff/bw from beff,i = 0.2 l0, l0 = 0.85 l | 7.4.2, 5.3.2.1 | On the safe side | SAEngine practice |
+| 204 | Slab As,min = the beams' 9.2.1.1(1) per metre; secondary ≥ 20 % of the main; spacing min(3h, 400) principal, min(3.5h, 450) secondary | 9.3.1.1(1)-(3) | `memberSteel` (rows 157-158) | sure |
+| 205 | Wall in-plane shear by 6.2 with bw = t, d = 0.8 lw, the horizontal bars as links | 6.2.2, 6.2.3 | d = 0.8 lw as the parent | SAEngine practice |
+| 206 | Ductile walls VEd × ε = 1.5 | EN 1998-1 5.4.2.4(7) | DCH ε by Eq 5.25 not implemented (the 1.5 floor only) | unsure for DCH |
+| 207 | Beams' capacity design shear VEd = γRd (MRb,1 + MRb,2)/lcl + VG, both end moments in full | EN 1998-1 5.4.2.2(2), 5.5.2.1(2) | min(1, ΣMRc/ΣMRb) taken as 1 (on the safe side) | sure |
+| 208 | Columns' capacity design shear VEd = γRd 2 MRc/lcl, MRc the largest over the axial range | 5.4.2.3, 5.5.2.2 | Both ends' MRc equal (one section) | sure |
+| 209 | DCH beams' critical regions with cot θ = 1 | 5.5.3.1.2(1) | | sure |
+| 210 | Joint shear Vjhd = γRd (As1 + As2) fyd - VC interior, γRd As1 fyd - VC exterior | 5.5.2.3(2) Eqs 5.22, 5.23 | VC = 0 on the safe side; γRd = 1.2 | sure |
+| 211 | bj = min(bc, bw + 0.5 hc) if bc > bw, else min(bw, bc + 0.5 hc) | 5.5.3.3(1) | hjc = hc less the hoops and bars | sure |
+| 212 | Strong column not required at the top joint | EN 1998-1 4.4.2.3(6) | Reported only | sure |
+| 213 | Footings: set A2 actions from the A1 strength combinations × γG(A2)/γG(A1) on permanent and × γQ(A2)/γQ(A1) on variable cases; earthquake combinations unchanged | EN 1997-1 2.4.7.3.4, Table A.3 | | SAEngine practice |
+| 214 | The founding layer's φ'k, c'k, cu,k, γ of the nearest borehole; drained and undrained where both are given; φ'cv,k = φ'k | 6.5.2, 6.5.3(10) | `footings.drained`, `phiCvShare`: overridable | SAEngine practice |
+| 215 | Piles from ground tests: Rc,cal per borehole (SAEngine's static method), n = the boreholes, Rc,k = min(mean/ξ3, min/ξ4), split base/shaft by their mean shares | 7.6.2.3(5)-(8) | | sure (the split is SAEngine practice) |
+| 216 | Rt,k = the shaft's uplift share with ξ3, ξ4; Rt,d = Rt,k/γs,t + the pile's weight | 7.6.3.3 | | SAEngine practice (the weight) |
