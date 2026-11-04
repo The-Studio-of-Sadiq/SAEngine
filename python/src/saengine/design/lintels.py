@@ -76,7 +76,7 @@ from saengine.design.bars import (
     round_down,
     with_minimum,
 )
-from saengine.design.clauses import Clauses, clause
+from saengine.design.clauses import Clauses, Rows, clause
 from saengine.design.ductile_members import _row
 from saengine.design.rc import (
     Flexure,
@@ -396,7 +396,7 @@ def design_beam(
             vs=vs,
             av_s=max(vs / (min(fyt, rc_value("FYT_SHEAR_MAX")) * d), shear.av_s_min),
             too_small=vs > 0.66 * math.sqrt(fc) * b * d,
-            note="Vc = 0 (8.3.8.2(a))",
+            note="Vc = 0" + _joint_rows().within("vcZero"),
         )
     if stirrup_s_max is not None:
         shear = replace(shear, s_max=min(shear.s_max, stirrup_s_max))
@@ -767,6 +767,11 @@ def lintels_of(
 # ─────────────────────────────────────── spandrels ───────────────────────────────────────
 
 
+def _joint_rows() -> Rows:
+    """C11: the capacity-design clauses (``designClauses.ductileJointsRows``) of the pack."""
+    return Rows("ductileJointsRows")
+
+
 def spandrel_mode(ln: float, h: float, vu: float, bw: float, fc: float, special: bool) -> str:
     """ "flexural" | "either" | "diagonal" (special walls, 8.3.6.7 (a)-(c)), or "beam" | "deep"
     (ordinary walls: ln/h >= 4 a beam, else a deep beam)."""
@@ -826,12 +831,19 @@ def spandrel_design(
                 vg = max(vg, v)
             pu = max(pu, float(r.get("P", 0.0)) * 1e3)
     mode = spandrel_mode(ln, h, vu, bw, fc, special)
+    from saengine.design.walls import ref as wall_ref
+
+    def within(key: str) -> str:
+        found = wall_ref(key)
+        return f" ({found})" if found else ""
+
     notes = [
         f"ln/h = {ln / h:.2f}: "
         + {
-            "flexural": "a flexural member of a special moment frame (8.3.6.7(a))",
-            "either": "diagonal bars or the beam rules (8.3.6.7(c)): the beam rules here",
-            "diagonal": "diagonal bars required (8.3.6.7(b))",
+            "flexural": "a flexural member of a special moment frame" + within("couplingLateral"),
+            "either": f"diagonal bars or the beam rules{within('couplingEither')}: the beam "
+            "rules here",
+            "diagonal": "diagonal bars required" + within("couplingRequired"),
             "beam": "a beam",
             "deep": "a deep beam (ln/h < 4): designed as a beam (sectional shear, on the safe "
             "side of a deep beam's strut action); its strut-and-tie design is not done",
@@ -915,10 +927,10 @@ def spandrel_design(
             )
         shear_rows = [c for c in capacity.checks if c["name"].startswith("Shear")]
         for c in shear_rows:
-            c["name"] = "Capacity-design shear Ve (8.3.8.1(a))"
+            c["name"] = _joint_rows().named("Capacity-design shear Ve", "smfShear")
             c["note"] += (
                 f"; Mpr = {mpr / 1e6:.1f} kN·m each end (1.25 fy, φ = 1), Vg = {vg / 1e3:.1f} kN"
-                + ("; Vc = 0 (8.3.8.2(a))" if vc_zero else "")
+                + ("; Vc = 0" + _joint_rows().within("vcZero") if vc_zero else "")
             )
         checks = [c for c in checks if not c["name"].startswith("Shear")] + shear_rows
         stirrups = capacity.stirrups or beam.stirrups

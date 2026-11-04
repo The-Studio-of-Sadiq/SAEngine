@@ -117,6 +117,21 @@ where the code leaves a gap (each overridable per project):
   `pilecap.py`, `raft.py`, `retaining_walls.py`, `sizing.py`, `substructure/loads.py`,
   `fem/derive.py`, `fem/loads.py`, `fem/peak_velocity_pressure.py`, `fem/snow_load.py`,
   `fem/irregularity.py`, `fem/seismic_design.py`, `report/build.py`, `settingsEditor.ts`.
+## 2026-11-04: detailing clause references from the code pack (alpha 9, track C11)
+
+- **Row clauses come from the pack.** The RC frame detailing, capacity design and seismic system
+  rows (beams, columns, joints, capacity shear, members outside the seismic-force-resisting
+  system, materials, system permitted) take their clause numbers from the pack's
+  `designClauses` groups `ductileMembersRows`, `ductileJointsRows`, `seismicDetailingRows` and
+  `seismicRulesRows`. The default pack's rows read exactly as before.
+- **No inherited clause numbers (SAEngine practice).** A pack that extends another and does not
+  give a row's clause itself names the row without a clause, rather than showing the clause
+  number of the pack it extends. This also applies to the wall rows (`wallsRows`). A project
+  override of a clause still shows.
+- **Worksheet formula text follows the method.** The wind and seismic worksheets print the
+  formula of the method the pack picks (power-law Kz with the pack's factor, the speed-factor or
+  peak velocity pressure methods, the behaviour-factor spectrum, the pack's spectrum factor)
+  instead of the default pack's.
 
 ## 2026-11-04: Indian Standards remainder (alpha 9 track C9b)
 

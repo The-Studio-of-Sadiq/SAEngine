@@ -522,6 +522,20 @@ class CodePack:
                 break
         return None
 
+    def clause_owner(self, name: str, key: str, sub: str) -> tuple[str, str] | None:
+        """C11: (id, value) of the nearest pack in the chain whose own data file for grouped
+        table ``name`` gives ``clauses[key][sub]``; None when none does."""
+        for found in self._chain:
+            table = found.tables.get(name)
+            data = table.data if table is not None else None
+            clauses = data.get("clauses") if isinstance(data, dict) else None
+            group = clauses.get(key) if isinstance(clauses, dict) else None
+            if isinstance(group, dict) and sub in group:
+                return found.id, str(group[sub])
+            if table is not None and table.replace:
+                break
+        return None
+
     @property
     def trusted(self) -> bool:
         """Whether every pack in the chain with hooks is trusted (True without hooks)."""

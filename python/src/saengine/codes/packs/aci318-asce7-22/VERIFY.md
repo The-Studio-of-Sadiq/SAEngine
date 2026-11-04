@@ -491,6 +491,33 @@ Rows numbered S1-S18 (their own series, so the parallel tracks do not collide).
 | S16 | Lumped heat capacity, the ISO 834 curve θg = 20 + 345 log10(8t + 1) for ASTM E119, αc 25 W/m²K, εm 0.7, ca 600 J/kgK, ρa 7850 kg/m³, no shadow factor | App 4.2.2 | Steel temperature at the rating | PRACTICE |
 | S17 | θcr: the temperature at which ky = μ0 | App 4.2.4c | Members without compression | PRACTICE |
 | S18 | `steel.bracing.rows` true: the Appendix 6 brace strength and stiffness as flagged rows of the member | App 6.2, 6.3 | Reported, not a new value | PRACTICE |
+## Frame and seismic detailing clause references (track C11) — `designClauses.json`
+
+The groups `ductileMembersRows`, `ductileJointsRows`, `seismicDetailingRows` and
+`seismicRulesRows` name the ACI 318-19 Chapter 18 (and ASCE 7-22) clause of each row of the RC
+frame detailing, capacity design and seismic system rules. They are clause numbers only: the
+values those rows check are the pack's tables (`detailing`, `materials`, ...). A key this pack
+leaves out names its row without a clause (it never shows the BNBC number it would inherit).
+All clause numbers are from memory of ACI 318-19; sub-clause letters especially need checking.
+
+| # | Rows | Clause | Description | Status |
+|---|---|---|---|---|
+| D1 | SMF beams: scope, ln ≥ 4d, b ≥ 0.3h and 250 mm, width within the column | 18.6, 18.6.2.1(a), (b), (c); Figure R18.6.2 | | OK? |
+| D2 | SMF beams: As,min, ρ ≤ 0.025, two bars each face; Mn+ ≥ Mn-/2, Mn ≥ max Mn/4 | 18.6.3.1 (9.6.1.2), 18.6.3.2 | | OK? |
+| D3 | SMF beams: lap splices, hoop zones 2h, other yielding sections, two-piece hoops, first hoop and spacing, stirrups elsewhere | 18.6.3.3, 18.6.4.1(a), (b), 18.6.4.3, 18.6.4.4, 18.6.4.5 | 318-19 spacing limits differ from the engine's (d/4, 8 db, 24 dh, 300 mm): only the clause is the pack's | UNSURE |
+| D4 | Beams with Pu > Ag f'c/10 (BNBC: detail as a column) | 18.6.4.6 | 318-19 has no axial limit in the beam scope; 18.6.4.6 asks column hoops | UNSURE |
+| D5 | Lateral support of the perimeter bars | 25.7.2.3 (beams), 18.7.5.2 (columns) | | OK? |
+| D6 | SMF columns: scope, least dimension 300 mm, ratio 0.4, ρg 0.01-0.06, splices | 18.7.1, 18.7.2.1(a), (b), 18.7.4.1, 18.7.4.3 | Splice clause number | UNSURE |
+| D7 | SMF columns: lo, so, hx, Ash and ρs, outside lo, first hoop | 18.7.5.1, 18.7.5.3, 18.7.5.2(e), Table 18.7.5.4 (a), (b), (d), (e), 18.7.5.5, Figure R18.7.5.1 | | OK? |
+| D8 | Columns of a joint failing the strong-column rule | 18.7.3.3 | 318-19 sends them to 18.14 rather than full-height hoops | UNSURE |
+| D9 | IMF beams and columns: Mn shares, stirrups over 2h, d/2, so over lo, first tie, outside lo | 18.4.2, 18.4.2.2, 18.4.2.4, 18.4.2.5, 18.4.3, 18.4.3.3, 18.4.3.4, 18.4.3.5 | | OK? |
+| D10 | Members not in the seismic-force-resisting system (SDC D-F) | 18.14.3.1, 18.14.3.2, 18.14.3.3 | Sub-clause letters left out | UNSURE |
+| D11 | Not given (no 318-19 counterpart): the ordinary frame column tie rules and the members outside the system in an ordinary frame (BNBC 8.3.9, 8.3.9.1, 8.3.9.2), the IMF axial rule (BNBC 8.3.10.2), the lists of clauses the members outside the system follow | — | Named without a clause | — |
+| D12 | Strong column / weak beam, its scope, full height | 18.7.3.1, 18.7.3.2 (Eq 18.7.3.2), 18.7.3.3 | | OK? |
+| D13 | Joints: forces at 1.25 fy, through bars 20 db, hooked anchorage, γ by confinement, bj, φ | 18.8.2.1, 18.8.2.3, 18.8.5.1 (Eq 18.8.5.1), 18.8.4.1 (Table 18.8.4.1), 18.8.4.3, 21.2.4.4 | | OK? |
+| D14 | Capacity shear: beams, columns, Vc = 0, fyt limit, IMF | 18.6.5.1, 18.7.6.1.1, 18.6.5.2, 18.7.6.2.1, 20.2.2.4, 18.4.2.3, 18.4.3.1 | | OK? |
+| D15 | Foundations: column bars into the footing, grade beam ties | 25.4.3 (hooks), 18.13.2.3, 18.13.3.2, 18.13.3.3 | Grade beam clause numbers | UNSURE |
+| D16 | System and materials: detailing by SDC, the systems table, f'c, λ, grades, actual fy, fu/fy, elongation, mechanical splices, φ, walls | 18.2.1, ASCE 7-22 Table 12.2-1, 18.2.5 (Table 19.2.1.1), 19.2.4, 18.2.6 (20.2.2.5), 20.2.2.5(b)(i)-(iii), 18.2.7 (18.2.7.1), 21.2, 18.10 | The 20.2.2.5(b) letters | UNSURE |
 
 ## Not covered in this version (fall back or absent)
 
