@@ -4736,7 +4736,14 @@ def _beam_torsion_checks(
                 found = [
                     _check("Torsion", 0.0, 0.0, "kN·m", None, f"not checked: {error}", flag=True)
                 ]
-            return found, None
+            # Alpha 9 C18c: the closed links and ΔAl Design Reinforcement sizes from.
+            try:
+                need = torsion_interaction.torsion_need(
+                    section, reinforcement.cover, stirrups, points
+                )
+            except DesignError:
+                need = None
+            return found, need
         capacities = {hog: flexure(section, hog) for hog in (False, True)}
         return (
             tabulated_shear.torsion_rows(

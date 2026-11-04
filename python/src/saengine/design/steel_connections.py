@@ -92,6 +92,7 @@ from __future__ import annotations
 import math
 from typing import Any
 
+from saengine.design.steel import capacity_factor_joints as cfj
 from saengine.design.steel import joint_resistances as jr
 from saengine.design.steel_proposal import SteelMaterial, compression_capacity
 from saengine.library.objects import (  # the connection models live with the object types
@@ -264,6 +265,8 @@ def long_joint_factor(length: float, tension_splice: bool, d: float | None = Non
     """Factor on Fnv of a bearing-type tension splice with a bolt pattern ``length`` [mm] long
     along the force (1 below the pack's ``longJointLength``); C9: βlj of every long joint of
     bolts ``d`` [mm] under the pack's limit state method."""
+    if cfj.active():  # Alpha 9 C18c: kr of every long joint (AS 4100 9.3.2.1 type)
+        return cfj.long_joint(length)
     if _ls() is not None:
         from saengine.design.steel import limit_state
 
@@ -277,6 +280,8 @@ def long_joint_factor(length: float, tension_splice: bool, d: float | None = Non
 def bolt_shear_capacity(grade: str, d: float, planes: int = 1, factor: float = 1.0) -> float:
     """φRn of one bolt in shear [N], Rn = Fnv Ab (``factor``: the long-joint reduction); alpha
     9 C6: Fv,Rd when the pack designs joints by partial factors."""
+    if cfj.active():  # Alpha 9 C18c: φVf (AS 4100 9.3.2.1 type)
+        return cfj.shear(grade, d, planes, factor)
     if jr.active():
         return jr.shear(grade, d, planes, factor)
     if _ls() is not None:  # C9
@@ -289,6 +294,8 @@ def bolt_shear_capacity(grade: str, d: float, planes: int = 1, factor: float = 1
 def bolt_tension_capacity(grade: str, d: float, frv: float = 0.0) -> tuple[float, str]:
     """φRn of one bolt in tension [N] with the required shear stress ``frv`` [MPa]: Fnt Ab, or
     F'nt = 1.3 Fnt - Fnt / (φ Fnv) frv <= Fnt with shear; and the note."""
+    if cfj.active():  # Alpha 9 C18c: φNtf with the elliptical interaction
+        return cfj.tension(grade, d, frv)
     if jr.active():  # alpha 9 C6
         return jr.tension(grade, d, frv)
     if _ls() is not None:  # C9
@@ -309,6 +316,8 @@ def slip_capacity(c: Any, d: float, planes: int = 1, tension: float = 0.0) -> tu
     """φRn of one pretensioned bolt against slip [N], Rn = μ Du hsc Tb Ns, times ks = 1 - Tu /
     (Du Tb) under the bolt's applied tension ``tension`` [N]; and the note. 0 when the grade is
     not pretensioned."""
+    if cfj.active():  # Alpha 9 C18c: φVsf (AS 4100 9.3.3 type)
+        return cfj.slip(c, d, planes, tension)
     if jr.active():  # alpha 9 C6
         level = "strength" if c.slipCritical == "strength" else "serviceability"
         return jr.slip(c.boltGrade, d, c.surfaceClass, c.holeType, level, planes, tension)
@@ -370,6 +379,8 @@ def slip_checks(
 def bearing_capacity(d: float, t: float, fu: float, lc: float, at: str | None = None) -> float:
     """φRn of one bolt hole in bearing/tear-out [N], Eq 6.10.173a, φ 0.75; C9: under the
     pack's limit state method by kb of the end (``at`` "end") or pitch ("pitch") distance."""
+    if cfj.active():  # Alpha 9 C18c: the ply's bearing and tear-out (AS 4100 9.2.2.4 type)
+        return cfj.bearing(d, t, fu, lc)
     if _ls() is not None:
         from saengine.design.steel import limit_state
 
@@ -394,6 +405,8 @@ def bearing_line(d, t, fu, rows, pitch, end) -> float:
 def block_shear(fy, fu, agv, anv, ant, ubs: float = 1.0) -> float:
     """φRn, Eq 6.10.178, φ 0.75; alpha 9 C6: Veff,Rd when the pack designs joints by partial
     factors (``ubs`` the share of the tension area)."""
+    if cfj.active():  # Alpha 9 C18c
+        return cfj.block(fy, fu, agv, anv, ant, ubs)
     if jr.active():
         return jr.block(fy, fu, anv, ant, ubs)
     if _ls() is not None:  # C9
@@ -408,6 +421,8 @@ def block_shear(fy, fu, agv, anv, ant, ubs: float = 1.0) -> float:
 def fillet_capacity_per_mm(w: float, fexx: float, theta_deg: float = 0.0) -> float:
     """φRn of a fillet weld per mm of length [N/mm], Eq 6.10.162-163, φ 0.75, throat 0.707 w;
     alpha 9 C6: the pack's weld method by partial factors (fu of the parts joined)."""
+    if cfj.active():  # Alpha 9 C18c: φvw, no directional increase (AS 4100 9.6.3.10 type)
+        return cfj.fillet_per_mm(w)
     if jr.active():
         return jr.fillet_per_mm(w, theta_deg)[0]
     if _ls() is not None:  # C9: no directional increase

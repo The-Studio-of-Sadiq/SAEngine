@@ -41,6 +41,36 @@ here, newest first, with the date, the question, the decision, the reason and wh
 - **No unlicensed software.** ETABS, SAP2000 and STAAD are not used for cross-checks or cited.
   Open-source tools are used instead (2026-10-25).
 
+## 2026-11-05: Australia and New Zealand second remainder (alpha 9 track C18c)
+
+`australia-as` 0.3 and `newzealand-nzs` 0.3 (VERIFY C18c-1 to C18c-60 and C18c-1 to C18c-29).
+New generic methods by id: `concreteMethods.slenderness` `bucklingMagnifier`,
+`concreteMethods.anchorage` `developmentFactors`, `steelLimitState.connections`
+`capacityFactorJoints`. Existing methods widened by optional fields whose defaults keep every
+other pack's results: `strutAndTie` (`basis`, `phiStrut`, `phiTie`, `concreteShare`,
+`bottleStrut`, `nuDivisor` optional), `ductileDetailing` (`basis`, `levels`, columns `ashForm`,
+`ashAxial`, `confinedByAxial`, `capacityShear`, joints `stressLimit`, `reinforcementShare`,
+walls `shearAmplification`, `boundaryAsh`, `boundaryLength`, `couplingPhi`, beams
+`hoopZoneOnDepth`), `concrete.walls.spacingThickness` (3 t by default).
+
+- **Capacity-factor basis (SAEngine practice).** The C5c strut-and-tie and C8 ductile detailing
+  methods were written on fcd and fyd. Under a pack without partial factors they now run on f'c
+  and fy with the code's φ (`basis: "capacityFactor"`), so AS 3600 and NZS 3101 reuse them.
+- **Detailing levels.** AS 3600 Appendix C rows apply to μ 3 (intermediate) frames; μ 2 frames are
+  designed by the members' general rules only; μ 4 frames are detailed as μ 3 (AS 3600 leaves
+  them to a special study). NZS 3101: ductile and limited ductile frames; nominally ductile by the
+  general rules. Design Reinforcement sizes the hoops by the method's own (strictest) group.
+- **NZS 3101 Appendix D reduced to factors (SAEngine practice).** The column capacity design is
+  the strong column ratio ΣMn,col >= ω λo/φ ΣMn,beam with one ω per level (1.3 ductile, 1.0
+  limited) and the columns' capacity shear 1.25 (or 1.0) (Mn,top + Mn,bottom)/clear; the wall's
+  overstrength φo,w is taken as λo/φ = 1.47, not computed; the horizontal joint hoops carry
+  0.5 Vjh (not the code's Ajh expression). All flagged in VERIFY.
+- **Slender columns without bars.** Nc takes 0.4 Ec Ig where no bars are known to find Mub.
+- **AS 4100 bolt grades.** A307 is taken as 4.6; A325, A490 and 10.9 as 8.8 (on the safe side).
+- **Design Reinforcement torsion links.** Under the AS 3600 8.3 method the closed links carry T*
+  on top of the shear's links, at most min(0.12 ut, 300 mm) apart.
+- Nothing was run (owner rule of 2026-11-05): the tests are written, the test pass is next week.
+
 ## 2026-11-05: Australia and New Zealand remainder (alpha 9 track C18b)
 
 `australia-as` 0.2 and `newzealand-nzs` 0.2 (VERIFY C18b-1 to C18b-42 and C18b-1 to C18b-4).

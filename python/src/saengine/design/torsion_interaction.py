@@ -224,6 +224,59 @@ def torsion_rows(
     return rows
 
 
+def torsion_need(
+    section: Any,
+    cover: float,
+    stirrups: tuple[float, int, float] | None,
+    points: list[tuple[float, float, float, str, str]],
+) -> Any | None:
+    """Alpha 9 C18c: what Design Reinforcement sizes the closed links and the added bars from
+    (a :class:`saengine.design.limit_state_rows.TorsionNeed`), at the station with the largest
+    torque where T*/(φTuc) + V*/(φVuc) exceeds ``plainInteraction`` (None where no torsion
+    links are needed): one leg's Asw/s = T* / (φ fsy.f 2 At cot θv), the shear's links added
+    to it by the proposal (the linear sharing of :func:`torsion_rows`), ΔAl, the spacing
+    min(share ut, mm). At is taken with the section's links (10 mm where none: the proposal's
+    larger links leave At a little smaller, SAEngine practice)."""
+    from saengine.design.limit_state_rows import TorsionNeed
+    from saengine.design.rc import shear
+
+    r = rules()
+    if r is None or not points or max(abs(p[0]) for p in points) < TORSION_FLOOR:
+        return None
+    phi = float(code_context.table("factors").phi.shear)
+    b, h, fc = float(section.width), float(section.depth), float(section.fc)
+    tdia = float(getattr(section, "transverse_dia", None) or (stirrups[0] if stirrups else 10.0))
+    bar = max((float(x.dia) for x in section.bars), default=16.0)
+    inset = 2 * (cover + tdia) + bar
+    x1, y1 = b - inset, h - inset
+    if x1 <= 0 or y1 <= 0:
+        return None
+    at, ut = x1 * y1, 2 * (x1 + y1)
+    tuc = cracking_torque(b, h, fc, r)
+    phi_vuc = float(shear(section, None, 0, None).phi_vn)
+
+    def plain_sum(p: tuple[float, float, float, str, str]) -> float:
+        return abs(p[0]) / (phi * tuc) + (abs(p[1]) / phi_vuc if phi_vuc > 0 else math.inf)
+
+    needing = [p for p in points if plain_sum(p) > r.plainInteraction]
+    worst = max(points, key=lambda p: abs(p[0]))
+    if not needing or abs(worst[0]) < r.neglectShare * phi * tuc:
+        return None
+    worst = max(needing, key=lambda p: abs(p[0]))
+    fy = min(float(section.fy), r.fyMax)
+    at_s = abs(worst[0]) / (phi * fy * 2 * at * r.cotTheta)
+    extra = abs(worst[0]) * ut * r.cotTheta / (2 * phi * at * float(section.fy))
+    share, cap = r.linkSpacing
+    return TorsionNeed(
+        at_s=at_s,
+        av_s=0.0,
+        al=extra,
+        s_max=min(share * ut, cap),
+        tu=abs(worst[0]),
+        kind="equilibrium",
+    )
+
+
 def method_line() -> str:
     """The report's line of the method."""
     r = rules()

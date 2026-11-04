@@ -1443,6 +1443,20 @@
           "exclusiveMinimum": 0,
           "title": "Spacingmax",
           "type": "number"
+        },
+        "spacingThickness": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Bars at most this × t apart (none: 3 t).",
+          "title": "Spacingthickness"
         }
       },
       "required": [

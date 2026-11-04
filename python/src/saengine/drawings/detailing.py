@@ -252,6 +252,14 @@ class Rule:
 # ─────────────────────────────────────── hooks and bends ───────────────────────────────────────
 
 
+def _development_factors() -> Any | None:
+    """Alpha 9 C18c: :mod:`saengine.design.development_factors` when the pack in force picks
+    that anchorage method (None: the parent's rules or the bond stress method)."""
+    from saengine.design import development_factors
+
+    return development_factors if development_factors.rules() is not None else None
+
+
 def _bar_shapes() -> Any | None:
     """Alpha 9 C5c: the pack's ``concreteMethods.barShapes`` when it picks that method (bends,
     hooks and links' bends, compression laps; None: the parent's rules)."""
@@ -401,6 +409,15 @@ def development_tension(
     "general" (8.2.3.3, Eq. 6.8.1): ``cb`` the smaller of the cover to the bar's centre and half
     the bars' centre spacing [mm], ``k_tr`` (Eq. 6.8.2, 0 permitted). ``excess`` As,req/As,prov
     (8.2.3.5); ``minimum`` False leaves out the 300 mm of 8.2.3.1 (for laps, 8.2.13.1)."""
+    factored = _development_factors()
+    if factored is not None:  # Alpha 9 C18c: Lsy.tb with k1-k3 (AS 3600 13.1.2 type)
+        cd = None if cb is None else max(cb - db / 2, 0.0)
+        found = factored.tension_length(db, fy, fc, top, cd)
+        return Rule(
+            found["length"] * excess,
+            factored.tension_text(found) + (f" × {excess:.2f}" if excess != 1.0 else ""),
+            factored.cite(),
+        )
     dev = bar_rules().development
     pt = psi_t(top)
     te = min(pt * psi_e, dev.psiTEMax)  # 8.2.3.4(b): ψt ψe need not exceed 1.7
@@ -452,6 +469,16 @@ def development_compression(
     """ldc [mm] (8.2.4, p 1078): max(0.24 fy db / (λ √f'c), 0.043 fy db) × As,req/As,prov × 0.75
     inside spirals or 12 mm ties at 100 mm (``confined``), at least 200 mm. Alpha 9 C5c: with
     the pack's bar shapes and bond stress, lbd in compression (α = 1, lb,min of compression)."""
+    factored = _development_factors()
+    if factored is not None:  # Alpha 9 C18c: Lsy.c (AS 3600 13.1.5 type)
+        found = factored.compression_length(db, fy, fc)
+        a, b, mm = factored.rules().compression
+        return Rule(
+            found["length"] * excess,
+            f"Lsy.c = {a:g} fsy db / √f'c at least {b:g} fsy db and {mm:g} mm"
+            + (f" × {excess:.2f}" if excess != 1.0 else ""),
+            factored.cite("anchorageCompression"),
+        )
     if _bar_shapes() is not None and _bond_stress():
         from saengine.design import bar_rules as rules_of_bars
 
@@ -493,6 +520,15 @@ def hook_development(
     value is :func:`saengine.design.ductile_joints.hooked_development` (√f'c capped, 8.2.2)."""
     from saengine.design.ductile_joints import hooked_development
 
+    factored = _development_factors()
+    if factored is not None:  # Alpha 9 C18c: a hook or cog, a share of Lsy.tb (AS 3600 13.1.2.7)
+        found = factored.hook_length(db, fy, fc)
+        return Rule(
+            found["length"] * excess,
+            f"{factored.rules().hookShare:g} Lsy.tb, " + factored.tension_text(found)
+            + (f" × {excess:.2f}" if excess != 1.0 else ""),
+            factored.cite("anchorageHooks"),
+        )  # fmt: skip
     if _bar_shapes() is not None and _bond_stress():
         # Alpha 9 C5c: a bent or hooked bar by the pack's anchorage, lb,eq = α1 lb,rqd with α1
         # of bent bars where the side cover is enough (``cover``), else 1 (on the safe side).
@@ -628,6 +664,20 @@ def lap_tension(
     lapped with, when of another size (8.2.13.5, p 1084: the larger of ld of the larger bar and
     the lap of the smaller). ``factor`` multiplies ld (1.25 for special walls, 8.3.6.2(c));
     ``development``: the arguments of :func:`development_tension` (top, psi_e, method, ...)."""
+    factored = _development_factors()
+    if factored is not None:  # Alpha 9 C18c: the lap by k7 Lsy.t (AS 3600 13.2.2 type)
+        cb = development.get("cb")
+        cd = None if cb is None else max(float(cb) - db / 2, 0.0)
+        big = max(db, other_db or db)
+        found = factored.lap_tension(big, fy, fc, bool(development.get("top")), cd)
+        r = factored.rules()
+        return Rule(
+            found["lap"] * factor,
+            f"{r.lapFactor:g} Lsy.t at least {r.lapMinCoefficient:g} k1 db, "
+            + factored.tension_text(found)
+            + (f" (× {factor:g})" if factor != 1.0 else ""),
+            factored.cite("laps"),
+        )
     laps = bar_rules().laps
     if db >= laps.noLapDb:
         raise ValueError(
@@ -657,6 +707,15 @@ def lap_compression(db: float, fy: float, fc: float, *, factor: float = 1.0) -> 
     (8.2.15.2(d)) or 0.75 inside spirals (8.2.15.2(e)); at least 300 mm. Alpha 9 C5c: with the
     pack's bar shapes and bond stress, l0 = α6 lb,rqd in compression (α1 = α2 = 1) with a
     transverse bar outside each end of the lap (the parent's ``factor`` does not apply)."""
+    factored = _development_factors()
+    if factored is not None:  # Alpha 9 C18c: Lsy.c, at least the pack's n db (AS 3600 13.2.4)
+        found = factored.lap_compression(db, fy, fc)
+        n, mm = factored.rules().compressionLap
+        return Rule(
+            found["lap"],
+            f"Lsy.c = {found['length']:.0f} mm, at least {n:g} db and {mm:g} mm",
+            factored.cite("lapsCompression"),
+        )
     shapes = _bar_shapes()
     if shapes is not None and _bond_stress():
         from saengine.design import bar_rules as rules_of_bars
@@ -711,6 +770,12 @@ def column_lap(
     0.75, (d), (e)); "low" (tension not over 0.5 fy): class B when more than half the bars are
     spliced at a section, class A when half or fewer and staggered by ld (b); "tension" (above
     0.5 fy, and the laps of special moment frames, 8.3.5.3(b)): class B (c)."""
+    if _development_factors() is not None:
+        # Alpha 9 C18c: the pack's laps with their own clauses (AS 3600 13.2 type): every
+        # column bar lapped by the tension lap unless in compression throughout.
+        if stress == "compression":
+            return lap_compression(db, fy, fc)
+        return lap_tension(db, fy, fc, **development)
     if stress == "compression":
         rule = lap_compression(db, fy, fc, factor=factor)
         if _bar_shapes() is not None and _bond_stress():  # Alpha 9 C5c: its own clause
@@ -1142,6 +1207,9 @@ class _Ctx:
 
     @property
     def method_text(self) -> str:
+        factored = _development_factors()
+        if factored is not None:  # Alpha 9 C18c
+            return factored.method_text()
         if _bond_stress():  # Alpha 9 C5b
             from saengine.codes import context as code_context
 

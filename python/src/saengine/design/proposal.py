@@ -337,11 +337,14 @@ class BeamDesigner:
             # Sec 6.4.4.6.1-2 with the proposed stirrups and the top bars where they run: the
             # spacing within ph / 8 and 300 mm, a longitudinal bar in each corner.
             t = reinforcement["transverse"]
-            from saengine.design import tabulated_shear
+            from saengine.design import tabulated_shear, torsion_interaction
 
             limit = self._torsion_s_max(t["dia"])
             if tabulated_shear.torsion_rules() is not None:  # C8: the pack's link spacing
                 limit = min(limit, loads.torsion_s_max)
+            elif torsion_interaction.rules() is not None:
+                # Alpha 9 C18c: the pack's min(share ut, mm) (AS 3600 8.3.8 type).
+                limit = loads.torsion_s_max
             if t["spacing"] > limit + 1e-6:
                 return None
             if not self._corners_held(reinforcement):
@@ -364,6 +367,11 @@ class BeamDesigner:
             # Alpha 9 C9b: the equivalent shear method's own link spacing (IS 456 26.5.1.7
             # type) in place of the parent's ph / 8.
             return tabulated_shear.link_spacing_limit(self.b, self.h, self.cover, dia)
+        from saengine.design import torsion_interaction
+
+        if torsion_interaction.rules() is not None:
+            # Alpha 9 C18c: the torsion need carries the pack's spacing (loads.torsion_s_max).
+            return math.inf
         rules = torsion_design.TorsionRules.from_pack()
         drop = self.top_drop
         if drop > 0:

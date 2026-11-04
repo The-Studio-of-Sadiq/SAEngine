@@ -3034,6 +3034,10 @@ class WallSteel(_Group):
     rhoShear: Rho = Field(description="Least ρ of special walls (both ways).")
     twoLayerThickness: Positive = Field(description="Thickness [mm] from which two layers apply.")
     spacingMax: Positive = Field(description="Largest bar spacing [mm].")
+    # Alpha 9 C18c (AS 3600:2018 11.7.3 type: min(2.5 tw, 350 mm)); none: 3 t.
+    spacingThickness: Positive | None = Field(
+        default=None, description="Bars at most this × t apart (none: 3 t)."
+    )
 
 
 class TorsionLimits(_Group):

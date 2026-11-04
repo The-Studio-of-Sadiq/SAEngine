@@ -106,7 +106,8 @@
   "clauses": {
     "modulus": "5.2.3",
     "shrinkage": "8.8.1",
-    "shrinkageBrick": "8.8.1 (no brick aggregate rule)"
+    "shrinkageBrick": "8.8.1 (no brick aggregate rule)",
+    "walls": "11.3.11"
   },
   "sources": {
     "barDiameters": "AS/NZS 4671 Grade 500E deformed bars 10, 12, 16, 20, 25, 32, 40 mm (the sizes rolled for New Zealand; SAEngine's sets by use)",
@@ -115,6 +116,19 @@
     "columnRho": "NZS 3101:2006 10.3.8.1: Ast at least 0.8 Ag / fy (0.0016 at 500 MPa: SAEngine keeps 0.008 as the practical least) and at most 0.08 Ag (ductile columns 18/fy in 10.4.6.2: not checked)",
     "slabStrainMin": "NZS 3101 has no εt limit of slabs: the parent's ACI-type 0.004 (SAEngine practice)",
     "modulus": "NZS 3101:2006 5.2.3: Ec = 4700 √f'c (ρ/2300)^1.5 (normal density 2300 kg/m³)",
-    "shrinkage": "NZS 3101:2006 8.8.1: shrinkage and temperature steel 0.7 Ag/fy, at least 0.0014 Ag (0.0023 for 300E below 500 MPa)"
+    "shrinkage": "NZS 3101:2006 8.8.1: shrinkage and temperature steel 0.7 Ag/fy, at least 0.0014 Ag (0.0023 for 300E below 500 MPa)",
+    "walls": "NZS 3101:2006 11.3.11.3: walls ρn and ρv at least 0.7/fy (0.0014 for 500E), bars at most min(3 t, 450 mm) apart (11.3.11.4); replaces the Australian pack's AS 3600 11.7 values (to verify)"
+  },
+  "walls": {
+    "rhoSmallBars": [
+      0.0014,
+      0.0014
+    ],
+    "rhoOtherBars": [
+      0.0014,
+      0.0014
+    ],
+    "spacingMax": 450.0,
+    "spacingThickness": 3.0
   }
 }

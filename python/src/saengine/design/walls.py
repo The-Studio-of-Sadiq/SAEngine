@@ -184,6 +184,22 @@ def steel_limit(name: str) -> float:
     return float(code_context.table("concrete").walls[name])
 
 
+def spacing_thickness() -> float:
+    """Alpha 9 C18c: n of the walls' bar spacing n t, the pack's ``concrete.walls.
+    spacingThickness`` (AS 3600 11.7.3 type 2.5); 3 (the default pack's 6.6.3.5) without it."""
+    found = getattr(code_context.table("concrete").walls, "spacingThickness", None)
+    return 3.0 if found is None else float(found)
+
+
+def spacing_text(default: str, symbol: str, prefix: str = "") -> str:
+    """The spacing limit's label: ``default`` (the default pack's words) unless the pack gives
+    its own n t, then "min(<prefix>n t, s mm)" with its values."""
+    found = getattr(code_context.table("concrete").walls, "spacingThickness", None)
+    if found is None:
+        return default
+    return f"min({prefix}{float(found):g}{symbol}, {steel_limit('spacingMax'):g} mm)"
+
+
 def least_ratios(name: str) -> tuple[float, float]:
     """The pack's least ratios (vertical, horizontal) ``name`` of 6.6.3.2 / 6.6.3.3 and
     8.3.6.2(a)(i)/(ii) (default pack BNBC 2020: rhoSmallBars (0.0012, 0.0020), bars not larger than 16 mm
@@ -786,7 +802,7 @@ def two_curtains_by_aspect(geometry: WallGeometry) -> bool:
     return bool(aspect) and geometry.length > 0 and geometry.height / geometry.length >= aspect
 
 
-def shear_amplification(geometry: WallGeometry) -> tuple[float, str]:
+def shear_amplification(geometry: WallGeometry, rule: Any = None) -> tuple[float, str]:
     """C2: (Ωv ωv, how) of a special wall's design shear Ve = Ωv ωv Vu <= cap Vu by the pack's
     ``detailing.walls.shearAmplification`` (ACI 318-19 18.10.3.3); (1.0, "") without it.
 
@@ -795,7 +811,9 @@ def shear_amplification(geometry: WallGeometry) -> tuple[float, str]:
     hw/lw is below ``dynamicAspect``; else a + ns/b with ns the storeys of the wall, taken as
     hw over the storey's clear height rounded (SAEngine practice), (a, b) ``dynamicLow`` up to
     ``dynamicStoreys`` storeys, ``dynamicHigh`` at most ``dynamicMax`` above."""
-    rule = getattr(code_context.table("detailing").walls, "shearAmplification", None)
+    # Alpha 9 C18c: ``rule`` given (the ductile detailing's walls), else the detailing table's.
+    if rule is None:
+        rule = getattr(code_context.table("detailing").walls, "shearAmplification", None)
     if rule is None or geometry.length <= 0:
         return 1.0, ""
     aspect = geometry.height / geometry.length
@@ -951,6 +969,16 @@ def wall_checks(
         if factor != 1.0:
             forces = amplified(forces, factor)
             out.notes.append(f"In-plane shear of the earthquake combinations: {how}")
+    elif ductile_wall:
+        # Alpha 9 C18c: the ductile walls' design shear by the pack's ductile detailing (NZS
+        # 3101 11.4.7 / Appendix D type: overstrength and dynamic magnification).
+        found = ductile_detailing.rules_for("special")
+        rule = found.walls.shearAmplification if found is not None else None
+        if rule is not None:
+            factor, how = shear_amplification(geometry, rule)
+            if factor != 1.0:
+                forces = amplified(forces, factor)
+                out.notes.append(f"In-plane shear of the earthquake combinations: {how}")
     t, lw = geometry.thickness, geometry.length
     acv = geometry.gross_area
     fyt = fy if fyt is None else fyt
@@ -1021,16 +1049,17 @@ def wall_checks(
 
     # Spacing.
     s_max = steel_limit("spacingMax")
-    s_v, s_h = min(3 * t, s_max), min(3 * t, s_max)
-    why_v = why_h = named("min(3t, 450 mm)", "spacing")
+    n_t = spacing_thickness()  # Alpha 9 C18c: the pack's n t (3 t by default)
+    s_v, s_h = min(n_t * t, s_max), min(n_t * t, s_max)
+    why_v = why_h = named(spacing_text("min(3t, 450 mm)", "t"), "spacing")
     if shear_reinforced and not special:
         s_h, why_h = (
-            min(lw / 5, 3 * t, s_max),
-            named("min(lw/5, 3h, 450 mm)", "spacingHorizontalShear"),
+            min(lw / 5, n_t * t, s_max),
+            named(spacing_text("min(lw/5, 3h, 450 mm)", "h", "lw/5, "), "spacingHorizontalShear"),
         )
         s_v, why_v = (
-            min(lw / 3, 3 * t, s_max),
-            named("min(lw/3, 3h, 450 mm)", "spacingVerticalShear"),
+            min(lw / 3, n_t * t, s_max),
+            named(spacing_text("min(lw/3, 3h, 450 mm)", "h", "lw/3, "), "spacingVerticalShear"),
         )
     if special:
         why_v = why_h = f"{named('450 mm', 'webSpecial')} and {named('min(3t, 450 mm)', 'spacing')}"
@@ -1764,7 +1793,7 @@ def wall_need(
     if bars is not None:
         layers = max(layers, bars.layers)
     s_max = steel_limit("spacingMax")
-    s_v = s_h = min(3 * t, s_max)
+    s_v = s_h = min(spacing_thickness() * t, s_max)  # Alpha 9 C18c: the pack's n t
     if _pack_walls():  # Alpha 9 C5b: the pack's spacings
         from saengine.design import limit_state_rows
 
@@ -2800,15 +2829,14 @@ def coupling_beam_checks(
     if ductile_detailing.rules() is not None:
         # Alpha 9 C8: the pack's coupling beam rule (IS 13920): diagonal bars by τv and ls/D,
         # their strength 2 Asd fyd sin α; the beam rules otherwise (the frame beams' rows).
-        from saengine.design import design_strength
-
         row = ductile_detailing.coupling_row(ln, h, bw, vu, fc, diagonal is not None)
         out = CouplingBeam("diagonal" if row is not None and not row["flag"] else "either")
         if row is not None:
             out.checks.append(row)
         edge = diagonal.edge if diagonal and diagonal.edge else cover + 10.0 + 2 * 20.0
         alpha = diagonal.angle if diagonal and diagonal.angle else math.atan((h - 2 * edge) / ln)
-        fyd = design_strength.fyd(fy)
+        # Alpha 9 C18c: fyd, or φ fy under the capacity-factor basis (NZS 3101 type).
+        fyd = ductile_detailing.design_yield(fy)
         sin = math.sin(alpha)
         out.avd_required = vu / (2 * fyd * sin) if sin > 0 else math.inf
         if diagonal is not None:

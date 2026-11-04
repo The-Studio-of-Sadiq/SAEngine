@@ -56,18 +56,42 @@ in `covers` comes from the default pack and the report names it BNBC 2020. The N
 - `designClauses`: the clauses of the covered checks (torsion, deflection, punching, accidental
   eccentricity, fire); a key without an AS counterpart names the row without a clause.
 
+## Alpha 9 C18c (version 0.3)
+
+- Slender columns `concreteMethods.slenderness` method `bucklingMagnifier`
+  (`design/buckling_magnifier.py`, AS 3600 10.4): short up to Le/r 25 braced and 22 unbraced,
+  M* >= 0.05 D N*, δb = km/(1 - N*/Nc) with Nc = (π²/Le²) 182 do φ Mub/(1 + βd), Mub by
+  strain compatibility, δ the larger of δb and the storey's δs unbraced; the parent's storeys,
+  restraints and k.
+- Anchorage `concreteMethods.anchorage` method `developmentFactors`
+  (`design/development_factors.py`, 13.1, 13.2): Lsy.tb with k1-k3, hooks 0.5 Lsy.tb, Lsy.c,
+  laps 1.25 Lsy.t >= 29 k1 db; the bar detailing, the bar schedule and Design Reinforcement read
+  it.
+- Strut-and-tie `concreteMethods.strutAndTie` (method `designStressLimits` of C5c with
+  `basis: "capacityFactor"`, Chapters 7, 12): struts and nodes on φst 0.9 f'c, bottle struts βs
+  = 1/(1 + 0.66 cot² θ), nodes βn 1.0 / 0.8 / 0.6, ties φ 0.8 As fsy; deep beams, corbels, deep
+  pile caps.
+- Walls: `concrete.walls` 0.0015 vertical, 0.0025 horizontal, min(2.5 tw, 350 mm) (11.7, the
+  generic `spacingThickness`).
+- Earthquake detailing `concreteMethods.seismic` (method `ductileDetailing` of C8 with
+  `basis: "capacityFactor"`, Clause 14, Appendix C): moderately ductile (intermediate) frames and
+  ductile walls; μ 2 frames by the members' general rules, μ 4 frames as μ 3.
+- Steel connections `steelLimitState.connections` method `capacityFactorJoints`
+  (`design/steel/capacity_factor_joints.py`, AS 4100 Chapter 9): bolts in shear and tension with
+  kr, the ply in bearing and tear-out, friction, block shear, fillet welds; `steel` gives the
+  holes, edges, pitch, weld sizes and the notes' clause references.
+- Design Reinforcement sizes the torsion links of 8.3 (Asw/s for T* on top of the shear's, the
+  spacing min(0.12 ut, 300 mm)).
+
 ## Not covered (falls back to BNBC 2020, named so)
 
-Slender columns (AS 3600 10.4 δb, δs with Nc from Mub), the seismic detailing (Clause 14 and
-Appendix C: the parent's ordinary detailing rows apply), anchorage and laps (13.1, 13.2),
-strut-and-tie for deep beams and corbels (Chapters 7 and 12), the walls' minimum steel and
-detailing (11.7), footings and pile caps beyond punching, connections (AS 4100 Chapter 9: the
-parent's connection checks are AISC-shaped and are not re-based), masonry (AS 3700: none of
-SAEngine's masonry engines has the capacity-reduction-factor form of AS 3700) and timber
-(AS 1720.1: the timber engine's modification factors are not the k1-k12 of AS 1720.1), the
-services, fire and the other tables not in `covers`. The bar schedule stays the parent's BS 8666:
-AS 3600 and AS/NZS 4671 give no shape code standard of their own, and Australian schedules use
-shapes of the same form. The earthquake design category by height does not include the kp Z and
-site class columns of Table 2.1 (see VERIFY.md). Every value is listed with its clause in
+Footings and pile caps beyond punching and the strut-and-tie, the walls' two-layer rule (11.7.4),
+masonry (AS 3700: none of SAEngine's masonry engines has the capacity-reduction-factor form of
+AS 3700), timber (AS 1720.1: the timber engine's modification factors are not the k1-k12 of
+AS 1720.1), the steel seismic provisions (AS 4100 Section 13), the HSS joints and the column side
+under flange forces, the services, fire and the other tables not in `covers`. The bar schedule
+stays the parent's BS 8666: AS 3600 and AS/NZS 4671 give no shape code standard of their own, and
+Australian schedules use shapes of the same form. The earthquake design category by height does
+not include the kp Z and site class columns of Table 2.1 (see VERIFY.md). Every value is listed with its clause in
 [VERIFY.md](VERIFY.md), for checking against the printed standards (no code text was available
 when the pack was written).

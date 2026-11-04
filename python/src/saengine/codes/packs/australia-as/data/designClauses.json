@@ -19,6 +19,67 @@
     "punching": {
       "punching": "9.3",
       "section": "9.3.1"
+    },
+    "wallsRows": {
+      "minimum": "11.7.1, 11.7.2",
+      "webSpecial": "",
+      "webRelaxed": "",
+      "webShear": "",
+      "shearReinforced": "",
+      "rhoLAtLeastT": "",
+      "spacing": "11.7.3",
+      "spacingHorizontalShear": "11.7.3",
+      "spacingVerticalShear": "11.7.3",
+      "layers": "",
+      "curtains": "",
+      "compression": "10.6, 11.2",
+      "flexureSpecial": "",
+      "shear": "11.6",
+      "shearSpecial": "",
+      "outOfPlaneShear": "",
+      "empirical": "",
+      "empiricalThickness": "",
+      "thickness": "",
+      "endBars": "",
+      "boundaryDisplacement": "",
+      "boundaryStress": "",
+      "endTies": "",
+      "boundaryProvided": "",
+      "boundaryLength": "",
+      "boundaryHoops": "",
+      "boundaryHoopSpacing": "",
+      "boundaryAsh": "",
+      "hx": "",
+      "couplingShear": "",
+      "couplingRequired": "",
+      "couplingLateral": "",
+      "couplingEither": "",
+      "couplingBeamRules": "",
+      "couplingBars": "",
+      "couplingEmbedment": "",
+      "couplingHoops": "",
+      "couplingTransverse": "",
+      "couplingAsh": "",
+      "couplingGroup": "",
+      "couplingGroupAsh": "",
+      "pier": "",
+      "pierShear": "",
+      "pierHoops": "",
+      "pierSpacing": "",
+      "pierEdge": "",
+      "pierColumnBars": "",
+      "pierColumnHoops": "",
+      "pierColumnSpacing": ""
+    },
+    "slender": {
+      "chapter": "10.3-10.5",
+      "sumPc": "10.4.3",
+      "deltaS": "10.4.3",
+      "momentRatio": ""
+    },
+    "seismicDetailing": {
+      "part": "",
+      "chapter": "Clause 14 and Appendix C"
     }
   },
   "sources": {
@@ -27,6 +88,9 @@
     "check.accidentalTorsion": "AS 1170.4-2007 6.6 (accidental eccentricity ±0.1 b)",
     "check.fireRatings": "AS 3600:2018 Section 5 (design for fire resistance)",
     "punching.punching": "AS 3600:2018 9.3 (the method momentTransfer of concreteMethods.punching)",
-    "punching.section": "AS 3600:2018 9.3.1 (the critical shear perimeter at dom/2)"
+    "punching.section": "AS 3600:2018 9.3.1 (the critical shear perimeter at dom/2)",
+    "wallsRows": "the walls' check rows: minimum steel, spacing, shear and compression (alpha 9 C18c); keys without a counterpart empty (named without a clause)",
+    "slender": "the slenderness clauses (alpha 9 C18c)",
+    "seismicDetailing": "the earthquake detailing (alpha 9 C18c)"
   }
 }

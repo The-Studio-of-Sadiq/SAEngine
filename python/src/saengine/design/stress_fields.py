@@ -21,6 +21,11 @@ ac <= ``corbelShortShare`` hc, else ``corbelVerticalLinks`` FEd / fyd where FEd 
 
 The general D-region models of :mod:`saengine.design.stm_model` keep the parent's procedure
 (the design report says so). Units: mm, N, MPa.
+
+Alpha 9 C18c: with ``basis`` "capacityFactor" (a pack that designs with capacity reduction
+factors, AS 3600:2018 Chapter 7 type) "fcd" is ``phiStrut`` × ``concreteShare`` f'c and "fyd"
+``phiTie`` fsy, ν' = 1 without ``nuDivisor``, and a cracked strut takes βs = 1 / (1 + a cot² θ)
+within the pack's range (``bottleStrut``) where its angle θ is known.
 """
 
 from __future__ import annotations
@@ -33,10 +38,48 @@ from saengine.design import design_strength, method_selection
 
 
 def rules() -> Any | None:
-    """The pack's ``strutAndTie`` group when it is this method (None: the parent's)."""
-    if not method_selection.uses("strutAndTie", "designStressLimits"):
+    """The pack's ``strutAndTie`` group when it is this method (None: the parent's); alpha 9
+    C18c: also without partial factors where the group's basis is ``capacityFactor``."""
+    if method_selection.uses("strutAndTie", "designStressLimits"):
+        return code_context.table("concreteMethods").strutAndTie
+    pack = code_context.current()
+    if not pack.has("concreteMethods"):
         return None
-    return code_context.table("concreteMethods").strutAndTie
+    table = pack.table("concreteMethods")
+    if "strutAndTie" in (getattr(table, "parentMethods", None) or ()):
+        return None
+    from saengine.codes.method_tables import chosen
+
+    found = chosen(table, "strutAndTie", "designStressLimits")
+    return found if found is not None and found.basis == "capacityFactor" else None
+
+
+def _capacity_factor(r: Any = None) -> bool:
+    r = r or rules()
+    return r is not None and r.basis == "capacityFactor"
+
+
+def _fcd(fck: float, r: Any = None) -> float:
+    """The struts' and nodes' reference strength [MPa]: fcd, or φst × share × f'c."""
+    r = r or rules()
+    if _capacity_factor(r):
+        return float(r.phiStrut) * float(r.concreteShare) * fck
+    return design_strength.fcd(fck)
+
+
+def _fyd(fyk: float, r: Any = None) -> float:
+    """The ties' strength [MPa]: fyd, or φ fsy."""
+    r = r or rules()
+    if _capacity_factor(r):
+        return float(r.phiTie) * fyk
+    return design_strength.fyd(fyk)
+
+
+def _fcd_name() -> str:
+    r = rules()
+    if _capacity_factor(r):
+        return f"{float(r.phiStrut):g} × {float(r.concreteShare):g} f'c"
+    return "fcd"
 
 
 def cite(key: str = "strutAndTie") -> str:
@@ -46,38 +89,59 @@ def cite(key: str = "strutAndTie") -> str:
 def nu_prime(fck: float, r: Any = None) -> float:
     """ν' = 1 - fck / divisor."""
     r = r or rules()
+    if r.nuDivisor is None:  # Alpha 9 C18c
+        return 1.0
     return 1 - fck / r.nuDivisor
 
 
-def strut_strength(fck: float, cracked: bool = True) -> float:
-    """σRd,max [MPa] of a strut."""
+def bottle_beta(theta: float | None, r: Any = None) -> float | None:
+    """Alpha 9 C18c: βs of a bottle-shaped strut at θ [rad] to the tie (None: the pack's
+    ``strutCracked``)."""
+    r = r or rules()
+    if r.bottleStrut is None or theta is None or math.tan(theta) <= 0:
+        return None
+    a, low, high = r.bottleStrut
+    cot = 1 / math.tan(theta)
+    return min(max(1 / (1 + a * cot * cot), low), high)
+
+
+def strut_strength(fck: float, cracked: bool = True, theta: float | None = None) -> float:
+    """σRd,max [MPa] of a strut (``theta``: its angle to the tie, for βs of a bottle strut)."""
     r = rules()
     if not cracked:
-        return r.strutUncracked * design_strength.fcd(fck)
-    return r.strutCracked * nu_prime(fck, r) * design_strength.fcd(fck)
+        return r.strutUncracked * _fcd(fck, r)
+    beta = bottle_beta(theta, r)
+    share = r.strutCracked if beta is None else beta
+    return share * nu_prime(fck, r) * _fcd(fck, r)
 
 
 def node_strength(fck: float, kind: str = "CCT") -> float:
     """σRd,max [MPa] of a node face: ``kind`` "CCC", "CCT" or "CTT"."""
     r = rules()
     k = {"CCC": r.nodeCCC, "CCT": r.nodeCCT}.get(kind, r.nodeCTT)
-    return k * nu_prime(fck, r) * design_strength.fcd(fck)
+    return k * nu_prime(fck, r) * _fcd(fck, r)
 
 
 def tie_capacity(area: float, fyk: float) -> float:
-    """As fyd [N]."""
-    return area * design_strength.fyd(fyk)
+    """As fyd [N] (alpha 9 C18c: φ As fsy with the capacity-factor basis)."""
+    return area * _fyd(fyk)
 
 
-def strength_text(kind: str) -> str:
+def strength_text(kind: str, theta: float | None = None) -> str:
     """The formula of a node or strut's strength for the notes."""
     r = rules()
+    f = _fcd_name()
+    nu = "" if r.nuDivisor is None else "ν' "
     if kind == "prism":
-        return f"{r.strutUncracked:g} fcd"
+        return f"{r.strutUncracked:g} {f}"
     if kind == "strut":
-        return f"{r.strutCracked:g} ν' fcd"
+        beta = bottle_beta(theta, r)
+        if beta is not None:
+            a = r.bottleStrut[0]
+            return f"βs {nu}{f}, βs = 1/(1 + {a:g} cot² θ) = {beta:.2f}"
+        return f"{r.strutCracked:g} {nu}{f}"
     k = {"CCC": r.nodeCCC, "CCT": r.nodeCCT}.get(kind, r.nodeCTT)
-    return f"{k:g} ν' fcd"
+    return f"{k:g} {nu}{f}"
 
 
 # ─────────────────────────────── deep beams ───────────────────────────────
@@ -155,7 +219,8 @@ def deep_span_rows(span: Any, demands: Any, spans: tuple[float, float], suffix: 
             "kN",
             tie[1],
             f"T = {tie[2]}, z = {r.tieArm:g} d = {z:.0f} mm; As fyd, As = {span.tie_area:.0f} "
-            f"mm² ({cite()}); anchor the tie past the support's node{suffix}",
+            f"mm² ({cite()}); anchor the tie past the support's node{suffix}"
+            + (f"; φ = {rules().phiTie:g}" if _capacity_factor() else ""),
         )
     )
     for k, (reaction, combination) in enumerate(demands.reactions):
@@ -179,11 +244,12 @@ def deep_span_rows(span: Any, demands: Any, spans: tuple[float, float], suffix: 
             _check(
                 f"Strut at the {side} support",
                 reaction / math.sin(theta) / 1e3,
-                strut_strength(fck) * width * span.width / 1e3,
+                strut_strength(fck, True, theta) * width * span.width / 1e3,
                 "kN",
                 combination,
                 f"C = R / sin θ, θ = {degrees:.1f}°; cracked strut σRd,max = "
-                f"{strength_text('strut')} = {strut_strength(fck):.2f} MPa, ws = lb sin θ + "
+                f"{strength_text('strut', theta)} = {strut_strength(fck, True, theta):.2f} MPa, "
+                "ws = lb sin θ + "
                 f"wt cos θ = {width:.0f} mm ({cite()})",
             )
         )
@@ -287,7 +353,8 @@ def corbel_rows(
         )
     # The strut at the column face: the compression zone x = 2 (d - z0) there, the strut's
     # width x cos θ across its axis (SAEngine practice).
-    fcd_s = strut_strength(fc)
+    theta_c = math.atan(used)
+    fcd_s = strut_strength(fc, True, theta_c)
     cos_theta = 1 / math.sqrt(1 + used * used)
     fc_strut = fed * math.sqrt(1 + 1 / (used * used))
     room = 2 * (d - z0) * cos_theta
@@ -298,7 +365,7 @@ def corbel_rows(
             fcd_s * room * b / 1e3,
             "kN",
             combination,
-            f"Fc = FEd / sin θ, cracked strut {strength_text('strut')} = {fcd_s:.2f} MPa over "
+            f"Fc = FEd / sin θ, cracked strut {strength_text('strut', theta_c)} = {fcd_s:.2f} MPa over "
             f"x cos θ = {room:.0f} mm, x = 2 (d - z0) ({clause})",
         )
     )
@@ -313,7 +380,7 @@ def corbel_rows(
     else:
         s = strut_shear.rules()
         vrdc = strut_shear.concrete_resistance(b, d, as_main / (b * d), fc, 0.0, s) if s else 0.0
-        need = r.corbelVerticalLinks * fed / design_strength.fyd(fy) if fed > vrdc else 0.0
+        need = r.corbelVerticalLinks * fed / _fyd(fy, r) if fed > vrdc else 0.0
         text = (
             f"ac = {ac:.0f} > {r.corbelShortShare:g} hc: closed vertical links ΣAs,lnk >= "
             f"{r.corbelVerticalLinks:g} FEd / fyd where FEd > VRd,c = {vrdc / 1e3:.1f} kN"
@@ -338,6 +405,25 @@ def method_lines() -> list[str]:
     r = rules()
     if r is None:
         return []
+    if _capacity_factor(r):  # Alpha 9 C18c
+        bottle = (
+            f"bottle struts βs = 1/(1 + {r.bottleStrut[0]:g} cot² θ) within "
+            f"{r.bottleStrut[1]:g}-{r.bottleStrut[2]:g}"
+            if r.bottleStrut
+            else f"cracked struts {r.strutCracked:g}"
+        )
+        return [
+            (
+                f"Deep beams (span below {r.deepSpanRatio:g} D), corbels and the deep pile caps by "
+                f"strut-and-tie models with capacity reduction factors: struts and nodes on "
+                f"{_fcd_name()} (φst = {r.phiStrut:g}), prismatic struts {r.strutUncracked:g}, "
+                f"{bottle}, nodes {r.nodeCCC:g} / {r.nodeCCT:g} / {r.nodeCTT:g} (C-C-C, C-C-T, "
+                f"C-T-T), ties φ As fsy with φ = {r.phiTie:g}, least strut-tie angle "
+                f"{r.minAngle:g}°; deep beams' web mesh {r.deepMeshRatio:g} Ac per face ({cite()}, "
+                f"{cite('deepBeams')}, {cite('corbels')}). The general strut-and-tie models of "
+                "D-regions keep the parent pack's procedure."
+            )
+        ]
     return [
         "Deep beams (span below "
         f"{r.deepSpanRatio:g} h), corbels and the deep pile caps by strut-and-tie models on the "

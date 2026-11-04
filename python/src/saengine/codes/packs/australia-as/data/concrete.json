@@ -113,7 +113,8 @@
   "clauses": {
     "modulus": "3.1.2",
     "shrinkage": "9.4.3",
-    "shrinkageBrick": "9.4.3 (no brick aggregate rule)"
+    "shrinkageBrick": "9.4.3 (no brick aggregate rule)",
+    "walls": "11.7"
   },
   "sources": {
     "barDiameters": "AS/NZS 4671: D500N bars N10, N12, N16, N20, N24, N28, N32, N36, N40 (SAEngine's sets by use)",
@@ -123,6 +124,19 @@
     "slabStrainMin": "AS 3600:2018 8.1.5 (kuo <= 0.36 for beams and slabs): εt = 0.003 (1 - 0.36)/0.36 = 0.0053",
     "modulus": "AS 3600:2018 3.1.2 / Table 3.1.2: Ec = 5000 √f'c (SAEngine fit at or below the table: 25 MPa 26 700, 32 MPa 30 100, 40 MPa 32 800, 50 MPa 34 800 MPa)",
     "shrinkage": "AS 3600:2018 9.4.3 (clause uncertain): slabs free to expand and contract, 1.75 × 10⁻³ b D in the secondary direction (minor degree of crack control); restrained slabs need 3.5 or 6.0 × 10⁻³ (moderate, strong control): override concrete.shrinkage",
-    "deflection": "AS 3600:2018 Table 2.3.2: total deflection span/250, incremental deflection of members supporting masonry partitions span/500 (span/1000 without provision for movement); the live-load-only limits, the long-term factor and the cantilever ratios stay the parent's"
+    "deflection": "AS 3600:2018 Table 2.3.2: total deflection span/250, incremental deflection of members supporting masonry partitions span/500 (span/1000 without provision for movement); the live-load-only limits, the long-term factor and the cantilever ratios stay the parent's",
+    "walls": "AS 3600:2018 11.7.1: vertical steel at least 0.0015; 11.7.2: horizontal at least 0.0025 (0.0015 where the wall is free to shrink: not taken, on the safe side); 11.7.3: bars at most min(2.5 tw, 350 mm) apart; the two-layer thickness and the special walls' ratio stay the parent's (to verify: 11.7.4)"
+  },
+  "walls": {
+    "rhoSmallBars": [
+      0.0015,
+      0.0025
+    ],
+    "rhoOtherBars": [
+      0.0015,
+      0.0025
+    ],
+    "spacingMax": 350.0,
+    "spacingThickness": 2.5
   }
 }

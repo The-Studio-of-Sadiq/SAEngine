@@ -5,7 +5,7 @@
   "edition": "AS/NZS 1170 + AS 3600:2018 + AS 4100:2020",
   "country": "AU",
   "units": "SI",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "extends": "bnbc2020",
   "covers": [
     "locations",
@@ -20,10 +20,11 @@
     "factors",
     "concrete",
     "concreteMethods",
+    "steel",
     "steelLimitState",
     "designClauses"
   ],
-  "description": "The Australian Standards (alpha 9 track C18), a pack that extends BNBC 2020. Loads: AS/NZS 1170.0 (importance levels IL1-IL4 with their annual probabilities, the ultimate combinations 1.35G, 1.2G + 1.5Q, 1.2G + ψc Q + Wu, 0.9G + Wu, G + ψE Q + Eu and the serviceability ones with ψs, ψl), AS/NZS 1170.1 (imposed actions by occupancy type, the area reduction ψa = 0.3 + 3/√A), AS/NZS 1170.2:2021 (regional speeds VR by region and annual probability, the terrain/height multiplier Mz,cat of TC1-TC4, Md, Ms, Mt, p = 0.6 Vdes² Cfig Cdyn with the wall coefficients), AS 1170.4-2007 (Z of the towns, kp, site classes Ae-Ee with the spectral shape factor Ch(T), μ and Sp of the systems, the equivalent static method V = kp Z Ch(T1) Sp/μ W and the modal spectrum, T1 = 1.25 kt hn^0.75, the drift limit, the earthquake design categories). Concrete: AS 3600:2018 strength design with the capacity reduction factors of Class N bars (φ = 1.24 - 13 kuo/12 within 0.65-0.85, shear 0.75), the stress block α2 = 0.85 - 0.0015 f'c and γ = 0.97 - 0.0025 f'c, the squash load α1 = 1 - 0.003 f'c, beam shear by kv and θv (the simplified method of 8.2.4.3 in the design run, the general method's terms given), Ec, deflection limits, shrinkage steel and the bar sizes N10-N40 (D500N). Steel: AS 4100:2020 members with φ 0.9, the section classification by λe, the member slenderness reduction factor αc with αb, lateral-torsional buckling by αm αs, shear 0.6 fy Aw and the linear interaction. Alpha 9 C18b: beam torsion by Tuc and its interaction with shear (8.3), punching by Vuo reduced for the unbalanced moment (9.3), walls by the simplified method (11.5, 11.6), the hill-shape multiplier Mh (AS/NZS 1170.2 4.4.2), the dynamic response factor Cdyn of flexible buildings (Section 6), the earthquake design category by height with the EDC I simple static force and the EDC III dynamic analysis note (AS 1170.4 2.2, Section 5), the clauses of the covered checks. Not covered and taken from BNBC 2020 (named so in the report): columns' slenderness (10.4), the seismic detailing rules (Clause 14, Appendix C), anchorage and laps (13.1, 13.2), strut-and-tie for deep beams and corbels (Chapters 7, 12), the walls' detailing, footings, connections, masonry, timber, the bar schedule (BS 8666 as the parent's), the services and every table not in covers. Every value names its clause; VERIFY.md lists them, with the uncertain ones, for checking against the printed standards.",
+  "description": "The Australian Standards (alpha 9 track C18), a pack that extends BNBC 2020. Loads: AS/NZS 1170.0 (importance levels IL1-IL4 with their annual probabilities, the ultimate combinations 1.35G, 1.2G + 1.5Q, 1.2G + ψc Q + Wu, 0.9G + Wu, G + ψE Q + Eu and the serviceability ones with ψs, ψl), AS/NZS 1170.1 (imposed actions by occupancy type, the area reduction ψa = 0.3 + 3/√A), AS/NZS 1170.2:2021 (regional speeds VR by region and annual probability, the terrain/height multiplier Mz,cat of TC1-TC4, Md, Ms, Mt, p = 0.6 Vdes² Cfig Cdyn with the wall coefficients), AS 1170.4-2007 (Z of the towns, kp, site classes Ae-Ee with the spectral shape factor Ch(T), μ and Sp of the systems, the equivalent static method V = kp Z Ch(T1) Sp/μ W and the modal spectrum, T1 = 1.25 kt hn^0.75, the drift limit, the earthquake design categories). Concrete: AS 3600:2018 strength design with the capacity reduction factors of Class N bars (φ = 1.24 - 13 kuo/12 within 0.65-0.85, shear 0.75), the stress block α2 = 0.85 - 0.0015 f'c and γ = 0.97 - 0.0025 f'c, the squash load α1 = 1 - 0.003 f'c, beam shear by kv and θv (the simplified method of 8.2.4.3 in the design run, the general method's terms given), Ec, deflection limits, shrinkage steel and the bar sizes N10-N40 (D500N). Steel: AS 4100:2020 members with φ 0.9, the section classification by λe, the member slenderness reduction factor αc with αb, lateral-torsional buckling by αm αs, shear 0.6 fy Aw and the linear interaction. Alpha 9 C18b: beam torsion by Tuc and its interaction with shear (8.3), punching by Vuo reduced for the unbalanced moment (9.3), walls by the simplified method (11.5, 11.6), the hill-shape multiplier Mh (AS/NZS 1170.2 4.4.2), the dynamic response factor Cdyn of flexible buildings (Section 6), the earthquake design category by height with the EDC I simple static force and the EDC III dynamic analysis note (AS 1170.4 2.2, Section 5), the clauses of the covered checks. Alpha 9 C18c: slender columns by the moment magnifier with Nc from the balanced moment (10.4), development and laps by Lsy.tb with k1-k3 (13.1, 13.2), strut-and-tie for deep beams, corbels and deep pile caps with φst and βs (Chapters 7, 12), the walls' least steel and spacing (11.7), the moderately ductile detailing of Clause 14 and Appendix C, the connections' bolts, ply, block shear and welds (AS 4100 Chapter 9), Design Reinforcement's torsion links (8.3). Not covered and taken from BNBC 2020 (named so in the report): footings beyond punching, masonry, timber, the bar schedule (BS 8666 as the parent's), the services and every table not in covers. Every value names its clause; VERIFY.md lists them, with the uncertain ones, for checking against the printed standards.",
   "sources": [
     {"id": "ASNZS1170.0", "title": "AS/NZS 1170.0 Structural design actions, Part 0: General principles", "edition": "2002 (with amendments)", "publisher": "Standards Australia / Standards New Zealand"},
     {"id": "ASNZS1170.1", "title": "AS/NZS 1170.1 Structural design actions, Part 1: Permanent, imposed and other actions", "edition": "2002 (with amendments)", "publisher": "Standards Australia / Standards New Zealand"},
@@ -45,14 +46,15 @@
     "materials": ["AS 3600:2018 3.1, 3.2, 8.1.3, 10.6.2.2"],
     "factors": ["AS 3600:2018 Table 2.2.2"],
     "concrete": ["AS 3600:2018 2.3.2, 3.1.2, 9.4.3, 10.7.1; AS/NZS 4671"],
-    "concreteMethods": ["AS 3600:2018 8.2, 8.3, 9.3, 11.5, 11.6"],
+    "concreteMethods": ["AS 3600:2018 7, 8.2, 8.3, 9.3, 10.4, 11.5, 11.6, 12, 13.1, 13.2, 14, Appendix C"],
+    "steel": ["AS 4100:2020 Chapter 9 (connection geometry), 7.2; AS 3600:2018 12.6"],
     "designClauses": ["AS 3600:2018 2.3.2, 5, 8.3, 8.5, 9.3; AS 1170.4 6.6"],
-    "steelLimitState": ["AS 4100:2020 Sections 3, 5-8"]
+    "steelLimitState": ["AS 4100:2020 Sections 3, 5-9"]
   },
   "basis": {
     "general": "AS/NZS 1170.0, 1170.1, 1170.2:2021, AS 1170.4-2007",
-    "concrete": "AS 3600:2018 (strength design with capacity reduction factors); beam shear 8.2, torsion 8.3, punching 9.3, walls by the simplified method 11.5, 11.6; slender columns, the seismic detailing, anchorage, strut-and-tie and the walls' detailing from BNBC 2020 until covered",
-    "steel": "AS 4100:2020 (members); connections and the steel seismic provisions from BNBC 2020",
+    "concrete": "AS 3600:2018 (strength design with capacity reduction factors); beam shear 8.2, torsion 8.3, punching 9.3, walls by the simplified method 11.5, 11.6 and their least steel 11.7; slender columns 10.4, anchorage and laps 13.1, 13.2, strut-and-tie Chapters 7 and 12, the earthquake detailing of Clause 14 and Appendix C (alpha 9 C18c)",
+    "steel": "AS 4100:2020 (members; the connections' bolts, ply, block shear and welds of Chapter 9, alpha 9 C18c); the steel seismic provisions from BNBC 2020",
     "method": "Limit states design (ultimate and serviceability limit states)"
   },
   "tableCodes": {
@@ -68,6 +70,7 @@
     "factors": "AS 3600:2018",
     "concrete": "AS 3600:2018",
     "concreteMethods": "AS 3600:2018",
+    "steel": "AS 4100:2020",
     "steelLimitState": "AS 4100:2020",
     "designClauses": "AS 3600:2018",
     "designClauses.check.accidentalTorsion": "AS 1170.4"
