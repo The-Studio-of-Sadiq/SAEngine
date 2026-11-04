@@ -113,7 +113,7 @@ UNITS = "SI (m, N, kg, s, Pa)"
 CASES = ["D", "SD", "L", "Lr", "WX", "WY", "EX", "EY", "F", "H"]
 #: B16: the rain case R on the roof (Site → Rain) and the flood and surge cases FaX, FaY (Site
 #: → Flood and surge, :mod:`saengine.fem.flood`); after the crane cases, only when loaded.
-SPECIAL_CASES = ("R", "FaX", "FaY")
+SPECIAL_CASES = ("R", "FaX", "FaY", "S")  # C1: the roof snow S (Site → Snow, fem.snow_load)
 
 #: The equation solver of every analysis case. Rigid diaphragms tie each floor's master node to
 #: all of that floor's shell nodes, so a banded solver's band spans the floor: BandGeneral needed
@@ -1832,7 +1832,8 @@ def _derive_fem(
         rain_kpa, helipad = None, None
         b.notes.append(f"rain and helipad loads: not applied ({error})")
     helipad_slabs = set(getattr(getattr(settings.site, "helipad", None), "slabs", None) or [])
-    # C4: snow on the roof from the ground snow load (saengine.fem.snow_load, the pack's snow).
+    # C4, C1: snow on the roof from the ground snow load (saengine.fem.snow_load, the pack's
+    # snow): in the roof live load case Lr (the larger) or in its own case S.
     from saengine.fem import snow_load
 
     try:
@@ -1841,12 +1842,8 @@ def _derive_fem(
         snow = None
         b.notes.append(f"snow: the ground snow load is not applied ({error})")
     if snow is not None:
-        b.notes.append(
-            f"snow s = μ1·Ce·Ct·sk = {snow['mu1']:.2f} × {snow['Ce']:g} × {snow['Ct']:g} × "
-            f"{snow['sk_kPa']:g} = {snow['s_kPa']:.2f} kN/m² on the roof slabs ({snow['source']}; "
-            f"roof {snow['angle_deg']:g}°, exposure {snow['exposure']}), in {snow['case']} where "
-            "larger than the roof live load (the two do not act together)"
-        )
+        b.notes.append(snow_load.describe(snow))
+    snow_kpa = snow["s_kPa"] if snow is not None and snow["case"] == "S" else None
     if rain_kpa:
         b.notes.append(
             f"rain R = {rain_kpa:.2f} kN/m² on the roof slabs (primary drains blocked, water "
@@ -1915,12 +1912,14 @@ def _derive_fem(
         # B16: a helicopter landing area's distributed live load L3 where it is larger.
         if helipad is not None and (element.id in helipad_slabs if helipad_slabs else roof):
             live = max(live, helipad["L3_kPa"])
-        if roof and snow is not None:  # C4: snow in the roof live load case, the larger
+        if roof and snow is not None and snow["case"] != "S":  # C4: snow in Lr, the larger
             live = max(live, snow["s_kPa"])
         pressures = {"D": self_weight, "SD": finish * 1e3, live_case: live * 1e3}
         add_partitions(pressures, partitions * 1e3)
         if roof and rain_kpa:
             pressures["R"] = rain_kpa * 1e3  # B16: rain with the primary drains blocked
+        if roof and snow_kpa:
+            pressures["S"] = snow_kpa * 1e3  # C1: the roof snow load
 
         def room_pressures(
             room: Any,
@@ -1940,7 +1939,7 @@ def _derive_fem(
         rooms_here = al.room_shares(arch_set, element) if arch_set is not None else []
         if element.id in shells_of:
             for case, pressure in pressures.items():
-                if case not in ("D", "R") and rooms_here:
+                if case not in ("D", "R", "S") and rooms_here:
                     continue
                 for shell in shells_of[element.id] if pressure else []:
                     shell_pressure(shell, case, pressure)
@@ -2401,7 +2400,8 @@ def _derive_fem(
         forces_of: dict[str, list[float]] = {}
         for axis, case in ((0, "EX"), (1, "EY")):
             period = periods[case[1]]
-            sa = fl.design_acceleration(
+            # The pack's equivalent static coefficient (C1: Cs with its bounds from mapped values).
+            sa = fl.elf_coefficient(
                 period,
                 settings.site.siteClass,
                 values["Z"],
@@ -2468,7 +2468,7 @@ def _derive_fem(
             {
                 "period_s": approximate,
                 "Cs": fl.normalized_spectrum(
-                    approximate, settings.site.siteClass, settings.seismic.damping
+                    approximate, settings.site.siteClass, settings.seismic.damping, values["Z"]
                 ),
                 "Sa_g": info["EX"]["Sa_g"],
                 "base_shear_kN": info["EX"]["base_shear_kN"],
@@ -2478,6 +2478,17 @@ def _derive_fem(
         )
         if eccentric:
             summary["accidentalTorsion"] = info["levels"]
+        # C1: a pack whose spectrum comes from the site's mapped values names them.
+        from saengine.fem import spectral_hazard as sh
+
+        if isinstance(values["Z"], sh.SpectralHazard):
+            # Sa_g is the pack's Cs (V = Cs W); the zone method's normalised Cs has no meaning.
+            summary.pop("Cs", None)
+            summary["spectral"] = sh.describe(values["Z"])
+            b.notes.append(
+                f"seismic: the site's mapped spectral values {summary['spectral']}; Cs = "
+                f"{info['EX']['Sa_g']:.4f} in X ({code_context.cite('seismic', 'elf')})"
+            )
         # ── B2: the site-specific study warning (S1, S2 flagged by the soil report) and the
         # height limit of the systems in the Seismic Design Category ──
         from saengine.fem.seismic_design import height_limit_note, seismic_design_category, zone_of
@@ -2545,6 +2556,9 @@ def _derive_fem(
         )
     # ── B16: rain, helipad, gas explosions and air raid shelters (summary and report) ──
     special_loads, special_notes = _special_loads_summary(settings, rain_kpa, helipad)
+    if snow is not None:  # C4, C1: the roof snow (and its drift) for the summary
+        special_loads["snow"] = {k: v for k, v in snow.items() if k != "source"}
+
     if special_loads:
         summary["specialLoads"] = special_loads
     b.notes.extend(special_notes)
@@ -3269,7 +3283,10 @@ def _derive_fem(
             {"X": approximate, "Y": approximate_y},
             seismic_table,
             seismic_loads,
-            lambda t: fl.normalized_spectrum(t, settings.site.siteClass, settings.seismic.damping),
+            lambda t: fl.normalized_spectrum(
+                t, settings.site.siteClass, settings.seismic.damping, values["Z"]
+            ),
+            upper_factor=fl.period_upper_factor(values["Z"]),
         )
     # ── the gust-effect factor of a flexible building (the default pack's Part 6 Sec 2.4.8.2) ──
     if summary.get("wind"):
@@ -3322,6 +3339,7 @@ def _analysis_period(
     seismic_table: Any,
     seismic_loads: Any,
     normalized: Any,
+    upper_factor: float | None | str = "pack",
 ) -> None:
     """Replace the static earthquake loads of ``project`` (EX, EY and the eccentric cases) by
     those of the modal period in each direction, not below the approximate period Ta and
@@ -3342,7 +3360,12 @@ def _analysis_period(
             f"Ta = {min(ta.values()):.3f} s is used"
         )
         return
-    upper = getattr(seismic_table, "periodUpperFactor", None)
+    # C1: ``upper_factor`` the site's Cu where the pack gives it by SD1, else the pack's factor.
+    upper = (
+        getattr(seismic_table, "periodUpperFactor", None)
+        if upper_factor == "pack"
+        else upper_factor
+    )
     factor = math.inf if upper is None else float(upper)
     if upper is None:
         notes.append(

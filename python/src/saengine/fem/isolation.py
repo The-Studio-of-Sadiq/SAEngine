@@ -807,7 +807,7 @@ def apply_isolation(
         levels,
         centre,
         site_class=settings.site.siteClass,
-        z=float(values["Z"]),
+        z=values["Z"],  # a float; C1: the mapped values kept
         r={a: float(values.get(f"R{a}", values["R"])) for a in ("X", "Y")},
         fixed_period=fixed_period,
         wind_shear=wind,
@@ -871,7 +871,7 @@ def apply_isolation(
                 * fl.design_acceleration(
                     t,
                     settings.site.siteClass,
-                    float(values["Z"]),
+                    values["Z"],  # a float; C1: the mapped values kept
                     _table().forces.importance,
                     ri,
                     None,

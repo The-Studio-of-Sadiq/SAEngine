@@ -47,9 +47,19 @@ def damping_correction(damping: float | None = None) -> float:
     return max(rule.minimum, eta)
 
 
-def normalized_spectrum(period: float, site_class: str, damping: float | None = None) -> float:
+def normalized_spectrum(
+    period: float, site_class: str, damping: float | None = None, hazard: Any = None
+) -> float:
     """Normalized acceleration response spectrum Cs(T) for the site class, with the damping
-    correction η of the viscous damping ratio ``damping`` (None: the code's reference, 5 %)."""
+    correction η of the viscous damping ratio ``damping`` (None: the code's reference, 5 %).
+
+    C1: a pack whose design spectrum is ``mappedSpectral`` (``seismic.designSpectrum.method``)
+    gives the site's design spectral acceleration Sa(T) [g] instead, from
+    ``hazard`` (the derived "Z", :class:`saengine.fem.spectral_hazard.SpectralHazard`)."""
+    from saengine.fem import spectral_hazard as sh
+
+    if sh.uses_mapped():
+        return damping_correction(damping) * sh.spectral_acceleration(period, _mapped(hazard))
     seismic = code_context.table("seismic")
     site = seismic.siteClasses[site_class]
     s, tb, tc, td = site.S, site.TB, site.TC, site.TD
@@ -74,9 +84,10 @@ def design_acceleration(
     """Design spectral acceleration Sa = (2/3)·(Z·I/R)·Cs, as a fraction of g (``damping``:
     see :func:`normalized_spectrum`).
 
-    C4: a pack whose ``seismic.designSpectrum.method`` is ``behaviourFactor`` gets the design
-    spectrum with the behaviour factor (R standing for q, ag = Z·I, the lower bound β·ag; the
-    damping is in q there, so ``damping`` is not used): :mod:`saengine.fem.spectra`."""
+    The pack's ``seismic.designSpectrum.method`` picks the design spectrum: ``behaviourFactor``
+    (C4: R standing for q, ag = Z·I, the lower bound β·ag; the damping is in q there, so
+    ``damping`` is not used, :mod:`saengine.fem.spectra`); ``mappedSpectral`` (C1: ``z`` the
+    site's :class:`~saengine.fem.spectral_hazard.SpectralHazard`, Sa(T)·I/R)."""
     seismic = code_context.table("seismic")
     rule = getattr(seismic, "designSpectrum", None)
     if rule is not None and rule.method == "behaviourFactor":
@@ -94,7 +105,55 @@ def design_acceleration(
             rule.plateau,
             rule.lowerBound,
         )
+    if rule is not None and rule.method == "mappedSpectral":
+        return importance / r * normalized_spectrum(period, site_class, damping, z)
     return 2 / 3 * z * importance / r * normalized_spectrum(period, site_class, damping)
+
+
+def _mapped(hazard: Any) -> Any:
+    """``hazard`` when it is the site's mapped values; ValueError otherwise (a mapped spectrum
+    cannot be drawn without them)."""
+    from saengine.fem.spectral_hazard import SpectralHazard
+
+    if not isinstance(hazard, SpectralHazard):
+        raise ValueError(  # noqa: TRY004 - the callers report a ValueError of the inputs
+            "the code pack's spectrum comes from the site's mapped spectral values (SDS, SD1): "
+            "enter them in Project Settings > Site > Mapped spectral values"
+        )
+    return hazard
+
+
+def elf_coefficient(
+    period: float,
+    site_class: str,
+    z: float,
+    importance: float,
+    r: float,
+    damping: float | None = None,
+) -> float:
+    """The equivalent static force coefficient V/W at ``period`` before the pack's base shear
+    correction (:func:`base_shear_correction`): the design spectral acceleration
+    (:func:`design_acceleration`); C1: with the design spectrum ``mappedSpectral`` the pack's
+    Cs = SDS/(R/I) with its upper and lower bounds
+    (:func:`saengine.fem.spectral_hazard.response_coefficient`)."""
+    from saengine.fem import spectral_hazard as sh
+
+    if sh.uses_mapped():
+        return sh.response_coefficient(period, _mapped(z), importance, r)
+    return design_acceleration(period, site_class, z, importance, r, damping)
+
+
+def period_upper_factor(z: Any = None) -> float | None:
+    """The factor on the approximate period Ta that caps a period from the structure's
+    properties: Cu of the site's SD1 where the design spectrum gives ``periodUpper`` (C1), else
+    the pack's ``periodUpperFactor`` (None: no cap given)."""
+    from saengine.fem import spectral_hazard as sh
+
+    cu = sh.period_upper_factor(z)
+    if cu is not None:
+        return cu
+    upper = getattr(code_context.table("seismic"), "periodUpperFactor", None)
+    return None if upper is None else float(upper)
 
 
 def base_shear_correction(period: float, storeys: int, site_class: str) -> float:
@@ -265,9 +324,13 @@ def topographic_factor(height: float, exposure: str) -> float:
 
 def exposure_coefficient(height: float, exposure: str) -> float:
     """Velocity pressure exposure coefficient Kz at ``height`` metres (Table 6.2.11)."""
-    profile = code_context.table("wind").exposures[exposure]
+    table = code_context.table("wind")
+    profile = table.exposures[exposure]
     alpha, zg = profile.alpha, profile.zg
-    return 2.01 * (max(height, 4.57) / zg) ** (2 / alpha)
+    # C1: the power law's constants from the pack where it gives them (else Table 6.2.11's).
+    factor = table.kzFactor if table.kzFactor is not None else 2.01
+    least = table.kzMinHeight if table.kzMinHeight is not None else 4.57
+    return factor * (max(height, least) / zg) ** (2 / alpha)
 
 
 def velocity_pressure(height: float, speed: float, exposure: str, importance: float) -> float:

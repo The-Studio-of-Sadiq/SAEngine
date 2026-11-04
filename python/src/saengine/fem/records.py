@@ -195,7 +195,7 @@ def target_spectrum(settings: Any, axes: str = "X", procedure: str = "linear") -
         fl.design_acceleration(
             float(t),
             settings.site.siteClass,
-            float(values["Z"]),
+            values["Z"],  # a float; C1: the mapped values kept
             float(importance),
             float(r),
             found.spectrumDamping,

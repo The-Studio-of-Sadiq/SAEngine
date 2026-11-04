@@ -1,0 +1,35 @@
+{
+  "$schema": "../../../schemas/occupancyCategories.schema.json",
+  "$replace": true,
+  "$sources": [
+    "ASCE 7-22 Table 1.5-1 (risk categories)",
+    "ASCE 7-22 Table 1.5-2 (seismic importance factor Ie)",
+    "ASCE 7-22 Sec 26.5.1 (wind: risk-category maps, no importance factor)"
+  ],
+  "source": "ASCE 7-22 Table 1.5-1 risk categories; Table 1.5-2 Ie; wind speeds by risk category (Sec 26.5.1), so the wind importance is 1.0",
+  "categories": {
+    "I": {
+      "description": "Risk category I: low risk to human life on failure (agricultural, minor storage)",
+      "seismicImportance": 1.0,
+      "windImportance": 1.0
+    },
+    "II": {
+      "description": "Risk category II: all buildings not in I, III or IV",
+      "seismicImportance": 1.0,
+      "windImportance": 1.0
+    },
+    "III": {
+      "description": "Risk category III: substantial risk to human life (assembly over 300, schools, health care without emergency surgery)",
+      "seismicImportance": 1.25,
+      "windImportance": 1.0
+    },
+    "IV": {
+      "description": "Risk category IV: essential facilities (hospitals with surgery or emergency treatment, fire, rescue and police stations, shelters)",
+      "seismicImportance": 1.5,
+      "windImportance": 1.0
+    }
+  },
+  "sources": {
+    "categories": "ASCE 7-22 Table 1.5-1; Ie: Table 1.5-2; windImportance 1.0: ASCE 7-22 Ch 26 has no wind importance factor, the basic wind speed V of the risk category's map (Sec 26.5.1) carries it"
+  }
+}

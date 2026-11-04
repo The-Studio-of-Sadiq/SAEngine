@@ -1,0 +1,16 @@
+{
+  "$schema": "../../../schemas/transfer.schema.json",
+  "$sources": [
+    "ASCE 7-22 Sec 12.10.1.1 (diaphragm design forces), Sec 12.10.2.1 (collectors), Sec 12.3.3.4 (connection forces of irregular buildings); the deep beam and corbel rules are the pack it extends"
+  ],
+  "diaphragm": {
+    "forceMin": 0.2,
+    "forceMax": 0.4,
+    "plateau": 2.5,
+    "collectorCategories": ["C", "D", "E", "F"],
+    "irregularIncrease": 1.25
+  },
+  "sources": {
+    "diaphragm": "ASCE 7-22 Sec 12.10.1.1, Eqs 12.10-1 to 12.10-3: Fpx from the storey forces, at least 0.2 SDS Ie wpx and at most 0.4 SDS Ie wpx (SDS = 2.5 x a_h = 2.5 x 0.4 SDS); collectors with Omega0 in SDC C-F (Sec 12.10.2.1); +25 % on the connections of irregular buildings (Sec 12.3.3.4). The alternative diaphragm design of Sec 12.10.3 is not covered"
+  }
+}

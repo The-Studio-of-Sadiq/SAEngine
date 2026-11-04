@@ -1,0 +1,45 @@
+{
+  "$schema": "../../../schemas/wind.schema.json",
+  "$sources": [
+    "ASCE 7-22 Sec 26.6 (Kd), 26.7 (exposure), 26.8 (topography), 26.9 (ground elevation factor Ke, taken 1.0), 26.10 (velocity pressure), 26.11 (gust effects), 26.13 (internal pressure)",
+    "ASCE 7-22 Chapters 27-30: the pressure coefficients of the MWFRS (directional Ch 27, envelope Ch 28) and of components and cladding (Ch 30) that ASCE 7-22 shares with the earlier editions are inherited from the BNBC 2020 tables (BNBC Sec 2.4 follows ASCE 7-05 Ch 6); see VERIFY.md for what differs"
+  ],
+  "source": "ASCE 7-22 Chapters 26-30 (terrain constants of Table 26.11-1; coefficients the editions share inherited from bnbc2020)",
+  "exposures": {
+    "$replace": true,
+    "B": {"description": "Exposure B: urban and suburban areas, wooded areas, closely spaced obstructions", "alpha": 7.5, "zg": 999.7, "c": 0.3, "l": 97.54, "epsilonBar": 0.3333, "alphaBar": 0.25, "bBar": 0.45, "zmin": 9.14},
+    "C": {"description": "Exposure C: open terrain with scattered obstructions, grasslands", "alpha": 9.8, "zg": 749.8, "c": 0.2, "l": 152.4, "epsilonBar": 0.2, "alphaBar": 0.1538, "bBar": 0.65, "zmin": 4.57},
+    "D": {"description": "Exposure D: flat unobstructed areas and water surfaces (shorelines, mud flats, ice)", "alpha": 11.5, "zg": 589.8, "c": 0.15, "l": 198.12, "epsilonBar": 0.125, "alphaBar": 0.1111, "bBar": 0.8, "zmin": 2.13}
+  },
+  "kzFactor": 2.41,
+  "kzMinHeight": 4.57,
+  "directionality": 0.85,
+  "topographic": 1.0,
+  "gust": 0.85,
+  "topography": {
+    "source": "ASCE 7-22 Sec 26.8, Figure 26.8-1",
+    "shapes": {
+      "$replace": true,
+      "ridge": {"k1": {"B": 1.3, "C": 1.45, "D": 1.55}, "gamma": 3.0, "muUpwind": 1.5, "muDownwind": 1.5},
+      "escarpment": {"k1": {"B": 0.75, "C": 0.85, "D": 0.95}, "gamma": 2.5, "muUpwind": 1.5, "muDownwind": 4.0},
+      "hill": {"k1": {"B": 0.95, "C": 1.05, "D": 1.15}, "gamma": 4.0, "muUpwind": 1.5, "muDownwind": 1.5}
+    },
+    "minSlope": 0.2,
+    "maxSlope": 0.5,
+    "minHeight": {"$replace": true, "B": 18.3, "C": 4.5, "D": 4.5}
+  },
+  "sources": {
+    "exposures": "ASCE 7-22 Sec 26.7 and Table 26.11-1: alpha 7.5, 9.8, 11.5 and zg 3280, 2460, 1935 ft (999.7, 749.8, 589.8 m); the gust constants c, l, epsilon-bar, alpha-bar, b-bar, zmin as the earlier editions",
+    "kzFactor": "ASCE 7-22 Table 26.10-1 note: Kz = 2.41 (z/zg)^(2/alpha), z at least 15 ft (4.57 m)",
+    "directionality": "ASCE 7-22 Table 26.6-1: buildings, MWFRS and C&C, Kd = 0.85 (applied in the pressures; the product is the same)",
+    "gust": "ASCE 7-22 Sec 26.11.4: G = 0.85 for rigid buildings",
+    "topography": "ASCE 7-22 Sec 26.8.1-26.8.2, Figure 26.8-1: K1/(H/Lh), gamma and mu; H at least 60 ft (18.3 m) in exposure B and 15 ft (4.5 m) in C and D",
+    "elevation": "ASCE 7-22 Sec 26.9: Ke = 1.0 (permitted for all sites; not applied otherwise)"
+  },
+  "clauses": {
+    "designCases": "Figure 27.3-8",
+    "designCasesExemption": "Appendix D",
+    "gust": "Sec 26.11",
+    "flexible": "Sec 26.11.5"
+  }
+}

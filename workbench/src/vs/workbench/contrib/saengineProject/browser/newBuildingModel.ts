@@ -71,13 +71,24 @@ export interface INewBuildingSpec {
 	 * BNBC 2020 location id of the project settings (`site.location`), and the site class: without
 	 * a soil report it is an assumption (`siteClassSource: 'assumed'`), which the report says.
 	 */
-	readonly site: { readonly location: string; readonly siteClass: SiteClass; readonly siteClassSource: 'assumed'; readonly zoneCoefficient?: number; readonly windSpeed?: number };
+	readonly site: { readonly location: string; readonly siteClass: SiteClass; readonly siteClassSource: 'assumed'; readonly zoneCoefficient?: number; readonly windSpeed?: number; readonly spectral?: ISpectralValues };
 	/** Project settings `occupancy`: building use and BNBC occupancy category. */
 	readonly occupancy: { readonly use: string; readonly category: OccupancyCategory };
 	/** The code pack id; another than the default takes Z, V and the exposure of its own lists. */
 	readonly designCode: string;
 	/** The wind exposure (terrain category) of a pack other than the default. */
 	readonly wind?: { readonly exposure: string };
+}
+
+/**
+ * The site's mapped spectral values (Project Settings `site.spectral`) of a code pack whose
+ * seismic hazard comes from the code's hazard tool (ASCE 7-22): SDS, SD1, S1 [g], TL [s].
+ */
+export interface ISpectralValues {
+	readonly sds?: number;
+	readonly sd1?: number;
+	readonly s1?: number;
+	readonly tl?: number;
 }
 
 /** The wizard's fields as typed. */
@@ -104,6 +115,11 @@ export interface INewBuildingForm {
 	readonly zoneCoefficient: string;
 	readonly windSpeed: string;
 	readonly exposure: string;
+	/** C1: a pack whose design spectrum is mapped (ASCE 7-22): SDS, SD1, S1 [g] and TL [s], as typed. */
+	readonly sds: string;
+	readonly sd1: string;
+	readonly s1: string;
+	readonly tl: string;
 }
 
 /**
@@ -132,7 +148,29 @@ export const BLANK_FORM: INewBuildingForm = {
 	zoneCoefficient: '',
 	windSpeed: '',
 	exposure: '',
+	sds: '',
+	sd1: '',
+	s1: '',
+	tl: '',
 };
+
+/** A positive number typed in the form, else undefined. */
+function positive(text: string): number | undefined {
+	const value = Number(text.trim().replace(',', '.'));
+	return text.trim() && Number.isFinite(value) && value > 0 ? value : undefined;
+}
+
+/** C1: the mapped spectral values typed in the form (a pack whose design spectrum is mappedSpectral), else undefined. */
+function spectralValues(form: INewBuildingForm): ISpectralValues | undefined {
+	const spectral: { [key: string]: number } = {};
+	for (const key of ['sds', 'sd1', 's1', 'tl'] as const) {
+		const value = positive(form[key] ?? '');
+		if (value !== undefined) {
+			spectral[key] = value;
+		}
+	}
+	return Object.keys(spectral).length ? spectral : undefined;
+}
 
 type SpecRaw = { readonly [key: string]: unknown };
 
@@ -417,6 +455,7 @@ function otherPackSite(form: INewBuildingForm): { designCode: string; site?: INe
 			location: 'custom', siteClass: form.siteClass, siteClassSource: 'assumed',
 			...(form.zoneCoefficient.trim() && z > 0 && z < 1 ? { zoneCoefficient: z } : {}),
 			...(form.windSpeed.trim() && v > 0 ? { windSpeed: v } : {}),
+			...(spectralValues(form) ? { spectral: spectralValues(form) } : {}),
 		},
 		...(form.exposure ? { wind: { exposure: form.exposure } } : {}),
 	};

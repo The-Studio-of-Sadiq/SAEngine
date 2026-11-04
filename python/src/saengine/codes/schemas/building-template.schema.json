@@ -20,6 +20,148 @@
       "title": "GridRef",
       "type": "object"
     },
+    "SpectralSite": {
+      "additionalProperties": false,
+      "description": "C1: the site's mapped spectral values (a pack whose ``seismic.designSpectrum`` method is\nmappedSpectral, :mod:`saengine.fem.spectral_hazard`). Give SDS and SD1; or SMS and SM1\n(the design share of the pack makes SDS, SD1); or the multi-period MCER spectrum. S1 sets\nthe lower bound of Cs near faults and the Seismic Design Category E/F; TL the long-period\nbranch.",
+      "properties": {
+        "sds": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Design spectral acceleration at short periods [g].",
+          "title": "SDS"
+        },
+        "sd1": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Design spectral acceleration at 1 s [g].",
+          "title": "SD1"
+        },
+        "sms": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "MCER spectral acceleration at short periods [g] (used when SDS is empty).",
+          "title": "SMS"
+        },
+        "sm1": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "MCER spectral acceleration at 1 s [g] (used when SD1 is empty).",
+          "title": "SM1"
+        },
+        "ss": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Mapped MCER acceleration at short periods [g] (for the report).",
+          "title": "SS"
+        },
+        "s1": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Mapped MCER acceleration at 1 s [g]: the near-fault lower bound of Cs and the categories E and F.",
+          "title": "S1"
+        },
+        "tl": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Long-period transition period [s]. Empty: no long-period branch (the spectrum stays SD1/T).",
+          "title": "TL"
+        },
+        "designSpectrum": {
+          "description": "(T [s], Sa [g]) points of the site's multi-period design spectrum (5 % damped): used for the response spectrum analysis instead of the two-period one.",
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "title": "Multi-period design spectrum",
+          "type": "array"
+        },
+        "mcerSpectrum": {
+          "description": "(T [s], Sa [g]) points of the site's multi-period MCER spectrum: SDS and SD1 from it by the code pack's rule when they are not given.",
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "title": "Multi-period MCER spectrum",
+          "type": "array"
+        }
+      },
+      "title": "SpectralSite",
+      "type": "object"
+    },
     "StorySpec": {
       "additionalProperties": false,
       "properties": {
@@ -337,6 +479,18 @@
       "default": null,
       "description": "Z (the pack's peak ground acceleration) [g].",
       "title": "Zonecoefficient"
+    },
+    "spectral": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/SpectralSite"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "C1: the site's mapped spectral values (SDS, SD1, S1, TL) for a code pack whose design spectrum is mappedSpectral (Project Settings > Site > Mapped spectral values)."
     },
     "windSpeed": {
       "anyOf": [

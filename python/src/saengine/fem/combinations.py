@@ -48,12 +48,13 @@ _FACTOR_CASES = {
     "WTY": ("WTY",),
     "FaX": ("FaX",),
     "FaY": ("FaY",),
+    "S": ("S",),  # C1: the roof snow of a pack whose snow is its own case
 }
 #: Cases a combination may name that a model need not have: the fluid case F exists only when
 #: 07 MEP puts equipment contents in it, so a combination without its results is formed without
 #: it (a model without F has no fluid loads). So is the earth pressure case H (only a model with
 #: basement walls has it). T is not optional: its combinations need its case.
-OPTIONAL_CASES = frozenset({"F", "H", "FaX", "FaY"})
+OPTIONAL_CASES = frozenset({"F", "H", "FaX", "FaY", "S"})
 _DOF = ["Ux", "Uy", "Uz", "Rx", "Ry", "Rz"]
 _FORCES = ["Fx", "Fy", "Fz", "Mx", "My", "Mz"]
 _END_FORCES = ["N", "Vy", "Vz", "T", "My", "Mz"]
