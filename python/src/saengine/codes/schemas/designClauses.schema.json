@@ -32,6 +32,14 @@
       "description": "The code's short name in compact notes.",
       "title": "Shortname",
       "type": "string"
+    },
+    "shortNames": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "The short name of the code of a group ('slab') or one key ('slab.twoWay') where it is not shortName's.",
+      "title": "Shortnames",
+      "type": "object"
     }
   },
   "title": "DesignClausesTable",

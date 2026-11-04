@@ -2205,6 +2205,12 @@ class DeflectionLimitsGroup(_Group):
     xi: dict[float, Positive] = Field(min_length=1, description="Months -> ξ.")
     cantileverBeam: Positive = Field(description="Least beam depth of a cantilever: l/this.")
     cantileverSlab: Positive = Field(description="Least slab thickness of a cantilever: l/this.")
+    # C2: the effective moment of inertia, a method id the pack picks.
+    effectiveInertia: Literal["cubic", "bischoff"] = Field(
+        default="cubic",
+        description="Ie: 'cubic' (Ie = (Mcr/Ma)³ Ig + (1 - (Mcr/Ma)³) Icr <= Ig, Ig up to Mcr) "
+        "or 'bischoff' (Ie = Icr / (1 - ((2/3) Mcr/Ma)² (1 - Icr/Ig)), Ig up to (2/3) Mcr).",
+    )
 
 
 # B21: the concrete's modulus and shrinkage steel by its aggregate (Project Settings >
@@ -2338,6 +2344,22 @@ class Joints(_Group):
         return self
 
 
+class WallShearAmplification(_Group):
+    """C2: the design shear of special walls, Ve = Ωv ωv Vu <= cap Vu. Ωv = ``omega`` where
+    hw/lw exceeds ``aspect`` (else 1.0); ωv = a + ns/b (``dynamicLow``) up to
+    ``dynamicStoreys`` storeys, a + ns/b (``dynamicHigh``) at most ``dynamicMax`` above, 1.0
+    where hw/lw is below ``dynamicAspect``."""
+
+    aspect: Positive
+    omega: float = Field(ge=1)
+    dynamicAspect: Positive
+    dynamicLow: tuple[Positive, Positive]
+    dynamicHigh: tuple[Positive, Positive]
+    dynamicStoreys: int = Field(ge=1)
+    dynamicMax: float = Field(ge=1)
+    cap: float = Field(ge=1)
+
+
 class SpecialWalls(_Group):
     """Plain numbers of special structural walls."""
 
@@ -2395,6 +2417,21 @@ class SpecialWalls(_Group):
     pierHoopExtension: Positive = Field(
         description="The wall pier's hoops extend at least this above and below its clear "
         "height [mm]."
+    )
+    # C2: the values of packs whose special walls differ (defaults: the default pack's rules).
+    driftFactor: float = Field(
+        default=1.0,
+        ge=1,
+        description="Displacement-based boundary elements: c >= lw / (600 · this · max(δu/hw, "
+        "driftMin)).",
+    )
+    curtainAspect: Positive | None = Field(
+        default=None,
+        description="Two curtains also where hw/lw is at least this (None: by the shear only).",
+    )
+    shearAmplification: WallShearAmplification | None = Field(
+        default=None,
+        description="Design shear Ve = Ωv ωv Vu of special walls (None: Vu of the analysis).",
     )
 
     @model_validator(mode="after")
@@ -2518,6 +2555,35 @@ class BarBends(_Group):
         return self
 
 
+class HookDevelopment(_Group):
+    """C2: ldh = fy ψe ψr ψo ψc db^exponent / (coefficient λ √f'c) >= max(minDb db, min):
+    ψr = ``psiR`` without the confining ties (1.0 with them), ψo = ``psiO`` without the side
+    cover inside the core (1.0 with it), ψc = f'c / psiCDivisor + psiCBase below psiCFcMax,
+    else 1.0."""
+
+    coefficient: Positive
+    exponent: Positive
+    minDb: Positive
+    min: Positive
+    psiR: float = Field(ge=1)
+    psiO: float = Field(ge=1)
+    psiCFcMax: Positive
+    psiCDivisor: Positive
+    psiCBase: Positive
+
+
+class HeadedDevelopment(_Group):
+    """C2: ldt = fy ψe ψp ψo ψc db^exponent / (coefficient λ √f'c) >= max(minDb db, min), ψc
+    as the hooks' (``hook``); ψp = ``psiP`` without the ties (1.0 with them)."""
+
+    coefficient: Positive
+    exponent: Positive
+    minDb: Positive
+    min: Positive
+    psiP: float = Field(ge=1)
+    psiO: float = Field(ge=1)
+
+
 class BarDevelopment(_Group):
     """Development lengths of deformed bars (straight in tension and compression, hooked)."""
 
@@ -2543,6 +2609,23 @@ class BarDevelopment(_Group):
     compressionConfined: Share = Field(description="ldc × this inside spirals or close ties.")
     hookCover: Share = Field(description="ldh × this with the side and tail cover.")
     hookConfined: Share = Field(description="ldh × this inside close ties.")
+    # C2: methods and values of packs whose development differs (defaults: the default pack's).
+    hookMethod: Literal["linear", "powerDiameter"] = Field(
+        default="linear",
+        description="ldh: 'linear' (0.24 ψe fy db / (λ √f'c) × hookCover, hookConfined) or "
+        "'powerDiameter' (fy ψe ψr ψo ψc db^exponent / (coefficient λ √f'c), ``hook``).",
+    )
+    hook: HookDevelopment | None = Field(
+        default=None, description="The values of hookMethod 'powerDiameter'."
+    )
+    headed: HeadedDevelopment | None = Field(
+        default=None, description="ldt of headed bars in tension (None: not covered)."
+    )
+    psiG: list[tuple[Positive, Positive]] | None = Field(
+        default=None,
+        description="Grade factor ψg of ld: (fy up to [MPa], ψg) ascending; above the last: its "
+        "ψg. None: no grade factor (1.0).",
+    )
 
 
 class BarLaps(_Group):
@@ -8995,6 +9078,12 @@ class DesignClausesTable(TableModel):
     "<short> 6.1.4.3"). A pack without this table names only itself in the design notes."""
 
     shortName: str = Field(default="", description="The code's short name in compact notes.")
+    # C2: a pack that bundles codes, or keeps another code's method, names it per group or key.
+    shortNames: dict[str, str] = Field(
+        default_factory=dict,
+        description="The short name of the code of a group ('slab') or one key ('slab.twoWay') "
+        "where it is not shortName's.",
+    )
     clauses: dict[str, dict[str, str]] = Field(
         default_factory=dict, description="Clause reference of each check: {group: {key: clause}}."
     )

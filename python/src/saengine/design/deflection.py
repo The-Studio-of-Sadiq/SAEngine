@@ -200,13 +200,45 @@ def cracking_moment(fc: float, ig: float, yt: float, lam: float = 1.0) -> float:
     return 0.62 * lam * math.sqrt(fc) * ig / yt
 
 
-def effective_inertia(ma: float, mcr: float, ig: float, icr: float) -> float:
-    """Ie of Eq. 6.6.1 [mm⁴], not more than Ig (Ig when Ma <= Mcr)."""
+def inertia_method() -> str:
+    """The pack's method of Ie (``concrete.deflection.effectiveInertia``): "cubic" (the default
+    pack's Eq. 6.6.1) or "bischoff" (C2: ACI 318-19 Table 24.2.3.5)."""
+    from saengine.codes import context as code_context
+
+    group = getattr(code_context.table("concrete"), "deflection", None)
+    return str(getattr(group, "effectiveInertia", "cubic") or "cubic")
+
+
+def effective_inertia(
+    ma: float, mcr: float, ig: float, icr: float, method: str | None = None
+) -> float:
+    """Ie [mm⁴], not more than Ig, by ``method`` (default: the pack's, :func:`inertia_method`):
+
+    - "cubic": Ie = (Mcr/Ma)³ Ig + (1 - (Mcr/Ma)³) Icr (the default pack's Eq. 6.6.1), Ig when
+      Ma <= Mcr;
+    - "bischoff": Ie = Icr / (1 - ((2/3) Mcr / Ma)² (1 - Icr/Ig)), Ig when Ma <= (2/3) Mcr."""
     ma = abs(ma)
+    if (method or inertia_method()) == "bischoff":
+        mcr23 = 2.0 / 3.0 * mcr
+        if ma <= mcr23 or icr <= 0:
+            return ig
+        return min(icr / (1 - (mcr23 / ma) ** 2 * (1 - icr / ig)), ig)
     if ma <= mcr:
         return ig
     r = (mcr / ma) ** 3
     return min(r * ig + (1 - r) * icr, ig)
+
+
+def row_clause(key: str) -> str:
+    """The clause ``key`` of the deflection rows from the pack in force (``designClauses.
+    deflectionRows``: "effectiveInertia", "limits"); '' when the pack has none."""
+    from saengine.design.clauses import text
+
+    return text("deflectionRows", key)
+
+
+def _paren(text: str) -> str:
+    return f" ({text})" if text else ""
 
 
 def averaged_inertia(ie_mid: float, ie_ends: Sequence[float]) -> float:
@@ -308,9 +340,10 @@ def span_deflection(
     mcr = cracking_moment(fc, stiffness.ig, stiffness.yt, lam)
     (m_d, d_d), (m_l, d_l) = dead, live
     psi = sustained_live_share
-    ie_d = effective_inertia(m_d, mcr, stiffness.ig, stiffness.icr)
-    ie_t = effective_inertia(m_d + m_l, mcr, stiffness.ig, stiffness.icr)
-    ie_s = effective_inertia(m_d + psi * m_l, mcr, stiffness.ig, stiffness.icr)
+    how = inertia_method()
+    ie_d = effective_inertia(m_d, mcr, stiffness.ig, stiffness.icr, how)
+    ie_t = effective_inertia(m_d + m_l, mcr, stiffness.ig, stiffness.icr, how)
+    ie_s = effective_inertia(m_d + psi * m_l, mcr, stiffness.ig, stiffness.icr, how)
     i_dead = d_d * ei_analysis / (ec * ie_d)
     i_total = (d_d + d_l) * ei_analysis / (ec * ie_t)
     i_sus = (d_d + psi * d_l) * ei_analysis / (ec * ie_s)
@@ -323,7 +356,8 @@ def span_deflection(
     notes = (
         f"Ec = {ec:.0f} MPa, Ig = {stiffness.ig:.4g}, Icr = {stiffness.icr:.4g} mm⁴",
         f"Mcr = {mcr / 1e6:.1f} kN·m",
-        f"Ie = {ie_d:.4g} (D), {ie_s:.4g} (D + {psi:g} L), {ie_t:.4g} (D + L) mm⁴ (Eq. 6.6.1)",
+        f"Ie = {ie_d:.4g} (D), {ie_s:.4g} (D + {psi:g} L), {ie_t:.4g} (D + L) mm⁴"
+        + _paren(row_clause("effectiveInertia")),
         f"λΔ = ξ/(1 + 50ρ') = {xi:g}/(1 + 50 × {stiffness.rho_prime:.4f}) = {lam_delta:.2f}",
     )
     return Deflection(
@@ -360,9 +394,10 @@ def deflection_checks(
     attached_div = limits.attached_sensitive if sensitive else limits.attached_insensitive
     at = f"; {where}" if where else ""
     base = "; ".join(result.notes)
+    table = _paren(row_clause("limits"))
     return [
         _check(
-            "Deflection: immediate, live load (Table 6.6.2)",
+            f"Deflection: immediate, live load{table}",
             result.immediate_live,
             result.live_limit,
             "mm",
@@ -371,7 +406,7 @@ def deflection_checks(
             f"{base}{at}",
         ),
         _check(
-            "Deflection: after attachment of nonstructural elements (Table 6.6.2)",
+            f"Deflection: after attachment of nonstructural elements{table}",
             result.after_attachment,
             result.attached_limit,
             "mm",

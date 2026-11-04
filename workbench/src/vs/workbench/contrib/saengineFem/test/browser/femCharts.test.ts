@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { hasKey } from '../../../../../base/common/types.js';
 import { IFemResultEntry } from '../../../../../platform/saengine/common/femSolver.js';
 import { niceTicks, renderChart, renderSheet, tickText } from '../../browser/femChart.js';
 import { closedPmCurve, columnDecimals, defaultChartResult, displayTable, exportCell, formatCell, isLateralResult, orderLike, supportReactions, describeMode, elasticDriftLimit, extremes, filterRows, formatFixedCell, IFemColumnDiagram, IFemMemberForces, IFemStoryResponse, IFemStoryResult, isEarthquakeResult, memberEnvelope, memberValues, modalTable, modesToReach, profilePeak, sortRows, spectrumAt, storeyProfile, storeyTable, workbookSheets } from '../../browser/femChartData.js';
@@ -315,9 +316,9 @@ suite('SAEngine - FEM view filters', () => {
 		assert.strictEqual(perimeterPath({ ...model, elements: model.elements.filter(e => e.id !== 4 && e.id !== 5 && e.id !== 6) }), undefined);
 		assert.deepStrictEqual(parsePlanPath('0, 0; 12,0;12 9'), { path: [[0, 0], [12, 0], [12, 9]] });
 		assert.deepStrictEqual(parsePlanPath('0 0\n5 0'), { path: [[0, 0], [5, 0]] });
-		assert.ok('error' in parsePlanPath('0, 0'));
-		assert.ok('error' in parsePlanPath('0, 0; a, 1'));
-		assert.ok('error' in parsePlanPath('1, 1; 1, 1'));
+		assert.ok(hasKey(parsePlanPath('0, 0'), { error: true }));
+		assert.ok(hasKey(parsePlanPath('0, 0; a, 1'), { error: true }));
+		assert.ok(hasKey(parsePlanPath('1, 1; 1, 1'), { error: true }));
 		assert.strictEqual(formatPlanPath([[0, 0], [12.5, 0.0004]]), '0, 0; 12.5, 0');
 	});
 });

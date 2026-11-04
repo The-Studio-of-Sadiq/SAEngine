@@ -171,11 +171,101 @@ lb × 0.004448 kN, ft × 0.3048 m), rounded as printed.
 | 118 | collectors with Ω0 in SDC C-F | Sec 12.10.2.1 | | OK? |
 | 119 | the alternative diaphragm design (Rs) | Sec 12.10.3 | Not covered | — |
 
+## Concrete: ACI 318-19 (track C2)
+
+No copy of ACI 318-19 / 318M-19 was available either. SI values are those of ACI 318M-19 as
+recalled (MPa, mm); where 318M prints a rounded SI coefficient the recalled one is entered.
+Clause references in `designClauses.json`, `citations.json` and the tables' `clauses` follow
+the ACI 318-19 numbering as recalled; each must be checked with the values.
+
+### Strength reduction — `factors.json`
+
+| # | Value | Clause | Description | Status |
+|---|---|---|---|---|
+| C1 | φ 0.90 / 0.65 / 0.75, transition εty to εty + 0.003 | Table 21.2.2 | Tension-controlled, tied, spiral (the engine already used εty + 0.003) | OK? |
+| C2 | φ 0.75 shear, torsion, two-way shear | Table 21.2.1(b), (c) | | OK? |
+| C3 | φ 0.60 shear where Vn < shear at Mn | 21.2.4.1 | Special walls, IMF | OK? |
+| C4 | φ 0.85 joints, diagonally reinforced coupling beams | 21.2.4.3, 21.2.4.4 | | OK? |
+| C5 | φ 0.75 strut-and-tie, 0.65 bearing, 0.60 plain | Table 21.2.1(d), (g), (k) | | OK? |
+| C6 | 0.75 of Pc in δ | Eq 6.6.4.5.2 | Moment magnifier | OK? |
+
+### Concrete and steel — `materials.json`, `concrete.json`
+
+| # | Value | Clause | Description | Status |
+|---|---|---|---|---|
+| C7 | εcu 0.003, Es 200 000 MPa | 22.2.2.1, 20.2.2.2 | | OK? |
+| C8 | f'c ≥ 21 MPa; lightweight ≤ 35 MPa in special frames and walls | Table 19.2.1.1 | | OK? |
+| C9 | lightweight concrete up to 1840 kg/m³ | 2.3 | Definition (was 1850 in the BNBC table) | UNSURE (1840 vs 1850) |
+| C10 | seismic bars: Grades 280, 420, 550; largest 550 | 20.2.2.4-20.2.2.5, 18.2.6 | Grade 690 for special walls not offered | UNSURE (Grade 280 permission) |
+| C11 | actual fy ≤ specified + 125 MPa; fu/fy ≥ 1.25 | 20.2.2.5(b), ASTM A706 | | OK? |
+| C12 | retest margin 20 MPa | (ACI 318-08 21.1.5.2) | Not in 318-19: kept as practice | PRACTICE |
+| C13 | Ec = 4700 √f'c, 0.043 wc^1.5 √f'c (1440-2560 kg/m³) | 19.2.2.1 | | OK? |
+| C14 | λ 0.85 sand-lightweight, 0.75 all-lightweight | Table 19.2.4.2 | | OK? |
+| C15 | brick aggregate taken as normal weight (Ec, shrinkage × 1.0) | — | ACI has no brick aggregate rule | PRACTICE |
+| C16 | shrinkage and temperature steel 0.0018 for every grade | Table 24.4.3.2 | Changed from 318-14 | OK? |
+| C17 | least εt of slabs 0.005 | 7.3.3.1, 8.3.3.1 | 318-19 asks for tension-controlled slabs, εty + 0.003 (0.0051 at 420 MPa) | UNSURE (the rule and the fixed value) |
+| C18 | fyt of shear steel ≤ 420 MPa | Table 20.2.2.4(a) | | OK? |
+| C19 | bar sizes No. 10-36 as 10, 13, 16, 19, 22, 25, 29, 32, 36 mm | ASTM A615/A706 | Sets by use (stirrups 10, 13 ...) | PRACTICE |
+| C20 | assumed covers: lintels 40, stairs 20, pile caps 75 mm | Table 20.5.1.3.1 | When no bars are entered | PRACTICE |
+| C21 | two-way slab thickness ln/33, 36, 36 (280), 30, 33, 33 (420), 28, 31, 31 (520); drop panels 36, 40, 40 / 33, 36, 36 / 31, 34, 34 | Table 8.3.1.1 | Same as the extended pack | OK? |
+| C22 | one-way slabs l/20, 24, 28; beams l/16, 18.5, 21; cantilevers l/10, l/8 | Tables 7.3.1.1, 9.3.1.1 | | OK? |
+| C23 | deflection limits l/180, l/360, l/480, l/240; ξ 1.0, 1.2, 1.4, 2.0 | Tables 24.2.2, 24.2.4.1.3 | | OK? |
+| C24 | Ie = Icr / (1 - ((2/3) Mcr/Ma)² (1 - Icr/Ig)), Ig up to (2/3) Mcr | Table 24.2.3.5 | Method `bischoff` | OK? |
+| C25 | cracked stiffness 0.70 columns, 0.35 beams, 0.25 slabs, 0.35 / 0.70 walls | Table 6.6.3.1.1(a) | | OK? |
+| C26 | Q ≤ 0.05; klu/r ≤ 22; 34 - 12 M1/M2 ≤ 40; δs ≤ 1.5; second-order ≤ 1.4 first-order | 6.6.4.3, 6.2.5, 6.6.4.6.2, 6.2.6 | | OK? |
+| C27 | walls ρl 0.0012 / 0.0015, ρt 0.0020 / 0.0025 (≤ No. 16 and fy ≥ 420 / others); 0.0025 where Vu > 0.5 φVc; 3h and 450 mm; two layers above 250 mm | Table 11.6.1, 11.6.2, 11.7.2.1, 11.7.2.3 | | OK? |
+| C28 | torsion θ 45°, Ao 0.85 Aoh, fy ≤ 420, ph/8 and 300 mm, longitudinal 300 mm, db ≥ 0.042 s and 10 mm | 22.7.6.1, Table 20.2.2.4(a), 9.7.6.3.3, 9.7.5 | | OK? |
+| C29 | prestress: the extended pack's numbers; punching of prestressed slabs by 22.6.5.5 (βp ≤ 0.29, 0.3 fpc, √f'c ≤ 5.8, fpc 0.9-3.5 MPa) | 22.6.5.5, Ch 20, 24.5, 8.6, 8.7.5, 25.9 | `punchingMethod` precompression | UNSURE (clause numbers of the prestress keys) |
+
+### Detailing and seismic — `detailing.json`
+
+| # | Value | Clause | Description | Status |
+|---|---|---|---|---|
+| C30 | crack control 380 (280/fs) - 2.5 cc ≤ 300 (280/fs), fs = 2/3 fy | Table 24.3.2 | | OK? |
+| C31 | skin steel h > 900 mm over h/2 | 9.7.2.3 | | OK? |
+| C32 | flange overhang 8 hf, ln/8 each side (taken as bf ≤ span/4), one side 6 hf, ln/12 | Table 6.3.2.1 | sw/2 not checked | UNSURE (span/4 approximation) |
+| C33 | integrity 1/4 positive, 1/6 negative, two bars | 9.7.7.1-9.7.7.2 | | OK? |
+| C34 | shear friction μ 1.4, 1.0, 0.6, 0.7 λ; min(0.2 f'c, 3.3 + 0.08 f'c, 11), min(0.2 f'c, 5.5) | Tables 22.9.4.2, 22.9.4.4 | | OK? |
+| C35 | SMF: ln ≥ 4d, b ≥ 0.3 h and 250 mm, ρ ≤ 0.025; columns ≥ 300 mm, ratio ≥ 0.4, 0.01 ≤ ρ ≤ 0.06; hx ≤ 350 mm; first hoop 50 mm | 18.6.2, 18.6.3.1, 18.7.2, 18.7.4.1, 18.7.5.2(e), 18.6.4.4 | | OK? |
+| C36 | confinement fyt ≤ 690 MPa | Table 20.2.2.4(a) | 100 ksi | OK? |
+| C37 | joints γ 1.7, 1.2, 1.0 (continuous columns); 1.2, 1.0, 0.7 where the column ends at the joint | Table 18.8.4.3 | SI of 20, 15, 12, 8; 318M may print 1.25 for 15 | UNSURE (SI coefficients; mapping of the table's beam continuity / confinement cases to the confined-faces count) |
+| C38 | T = 1.25 fy As; ΣMnc ≥ 1.2 ΣMnb; Vc = 0 below 0.05 Ag f'c | 18.8.2.1, 18.7.3.2, 18.7.6.2.1 | | OK? |
+| C39 | special walls: ρ relaxed below 0.083 λ √f'c Acv; two curtains above 0.17 λ √f'c Acv or hw/lw ≥ 2.0 | 18.10.2.1, 18.10.2.2 | `curtainAspect` 2.0 | OK? |
+| C40 | boundary elements c ≥ lw / (600 · 1.5 δu/hw), δu/hw ≥ 0.005; stress 0.2 / 0.15 f'c | 18.10.6.2, 18.10.6.3 | `driftFactor` 1.5 | OK? |
+| C41 | Ve = Ωv ωv Vu ≤ 3 Vu; Ωv 1.5 where hw/lw > 1.5; ωv 0.9 + ns/10 (ns ≤ 6), 1.3 + ns/30 ≤ 1.8; 1.0 where hw/lw < 2.0 | 18.10.3.3 | Ωv taken as its lower bound 1.5 (Mpr/Mu not computed), ns = hw / storey height | UNSURE (the table's form and ranges, Ωv bound) |
+| C42 | coupling beams and wall piers: the generic ACI 318-19 values (hoops 150 mm / 6 db, legs 200 mm, 1.25 ld, ...) | 18.10.7.4, 18.10.8.1, 2.3 | Same numbers as the extended pack | OK? |
+| C43 | hooks 180° 4 db / 65 mm, 90° 12 db; ties 6 db (≤ No. 16), 12 db, 135° 6 db / 75 mm | Tables 25.3.1, 25.3.2 | | OK? |
+| C44 | bends 6 db to No. 25, 8 db to No. 36, 10 db No. 43-57 | Table 25.3.1 | | OK? |
+| C45 | ld simplified fy ψt ψe ψg / (2.1 or 1.7, 1.4 or 1.1 λ √f'c) db; general Eq 25.4.2.4a with (cb + Ktr)/db ≤ 2.5, Ktr = 40 Atr / (s n); √f'c ≤ 8.3; ≥ 300 mm | 25.4.2.1-25.4.2.4, 25.4.1.4 | | OK? |
+| C46 | ψg 1.0 (≤ 420), 1.15 (550), 1.3 (690) | Table 25.4.2.5 | | OK? |
+| C47 | ldh = fy ψe ψr ψo ψc db^1.5 / (23 λ √f'c) ≥ 8 db, 150 mm; ψr 1.6 without the ties, ψo 1.25 without the side cover, ψc = f'c/105 + 0.6 below 42 MPa | 25.4.3.1, Table 25.4.3.2 | `hookMethod` powerDiameter | UNSURE (SI coefficient 23, ψc divisor 105) |
+| C48 | ldt = fy ψe ψp ψo ψc db^1.5 / (31 λ √f'c) ≥ 8 db, 150 mm; ψp 1.6 | 25.4.4.2, Table 25.4.4.3 | Shown in the development worksheet and Design Reinforcement's note | UNSURE (SI coefficient 31) |
+| C49 | ldc = max(0.24 fy ψr / (λ √f'c), 0.043 fy ψr) db ≥ 200 mm, × 0.75 confined | 25.4.9.2-25.4.9.3 | | OK? |
+| C50 | laps class A 1.0 ld, B 1.3 ld, ≥ 300 mm; no laps above No. 36 | 25.5.2, 25.5.1.1 | | OK? |
+| C51 | compression laps 0.071 fy db (≤ 420), (0.13 fy - 24) db, × 4/3 below 21 MPa | 25.5.5.1 | | OK? |
+| C52 | SMF laps outside joints and 2h, hoops d/4 and 100 mm; column laps in the middle half | 18.6.3.3, 18.7.4.3 | | OK? |
+| C53 | special wall bars 1.25 ld where they may yield | 18.10.2.3 | | OK? |
+
+### Methods and foundations — `slabMethods.json`, `wallMethods.json`, `compositeConcrete.json`, `foundations.json`
+
+| # | Value | Clause | Description | Status |
+|---|---|---|---|---|
+| C54 | direct design and equivalent frame: the extended pack's numbers | 8.10, 8.11 | Clause references only | OK? |
+| C55 | slender walls (alternative method) | 11.8 | Clause references only | OK? |
+| C56 | composite members 0.55, (1.8 + 0.6 ρv fy) λ ≤ 3.5 MPa | Table 16.4.4.2 | Clause references only | OK? |
+| C57 | strut-and-tie βs 0.4 for interior struts without 23.5 reinforcement and in tension members; βc = 1.0 | Table 23.4.3(a), 23.4.3 | Was 0.6 λ in 318-14 | UNSURE |
+| C58 | two-way slab coefficient method, stair spans, masonry lintel wind rule | — | ACI 318-19 has none: the extended pack's, cited as BNBC 2020 | PRACTICE |
+| C59 | lintel bearing 100 mm, span/600 | TMS 402 5.2.1.3-5.2.1.4 | Cited as TMS 402-22 | UNSURE (clause numbers) |
+
 ## Not covered in this version (fall back or absent)
 
-- Concrete, steel, masonry, timber, foundations and every other material table: inherited from
-  BNBC 2020 (the report names them as the BNBC tables); the ACI 318-19 / AISC 360-22 tracks C2
-  and C3 replace them.
+- Steel, masonry, timber, the geotechnical foundation tables and every other material table:
+  inherited from BNBC 2020 (the report names them as the BNBC tables); AISC 360-22 is track C3.
+- The seismic detailing rows of special, intermediate and ordinary frames (ductile members and
+  joints) still print the extended pack's clause numbers in their row names: their values are
+  ACI 318-19's (the same numbers), the row clauses are not yet read from the pack.
+- ACI 318 Chapter 17 anchorage and ACI 350 tanks: no ACI values in this version (the anchor and
+  tank checks use the extended pack's).
 - Dead load unit weights (`deadLoads`): BNBC's.
 - Nonstructural components (Ch 13), isolation (Ch 17), dampers (Ch 18), nonlinear response
   history (Ch 16), ice (Ch 10): BNBC's tables or not covered.

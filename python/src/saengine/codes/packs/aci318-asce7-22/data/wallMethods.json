@@ -1,0 +1,20 @@
+{
+  "$schema": "../../../schemas/wallMethods.schema.json",
+  "$sources": [
+    "ACI 318-19 Sec 11.8 (alternative method for out-of-plane slender wall analysis); walls as grade beams: the extended pack's rule (ACI 318-19 has no such section)"
+  ],
+  "source": "ACI 318-19 Sec 11.8 (the same numbers as the extended pack's)",
+  "sources": {
+    "slender": "ACI 318-19 11.8.1.1 (simply supported, constant section, tension-controlled, φMn >= Mcr, Pu/Ag <= 0.06 f'c at midheight), 11.8.2 (concentrated loads spread at 2 vertical to 1 horizontal), 11.8.3.1 Eqs 11.8.3.1a-d (Mu = Mua + Pu Δu, Δu = 5 Mu lc² / (0.75 × 48 Ec Icr), Icr with Es/Ec >= 6), 11.8.4.1 and Table 11.8.4.3 (Δs <= lc/150, (2/3) Mcr)",
+    "slender.ruptureCoefficient": "ACI 318-19 19.2.3.1: fr = 0.62 λ √f'c",
+    "slender.spreadSlope": "ACI 318-19 11.8.2.2: concentrated loads spread at 2 vertical to 1 horizontal"
+  },
+  "clauses": {
+    "slender": "11.8",
+    "slenderAxial": "11.8.1.1(d)",
+    "slenderCracking": "11.8.1.1(c), 19.2.3.1",
+    "slenderStrength": "11.8.3.1, Eqs 11.8.3.1a-d",
+    "slenderDeflection": "11.8.4, Table 11.8.4.3",
+    "slenderTension": "11.8.1.1(b)"
+  }
+}

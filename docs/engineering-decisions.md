@@ -558,6 +558,22 @@ against the printed standard). Its behaviour choices:
   minimum are raised to it, reported. "Mesh by slab span" is not carried and keeps its
   default. Where: `exporters/etabs.py` (`MESH_COMMENT`), `importers/etabs.py` (`parse`,
   `_area_mesh`, `_mesh_size`).
+- **US pack concrete (ACI 318-19, alpha 9 C2): SAEngine practice where the code leaves a gap**
+  (pack values, overridable per project; listed in the pack's VERIFY.md).
+  - Bar sizes are the US soft-metric sizes (No. 10-36 as 10, 13, ... 36 mm).
+  - Brick aggregate concrete has no ACI rule: it is treated as normal weight (Ec 4700 √f'c,
+    shrinkage steel × 1.0).
+  - Special walls' design shear Ve = Ωv ωv Vu (18.10.3.3): Ωv is taken as its lower bound 1.5
+    where hw/lw > 1.5 (Mpr/Mu is not computed), ns as the wall height over the storey height.
+  - Joints whose column ends at the joint (Table 18.8.4.3, "other" columns): γ 1.2, 1.0, 0.7 by
+    the same confined-faces count the engine uses for 1.7, 1.2, 1.0.
+  - The two-way slab coefficient method and the stair spans have no ACI 318-19 counterpart:
+    the pack keeps BNBC 2020's and cites them as BNBC 2020's; lintel bearing and span/600 are
+    cited as TMS 402.
+  - Least slab strain 0.005 (εty + 0.003 at Grade 420, rounded); the 0.0018 shrinkage steel of
+    every grade.
+  - A pack names the code of each table's clauses (`tableCodes`, `designClauses.shortNames`), so
+    one pack can cite ACI 318-19 and ASCE 7-22 side by side.
 
 ## Earlier owner decisions
 

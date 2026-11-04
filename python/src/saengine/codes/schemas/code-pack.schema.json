@@ -329,6 +329,14 @@
       "default": null,
       "description": "The code the design follows, as the report states it (loads and general, concrete, steel, design method)."
     },
+    "tableCodes": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "How results name the code of a table's clause references, by table name or 'table.key' (e.g. {'concrete': 'ACI 318-19', 'designClauses.steelMembers': 'AISC 360-22'}); a table or key without an entry is named after the pack's edition.",
+      "title": "Tablecodes",
+      "type": "object"
+    },
     "author": {
       "anyOf": [
         {

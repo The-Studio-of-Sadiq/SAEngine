@@ -813,8 +813,8 @@ export class BuildingEditor extends JsonDocumentEditor implements IPartSectionPa
 	private foundationLayers(ids: { readonly [id: string]: string }): { [id: string]: BuildingLayer } {
 		const layers: { [id: string]: BuildingLayer } = {};
 		for (const raft of this.substructureItems().foundations.filter(f => f.type === 'raft')) {
-			const key = `${SUBSTRUCTURE_ID}${raft.id}` in ids ? `${SUBSTRUCTURE_ID}${raft.id}` : String(raft.id);
-			if (key in ids) {
+			const key = ids[`${SUBSTRUCTURE_ID}${raft.id}`] !== undefined ? `${SUBSTRUCTURE_ID}${raft.id}` : String(raft.id);
+			if (ids[key] !== undefined) {
 				layers[key] = 'footing';
 			}
 		}
