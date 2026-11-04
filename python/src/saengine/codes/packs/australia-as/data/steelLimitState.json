@@ -265,7 +265,7 @@
     "designStrength": "2.1.1, Table 2.1",
     "partialFactors": "3.4, Table 3.4 (φ 0.9)",
     "classification": "5.2, Table 5.2; 6.2.3",
-    "slenderness": "6.? (SAEngine limit)",
+    "slenderness": "SAEngine practice (no AS 4100 limit)",
     "tensionYield": "7.2",
     "tensionRupture": "7.2, 7.3",
     "tensionAngle": "7.3.2",

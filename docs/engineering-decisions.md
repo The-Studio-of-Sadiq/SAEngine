@@ -41,6 +41,36 @@ here, newest first, with the date, the question, the decision, the reason and wh
 - **No unlicensed software.** ETABS, SAP2000 and STAAD are not used for cross-checks or cited.
   Open-source tools are used instead (2026-10-25).
 
+## 2026-11-05: Australia and New Zealand packs (alpha 9 track C18)
+
+Packs `australia-as` (extends `bnbc2020`) and `newzealand-nzs` (extends `australia-as`). The
+values were entered from knowledge of the standards (no text on this PC); each pack's `VERIFY.md`
+lists them with their clauses and marks the uncertain ones.
+
+- **SAEngine practice, slots.** Importance levels IL1-IL4 sit in the category slots I-IV; the
+  towns' Z values in zone slots 1-n (`zoneLabel` "Z = 0.08"); the earthquake design categories
+  EDC I-III in the slots B, C, D. Every building is designed by the equivalent static method
+  (and the modal method where chosen): the category table is the 12-50 m row for every height,
+  so the EDC I simple static method (AS 1170.4 Section 5) and the EDC III rule over 50 m are not
+  chosen automatically.
+- **SAEngine practice, μ in R.** Under `shapeFactors` the system's R holds μ and Cd = μ/Sp (AU)
+  or kdm μ/Sp with kdm 1.5 for all heights (NZ, on the safe side); Ω0 = 1.0 (no system
+  overstrength factor in AS 1170.4 / NZS 1170.5). NZ's kμ is taken at each period of the modal
+  spectrum (5.2.2 takes it at T1: larger Cd at short periods), T at least 0.4 s for kμ.
+- **SAEngine practice, wind.** Md = 1.0, Ms = 1.0, Kc,e = 1.0 (Table 5.5 allows 0.8-0.9),
+  Ka = 1.0, Mt as entered (the hill multiplier is not computed); VR / V500 by the 2011 regional
+  formulas at V500 45 / 51 / 57 / 66 / 80 m/s; the serviceability wind 0.68 Wu ((37/45)², region
+  A) in the service combinations.
+- **SAEngine practice, concrete.** AS 3600 keeps the parent's axial cap 0.80 φ P0 in place of the
+  0.05 D minimum eccentricity; the beam shear runs the simplified kv and θv (the general method's
+  terms need M* at the section); Ec = 5000 √f'c (at or below Table 3.1.2). NZS 3101 vc takes
+  kd = ka = kn = 1; the ductile detailing and Appendix D capacity design are the parent's rules
+  (probable moments with 1.25, which is λo of 500E).
+- **SAEngine practice, steel.** AS 4100 by the limit state module with γm0 = 1/0.9: λep as the
+  plastic and compact limits, noncompact sections at Ze = Z, αm = the program's c1, the
+  interaction by its conservative linear form, the shear buckling by the family's post-critical
+  method in place of αv = (82/λw)².
+
 ## 2026-11-04: Canada and Mexico City packs (alpha 9 track C17)
 
 - **What was built.** `canada-nbcc` (NBCC 2020 Part 4, CSA A23.3-19, CSA S16-19) and

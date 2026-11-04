@@ -119,10 +119,10 @@
     "barDiameters": "AS/NZS 4671: D500N bars N10, N12, N16, N20, N24, N28, N32, N36, N40 (SAEngine's sets by use)",
     "barNames": "AS/NZS 4671 designations N10-N40 (Class N, deformed); R (plain) and L (mesh) bars not offered",
     "columnRho": "AS 3600:2018 10.7.1: longitudinal steel 0.01-0.04 Ag (0.04 the usual limit)",
-    "fytShearMax": "AS 3600:2018 8.2.1.? : fsy.f of shear reinforcement at most 500 MPa",
+    "fytShearMax": "AS 3600:2018 8.2.1 (clause uncertain): fsy.f of shear reinforcement at most 500 MPa",
     "slabStrainMin": "AS 3600:2018 8.1.5 (kuo <= 0.36 for beams and slabs): εt = 0.003 (1 - 0.36)/0.36 = 0.0053",
     "modulus": "AS 3600:2018 3.1.2 / Table 3.1.2: Ec = 5000 √f'c (SAEngine fit at or below the table: 25 MPa 26 700, 32 MPa 30 100, 40 MPa 32 800, 50 MPa 34 800 MPa)",
-    "shrinkage": "AS 3600:2018 9.4.3.? : slabs free to expand and contract, 1.75 × 10⁻³ b D in the secondary direction (minor degree of crack control); restrained slabs need 3.5 or 6.0 × 10⁻³ (moderate, strong control): override concrete.shrinkage",
+    "shrinkage": "AS 3600:2018 9.4.3 (clause uncertain): slabs free to expand and contract, 1.75 × 10⁻³ b D in the secondary direction (minor degree of crack control); restrained slabs need 3.5 or 6.0 × 10⁻³ (moderate, strong control): override concrete.shrinkage",
     "deflection": "AS 3600:2018 Table 2.3.2: total deflection span/250, incremental deflection of members supporting masonry partitions span/500 (span/1000 without provision for movement); the live-load-only limits, the long-term factor and the cantilever ratios stay the parent's"
   }
 }

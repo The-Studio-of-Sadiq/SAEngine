@@ -163,7 +163,7 @@ def singly_area(mu: float, b: float, d: float, fc: float, fy: float, phi: float 
     if mu <= 0:
         return 0.0
     block = alpha1(fc) * fc  # Alpha 9 C18: the pack's block stress (0.85 f'c by default)
-    k = 1 - 2 * mu / (phi * block * b * d**2)
+    k = 1 - 2 * mu / (phi * alpha1(fc) * fc * b * d**2)  # the default's operation order
     if k < 0:
         return None
     return block * b * d / fy * (1 - math.sqrt(k))

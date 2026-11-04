@@ -709,10 +709,10 @@
     "designCategories": "AS 1170.4 2.2, Table 2.1: earthquake design categories in SAEngine's slots B = EDC I, C = EDC II, D = EDC III; SAEngine takes the row of buildings 12-50 m high (IL1 EDC I, IL2 and IL3 EDC II, IL4 EDC III) for every height and Z: EDC I of low buildings at low kp Z (simple static method, Section 5) and EDC III of buildings over 50 m are not chosen automatically (the equivalent static method of Section 6 is used for all)",
     "requiredDetailing": "AS 1170.4 has no detailing level by category: the system's own detailing (μ) applies (ordinary in every category)",
     "allowableDrift": "AS 1170.4 5.4.4: interstorey drift at the ultimate limit state (elastic × μ/Sp) at most 1.5 % of the storey height",
-    "minimumScale": "AS 1170.4 7.2? : modal base shear scaled to at least 90 % of the static (uncertain: to be checked)",
+    "minimumScale": "AS 1170.4 Section 7: modal base shear scaled to at least 90 % of the static (clause and value uncertain: to be checked)",
     "accidentalEccentricity": "AS 1170.4 6.6: the earthquake actions applied at ±0.1 b from the centre of mass",
     "pgaFactor": "AS 1170.4: Z is the peak ground acceleration on rock for 1/500 (a_h = Z Ch(0))",
-    "verticalFactor": "AS 1170.4 5.4.? / 6.? : no general vertical component (cantilevers and long spans of EDC III only, not covered): 0",
+    "verticalFactor": "AS 1170.4: no general vertical component (cantilevers and long spans of EDC III only, not covered): 0",
     "liveShare": "AS 1170.4 6.2.2 seismic weight Wt = G + ψE Q, ψE = 0.3 (AS/NZS 1170.0 Table 4.1)",
     "dampingCorrection": "AS 1170.4 gives Ch(T) for 5 % damping only: no damping correction"
   }
