@@ -117,7 +117,7 @@ registerPlannedFeature({
 	id: PLANNED_CODE_PACK_EUROCODES,
 	part: 'settings',
 	title: localize('codePacks.planned.eurocodes', "Code Pack: Eurocodes with National Annexes"),
-	summary: localize('codePacks.planned.eurocodesSummary', "The Eurocodes EN 1990 to EN 1998 as one base pack, and each country's National Annex as a small pack that extends it: the annex sets only the Nationally Determined Parameters and inherits everything else. Covered now, in the built-in pack Eurocodes (eurocodes) with the recommended values: the loads and seismic actions (EN 1990 combinations, EN 1991-1-1, -1-3, -1-4, -1-7 Annex D, EN 1998-1), the concrete design (EN 1992-1-1 design strengths, shear, member steel; EN 1998-1 Section 5 detailing for DCM and DCH) and the geotechnical partial factors (EN 1997-1). Steel and the other materials (EN 1993 to EN 1999) and the concrete methods not yet covered still come from {0}.", activeCodeName()),
+	summary: localize('codePacks.planned.eurocodesSummary', "The Eurocodes EN 1990 to EN 1998 as one base pack, and each country's National Annex as a small pack that extends it: the annex sets only the Nationally Determined Parameters and inherits everything else. Covered now, in the built-in pack Eurocodes (eurocodes) with the recommended values: the loads and seismic actions (EN 1990 combinations, EN 1991-1-1, -1-3, -1-4, -1-7 Annex D, EN 1998-1), the concrete design (EN 1992-1-1: members, slabs, stairs, walls, punching, slenderness, cracks and deflection, anchorage and laps; EN 1998-1 Section 5: DCM and DCH capacity design) and the geotechnical design (EN 1997-1: footings by the design approach, piles with the correlation factors). Steel and the other materials (EN 1993 to EN 1999), deep beams and corbels still come from {0}.", activeCodeName()),
 	steps: [
 		localize('codePacks.planned.eurocodes0', "Covered: choose Eurocodes (recommended values) in Project Settings or the New Building wizard; enter agR as Z and vb,0 as V (Location: Custom) and the terrain category."),
 		localize('codePacks.planned.eurocodes1', "Install the Eurocodes base pack (EN 1990 basis, EN 1991 actions, EN 1992 concrete, EN 1993 steel, EN 1997 geotechnics, EN 1998 seismic)."),
@@ -140,10 +140,10 @@ registerPlannedFeature({
 registerPlannedFeature({
 	id: PLANNED_CODE_PACK_INDIA,
 	part: 'settings',
-	title: localize('codePacks.planned.india', "Code Pack: Indian Standards (IS)"),
-	summary: localize('codePacks.planned.indiaSummary', "A design-code pack for projects designed to the Indian Standards: concrete to IS 456, seismic loads to IS 1893, steel to IS 800, other loads to IS 875 and ductile detailing to IS 13920. Covered now: the loads (IS 875 Parts 1, 2, 3:2015 and 5, IS 1893 (Part 1):2016) in the built-in pack Indian Standards (IS) (is-codes); its material and member design still come from {0} until the IS 456, IS 800 and IS 13920 tables exist.", activeCodeName()),
+	title: localize('codePacks.planned.india', "Code Pack: Indian Standards steel and other materials (IS 800, IS 1905, IS 883)"),
+	summary: localize('codePacks.planned.indiaSummary', "The rest of the Indian Standards pack. Covered now, in the built-in pack Indian Standards (IS) (is-codes): the loads (IS 875 Parts 1, 2, 3:2015 and 5, IS 1893 (Part 1):2016), the concrete design (IS 456:2000 limit state design: flexure, shear, torsion, punching, columns, deflection, crack width, cover and durability, development lengths, slabs, walls, footings), the ductile detailing of IS 13920:2016 and the foundations (IS 6403 bearing capacity, IS 2911 piles). Steel (IS 800), masonry (IS 1905), timber (IS 883) and the concrete methods not yet covered still come from {0}.", activeCodeName()),
 	steps: [
-		localize('codePacks.planned.india0', "Covered: choose Indian Standards (IS) in Project Settings or the New Building wizard; it lists its cities (zone and basic wind speed), soil types I-III and terrain categories 1-4."),
+		localize('codePacks.planned.india0', "Covered: choose Indian Standards (IS) in Project Settings or the New Building wizard; it lists its cities (zone and basic wind speed), soil types I-III and terrain categories 1-4, and designs the concrete members by IS 456 and IS 13920 (exposure condition in Code values, concreteMethods.defaultExposure)."),
 		localize('codePacks.planned.india1', "Install the pack from the Packages page."),
 		localize('codePacks.planned.india2', "Choose it as the project's design code in Project Settings or in the New Building wizard."),
 		localize('codePacks.planned.india3', "Loads, combinations, member design and detailing read the pack instead of {0}.", activeCodeName()),
@@ -154,8 +154,8 @@ registerPlannedFeature({
 		{ label: localize('codePacks.planned.indiaImportance', "Importance factor"), example: localize('codePacks.planned.indiaImportanceExample', "by building use") },
 	],
 	outputs: [
-		localize('codePacks.planned.indiaOut1', "Coverage: dead, live, wind and seismic loads, combinations, concrete and steel members, ductile detailing"),
+		localize('codePacks.planned.indiaOut1', "Coverage still to come: steel members and connections (IS 800), masonry (IS 1905), timber (IS 883)"),
 		localize('codePacks.planned.indiaOut2', "The same reports and drawings as {0}, citing the IS clauses", activeCodeName()),
 	],
-	references: ['IS 456:2000 Plain and Reinforced Concrete', 'IS 1893 (Part 1):2016 Earthquake Resistant Design', 'IS 800:2007 General Construction in Steel', 'IS 875 (Parts 1–5) Design Loads', 'IS 13920:2016 Ductile Design and Detailing'],
+	references: ['IS 800:2007 General Construction in Steel', 'IS 1905:1987 Structural Use of Unreinforced Masonry', 'IS 883:2016 Design of Structural Timber'],
 });

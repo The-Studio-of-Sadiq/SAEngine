@@ -223,6 +223,68 @@
           "maximum": 1,
           "title": "Hookconfined",
           "type": "number"
+        },
+        "hookMethod": {
+          "default": "linear",
+          "description": "ldh: 'linear' (0.24 ψe fy db / (λ √f'c) × hookCover, hookConfined) or 'powerDiameter' (fy ψe ψr ψo ψc db^exponent / (coefficient λ √f'c), ``hook``).",
+          "enum": [
+            "linear",
+            "powerDiameter"
+          ],
+          "title": "Hookmethod",
+          "type": "string"
+        },
+        "hook": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/HookDevelopment"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The values of hookMethod 'powerDiameter'."
+        },
+        "headed": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/HeadedDevelopment"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "ldt of headed bars in tension (None: not covered)."
+        },
+        "psiG": {
+          "anyOf": [
+            {
+              "items": {
+                "maxItems": 2,
+                "minItems": 2,
+                "prefixItems": [
+                  {
+                    "exclusiveMinimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "exclusiveMinimum": 0,
+                    "type": "number"
+                  }
+                ],
+                "type": "array"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Grade factor ψg of ld: (fy up to [MPa], ψg) ascending; above the last: its ψg. None: no grade factor (1.0).",
+          "title": "Psig"
         }
       },
       "required": [
@@ -680,6 +742,116 @@
       "title": "FlangeTension",
       "type": "object"
     },
+    "HeadedDevelopment": {
+      "additionalProperties": false,
+      "description": "C2: ldt = fy ψe ψp ψo ψc db^exponent / (coefficient λ √f'c) >= max(minDb db, min), ψc\nas the hooks' (``hook``); ψp = ``psiP`` without the ties (1.0 with them).",
+      "properties": {
+        "coefficient": {
+          "exclusiveMinimum": 0,
+          "title": "Coefficient",
+          "type": "number"
+        },
+        "exponent": {
+          "exclusiveMinimum": 0,
+          "title": "Exponent",
+          "type": "number"
+        },
+        "minDb": {
+          "exclusiveMinimum": 0,
+          "title": "Mindb",
+          "type": "number"
+        },
+        "min": {
+          "exclusiveMinimum": 0,
+          "title": "Min",
+          "type": "number"
+        },
+        "psiP": {
+          "minimum": 1,
+          "title": "Psip",
+          "type": "number"
+        },
+        "psiO": {
+          "minimum": 1,
+          "title": "Psio",
+          "type": "number"
+        }
+      },
+      "required": [
+        "coefficient",
+        "exponent",
+        "minDb",
+        "min",
+        "psiP",
+        "psiO"
+      ],
+      "title": "HeadedDevelopment",
+      "type": "object"
+    },
+    "HookDevelopment": {
+      "additionalProperties": false,
+      "description": "C2: ldh = fy ψe ψr ψo ψc db^exponent / (coefficient λ √f'c) >= max(minDb db, min):\nψr = ``psiR`` without the confining ties (1.0 with them), ψo = ``psiO`` without the side\ncover inside the core (1.0 with it), ψc = f'c / psiCDivisor + psiCBase below psiCFcMax,\nelse 1.0.",
+      "properties": {
+        "coefficient": {
+          "exclusiveMinimum": 0,
+          "title": "Coefficient",
+          "type": "number"
+        },
+        "exponent": {
+          "exclusiveMinimum": 0,
+          "title": "Exponent",
+          "type": "number"
+        },
+        "minDb": {
+          "exclusiveMinimum": 0,
+          "title": "Mindb",
+          "type": "number"
+        },
+        "min": {
+          "exclusiveMinimum": 0,
+          "title": "Min",
+          "type": "number"
+        },
+        "psiR": {
+          "minimum": 1,
+          "title": "Psir",
+          "type": "number"
+        },
+        "psiO": {
+          "minimum": 1,
+          "title": "Psio",
+          "type": "number"
+        },
+        "psiCFcMax": {
+          "exclusiveMinimum": 0,
+          "title": "Psicfcmax",
+          "type": "number"
+        },
+        "psiCDivisor": {
+          "exclusiveMinimum": 0,
+          "title": "Psicdivisor",
+          "type": "number"
+        },
+        "psiCBase": {
+          "exclusiveMinimum": 0,
+          "title": "Psicbase",
+          "type": "number"
+        }
+      },
+      "required": [
+        "coefficient",
+        "exponent",
+        "minDb",
+        "min",
+        "psiR",
+        "psiO",
+        "psiCFcMax",
+        "psiCDivisor",
+        "psiCBase"
+      ],
+      "title": "HookDevelopment",
+      "type": "object"
+    },
     "Joints": {
       "additionalProperties": false,
       "description": "Plain numbers of special moment frame beam-column joints.",
@@ -1111,6 +1283,39 @@
           "exclusiveMinimum": 0,
           "title": "Pierhoopextension",
           "type": "number"
+        },
+        "driftFactor": {
+          "default": 1.0,
+          "description": "Displacement-based boundary elements: c >= lw / (600 · this · max(δu/hw, driftMin)).",
+          "minimum": 1,
+          "title": "Driftfactor",
+          "type": "number"
+        },
+        "curtainAspect": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Two curtains also where hw/lw is at least this (None: by the shear only).",
+          "title": "Curtainaspect"
+        },
+        "shearAmplification": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/WallShearAmplification"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Design shear Ve = Ωv ωv Vu of special walls (None: Vu of the analysis)."
         }
       },
       "required": [
@@ -1218,6 +1423,86 @@
         "deltaExempt"
       ],
       "title": "TendonSpacing",
+      "type": "object"
+    },
+    "WallShearAmplification": {
+      "additionalProperties": false,
+      "description": "C2: the design shear of special walls, Ve = Ωv ωv Vu <= cap Vu. Ωv = ``omega`` where\nhw/lw exceeds ``aspect`` (else 1.0); ωv = a + ns/b (``dynamicLow``) up to\n``dynamicStoreys`` storeys, a + ns/b (``dynamicHigh``) at most ``dynamicMax`` above, 1.0\nwhere hw/lw is below ``dynamicAspect``.",
+      "properties": {
+        "aspect": {
+          "exclusiveMinimum": 0,
+          "title": "Aspect",
+          "type": "number"
+        },
+        "omega": {
+          "minimum": 1,
+          "title": "Omega",
+          "type": "number"
+        },
+        "dynamicAspect": {
+          "exclusiveMinimum": 0,
+          "title": "Dynamicaspect",
+          "type": "number"
+        },
+        "dynamicLow": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Dynamiclow",
+          "type": "array"
+        },
+        "dynamicHigh": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Dynamichigh",
+          "type": "array"
+        },
+        "dynamicStoreys": {
+          "minimum": 1,
+          "title": "Dynamicstoreys",
+          "type": "integer"
+        },
+        "dynamicMax": {
+          "minimum": 1,
+          "title": "Dynamicmax",
+          "type": "number"
+        },
+        "cap": {
+          "minimum": 1,
+          "title": "Cap",
+          "type": "number"
+        }
+      },
+      "required": [
+        "aspect",
+        "omega",
+        "dynamicAspect",
+        "dynamicLow",
+        "dynamicHigh",
+        "dynamicStoreys",
+        "dynamicMax",
+        "cap"
+      ],
+      "title": "WallShearAmplification",
       "type": "object"
     }
   },

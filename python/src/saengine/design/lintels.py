@@ -252,14 +252,18 @@ def cracked_inertia(area: float, b: float, d: float, n: float) -> float:
 
 
 def effective_inertia(ma: float, b: float, h: float, area: float, d: float, fc: float, es: float):
-    """(Ie, Ig, Mcr) by Eq. 6.6.1-6.6.3 (λ = 1)."""
+    """(Ie, Ig, Mcr) by Eq. 6.6.1-6.6.3 (λ = 1); Ie by the pack's method
+    (:func:`saengine.design.deflection.effective_inertia`)."""
+    from saengine.design.deflection import effective_inertia as inertia_of
+    from saengine.design.deflection import inertia_method
+
     ig = b * h**3 / 12
     mcr = 0.62 * math.sqrt(fc) * ig / (h / 2)
-    if ma <= mcr:
+    how = inertia_method()
+    if ma <= (2.0 / 3.0 * mcr if how == "bischoff" else mcr):
         return ig, ig, mcr
     icr = cracked_inertia(area, b, d, es / concrete_modulus(fc)[0])
-    r = (mcr / ma) ** 3
-    return min(ig, r * ig + (1 - r) * icr), ig, mcr
+    return inertia_of(ma, mcr, ig, icr, how), ig, mcr
 
 
 @dataclass

@@ -84,13 +84,17 @@ def clause(group: str, key: str) -> str:
     if not found:
         return code_name()
     pack = code_context.current()
-    owner = pack.clause_code(TABLE, group) if pack.has(TABLE) else None
+    owner = pack.clause_code(TABLE, group, key) if pack.has(TABLE) else None
     return f"{owner or code_name()} {found}"
 
 
 def short_clause(group: str, key: str) -> str:
-    """The code's short name and the clause of ``key`` in ``group`` ("<short> <clause>")."""
-    return f"{short_name() or code_name()} {text(group, key)}".strip()
+    """The code's short name and the clause of ``key`` in ``group`` ("<short> <clause>"); C2:
+    the table's ``shortNames`` of the key or group where it gives one."""
+    table = _table()
+    names = getattr(table, "shortNames", None) or {}
+    own = names.get(f"{group}.{key}") or names.get(group)
+    return f"{own or short_name() or code_name()} {text(group, key)}".strip()
 
 
 class Clauses(Mapping[str, str]):

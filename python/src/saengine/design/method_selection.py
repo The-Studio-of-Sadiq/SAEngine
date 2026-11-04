@@ -29,6 +29,17 @@ area               ids                                    module
 ``piles``          ``correlationFactors``                 limit_state_geotechnics (ξ of piles)
 =================  =====================================  ==========================================
 
+A group holds one method, chosen by its id (:func:`saengine.codes.method_tables.chosen` is the
+same test for a module that reads its own group). The IS 456 type methods of track C8 are
+further ids of the same groups: ``shear`` ``tabulatedStress``, ``torsion`` ``equivalentShear``,
+``punching`` ``rootStress``, ``deflection`` ``spanDepthModification``, ``cracking``
+``strainSpacing``, ``cover`` ``exposureCondition``, ``anchorage`` ``bondStressTable``,
+``seismic`` ``ductileDetailing`` (modules ``tabulated_shear``, ``span_depth_factors``,
+``ductile_detailing`` ...), with their own groups ``memberLimits``, ``columns``
+(additional moments), ``twoWaySlabs``, ``flatSlabs``, ``walls``, ``footings``. Each hook runs
+the method of the id in force; the partial-factor strip, section and sizing functions
+(``ultimate`` ``partialFactors``) serve both families, the tabulated methods' own rules first.
+
 The member kinds follow from these: slabs, stairs and walls take ``ultimate``, ``shear``,
 ``memberSteel`` and (walls) ``seismic``; beam-column joints and the capacity-design shear take
 ``seismic``; Design Reinforcement sizes with ``ultimate``, ``shear`` and ``memberSteel``.
@@ -102,6 +113,29 @@ def geotechnical(area: str) -> str | None:
 def uses(area: str, method: str) -> bool:
     """True when the pack in force picks ``method`` for concrete ``area``."""
     return concrete(area) == method
+
+
+#: The ids of the partial-factor methods whose rows :mod:`saengine.design.limit_state_rows`
+#: and :mod:`saengine.design.capacity_design` build (the Eurocodes pack's); another pack's
+#: methods of the same area (IS 456's tabulated ones, ``tabulated_shear`` ...) are other ids.
+LIMIT_STATE_IDS = {
+    "torsion": "thinWalledVariableStrut",
+    "deflection": "spanDepthK",
+    "cracking": "directWidth",
+    "serviceStress": "stressLimits",
+    "slenderness": "nominalCurvature",
+    "punching": "controlPerimeter",
+    "memberSteel": "memberSteel",
+    "seismic": "curvatureDuctility",
+    "anchorage": "bondStress",
+    "shear": "variableStrut",
+}
+
+
+def limit_state_areas() -> dict[str, str | None]:
+    """Per area of :data:`LIMIT_STATE_IDS`, its id where the pack in force picks that method
+    (None: another method, or the default)."""
+    return {a: (m if uses(a, m) else None) for a, m in LIMIT_STATE_IDS.items()}
 
 
 def summary() -> dict[str, str | None]:

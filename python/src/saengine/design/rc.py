@@ -649,8 +649,10 @@ def shear(
     A pack whose ``concreteMethods.shear`` chooses the variable strut inclination method
     designs by it instead (:func:`saengine.design.strut_shear.beam_shear`).
     """
-    from saengine.design import strut_shear
+    from saengine.design import strut_shear, tabulated_shear
 
+    if tabulated_shear.rules() is not None:  # C8: the tabulated design shear strength
+        return tabulated_shear.beam_shear(section, stirrup_dia, legs, spacing)
     if strut_shear.rules() is not None and _partial_factors():
         return strut_shear.beam_shear(section, stirrup_dia, legs, spacing)
     if not isinstance(section.profile, RectangleProfile):

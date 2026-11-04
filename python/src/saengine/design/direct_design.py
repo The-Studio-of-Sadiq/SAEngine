@@ -149,6 +149,21 @@ def span_shares(frame: SlabFrame, k: int, rules: Any) -> tuple[float, float, flo
     table = rules.endSpan
     exterior = 0 if start_exterior else len(frame.supports) - 1
     condition = end_condition(frame, exterior)
+    from saengine.design import panel_coefficients
+
+    support = frame.supports[exterior]
+    if (
+        panel_coefficients.flat_rules() is not None
+        and condition in ("noBeams", "noBeamsEdgeBeam")
+        and support.column_k > 0
+    ):
+        # Alpha 9 C8: the end span shares by αc = ΣKc / Ks of the exterior columns (IS 456
+        # 31.4.3.3), Ks = 4 Ecs (l2 h³ / 12) / l1.
+        ks = 4 * frame.ecs * frame.l2 * frame.h**3 / 12 / frame.spans[k]
+        alpha_c = support.column_k / ks if ks > 0 else 0.0
+        inner, pos, ext = panel_coefficients.end_span_shares(alpha_c)
+        what = f"end span (αc = {alpha_c:.2f})"
+        return (ext, pos, inner, what) if start_exterior else (inner, pos, ext, what)
     i = list(table.conditions).index(condition)
     ext, pos, inner = (
         float(table.exteriorNegative[i]),

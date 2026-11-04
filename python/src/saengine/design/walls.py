@@ -755,8 +755,77 @@ def boundary_length(c: float, lw: float) -> float:
 
 def displacement_trigger(lw: float, drift: float) -> float:
     """The neutral-axis depth at and above which boundary elements are required (Eq. 6.8.10):
-    lw / (600 max(δu/hw, 0.007))."""
-    return lw / (600 * max(drift, special_limit("driftMin")))
+    lw / (600 max(δu/hw, 0.007)); C2: lw / (600 · driftFactor · max(δu/hw, driftMin)) for a
+    pack with a drift factor (ACI 318-19 Eq 18.10.6.2: 1.5, δu/hw at least 0.005)."""
+    factor = special_limit("driftFactor")
+    if factor == 1.0:
+        return lw / (600 * max(drift, special_limit("driftMin")))
+    return lw / (600 * factor * max(drift, special_limit("driftMin")))
+
+
+def _drift_times() -> str:
+    """The drift factor and a space before δu/hw in the row name (C2: e.g. 1.5); nothing in a
+    pack without one."""
+    factor = special_limit("driftFactor")
+    return f"{factor:g} " if factor != 1.0 else ""
+
+
+def trigger_text() -> str:
+    """The displacement trigger as the notes print it: "600 max(δu/hw, 0.007)" in the default
+    pack; with the pack's drift factor "600 × 1.5 max(δu/hw, 0.005)" (C2)."""
+    factor, least = special_limit("driftFactor"), special_limit("driftMin")
+    times = f" × {factor:g}" if factor != 1.0 else ""
+    return f"600{times} max(δu/hw, {least:g})"
+
+
+def two_curtains_by_aspect(geometry: WallGeometry) -> bool:
+    """C2: two curtains also because hw/lw reaches the pack's ``curtainAspect`` (ACI 318-19
+    18.10.2.2: 2.0); False without the value."""
+    aspect = getattr(code_context.table("detailing").walls, "curtainAspect", None)
+    return bool(aspect) and geometry.length > 0 and geometry.height / geometry.length >= aspect
+
+
+def shear_amplification(geometry: WallGeometry) -> tuple[float, str]:
+    """C2: (Ωv ωv, how) of a special wall's design shear Ve = Ωv ωv Vu <= cap Vu by the pack's
+    ``detailing.walls.shearAmplification`` (ACI 318-19 18.10.3.3); (1.0, "") without it.
+
+    Ωv = ``omega`` where hw/lw exceeds ``aspect`` (the pack's lower bound; the overstrength
+    Mpr/Mu, which may be larger, is not computed: SAEngine practice), else 1.0. ωv = 1.0 where
+    hw/lw is below ``dynamicAspect``; else a + ns/b with ns the storeys of the wall, taken as
+    hw over the storey's clear height rounded (SAEngine practice), (a, b) ``dynamicLow`` up to
+    ``dynamicStoreys`` storeys, ``dynamicHigh`` at most ``dynamicMax`` above."""
+    rule = getattr(code_context.table("detailing").walls, "shearAmplification", None)
+    if rule is None or geometry.length <= 0:
+        return 1.0, ""
+    aspect = geometry.height / geometry.length
+    omega = rule.omega if aspect > rule.aspect else 1.0
+    if aspect < rule.dynamicAspect:
+        omega_v, storeys = 1.0, ""
+    else:
+        ns = (
+            max(1, round(geometry.height / geometry.clear_height))
+            if geometry.clear_height > 0
+            else 1
+        )
+        a, b = rule.dynamicLow if ns <= rule.dynamicStoreys else rule.dynamicHigh
+        omega_v = a + ns / b
+        if ns > rule.dynamicStoreys:
+            omega_v = min(omega_v, rule.dynamicMax)
+        storeys = f", ns = {ns} (hw / storey height)"
+    factor = min(omega * omega_v, rule.cap)
+    how = _paren(
+        f"Ve = Ωv ωv Vu = {omega:g} × {omega_v:.2f} Vu (hw/lw = {aspect:.2f}{storeys}), at most "
+        f"{rule.cap:g} Vu",
+        ref("shearAmplification"),
+    )
+    return factor, how
+
+
+def amplified(forces: list[PierForces], factor: float) -> list[PierForces]:
+    """C2: the earthquake combinations' in-plane shear × ``factor`` (the others unchanged)."""
+    if factor == 1.0:
+        return forces
+    return [replace(f, V2=f.V2 * factor) if f.earthquake else f for f in forces]
 
 
 def extreme_stress(geometry: WallGeometry, pu: float, mu: float) -> float:
@@ -866,7 +935,20 @@ def wall_checks(
     per type and length. ``fyt``: the hoops' yield strength (default ``fy``)."""
     if es is None:
         es = rc_value("STEEL_E")
+    # Alpha 9 C8: a pack with its own ductile detailing (IS 13920) checks a special wall as an
+    # ordinary one here and adds its own special wall rows at the end.
+    from saengine.design import ductile_detailing
+
+    ductile_wall = special and ductile_detailing.rules() is not None
+    if ductile_wall:
+        special = False
     out = WallDesign()
+    if special:
+        # C2: the pack's design shear of special walls (none in the default pack).
+        factor, how = shear_amplification(geometry)
+        if factor != 1.0:
+            forces = amplified(forces, factor)
+            out.notes.append(f"In-plane shear of the earthquake combinations: {how}")
     t, lw = geometry.thickness, geometry.length
     acv = geometry.gross_area
     fyt = fy if fyt is None else fyt
@@ -962,15 +1044,21 @@ def wall_checks(
         )
     if special:
         curtains = special_limit("twoCurtainShare") * acv * lam * root
-        need2 = vu > curtains
+        tall = two_curtains_by_aspect(geometry)
+        need2 = vu > curtains or tall
         out.checks.append(
             _row(
-                named("Two curtains where Vu > 0.17 Acv λ √f'c", "curtains"),
+                named(
+                    "Two curtains where Vu > 0.17 Acv λ √f'c"
+                    + (" or hw/lw is large" if tall else ""),
+                    "curtains",
+                ),
                 2 if need2 else 1,
                 bars.layers,
                 "curtains",
                 vu_name,
-                f"Vu = {_kn(vu):.1f} kN, 0.17 Acv λ √f'c = {_kn(curtains):.1f} kN",
+                f"Vu = {_kn(vu):.1f} kN, 0.17 Acv λ √f'c = {_kn(curtains):.1f} kN"
+                + (f"; hw/lw = {geometry.height / lw:.2f}" if tall else ""),
             )
         )
 
@@ -1007,7 +1095,17 @@ def wall_checks(
 
     # In-plane shear.
     phi_v = rc_value("PHI_SHEAR")
-    if vu_case is not None:
+    from saengine.design import tabulated_shear
+
+    if vu_case is not None and tabulated_shear.wall_rules() is not None:
+        # Alpha 9 C8: in-plane shear by the aspect ratio (IS 456 32.4, IS 13920 for special
+        # walls with the same τc), the horizontal bars Ah/Sv = ρt t.
+        out.checks.append(
+            tabulated_shear.wall_shear_row(
+                vu, t, lw, geometry.aspect * lw, fc, fy, rho_t * t, vu_name
+            )
+        )
+    elif vu_case is not None:
         if special:
             sv = special_vn(geometry, rho_t, fc, fy, lam)
             vn = sv["vn"]
@@ -1171,6 +1269,11 @@ def wall_checks(
         out.checks = limit_state_rows.wall_rows(
             out.checks, geometry, bars, forces, fc, fy, ductility
         )
+    if ductile_wall:
+        # Alpha 9 C8: the pack's special shear wall rows (IS 13920) in place of Sec 8.3.6's.
+        from saengine.design import ductile_detailing
+
+        out.checks += ductile_detailing.wall_rows(geometry, bars, forces, fc)
     settle_informative(out.checks)
     strength = [c for c in out.checks if not c["flag"]]
     out.utilisation = max((c["utilisation"] for c in strength), default=0.0)
@@ -1452,11 +1555,14 @@ def _boundary_rows(
     if need.method == "displacement":
         rows.append(
             _row(
-                named("Boundary elements: c >= lw / 600(δu/hw)", "boundaryDisplacement"),
+                named(
+                    f"Boundary elements: c >= lw / 600({_drift_times()}δu/hw)",
+                    "boundaryDisplacement",
+                ),
                 need.c,
                 need.trigger if need.trigger is not None else need.c,
                 "mm",
-                note=f"largest c = {need.c:.0f} mm against lw / (600 max(δu/hw, 0.007)) = "
+                note=f"largest c = {need.c:.0f} mm against lw / ({trigger_text()}) = "
                 + (f"{need.trigger:.0f} mm" if need.trigger is not None else "?")
                 + f": {state}",
                 utilisation=0.0,
@@ -1601,6 +1707,9 @@ def wall_need(
     the boundary elements. ``search``: also look for the end bars the P-M checks need."""
     if es is None:
         es = rc_value("STEEL_E")
+    if special:
+        # C2: the pack's design shear of special walls (none in the default pack).
+        forces = amplified(forces, shear_amplification(geometry)[0])
     t, lw = geometry.thickness, geometry.length
     acv = geometry.gross_area
     root = math.sqrt(fc)
@@ -1609,7 +1718,9 @@ def wall_need(
     notes: list[str] = []
     cover = bars.cover if bars else cover
     layers = 2 if (t > steel_limit("twoLayerThickness") and not geometry.basement) else 1
-    if special and vu > special_limit("twoCurtainShare") * acv * lam * root:
+    if special and (
+        vu > special_limit("twoCurtainShare") * acv * lam * root or two_curtains_by_aspect(geometry)
+    ):
         layers = 2
     if bars is not None:
         layers = max(layers, bars.layers)
@@ -2645,6 +2756,31 @@ def coupling_beam_checks(
     when not given). ``piers``: the lengths of the piers beside it (the diagonal bars'
     embedment, (d)(ii)); ``web``: the wall's web bars (its longitudinal and perimeter bars
     unless the type gives the beam's own)."""
+    from saengine.design import ductile_detailing
+
+    if ductile_detailing.rules() is not None:
+        # Alpha 9 C8: the pack's coupling beam rule (IS 13920): diagonal bars by τv and ls/D,
+        # their strength 2 Asd fyd sin α; the beam rules otherwise (the frame beams' rows).
+        from saengine.design import design_strength
+
+        row = ductile_detailing.coupling_row(ln, h, bw, vu, fc, diagonal is not None)
+        out = CouplingBeam("diagonal" if row is not None and not row["flag"] else "either")
+        if row is not None:
+            out.checks.append(row)
+        edge = diagonal.edge if diagonal and diagonal.edge else cover + 10.0 + 2 * 20.0
+        alpha = diagonal.angle if diagonal and diagonal.angle else math.atan((h - 2 * edge) / ln)
+        fyd = design_strength.fyd(fy)
+        sin = math.sin(alpha)
+        out.avd_required = vu / (2 * fyd * sin) if sin > 0 else math.inf
+        if diagonal is not None:
+            out.checks.append(
+                _row(
+                    named("Coupling beam diagonal bars Vu <= 2 Asd fyd sin α", "couplingShear"),
+                    _kn(vu), _kn(2 * diagonal.area() * fyd * sin), "kN", combination,
+                    f"α = {math.degrees(alpha):.1f}°, fyd = {fyd:.0f} MPa",
+                )
+            )  # fmt: skip
+        return out
     acw = bw * h
     root = math.sqrt(fc)
     ratio = ln / h

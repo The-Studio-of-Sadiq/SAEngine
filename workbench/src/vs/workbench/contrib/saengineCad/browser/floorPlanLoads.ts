@@ -1014,6 +1014,8 @@ export class FloorPlanLoadsPanel extends Disposable {
 	private form: Form | undefined;
 	/** Set when a form opens, so its first render brings it into view and focuses it. */
 	private opened = false;
+	/** The form the last render showed and its first input box (set while it renders). */
+	private shownForm: { readonly element: HTMLElement; first?: InputBox } | undefined;
 	private showAll = false;
 
 	constructor(
@@ -1058,6 +1060,7 @@ export class FloorPlanLoadsPanel extends Disposable {
 				this.form = undefined;
 			}
 		}
+		this.forgetShownForm();
 		if (this.form && context.editable) {
 			if (this.form.kind === 'line') {
 				this.renderLineForm(section, store, context, loads, this.form.beams);
@@ -1067,10 +1070,10 @@ export class FloorPlanLoadsPanel extends Disposable {
 			if (this.opened) {
 				// Below the fold on a laptop otherwise: bring the form up and put the cursor in it.
 				this.opened = false;
-				const form = section.querySelector<HTMLElement>('.floor-plan-loads-form');
+				const shown = this.shownForm;
 				const handle = getWindow(section).requestAnimationFrame(() => {
-					form?.scrollIntoView({ block: 'nearest' });
-					form?.querySelector<HTMLInputElement>('input')?.focus();
+					shown?.element.scrollIntoView({ block: 'nearest' });
+					shown?.first?.focus();
 				});
 				store.add(toDisposable(() => getWindow(section).cancelAnimationFrame(handle)));
 			}
@@ -1173,9 +1176,17 @@ export class FloorPlanLoadsPanel extends Disposable {
 		context.rerender();
 	}
 
+	/** Forgets the form of the last render (a method, so the renderers' assignments are not narrowed away). */
+	private forgetShownForm(): void {
+		this.shownForm = undefined;
+	}
+
 	private input(container: HTMLElement, store: DisposableStore, label: string, value: string, placeholder: string, onChange?: (text: string) => void, onEnter?: () => void): InputBox {
 		const cell = $('.floor-plan-prop-control');
 		const box = store.add(new InputBox(cell, this.contextViewService, { inputBoxStyles: defaultInputBoxStyles, placeholder, ariaLabel: label }));
+		if (this.shownForm && !this.shownForm.first) {
+			this.shownForm.first = box;
+		}
 		box.value = value;
 		if (onChange) {
 			store.add(box.onDidChange(onChange));
@@ -1243,6 +1254,7 @@ export class FloorPlanLoadsPanel extends Disposable {
 		const names = new Map(stories.map(s => [s.id, s.name]));
 		const top = stories[stories.length - 1]?.id;
 		const form = append(section, $('.floor-plan-loads-form'));
+		this.shownForm = { element: form };
 		const wallRows: HTMLElement[] = [];
 		/** The form's controls, set as they are made (the callbacks run after that). */
 		const c: {
@@ -1383,6 +1395,7 @@ export class FloorPlanLoadsPanel extends Disposable {
 		const onBeam = member.group === 'beams';
 		appendPropertyHeading(section, onBeam ? localize('loads.pointLoadOnBeam', "Point Load on {0}", member.id) : localize('loads.pointLoadAtJoint', "Point Load at {0}'s Joint", member.id));
 		const form = append(section, $('.floor-plan-loads-form'));
+		this.shownForm = { element: form };
 		const ends = onBeam ? beamEnds(context.layout, member.id) : undefined;
 		const length = ends ? Math.round(Math.hypot(ends[1][0] - ends[0][0], ends[1][1] - ends[0][1])) : 0;
 		let caseIndex = 0;

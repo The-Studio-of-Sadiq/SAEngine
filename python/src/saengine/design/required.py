@@ -523,8 +523,8 @@ def torsion_rows(member: dict[str, Any], assumed: bool) -> list[dict[str, Any]]:
     Sec 6.4.4), from the torsion design of its checks (``member["torsion"]``, saengine.design.
     torsion; none below the threshold)."""
     design = member.get("torsion")
-    if design is None:
-        return []
+    if design is None or getattr(design, "tabulated", False):
+        return []  # C8: the equivalent shear method's links are in the design checks' rows
     obj = member["object"]
     transverse = obj.reinforcement.transverse
     element, type_id = member["id"], member["type"]
@@ -1475,15 +1475,16 @@ def design_required(
     options: dict[str, Any] | None = None,
     gathered: Gathered | None = None,
 ) -> dict[str, Any]:
-    """:func:`_design_required` under the project's code pack (alpha 9 C5b: the required steel
-    takes the pack's methods, as the checks; it ran under the default pack before)."""
+    """:func:`_design_required` under the project's code pack, as Design Reinforcement
+    (alpha 9 C5b, the rule of C8's ``proposal._in_project_pack``: another pack than the default
+    one; a pack in force is kept; the default pack's projects as before)."""
     from saengine.codes import context as code_context
 
     gathered = gathered or gather(out_dir, project_path)
-    pack = code_context.in_force()
-    if pack is None:
-        pack = code_context.pack_for(gathered.settings, gathered.root)
-    with code_context.using(pack):
+    pack_id = getattr(gathered.settings, "codePack", None)
+    if code_context.in_force() is not None or not pack_id or pack_id == code_context.DEFAULT_PACK:
+        return _design_required(out_dir, project_path, options, gathered)
+    with code_context.using(code_context.pack_for(gathered.settings, gathered.root)):
         return _design_required(out_dir, project_path, options, gathered)
 
 

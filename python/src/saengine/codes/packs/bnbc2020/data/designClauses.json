@@ -208,6 +208,10 @@
       "deltaS": "6.3.10.7.3",
       "momentRatio": "6.3.10.2.1"
     },
+    "deflectionRows": {
+      "effectiveInertia": "Eq. 6.6.1",
+      "limits": "Table 6.6.2"
+    },
     "stairs": {
       "liveTable": "Table 6.2.3",
       "twoRiserTread": "Part 3 Sec 1.14.5.2, p. 69",

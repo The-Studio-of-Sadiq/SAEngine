@@ -1,5 +1,125 @@
 {
   "$defs": {
+    "BearingFactorRules": {
+      "additionalProperties": false,
+      "description": "Alpha 9 C8: the factors of qnu = c Nc sc dc ic + q (Nq - 1) sq dq iq + ½ γ B Nγ sγ dγ iγ\nby the flow value Nφ = tan²(45° + φ/2) (method ``flowValue``, IS 6403): Nc, Nq of\nPrandtl-Reissner, Nγ = gammaFactor (Nq + 1) tan φ; shape 1 + a B/L (c, q), 1 - b B/L (γ),\nsquare and circle rows; depth dc = 1 + c Df/B √Nφ, dq = dγ = 1 + d Df/B √Nφ from φ at\nleast depthPhiMin (else 1); inclination (1 - α/90)² (c, q), (1 - α/φ)² (γ).",
+      "properties": {
+        "method": {
+          "const": "flowValue",
+          "default": "flowValue",
+          "title": "Method",
+          "type": "string"
+        },
+        "gammaFactor": {
+          "exclusiveMinimum": 0,
+          "title": "Gammafactor",
+          "type": "number"
+        },
+        "shape": {
+          "description": "(sc, sq slope, sγ slope).",
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Shape",
+          "type": "array"
+        },
+        "square": {
+          "description": "(sc, sq, sγ) of squares.",
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Square",
+          "type": "array"
+        },
+        "circle": {
+          "description": "(sc, sq, sγ) of circles.",
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Circle",
+          "type": "array"
+        },
+        "depth": {
+          "description": "(dc coefficient, dq = dγ coefficient).",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Depth",
+          "type": "array"
+        },
+        "depthPhiMin": {
+          "description": "dq = dγ = 1 below this φ [°].",
+          "minimum": 0,
+          "title": "Depthphimin",
+          "type": "number"
+        },
+        "undrainedNc": {
+          "description": "Nc at φ = 0.",
+          "exclusiveMinimum": 0,
+          "title": "Undrainednc",
+          "type": "number"
+        }
+      },
+      "required": [
+        "gammaFactor",
+        "shape",
+        "square",
+        "circle",
+        "depth",
+        "depthPhiMin",
+        "undrainedNc"
+      ],
+      "title": "BearingFactorRules",
+      "type": "object"
+    },
     "BoredDetailing": {
       "additionalProperties": false,
       "description": "Structural detailing of bored cast-in-situ piles and drilled shafts.",
@@ -1602,6 +1722,56 @@
       "title": "PileDowndrag",
       "type": "object"
     },
+    "PileEarthPressure": {
+      "additionalProperties": false,
+      "description": "Alpha 9 C8 (method ``earthPressure``): cohesive base Nc cu (constant), skin α cu (α of\n``static``); cohesionless skin K σ'v tan δ, δ = deltaShare φ, K by pile kind; base\n½ D γ' Nγ + σ'v Nq (Nq of ``static.nq``, Nγ = gammaFactor (Nq + 1) tan φ), σ'v constant\nbelow criticalDepth × D.",
+      "properties": {
+        "nc": {
+          "exclusiveMinimum": 0,
+          "title": "Nc",
+          "type": "number"
+        },
+        "k": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "propertyNames": {
+            "enum": [
+              "bored",
+              "driven"
+            ]
+          },
+          "title": "K",
+          "type": "object"
+        },
+        "deltaShare": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Deltashare",
+          "type": "number"
+        },
+        "gammaFactor": {
+          "exclusiveMinimum": 0,
+          "title": "Gammafactor",
+          "type": "number"
+        },
+        "criticalDepth": {
+          "exclusiveMinimum": 0,
+          "title": "Criticaldepth",
+          "type": "number"
+        }
+      },
+      "required": [
+        "nc",
+        "k",
+        "deltaShare",
+        "gammaFactor",
+        "criticalDepth"
+      ],
+      "title": "PileEarthPressure",
+      "type": "object"
+    },
     "PileLateral": {
       "additionalProperties": false,
       "description": "Lateral load on piles: the head deflection, the group ratios, unbraced piles.",
@@ -1685,10 +1855,25 @@
       "description": "Deep foundation rules: the static method by id, its values, drilled shafts, the SPT\nrelations and the settlement of piles.",
       "properties": {
         "staticMethod": {
-          "const": "alphaBeta",
-          "description": "Engine method of the static pile capacity (``alphaBeta``: α in clay, β and Nq in sand, with the critical depth).",
+          "description": "Engine method of the static pile capacity (``alphaBeta``: α in clay, β and Nq in sand, with the critical depth; alpha 9 C8 ``earthPressure``: α in clay with a constant Nc, K σ'v tan δ and ½ D γ Nγ + σ'v Nq in sand, IS 2911-1-2 Annex B).",
+          "enum": [
+            "alphaBeta",
+            "earthPressure"
+          ],
           "title": "Staticmethod",
           "type": "string"
+        },
+        "earthPressure": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PileEarthPressure"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The values of ``earthPressure`` (C8)."
         },
         "soilClasses": {
           "$ref": "#/$defs/PileSoilClasses"
@@ -2657,6 +2842,18 @@
           ],
           "default": null,
           "description": "Tie beams between foundations; empty: not covered."
+        },
+        "bearingFactors": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BearingFactorRules"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The shape, depth and inclination factors of the bearing capacity equation by method (``flowValue``); empty: SAEngine's Vesic / De Beer / Hansen set."
         }
       },
       "required": [

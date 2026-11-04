@@ -1,0 +1,308 @@
+{
+  "$schema": "../../../schemas/designClauses.schema.json",
+  "$sources": [
+    "ACI 318-19 (concrete members, walls, slabs, foundations, seismic detailing) and ASCE 7-22 (the load and seismic system clauses the design notes cite): the clause references of the member design checks"
+  ],
+  "source": "ACI 318-19 and ASCE 7-22: the clause of each check of the concrete member design (saengine.design), grouped by module, without the code's name. Groups and keys not given here (steel members) are the pack this one extends. The two-way slab coefficient method, the stair spans and the masonry lintel rules are kept from the extended pack and cited as its own (pack.json tableCodes, shortNames).",
+  "shortName": "ACI 318",
+  "shortNames": {
+    "slab.twoWay": "BNBC",
+    "slab.rectangular": "BNBC",
+    "slab.supports": "BNBC",
+    "slab.scope": "BNBC",
+    "slab.aspect": "BNBC",
+    "slab.stiffness": "BNBC",
+    "stairs.twoRiserTread": "BNBC",
+    "stairs.spans": "BNBC",
+    "stairs.liveTable": "ASCE 7",
+    "overstrength": "ASCE 7",
+    "takedown": "ASCE 7",
+    "wallForces": "ASCE 7",
+    "lintelsText": "TMS 402",
+    "steelMembers": "AISC 360"
+  },
+  "clauses": {
+    "check": {
+      "torsion": "22.7",
+      "deflection": "24.2",
+      "columnShear": "22.5.6.1, Table 22.5.5.1",
+      "windCases": "Figure 27.3-8 (Sec 27.3.5)",
+      "patternLive": "6.4",
+      "accidentalTorsion": "Sec 12.8.4.2",
+      "omega": "Sec 12.4.3",
+      "fireRatings": "Part 4"
+    },
+    "seismicRules": {
+      "scope": "18.1, 18.2.1",
+      "provisions": "18.2.1.3-18.2.1.6, Table R18.2",
+      "sdc": "Sec 11.6, Tables 11.6-1 and 11.6-2",
+      "systems": "Sec 12.2.1, Table 12.2-1",
+      "analysis": "18.2.2",
+      "phi": "18.2.4, 21.2.4",
+      "concrete": "18.2.5, Table 19.2.1.1",
+      "reinforcement": "18.2.6, 20.2.2.4, 20.2.2.5",
+      "welding": "18.2.7, 18.2.8",
+      "splices": "18.6.3.3, 18.7.4.3",
+      "lightweight": "19.2.4, Table 19.2.1.1",
+      "shearFy": "Table 20.2.2.4(a)",
+      "discontinuous": "Sec 12.3.3.3",
+      "irregularForces": "Sec 12.3.3.4",
+      "collectors": "Sec 12.10.2.1",
+      "omega": "Sec 12.4.3",
+      "vertical": "Sec 12.4.2.2, Eq 12.4-4a"
+    },
+    "seismicRulesNotes": {
+      "reinforcementD": "20.2.2.5",
+      "chapter": "Chapter 18",
+      "confinement": "Table 20.2.2.4(a)"
+    },
+    "faceForces": {
+      "face": "9.4.2.1",
+      "shear": "9.4.3.2"
+    },
+    "walls": {
+      "minimum": "11.6.1, Table 11.6.1",
+      "layers": "11.7.2.3",
+      "spacing": "11.7.2.1, 11.7.3.1",
+      "compression": "11.5.2",
+      "empirical": "11.5.3, Eq 11.5.3.1",
+      "thickness": "11.3.1.1, Table 11.3.1.1",
+      "shear": "11.5.4, 11.6.2",
+      "phi": "21.2.1, 21.2.4.1",
+      "special": "18.10",
+      "boundary": "18.10.6",
+      "coupling": "18.10.7",
+      "confinement": "18.10.6.4, Table 18.10.6.4(g)",
+      "pier": "18.10.8"
+    },
+    "wallsRows": {
+      "minimum": "Table 11.6.1",
+      "webSpecial": "18.10.2.1",
+      "webRelaxed": "18.10.2.1 (11.6)",
+      "webShear": "11.6.2(b)",
+      "shearReinforced": "11.6.2",
+      "rhoLAtLeastT": "18.10.4.3",
+      "spacing": "11.7.2.1, 11.7.3.1",
+      "spacingHorizontalShear": "11.7.3.1",
+      "spacingVerticalShear": "11.7.2.1",
+      "layers": "11.7.2.3",
+      "curtains": "18.10.2.2",
+      "compression": "11.5.2",
+      "flexureSpecial": "18.10.5",
+      "shear": "11.5.4",
+      "shearSpecial": "18.10.4, Eq 18.10.4.1",
+      "outOfPlaneShear": "11.5.5, 22.5",
+      "empirical": "11.5.3",
+      "empiricalThickness": "Table 11.3.1.1",
+      "thickness": "11.3.1.1, Table 11.3.1.1",
+      "endBars": "11.5.2 -> 10.6.1.1",
+      "boundaryDisplacement": "18.10.6.2, Eq 18.10.6.2",
+      "boundaryStress": "18.10.6.3",
+      "endTies": "18.10.6.5(a)",
+      "boundaryProvided": "18.10.6.4",
+      "boundaryLength": "18.10.6.4(a)",
+      "boundaryHoops": "18.10.6.4(f), (g), Table 18.10.6.4(g)",
+      "boundaryHoopSpacing": "18.10.6.4(e)",
+      "boundaryAsh": "Table 18.10.6.4(g)",
+      "hx": "18.10.6.4(f)",
+      "couplingShear": "Eq 18.10.7.4",
+      "couplingRequired": "18.10.7.2",
+      "couplingLateral": "18.10.7.1",
+      "couplingEither": "18.10.7.3",
+      "couplingBeamRules": "18.6.3 to 18.6.5",
+      "couplingBars": "18.10.7.4(b)",
+      "couplingEmbedment": "18.10.7.4(b)",
+      "couplingHoops": "18.10.7.4(d)",
+      "couplingTransverse": "18.10.7.4(c), (d)",
+      "couplingAsh": "18.10.7.4(c), Table 18.7.5.4",
+      "couplingGroup": "18.10.7.4(c)",
+      "couplingGroupAsh": "18.10.7.4(c), 18.7.5.4",
+      "pier": "18.10.8.1",
+      "pierShear": "18.10.8.1(a), (b)",
+      "pierHoops": "18.10.8.1(c)",
+      "pierSpacing": "18.10.8.1(d)",
+      "pierEdge": "18.10.8.2",
+      "pierColumnBars": "18.10.8.1, 18.7.4.1",
+      "pierColumnHoops": "18.10.8.1, 18.7.5.2",
+      "pierColumnSpacing": "18.10.8.1, 18.7.5.3",
+      "shearAmplification": "18.10.3.3"
+    },
+    "wallFlanges": {
+      "flexure": "18.10.5.1",
+      "flange": "18.10.5.2",
+      "shear": "18.10.4.4",
+      "stress": "18.10.6.3",
+      "boundary": "18.10.6.4(a), (b)"
+    },
+    "wallFlangesText": {
+      "section": "18.10.5"
+    },
+    "lintels": {
+      "support": "5.2.1.3",
+      "wind": "Part 6 Sec 7.9.6.3 (p. 1045)",
+      "deflection": "24.2.3.5, Table 24.2.3.5, Table 9.3.1.1",
+      "combinations": "Sec 2.3.1",
+      "coupling": "18.10.7",
+      "capacity": "18.6.5.1, 18.7.6.1"
+    },
+    "lintelsText": {
+      "bearing": "5.2.1.3"
+    },
+    "wallDesign": {
+      "walls": "Chapter 11, 18.10",
+      "boundaryDisplacement": "18.10.6.2, Eq 18.10.6.2",
+      "boundaryStress": "18.10.6.3"
+    },
+    "overstrength": {
+      "supporting": "Sec 12.3.3.3",
+      "em": "Sec 12.4.3",
+      "ev": "Sec 12.4.2.2",
+      "omega": "Table 12.2-1",
+      "collectors": "Sec 12.10.2.1"
+    },
+    "deepBeams": {
+      "deep": "9.9.1.1",
+      "limit": "9.9.2.1",
+      "vertical": "9.9.3.1(a), 9.9.4.3",
+      "horizontal": "9.9.3.1(b), 9.9.4.3",
+      "phi": "21.2.1(g)",
+      "stm": "Chapter 23"
+    },
+    "deepBeamsText": {
+      "reference": "9.9"
+    },
+    "corbels": {
+      "corbels": "16.5",
+      "bearing": "21.2.1, 22.8"
+    },
+    "punching": {
+      "punching": "22.6",
+      "section": "22.6.4"
+    },
+    "required": {
+      "seismic": "Chapter 18",
+      "detailing": "Chapter 18",
+      "barRows": "25.2.2"
+    },
+    "slab": {
+      "oneWay": "6.5.1",
+      "oneWaySec": "6.5",
+      "oneWaySpans": "6.5.1(d)",
+      "oneWayLive": "6.5.1(c)",
+      "oneWayEqual": "6.5.1(e)",
+      "minimum": "7.6.1.1, 8.6.1.1, 24.4.3.2",
+      "spacingTwoWay": "8.7.2.2",
+      "spacingOneWay": "7.7.2.3"
+    },
+    "columnShear": {
+      "minimum": "10.6.2.1"
+    },
+    "ductileJoints": {
+      "part": "Chapter 18",
+      "jointShear": "18.8.4",
+      "dowels": "18.13.2.2, 18.13.2.3"
+    },
+    "ductileMembers": {
+      "ordinary": "18.3"
+    },
+    "seismicDetailing": {
+      "part": "Chapter 18",
+      "chapter": "Chapter 18"
+    },
+    "takedown": {
+      "combinations": "Sec 2.3.1",
+      "loads": "Chapters 3 and 4"
+    },
+    "wallForces": {
+      "responseScale": "Sec 12.9.1.4"
+    },
+    "slender": {
+      "chapter": "6.6.4",
+      "sumPc": "6.6.4.6.2",
+      "deltaS": "6.6.4.6.2",
+      "momentRatio": "6.2.6"
+    },
+    "stairs": {
+      "liveTable": "Table 4.3-1",
+      "shear": "22.5.5.1"
+    },
+    "deflectionRows": {
+      "effectiveInertia": "Table 24.2.3.5",
+      "limits": "Table 24.2.2"
+    },
+    "steelMembers": {
+      "code": "(LRFD or ASD by Sec B3)",
+      "part": "",
+      "tensionYield": "Sec D2(a), Eq D2-1",
+      "tensionRupture": "Sec D2(b), Eq D2-2, Sec D3, Table D3.1",
+      "compressionFlexural": "Sec E3, Eqs E3-1 to E3-4",
+      "compressionAngle": "Sec E5",
+      "compressionTorsional": "Sec E4",
+      "compressionTorsionalBuckling": "Sec E4",
+      "compressionSlender": "Sec E7 (effective width, Table E7.1)",
+      "shearRound": "Sec G5",
+      "shearWebYield": "Sec G2.1(a), Eq G2-1",
+      "shearWeb": "Sec G2.1(b), Eq G2-1 (Cv1)",
+      "shearSingly": "Sec G3",
+      "shearHss": "Sec G4",
+      "shearMinor": "Sec G6",
+      "tensionSlenderness": "Sec D1 (user note)",
+      "compressionSlenderness": "Sec E2 (user note)",
+      "firstOrderUnitK": "Appendix 7, Sec 7.3",
+      "interaction": "Sec H1.1",
+      "erw": "Sec B4.2",
+      "classes": "Table B4.1",
+      "flexureYield": "Sec F2.1, Eq F2-1",
+      "flexureLtb": "Sec F2.2, Eqs F2-2 to F2-6",
+      "flexureFlb": "Sec F3.2(a), Eq F3-1",
+      "flexureFlbSlender": "Sec F3.2(b), Eq F3-2",
+      "flexureNoncompactWebYield": "Sec F4.1",
+      "flexureNoncompactWebLtb": "Sec F4.2",
+      "flexureNoncompactWebFlb": "Sec F4.3(b)",
+      "flexureNoncompactWebFlbSlender": "Sec F4.3(c)",
+      "flexureSlenderWebYield": "Sec F5.1",
+      "flexureSlenderWebLtb": "Sec F5.2",
+      "flexureSlenderWebFlb": "Sec F5.3(b)",
+      "flexureSlenderWebFlbSlender": "Sec F5.3(c)",
+      "flexureMinorYield": "Sec F6.1, Eq F6-1",
+      "flexureMinorFlb": "Sec F6.2(b), Eq F6-2",
+      "flexureMinorFlbSlender": "Sec F6.2(c), Eqs F6-3, F6-4",
+      "flexureRhsYield": "Sec F7.1",
+      "flexureRhsFlb": "Sec F7.2(b)",
+      "flexureRhsFlbSlender": "Sec F7.2(c)",
+      "flexureRhsWlb": "Sec F7.3(b)",
+      "flexureRhsLtb": "Sec F7.4",
+      "flexureRoundYield": "Sec F8.1, Eq F8-1",
+      "flexureRoundLocal": "Sec F8.2(b), Eq F8-2",
+      "flexureRoundLocalSlender": "Sec F8.2(c), Eqs F8-3, F8-4",
+      "flexureTeeYield": "Sec F9.1",
+      "flexureTeeLtb": "Sec F9.2",
+      "flexureTeeFlb": "Sec F9.3(b)",
+      "flexureTeeFlbSlender": "Sec F9.3(c)",
+      "flexureTeeStem": "Sec F9.4(b)",
+      "flexureAngleYield": "Sec F10.1",
+      "flexureAngleLtb": "Sec F10.2",
+      "flexureAngleLeg": "Sec F10.3(b)",
+      "flexureAngleLegSlender": "Sec F10.3(c)",
+      "braceSlenderness": "Appendix 6 (the default pack's limit L/r 180, BNBC 2020 Sec 10.19.4)",
+      "eqTorsional": "Sec E4",
+      "eqFlexuralTorsional": "Sec E4",
+      "eqAngleEqual": "Sec F10.2",
+      "eqAngleUnequal": "Sec F10.2",
+      "angleConditions": "Sec E5",
+      "interactionHigh": "Eq H1-1a",
+      "interactionLow": "Eq H1-1b",
+      "interactionSection": "Sec H1.1",
+      "unsymmetricEq": "Eq H2-1",
+      "webLimit": "Sec F13.2",
+      "bracingColumnNodal": "BNBC 2020 Part 6 Sec 10.19.2.2 Eqs 6.10.287-288 (the default pack's bracing rules)",
+      "bracingColumnRelative": "BNBC 2020 Part 6 Sec 10.19.2.1 Eqs 6.10.285-286 (the default pack's bracing rules)",
+      "bracingBeamNodal": "BNBC 2020 Part 6 Sec 10.19.3.1(b) Eqs 6.10.291-292 (the default pack's bracing rules)",
+      "methodTension": "Tension: yielding Fy Ag (Sec D2(a)) and rupture Fu Ae (Sec D2(b)), Ae = An U (Table D3.1 defaults: I-shapes and tees 0.90 / 0.85 by bf >= 2/3 d, channels 0.85, angles 0.60, rectangular HSS 1 - x/l at l = H, round HSS 1 - 1/pi at l = D); An = Ag (welded ends) unless set.",
+      "methodCompression": "Compression: flexural buckling (Sec E3), torsional and flexural-torsional buckling (Sec E4, tees by Fe of singly symmetric members), single angles by Sec E5, slender elements by the effective width method of Sec E7 (Table E7.1 c1, c2; round HSS Sec E7.2); K = 1.0 unless overridden, lengths between the brace points the analysis model shows.",
+      "methodFlexure": "Flexure: Sections F2-F11 by shape (yielding, lateral-torsional buckling with Cb from the moment diagram, flange and web local buckling; tees by Lp, Lr and stem local buckling, Sec F9; rectangular HSS also lateral-torsional buckling, Sec F7.4); a slab braces the top flange.",
+      "methodShear": "Shear: Chapter G (webs by Cv1 of Sec G2.1 with kv = 5.34 unstiffened; tension field action by Sec G2.2); combined forces: Sec H1.1 (Eqs H1-1a, H1-1b), moments amplified by B1 (Appendix 8).",
+      "methodConnections": "Steel connections (when the object type sets one): fin plate, shear end plate or brace gusset checked for the member's end shears or axial forces to AISC 360-22 Chapter J (bolts J3, bearing and tearout J3.10, block shear J4.3, welds J2, the Whitmore section); listed as 'Connection: ...' checks of the member. The analysis pins these member ends (no end moment); an end kept rigid is flagged as 'end moment at a simple connection'. Flange-plate moment connections (with the column flange, web and panel zone checks of Sec J10), cover-plate splices (Sec J6), column base plates on concrete (bearing Sec J8, anchor rods J9) and welded HSS joints (Chapter K) are checked the same way when the type sets them; also slip-critical bolts (Sec J3.8), end plates under axial tension (prying), the column stiffeners and doublers (Sec J10.8-J10.9), plates and cap plates on HSS and HSS moment connections (Chapter K, by the default pack's equations)."
+    }
+  }
+}

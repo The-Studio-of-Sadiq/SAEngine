@@ -1,0 +1,195 @@
+{
+  "$schema": "../../../schemas/steelSeismic.schema.json",
+  "$sources": [
+    "AISC 341-22 Seismic Provisions for Structural Steel Buildings: Sec A1, A3, D1, E1-E3, F1-F5 where revised; the other rules are the default pack's (BNBC 2020 Part 6 Sec 10.20, AISC 341-05 based), named as BNBC 2020's"
+  ],
+  "source": "AISC 341-22 (expected strengths, width-thickness limits of highly and moderately ductile members, the frame kinds' ductility); the rest from BNBC 2020 Part 6 Sec 10.20",
+  "expected": {
+    "rows": {
+      "hss": {
+        "application": "hss",
+        "match": [
+          "A500.*(Gr|Grade)\\.?\\s*C\\b"
+        ],
+        "Ry": 1.3,
+        "Rt": 1.2,
+        "label": "Hollow structural sections, ASTM A500 Grade C"
+      },
+      "hssOther": {
+        "application": "hss",
+        "match": [
+          "A500",
+          "A501"
+        ],
+        "Ry": 1.4,
+        "Rt": 1.3,
+        "label": "Hollow structural sections, ASTM A500 Grade B, A501"
+      },
+      "hssA1085": {
+        "application": "hss",
+        "match": [
+          "A1085"
+        ],
+        "Ry": 1.25,
+        "Rt": 1.15,
+        "label": "Hollow structural sections, ASTM A1085"
+      }
+    },
+    "note": "AISC 341-22 Sec A3.2 (Ry, Rt by ASTM specification). A steel no row names takes the table's largest Ry and Rt: SAEngine practice"
+  },
+  "widthThickness": {
+    "iFlange": 0.32,
+    "iFlangeRelaxed": 0.4,
+    "channelFlange": 0.32,
+    "angleLeg": 0.32,
+    "teeStem": 0.32,
+    "smfBeamWeb": 2.57,
+    "web": {
+      "split": 0.114,
+      "linearA": 2.57,
+      "linearB": 1.04,
+      "offsetA": 0.88,
+      "offsetB": 2.68,
+      "floor": 1.57,
+      "linearAbove": false,
+      "leastOfBoth": false,
+      "note": "AISC 341-22 Table D1.1, webs of I-shapes in flexure or combined flexure and compression: Ca <= 0.114: 2.57 sqrt(E/(Ry Fy)) (1 - 1.04 Ca); above: 0.88 sqrt(E/(Ry Fy)) (2.68 - Ca) >= 1.57 sqrt(E/(Ry Fy))"
+    },
+    "roundHss": 0.053,
+    "rectHss": 0.65,
+    "phiB": 0.9,
+    "expectedYield": true,
+    "note": "AISC 341-22 Table D1.1 (highly ductile, λhd): coefficients of sqrt(E/(Ry Fy)), round HSS of E/(Ry Fy); Ca = Pu / (φc Py), φc 0.90. H-pile flanges and webs, flat bars and the relaxed ratio of SMF columns are the default pack's values"
+  },
+  "widthThicknessModerate": {
+    "iFlange": 0.4,
+    "iFlangeRelaxed": 0.4,
+    "channelFlange": 0.4,
+    "hPileFlange": 0.45,
+    "flatBar": 2.5,
+    "angleLeg": 0.4,
+    "teeStem": 0.4,
+    "smfBeamWeb": 3.96,
+    "web": {
+      "split": 0.114,
+      "linearA": 3.96,
+      "linearB": 3.04,
+      "offsetA": 1.29,
+      "offsetB": 2.12,
+      "floor": 1.57,
+      "linearAbove": false,
+      "leastOfBoth": false,
+      "note": "AISC 341-22 Table D1.1, webs of I-shapes: Ca <= 0.114: 3.96 sqrt(E/(Ry Fy)) (1 - 3.04 Ca); above: 1.29 sqrt(E/(Ry Fy)) (2.12 - Ca) >= 1.57 sqrt(E/(Ry Fy))"
+    },
+    "roundHss": 0.062,
+    "rectHss": 0.76,
+    "hPileWeb": 0.94,
+    "phiB": 0.9,
+    "relaxedRatio": 2.0,
+    "expectedYield": true,
+    "note": "AISC 341-22 Table D1.1 (moderately ductile, λmd), coefficients of sqrt(E/(Ry Fy)); rectangular HSS walls 0.76 (SAEngine's reading, to verify); H-pile and flat bar values the default pack's"
+  },
+  "frames": {
+    "imf": {
+      "compactness": "moderate",
+      "note": "AISC 341-22 Sec E2: beams and columns moderately ductile (Sec E2.5a); drift angle 0.02 rad (Sec E2.6b)"
+    },
+    "smf": {
+      "note": "AISC 341-22 Sec E3: beams and columns highly ductile (Sec E3.5a); drift angle 0.04 rad (Sec E3.6b); panel zone φ 1.00 (Sec E3.6e); the other values the default pack's"
+    }
+  },
+  "concentric": {
+    "scbf": {
+      "moderateMembers": [
+        "beam"
+      ]
+    },
+    "ocbf": {
+      "compactMembers": [],
+      "moderateMembers": [
+        "brace"
+      ]
+    }
+  },
+  "sources": {
+    "trigger": "AISC 341-22 Sec A1; ASCE 7-22 Table 12.2-1: the provisions apply to steel systems with R above 3",
+    "omega": "AISC 341-22 Sec B2: the overstrength seismic load with Ω0 of ASCE 7-22",
+    "materials": "AISC 341-22 Sec A3.1: Fy of members expected to yield",
+    "expected": "AISC 341-22 Sec A3.2: expected yield and tensile strengths Ry Fy, Rt Fu",
+    "toughness": "BNBC 2020 Part 6 Sec 10.20.6.3, 10.20.7.3.1, the default pack's rule (Sec 10.20.6.3, 10.20.7.3.1 (part 2 pp. 231, 233))",
+    "bolts": "BNBC 2020 Part 6 Sec 10.20.7.2, the default pack's rule (Sec 10.20.7.2 (part 2 p. 232))",
+    "protected": "AISC 341-22 Sec D1.3, E3.5c",
+    "clips": "BNBC 2020 Part 6 Sec 10.20.7.3.4, the default pack's rule (Sec 10.20.7.3.4 (part 2 p. 234))",
+    "compact": "AISC 341-22 Sec D1.1, Table D1.1: highly and moderately ductile members",
+    "columnStrength": "AISC 341-22 Sec D1.4a",
+    "splices": "BNBC 2020 Part 6 Sec 10.20.8.4, the default pack's rule (Sec 10.20.8.4 (part 2 pp. 236-237))",
+    "bases": "BNBC 2020 Part 6 Sec 10.20.8.5, the default pack's rule (Sec 10.20.8.5 (part 2 pp. 237, 240))",
+    "smfConnection": "AISC 341-22 Sec E3.6b: interstorey drift angle 0.04 rad, 0.80 Mp",
+    "conformance": "BNBC 2020 Part 6 Sec 10.20.9.2.2, 10.20.10.2.2, Appendix N, the default pack's rule (Sec 10.20.9.2.2, 10.20.10.2.2, Appendix N (part 2 pp. 242, 249, 579-582))",
+    "panelZone": "AISC 341-22 Sec E3.6e.1",
+    "panelThickness": "AISC 341-22 Sec E3.6e.2",
+    "doubler": "BNBC 2020 Part 6 Sec 10.20.9.3.3, the default pack's rule (Sec 10.20.9.3.3 (part 2 p. 244))",
+    "smfMembers": "AISC 341-22 Sec E3.5a",
+    "momentRatio": "AISC 341-22 Sec E3.4a",
+    "connectionBracing": "BNBC 2020 Part 6 Sec 10.20.9.7, the default pack's rule (Sec 10.20.9.7 (part 2 pp. 247-248))",
+    "smfBeamBracing": "BNBC 2020 Part 6 Sec 10.20.9.8, the default pack's rule (Sec 10.20.9.8 (part 2 p. 248))",
+    "smfSplices": "BNBC 2020 Part 6 Sec 10.20.9.9, the default pack's rule (Sec 10.20.9.9 (part 2 p. 248))",
+    "imfConnection": "AISC 341-22 Sec E2.6b: interstorey drift angle 0.02 rad",
+    "imfMembers": "AISC 341-22 Sec E2.5a: moderately ductile members",
+    "imfBeamBracing": "BNBC 2020 Part 6 Sec 10.20.10.8, the default pack's rule (Sec 10.20.10.8 (part 2 p. 251))",
+    "omfConnection": "BNBC 2020 Part 6 Sec 10.20.11.2.1, Eq 6.10.301, the default pack's rule (Sec 10.20.11.2.1, Eq 6.10.301 (part 2 pp. 252-253))",
+    "omfPartial": "BNBC 2020 Part 6 Sec 10.20.11.2.2, the default pack's rule (Sec 10.20.11.2.2 (part 2 p. 253))",
+    "omfContinuity": "BNBC 2020 Part 6 Sec 10.20.11.5, the default pack's rule (Sec 10.20.11.5 (part 2 pp. 254-255))",
+    "stmf": "BNBC 2020 Part 6 Sec 10.20.12, Eq 6.10.302, the default pack's rule (Sec 10.20.12, Eq 6.10.302 (part 2 pp. 255-258))",
+    "panelZoneDrift": "BNBC 2020 Part 6 Sec 2.5.9.1(b), the default pack's rule (Sec 2.5.9.1(b) (part 1 p. 634))",
+    "scbfSlenderness": "BNBC 2020 Part 6 Sec 10.20.13.2.1, the default pack's rule (Sec 10.20.13.2.1 (part 2 pp. 258-259))",
+    "scbfBrace": "BNBC 2020 Part 6 Sec 10.20.13.2.2, the default pack's rule (Sec 10.20.13.2.2 (part 2 p. 259))",
+    "scbfDistribution": "BNBC 2020 Part 6 Sec 10.20.13.2.3, the default pack's rule (Sec 10.20.13.2.3 (part 2 p. 259))",
+    "scbfCompact": "AISC 341-22 Sec F2.5a: braces and columns highly ductile, beams moderately ductile",
+    "scbfStitches": "BNBC 2020 Part 6 Sec 10.20.13.2.5, the default pack's rule (Sec 10.20.13.2.5 (part 2 pp. 259-260))",
+    "scbfConnection": "BNBC 2020 Part 6 Sec 10.20.13.3, the default pack's rule (Sec 10.20.13.3 (part 2 p. 260))",
+    "scbfChevron": "BNBC 2020 Part 6 Sec 10.20.13.4.1, the default pack's rule (Sec 10.20.13.4.1 (part 2 p. 261))",
+    "scbfKBracing": "BNBC 2020 Part 6 Sec 10.20.13.4.2, the default pack's rule (Sec 10.20.13.4.2 (part 2 p. 261))",
+    "scbfSplices": "BNBC 2020 Part 6 Sec 10.20.13.5, the default pack's rule (Sec 10.20.13.5 (part 2 p. 261))",
+    "scbfProtected": "BNBC 2020 Part 6 Sec 10.20.13.6, the default pack's rule (Sec 10.20.13.6 (part 2 p. 261))",
+    "ocbfBrace": "AISC 341-22 Sec F1.5a: braces moderately ductile",
+    "ocbfChevron": "BNBC 2020 Part 6 Sec 10.20.14.3, the default pack's rule (Sec 10.20.14.3 (part 2 pp. 262-263))",
+    "ocbfConnection": "BNBC 2020 Part 6 Sec 10.20.14.4, the default pack's rule (Sec 10.20.14.4 (part 2 p. 263))",
+    "linkScope": "AISC 341-22 Sec F3.5b: links highly ductile",
+    "linkShear": "BNBC 2020 Part 6 Sec 10.20.15.2.2, Eqs 6.10.303-6.10.306, the default pack's rule (Sec 10.20.15.2.2, Eqs 6.10.303-6.10.306 (part 2 pp. 264-266))",
+    "linkRotation": "BNBC 2020 Part 6 Sec 10.20.15.2.3, the default pack's rule (Sec 10.20.15.2.3 (part 2 p. 266))",
+    "linkStiffeners": "BNBC 2020 Part 6 Sec 10.20.15.3, the default pack's rule (Sec 10.20.15.3 (part 2 pp. 266-267))",
+    "linkColumn": "BNBC 2020 Part 6 Sec 10.20.15.4, the default pack's rule (Sec 10.20.15.4 (part 2 pp. 267-268))",
+    "linkBracing": "BNBC 2020 Part 6 Sec 10.20.15.5, the default pack's rule (Sec 10.20.15.5 (part 2 p. 268))",
+    "ebfBrace": "BNBC 2020 Part 6 Sec 10.20.15.6.1, 10.20.15.6.3, the default pack's rule (Sec 10.20.15.6.1, 10.20.15.6.3 (part 2 p. 269))",
+    "ebfBeam": "BNBC 2020 Part 6 Sec 10.20.15.6.2, the default pack's rule (Sec 10.20.15.6.2 (part 2 p. 269))",
+    "ebfBeamColumn": "BNBC 2020 Part 6 Sec 10.20.15.7, the default pack's rule (Sec 10.20.15.7 (part 2 pp. 269-270))",
+    "ebfColumns": "AISC 341-22 Sec F3.5a",
+    "ebfProtected": "BNBC 2020 Part 6 Sec 10.20.15.9-10.20.15.10, the default pack's rule (Sec 10.20.15.9-10.20.15.10 (part 2 p. 270))",
+    "brbfCore": "BNBC 2020 Part 6 Sec 10.20.16.2.1, the default pack's rule (Sec 10.20.16.2.1 (part 2 p. 271))",
+    "brbfRestraint": "BNBC 2020 Part 6 Sec 10.20.16.2.2-10.20.16.2.3, Appendix R, the default pack's rule (Sec 10.20.16.2.2-10.20.16.2.3, Appendix R (part 2 pp. 271-272))",
+    "brbfAdjusted": "BNBC 2020 Part 6 Sec 10.20.16.2.4, the default pack's rule (Sec 10.20.16.2.4 (part 2 p. 272))",
+    "brbfConnection": "BNBC 2020 Part 6 Sec 10.20.16.3, the default pack's rule (Sec 10.20.16.3 (part 2 p. 273))",
+    "brbfChevron": "BNBC 2020 Part 6 Sec 10.20.16.4, the default pack's rule (Sec 10.20.16.4 (part 2 p. 273))",
+    "brbfMembers": "AISC 341-22 Sec F4.5a",
+    "brbfProtected": "BNBC 2020 Part 6 Sec 10.20.16.6, the default pack's rule (Sec 10.20.16.6 (part 2 p. 274))",
+    "spswWeb": "BNBC 2020 Part 6 Sec 10.20.17.2.1, Eqs 6.10.307-6.10.308, the default pack's rule (Sec 10.20.17.2.1, Eqs 6.10.307-6.10.308 (part 2 p. 275))",
+    "spswAspect": "BNBC 2020 Part 6 Sec 10.20.17.2.2, the default pack's rule (Sec 10.20.17.2.2 (part 2 p. 275))",
+    "spswOpenings": "BNBC 2020 Part 6 Sec 10.20.17.2.3, the default pack's rule (Sec 10.20.17.2.3 (part 2 p. 276))",
+    "spswConnections": "BNBC 2020 Part 6 Sec 10.20.17.3, the default pack's rule (Sec 10.20.17.3 (part 2 p. 276))",
+    "spswBoundary": "BNBC 2020 Part 6 Sec 10.20.17.4.1, the default pack's rule (Sec 10.20.17.4.1 (part 2 p. 276))",
+    "spswHbeConnection": "BNBC 2020 Part 6 Sec 10.20.17.4.2, the default pack's rule (Sec 10.20.17.4.2 (part 2 p. 276))",
+    "spswCompact": "AISC 341-22 Sec F5.5a",
+    "spswBracing": "BNBC 2020 Part 6 Sec 10.20.17.4.4, the default pack's rule (Sec 10.20.17.4.4 (part 2 p. 277))",
+    "spswStiffness": "BNBC 2020 Part 6 Sec 10.20.17.4.7, the default pack's rule (Sec 10.20.17.4.7 (part 2 p. 277))",
+    "spswCoefficients": "BNBC 2020 Part 6 Appendix P, Tables 6.P.1-6.P.2, the default pack's rule (Appendix P, Tables 6.P.1-6.P.2 (part 2 p. 590))",
+    "compositeMaterials": "BNBC 2020 Part 6 Sec 13.5.4.2, the default pack's rule (Sec 13.5.4.2 (part 2 p. 392))",
+    "compositeBeam": "BNBC 2020 Part 6 Sec 13.5.5.2, Eq 6.13.26, the default pack's rule (Sec 13.5.5.2, Eq 6.13.26 (part 2 pp. 392-393))",
+    "encasedScope": "BNBC 2020 Part 6 Sec 13.5.5.3, the default pack's rule (Sec 13.5.5.3 (part 2 p. 393))",
+    "encasedOrdinary": "BNBC 2020 Part 6 Sec 13.5.5.3.1, the default pack's rule (Sec 13.5.5.3.1 (part 2 pp. 394-395))",
+    "encasedIntermediate": "BNBC 2020 Part 6 Sec 13.5.5.3.2, the default pack's rule (Sec 13.5.5.3.2 (part 2 pp. 395-396))",
+    "encasedSpecial": "BNBC 2020 Part 6 Sec 13.5.5.3.3, Eq 6.13.27, the default pack's rule (Sec 13.5.5.3.3, Eq 6.13.27 (part 2 pp. 396-398))",
+    "filledSeismic": "BNBC 2020 Part 6 Sec 13.5.5.4, the default pack's rule (Sec 13.5.5.4 (part 2 p. 398))",
+    "compositeWall": "BNBC 2020 Part 6 Sec 13.5.6, Eq 6.13.28, the default pack's rule (Sec 13.5.6, Eq 6.13.28 (part 2 pp. 399-400))"
+  }
+}

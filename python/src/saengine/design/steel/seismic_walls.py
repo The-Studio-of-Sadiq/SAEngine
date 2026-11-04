@@ -530,7 +530,14 @@ def _compact(member: Boundary, kind: str, table: Any) -> list[dict[str, Any]]:
             f"λ = {ratio:.1f} ≤ λps = {limit:.1f}",
         )
         for name, ratio, limit in S.seismic_compact_limits(
-            member.shape, member.fy, member.e, kind, "spsw", 0.0, table
+            member.shape,
+            member.fy,
+            member.e,
+            kind,
+            "spsw",
+            0.0,
+            table,
+            S.limit_ry(member.ry, table),
         )
     ]
 

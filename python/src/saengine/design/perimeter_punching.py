@@ -30,7 +30,9 @@ def rules() -> Any | None:
     pack = code_context.current()
     if not pack.has("concreteMethods"):
         return None
-    return getattr(pack.table("concreteMethods"), "punching", None)
+    from saengine.codes.method_tables import chosen  # C8: another method may hold the group
+
+    return chosen(pack.table("concreteMethods"), "punching", "controlPerimeter")
 
 
 def perimeter(c1: float, c2: float | None, distance: float, position: str = "interior") -> float:

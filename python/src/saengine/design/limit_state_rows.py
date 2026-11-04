@@ -83,14 +83,20 @@ def partial_factors() -> bool:
 
 
 def neutral_axis_limit(fy: float) -> float:
-    """xu/d at most: (1 - k1)/k2 of the pack, else the depth at which the bars just yield."""
+    """xu/d at most: (1 - k1)/k2 of the pack (EN 1992-1-1 5.5(4)); with C8's member limits
+    (IS 456 38.1(f)) εcu / (εcu + fyd/Es + their extra strain); else the depth at which the bars
+    just yield."""
+    from saengine.design.member_limits import limits
+
     r = design_strength.rules()
     if r.neutralAxisLimit is not None:
         k1, k2 = r.neutralAxisLimit
         return (1 - k1) / k2
     eps_yd = design_strength.fyd(fy, r) / r.steelE
     eps_cu = design_strength.ultimate_strain(30.0)
-    return eps_cu / (eps_cu + eps_yd)
+    found = limits()
+    extra = found.neutralAxisStrain if found is not None else 0.0
+    return eps_cu / (eps_cu + eps_yd + extra)
 
 
 def layer_capacity(
@@ -973,7 +979,7 @@ def method_lines() -> list[str]:
     """The design report's lines of the members the pack's methods design beyond beams' and
     columns' flexure, axial force and shear (those are :func:`saengine.design.design_strength.
     method_lines`')."""
-    chosen = method_selection.summary()
+    chosen = method_selection.limit_state_areas()
     lines = []
     if chosen.get("torsion"):
         lines.append(

@@ -23,7 +23,7 @@ The methods are in :mod:`saengine.design.design_strength`,
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import Field
 
@@ -52,7 +52,7 @@ class StrengthRelations(_Group):
     highFrom: Positive = Field(
         description="fck [MPa] above which the high-strength relations apply."
     )
-    fcmIncrement: Positive = Field(description="fcm = fck + increment [MPa].")
+    fcmIncrement: float = Field(ge=0, description="fcm = fck + increment [MPa].")
     fctmCoefficient: Positive = Field(
         description="fctm = coefficient fck^exponent (fck <= highFrom)."
     )
@@ -96,6 +96,17 @@ class UltimateRules(_Group):
     #: Alpha 9 C5b: (k1, k2) of the redistribution rule δ >= k1 + k2 xu/d; with δ = 1 the
     #: limit xu/d <= (1 - k1)/k2 of slabs and stairs designed from the elastic analysis.
     neutralAxisLimit: tuple[Share, Positive] | None = None
+    # C8 (IS 456): grade names, the axial cap by shares of fck and fy, e0 with the length.
+    gradePrefix: str | None = Field(
+        default=None, description="Grades named prefix + fck ('M25'); none: 'C fck/fck,cube'."
+    )
+    axialShares: tuple[Positive, Positive] | None = Field(
+        default=None,
+        description="NRd = a fck Ac + b fy As in place of the stress block's (none: that).",
+    )
+    eccentricityLengthDivisor: Positive | None = Field(
+        default=None, description="e0 = l / this + h / eccentricityDivisor (none: h only)."
+    )
 
 
 class StrutShearRules(_Group):
@@ -382,22 +393,353 @@ class ExposureClass(_Group):
     fckMin: Positive | None = Field(default=None, description="Indicative least fck [MPa].")
 
 
+# ─────────── Alpha 9 C8: the working-to-limit-state methods of tabulated codes (IS 456) ───────────
+# Groups a pack picks by their method id (the same group names as above where the idea is the
+# same: shear, torsion, punching, deflection, cracking, cover, anchorage, seismic), and the
+# groups no other method has yet (memberLimits, columns, twoWaySlabs, flatSlabs, walls,
+# footings). The modules: saengine.design.tabulated_shear, additional_moment, span_depth_factors,
+# member_limits, panel_coefficients, ductile_detailing.
+
+
+class TabulatedShearRules(_Group):
+    """Shear by a design shear strength of concrete tabulated by the tension steel ratio and the
+    grade (method ``tabulatedStress``): τc from ``tauC`` (rows by ``steelRatios`` [%], columns
+    by ``grades`` [MPa], linear between, the end values outside), τv = Vu / (b d) at most
+    ``maxStress`` by grade, the stirrups Vus = (1/γs) fy Asv d / sv, the least stirrups
+    Asv / (b sv) >= ``minStirrupStress`` / ((1/γs) fy)."""
+
+    method: Literal["tabulatedStress"] = "tabulatedStress"
+    grades: list[Positive] = Field(min_length=1)
+    steelRatios: list[Positive] = Field(min_length=2, description="pt = 100 As / (b d) [%].")
+    tauC: list[list[Positive]] = Field(description="τc [MPa], a row per steel ratio.")
+    maxStress: list[Positive] = Field(description="τc,max [MPa] by grade.")
+    minStirrupStress: Positive = Field(description="Asv fy,d / (b sv) at least this [MPa].")
+    fyMax: Positive = Field(description="fy of stirrups taken at most this [MPa].")
+    spacing: tuple[Share, Positive] = Field(description="sv <= min(share d, mm).")
+    slabDepths: list[tuple[Positive, Positive]] = Field(
+        default_factory=list, description="(overall depth [mm], k) of solid slabs, k τc."
+    )
+    enhancement: Positive = Field(
+        default=2.0, description="τc × enhancement d / av within d of a support face."
+    )
+
+
+class EquivalentTorsionRules(_Group):
+    """Torsion by the equivalent shear and moment (method ``equivalentShear``): Ve = Vu +
+    shearFactor Tu / b, Me1 = Mu + Tu (1 + D/b) / momentDivisor; links Asv = Tu sv / (b1 d1
+    fyd) + Vu sv / (depthDivisor d1 fyd), at least (τve - τc) b sv / fyd."""
+
+    method: Literal["equivalentShear"] = "equivalentShear"
+    shearFactor: Positive
+    momentDivisor: Positive
+    depthDivisor: Positive
+    spacingDivisor: Positive = Field(description="Links at most (x1 + y1) / divisor apart.")
+    spacingMax: Positive = Field(description="[mm], also at most x1.")
+
+
+class RootStressPunchingRules(_Group):
+    """Punching by a shear stress on a perimeter (method ``rootStress``): τc = coefficient √fck
+    times ks = ratioBase + βc <= 1 at perimeterDistance × d from the loaded area; with shear
+    reinforcement τv <= reinforcedMax τc and the steel for Vu - concreteShare Vc."""
+
+    method: Literal["rootStress"] = "rootStress"
+    perimeterDistance: Positive
+    coefficient: Positive
+    ratioBase: Positive
+    reinforcedMax: Positive
+    concreteShare: Share
+
+
+class SpanDepthFactorRules(_Group):
+    """Deflection by basic span/effective depth ratios with modification factors (method
+    ``spanDepthModification``), and the calculated deflection (``calculated``)."""
+
+    method: Literal["spanDepthModification"] = "spanDepthModification"
+    basic: dict[str, Positive] = Field(description="By support: cantilever, simple, continuous.")
+    longSpan: Positive = Field(description="[mm] beyond it × longSpan / l (not cantilevers).")
+    tension: tuple[float, float, float, Positive] = Field(
+        description="(a, b, c, max): kt = 1 / (a + b fs - c log10(1 / pt)) (pt in %), a fit of the "
+        "tension steel curve, at most max; fs = stressShare fy As,req / As,prov."
+    )
+    stressShare: Share
+    compression: tuple[Positive, Positive] = Field(
+        description="(a, max): kc = 1 + pc / (a + pc), at most max (pc in %)."
+    )
+    flange: list[tuple[Share, Positive]] = Field(description="(bw / bf, kf), linear between.")
+    flatSlabFactor: Share = Field(default=1.0, description="× for flat slabs.")
+    flangeT: tuple[Positive, Positive] = Field(
+        description="T-beams: bf = l / a + bw + b Df (the flange of the modification factor)."
+    )
+    flangeL: tuple[Positive, Positive] = Field(description="L-beams: bf = l / a + bw + b Df.")
+    shrinkageStrain: Positive
+    shrinkageK3: dict[str, Positive] = Field(description="k3 by support.")
+    shrinkageK4: list[tuple[Positive, Positive]] = Field(
+        description="(pt - pc from [%], coefficient) of k4 = c (pt - pc)/√pt <= 1."
+    )
+    creep: list[tuple[Positive, Positive]] = Field(description="(age at loading [days], θ).")
+    loadingAge: Positive = Field(description="Age at loading [days] taken.")
+    ruptureCoefficient: Positive = Field(description="fcr = c √fck.")
+    limitTotal: Positive = Field(description="Final deflection at most span / this.")
+    limitAfter: Positive = Field(description="After partitions: span / this ...")
+    limitAfterMax: Positive = Field(description="... and at most this [mm].")
+
+
+class CrackWidthRules(_Group):
+    """Crack width from the strain at the surface and the distance to the nearest bar (method
+    ``strainSpacing``): Wcr = 3 acr εm / (1 + 2 (acr - cmin) / (h - x))."""
+
+    method: Literal["strainSpacing"] = "strainSpacing"
+    width: dict[str, Positive] = Field(description="Wmax [mm] by exposure condition.")
+    stiffeningDivisor: Positive = Field(description="εm = ε1 - b (h-x)(a'-x) / (div Es As (d-x)).")
+    tankWidth: Positive | None = Field(default=None, description="Liquid-retaining [mm].")
+
+
+class ExposureCondition(_Group):
+    cover: Positive = Field(description="Nominal cover [mm].")
+    cement: Positive = Field(description="Least cement content [kg/m³].")
+    waterCement: Share = Field(description="Largest free water-cement ratio.")
+    grade: Positive = Field(description="Least grade fck [MPa].")
+
+
+class ExposureConditionRules(_Group):
+    """Cover and mix limits by exposure condition (method ``exposureCondition``)."""
+
+    method: Literal["exposureCondition"] = "exposureCondition"
+    conditions: dict[str, ExposureCondition]
+    columnCover: Positive = Field(description="Longitudinal bars of columns at least [mm].")
+    footingCover: Positive = Field(description="Footings at least [mm].")
+    smallBarReduction: tuple[Positive, Positive] = Field(
+        description="(mm less, bars up to mm) in the mildest condition."
+    )
+    gradeReduction: tuple[Positive, Positive] = Field(
+        description="(mm less, from fck) in the conditions named in gradeReductionConditions."
+    )
+    gradeReductionConditions: list[str] = Field(default_factory=list)
+
+
+class BondTableRules(_Group):
+    """Development length Ld = φ σs / (4 τbd) by the design bond stress by grade (method
+    ``bondStressTable``) and the laps."""
+
+    method: Literal["bondStressTable"] = "bondStressTable"
+    grades: list[Positive]
+    bond: list[Positive] = Field(description="τbd [MPa] of plain bars in tension by grade.")
+    deformedFactor: Positive
+    compressionFactor: Positive
+    lapTension: Positive = Field(description="Laps in flexural tension: max(Ld, n φ).")
+    lapCompression: Positive = Field(description="Laps in compression: max(Ld,c, n φ).")
+    lapDirectTension: Positive = Field(description="Laps in direct tension: max(x Ld, n φ).")
+    lapLargeBar: Positive = Field(description="No laps of bars larger than this [mm].")
+
+
+class MemberLimitRules(_Group):
+    """Least and largest steel and the bar rules of beams, slabs and columns of codes that give
+    them as ratios (beams As/(b d) >= beamMin / fy ...)."""
+
+    beamMin: Positive = Field(description="As / (b d) >= beamMin / fy.")
+    beamMax: Share = Field(description="As (and As') at most this × b D.")
+    sideFaceDepth: Positive = Field(description="[mm] deeper webs: side face steel.")
+    sideFaceShare: Share = Field(description="× the web area, both faces together.")
+    sideFaceSpacing: Positive = Field(description="[mm] at most, and at most the web width.")
+    slabMin: tuple[Share, Share] = Field(description="Of b D: deformed bars, plain (mild) bars.")
+    plainFy: Positive = Field(description="fy [MPa] at most of plain (mild) bars.")
+    slabBarShare: Share = Field(description="Slab bars at most this × D.")
+    slabSpacing: tuple[Positive, Positive] = Field(description="Main bars: min(n d, mm).")
+    slabDistributionSpacing: tuple[Positive, Positive]
+    columnRho: tuple[Share, Share]
+    columnBars: tuple[int, int] = Field(description="(rectangular, circular) at least.")
+    columnBarDia: Positive
+    tieDiaShare: Share = Field(description="Ties at least share × the largest bar ...")
+    tieDiaMin: Positive = Field(description="... and this [mm].")
+    tiePitch: tuple[Positive, Positive] = Field(description="min(least dimension, n φ, mm).")
+    neutralAxisStrain: Positive = Field(
+        description="xu,max: the bars' strain at least fyd/Es + this (limiting depth)."
+    )
+
+
+class SlendernessRule(_Group):
+    method: Literal["additionalMoment"] = "additionalMoment"
+    limit: Positive = Field(description="Short when lex / D is at most this.")
+    divisor: Positive = Field(description="Ma = Pu D / divisor (lex / D)².")
+    maxRatio: Positive = Field(description="lex / D at most this (unsupported length).")
+
+
+class BiaxialRule(_Group):
+    method: Literal["loadContour", "surface"] = "loadContour"
+    alphaN: list[tuple[Share, Positive]] = Field(description="(Pu / Puz, αn), linear between.")
+    puzShares: tuple[Positive, Positive] = Field(description="Puz = a fck Ac + b fy Asc.")
+
+
+class ColumnMethodRules(_Group):
+    """Columns: slenderness (``additionalMoment``) and biaxial bending (``loadContour``, or
+    the interaction ``surface``)."""
+
+    slenderness: SlendernessRule
+    biaxial: BiaxialRule
+
+
+class PanelCase(_Group):
+    name: str
+    shortNegative: list[Positive] | None = None
+    shortPositive: list[Positive]
+    longNegative: Positive | None = None
+    longPositive: Positive
+
+
+class TwoWaySlabRules(_Group):
+    """Two-way slabs on beams by moment coefficients by edge case (method
+    ``restrainedPanel``): M = α w lx² per unit width."""
+
+    method: Literal["restrainedPanel"] = "restrainedPanel"
+    ratios: list[Positive] = Field(description="ly / lx of the coefficient columns.")
+    cases: dict[str, PanelCase]
+    simpleRatios: list[Positive]
+    simpleShort: list[Positive]
+    simpleLong: list[Positive]
+    middleStrip: Share = Field(description="Middle strip share of the width.")
+    torsionShare: Share = Field(description="Corner steel: × the largest midspan steel ...")
+    torsionLength: Share = Field(description="... over this × lx each way.")
+    torsionOneEdgeShare: Share = Field(description="× that where one edge is continuous.")
+
+
+class FlatSlabRules(_Group):
+    """Flat slabs by the direct design method with the end span shares by the column
+    stiffness ratio αc (method ``columnStiffness``)."""
+
+    method: Literal["columnStiffness"] = "columnStiffness"
+    interiorNegative: tuple[Positive, Positive] = Field(description="a - b / (1 + 1/αc).")
+    positive: tuple[Positive, Positive] = Field(description="a - b / (1 + 1/αc).")
+    exteriorNegative: Positive = Field(description="a / (1 + 1/αc).")
+    columnStrip: tuple[Share, Share, Share] = Field(
+        description="Column strip share: interior negative, exterior negative, positive."
+    )
+    minThickness: Positive
+
+
+class WallMethodRules(_Group):
+    """Walls by the empirical eccentricity method and the shear by the aspect ratio (methods
+    ``eccentricityEmpirical`` and ``aspectRatioShear``)."""
+
+    method: Literal["eccentricityEmpirical"] = "eccentricityEmpirical"
+    axialFactor: Positive = Field(description="Puw = f (t - a e - 2 ea) fck Lw.")
+    eccentricityFactor: Positive
+    additionalDivisor: Positive = Field(description="ea = Hwe² / (divisor t).")
+    minEccentricityShare: Share = Field(description="e at least this × t.")
+    slendernessMax: Positive = Field(description="Hwe / t at most.")
+    minThickness: Positive
+    shearK1: Positive = Field(description="τcw = (intercept - αw) K1 √fck for αw <= 1.")
+    shearIntercept: Positive
+    shearK2: Positive = Field(description="αw > 1: also K2 fck (αw + 1)/(αw - 1).")
+    shearMaxShare: Share = Field(description="τv at most this × fck.")
+    depthShare: Share = Field(description="d = share × Lw.")
+    vertical: tuple[Share, Share] = Field(description="Least ρ: deformed small bars, others.")
+    horizontal: tuple[Share, Share]
+    smallBarMax: Positive
+    spacing: tuple[Positive, Positive] = Field(description="min(n t, mm).")
+
+
+class FootingMethodRules(_Group):
+    """Footings: the edge thickness, the bearing of the column on the footing."""
+
+    edgeThickness: Positive
+    pileEdgeThickness: Positive
+    bearingFactor: Positive = Field(description="Bearing stress factor × fck ...")
+    bearingRatioMax: Positive = Field(description="... × √(A1/A2) at most this.")
+
+
+class DuctileBeamRules(_Group):
+    minWidth: Positive
+    minRatio: Share
+    depthShare: Share = Field(description="D at most this × the clear span.")
+    minBars: int = Field(ge=1)
+    minBarDia: Positive
+    rhoMinRoot: Positive = Field(description="ρ >= c √fck / fy.")
+    rhoMax: Share
+    positiveShare: Share = Field(description="Bottom >= share × top at the joint face.")
+    anyShare: Share = Field(description="Any section >= share × the most at the faces.")
+    hoopZoneDepths: Positive = Field(description="Close hoops over this × d from the faces.")
+    hoopSpacing: tuple[Share, Positive, Positive] = Field(description="min(a d, b db, mm).")
+    firstHoop: Positive
+    elsewhereShare: Share = Field(description="Elsewhere at most this × d.")
+    hoopMinDia: Positive
+    overstrength: Positive = Field(description="Capacity shear: × the moment capacities.")
+
+
+class DuctileColumnRules(_Group):
+    axialShare: Share = Field(description="Members with Pu > share fck Ag are columns.")
+    minDimension: Positive
+    minRatio: Share
+    rho: tuple[Share, Share]
+    strongColumn: Positive
+    confinedLength: tuple[Positive, Positive, Positive] = Field(
+        description="lo >= max(a D, clear / b, mm)."
+    )
+    confinedSpacing: tuple[Share, Positive, Positive] = Field(
+        description="min(a × least dimension, b db, mm)."
+    )
+    ash: tuple[Positive, Positive] = Field(description="Ash/(s h) >= max(a (Ag/Ak - 1), b) fck/fy.")
+    spiral: tuple[Positive, Positive] = Field(description="Same, circular hoops (× Dk).")
+    hxMax: Positive
+    outsideShare: Share = Field(description="Outside lo: at most share × least dimension.")
+    lapHoopSpacing: Positive
+
+
+class DuctileJointRules(_Group):
+    gamma: dict[str, Positive] = Field(description="Vj <= γ √fck Aej by confinement.")
+    overstrength: Positive
+    widthShare: Share = Field(description="bj = min(bb + share × hc, bc).")
+
+
+class DuctileWallRules(_Group):
+    minThickness: Positive
+    rhoMin: Share
+    twoCurtainThickness: Positive
+    twoCurtainRoot: Positive = Field(description="Or τv > c √fck.")
+    barDiaShare: Share
+    spacing: tuple[Positive, Positive, Positive] = Field(description="min(lw / a, b t, mm).")
+    boundaryStress: Share = Field(description="Boundary elements where σ > share fck ...")
+    boundaryStop: Share = Field(description="... until σ < this × fck.")
+    couplingRoot: Positive = Field(description="Diagonal bars where τv > c (ls/D) √fck ...")
+    couplingSpanRatio: Positive = Field(description="... and ls / D below this.")
+
+
+class DuctileDetailingRules(_Group):
+    """Ductile detailing of moment frames and walls by prescriptive limits (method
+    ``ductileDetailing``)."""
+
+    method: Literal["ductileDetailing"] = "ductileDetailing"
+    frames: list[str] = Field(description="The seismic systems' frame levels it applies to.")
+    beams: DuctileBeamRules
+    columns: DuctileColumnRules
+    joints: DuctileJointRules
+    walls: DuctileWallRules
+
+
+def chosen(table: Any, group: str, method: str) -> Any | None:
+    """The table's group ``group`` when it is the method ``method`` (else None): the group a
+    module of that method reads (C5 and C8 share the group names, by method id)."""
+    found = getattr(table, group, None) if table is not None else None
+    if found is None:
+        return None
+    return found if getattr(found, "method", method) == method else None
+
+
 class ConcreteMethodsTable(TableModel):
     """Partial-factor design of reinforced concrete and its detailing (see the module notes)."""
 
     ultimate: UltimateRules | None = None
-    shear: StrutShearRules | None = None
-    torsion: StrutTorsionRules | None = None
-    punching: PunchingRules | None = None
+    # C8: a group is one method of those its id names (C5's or C8's).
+    shear: StrutShearRules | TabulatedShearRules | None = None
+    torsion: StrutTorsionRules | EquivalentTorsionRules | None = None
+    punching: PunchingRules | RootStressPunchingRules | None = None
     serviceStress: ServiceStressRules | None = None
-    cracking: CrackRules | None = None
-    deflection: SpanDepthRules | None = None
-    cover: CoverRules | None = None
-    anchorage: AnchorageRules | None = None
+    cracking: CrackRules | CrackWidthRules | None = None
+    deflection: SpanDepthRules | SpanDepthFactorRules | None = None
+    cover: CoverRules | ExposureConditionRules | None = None
+    anchorage: AnchorageRules | BondTableRules | None = None
     memberSteel: MemberSteelRules | None = None
     exposureClasses: dict[str, ExposureClass] = Field(default_factory=dict)
     defaultExposure: str | None = None
-    seismic: SeismicConcreteRules | None = None
     # Alpha 9 C5b.
     slenderness: SlendernessRules | None = None
     parentMethods: list[str] = Field(
@@ -405,6 +747,14 @@ class ConcreteMethodsTable(TableModel):
         description="Areas (saengine.design.method_selection) a project designs by the default "
         "method instead of the pack's (an override).",
     )
+    seismic: SeismicConcreteRules | DuctileDetailingRules | None = None
+    # C8: the groups of the tabulated (IS 456 type) methods with no C5 counterpart.
+    memberLimits: MemberLimitRules | None = None
+    columns: ColumnMethodRules | None = None
+    twoWaySlabs: TwoWaySlabRules | None = None
+    flatSlabs: FlatSlabRules | None = None
+    walls: WallMethodRules | None = None
+    footings: FootingMethodRules | None = None
 
 
 # ───────────────────────────── geotechnicalMethods ─────────────────────────────

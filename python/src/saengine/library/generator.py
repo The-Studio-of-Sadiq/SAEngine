@@ -1431,6 +1431,30 @@ def _generate_building(s: BuildingSpec, settings: Any) -> dict[str, Any]:
     concrete = materials.get(s.concrete)
     if concrete is None or concrete.category != Category.CONCRETE or concrete.concrete is None:
         raise ValueError(f"'{s.concrete}' is not a concrete of the default materials")
+    if "concrete" not in s.model_fields_set:
+        # C8: a pack with a least grade for its default exposure (IS 456 Table 5) gets the
+        # weakest default concrete that meets it when the spec names none.
+        from saengine.design.member_limits import exposure
+
+        found = exposure()
+        if found is not None and concrete.concrete.fc < found[1].grade:
+            stronger = sorted(
+                (
+                    m
+                    for m in materials.materials
+                    if m.category == Category.CONCRETE
+                    and m.concrete is not None
+                    and m.concrete.fc >= found[1].grade
+                ),
+                key=lambda m: m.concrete.fc,
+            )
+            if stronger:
+                concrete = stronger[0]
+                s = s.model_copy(update={"concrete": concrete.id})
+                notes.append(
+                    f"concrete {concrete.id}: the least grade M{found[1].grade:g} of the code "
+                    f"pack's exposure '{found[0]}' (Code values to change the exposure)"
+                )
     rebar = materials.get(s.rebar)
     if rebar is None or rebar.category != Category.REBAR or rebar.steel is None:
         raise ValueError(f"'{s.rebar}' is not a rebar of the default materials")

@@ -1,0 +1,13 @@
+{
+  "$schema": "../../../schemas/foundations.schema.json",
+  "$sources": [
+    "ACI 318-19 Chapter 23 (strut-and-tie models of footings, pile caps and deep members); the geotechnical tables (bearing, piles, retaining walls) are the extended pack's until the US geotechnical track"
+  ],
+  "strutAndTie": {
+    "betaBottlePlain": 0.4,
+    "betaOther": 0.4
+  },
+  "sources": {
+    "strutAndTie": "ACI 318-19 Chapter 23: Table 23.4.3(a) βs = 1.0 boundary struts, 0.75 interior struts with the distributed reinforcement of 23.5, 0.4 interior struts without it and struts in tension members; Table 23.9.2 βn = 1.0 CCC, 0.80 CCT, 0.60 CTT; 23.2.7 least strut angle 25°; Table 23.5.1 web reinforcement ratio; 21.2.1(g) φ 0.75; the confinement factor βc of 23.4.3 is taken as 1.0 (on the safe side); tieArm is SAEngine practice"
+  }
+}

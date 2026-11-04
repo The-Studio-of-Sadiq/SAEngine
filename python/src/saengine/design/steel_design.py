@@ -31,9 +31,14 @@ KINDS = {"beam": "beam", "column": "column", "brace": "brace"}
 def _method() -> list[str]:
     """``METHOD``: the method text of the design report, with the clauses of the code pack in
     force (read as a module attribute)."""
+    from saengine.design.clauses import text as clause_text
+
+    # Alpha 9 C3: a pack with its own connection clauses gives its own line.
+    own = clause_text("steelMembers", "methodConnections")
     return [
         *steel_members.METHOD,
-        (
+        own
+        or (
             "Steel connections (when the object type sets one): fin plate, shear end plate or brace "
             "gusset checked for the member's end shears or axial forces, Part 6 Sec 10.10 of the code pack "
             "(bolts, bearing, block shear, welds, the Whitmore section); listed as 'Connection: ...' "
@@ -385,7 +390,30 @@ def design_member(
     """The design report entry of one steel member and what the design mode needs of it
     (``{"id", "kind", "type", "object", "material", "lengths", "stations", "checks"}``).
     Raises :class:`saengine.design.steel.SteelDesignError` when it cannot be checked."""
+    from saengine.design.steel import basis as steel_basis
+
     options = steel_members.SteelOptions.of(options)
+    with steel_basis.using(options.basis):  # alpha 9 C3: connections on the member's basis
+        return _design_member(
+            member_id, kind, object_type, material, mats, pieces, combinations, turned, project,
+            options,
+        )  # fmt: skip
+
+
+def _design_member(
+    member_id: str,
+    kind: str,
+    object_type: Any,
+    material: Any,
+    mats: dict[str, Any],
+    pieces: list[Any],
+    combinations: list[str],
+    turned: bool,
+    project: dict[str, Any],
+    options: Any,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    from saengine.design.steel import basis as steel_basis
+
     entry = steel_members.design_steel_member(
         member_id,
         kind,
@@ -399,6 +427,12 @@ def design_member(
         options,
     )
     entry["material"] = material.id
+    if options.basis == steel_basis.ASD:  # alpha 9 C3
+        entry["basis"] = steel_basis.ASD
+        entry["section"]["notes"] = [
+            *entry["section"].get("notes", []),
+            "ASD: available strengths Rn / Ω under the code pack's allowable stress combinations",
+        ]
     stations = steel_members.member_stations(pieces, combinations, turned)
     try:
         connections = connection_results(
@@ -432,8 +466,8 @@ def design_member(
         "lengths": lengths,
         "stations": stations,
         # B17: the stability design method, for the design mode's re-checks.
-        "options": steel_members.SteelOptions(stability=options.stability)
-        if options.stability is not None
+        "options": steel_members.SteelOptions(stability=options.stability, basis=options.basis)
+        if options.stability is not None or options.basis != steel_basis.LRFD
         else None,
         "checks": entry["checks"],
     }

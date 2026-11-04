@@ -41,6 +41,12 @@ def _table() -> Any | None:
 
 def covered(group: str) -> bool:
     t = _table()
+    # C8: the group must be this module's method (another code's may hold it).
+    methods = {"cracking": "directWidth", "deflection": "spanDepthK"}
+    if group in methods:
+        from saengine.codes.method_tables import chosen
+
+        return chosen(t, group, methods[group]) is not None
     return t is not None and getattr(t, group, None) is not None
 
 

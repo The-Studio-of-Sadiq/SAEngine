@@ -396,8 +396,15 @@ def size_factor(d: float) -> float:
 
 def one_way_shear_capacity(b: float, d: float, rho: float, fc: float, lam: float = 1.0) -> float:
     """φVc [N] of a footing strip without shear reinforcement: ACI 318-19 Table 22.5.5.1 (c),
-    0.66 λs λ ρw^(1/3) √f'c b d, at most 0.42 λ √f'c b d (√f'c <= 8.3 MPa). With the pack's
-    partial factors (alpha 9 C5b) VRd,c of the strip (:mod:`saengine.design.strut_shear`)."""
+    0.66 λs λ ρw^(1/3) √f'c b d, at most 0.42 λ √f'c b d (√f'c <= 8.3 MPa).
+
+    Alpha 9 C8: with the pack's tabulated shear (IS 456 34.2.4.1, 40.2) Vc = τc b d, τc by
+    100 ρ and the grade (no φ)."""
+    from saengine.design import tabulated_shear
+
+    if tabulated_shear.rules() is not None:
+        return tabulated_shear.tau_c(fc, 100 * max(rho, 0.0)) * b * d
+    # Alpha 9 C5b: with the pack's variable strut method VRd,c of the strip (strut_shear).
     from saengine.design import method_selection
 
     if method_selection.uses("shear", "variableStrut"):
@@ -414,7 +421,15 @@ def punching_stress(
 ) -> float:
     """vc [MPa] of two-way shear without shear reinforcement (ACI 318-19 Table 22.6.5.2): the
     least of 0.33, 0.17 (1 + 2/β) and 0.083 (2 + αs d / b0) times λs λ √f'c, β the long over
-    the short side of the column."""
+    the short side of the column.
+
+    Alpha 9 C8: with the pack's ``rootStress`` punching (IS 456 31.6.3), ks τc divided by the
+    pack's φ for shear, so that the callers' φ vc is ks τc (no φ in that method)."""
+    from saengine.design import tabulated_shear
+
+    if tabulated_shear.punching_rules() is not None:
+        allowed = tabulated_shear.punching_stress(fc, min(c1, c2), max(c1, c2))
+        return allowed / rc.value("PHI_SHEAR")
     root = min(math.sqrt(fc), 8.3)
     beta = max(c1, c2) / min(c1, c2)
     factor = min(0.33, 0.17 * (1 + 2 / beta), 0.083 * (2 + alpha_s * d / b0))
@@ -433,7 +448,13 @@ def polar_j(b1: float, b2: float, d: float) -> float:
 
 
 def min_steel_ratio(fy: float) -> float:
-    """As,min / Ag of a slab or footing with deformed bars (ACI 318-19 Table 7.6.1.1)."""
+    """As,min / Ag of a slab or footing with deformed bars (ACI 318-19 Table 7.6.1.1); alpha 9
+    C8: the pack's slab ratio where it gives ``memberLimits`` (IS 456 26.5.2.1, 34.5.2)."""
+    from saengine.design.member_limits import limits
+
+    found = limits()
+    if found is not None:
+        return found.slabMin[1] if fy <= found.plainFy else found.slabMin[0]
     if fy < 420:
         return 0.0020
     return max(0.0018 * 420 / fy, 0.0014)
@@ -470,6 +491,18 @@ def strip_flexure(
         es = rc.value("STEEL_E")
     if as_per_m <= 0 or d <= 0:
         return StripFlexure(0.0, 0.9, math.inf)
+    from saengine.design import design_strength, tabulated_shear
+
+    if tabulated_shear.rules() is not None:
+        # Alpha 9 C8: the pack's rectangular block on the design strengths, no φ (η fcd over
+        # λ x: IS 456 0.36 fck xu at 0.42 xu, Annex G).
+        r = design_strength.rules()
+        p = design_strength.properties(fc, r)
+        fyd = design_strength.fyd(fy, r)
+        eta, lam = p.eta, p.lam
+        x = as_per_m * fyd / (eta * design_strength.fcd(fc, r) * lam * 1000)
+        eps_cu = design_strength.ultimate_strain(fc)
+        return StripFlexure(as_per_m * fyd * (d - lam * x / 2), 1.0, eps_cu * (d - x) / x)
     if rc._partial_factors():
         # Alpha 9 C5b: the pack's block on the design strengths (φ = 1).
         bk = rc.stress_block(fc, fy)

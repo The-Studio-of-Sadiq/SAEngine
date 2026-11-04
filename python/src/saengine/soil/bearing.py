@@ -140,6 +140,9 @@ def ultimate(
 ) -> dict[str, float]:
     """qu [kPa] of the general bearing capacity equation, with its factors."""
     b, l_ = min(b, l_), max(b, l_)
+    flow = _flow_value_rules()
+    if flow is not None:
+        return _flow_value(flow, c, phi_deg, q, gamma, b, l_, df)
     f = factors(phi_deg)
     phi = math.radians(phi_deg)
     ratio = b / l_
@@ -155,6 +158,51 @@ def ultimate(
         "Nc": f.nc,
         "Nq": f.nq,
         "Ngamma": f.ng,
+        "sc": sc,
+        "sq": sq,
+        "sgamma": sg,
+        "dc": dc,
+        "dq": dq,
+    }
+
+
+def _flow_value_rules() -> Any | None:
+    """Alpha 9 C8: the pack's ``foundations.shallow.bearingFactors`` (method ``flowValue``,
+    IS 6403), or None for SAEngine's Vesic / De Beer / Hansen factors (the default pack)."""
+    from saengine.codes import context as code_context
+
+    try:
+        return code_context.table("foundations").shallow.bearingFactors
+    except (KeyError, AttributeError):
+        return None
+
+
+def _flow_value(
+    r: Any, c: float, phi_deg: float, q: float, gamma: float, b: float, l_: float, df: float
+) -> dict[str, float]:
+    """qu = qnu + q with qnu = c Nc sc dc + q (Nq - 1) sq dq + ½ γ B Nγ sγ dγ (vertical load:
+    the inclination factors 1), the factors of :class:`saengine.codes.tables.BearingFactorRules`."""
+    phi = math.radians(phi_deg)
+    if phi_deg < 1e-9:
+        nc, nq, ng = r.undrainedNc, 1.0, 0.0
+    else:
+        nq = math.exp(math.pi * math.tan(phi)) * math.tan(math.pi / 4 + phi / 2) ** 2
+        nc = (nq - 1) / math.tan(phi)
+        ng = r.gammaFactor * (nq + 1) * math.tan(phi)
+    ratio = b / l_
+    if abs(ratio - 1.0) < 1e-6:
+        sc, sq, sg = r.square
+    else:
+        sc, sq, sg = 1 + r.shape[0] * ratio, 1 + r.shape[1] * ratio, 1 - r.shape[2] * ratio
+    root = math.tan(math.pi / 4 + phi / 2)  # √Nφ
+    dc = 1 + r.depth[0] * df / b * root
+    dq = 1 + r.depth[1] * df / b * root if phi_deg >= r.depthPhiMin else 1.0
+    qnu = c * nc * sc * dc + q * (nq - 1) * sq * dq + 0.5 * gamma * b * ng * sg * dq
+    return {
+        "qu": qnu + q,
+        "Nc": nc,
+        "Nq": nq,
+        "Ngamma": ng,
         "sc": sc,
         "sq": sq,
         "sgamma": sg,
@@ -627,8 +675,19 @@ def method_text(design: Design) -> str:
     """How qa is worked out with the report's design options, with the settlement criterion."""
     from saengine.soil.settlement import permissible_text
 
+    shear_text = _SHEAR
+    if _flow_value_rules() is not None:
+        # Alpha 9 C8: the pack's factors (IS 6403) in place of Vesic / De Beer / Hansen.
+        from saengine.codes import context as code_context
+
+        clause = code_context.cite("foundations", "bearingFactors")
+        shear_text = _SHEAR.replace(
+            "Vesic (1975) factors, De Beer shape and Hansen depth factors",
+            "qnu = c Nc sc dc + q (Nq - 1) sq dq + ½ γ B Nγ sγ dγ with the code pack's shape and "
+            "depth factors by the flow value Nφ" + (f" ({clause})" if clause else ""),
+        )
     return (
-        _SHEAR
+        shear_text
         + _SETTLEMENT[design.practice]
         + _COMPUTED
         + f" Settlement criterion of qa: {design.allowableSettlement:g} mm (design option "

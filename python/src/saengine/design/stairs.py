@@ -1007,9 +1007,9 @@ def phi_vc(d: float, fc: float, rho: float = 0.0) -> float:
     """φVc per metre [kN/m]: 0.75 x 0.17 √f'c b d (Sec 6.4.2.1.1, Eq. 6.6.49), λ = 1. With the
     pack's partial factors (alpha 9 C5b) VRd,c of the strip with the tension ratio ``rho``
     (0: vmin, on the safe side)."""
-    from saengine.design import limit_state_rows
+    from saengine.design import limit_state_rows, method_selection
 
-    if limit_state_rows.partial_factors():
+    if limit_state_rows.partial_factors() and method_selection.uses("shear", "variableStrut"):
         return limit_state_rows.one_way_shear(rho, d, fc)[0] / 1000
     return rc_value("PHI_SHEAR") * 0.17 * math.sqrt(fc) * 1000 * d / 1000
 

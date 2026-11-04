@@ -124,3 +124,159 @@ may be wrong; SAEngine's choice is stated.
 Not entered, to add when the texts are at hand: IS 1893 Table 4 damping factors, Annex C
 topography (k3), IS 875-3 Clause 10 gust factor, Table 6 roof Cpe and the cladding coefficients,
 IS 16700:2017 tall-building limits (drift, accelerations).
+
+
+# Concrete and foundations (alpha 9 track C8, 2026-11-04)
+
+Same rules as above: entered from knowledge of the codes, no copy of the text at hand; the
+paths are of `concreteMethods` unless another table is named.
+
+## IS 456:2000, materials and the limit state
+
+| # | Path | Value | Clause | What | Confidence |
+| --- | --- | --- | --- | --- | --- |
+| 91 | ultimate.gammaC / gammaS | 1.5 / 1.15 | 36.4.2 | Partial safety factors of the materials (ultimate) | Sure |
+| 92 | ultimate.alphaCC | 0.67 | 38.1(c) | Design stress 0.67 fck / γm = 0.446 fck | Sure |
+| 93 | ultimate.relations.epsCu2 / epsC2 / n | 3.5 ‰, 2.0 ‰, 2 | 38.1(b), (c), Fig. 21 | εcu, strain at the peak, parabola | Sure |
+| 94 | ultimate.relations eta / lambda | 0.9595 / 0.84 | 38.1, Annex G-1.1 | Rectangular block of the same force and centroid (0.36 fck xu at 0.42 xu) | SAEngine form (values derived) |
+| 95 | ultimate.relations.ecmCoefficient | Ec = 5000 √fck | 6.2.3.1 | Short-term modulus (also concrete.modulus.normal) | Sure |
+| 96 | ultimate.relations.fctmCoefficient | fcr = 0.7 √fck | 6.2.2 | Flexural strength (cracking moment of Annex C) | Sure |
+| 97 | ultimate.strengthClasses | M15 to M80, named "M" + fck | Table 2 | Grades; the project's concrete fc is read as fck | Check (M65-M80 rows) |
+| 98 | ultimate.axialShares | 0.4 fck Ac + 0.67 fy Asc | 39.3 | The axial cap of the interaction surface | Sure (value); SAEngine practice (used with emin also) |
+| 99 | ultimate.eccentricity* | l/500 + D/30 ≥ 20 mm | 25.4 | Minimum eccentricity about each axis (both at once, on the safe side) | Sure |
+| 100 | memberLimits.neutralAxisStrain | 0.002 | 38.1(f) | xu,max: steel strain fyd/Es + 0.002 (0.48 d for Fe 415) | Sure |
+| 101 | (steel) | elastic-perfectly plastic at fy/1.15 | 38.1(e), Fig. 23 | The HYSD bars' curved diagram of Fig. 23A not modelled | SAEngine practice |
+
+## IS 456:2000, shear, torsion and punching
+
+| # | Path | Value | Clause | What | Confidence |
+| --- | --- | --- | --- | --- | --- |
+| 102 | shear.tauC | 13 × 6 values, M15-M40, pt 0.15-3.0 % | Table 19 | Design shear strength τc | Check every cell |
+| 103 | shear.maxStress | 2.5, 2.8, 3.1, 3.5, 3.7, 4.0 | Table 20 | τc,max M15-M40 | Sure |
+| 104 | shear.minStirrupStress | 0.4 | 26.5.1.6 | Asv/(b sv) ≥ 0.4/(0.87 fy) | Sure |
+| 105 | shear (threshold) | τv > τc/2 | 26.5.1.6 | Minor members may omit the least stirrups below half τc: SAEngine applies the exemption to every beam | Check (reading) |
+| 106 | shear.fyMax | 415 MPa | 40.4(a) | fy of stirrups taken at most 415 | Sure |
+| 107 | shear.spacing | 0.75 d, 300 mm | 26.5.1.5 | Vertical stirrups | Sure |
+| 108 | shear.slabDepths | k 1.30 (≤150) to 1.00 (≥300) | 40.2.1.1 | Solid slabs (overall depth taken as d + 25 mm) | Check (the d + 25 mm is SAEngine's) |
+| 109 | shear.enhancement | 2 d / av | 40.5 | Near supports: stored, not applied (the checks take τc) | Check |
+| 110 | torsion.shearFactor / momentDivisor | 1.6 / 1.7 | 41.3.1, 41.4.2 | Ve = Vu + 1.6 T/b; Mt = T (1 + D/b)/1.7 | Sure |
+| 111 | torsion.depthDivisor | 2.5 | 41.4.3 | Asv = T sv/(b1 d1 0.87fy) + V sv/(2.5 d1 0.87 fy) | Sure |
+| 112 | torsion.spacing* | x1, (x1 + y1)/4, 300 mm | 26.5.1.7 | Closed links | Sure |
+| 113 | punching.perimeterDistance | d/2 | 31.6.1 | Critical section | Sure |
+| 114 | punching.coefficient / ratioBase | 0.25 √fck; ks = 0.5 + βc ≤ 1 | 31.6.3.1 | Punching shear stress | Sure |
+| 115 | punching.reinforcedMax / concreteShare | 1.5 τc; 0.5 Vc | 31.6.3.2 | With shear reinforcement (not laid out by SAEngine) | Sure |
+| 116 | (punching) | unbalanced moment as the parent's γv M c / J | 31.6.2.2 | The fraction transferred by shear | Check (reading) |
+
+## IS 456:2000, columns, deflection, cracking
+
+| # | Path | Value | Clause | What | Confidence |
+| --- | --- | --- | --- | --- | --- |
+| 117 | columns.slenderness.limit | lex/D > 12 slender | 25.1.2 | | Sure |
+| 118 | columns.slenderness.maxRatio | 60 | 25.3.1 | Unsupported length at most 60 × least dimension (read on lex/D) | Check (reading) |
+| 119 | columns.slenderness.divisor | Ma = Pu D/2000 (lex/D)² | 39.7.1 | Additional moments, added at every station | Sure (value); SAEngine practice (no 0.4M1 + 0.6M2) |
+| 120 | (columns) | k = (Puz − Pu)/(Puz − Pb) ≤ 1 | 39.7.1.1 | Pb at the balanced strain state | Sure |
+| 121 | (columns) | lex = k lu with the parent's k | 25.2, Annex E | k from the alignment charts SAEngine has | Check |
+| 122 | columns.biaxial.alphaN | 1.0 at ≤ 0.2 Puz, 2.0 at ≥ 0.8 | 39.6 | Load contour exponent | Sure |
+| 123 | columns.biaxial.puzShares | 0.45 fck Ac + 0.75 fy Asc | 39.6 | Puz | Sure |
+| 124 | deflection.basic | 7 / 20 / 26 | 23.2.1(a) | Cantilever / simply supported / continuous; one end continuous taken as continuous | Sure (values); Check (one end) |
+| 125 | deflection.longSpan | 10 m, × 10/span | 23.2.1(b) | | Sure |
+| 126 | deflection.tension | 1/(0.225 + 0.00322 fs − 0.625 log10(1/pt)) ≤ 2.0, fs = 0.58 fy | Fig. 4, 23.2.1(c) | Curve fit of Fig. 4 (As,req/As,prov taken 1) | Uncertain (the fit) |
+| 127 | deflection.compression | 1 + pc/(3 + pc) ≤ 1.5 | Fig. 5 | Curve fit | Uncertain (the fit) |
+| 128 | deflection.flange | 0.8 at bw/bf ≤ 0.3, 1.0 at 1.0 | Fig. 6 | Flanged beams (bf of 23.1.2) | Check |
+| 129 | deflection.flangeT / flangeL | l0/6 + bw + 6 Df; l0/12 + bw + 3 Df | 23.1.2 | Effective flange width | Check |
+| 130 | deflection.limitTotal / limitAfter* | span/250; span/350 or 20 mm | 23.2(a), (b) | | Sure |
+| 131 | deflection.shrinkage* | εcs 0.0003; k3 0.5/0.125/0.086/0.063; k4 0.72, 0.65 | 6.2.4.1, C-3 | Shrinkage curvature | Check |
+| 132 | deflection.creep / loadingAge | θ 2.2 / 1.6 / 1.1 at 7 / 28 / 365 days; 28 days | 6.2.5.1, C-4 | Creep coefficient | Check |
+| 133 | (deflection) | Ieff = Ir/(1.2 − (Mr/M)(z/d)(1 − x/d)(bw/b)) | C-2.1 | Effective inertia | Check |
+| 134 | cracking.width | 0.3 mm; 0.2 / 0.1 aggressive | 35.3.2 | IS gives 0.004 × cover for aggressive: SAEngine stores 0.2/0.1 by exposure | Uncertain (reading) |
+| 135 | cracking (formula) | Wcr = 3 acr εm/(1 + 2(acr − cmin)/(h − x)) | Annex F | The corner bar of the soffit | Check |
+| 136 | cracking.stiffeningDivisor | 3 | Annex F | εm = ε1 − b(h − x)(a' − x)/(3 Es As (d − x)) | Check |
+| 137 | cracking.tankWidth | 0.2 mm | IS 3370 (Part 2):2009 | Stored, not wired (no tank check reads it yet) | Check |
+
+## IS 456:2000, cover, durability, anchorage, member limits
+
+| # | Path | Value | Clause | What | Confidence |
+| --- | --- | --- | --- | --- | --- |
+| 138 | cover.conditions.*.cover | 20 / 30 / 45 / 50 / 75 mm | Table 16 | Mild to extreme | Sure |
+| 139 | cover.smallBarReduction / gradeReduction | 5 mm (≤ 12 mm bars, mild); 5 mm at M35+ (severe, very severe) | Table 16 notes | | Check |
+| 140 | cover.columnCover / footingCover | 40 / 50 mm | 26.4.2.1, 26.4.2.2 | | Sure |
+| 141 | cover.conditions.* cement / waterCement / grade | 300/300/320/340/360; 0.55/0.50/0.45/0.45/0.40; M20/M25/M30/M35/M40 | Table 5 | Reinforced concrete | Sure |
+| 142 | defaultExposure | moderate | Table 3 | SAEngine default, overridable per project (Code values) | SAEngine practice |
+| 143 | anchorage.bond | 1.0 / 1.2 / 1.4 / 1.5 / 1.7 / 1.9 | 26.2.1.1 | τbd M15-M40, plain bars in tension | Sure |
+| 144 | anchorage.deformedFactor / compressionFactor | +60 % / +25 % | 26.2.1.1 | | Sure |
+| 145 | anchorage.lap* | max(Ld, 30φ); 2 Ld; max(Ld,c, 24φ); none above 36 mm | 26.2.5.1 | | Sure |
+| 146 | memberLimits.beamMin / beamMax | 0.85/fy; 0.04 b D | 26.5.1.1 | | Sure |
+| 147 | memberLimits.sideFace* | D > 750 mm, 0.1 % of the web, 300 mm | 26.5.1.3 | | Sure |
+| 148 | memberLimits.slabMin / plainFy / slabBarShare | 0.12 % / 0.15 % (mild, fy ≤ 250); D/8 | 26.5.2.1, 26.5.2.2 | | Sure |
+| 149 | memberLimits.slab*Spacing | 3 d or 300 mm; 5 d or 450 mm | 26.3.3(b) | | Sure |
+| 150 | memberLimits.column* | 0.8-6 %; 4 / 6 bars; 12 mm | 26.5.3.1 | | Sure |
+| 151 | memberLimits.tie* | φ/4 and 6 mm; min(least dimension, 16 φ, 300 mm) | 26.5.3.2(c) | | Sure |
+
+## IS 456:2000, slabs, walls, footings
+
+| # | Path | Value | Clause | What | Confidence |
+| --- | --- | --- | --- | --- | --- |
+| 152 | twoWaySlabs.cases | nine cases, αx at ly/lx 1.0-2.0, αy | Annex D Table 26 | Restrained panels | Check every cell |
+| 153 | twoWaySlabs.simple* | αx, αy at 1.0-3.0 | Table 27 | Simply supported (stored; the coefficient design takes the four-edge discontinuous case of Table 26) | Check |
+| 154 | twoWaySlabs.middleStrip / torsion* | 3/4; 3/4 over lx/5; half with one edge continuous | D-1.1, D-1.8 | Stored; the corner steel rows stay the parent's | Check |
+| 155 | flatSlabs.interiorNegative / positive / exteriorNegative | 0.75 − 0.10/(1 + 1/αc); 0.63 − 0.28/(1 + 1/αc); 0.65/(1 + 1/αc) | 31.4.3.3 | End spans by αc | Check |
+| 156 | flatSlabs.columnStrip / minThickness | 75 % / 100 % / 60 %; 125 mm | 31.5.5, 31.2.1 | (the parent's αf = 0 rows hold the same shares) | Check |
+| 157 | walls.shear* | τcw = (3 − αw) 0.2 √fck; αw > 1: also 0.045 fck (αw+1)/(αw−1); τv ≤ 0.17 fck; d = 0.8 Lw | 32.4 | In-plane shear | Check (K1, K2) |
+| 158 | walls.axialFactor / eccentricity / ea | 0.3 (t − 1.2e − 2ea) fck Lw; ea = Hwe²/2500t; Hwe/t ≤ 30 | 32.2.5, 32.2.3 | Stored; the axial check stays the parent's | Check |
+| 159 | walls.minEccentricityShare | 0.05 t | 32.2.2 | Uncertain (t/20 reading) | Uncertain |
+| 160 | walls.vertical / horizontal | 0.0012 / 0.0015; 0.0020 / 0.0025 | 32.5 | Same as the parent's values | Sure |
+| 161 | footings.edgeThickness / pileEdgeThickness | 150 / 300 mm | 34.1.2 | (the parent's foundations.shallow.minThickness agrees) | Sure |
+| 162 | foundations.shallow.columnBase | 0.45 fck √(A1/A2), √ ≤ 2, no φ; dowels 0.5 % | 34.4, 34.4.3 | | Sure |
+
+## IS 13920:2016
+
+| # | Path | Value | Clause | What | Confidence |
+| --- | --- | --- | --- | --- | --- |
+| 163 | seismic.frames | special | Clause 1 | Ductile detailing where the detailing level is special (zones III-V) | Check (reading) |
+| 164 | seismic.beams.minWidth / minRatio / depthShare | 200 mm; 0.3; D ≤ clear span/4 | 6.1 | | Check |
+| 165 | seismic.beams.minBars / minBarDia | 2 bars of 12 mm top and bottom | 6.2.1 | | Sure |
+| 166 | seismic.beams.rhoMinRoot / rhoMax | 0.24 √fck/fy; 2.5 % | 6.2.1, 6.2.2 | | Sure |
+| 167 | seismic.beams.positiveShare / anyShare | 1/2; 1/4 | 6.2.3, 6.2.4 | | Sure |
+| 168 | seismic.beams.hoopSpacing / hoopZoneDepths / firstHoop / elsewhereShare | min(d/4, 8 db, 100 mm) over 2d, first 50 mm; d/2 | 6.3.5 | | Check (2016 values) |
+| 169 | seismic.beams.hoopMinDia | 8 mm (6 mm for spans < 5 m not used) | 6.3.2 | | Check |
+| 170 | seismic.beams.overstrength | 1.4 (MuAs + MuBh)/LAB | 6.3.3 | Capacity design shear from the design moment capacities | Sure |
+| 171 | seismic.columns.axialShare | 0.08 fck Ag | 7 (scope) | Members with more axial stress are columns | Check |
+| 172 | seismic.columns.minDimension / minRatio | 300 mm; 0.4 | 7.1.1, 7.1.2 | The 200 mm exception (short columns, short beams) not used | Check |
+| 173 | seismic.columns.rho | 0.8 % to 4 % | 7.3.1 | | Check |
+| 174 | seismic.columns.strongColumn | ΣMc ≥ 1.4 ΣMb | 7.2.1 | Joints with no column above exempt (SAEngine reading) | Sure (1.4); Check (exemption) |
+| 175 | seismic.columns.confinedLength | max(D, clear/6, 450 mm) | 8.1 | lo | Sure |
+| 176 | seismic.columns.confinedSpacing | min(B/4, 6 db, 100 mm) | 8.1 | In lo | Check (2016 values) |
+| 177 | seismic.columns.ash | max(0.18 (Ag/Ak − 1), 0.05) s h fck/fy | 8.1(b) | Rectangular hoops, h the leg spacing | Check |
+| 178 | seismic.columns.spiral | max(0.09 (Ag/Ak − 1), 0.024) s Dk fck/fy | 8.1(a) | Circular hoops | Uncertain |
+| 179 | seismic.columns.hxMax / outsideShare / lapHoopSpacing | 300 mm; B/2; 150 mm | 8.1, 7.4 | | Check |
+| 180 | seismic.joints.gamma | 1.5 / 1.2 / 1.0 √fck Aej | 9.1.1 | Four faces / three or two opposite / others confined | Check |
+| 181 | seismic.joints.widthShare | bj = min(bb + hc/2, bc) | 9.1.2 | Effective joint width | Uncertain |
+| 182 | seismic.joints.overstrength | 1.4 fyd (As,top + As,bottom) − Vcol | 9.1 | Joint design shear (SAEngine form) | Uncertain |
+| 183 | seismic.walls.minThickness / rhoMin | 150 mm; 0.25 % each way | 10.1, 10.2 | Special shear walls | Check |
+| 184 | seismic.walls.twoCurtain* / barDiaShare / spacing | t > 200 mm or τv > 0.25 √fck; t/10; min(lw/5, 3t, 450 mm) | 10.1-10.2 | | Check |
+| 185 | seismic.walls.boundaryStress / boundaryStop | 0.2 fck; 0.15 fck | 10.4 | Boundary elements | Sure |
+| 186 | seismic.walls.couplingRoot / couplingSpanRatio | diagonals where τv > 0.1 (ls/D) √fck with ls/D < 2 | 10.5 | Coupling beams; Vu = 2 Asd 0.87 fy sin α | Uncertain |
+| 187 | detailing.joints.probableStress | 1.4 | 6.3.3 | The parent's Mpr form read as 1.4 × the design strengths (Design Reinforcement, capacity shear) | SAEngine practice |
+
+## Foundations
+
+| # | Path | Value | Clause | What | Confidence |
+| --- | --- | --- | --- | --- | --- |
+| 188 | foundations.shallow.bearingFactors | qnu = c Nc sc dc + q (Nq − 1) sq dq + ½ B γ Nγ sγ dγ | IS 6403 5.1 | Net ultimate bearing capacity | Sure |
+| 189 | bearingFactors.gammaFactor | Nγ = 2 (Nq + 1) tan φ | IS 6403 Table 1 (Vesic) | | Check |
+| 190 | bearingFactors.shape / square / circle | 1 + 0.2 B/L, 1 + 0.2 B/L, 1 − 0.4 B/L; 1.3, 1.2, 0.8; 1.3, 1.2, 0.6 | IS 6403 Table 2 | | Sure |
+| 191 | bearingFactors.depth / depthPhiMin | dc = 1 + 0.2 Df/B √Nφ; dq = dγ = 1 + 0.1 Df/B √Nφ from φ 10° | IS 6403 5.1.2.2 | | Check |
+| 192 | bearingFactors (inclination) | (1 − α/90)², (1 − α/φ)² | IS 6403 5.1.2.3 | Vertical loads only here: 1 | Not covered |
+| 193 | foundations.piles.earthPressure.nc | 9 | IS 2911-1-2 B-1 | Cohesive base | Sure |
+| 194 | earthPressure.k | 1.5 | IS 2911-1-2 B-2 | K of bored piles (the code gives 1 to 2) | Check (SAEngine choice in the range) |
+| 195 | earthPressure.deltaShare | δ = φ | IS 2911-1-2 B-2 | | Check |
+| 196 | earthPressure.criticalDepth | 15 D | IS 2911-1-2 B-2 note | σ'v constant below it | Uncertain (15 or 20 D) |
+| 197 | earthPressure (Nq) | the parent's Nq figure (Berezantsev) | IS 2911-1-2 Fig. 1 | | Check |
+| 198 | foundations.noLoadTestSafety | 2.5 | IS 2911-1-2 B-1, B-2 | Static formula | Sure |
+| 199 | (α of clay) | 1.0 at cu ≤ 25 kPa to 0.5 at ≥ 70 kPa | IS 2911-1-2 Fig. 5 | The parent's static.alpha* hold these | Check |
+
+Not covered yet (the parent pack's method and values, stated in their rows): the walls' axial
+capacity (32.2.5, stored), the near-support shear enhancement (40.5, stored), IS 8009
+settlement (the parent's methods), IS 2950 rafts (the parent's raft design; no IS rigidity
+criterion yet), IS 3370 tanks (the 0.2 mm width stored, the tank design is the parent's),
+precast, prestress, corbels, deep beams, stairs.

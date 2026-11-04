@@ -201,6 +201,19 @@ def stability_of(
     return out
 
 
+def for_asd(stability: Stability | None) -> Stability | None:
+    """Alpha 9 C3: ``stability`` for a member checked by ASD: α the pack's ``alpha.asd`` (the
+    same object when the pack gives none)."""
+    if stability is None:
+        return None
+    table = _table()
+    if table is None:
+        return stability
+    from dataclasses import replace
+
+    return replace(stability, alpha=float(table.alpha.asd))
+
+
 def stability_for_run(
     settings: Any, project: dict[str, Any], out_dir: Any, building: Any = None
 ) -> Stability:
