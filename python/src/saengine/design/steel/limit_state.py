@@ -403,6 +403,21 @@ def chi(lam: float, alpha: float, plateau: float) -> float:
     return min(1.0, 1.0 / (phi + math.sqrt(max(phi**2 - lam**2, 0.0))))
 
 
+def perry_phi(lam: float, curve: Any) -> float:
+    """Alpha 9 C20: the stability coefficient φ of a curve given by its Perry constants
+    (:class:`saengine.codes.limit_state_tables.PerryCurve`, GB 50017-2017 Eqs D.0.5 type) at
+    the relative slenderness ``lam`` (λn = λ/π √(fy/E))."""
+    if lam <= 0:
+        return 1.0
+    if lam <= curve.plateau:
+        return min(1.0, 1.0 - curve.a1 * lam**2)
+    a2, a3 = curve.a2, curve.a3
+    if curve.split is not None and curve.high is not None and lam > curve.split:
+        a2, a3 = curve.high
+    s = a2 + a3 * lam + lam**2
+    return min(1.0, (s - math.sqrt(max(s**2 - 4 * lam**2, 0.0))) / (2 * lam**2))
+
+
 def buckling_curves(shape: ShapeProperties, table: Any | None = None) -> tuple[str, str]:
     """(major, minor) buckling curves of the shape."""
     t = _t(table)
@@ -460,6 +475,9 @@ def _fcd(
     if comp.slendernessReduction is not None:
         c = alpha_c(kl / r, fy, kf, curve, comp.slendernessReduction)
         return c * fy / float(t.partialFactors.gammaM0), lam
+    if curve in comp.perry:  # Alpha 9 C20: the curve by its Perry constants
+        c = perry_phi(lam, comp.perry[curve])
+        return c * fy / float(t.partialFactors.gammaM0), lam
     alpha = imperfection(comp.alpha[curve], comp.robertson, e, fy)
     c = chi(lam, alpha, float(comp.plateau))
     return c * fy / float(t.partialFactors.gammaM0), lam
@@ -512,6 +530,8 @@ def compression(
             c = alpha_c(
                 length / shape.rz, fy, area / shape.area, comp.angleCurve, comp.slendernessReduction
             )
+        elif comp.angleCurve in comp.perry:  # Alpha 9 C20
+            c = perry_phi(lam_e, comp.perry[comp.angleCurve])
         else:
             alpha = imperfection(comp.alpha[comp.angleCurve], comp.robertson, e, fy)
             c = chi(lam_e, alpha, float(comp.plateau))

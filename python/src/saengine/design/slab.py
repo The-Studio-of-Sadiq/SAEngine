@@ -661,11 +661,14 @@ def punching_capacity(
     Alpha 9 C8: with the pack's ``rootStress`` punching (IS 456 31.6.3), ks τc (β the long
     over the short side) divided by the pack's φ of punching, so that the callers' φ vc is
     ks τc (that method has no φ)."""
-    from saengine.design import tabulated_shear
+    from saengine.design import moment_punching, tabulated_shear
 
     if tabulated_shear.punching_rules() is not None:
         allowed = tabulated_shear.punching_stress(fc, 1.0, beta) / _phi_punching()
         return PunchingCapacity(allowed, (allowed, allowed, allowed), 1.0)
+    if moment_punching.rules() is not None:  # Alpha 9 C18b: fcv (AS 3600 9.3 type), no λs
+        fcv, shape, cap = moment_punching.strength(fc, beta)
+        return PunchingCapacity(fcv, (cap, shape, shape), 1.0)
     root = min(math.sqrt(fc), 8.3)
     lambda_s = min(1.0, math.sqrt(2 / (1 + 0.004 * d)))
     k = lambda_s * lam * root
@@ -688,6 +691,12 @@ def punching_stress(section: CriticalSection, vu: float, m_u: float, m_v: float)
     farthest points (conservative)."""
     b0, d = section.b0, section.d
     width_u, width_v = section.widths()
+    from saengine.design import moment_punching
+
+    transfer = moment_punching.rules()
+    if transfer is not None:  # Alpha 9 C18b: v = V*/(u d) + Σ M*v / (8 a d²) (AS 3600 9.3)
+        found, direct = moment_punching.stress(b0, d, (width_u, width_v), vu, m_u, m_v, transfer)
+        return PunchingStress(found, direct, (0.0, 0.0))
     gamma_u = 1 - 1 / (1 + 2 / 3 * math.sqrt(width_u / width_v))
     gamma_v = 1 - 1 / (1 + 2 / 3 * math.sqrt(width_v / width_u))
     direct = vu / (b0 * d)

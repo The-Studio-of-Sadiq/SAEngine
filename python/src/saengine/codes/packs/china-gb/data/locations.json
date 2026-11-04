@@ -1,0 +1,301 @@
+{
+  "$schema": "../../../schemas/locations.schema.json",
+  "$replace": true,
+  "$sources": [
+    "GB 50011-2010 (2016) Appendix A (seismic fortification intensity, design basic acceleration and design earthquake group of the cities)",
+    "GB 50009-2012 Appendix E Table E.5 (basic wind pressure w0 and basic snow pressure s0 of 50-year return period)"
+  ],
+  "source": "GB 50011 Appendix A: the city's intensity and design basic acceleration (zone = SAEngine's slot of it, zoneCoefficients holds αmax of the frequent earthquake) and its design earthquake group (spectrumType: the Tg row of seismic.spectra); GB 50009 Appendix E: w0 entered as the speed v0 = √(1600 w0) [m/s] (w0 = v0²/1600, wind.speedFactors.airFactor 0.625), s0 as the town's groundSnow. Districts of one city can differ: check the site's county in Appendix A. Elsewhere: Custom, enter Z = αmax and V = √(1600 w0).",
+  "default": "beijing",
+  "locations": {
+    "beijing": {
+      "name": "Beijing 北京 (8 (0.20g), group 2, w0 0.45 kN/m²)",
+      "zone": 4,
+      "windSpeed": 26.83,
+      "zoneLabel": "8 (0.20g), group 2",
+      "spectrumType": "group2",
+      "groundSnow": 0.4
+    },
+    "changchun": {
+      "name": "Changchun 长春 (7 (0.10g), group 1, w0 0.65 kN/m²)",
+      "zone": 2,
+      "windSpeed": 32.25,
+      "zoneLabel": "7 (0.10g), group 1",
+      "spectrumType": "group1",
+      "groundSnow": 0.35
+    },
+    "changsha": {
+      "name": "Changsha 长沙 (6 (0.05g), group 1, w0 0.35 kN/m²)",
+      "zone": 1,
+      "windSpeed": 23.66,
+      "zoneLabel": "6 (0.05g), group 1",
+      "spectrumType": "group1",
+      "groundSnow": 0.45
+    },
+    "chengdu": {
+      "name": "Chengdu 成都 (7 (0.10g), group 3, w0 0.3 kN/m²)",
+      "zone": 2,
+      "windSpeed": 21.91,
+      "zoneLabel": "7 (0.10g), group 3",
+      "spectrumType": "group3",
+      "groundSnow": 0.15
+    },
+    "chongqing": {
+      "name": "Chongqing 重庆 (6 (0.05g), group 1, w0 0.4 kN/m²)",
+      "zone": 1,
+      "windSpeed": 25.3,
+      "zoneLabel": "6 (0.05g), group 1",
+      "spectrumType": "group1"
+    },
+    "dalian": {
+      "name": "Dalian 大连 (7 (0.10g), group 2, w0 0.65 kN/m²)",
+      "zone": 2,
+      "windSpeed": 32.25,
+      "zoneLabel": "7 (0.10g), group 2",
+      "spectrumType": "group2",
+      "groundSnow": 0.4
+    },
+    "fuzhou": {
+      "name": "Fuzhou 福州 (7 (0.10g), group 2, w0 0.7 kN/m²)",
+      "zone": 2,
+      "windSpeed": 33.47,
+      "zoneLabel": "7 (0.10g), group 2",
+      "spectrumType": "group2"
+    },
+    "guangzhou": {
+      "name": "Guangzhou 广州 (7 (0.10g), group 1, w0 0.5 kN/m²)",
+      "zone": 2,
+      "windSpeed": 28.28,
+      "zoneLabel": "7 (0.10g), group 1",
+      "spectrumType": "group1"
+    },
+    "guiyang": {
+      "name": "Guiyang 贵阳 (6 (0.05g), group 1, w0 0.3 kN/m²)",
+      "zone": 1,
+      "windSpeed": 21.91,
+      "zoneLabel": "6 (0.05g), group 1",
+      "spectrumType": "group1",
+      "groundSnow": 0.2
+    },
+    "haikou": {
+      "name": "Haikou 海口 (8 (0.30g), group 2, w0 0.75 kN/m²)",
+      "zone": 5,
+      "windSpeed": 34.64,
+      "zoneLabel": "8 (0.30g), group 2",
+      "spectrumType": "group2"
+    },
+    "hangzhou": {
+      "name": "Hangzhou 杭州 (7 (0.10g), group 1, w0 0.45 kN/m²)",
+      "zone": 2,
+      "windSpeed": 26.83,
+      "zoneLabel": "7 (0.10g), group 1",
+      "spectrumType": "group1",
+      "groundSnow": 0.45
+    },
+    "harbin": {
+      "name": "Harbin 哈尔滨 (6 (0.05g), group 1, w0 0.55 kN/m²)",
+      "zone": 1,
+      "windSpeed": 29.66,
+      "zoneLabel": "6 (0.05g), group 1",
+      "spectrumType": "group1",
+      "groundSnow": 0.45
+    },
+    "hefei": {
+      "name": "Hefei 合肥 (7 (0.10g), group 1, w0 0.35 kN/m²)",
+      "zone": 2,
+      "windSpeed": 23.66,
+      "zoneLabel": "7 (0.10g), group 1",
+      "spectrumType": "group1",
+      "groundSnow": 0.6
+    },
+    "hohhot": {
+      "name": "Hohhot 呼和浩特 (8 (0.20g), group 2, w0 0.55 kN/m²)",
+      "zone": 4,
+      "windSpeed": 29.66,
+      "zoneLabel": "8 (0.20g), group 2",
+      "spectrumType": "group2",
+      "groundSnow": 0.4
+    },
+    "jinan": {
+      "name": "Jinan 济南 (7 (0.10g), group 3, w0 0.45 kN/m²)",
+      "zone": 2,
+      "windSpeed": 26.83,
+      "zoneLabel": "7 (0.10g), group 3",
+      "spectrumType": "group3",
+      "groundSnow": 0.3
+    },
+    "kunming": {
+      "name": "Kunming 昆明 (8 (0.20g), group 3, w0 0.3 kN/m²)",
+      "zone": 4,
+      "windSpeed": 21.91,
+      "zoneLabel": "8 (0.20g), group 3",
+      "spectrumType": "group3",
+      "groundSnow": 0.3
+    },
+    "lanzhou": {
+      "name": "Lanzhou 兰州 (8 (0.20g), group 3, w0 0.3 kN/m²)",
+      "zone": 4,
+      "windSpeed": 21.91,
+      "zoneLabel": "8 (0.20g), group 3",
+      "spectrumType": "group3",
+      "groundSnow": 0.15
+    },
+    "lhasa": {
+      "name": "Lhasa 拉萨 (8 (0.20g), group 3, w0 0.3 kN/m²)",
+      "zone": 4,
+      "windSpeed": 21.91,
+      "zoneLabel": "8 (0.20g), group 3",
+      "spectrumType": "group3",
+      "groundSnow": 0.15
+    },
+    "nanchang": {
+      "name": "Nanchang 南昌 (6 (0.05g), group 1, w0 0.45 kN/m²)",
+      "zone": 1,
+      "windSpeed": 26.83,
+      "zoneLabel": "6 (0.05g), group 1",
+      "spectrumType": "group1",
+      "groundSnow": 0.45
+    },
+    "nanjing": {
+      "name": "Nanjing 南京 (7 (0.10g), group 2, w0 0.4 kN/m²)",
+      "zone": 2,
+      "windSpeed": 25.3,
+      "zoneLabel": "7 (0.10g), group 2",
+      "spectrumType": "group2",
+      "groundSnow": 0.65
+    },
+    "nanning": {
+      "name": "Nanning 南宁 (7 (0.10g), group 1, w0 0.35 kN/m²)",
+      "zone": 2,
+      "windSpeed": 23.66,
+      "zoneLabel": "7 (0.10g), group 1",
+      "spectrumType": "group1"
+    },
+    "qingdao": {
+      "name": "Qingdao 青岛 (6 (0.05g), group 3, w0 0.6 kN/m²)",
+      "zone": 1,
+      "windSpeed": 30.98,
+      "zoneLabel": "6 (0.05g), group 3",
+      "spectrumType": "group3",
+      "groundSnow": 0.2
+    },
+    "shanghai": {
+      "name": "Shanghai 上海 (7 (0.10g), group 2, w0 0.55 kN/m²)",
+      "zone": 2,
+      "windSpeed": 29.66,
+      "zoneLabel": "7 (0.10g), group 2",
+      "spectrumType": "group2",
+      "groundSnow": 0.2
+    },
+    "shenyang": {
+      "name": "Shenyang 沈阳 (7 (0.10g), group 1, w0 0.55 kN/m²)",
+      "zone": 2,
+      "windSpeed": 29.66,
+      "zoneLabel": "7 (0.10g), group 1",
+      "spectrumType": "group1",
+      "groundSnow": 0.5
+    },
+    "shenzhen": {
+      "name": "Shenzhen 深圳 (7 (0.10g), group 1, w0 0.75 kN/m²)",
+      "zone": 2,
+      "windSpeed": 34.64,
+      "zoneLabel": "7 (0.10g), group 1",
+      "spectrumType": "group1"
+    },
+    "shijiazhuang": {
+      "name": "Shijiazhuang 石家庄 (7 (0.10g), group 3, w0 0.35 kN/m²)",
+      "zone": 2,
+      "windSpeed": 23.66,
+      "zoneLabel": "7 (0.10g), group 3",
+      "spectrumType": "group3",
+      "groundSnow": 0.3
+    },
+    "suzhou": {
+      "name": "Suzhou 苏州 (7 (0.10g), group 1, w0 0.45 kN/m²)",
+      "zone": 2,
+      "windSpeed": 26.83,
+      "zoneLabel": "7 (0.10g), group 1",
+      "spectrumType": "group1",
+      "groundSnow": 0.4
+    },
+    "taiyuan": {
+      "name": "Taiyuan 太原 (8 (0.20g), group 2, w0 0.4 kN/m²)",
+      "zone": 4,
+      "windSpeed": 25.3,
+      "zoneLabel": "8 (0.20g), group 2",
+      "spectrumType": "group2",
+      "groundSnow": 0.35
+    },
+    "tangshan": {
+      "name": "Tangshan 唐山 (8 (0.20g), group 2, w0 0.4 kN/m²)",
+      "zone": 4,
+      "windSpeed": 25.3,
+      "zoneLabel": "8 (0.20g), group 2",
+      "spectrumType": "group2",
+      "groundSnow": 0.35
+    },
+    "tianjin": {
+      "name": "Tianjin 天津 (8 (0.20g), group 2, w0 0.5 kN/m²)",
+      "zone": 4,
+      "windSpeed": 28.28,
+      "zoneLabel": "8 (0.20g), group 2",
+      "spectrumType": "group2",
+      "groundSnow": 0.4
+    },
+    "urumqi": {
+      "name": "Urumqi 乌鲁木齐 (8 (0.20g), group 2, w0 0.6 kN/m²)",
+      "zone": 4,
+      "windSpeed": 30.98,
+      "zoneLabel": "8 (0.20g), group 2",
+      "spectrumType": "group2",
+      "groundSnow": 0.9
+    },
+    "wuhan": {
+      "name": "Wuhan 武汉 (6 (0.05g), group 1, w0 0.35 kN/m²)",
+      "zone": 1,
+      "windSpeed": 23.66,
+      "zoneLabel": "6 (0.05g), group 1",
+      "spectrumType": "group1",
+      "groundSnow": 0.5
+    },
+    "xiamen": {
+      "name": "Xiamen 厦门 (7 (0.15g), group 3, w0 0.8 kN/m²)",
+      "zone": 3,
+      "windSpeed": 35.78,
+      "zoneLabel": "7 (0.15g), group 3",
+      "spectrumType": "group3"
+    },
+    "xian": {
+      "name": "Xi'an 西安 (8 (0.20g), group 2, w0 0.35 kN/m²)",
+      "zone": 4,
+      "windSpeed": 23.66,
+      "zoneLabel": "8 (0.20g), group 2",
+      "spectrumType": "group2",
+      "groundSnow": 0.25
+    },
+    "xining": {
+      "name": "Xining 西宁 (7 (0.10g), group 3, w0 0.35 kN/m²)",
+      "zone": 2,
+      "windSpeed": 23.66,
+      "zoneLabel": "7 (0.10g), group 3",
+      "spectrumType": "group3",
+      "groundSnow": 0.2
+    },
+    "yinchuan": {
+      "name": "Yinchuan 银川 (8 (0.20g), group 3, w0 0.65 kN/m²)",
+      "zone": 4,
+      "windSpeed": 32.25,
+      "zoneLabel": "8 (0.20g), group 3",
+      "spectrumType": "group3",
+      "groundSnow": 0.2
+    },
+    "zhengzhou": {
+      "name": "Zhengzhou 郑州 (7 (0.15g), group 2, w0 0.45 kN/m²)",
+      "zone": 3,
+      "windSpeed": 26.83,
+      "zoneLabel": "7 (0.15g), group 2",
+      "spectrumType": "group2",
+      "groundSnow": 0.4
+    }
+  }
+}

@@ -1234,7 +1234,8 @@ class Registry:
         loaded (:func:`saengine.codes.context.pack_for` gives the default pack instead)."""
         from saengine.codes import overrides
 
-        return self.load(active_id(settings), project_root).with_overrides(overrides.of(settings))
+        pack = self.load(active_id(settings), project_root)
+        return pack.with_overrides(overrides.with_town(pack, settings))
 
     def set_trusted(
         self,

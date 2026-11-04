@@ -30,9 +30,23 @@ empty: N = 1). The equivalent static distribution `lateralForce` linear with the
 0.08 V. Concrete on the strength design path with the pack's stress block, the axial cap and
 `concrete.shearStress`.
 
+## Alpha 9 C18b (version 0.2)
+
+- `designClauses`: the NZS 3101 clauses of the checks whose method has the NZS form (torsion
+  7.6, punching 12.7, deflection, column shear, fire, the NZS 1170.5 accidental eccentricity);
+  the Australian pack's AS 3600 clauses are not inherited.
+- Inherited from the Australian pack (AS/NZS 1170.2:2021, a joint standard): the hill-shape
+  multiplier Mh and the dynamic response factor Cdyn. The AS 1170.4 design category by height is
+  removed (NZS 1170.5 has none).
+
 ## Not covered (from the parent packs, named so)
 
 NZS 3101 capacity design beyond the program's probable-moment rules (Appendix D dynamic
-magnification, the ductile wall provisions of 11.4, the ductile detailing lengths), NZS 3404
-Section 12 seismic categories, punching, torsion, walls, footings, connections, NZS 4230 masonry,
-NZS 3603 timber. Every value is listed with its clause in [VERIFY.md](VERIFY.md).
+magnification ω and the overstrength φo of columns, the ductile wall provisions of 11.4,
+coupling beams), the ductile and limited ductile detailing lengths of Chapters 9-11, beam-column
+joints by Chapter 15 (the parent's joint rows apply), NZS 3404 Section 12 seismic categories 1-4
+and member overstrength, walls by NZS 3101 Chapter 11, footings, connections, NZS 4230 masonry
+and NZS 3603 timber (none fits SAEngine's masonry or timber engines in this version). Torsion,
+punching and column shear run the parent's methods, of the same form as NZS 3101 7.6, 12.7 and
+10.3.10 (their constants to verify). Every value is listed with its clause in
+[VERIFY.md](VERIFY.md).

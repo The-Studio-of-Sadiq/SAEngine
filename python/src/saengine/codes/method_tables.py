@@ -997,6 +997,66 @@ class CompressionFieldShearRules(_Group):
     closeShare: Share
 
 
+# ── Alpha 9 C18b: punching, torsion and walls by the forms of AS 3600:2018 (9.3, 8.3, 11) ──
+
+
+class MomentTransferPunchingRules(_Group):
+    """Punching by Vuo = u dom fcv reduced for the unbalanced moment (method
+    ``momentTransfer``, :mod:`saengine.design.moment_punching`)."""
+
+    method: Literal["momentTransfer"]
+    coefficient: Positive = Field(description="fcv = c (1 + 2/βh) √f'c ...")
+    maxCoefficient: Positive = Field(description="... at most this × √f'c.")
+    momentDivisor: Positive = Field(description="Vu = Vuo / (1 + u M*v / (divisor V* a dom)).")
+    rootMax: Positive | None = Field(default=None, description="√f'c at most [MPa] (none: no cap).")
+
+
+class TorsionInteractionRules(_Group):
+    """Torsion of beams by the cracking torque and the interaction with shear (method
+    ``torsionInteraction``, :mod:`saengine.design.torsion_interaction`)."""
+
+    method: Literal["torsionInteraction"]
+    torsionModulus: Positive = Field(description="Jt = c x² y of a rectangle (x the short side).")
+    crackingCoefficient: Positive = Field(description="Tuc = c Jt √f'c.")
+    neglectShare: Share = Field(description="T* below share × φ Tuc: torsion neglected.")
+    plainInteraction: Positive = Field(
+        description="T*/(φ Tuc) + V*/(φ Vuc) up to this: no torsion reinforcement."
+    )
+    maxCoefficient: Positive = Field(description="Tu.max = c f'c Jt.")
+    crushingInteraction: Positive = Field(description="T*/(φ Tu.max) + V*/(φ Vu.max) at most this.")
+    cotTheta: Positive = Field(description="cot θv of the links' and bars' terms.")
+    linkSpacing: tuple[Share, Positive] = Field(
+        description="Closed links at most min(share ut, mm) apart."
+    )
+    fyMax: Positive = Field(description="fsy.f of the links at most [MPa].")
+
+
+class SimplifiedWallRules(_Group):
+    """Walls by the simplified method (method ``simplifiedWall``,
+    :mod:`saengine.design.simplified_walls`): the axial strength per unit length
+    φNu = φ (tw - a e - 2 ea) k f'c, ea = Hwe² / (divisor tw), and the in-plane shear by the
+    aspect ratio Hw/Lw."""
+
+    method: Literal["simplifiedWall"]
+    phi: Share = Field(description="φ of the axial strength.")
+    strengthShare: Share = Field(description="k of k f'c.")
+    eccentricityFactor: Positive = Field(description="a of a e.")
+    additionalDivisor: Positive = Field(description="ea = Hwe² / (divisor tw).")
+    minEccentricityShare: Share = Field(description="e at least this × tw.")
+    slendernessMax: Positive = Field(description="Hwe / tw at most.")
+    restrainedK: Share = Field(description="k of Hwe = k Hw for a wall restrained at both ends.")
+    shearDepthShare: Share = Field(description="The shear area 0.8 Lw tw: the share.")
+    squatShear: tuple[Positive, Positive] = Field(
+        description="Hw/Lw <= 1: Vuc = (a - b Hw/Lw) √f'c × the area."
+    )
+    slenderShear: tuple[Positive, Positive] = Field(
+        description="Hw/Lw > 1: also (a + b / (Hw/Lw - 1)) √f'c × the area ..."
+    )
+    shearLeast: Positive = Field(description="... at least this √f'c × the area.")
+    shearMaxShare: Share = Field(description="Vu at most this × f'c × the area.")
+    phiShear: Share = Field(description="φ of the shear.")
+
+
 class ConcreteMethodsTable(TableModel):
     """Partial-factor design of reinforced concrete and its detailing (see the module notes)."""
 
@@ -1004,8 +1064,9 @@ class ConcreteMethodsTable(TableModel):
     # C8: a group is one method of those its id names (C5's or C8's); alpha 9 C17 the
     # compression field method.
     shear: StrutShearRules | TabulatedShearRules | CompressionFieldShearRules | None = None
-    torsion: StrutTorsionRules | EquivalentTorsionRules | None = None
-    punching: PunchingRules | RootStressPunchingRules | None = None
+    # Alpha 9 C18b: torsionInteraction, momentTransfer (AS 3600 8.3, 9.3 type).
+    torsion: StrutTorsionRules | EquivalentTorsionRules | TorsionInteractionRules | None = None
+    punching: PunchingRules | RootStressPunchingRules | MomentTransferPunchingRules | None = None
     serviceStress: ServiceStressRules | None = None
     cracking: CrackRules | CrackWidthRules | None = None
     deflection: SpanDepthRules | SpanDepthFactorRules | None = None
@@ -1040,6 +1101,8 @@ class ConcreteMethodsTable(TableModel):
     # Alpha 9 C9b.
     deepBeams: LeverArmDeepBeamRules | None = None
     corbels: TieCorbelRules | None = None
+    # Alpha 9 C18b: walls by the simplified method (AS 3600 11.5, 11.6 type).
+    simplifiedWalls: SimplifiedWallRules | None = None
 
 
 # ───────────────────────────── geotechnicalMethods ─────────────────────────────

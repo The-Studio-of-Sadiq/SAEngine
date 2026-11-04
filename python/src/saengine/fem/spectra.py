@@ -12,7 +12,11 @@ from it differs:
 - ``shapeFactors`` (alpha 9 C18, the AS 1170.4 / NZS 1170.5 form): the site class's spectral
   shape factor Ch(T) from its ``shape`` branches (:func:`shape_factor`), Cd(T) = Z I Ch(T)
   N(T, D) Sp / kμ with R standing for the structural ductility factor μ
-  (:func:`shape_factor_acceleration`).
+  (:func:`shape_factor_acceleration`);
+- ``influenceCoefficient`` (alpha 9 C20, the GB 50011 form): the seismic influence coefficient
+  α(T) = αmax × :func:`influence_shape` with the damping adjustment η2, the descending power γ
+  and the tail slope η1 of the damping ratio, Z holding αmax; the rare earthquake's ratio for
+  the elasto-plastic drift (:func:`rare_ratio`).
 
 Pure functions; the numbers come from the code pack in force.
 """
@@ -206,3 +210,76 @@ def shape_factor_terms(
         "kmu": ductility_factor(period, mu, site_class, rule),
         "N": near_fault_factor(period, rule),
     }
+
+
+# ───────── alpha 9 C20: the seismic influence coefficient (method influenceCoefficient) ─────────
+
+
+def damped_term(term: Any, damping: float | None, reference: float) -> float:
+    """base + (ref - ζ) / (a + b ζ) of a :class:`saengine.codes.tables.DampedTerm`, at least its
+    ``least`` (``damping`` None: the reference ζ)."""
+    zeta = reference if damping is None else float(damping)
+    value = term.base + (reference - zeta) / (term.a + term.b * zeta)
+    return max(value, term.least) if term.least is not None else value
+
+
+def influence_terms(damping: float | None, rule: Any) -> dict[str, float]:
+    """γ, η1 and η2 of the damping ratio ``damping`` (GB 50011 Eqs 5.1.5-1 to -3 type)."""
+    ref = float(rule.referenceDamping)
+    return {
+        "gamma": damped_term(rule.gamma, damping, ref),
+        "eta1": damped_term(rule.eta1, damping, ref),
+        "eta2": damped_term(rule.eta2, damping, ref),
+    }
+
+
+def influence_shape(period: float, tg: float, damping: float | None, rule: Any) -> float:
+    """α(T) / αmax of the influence coefficient spectrum (``rule`` the pack's
+    :class:`saengine.codes.tables.InfluenceCoefficientRule`, ``tg`` the characteristic period
+    [s]):
+
+        0 ≤ T ≤ T1:          riseStart + (η2 - riseStart) T / T1     (T1 = risePeriod)
+        T1 ≤ T ≤ Tg:         η2
+        Tg ≤ T ≤ k Tg:       η2 (Tg / T)^γ                           (k = tailFrom)
+        k Tg ≤ T ≤ longest:  η2 (1/k)^γ - η1 (T - k Tg)              (at least 0)
+
+    and its value at ``longest`` beyond."""
+    terms = influence_terms(damping, rule)
+    eta2, gamma, eta1 = terms["eta2"], terms["gamma"], terms["eta1"]
+    t = min(max(float(period), 0.0), float(rule.longest))
+    rise = float(rule.risePeriod)
+    tg = max(float(tg), rise)
+    if t <= rise:
+        return rule.riseStart + (eta2 - rule.riseStart) * t / rise
+    if t <= tg:
+        return eta2
+    tail = float(rule.tailFrom) * tg
+    if t <= tail:
+        return eta2 * (tg / t) ** gamma
+    return max(eta2 * (1.0 / float(rule.tailFrom)) ** gamma - eta1 * (t - tail), 0.0)
+
+
+def rare_alpha_max(zone: int | None, rule: Any) -> float | None:
+    """αmax of the rare earthquake in ``zone`` (the rule's ``rare``); None where not given."""
+    if zone is None:
+        return None
+    found = rule.rare.get(int(zone))
+    return None if found is None else float(found)
+
+
+def rare_ratio(
+    period: float, tg: float, zone: int | None, z: float, damping: float | None, rule: Any
+) -> float | None:
+    """α_rare(T) / α(T): the rare earthquake's influence coefficient over the frequent one's
+    (αmax ``z``) at ``period``, the rare one on Tg + ``rarePeriodIncrease`` in the
+    ``rareIncreaseZones``; None without the zone's rare αmax."""
+    top = rare_alpha_max(zone, rule)
+    if top is None or z <= 0:
+        return None
+    tg_rare = float(tg)
+    if zone is not None and int(zone) in rule.rareIncreaseZones:
+        tg_rare += float(rule.rarePeriodIncrease)
+    frequent = z * influence_shape(period, tg, damping, rule)
+    if frequent <= 0:
+        return None
+    return top * influence_shape(period, tg_rare, damping, rule) / frequent

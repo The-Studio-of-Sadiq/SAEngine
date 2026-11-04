@@ -136,7 +136,7 @@ def pack_for(
             if strict or pack_id == DEFAULT_PACK:
                 raise
             pack = substitute(pack_id, error, base)
-    return pack.with_overrides(overrides.of(settings))
+    return pack.with_overrides(overrides.with_town(pack, settings))
 
 
 #: Default packs standing in for a missing pack, by (missing id, message, default pack).

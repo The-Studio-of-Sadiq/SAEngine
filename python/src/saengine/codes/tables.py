@@ -108,6 +108,14 @@ class Location(_Row):
     zoneLabel: str | None = Field(
         default=None, description="The zone as the code names it (e.g. '2A'); empty: its number."
     )
+    # Alpha 9 C20: a code whose spectrum corners depend on the town (GB 50011 Appendix A: the
+    # design earthquake group, Table 5.1.4-2 Tg): the id of the pack's seismic.spectra the town
+    # takes (applied as seismic.spectrumType unless the project overrides that value).
+    spectrumType: str | None = Field(
+        default=None,
+        description="Id of the pack's seismic.spectra the town takes (e.g. its design "
+        "earthquake group); empty: the pack's spectrumType.",
+    )
 
 
 class Town(_Row):
@@ -626,6 +634,28 @@ class DesignCategories(BaseModel):
     #: not numbered 1, 2, ... (a zone 0 without seismic action, more zones than columns);
     #: empty: zone n takes column n - 1.
     zoneColumns: dict[str, int] = Field(default_factory=dict)
+    # Alpha 9 C18b (AS 1170.4 Table 2.1 type: the earthquake design category by the
+    # structure's height hn): group -> (hn up to [m], category) rows, the first row whose
+    # height holds (None: any height), in place of the zone rows where the analysis knows hn.
+    byHeight: dict[str, list[tuple[float | None, str]]] = Field(default_factory=dict)
+    #: Categories designed by a simple static force Fi = share × Wi at every level (AS 1170.4
+    #: Section 5 type), in place of the equivalent static method: category -> share.
+    simpleStatic: dict[str, float] = Field(default_factory=dict)
+    #: Categories for which the code asks for the dynamic (modal) analysis: the run says so
+    #: where the equivalent static method was used (AS 1170.4 2.2 / Section 7 type).
+    dynamicRequired: list[str] = Field(default_factory=list)
+
+
+def height_category(table: DesignCategories, group: str, height: float) -> str | None:
+    """Alpha 9 C18b: the category of ``group`` at the structure's height ``height`` [m] by
+    the pack's ``byHeight`` rows; None when the pack gives none for the group."""
+    rows = table.byHeight.get(group)
+    if not rows:
+        return None
+    for up_to, category in rows:
+        if up_to is None or height <= float(up_to):
+            return category
+    return rows[-1][1]
 
 
 def category_column(table: DesignCategories, zone: Any, count: int) -> int:
@@ -665,6 +695,11 @@ class DriftLimit(_Row):
         default=None,
         description="Interior walls, partitions, ceilings and exterior walls designed to "
         "accommodate the storey drift.",
+    )
+    # Alpha 9 C20 (GB 50011 Table 5.5.1: the limit by structure type): the row holds for the
+    # systems of these groups (seismic.systems.*.group); empty: any system.
+    groups: list[str] | None = Field(
+        default=None, description="The system's group is one of these (empty: any)."
     )
     # Alpha 9 C21 (TBDY 2018 4.9.1.3: κ = 1 concrete, 0.5 steel): the system is a concrete one.
     concrete: bool | None = Field(
@@ -1409,6 +1444,47 @@ class ShapeFactorsRule(BaseModel):
     clauses: dict[str, str] = Field(default_factory=dict)
 
 
+class DampedTerm(BaseModel):
+    """Alpha 9 C20: a damping-dependent term of the spectrum, base + (ref - ζ) / (a + b ζ), at
+    least ``least`` (ref the rule's ``referenceDamping``; GB 50011 Eqs 5.1.5-1 to -3)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    base: float
+    a: Positive
+    b: float = Field(ge=0)
+    least: float | None = None
+
+
+class InfluenceCoefficientRule(BaseModel):
+    """Alpha 9 C20: the terms of the method ``influenceCoefficient`` (GB 50011-2010 5.1.4,
+    5.1.5 type, :mod:`saengine.fem.spectra`): the seismic influence coefficient α(T) as a share
+    of αmax (Z holds αmax of the frequent earthquake), with the characteristic period Tg the
+    site class's TC: ``riseStart`` at T = 0 rising to η2 at ``risePeriod``, η2 to Tg, η2 (Tg /
+    T)^γ to ``tailFrom`` Tg, η2 tailShare^γ - η1 (T - tailFrom Tg) to ``longest`` (held beyond);
+    γ, η1, η2 by the damping ratio ζ. The rare earthquake (``rare``: αmax by zone, Tg +
+    ``rarePeriodIncrease`` in ``rareIncreaseZones``) for the elasto-plastic drift check."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    referenceDamping: float = Field(default=0.05, gt=0, lt=1)
+    riseStart: Positive = Field(description="α(0) / αmax.")
+    risePeriod: Positive = Field(description="End of the rising branch [s].")
+    tailFrom: Positive = Field(description="The linear tail from this × Tg.")
+    longest: Positive = Field(description="The spectrum's last period [s]; held beyond.")
+    gamma: DampedTerm = Field(description="γ, the power of the descending branch.")
+    eta1: DampedTerm = Field(description="η1, the slope of the linear tail [1/s].")
+    eta2: DampedTerm = Field(description="η2, the damping adjustment of the plateau.")
+    rare: dict[int, Positive] = Field(
+        default_factory=dict, description="αmax of the rare earthquake by seismic zone."
+    )
+    rarePeriodIncrease: float = Field(default=0.0, ge=0, description="Tg + this [s] (rare).")
+    rareIncreaseZones: list[int] = Field(
+        default_factory=list, description="Zones whose rare earthquake takes the Tg increase."
+    )
+    clauses: dict[str, str] = Field(default_factory=dict)
+
+
 class ShortPeriodReduction(BaseModel):
     """Alpha 9 C21: a reduction of the two-period spectrum of ``mappedSpectral`` that grows with
     the period up to TS (TBDY 2018 4.3, Eq 4.1 type, method ``overstrengthRamp``): Ra(T) = D +
@@ -1447,7 +1523,10 @@ class DesignSpectrumRule(BaseModel):
       zone's Z and the soil profile by ``ubc97`` (:class:`Ubc97Rule`).
     - ``shapeFactors`` (alpha 9 C18, AS 1170.4 / NZS 1170.5): the site class's spectral shape
       factor Ch(T) (its ``shape`` branches), Cd(T) = (Z I) Ch(T) N Sp / kμ with R standing for μ
-      (:class:`ShapeFactorsRule`, :mod:`saengine.fem.spectra`); ``factor`` is not used."""
+      (:class:`ShapeFactorsRule`, :mod:`saengine.fem.spectra`); ``factor`` is not used.
+    - ``influenceCoefficient`` (alpha 9 C20, GB 50011 5.1.5): Sa = Z I / R α(T)/αmax with Z
+      holding αmax, the damping in η1, η2 and γ (:class:`InfluenceCoefficientRule`); ``factor``
+      and the damping correction η are not used."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -1459,6 +1538,7 @@ class DesignSpectrumRule(BaseModel):
         "ductilityOverstrength",
         "standardShearCoefficient",
         "shapeFactors",
+        "influenceCoefficient",
     ] = "reducedElastic"
     plateau: float = Field(default=2.5, gt=0, description="Spectral amplification of the plateau.")
     lowerBound: float = Field(default=0.0, ge=0, lt=1, description="β: least Sd / ag.")
@@ -1535,10 +1615,14 @@ class DesignSpectrumRule(BaseModel):
     shearCoefficient: ShearCoefficientRule | None = None
     # Alpha 9 C18: the terms of the shapeFactors method.
     shapeFactors: ShapeFactorsRule | None = None
+    # Alpha 9 C20: the terms of the influenceCoefficient method.
+    influence: InfluenceCoefficientRule | None = None
     clauses: dict[str, str] = Field(default_factory=dict)
 
     @model_validator(mode="after")
     def _ubc97_block(self) -> DesignSpectrumRule:
+        if self.method == "influenceCoefficient" and self.influence is None:
+            raise ValueError("influenceCoefficient: the method needs its 'influence' block")
         if self.method == "ubc97" and self.ubc97 is None:
             raise ValueError("the design spectrum method ubc97 needs its ubc97 block (Ca, Cv)")
         if self.method == "ductilityOverstrength" and self.ductility is None:
@@ -1615,6 +1699,94 @@ class StabilityRule(BaseModel):
     ignoreBelow: float = Field(default=0.10, gt=0, lt=1)
     amplifyUpTo: float | None = Field(default=None, gt=0, lt=1)
     thetaCap: float = Field(default=0.25, gt=0, lt=1)
+    clause: str = ""
+
+
+class DriftAmplificationRow(BaseModel):
+    """Alpha 9 C20: the elasto-plastic drift amplification ηp of the structures this row is
+    for (system groups, at most ``maxStoreys`` storeys), by the storey's yield strength
+    coefficient ξy: (ξy, ηp) points, linear between, the end values outside."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    groups: list[str] | None = None
+    maxStoreys: int | None = Field(default=None, gt=0)
+    points: list[tuple[Positive, Positive]] = Field(min_length=1)
+    label: str = ""
+
+
+class RareDriftLimit(BaseModel):
+    """Alpha 9 C20: the elasto-plastic storey drift limit [θp] of the systems of ``groups``."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    groups: list[str] | None = None
+    limit: Positive
+    label: str = ""
+
+
+class RareDriftRule(BaseModel):
+    """Alpha 9 C20: the elasto-plastic storey drift under the rare earthquake by the simplified
+    method (GB 50011-2010 5.5.2-5.5.5 type, :mod:`saengine.fem.two_level_seismic`): Δup = ηp
+    Δue, Δue the elastic storey drift under the rare earthquake (the frequent earthquake's
+    drift × α_rare(T1) / α(T1) of the influenceCoefficient spectrum), ηp by the storey count
+    and the yield strength coefficient ξy (``yieldStrengthRatio``, a project's Code Value: the
+    storey's yield shear over its elastic rare-earthquake shear), at most [θp] h. Checked in the
+    zones of ``zones``; empty: every zone of the rare earthquake."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    method: Literal["amplifiedElastic"] = "amplifiedElastic"
+    zones: list[int] = Field(default_factory=list)
+    yieldStrengthRatio: Positive = Field(description="ξy taken for every storey.")
+    amplification: list[DriftAmplificationRow] = Field(min_length=1)
+    defaultAmplification: Positive = Field(description="ηp where no row holds.")
+    limits: list[RareDriftLimit] = Field(min_length=1)
+    defaultLimit: Positive = Field(description="[θp] where no row holds.")
+    clause: str = ""
+
+
+class SeismicGrade(BaseModel):
+    """Alpha 9 C20: one seismic (detailing) grade: its name, the detailing level it stands for
+    in SAEngine's levels, and the design factors the code gives it (by key: strongColumn ηc,
+    columnShear ηvc, beamShear ηvb, axialRatio μN, confinement λv ...)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    label: str
+    level: Literal["special", "intermediate", "ordinary"]
+    factors: dict[str, float] = Field(default_factory=dict)
+
+
+class SeismicGradeRow(BaseModel):
+    """Alpha 9 C20: the grade of the systems of ``groups`` up to ``maxHeight`` [m] (empty: any
+    height), by the intensity column."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    groups: list[str]
+    maxHeight: Positive | None = None
+    grades: dict[str, str] = Field(description="Intensity column -> grade id.")
+
+
+class SeismicGradesRule(BaseModel):
+    """Alpha 9 C20: seismic grades by structure type, intensity and height (GB 50011-2010 Table
+    6.1.2 type, :mod:`saengine.fem.two_level_seismic`): the zone's intensity column
+    (``columns``), raised ``raise`` columns of ``order`` for the occupancy categories that take
+    the measures of a higher intensity, the first row of the system's group whose height holds,
+    the grade's level and factors (reported with the seismic design)."""
+
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+    columns: dict[int, str] = Field(description="Seismic zone -> intensity column.")
+    order: list[str] = Field(min_length=1, description="The intensity columns, lowest first.")
+    raise_: dict[str, int] = Field(
+        default_factory=dict,
+        alias="raise",
+        description="Occupancy category -> columns the measures are raised by.",
+    )
+    rows: list[SeismicGradeRow] = Field(min_length=1)
+    grades: dict[str, SeismicGrade]
     clause: str = ""
 
 
@@ -1759,6 +1931,17 @@ class SeismicTable(TableModel):
         default=None,
         description="The interstorey drift sensitivity coefficient θ; empty: θ = Px δe/(I Vx "
         "h) with θmax = 0.5/Cd ≤ 0.25.",
+    )
+    # Alpha 9 C20: the two-level design (GB 50011 type): the elasto-plastic drift under the rare
+    # earthquake and the seismic grades (empty: not covered).
+    rareDrift: RareDriftRule | None = Field(
+        default=None,
+        description="The elasto-plastic storey drift check under the rare earthquake; empty: "
+        "not checked.",
+    )
+    seismicGrades: SeismicGradesRule | None = Field(
+        default=None,
+        description="Seismic grades by structure type, intensity and height; empty: none.",
     )
 
     @model_validator(mode="after")
@@ -2407,6 +2590,31 @@ class SlopeTopography(_Row):
     )
 
 
+class HillShapeRules(_Row):
+    """Alpha 9 C18b: k3 by the hill-shape multiplier of a hill, ridge or escarpment at the
+    height z of each level (the AS/NZS 1170.2 4.4.2 form, :func:`saengine.fem.
+    wind_speed_factors.hill_shape_factor`), from the project's topography (H the feature's
+    height, Lu = the settings' half-height distance Lh, x the distance from the crest):
+
+    - H / (2 Lu) below ``flatRatio``: k3 = 1;
+    - up to ``steepRatio``: k3 = 1 + H / (divisor (z + L1)) (1 - |x| / L2);
+    - from ``steepRatio``: k3 = 1 + ``steepSpeedUp`` (1 - |x| / L2) (the separation zone's
+      value, taken at every height: on the safe side);
+
+    L1 = max(a Lu, b H) (``l1Shares``), L2 = ``upwindL2`` L1 upwind of the crest and for hills
+    and ridges, ``escarpmentDownwindL2`` L1 downwind of an escarpment; k3 = 1 beyond L2."""
+
+    flatRatio: float = Field(gt=0, description="H/(2 Lu) below this: no speed-up.")
+    steepRatio: float = Field(gt=0, description="H/(2 Lu) from this: the steep form.")
+    divisor: float = Field(gt=0, description="k3 = 1 + H / (divisor (z + L1)) (1 - |x|/L2).")
+    steepSpeedUp: float = Field(gt=0, description="k3 = 1 + this (1 - |x|/L2) when steep.")
+    l1Shares: tuple[float, float] = Field(description="L1 = max(a Lu, b H): (a, b).")
+    upwindL2: float = Field(gt=0, description="L2 = this × L1 (upwind; hills and ridges).")
+    escarpmentDownwindL2: float = Field(
+        gt=0, description="L2 = this × L1 downwind of an escarpment."
+    )
+
+
 class GustFactorRules(_Row):
     """The gust factor method of tall or flexible buildings (:mod:`saengine.fem.gust_response`):
     G = 1 + r √(gv² Bs (1 + φ)² + Hs gR² S E / β), the along-wind force F = Cf Ae p̄ G with the
@@ -2414,15 +2622,33 @@ class GustFactorRules(_Row):
 
     heightRatio: float = Field(gt=0, description="Applies when h / b exceeds this ...")
     frequencyLimit: float = Field(gt=0, description="... or the first frequency is below [Hz].")
-    meanFactors: dict[str, list[tuple[float, float]]] = Field(
-        description="k̄2: terrain -> (height [m], hourly mean speed factor) points."
+    # Alpha 9 C18b: the form of the factor. "gustFactor" (the default, IS 875 (Part 3) type):
+    # G on the hourly mean pressure as above. "dynamicResponse" (AS/NZS 1170.2 Section 6
+    # type): Cdyn = [1 + 2 Ih √(gv² Bs + Hs gR² S Et / ζ)] / (1 + 2 gv Ih) on the design
+    # (gust) pressure at every level, the mean speed V̄h = Vdes,h / (1 + gv Ih), Ih from
+    # ``turbulencePoints``; meanFactors, roughness, turbulence and terrainShares not used.
+    form: Literal["gustFactor", "dynamicResponse"] = Field(
+        default="gustFactor",
+        description="gustFactor (G on the mean pressure) or "
+        "dynamicResponse (Cdyn on the design pressure).",
     )
-    roughness: dict[str, float] = Field(description="z0 [m] by terrain.")
-    turbulence: tuple[float, float, float, float] = Field(
-        description="(a1, b1, a4, b4): I1 = a1 - b1 log10(z/z0,1), I4 = a4 - b4 log10(z/z0,4)."
+    turbulencePoints: dict[str, list[tuple[float, float]]] = Field(
+        default_factory=dict,
+        description="Iz: terrain -> (height [m], turbulence intensity) points, linear between, "
+        "constant outside (the dynamicResponse form).",
+    )
+    meanFactors: dict[str, list[tuple[float, float]]] = Field(
+        default_factory=dict,
+        description="k̄2: terrain -> (height [m], hourly mean speed factor) points.",
+    )
+    roughness: dict[str, float] = Field(default_factory=dict, description="z0 [m] by terrain.")
+    turbulence: tuple[float, float, float, float] | None = Field(
+        default=None,
+        description="(a1, b1, a4, b4): I1 = a1 - b1 log10(z/z0,1), I4 = a4 - b4 log10(z/z0,4).",
     )
     terrainShares: dict[str, float] = Field(
-        description="I = I1 + share (I4 - I1) by terrain (0 for the first, 1 for the last)."
+        default_factory=dict,
+        description="I = I1 + share (I4 - I1) by terrain (0 for the first, 1 for the last).",
     )
     peakFactor: float = Field(gt=0, description="gv, the peak factor of the upwind velocity.")
     scaleCoefficients: dict[str, float] = Field(
@@ -2486,6 +2712,8 @@ class SpeedFactors(_Row):
     # Alpha 9 C12: k3 from the site's slope, and the gust factor method of tall buildings.
     topography: SlopeTopography | None = None
     gustFactor: GustFactorRules | None = None
+    # Alpha 9 C18b: k3 by the hill-shape multiplier at each height (AS/NZS 1170.2 4.4.2 type).
+    hillShape: HillShapeRules | None = None
     # Alpha 9 C23: codes that tabulate the design pressure by height (the Hong Kong Code of
     # Practice on Wind Effects type) instead of a basic speed and k2.
     referencePressures: dict[str, list[tuple[float, Positive]]] | None = Field(

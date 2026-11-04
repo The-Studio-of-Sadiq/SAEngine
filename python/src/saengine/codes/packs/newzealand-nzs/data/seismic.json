@@ -879,7 +879,14 @@
     },
     "aliases": {
       "$replace": true
-    }
+    },
+    "byHeight": {
+      "$replace": true
+    },
+    "simpleStatic": {
+      "$replace": true
+    },
+    "dynamicRequired": []
   },
   "lateralForce": {
     "distribution": "linear",
