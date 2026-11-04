@@ -1,0 +1,17 @@
+{
+  "$schema": "../../../schemas/occupancyCategories.schema.json",
+  "$replace": true,
+  "$sources": [
+    "NBC 105:2020 4.1.5, Table 4-3 (importance classes and factors)"
+  ],
+  "source": "NBC 105:2020 Table 4-3: importance class I (ordinary buildings, I = 1.0), II (buildings with many people, I = 1.25), III (essential facilities: hospitals, schools, fire and police stations, emergency buildings, I = 1.5). The categories I-IV are SAEngine's slots: I and II take class I, III class II, IV class III. The windImportance is the parent's IS 875 (Part 3) class marker.",
+  "categories": {
+    "I": { "description": "Importance class I: ordinary buildings of low occupancy (I = 1.0; wind: the parent's 25-year class)", "seismicImportance": 1.0, "windImportance": 0.9 },
+    "II": { "description": "Importance class I: ordinary buildings (residences, offices) (I = 1.0)", "seismicImportance": 1.0, "windImportance": 1.0 },
+    "III": { "description": "Importance class II: buildings with many people (assembly, commercial, large residential) (I = 1.25)", "seismicImportance": 1.25, "windImportance": 1.0 },
+    "IV": { "description": "Importance class III: essential facilities (hospitals, schools, fire, police and emergency buildings, power and telecommunication) (I = 1.5)", "seismicImportance": 1.5, "windImportance": 1.07 }
+  },
+  "sources": {
+    "categories": "NBC 105:2020 Table 4-3 (check the uses of each class)"
+  }
+}

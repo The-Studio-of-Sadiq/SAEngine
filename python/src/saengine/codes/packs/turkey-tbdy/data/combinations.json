@@ -1,0 +1,65 @@
+{
+  "$schema": "../../../schemas/combinations.schema.json",
+  "$replace": true,
+  "$sources": [
+    "TS 500:2000 6.2.6 (load combinations of the strength design)",
+    "TBDY 2018 4.4.4 (combinations with the earthquake)"
+  ],
+  "source": "TS 500:2000 6.2.6 and TBDY 2018 4.4.4: G dead (D with SD), Q live (L, the roof live Lr with it), W wind, E earthquake (the vertical effect E(Z) by the pack's verticalFactor, TBDY 4.4.3). The allowable stress combinations are the base pack's ASCE 7-22 Sec 2.4 ones (SAEngine practice: TS 498 and TBDY give none for timber and masonry).",
+  "loadCases": {
+    "D": "Dead (G)",
+    "SD": "Superimposed dead (finishes)",
+    "L": "Live (Q)",
+    "Lr": "Roof live",
+    "S": "Snow",
+    "WX": "Wind in X",
+    "WY": "Wind in Y",
+    "EX": "Earthquake in X",
+    "EY": "Earthquake in Y",
+    "F": "Fluids (equipment contents)",
+    "H": "Earth and groundwater pressure (basement walls)",
+    "T": "Temperature"
+  },
+  "strength": [
+    { "id": "1", "name": "1.4G + 1.6Q", "factors": { "D": 1.4, "F": 1.4, "L": 1.6, "Lr": 1.6, "H": 1.6 }, "source": "TS 500:2000 6.2.6 (Denk. 6.3)" },
+    { "id": "2W", "name": "1.0G + 1.3Q + 1.3W", "factors": { "D": 1.0, "F": 1.0, "L": 1.3, "Lr": 1.3, "W": 1.3, "H": 1.3 }, "source": "TS 500:2000 6.2.6 (Denk. 6.5)" },
+    { "id": "3W", "name": "0.9G + 1.3W", "factors": { "D": 0.9, "W": 1.3, "H": 1.3 }, "source": "TS 500:2000 6.2.6 (Denk. 6.6)" },
+    { "id": "4E", "name": "G + Q + 0.2S + E", "factors": { "D": 1.0, "F": 1.0, "L": 1.0, "S": 0.2, "E": 1.0, "H": 1.0 }, "source": "TBDY 2018 4.4.4 (Denk. 4.4): G + Q + 0.2S + E(H) + 0.3E(Z)" },
+    { "id": "5E", "name": "0.9G + E", "factors": { "D": 0.9, "E": 1.0, "H": 1.0 }, "source": "TBDY 2018 4.4.4 (Denk. 4.5): 0.9G + H + E(H) - 0.3E(Z)" }
+  ],
+  "service": [
+    { "id": "1", "name": "G + Q", "factors": { "D": 1.0, "L": 1.0, "Lr": 1.0 }, "source": "TS 500:2000 13.2 (deflections under the service loads)" },
+    { "id": "2", "name": "G + 0.3Q", "factors": { "D": 1.0, "L": 0.3 }, "source": "SAEngine practice: the long-term part (n = 0.3 of TBDY Tablo 4.3)" },
+    { "id": "3", "name": "G + Q + W", "factors": { "D": 1.0, "L": 1.0, "W": 1.0 }, "source": "SAEngine practice: drift under wind (TS 498 gives no service combination)" }
+  ],
+  "gravity": [
+    { "name": "1.4G + 1.6Q", "factors": { "D": 1.4, "L": 1.6 } }
+  ],
+  "temperature": [
+    { "name": "1.0G + 1.2Q + 1.2T", "factors": { "D": 1.0, "L": 1.2, "Lr": 1.2, "T": 1.2 } },
+    { "name": "1.0G + 1.2Q - 1.2T", "factors": { "D": 1.0, "L": 1.2, "Lr": 1.2, "T": -1.2 } }
+  ],
+  "allowable": [
+    { "id": "1", "name": "D", "factors": { "D": 1.0, "F": 1.0 }, "source": "ASCE 7-22 Sec 2.4.1 combination 1 (SAEngine practice)" },
+    { "id": "2", "name": "D + L", "factors": { "D": 1.0, "H": 1.0, "F": 1.0, "L": 1.0 }, "source": "ASCE 7-22 Sec 2.4.1 combination 2 (SAEngine practice)" },
+    { "id": "3", "name": "D + Lr", "factors": { "D": 1.0, "H": 1.0, "F": 1.0, "Lr": 1.0 }, "source": "ASCE 7-22 Sec 2.4.1 combination 3 (SAEngine practice)" },
+    { "id": "4", "name": "D + 0.75L + 0.75Lr", "factors": { "D": 1.0, "H": 1.0, "F": 1.0, "L": 0.75, "Lr": 0.75 }, "source": "ASCE 7-22 Sec 2.4.1 combination 4 (SAEngine practice)" },
+    { "id": "5W", "name": "D + 0.6W", "factors": { "D": 1.0, "H": 1.0, "F": 1.0, "W": 0.6 }, "source": "ASCE 7-22 Sec 2.4.1 combination 5 (SAEngine practice)" },
+    { "id": "5E", "name": "D + 0.7E", "factors": { "D": 1.0, "H": 1.0, "F": 1.0, "E": 0.7 }, "source": "ASCE 7-22 Sec 2.4.5 combination 8 (SAEngine practice)" },
+    { "id": "7", "name": "0.6D + 0.6W", "factors": { "D": 0.6, "W": 0.6, "H": 1.0 }, "source": "ASCE 7-22 Sec 2.4.1 combination 7 (SAEngine practice)" },
+    { "id": "8", "name": "0.6D + 0.7E", "factors": { "D": 0.6, "E": 0.7, "H": 1.0 }, "source": "ASCE 7-22 Sec 2.4.5 combination 10 (SAEngine practice)" }
+  ],
+  "seismicDeadUpper": 1.0,
+  "seismicDeadLower": 0.9,
+  "overstrength": "TBDY 2018 4.3.4 and Tablo 4.1: the elements designed for D times the earthquake effect (the overstrength factor D of Tablo 4.1, held in the systems' Omega0)",
+  "optionalCases": ["F", "H", "T", "S"],
+  "sources": {
+    "strength": "TS 500:2000 6.2.6 and TBDY 2018 4.4.4 (check the factors against the printed codes)",
+    "seismicDeadUpper": "TBDY 2018 4.4.4: G + Q + 0.2S + E",
+    "seismicDeadLower": "TBDY 2018 4.4.4: 0.9G + E",
+    "temperature": "TS 500:2000 6.2.6 (1.0G + 1.2Q + 1.2T; check)"
+  },
+  "clauses": {
+    "strength": "TS 500:2000 6.2.6; TBDY 2018 4.4.4"
+  }
+}

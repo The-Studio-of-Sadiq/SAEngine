@@ -113,6 +113,9 @@ def shape_factor(period: float, branches: list[Any], static: bool = False) -> fl
     value = chosen.a + chosen.b * t
     if chosen.c:
         value += chosen.c * (chosen.t0 / t) ** chosen.n if t > 0 else math.inf
+    c2 = getattr(chosen, "c2", 0.0)
+    if c2:  # Alpha 9 C21: the second power term (NBC 105:2020 type)
+        value += c2 * (chosen.t0 / t) ** chosen.n2 if t > 0 else math.inf
     if chosen.most is not None:
         value = min(value, chosen.most)
     return value

@@ -1,0 +1,17 @@
+{
+  "$schema": "../../../schemas/occupancyCategories.schema.json",
+  "$replace": true,
+  "$sources": [
+    "TBDY 2018 3.1, Tablo 3.1 (building importance classes BKS 1-3 and the importance factor I)"
+  ],
+  "source": "TBDY 2018 Tablo 3.1: BKS 1 (I = 1.5), BKS 2 (I = 1.2), BKS 3 (I = 1.0). The categories I-IV are SAEngine's slots: I and II take BKS 3, III BKS 2, IV BKS 1. TS 498 has no importance factor on the wind (1.0).",
+  "categories": {
+    "I": { "description": "BKS 3: other buildings of low occupancy (I = 1.0)", "seismicImportance": 1.0, "windImportance": 1.0 },
+    "II": { "description": "BKS 3: residences, offices, hotels and the other buildings not in BKS 1 or 2 (I = 1.0)", "seismicImportance": 1.0, "windImportance": 1.0 },
+    "III": { "description": "BKS 2: buildings with many people for short periods (shopping centres, sports halls, cinemas, theatres, concert halls, places of worship) (I = 1.2)", "seismicImportance": 1.2, "windImportance": 1.0 },
+    "IV": { "description": "BKS 1: buildings to be used right after an earthquake (hospitals, schools, fire and emergency buildings, power and telecommunication buildings) and buildings with hazardous contents (I = 1.5)", "seismicImportance": 1.5, "windImportance": 1.0 }
+  },
+  "sources": {
+    "categories": "TBDY 2018 3.1, Tablo 3.1 (check the list of uses of each class)"
+  }
+}

@@ -393,19 +393,25 @@ def drift_limit(
     cantilever: bool = False,
     tolerant: bool = False,
     moment_frames_only: bool | None = None,
+    concrete: bool | None = None,
 ) -> dict[str, Any]:
     """The allowable storey drift Δa / hsx and the row of the pack's drift table it comes from:
     ``{"ratio", "row", "label"}``. The first of ``seismic.driftLimits`` whose conditions hold
     (a masonry system, its walls cantilevered, at most ``maxStoreys`` storeys, finishes
-    designed for the drift), else ``allowableDrift``; divided by ρ for systems of moment
-    frames only in the pack's ``driftRedundancyCategories``."""
+    designed for the drift; alpha 9 C21: a concrete system), else ``allowableDrift``; divided
+    by ρ for systems of moment frames only in the pack's ``driftRedundancyCategories``; alpha
+    9 C21: divided by the pack's ``driftServiceRatio`` λ where it gives one."""
     table = _seismic()
     entry = table.systems.get(system)
     if masonry is None:
         masonry = bool(entry and entry.masonry)
+    if concrete is None:
+        concrete = bool(entry and entry.concrete)
     limits, row, label = table.allowableDrift, "other", table.allowableDriftLabel
     for candidate in table.driftLimits:
         if candidate.masonry is not None and candidate.masonry != masonry:
+            continue
+        if candidate.concrete is not None and candidate.concrete != concrete:
             continue
         if candidate.cantileverWalls is not None and candidate.cantileverWalls != cantilever:
             continue
@@ -426,6 +432,10 @@ def drift_limit(
         moment_frames_only = system in moment_frame_systems()
     if category in table.driftRedundancyCategories and moment_frames_only and redundancy > 0:
         ratio /= redundancy
+    service = getattr(table, "driftServiceRatio", None)
+    if service is not None:  # Alpha 9 C21: λ δ/h ≤ limit (TBDY 2018 4.9.1.3)
+        ratio /= service.value
+        label = f"{label} (÷ {service.label} = {service.value:g})" if label else label
     return {"ratio": ratio, "row": row, "label": label}
 
 
@@ -2003,6 +2013,10 @@ def _seismic_design(
     )
     if height_note:
         notes.append(height_note)
+    # Alpha 9 C21: the pack's performance-based design requirement (none without the block).
+    from saengine.fem.performance_requirements import notes as performance_notes
+
+    notes.extend(performance_notes(storeys[-1] - storeys[0] if storeys else 0.0, category))
     # ── torsional irregularity and Ax (Sec 2.5.5.3.1(i), 2.5.7.6.2) ──
     irregularity = torsional_irregularity(project, spectra, storeys, scale, forces)
     ax = torsion_amplification(irregularity, category, torsion and bool(forces))

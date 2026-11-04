@@ -1,0 +1,67 @@
+{
+  "schema": "saengine.codePack/1",
+  "id": "nepal-nbc",
+  "name": "Nepal (NBC 105:2020 with the Indian Standards)",
+  "edition": "NBC 105:2020",
+  "country": "NP",
+  "units": "SI",
+  "version": "0.1.0",
+  "extends": "is-codes",
+  "covers": [
+    "locations",
+    "zoneCoefficients",
+    "occupancyCategories",
+    "combinations",
+    "seismic"
+  ],
+  "description": "Nepal's National Building Code (alpha 9 track C21), a pack that extends the built-in pack is-codes. Seismic: NBC 105:2020 (the seismic zoning factor Z of the municipality, 0.25-0.40; soil types A-D with the spectral shape factor Ch(T) of Table 4-1 (Ta, Tc, α, K); the importance factor I = 1.0, 1.25, 1.5; the elastic site spectrum C(T) = Ch(T) Z I; the ULS design spectrum Cd(T) = C(T) / (Rμ Ωu) with the ductility and overstrength factors of Table 5-2; T1 = 1.25 kt H^(3/4); the equivalent static method with α below Ta and k = 1-2; the ULS drift 0.025 with Rμ × the elastic deflections) by the generic shapeFactors spectrum method. Loads: the NBC 105:2020 3.6 combinations (1.2 DL + 1.5 LL, DL + 0.3 LL + E), the wind combinations and IS 875 wind of the parent (NBC 104: Vb 47 m/s), the NBC 103 imposed loads as the parent's IS 875 (Part 2) (NBC 103 follows it). Concrete IS 456:2000 and IS 13920:2016, steel IS 800:2007 and the rest from the parent pack is-codes (NBC 110 not covered: it refers to IS 456). Not covered: the SLS spectrum 0.2 C(T) / Ωs and its drift check (the ULS check governs for the usual factors), the irregularity checks. Every value is listed in VERIFY.md; the municipalities' Z and Ch(T)'s long-period branch are uncertain and must be checked before design.",
+  "sources": [
+    {
+      "id": "NBC105",
+      "title": "NBC 105:2020 Seismic Design of Buildings in Nepal",
+      "edition": "2020",
+      "publisher": "Department of Urban Development and Building Construction, Government of Nepal"
+    },
+    {
+      "id": "NBC102",
+      "title": "NBC 102 Unit Weight of Materials",
+      "edition": "as in force",
+      "publisher": "Department of Urban Development and Building Construction, Government of Nepal"
+    },
+    {
+      "id": "NBC103",
+      "title": "NBC 103 Occupancy Load (Imposed Load)",
+      "edition": "as in force",
+      "publisher": "Department of Urban Development and Building Construction, Government of Nepal"
+    },
+    {
+      "id": "NBC104",
+      "title": "NBC 104 Wind Load",
+      "edition": "as in force",
+      "publisher": "Department of Urban Development and Building Construction, Government of Nepal"
+    }
+  ],
+  "clauses": {
+    "locations": ["NBC 105:2020 Table 4-5 (Z of the municipalities)", "NBC 104 (basic wind speed)"],
+    "zoneCoefficients": ["NBC 105:2020 4.1.4, Table 4-5"],
+    "occupancyCategories": ["NBC 105:2020 Table 4-3"],
+    "combinations": ["NBC 105:2020 3.6", "IS 456:2000 Table 18 (wind, parent pack)"],
+    "seismic": ["NBC 105:2020 Sections 3-6"]
+  },
+  "basis": {
+    "general": "NBC 105:2020 (seismic), NBC 102 / NBC 103 / NBC 104 as the parent's IS 875 (Parts 1-3)",
+    "concrete": "IS 456:2000 and IS 13920:2016 (parent pack is-codes)",
+    "steel": "IS 800:2007 (parent pack is-codes)",
+    "method": "Limit state design (NBC 105:2020, IS 456)"
+  },
+  "tableCodes": {
+    "seismic": "NBC 105:2020",
+    "locations": "NBC 105:2020",
+    "zoneCoefficients": "NBC 105:2020",
+    "occupancyCategories": "NBC 105:2020",
+    "combinations": "NBC 105:2020"
+  },
+  "author": "SAEngine contributors",
+  "licence": "AGPL-3.0-only",
+  "hooks": null
+}

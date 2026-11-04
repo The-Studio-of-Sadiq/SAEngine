@@ -1,0 +1,43 @@
+{
+  "$schema": "../../../schemas/concrete.schema.json",
+  "$sources": [
+    "TS 708:2016 (reinforcing steel B420C: Ø8-Ø32)",
+    "TS 500:2000 3.3 (Ec = 3250 √fck + 14000 MPa)"
+  ],
+  "barDiameters": {
+    "$replace": true,
+    "all": [8.0, 10.0, 12.0, 14.0, 16.0, 18.0, 20.0, 22.0, 25.0, 28.0, 32.0],
+    "main": [12.0, 14.0, 16.0, 18.0, 20.0, 22.0, 25.0, 28.0, 32.0],
+    "column": [14.0, 16.0, 18.0, 20.0, 22.0, 25.0, 28.0, 32.0],
+    "slab": [8.0, 10.0, 12.0, 14.0],
+    "stirrup": [8.0, 10.0, 12.0],
+    "wall": [10.0, 12.0, 14.0, 16.0],
+    "boundary": [14.0, 16.0, 18.0, 20.0, 22.0, 25.0],
+    "hoop": [8.0, 10.0, 12.0],
+    "lintel": [10.0, 12.0, 14.0, 16.0, 20.0],
+    "tank": [10.0, 12.0, 14.0, 16.0, 20.0],
+    "foundation": [12, 14, 16, 20, 25]
+  },
+  "barNames": {
+    "$replace": true,
+    "8": "Ø8",
+    "10": "Ø10",
+    "12": "Ø12",
+    "14": "Ø14",
+    "16": "Ø16",
+    "18": "Ø18",
+    "20": "Ø20",
+    "22": "Ø22",
+    "25": "Ø25",
+    "28": "Ø28",
+    "32": "Ø32"
+  },
+  "modulus": {
+    "normal": 5800.0
+  },
+  "sources": {
+    "barDiameters": "TS 708:2016 bar diameters (B420C); the sets by use are SAEngine practice (TBDY 2018: columns at least Ø14, beams Ø12, stirrups Ø8)",
+    "barNames": "TS 708:2016: bars named Ø + diameter",
+    "modulus": "TS 500:2000 3.3: Ec = 3250 √fck + 14000 MPa, here as 5800 √fck for the analysis (within 6 % from C25 to C40; SAEngine form of the table's √fc rule; the design of concreteMethods uses 3250 √fck + 14000 itself)"
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "$schema": "../../../schemas/locations.schema.json",
+  "$replace": true,
+  "$sources": [
+    "TBDY 2018 2.2-2.3: SS and S1 of the DD-2 level are site-specific, read from the AFAD Turkiye Deprem Tehlike Haritalari (TDTH) at the site's coordinates; the values below are SAEngine example readings near each city centre, to be replaced (VERIFY.md T1)"
+  ],
+  "source": "TBDY 2018: SS and S1 (DD-2, 10 % in 50 years) of each city are example readings near its centre (uncertain, VERIFY.md T1); the AFAD map gives them by coordinates and they vary strongly within a city: enter the site's values under Site > Mapped spectral values (the project's values win over the town's). TL = 6 s (TBDY 2.3.4). The wind speed is a placeholder of the base pack's ASCE 7 method (TS 498 gives the wind as pressures by height, VERIFY.md T2).",
+  "default": "istanbul",
+  "locations": {
+    "istanbul": { "name": "Istanbul (Fatih)", "zone": 0, "windSpeed": 40.0, "ss": 0.9, "s1": 0.25, "tl": 6 },
+    "ankara": { "name": "Ankara (Cankaya)", "zone": 0, "windSpeed": 40.0, "ss": 0.38, "s1": 0.11, "tl": 6 },
+    "izmir": { "name": "Izmir (Konak)", "zone": 0, "windSpeed": 40.0, "ss": 1.15, "s1": 0.31, "tl": 6 },
+    "bursa": { "name": "Bursa (Osmangazi)", "zone": 0, "windSpeed": 40.0, "ss": 1.05, "s1": 0.3, "tl": 6 },
+    "antalya": { "name": "Antalya (Muratpasa)", "zone": 0, "windSpeed": 40.0, "ss": 0.55, "s1": 0.15, "tl": 6 },
+    "adana": { "name": "Adana (Seyhan)", "zone": 0, "windSpeed": 40.0, "ss": 0.6, "s1": 0.17, "tl": 6 },
+    "konya": { "name": "Konya (Selcuklu)", "zone": 0, "windSpeed": 40.0, "ss": 0.25, "s1": 0.09, "tl": 6 },
+    "erzincan": { "name": "Erzincan", "zone": 0, "windSpeed": 40.0, "ss": 1.9, "s1": 0.55, "tl": 6 },
+    "duzce": { "name": "Duzce", "zone": 0, "windSpeed": 40.0, "ss": 1.6, "s1": 0.45, "tl": 6 },
+    "antakya": { "name": "Antakya (Hatay)", "zone": 0, "windSpeed": 40.0, "ss": 1.35, "s1": 0.37, "tl": 6 }
+  }
+}

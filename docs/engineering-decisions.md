@@ -212,6 +212,38 @@ run this week (owner, 2026-11-05): the tests are written, not run.
   `influenceCoefficient`, `locations.*.spectrumType`, `seismic.driftLimits[].groups`,
   `seismic.rareDrift`, `seismic.seismicGrades`, `steelLimitState.compression.perry`.
 
+## 2026-11-05: Turkey, Nepal and Sri Lanka packs (alpha 9 track C21)
+
+Packs `turkey-tbdy` (extends `aci318-asce7-22`), `nepal-nbc` (extends `is-codes`) and
+`srilanka` (extends `eurocodes`). The values were entered from knowledge of the codes (no text
+on this PC); each pack's `VERIFY.md` lists them with their clauses and marks the uncertain ones.
+Not tested yet (owner, 2026-11-05: no test runs this week).
+
+- **SAEngine practice, TBDY categories.** The design earthquake categories DTS 1-4 (and 1a-4a)
+  sit in the category slots D (DTS 1, 2), C (DTS 3) and B (DTS 4): the engine's detailing,
+  height limit and joint rules read B/C/D. BKS 1-3 sit in the occupancy slots IV, III and I-II.
+- **SAEngine practice, Ra(T).** `shortPeriodReduction` takes D from the system's Omega0 (the
+  project's Ω0 override applies); callers that give no D (the New Building sizing, isolation,
+  record targets, the worksheets' spectrum plot) keep Ra = R/I. The equivalent static
+  coefficient is Sae(T)/Ra(T) of the full spectrum, its rising branch below TA included.
+- **SAEngine practice, λ.** The TBDY drift ratio λ = Sae(DD-3)/Sae(DD-2) is site-specific:
+  the pack's value is 1.0 (on the safe side); the project enters the site's ratio as the Code
+  Value `seismic.driftServiceRatio.value`.
+- **SAEngine practice, performance-based design.** The BYS 1 (tall building) requirement of TBDY
+  3.4 / Bolum 13 is reported in the analysis notes with the procedures (linear DD-4, strength
+  DD-2, nonlinear time history DD-1); SAEngine does not run them by itself. The pushover hazard
+  levels DD-2 (LS) and DD-1 (CP, spectrum × 1.5 until the site's ratio is entered) check the
+  base pack's ASCE 41 hinges, not the TBDY Bolum 5 strain limits.
+- **SAEngine practice, TS 500.** Vc = 0.8 Vcr is a stress by grade in the tabulated shear method
+  (no steel ratio term); ρmin of beams and the least stirrups are taken at C40 (safe up to C40);
+  the least eccentricity 15 mm + 0.03 h as max(h/20, 25 mm). The areas TS 500 does not set here
+  (torsion, deflection, cracking, cover, anchorage, slabs, footings) are the base pack's ACI 318.
+- **SAEngine practice, Nepal.** NBC 105:2020 R = Rμ Ωu under the `shapeFactors` method (Sp = 1,
+  kμ = R); Cd = Rμ with the displacement factor; one category (D) for the whole country; the SLS
+  spectrum is not checked (the ULS drift governs for the usual Ωu / Ωs).
+- **SAEngine practice, Sri Lanka wind.** The 1980 zone speeds (3-second gusts) are converted to
+  the EN 1991-1-4 vb,0 by 1/1.53; seismic design is not covered.
+
 ## 2026-11-05: Australia and New Zealand packs (alpha 9 track C18)
 
 Packs `australia-as` (extends `bnbc2020`) and `newzealand-nzs` (extends `australia-as`). The

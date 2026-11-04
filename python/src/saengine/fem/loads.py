@@ -169,6 +169,7 @@ def design_acceleration(
     r: float,
     damping: float | None = None,
     static: bool = False,
+    overstrength: float | None = None,
 ) -> float:
     """Design spectral acceleration Sa = (2/3)·(Z·I/R)·Cs, as a fraction of g (``damping`` and
     ``static``: see :func:`normalized_spectrum`); C7: the factor is the pack's
@@ -177,7 +178,8 @@ def design_acceleration(
     The pack's ``seismic.designSpectrum.method`` picks the design spectrum: ``behaviourFactor``
     (C4: R standing for q, ag = Z·I, the lower bound β·ag; the damping is in q there, so
     ``damping`` is not used, :mod:`saengine.fem.spectra`); ``mappedSpectral`` (C1: ``z`` the
-    site's :class:`~saengine.fem.spectral_hazard.SpectralHazard`, Sa(T)·I/R)."""
+    site's :class:`~saengine.fem.spectral_hazard.SpectralHazard`, Sa(T)·I/R; alpha 9 C21: with
+    the pack's ``shortPeriodReduction`` and the system's ``overstrength`` D, Sa(T) / Ra(T))."""
     seismic = code_context.table("seismic")
     rule = getattr(seismic, "designSpectrum", None)
     if rule is not None and rule.method == "behaviourFactor":
@@ -196,6 +198,11 @@ def design_acceleration(
             rule.lowerBound,
         )
     if rule is not None and rule.method in ("mappedSpectral", "ubc97"):  # C16: ubc97 the same
+        if overstrength is not None and rule.shortPeriodReduction is not None:  # Alpha 9 C21
+            from saengine.fem import spectral_hazard as sh
+
+            sa = normalized_spectrum(period, site_class, damping, z)
+            return sa / sh.reduction(period, _mapped(z), importance, r, overstrength)
         return importance / r * normalized_spectrum(period, site_class, damping, z)
     if rule is not None and rule.method == "ductilityOverstrength":  # Alpha 9 C17
         from saengine.fem.ductility_spectrum import design_ordinate
@@ -258,17 +265,21 @@ def elf_coefficient(
     damping: float | None = None,
     static: bool = True,
     system: Any = None,
+    overstrength: float | None = None,
 ) -> float:
     """The equivalent static force coefficient V/W at ``period`` before the pack's base shear
     correction (:func:`base_shear_correction`): the design spectral acceleration
     (:func:`design_acceleration`); C1: with the design spectrum ``mappedSpectral`` the pack's
     Cs = SDS/(R/I) with its upper and lower bounds
     (:func:`saengine.fem.spectral_hazard.response_coefficient`); alpha 9 C17: ``system`` the
-    ``seismic.systems`` row (its higher mode group and Rd, for a pack's ``ordinates``)."""
+    ``seismic.systems`` row (its higher mode group and Rd, for a pack's ``ordinates``); alpha 9
+    C21: ``overstrength`` the system's D of a pack's ``shortPeriodReduction``."""
     from saengine.fem import spectral_hazard as sh
 
     if sh.uses_mapped():
-        return sh.response_coefficient(period, _mapped(z), importance, r, system=system)
+        return sh.response_coefficient(
+            period, _mapped(z), importance, r, system=system, overstrength=overstrength
+        )
     return design_acceleration(period, site_class, z, importance, r, damping, static=static)
 
 
@@ -328,8 +339,15 @@ def vertical_distribution(
     total = sum(weights)
     # Alpha 9 C10: the pack's concentrated top force Ft (BNBC 1993 / 2006 Sec 2.5.7.2).
     top = getattr(rule, "topForce", None) if rule is not None else None
-    if top is not None and period > top.periodFrom and levels:
-        ft = min(top.factor * period * base_shear, top.maxShare * base_shear)
+    ft: float | None = None
+    if top is not None and levels:
+        if top.storeyFactor is not None:  # Alpha 9 C21: ΔFN = factor N V (TBDY 2018 4.7.2.2)
+            ft = top.storeyFactor * len(levels) * base_shear
+        elif top.factor is not None and top.periodFrom is not None and period > top.periodFrom:
+            ft = top.factor * period * base_shear
+        if ft is not None and top.maxShare is not None:
+            ft = min(ft, top.maxShare * base_shear)
+    if ft is not None:
         rest = base_shear - ft
         forces = [rest * w / total if total else 0.0 for w in weights]
         highest = max(range(len(levels)), key=lambda i: levels[i][0])
