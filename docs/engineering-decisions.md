@@ -60,11 +60,47 @@ here, newest first, with the date, the question, the decision, the reason and wh
   convert differently and the fields do not say which), the expressions of the calculation
   worksheets (written in the code's SI form; their values, checks and units are converted, and
   the report says so), the costing (rates stay in the units of the schedule of rates), and the
-  BOQ's cft, cement bags, litres and counts.
+  BOQ's cft, cement bags, litres and counts. (C13b below converts temperatures, the worksheets'
+  expressions and the costing sheet.)
 - **US bar names from the pack** (`concrete.barNames`): the US pack names its soft-metric bars
   #3–#11 (ASTM A615). Drawings and the bar bending schedule print dimensions in feet and inches
   to 1/8" (DXF architectural units, the geometry stays in mm) and levels in feet; the BBS's
   lengths in ft-in, totals in ft and masses in lb.
+
+## 2026-11-04: display units, the remainder (alpha 9 track C13b)
+
+What C13 left in SI, through the same two modules (`saengine.units`, `displayUnits.ts`); SI
+projects print and show exactly as before. SAEngine practice throughout:
+
+- **Temperatures convert** (owner: complete units). "°C" is a temperature (°F = 1.8 °C + 32);
+  a field that holds a change names the kind `temperatureChange` (the thermal ΔTu and ΔTg, a
+  timber service temperature above normal, the HVAC daily range: 1.8 °F per °C). In printed
+  text a temperature is a change when "Δ", "±" or "by", "range", "rise", "drop", "change",
+  "gradient" stand within the 20 characters before it.
+- **Worksheet expressions with their values.** In US units every step whose expression is
+  mathematics gets a "With values" form: the symbols replaced by the values as printed, juxtaposed
+  factors joined by ×. An expression in the code's SI form (a root of a stress, a constant above
+  100 or a small one of two or more digits, or marked by its kind, as ACI's 15 + 0.03h) keeps its
+  SI form and gets the SI values, marked "(SI form)"; the report says so. Steps in words get none.
+- **Sizes.** Member sizes in US units are written in inches to 1/8" (feet and inches when the
+  project shows sizes in feet): the Members Table and plan labels (12"x20" style), the drawings'
+  sizes without a unit ("300x500", "LAP 800", "150 THK"; a section designation such as
+  "SHS 150x150x8" stays) and the "(mm)" columns of the drawings' tables (lengths and positions in
+  feet and inches, bar size columns by the pack's bar names, a pile type's length in feet).
+  "4Ø16" reads "4-#5" with a pack name.
+- **Code values and placeholders.** Project Settings › Code Values shows and reads a value with
+  its unit (and lists of numbers) in the display units; the greyed code values of the forms too.
+- **Editors.** Substructure, soil, MEP (HVAC temperatures included), architecture, strut-and-tie
+  and the walls, stairs and detailing panels show and read their numbers in the display units;
+  the readouts written as SI text are converted where they are drawn (never the text a user
+  types). The FEM charts' elevations and member stations are in feet, the P–M and Mx–My charts in
+  kip and kip·ft.
+- **Costing.** The quantity is shown in its display unit and the rate's units per unit as shown
+  follow it, so every amount is the same; the BOQ editor shows a rate per display unit beside
+  the schedule's rate. The embodied carbon's masses in lb with the factors per lb.
+- **Still SI** (to do when wanted): the section designer's geometry and its charts, the drawings'
+  MEP pipe sizes (Ø in mm), bar and mesh inputs typed as "12@150", the BOQ's cft, bags and litres,
+  and SAEngine's chart tick numbers drawn in SVG by other editors' own code.
 
 ## 2026-11-04: bar bending schedules by the pack's standard (alpha 9 track C14)
 
