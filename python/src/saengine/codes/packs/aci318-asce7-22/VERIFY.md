@@ -1,4 +1,4 @@
-# Verification list: `aci318-asce7-22` (ASCE 7-22 loads)
+# Verification list: `aci318-asce7-22` (ASCE 7-22, ACI 318-19, AISC 360-22 / 341-22, NDS 2018, TMS 402-22)
 
 No copy of ASCE/SEI 7-22 or ACI 318-19 was available while this pack was written (alpha 9,
 track C1). Every value below was entered from the author's knowledge of the standards and
@@ -339,7 +339,7 @@ Steel shapes are SAEngine's own shape list (owner decision), not the AISC shapes
 | S48 | Ry, Rt: A500 Grade C 1.3, 1.2; Grade B and A501 1.4, 1.3; A1085 1.25, 1.15; the other rows as BNBC 2020 (A36 1.5/1.2, A992 / A572 Gr 50 1.1/1.1, A529 1.2/1.2 and 1.1/1.2, A53 1.6/1.2, plates A36 1.3/1.2, A572 1.1/1.2) | Sec A3.2 | | OK? |
 | S49 | IMF beams and columns moderately ductile; SMF highly ductile; OMF no seismic limits | Sec E1.5a, E2.5a, E3.5a | | OK? |
 | S50 | SCBF braces and columns highly ductile, beams moderately; OCBF braces moderately ductile | Sec F2.5a, F1.5a | | OK? |
-| S51 | the other seismic rules (connections, panel zones, bracing, splices, bases, EBF links, BRBF, SPSW, STMF, composite systems): the default pack's (341-05 based), cited as BNBC 2020 | — | Not revised in this version | — |
+| S51 | the other seismic rules (connections, panel zones, bracing, splices, bases, EBF links, BRBF, SPSW, STMF, composite systems) | — | Revised in track C3b: K1-K9 below | — |
 
 ### Composite: AISC 360-22 Chapter I — `composite.json`
 
@@ -362,19 +362,121 @@ Steel shapes are SAEngine's own shape list (owner decision), not the AISC shapes
 | M3 | Pn = 0.80 [0.80 f'm (An − As) + fy As] | Sec 9.3.4.1.1 | The slenderness factor not applied to shear walls | UNSURE |
 | M4 | Vnm = 0.083 [4.0 − 1.75 Mu/(Vu dv)] Anv √f'm + 0.25 Pu, Mu/(Vu dv) 0 to 1.0; Vns = 0.5 ρn fy Anv; Vn ≤ 0.498 / 0.332 Anv √f'm at 0.25 / 1.0 | Sec 9.3.6.5 | γg = 1.0 | UNSURE (clause numbers) |
 | M5 | f'm 10.3-27.6 MPa for shear walls | Sec 9.1.9.1 | Concrete masonry; clay up to 41.4 | UNSURE |
-| M6 | slender walls, modulus of rupture, boundary members, reinforcement rules, the allowable stress method and the seismic and empirical rules: the default pack's, cited as BNBC 2020 | — | TMS 402-22 Chapter 8 (ASD) not in the pack | — |
+| M6 | slender walls, modulus of rupture, boundary members, reinforcement rules and the seismic and empirical rules: the default pack's, cited as BNBC 2020 | — | The allowable stress method (Chapter 8): MA1-MA13 below | — |
+
+## Timber, masonry ASD, the steel remainder and the generator (track C3b)
+
+No copy of the NDS 2018 (or its Supplement), TMS 402-22, AISC 360-22, AISC 341-22 or AISC 358
+was available. The values come from the author's knowledge of these standards (the NDS values
+are those of the 2018 Supplement as recalled; most are unchanged since the 2005 edition).
+Stresses of the NDS tables are entered in psi as printed (`reference.toMPa` converts them).
+
+### Timber: NDS 2018 — `timber.json` (method `referenceDesign`, ASD by default, LRFD selectable)
+
+| # | Value | Clause | Description | Status |
+|---|---|---|---|---|
+| T1 | Douglas Fir-Larch dimension lumber (Fb, Ft, Fv, Fc⊥, Fc, E, Emin psi): SS 1500, 1000, 180, 625, 1700, 1.9e6, 690 000; No.1 & Btr 1200, 800, 180, 625, 1550, 1.8e6, 660 000; No.1 1000, 675, 180, 625, 1500, 1.7e6, 620 000; No.2 900, 575, 180, 625, 1350, 1.6e6, 580 000; No.3 525, 325, 180, 625, 775, 1.4e6, 510 000; Stud 700, 450, 180, 625, 850, 1.4e6, 510 000; G 0.50 | Supplement Table 4A | | OK? |
+| T2 | Douglas Fir-Larch beams and stringers: SS 1600, 950, 170, 625, 1100, 1.6e6, 580 000; No.1 1350, 675, 170, 625, 925, 1.6e6, 580 000; No.2 875, 425, 170, 625, 600, 1.3e6, 470 000 | Supplement Table 4D | | UNSURE (Ft, Fc of No.1, No.2) |
+| T3 | Douglas Fir-Larch posts and timbers: SS 1500, 1000, 170, 625, 1150, 1.6e6, 580 000; No.1 1200, 825, 170, 625, 1000, 1.6e6, 580 000; No.2 750, 475, 170, 625, 700, 1.3e6, 470 000 | Supplement Table 4D | | UNSURE |
+| T4 | Hem-Fir dimension lumber: SS 1400, 925, 150, 405, 1500, 1.6e6, 580 000; No.1 & Btr 1100, 725, 150, 405, 1350, 1.5e6, 550 000; No.1 975, 625, 150, 405, 1350, 1.5e6, 550 000; No.2 850, 525, 150, 405, 1300, 1.3e6, 470 000; No.3 500, 300, 150, 405, 725, 1.2e6, 440 000; Stud 675, 400, 150, 405, 800, 1.2e6, 440 000; G 0.43 | Supplement Table 4A | | OK? |
+| T5 | Spruce-Pine-Fir dimension lumber: SS 1250, 700, 135, 425, 1400, 1.5e6, 550 000; No.1/No.2 875, 450, 135, 425, 1150, 1.4e6, 510 000; No.3 500, 250, 135, 425, 650, 1.2e6, 440 000; Stud 675, 350, 135, 425, 725, 1.2e6, 440 000; G 0.42 | Supplement Table 4A | | OK? |
+| T6 | Glulam 24F-1.8E: Fbx+ 2400, Fbx- 1450, Fc⊥x 650, Fvx 265, Ex 1.8e6, Ex min 950 000, Fby 1450, Ft 1100, Fc 1600; 20F-1.5E: 2000, 1100, 425, 210, 1.5e6, 790 000, Fby 800, Ft 725, Fc 925; G 0.42 | Supplement Table 5A | Fby, Ft, Fc and G of both classes from memory | UNSURE |
+| T7 | Southern Pine and the other species and grades of the Supplement | Tables 4B, 4C, 4E, 4F, 5B | Not in the pack (a material naming them takes the default species, with a note) | — |
+| T8 | CD: dead 0.9, live (ten years) 1.0, snow 1.15, roof live 1.25, wind and earthquake 1.6, impact 2.0; not on Fc⊥, E, Emin | Sec 2.3.2, Table 2.3.2 | Rain taken 1.25 and the flood load 1.6 (SAEngine practice) | OK? |
+| T9 | CM wet service of dimension lumber: Fb 0.85 (1.0 when Fb CF ≤ 1150 psi), Ft 1.0, Fv 0.97, Fc⊥ 0.67, Fc 0.8 (1.0 when Fc CF ≤ 750 psi), E and Emin 0.9 | Supplement Table 4A adjustment factors | | OK? |
+| T10 | CM of timbers (5 in. and thicker): Fc⊥ 0.67, Fc 0.91, the others 1.0 | Supplement Table 4D | | OK? |
+| T11 | CM of glulam: Fb 0.8, Ft 0.8, Fv 0.875, Fc⊥ 0.53, Fc 0.73, E and Emin 0.833 | Supplement Table 5A | | OK? |
+| T12 | Ct up to 38 °C 1.0; 38-52 °C Ft, E, Emin 0.9, the others 0.8 dry / 0.7 wet; 52-66 °C 0.9 and 0.7 dry / 0.5 wet | Table 2.3.3 | | OK? |
+| T13 | Ci incising: Fb, Ft, Fc, Fv 0.80; E, Emin 0.95; Fc⊥ 1.00 | Table 4.3.8 | Dimension lumber | OK? |
+| T14 | CF of dimension lumber (SS to No.3) by width 2-4, 5, 6, 8, 10, 12, 14+ in.: Fb 1.5, 1.4, 1.3, 1.2, 1.1, 1.0, 0.9 (2-3 in. thick) and 1.5, 1.4, 1.3, 1.3, 1.2, 1.1, 1.0 (4 in.); Ft 1.5, 1.4, 1.3, 1.2, 1.1, 1.0, 0.9; Fc 1.15, 1.1, 1.1, 1.05, 1.0, 1.0, 0.9; Stud 1.1/1.1/1.05 (2-4 in.), 1.0 (5-6 in.) | Supplement Table 4A | Actual depths 89, 114, 140, 184, 235, 286 mm | OK? |
+| T15 | CF of timbers deeper than 12 in.: (12/d)^(1/9) | Sec 4.3.6.2 | | OK? |
+| T16 | Cfu flat use by width 2-3, 4, 5, 6, 8, 10+ in.: 1.0, 1.1, 1.1, 1.15, 1.15, 1.2 (2-3 in. thick); 1.0, 1.0, 1.05, 1.05, 1.05, 1.1 (4 in.) | Supplement Table 4A | Applied to bending about the weak axis | OK? |
+| T17 | Cr repetitive member 1.15 (Fb of dimension lumber) | Sec 4.3.9 | The member type's option | OK? |
+| T18 | CV of glulam = (21/L)^(1/x) (12/d)^(1/x) (5.125/b)^(1/x) ≤ 1, x = 10 (SI 6400 mm, 305 mm, 130 mm); not with CL (the lesser) | Sec 5.3.6 | x = 20 of Southern Pine not used | OK? |
+| T19 | CL: le = 2.06 lu (lu/d < 7), 1.63 lu + 3 d (7 to 14.3), 1.84 lu (above); RB = √(le d/b²) ≤ 50; FbE = 1.20 Emin'/RB²; CL = (1 + α)/1.9 - √(((1 + α)/1.9)² - α/0.95) | Sec 3.3.3, Table 3.3.3 | The 'any loading' row of Table 3.3.3 for every beam (SAEngine practice) | OK? |
+| T20 | CP: FcE = 0.822 Emin'/(le/d)², c 0.8 sawn, 0.9 glulam; le/d ≤ 50 | Sec 3.7.1 | le = the member length (Ke = 1.0, SAEngine practice) | OK? |
+| T21 | Combined bending and compression (fc/Fc')² + fb1/(Fb1'(1 - fc/FcE1)) + fb2/(Fb2'[1 - fc/FcE2 - (fb1/FbE)²]) ≤ 1; bending and tension ft/Ft' + fb/Fb* ≤ 1, (fb - ft)/Fb** ≤ 1 | Sec 3.9.1, 3.9.2 (Eq 3.9-3) | | OK? |
+| T22 | Shear fv = 3V/(2bd), loads within d of the support left out | Sec 3.4.2, 3.4.3.1 | | OK? |
+| T23 | Cb = (lb + 0.375)/lb for bearings under 6 in. (SI lb + 9.525 mm, 152 mm) | Sec 3.10.4 | The end distance of 3 in. not checked | OK? |
+| T24 | Deflection: Kcr 1.5 on the dead load; limits L/240, L/360 (brittle finishes), cantilevers L/120 | Sec 3.5.2; IBC Table 1604.3 | The limits are SAEngine practice (IBC not in the pack); Kcr 2.0 of wet service not distinguished | PRACTICE |
+| T25 | LRFD: KF Fb 2.54, Ft 2.70, Fv 2.88, Fc 2.40, Fc⊥ 1.67, Emin 1.76, connections 3.32; φ 0.85, 0.80, 0.75, 0.90, 0.90, 0.85, connections 0.65 | Appendix N, Tables N1, N2 | | OK? |
+| T26 | λ: 0.6 dead alone; 0.8 occupancy live governing (1.25 impact); 0.8 roof live, snow, rain; 1.0 wind, earthquake | Appendix N, Table N3 | Storage live (0.7) not distinguished: the material's live load duration maps continuous → 0.8 (SAEngine practice) | UNSURE |
+| T27 | Dowels: Fe∥ = 11 200 G, Fe⊥ = 6100 G^1.45/√D psi (D ≥ 1/4 in.), 16 600 G^1.84 (D < 1/4 in.); Hankinson at the angle | Table 12.3.3, Sec 12.3.4 | | OK? |
+| T28 | Rd = 4 Kθ (I), 3.6 Kθ (II), 3.2 Kθ (III, IV), Kθ = 1 + 0.25 θ/90; KD 2.2 (D ≤ 0.17 in.), 10 D + 0.5 (0.17-0.25 in.) | Table 12.3.1B | | OK? |
+| T29 | Yield modes single shear Im, Is, II, IIIm, IIIs, IV and double shear Im, Is, IIIs, IV with k1, k2, k3 | Table 12.3.1A, Eqs 12.3-1 to 12.3-10 | | OK? |
+| T30 | Fyb 45 ksi bolts; nails 100 ksi (D ≤ 0.142 in.), 90 (≤ 0.177), 80 (≤ 0.236), 70 ksi (≤ 0.273) | Table I1 (Appendix I) | | UNSURE |
+| T31 | Cg by Sec 11.3.6, γ = 180 000 D^1.5 lb/in; CΔ: end distance 7 D (tension softwood), 5 D (hardwood), 4 D (compression) for 1.0, least 3.5 D / 2.5 D / 2 D for 0.5; spacing 4 D for 1.0, least 3 D | Sec 11.3.6, Tables 12.5.1A, 12.5.1B | Side members of the member's species and depth (SAEngine practice) | UNSURE (γ, CΔ rules) |
+| T32 | CM of fasteners in wet service 0.7 | Table 11.3.3 | | UNSURE |
+| T33 | A material 'wet' or 'outside' is in wet service | Sec 4.1.4 | SAEngine practice | PRACTICE |
+
+### Masonry: TMS 402-22 Chapter 8 — `masonry.json` `allowable` (the default masonry method)
+
+| # | Value | Clause | Description | Status |
+|---|---|---|---|---|
+| MA1 | Fa = 0.25 f'm [1 - (h/140r)²] up to h/r 99, 0.25 f'm (70r/h)² above; r = t/√12 (h'/t 40.41, 28.58, 20.21) | Sec 8.2.4.1 | Solid section radius | OK? |
+| MA2 | Reinforced columns Pa = (0.25 f'm An + 0.65 Ast Fs) [1 - (h/140r)²] (columnSteelArea 1/0.65) | Sec 8.3.4.2.1 | Compression steel stress the default pack's | UNSURE |
+| MA3 | Fb = 1/3 f'm unreinforced, 0.45 f'm reinforced; no cap | Sec 8.2.4.2, 8.3.4.2.2 | | OK? |
+| MA4 | Ft normal to the bed joints 53 / 33 psi (solid / hollow ungrouted, Type M or S), parallel 106 / 66 psi; Type N about 24.5 % less (40, 25, 80, 50 psi) | Table 8.2.4.2 | M1, M2 taken as Type M/S, M3, M4 as Type N (SAEngine practice); grouted hollow units take the ungrouted value | UNSURE (mapping) |
+| MA5 | Unreinforced shear Fv = least of 1.5 √f'm, 120 psi, 37 psi + 0.45 Nv/An (60 psi + 0.45 Nv/An fully grouted, 15 psi stack bond) | Sec 8.2.6.2 | | OK? |
+| MA6 | Reinforced shear Fv = Fvm + Fvs, Fvm = 1/2 [(4.0 - 1.75 M/(V dv)) √f'm] + 0.25 P/An, Fvs = 0.5 (Av Fs dv)/(An s); max 3 √f'm (M/(V dv) ≤ 0.25), 2 √f'm (≥ 1.0); fv = V/An | Sec 8.3.5.1 | γg = 1.0 | OK? |
+| MA7 | Beams and out-of-plane shear: 0.0934 √f'm MPa (M/Vd = 1), with reinforcement 0.166 √f'm | Sec 8.3.5 | SAEngine practice | PRACTICE |
+| MA8 | Fs 20 ksi (138 MPa) Grade 40 and 50, 32 ksi (220 MPa) Grade 60, joint reinforcement 30 ksi (207 MPa) | Sec 8.3.3.1 | | OK? |
+| MA9 | No increase of the allowable stresses for wind or earthquake | Sec 8.1 with ASCE 7-22 Sec 2.4 | | OK? |
+| MA10 | No reduction of the allowable stresses without special inspection | Chapter 3 | | OK? |
+| MA11 | Em = 700 f'm clay, 900 f'm concrete masonry; Es 200 000 MPa; Ev = 0.4 Em | Sec 4.2.2 | Also used by the strength design and the analysis model of masonry walls | OK? |
+| MA12 | h'/t at most 30 for walls, 25 for columns | Sec 5.3.1.4 (columns) | The wall limit is SAEngine practice (TMS 402-22 sets none) | PRACTICE |
+| MA13 | P ≤ 1/4 Pe of unreinforced members | Sec 8.2.4.1 | Not checked | — |
+
+### Steel: AISC 360-22 remainder — `steel.json`, `fatigue.json`, `designClauses.json`
+
+| # | Value | Clause | Description | Status |
+|---|---|---|---|---|
+| S59 | Built-up members, welded or pretensioned connectors: (Lc/r)m = (Lc/r)o up to a/ri = 40, else √((Lc/r)o² + (Ki a/ri)²), Ki 0.50 (back-to-back angles), 0.75 (channels), 0.86 (other) | Sec E6.1(b), Eqs E6-2a, E6-2b | | OK? |
+| S60 | Snug-tight bolts √((Lc/r)o² + (a/ri)²) | Sec E6.1(a), Eq E6-1 | | OK? |
+| S61 | Stability bracing φ 0.75 (Ω 2.00); columns relative 0.005 Pr, 2 Pr/(φ Lbr); nodal 0.01 Pr, 8 Pr/(φ Lbr) | Appendix 6, Sec 6.2.1, 6.2.2 | 360-10 had 0.004 Pr | OK? |
+| S62 | Beams lateral relative 0.005 Mr Cd/ho, 4 Mr Cd/(φ Lbr ho); nodal 0.02 Mr Cd/ho, 10 Mr Cd/(φ Lbr ho) | Appendix 6, Sec 6.3.1a, 6.3.1b | 360-10 had 0.008 | OK? |
+| S63 | Torsional nodal Mbr = 0.02 Mr, βT = 3.6 L Mr²/(φ n E Iyeff Cb²), βsec = 3.3 E/ho (1.5 ho tw³/12 + ts bs³/12) | Appendix 6, Sec 6.3.2a | Iyeff taken Iy | OK? |
+| S64 | Equation numbers of Appendix 6 (A-6-1 to A-6-8) in the notes | Appendix 6 | | UNSURE |
+| S65 | Ponding: Cp + 0.9 Cs ≤ 0.25, Id ≥ 3940 S⁴ (SI 504, mm⁴), improved by Figures A-2.1, A-2.2 (the default pack's digitised curves); Eq A-2-1, A-2-2, A-2-4 | Appendix 2 | Equation numbers | UNSURE (numbers) |
+| S66 | Tension field stiffeners: Ist ≥ Ist2 + (Ist1 - Ist2) ρw, Ist1 = h⁴ ρst^1.3/40 (Fyw/E)^1.5, Ist2 = b tw³ j (b the lesser of a and h), ρw = (Vr - Vc2)/(Vc1 - Vc2) ≥ 0; (b/t)st ≤ 0.56 √(E/Fyst); the area rule dropped | Sec G2.3 | | UNSURE (Ist1 form) |
+| S67 | HSS connections: the default pack's equations (AISC 360-10 forms) cited as AISC 360-22 Sec K2 (plates, Tables K2.1, K2.2), K3 (truss, Tables K3.1, K3.2), K4 (moment, Tables K4.1, K4.2), K5 (welds) | Chapter K | Table numbers and whether 360-22 changed any equation | UNSURE |
+| S68 | Chapter K φ: plastification 0.90 round / 1.00 rectangular, punching 0.95 (round gapped K joints included: 0.95, not the 0.90 of BNBC 2020), sidewall yielding 1.00, crippling 0.75, local buckling 0.90, uneven load 0.95, distortion 1.00, cap plates 1.00 / 0.75 | Chapter K tables | | OK? |
+| S69 | Fatigue: no evaluation below 20 000 cycles or below FTH; 0.66 Fy under unfactored loads; FSR = (Cf × 329/nSR)^0.333 ≥ FTH (F: (Cf × 110 000/nSR)^0.167); Cf, FTH of categories A to F as the default pack's (Table 6.10.14a = Table A-3.1) | Appendix 3, Sec 3.1, 3.3, Table A-3.1 | SI equation numbers A-3-1M, A-3-2M | UNSURE (numbers) |
+| S70 | Brace L/r 180 of stability braces | Appendix 6 | The default pack's limit kept as a flag; 360-22 may give none | UNSURE |
+| S71 | Fire (Appendix 4): not covered (no home in SAEngine's steel engine) | Appendix 4 | Planned | — |
+
+### Seismic: AISC 341-22 remainder — `steelSeismic.json`
+
+| # | Value | Clause | Description | Status |
+|---|---|---|---|---|
+| K1 | Expected moment at the hinge Mpr = Cpr Ry Fy Z, Cpr = (Fy + Fu)/(2 Fy) ≤ 1.2 (SMF, IMF) | Sec E3.6d, E2.6d; AISC 358 Sec 2.4.3 | Fixed 1.1 when Fu is unknown | OK? |
+| K2 | Beam bracing Lb ≤ 0.095 ry E/(Ry Fy) (highly ductile, SMF), 0.19 ry E/(Ry Fy) (moderately, IMF); braces 0.06 Ry Fy Z/ho | Sec D1.2b, D1.2a, E3.4b, E2.4a | | OK? |
+| K3 | Panel zone φv 1.00, t ≥ (dz + wz)/90, ΣM*pc/ΣM*pb > 1.0 (exempt below 0.3 Pc) | Sec E3.6e, E3.4a | | OK? |
+| K4 | OMF connections 1.1 Ry Mp, PR at least 0.5 Mp; STMF the default pack's numbers | Sec E1.6b, E4 | | OK? |
+| K5 | EBF links: Vp = 0.6 Fy Alw (Pr/Pc ≤ 0.15), rotation 0.08 to 0.02 rad, φv 0.90; the other link numbers the default pack's | Sec F3.4a, F3.5b | Unchanged numbers since 341-05 assumed | UNSURE |
+| K6 | BRBF: adjusted brace strength β ω Ry Fysc Asc, connections 1.1 ×; the default pack's numbers | Sec F4.2a, F4.6c | | OK? |
+| K7 | SPSW: Vn = 0.42 Fy tw Lcf sin 2α, φ 0.90; 0.8 < L/h ≤ 2.5; VBE Ic ≥ 0.0031 tw h⁴/L | Sec F5.5b, F5.4a; Eq F5-2 (α) | Equation number of α | UNSURE |
+| K8 | Composite: f'c ≥ 21 MPa, ≤ 41 MPa lightweight; the other numbers the default pack's | Sec A3.5, D1.4b, Chapters G, H | | UNSURE |
+| K9 | The section references of every rule (toughness A3.3, bolts D2.2, splices D2.5, bases D2.6, conformance E3.6c and Chapter K, SCBF F2.4-F2.6, OCBF F1.4-F1.6, links F3.4-F3.6, BRBF F4.2-F4.6, SPSW F5.2-F5.7, composite D1.4b, G3.5a, H6, clips I2.4) | — | Sub-clause letters from memory | UNSURE |
+| K10 | Width-thickness limits of Table B4.1 named in the notes of compact (non-seismic) members | AISC 360-22 Table B4.1 | | OK? |
+
+### Generator — `seismic.json` `generatorSystems`
+
+| # | Value | Clause | Description | Status |
+|---|---|---|---|---|
+| G1 | Steel moment frames: steel not specifically detailed (R 3, row H), OMF (C.4), IMF (C.3), SMF (C.1); braced frames: steel not specifically detailed, OCBF (B.3), SCBF (B.2): the first the category and height permit | ASCE 7-22 Table 12.2-1 | SAEngine practice (the order) | PRACTICE |
+| G2 | Preliminary sizes: beams Zx ≥ Mu/(0.9 Fy) (w l²/8, moment frames w l²/10 × 1.5), live deflection l/360, depth ≥ l/24; columns A ≥ Pu/(0.5 Fy), moment frames Zx ≥ 1.2 × the beams'; X braces for the storey shear (φc Pn of the full diagonal); every member within the system's width-thickness limits | — | Rules of thumb; Design mode sizes the members | PRACTICE |
 
 ## Not covered in this version (fall back or absent)
 
-- Timber (NDS): inherited from BNBC 2020 Chapter 11 (IS-style permissible stresses of
-  Bangladeshi species); NDS reference design values and adjustment factors (CD, CM, Ct, CL, CP,
-  CF) need their own species tables and a timber method, not built.
-- Masonry by allowable stresses (TMS 402-22 Chapter 8) and the masonry rules not listed above:
-  BNBC 2020's, named so.
-- AISC 360-22: built-up members (Sec E6 with Ki), stability bracing (Appendix 6), ponding
-  (Appendix 2), stiffener requirements of tension field panels (Sec G2.3), HSS connections
-  (Chapter K equations), fatigue (Appendix 3), fire (Appendix 4): the default pack's rules,
-  cited as BNBC 2020's.
+- Timber: the NDS species and grades not listed (Southern Pine, the machine stress rated
+  grades, the other glulam combinations), split ring and shear plate connectors (NDS Chapter
+  13), wood screws and lag screws, the split ring and disc-dowel joints of SAEngine's timber
+  members (flagged not covered under this method); round timber poles, I-joists and SCL.
+- Masonry: the masonry rules not listed above (empirical design, seismic detailing, slender
+  walls of the strength method): BNBC 2020's, named so.
+- AISC 360-22 Appendix 4 (structural design for fire conditions): no home in SAEngine's steel
+  engine; planned.
 - The geotechnical foundation tables and the remaining material tables: inherited from BNBC 2020
   (the report names them as the BNBC tables).
 - The seismic detailing rows of special, intermediate and ordinary frames (ductile members and
