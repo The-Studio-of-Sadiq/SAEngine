@@ -1312,8 +1312,8 @@ export class FemModelEditor extends EditorPane {
 		store.add(appendPlannedChips(panel, localize('femEditor.plannedAnalyses', "Planned Analyses"), [
 			FemPlanned.stagedConstructionLoads,
 		], this.commandService));
-		store.add(appendPlannedChips(panel, localize('femEditor.plannedSystems', "Planned: Dampers, Existing Masonry Buildings"), [
-			FemPlanned.dampers, FemPlanned.existingMasonry,
+		store.add(appendPlannedChips(panel, localize('femEditor.plannedSystems', "Planned: Existing Masonry Buildings"), [
+			FemPlanned.existingMasonry,
 		], this.commandService));
 		this.plannedStore.value = store;
 	}

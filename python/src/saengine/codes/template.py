@@ -253,6 +253,12 @@ TABLE_HELP: dict[str, str] = {
     "spectrum, the static procedure's limits, restoring force, forces and their distribution, "
     "drift, the spectrum and history analyses, overturning, torsion, prototype testing and the "
     "design review. A pack without it does not cover isolation.",
+    "dampers": "Structures with supplemental damping systems (alpha 9 P6): the method of the "
+    "damped equivalent lateral force, the damping coefficients, the inherent damping limit, "
+    "the residual mode, the least share of the fixed-base base shear, the structure's effective "
+    "ductility and hysteretic damping, the earthquake level of the devices' design and the "
+    "requirements of the damping system. A pack without it models the dampers but does not "
+    "reduce the earthquake forces for them.",
     "nonlinearHistory": "Nonlinear time history analysis: the procedure (the target, how the "
     "records' results combine, scaling to the static base shear, P-delta, design review), the "
     "drift limits and the member acceptance criteria.",

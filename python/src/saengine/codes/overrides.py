@@ -370,6 +370,7 @@ SECTIONS: tuple[tuple[str, tuple[str, ...]], ...] = (
             "flood",
             "cranes",
             "isolation",
+            "dampers",
             "pushover",
             "horizontalCapacity",
             "nonlinearHistory",

@@ -1239,6 +1239,72 @@ class _Measure:
                 element, object_type, area, runs, story, piers, spandrels, wall_piers_hoops
             )
 
+    # ── alpha 9 P6: seismic isolators and supplemental dampers ──
+
+    def devices(self) -> None:
+        """The seismic isolators (one under each column of an isolator type standing at the
+        lowest column base, where the analysis puts them) and the supplemental dampers (one in
+        each brace of a damper type), by number and type."""
+        isolator_names = {
+            "leadRubber": "lead-rubber bearings",
+            "highDampingRubber": "high-damping rubber bearings",
+            "elastomeric": "elastomeric bearings",
+            "slidingPendulum": "friction pendulum bearings",
+            "tripleFrictionPendulum": "triple friction pendulum bearings",
+            "flatSlider": "flat sliding bearings",
+        }
+        damper_names = {
+            "viscous": "fluid viscous dampers",
+            "viscoelastic": "viscoelastic dampers",
+            "metallic": "metallic yielding dampers",
+            "friction": "friction dampers",
+        }
+        columns = [e for e in self.building.elements if isinstance(e, ColumnElement)]
+        base = min((e.bottom for e in columns), default=None)
+        isolated = 0
+        for e in columns:
+            t = self.types.get(e.type)
+            spec = getattr(t, "isolator", None) if isinstance(t, o.Column) else None
+            if spec is None or base is None or abs(e.bottom - base) > TOLERANCE:
+                continue
+            isolated += 1
+            label = isolator_names.get(spec.kind, "seismic isolators")
+            self.bill.add(
+                "steel",
+                ("~isolator", 0, e.type),
+                f"Seismic isolators: {label} (column type {e.type}), supplied, prototype and "
+                "production tested and installed",
+                "nr",
+                e.id,
+                1.0,
+                story=self.story_at(e.top),
+                kind="isolator",
+            )
+        braces = [(m.id, m.type) for m in self.building.additions.members] + [
+            (e.id, e.type) for e in self.building.elements if isinstance(e, MemberElement)
+        ]
+        for member, type_id in braces:
+            t = self.types.get(type_id)
+            spec = getattr(t, "damper", None) if isinstance(t, o.Brace) else None
+            if spec is None:
+                continue
+            label = damper_names.get(spec.kind, "dampers")
+            self.bill.add(
+                "steel",
+                ("~damper", 0, type_id),
+                f"Supplemental dampers: {label} (brace type {type_id}), supplied, tested and "
+                "installed with their brace connections",
+                "nr",
+                member,
+                1.0,
+                kind="damper",
+            )
+        if isolated:
+            self.notes.append(
+                f"{isolated} seismic isolators counted under the columns of isolator types at "
+                "the lowest column base; columns on other supports get none in the analysis."
+            )
+
     # ── the building model ──
 
     def run(self) -> None:
@@ -1346,6 +1412,7 @@ class _Measure:
         self.lintels()
         self.slab_studs(slabs)
         self.slab_chords(slabs)
+        self.devices()  # alpha 9 P6: seismic isolators and supplemental dampers
         if self.substructure is not None:
             self.foundations(self.substructure)
 

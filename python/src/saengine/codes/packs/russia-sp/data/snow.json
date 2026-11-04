@@ -1,0 +1,42 @@
+{
+  "$schema": "../../../schemas/snow.schema.json",
+  "$replace": true,
+  "$sources": [
+    "SP 20.13330.2016 10.1, Table 10.1, Appendix B.1 (μ)"
+  ],
+  "source": "SP 20.13330.2016 10.1: S0 = ce ct μ Sg with Sg the town's snow region (groundSnow, I 0.5 ... VIII 4.0 kN/m²), μ of single and double slope roofs (B.1: 1.0 up to 30°, 0 from 60°, linear between); ce = ct = 1 (the drift reduction of 10.5 and the thermal factor of 10.10 not applied: on the safe side); the uneven and drift distributions are not covered",
+  "method": "shapeCoefficient",
+  "factor": 1.0,
+  "shape": [
+    [
+      0.0,
+      1.0
+    ],
+    [
+      30.0,
+      1.0
+    ],
+    [
+      60.0,
+      0.0
+    ]
+  ],
+  "exposures": {
+    "normal": {
+      "description": "Roof (ce = 1, SP 20 10.5 not applied)",
+      "Ce": 1.0
+    }
+  },
+  "defaultExposure": "normal",
+  "thermal": 1.0,
+  "importance": {},
+  "loadCase": "Lr",
+  "withRoofLive": "envelope",
+  "seismicShare": 0.7,
+  "seismicThreshold": 0.001,
+  "sources": {
+    "shape": "SP 20.13330.2016 Appendix B, B.1: μ 1.0 (α <= 30°), 0 (α >= 60°)",
+    "loadCase": "SAEngine practice: the snow and the roof live load not together (the larger, the envelope)",
+    "seismicShare": "SP 14.13330.2018 Table 2: short-term loads at 0.5 of the design value (γf 1.4) in the seismic weight: 0.7"
+  }
+}

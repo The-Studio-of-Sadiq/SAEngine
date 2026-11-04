@@ -1756,6 +1756,19 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 					description: 'Steel braces of buckling-restrained braced frames: the core and the test results; none: a conventional brace.',
 					title: 'Buckling-restrained',
 				},
+				damper: {
+					anyOf: [
+						{
+							$ref: '#/$defs/SupplementalDamper',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'A damping device in each brace of this type (viscous, viscoelastic, metallic or friction): the analysis models it, works out the added damping and the damped design forces by the code pack (08 FEM); none: a plain brace.',
+					title: 'Damper',
+				},
 				timber: {
 					anyOf: [
 						{
@@ -5160,6 +5173,59 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 			title: 'IShapeProfile',
 			type: 'object',
 		},
+		IsolatorPropertyModification: {
+			additionalProperties: false,
+			description: 'Alpha 9 P6: property modification factors λ of an isolator type (the ageing and\nenvironment, the prototype test and the specification tolerance factors on Qd and Kd).\nThe code pack combines them into the lower- and upper-bound factors (its\n``isolation.propertyModification``); they replace the two bound factors of the isolator.\nEnter the manufacturer\'s values.',
+			properties: {
+				aeMax: {
+					default: 1.0,
+					description: 'Ageing and environment, upper bound.',
+					minimum: 1,
+					title: 'λae,max',
+					type: 'number',
+				},
+				aeMin: {
+					default: 1.0,
+					description: 'Ageing and environment, lower bound.',
+					exclusiveMinimum: 0,
+					maximum: 1,
+					title: 'λae,min',
+					type: 'number',
+				},
+				testMax: {
+					default: 1.0,
+					description: 'Prototype tests (heating, rate of loading, scragging), upper bound.',
+					minimum: 1,
+					title: 'λtest,max',
+					type: 'number',
+				},
+				testMin: {
+					default: 1.0,
+					description: 'Prototype tests, lower bound.',
+					exclusiveMinimum: 0,
+					maximum: 1,
+					title: 'λtest,min',
+					type: 'number',
+				},
+				specMax: {
+					default: 1.0,
+					description: 'Permissible variation of the production units from the nominal values, upper bound.',
+					minimum: 1,
+					title: 'λspec,max',
+					type: 'number',
+				},
+				specMin: {
+					default: 1.0,
+					description: 'Permissible variation of the production units, lower bound.',
+					exclusiveMinimum: 0,
+					maximum: 1,
+					title: 'λspec,min',
+					type: 'number',
+				},
+			},
+			title: 'IsolatorPropertyModification',
+			type: 'object',
+		},
 		LShapeProfile: {
 			additionalProperties: false,
 			description: 'IfcLShapeProfileDef (angle).',
@@ -5824,8 +5890,9 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 			properties: {
 				kind: {
 					default: 'leadRubber',
-					description: 'The isolator type (a label: the curve below is what the analysis uses).',
-					enum: ['leadRubber', 'elastomeric', 'slidingPendulum', 'other'],
+					description: 'The isolator type: lead-rubber, (low-damping) elastomeric, single friction pendulum, other, high-damping rubber, triple friction pendulum, flat slider. The curve below is what the linear analysis uses; the nonlinear time history takes the type\'s element (Bouc-Wen bearing, friction pendulum, flat slider).',
+					enum: ['leadRubber', 'elastomeric', 'slidingPendulum', 'other', 'highDampingRubber', 'tripleFrictionPendulum', 'flatSlider'],
+					enumDescriptions: ['Lead-rubber bearing (LRB)', 'Elastomeric bearing', 'Friction pendulum, single (FPS)', 'Other', 'High-damping rubber bearing (HDRB)', 'Friction pendulum, triple', 'Flat slider'],
 					title: 'Kind',
 					type: 'string',
 				},
@@ -5927,6 +5994,48 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 					default: null,
 					description: 'Vertical load of the prototype tests (average dead load plus half the live load on the units of this type) [kN]; none: the seismic weight per unit.',
 					title: 'Test vertical load',
+				},
+				frictionCoefficient: {
+					anyOf: [
+						{
+							exclusiveMaximum: 1,
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Sliding isolators: the friction coefficient of the sliding surface; with it Qd = μ·P and Kd = P / R under the unit\'s vertical load P (the test vertical load, else the seismic weight per unit). None: Qd and Kd as entered.',
+					title: 'Friction coefficient μ',
+				},
+				radius: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Friction pendulums: the effective radius of curvature of the sliding surface [mm] (a triple pendulum: its equivalent single radius); none on a flat slider.',
+					title: 'Effective radius R',
+				},
+				propertyModification: {
+					anyOf: [
+						{
+							$ref: '#/$defs/IsolatorPropertyModification',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'The λ factors of the type; the code pack combines them into the lower- and upper-bound factors, which then replace the two bound factors above. None: the bound factors as entered.',
+					title: 'Property modification factors λ',
 				},
 			},
 			title: 'SeismicIsolator',
@@ -6964,6 +7073,135 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 				},
 			},
 			title: 'SteelSplice',
+			type: 'object',
+		},
+		SupplementalDamper: {
+			additionalProperties: false,
+			description: 'A damping device in each brace of this type (a damper brace): the brace carries the\ndevice between its two ends. Velocity-dependent (viscous F = C·v^α, viscoelastic) or\ndisplacement-dependent (metallic yielding, such as a buckling-restrained brace used as a\ndamper, and friction). Enter the manufacturer\'s values.',
+			properties: {
+				kind: {
+					default: 'viscous',
+					enum: ['viscous', 'viscoelastic', 'metallic', 'friction'],
+					enumDescriptions: ['Fluid viscous damper (F = C·v^α)', 'Viscoelastic damper', 'Metallic yielding damper', 'Friction damper'],
+					title: 'Kind',
+					type: 'string',
+				},
+				coefficient: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Viscous dampers: C of F = C·v^α [kN·(s/m)^α].',
+					title: 'Damping coefficient C',
+				},
+				exponent: {
+					default: 1.0,
+					description: 'Viscous dampers: α of F = C·v^α (1: linear).',
+					exclusiveMinimum: 0,
+					maximum: 2,
+					title: 'Velocity exponent α',
+					type: 'number',
+				},
+				storageStiffness: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Viscoelastic dampers: the in-phase stiffness at the building\'s fundamental frequency [kN/m].',
+					title: 'Storage stiffness K′',
+				},
+				lossStiffness: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Viscoelastic dampers: the out-of-phase stiffness at that frequency [kN/m] (C = K″/ω).',
+					title: 'Loss stiffness K″',
+				},
+				yieldForce: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Metallic dampers: the yield force; friction dampers: the slip force [kN].',
+					title: 'Yield or slip force',
+				},
+				initialStiffness: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Metallic and friction dampers: the elastic (stick) stiffness of the device with its brace [kN/m]; none: the brace\'s axial stiffness EA/L.',
+					title: 'Initial stiffness',
+				},
+				postYieldRatio: {
+					default: 0.02,
+					description: 'Metallic dampers: the stiffness after yield over the initial stiffness.',
+					exclusiveMaximum: 1,
+					minimum: 0,
+					title: 'Post-yield stiffness ratio',
+					type: 'number',
+				},
+				strokeCapacity: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'The largest deformation the device takes [mm]; none: not checked.',
+					title: 'Stroke capacity',
+				},
+				forceCapacity: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'The largest force the device and its connections take [kN]; none: not checked.',
+					title: 'Force capacity',
+				},
+			},
+			title: 'SupplementalDamper',
 			type: 'object',
 		},
 		TShapeProfile: {

@@ -112,6 +112,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
+from itertools import pairwise
 from typing import Any
 
 from saengine.library.soil import Design
@@ -211,6 +212,48 @@ def _flow_value(
     }
 
 
+def _design_resistance_rules() -> Any | None:
+    """Alpha 9 C25: the pack's ``foundations.shallow.designResistance`` (method
+    ``frictionAngleFactors``, SP 22.13330.2016 5.6.7 type), or None."""
+    from saengine.codes import context as code_context
+
+    try:
+        found = code_context.table("foundations").shallow.designResistance
+    except (KeyError, AttributeError):
+        return None
+    return found if getattr(found, "method", None) == "frictionAngleFactors" else None
+
+
+def resistance_factors(phi_deg: float, rule: Any) -> tuple[float, float, float]:
+    """Alpha 9 C25: (Mγ, Mq, Mc) at φ [°] by the rule's rows (linear between, the end rows
+    outside)."""
+    rows = sorted(rule.factors)
+    if phi_deg <= rows[0][0]:
+        return float(rows[0][1]), float(rows[0][2]), float(rows[0][3])
+    for lo, hi in pairwise(rows):
+        if phi_deg <= hi[0]:
+            t = (phi_deg - lo[0]) / (hi[0] - lo[0]) if hi[0] > lo[0] else 0.0
+            v = [float(a + (b - a) * t) for a, b in zip(lo[1:], hi[1:], strict=True)]
+            return v[0], v[1], v[2]
+    last = rows[-1]
+    return float(last[1]), float(last[2]), float(last[3])
+
+
+def design_resistance(
+    rule: Any, c: float, phi_deg: float, q: float, gamma: float, b: float, behaviour: str
+) -> dict[str, float]:
+    """Alpha 9 C25: R [kPa] = γc1 γc2 / k (Mγ kz b γ + Mq q + Mc c) of the founding soil
+    (SP 22.13330.2016 Eq 5.7 type with d1 γ' as the effective overburden ``q`` at the base and
+    no basement), γc1 by the layer's ``behaviour``, kz = 1 for b below kzWidth, else z0/b +
+    kzOffset; with its factors."""
+    m_g, m_q, m_c = resistance_factors(phi_deg, rule)
+    gc1 = float(rule.conditionFactors.get(behaviour, min(rule.conditionFactors.values())))
+    kz = 1.0 if b < rule.kzWidth else rule.kzDepth / b + rule.kzOffset
+    share = gc1 * rule.structureFactor / rule.reliability
+    r = share * (m_g * kz * b * gamma + m_q * q + m_c * c)
+    return {"R": r, "Mgamma": m_g, "Mq": m_q, "Mc": m_c, "gc1": gc1, "kz": kz}
+
+
 def gamma_for_width(profile: Profile, layer: SoilLayer, df: float, b: float) -> float:
     """Unit weight of the ½γBNγ term with the water table correction."""
     moist, buoyant = layer.gamma, layer.gamma_sat - GAMMA_W
@@ -284,9 +327,28 @@ def shear(profile: Profile, b: float, l_: float, df: float, fs: float) -> dict[s
             # layer): the general equation with its own parameters, q at the base.
             founding = name
             gamma = gamma_for_width(profile, layer, df, b)
+            resisting = _design_resistance_rules()  # Alpha 9 C25: R (SP 22 5.6.7 type)
             for mode, c, phi in options:
                 r = ultimate(c, phi, q_eff, gamma, b, l_, df)
                 tops.append((mode, c, phi, r["qu"]))
+                if resisting is not None:
+                    found = design_resistance(
+                        resisting, c, phi, q_eff, gamma, b, layer.behaviour or "granular"
+                    )
+                    candidates.append(
+                        {
+                            "layer": layer.index,
+                            "mode": mode,
+                            "method": "designResistance",
+                            "qa": max(0.0, found["R"] - q_total),
+                            "qu": found["R"],
+                            "factors": {k: round(v, 3) for k, v in found.items() if k != "R"},
+                            "c": c,
+                            "phi": phi,
+                            "label": name,
+                        }
+                    )
+                    continue
                 candidates.append(
                     {
                         "layer": layer.index,
@@ -599,6 +661,13 @@ def allowable(profile: Profile, b: float, l_: float, df: float) -> dict[str, Any
             shear_text = (
                 f"{s['label']}: the weaker layer {s['H']:.2f} m below the base governs "
                 f"({s['method']}): qu = {s['qu']:.0f} kPa, qa = (qu - σ'v)/FS"
+            )
+        elif s.get("method") == "designResistance":  # Alpha 9 C25 (SP 22 5.6.7 type)
+            f = s["factors"]
+            shear_text = (
+                f"{s['label']}, {s['mode']}: R = γc1 γc2/k (Mγ kz b γ + Mq d γ' + Mc c) = "
+                f"{s['qu']:.0f} kPa (Mγ {f['Mgamma']:g}, Mq {f['Mq']:g}, Mc {f['Mc']:g}, γc1 "
+                f"{f['gc1']:g}, kz {f['kz']:g}), qa = R - σv"
             )
         elif s["mode"] == "drained":
             shear_text = f"{s['label']}, drained: qu = {s['qu']:.0f} kPa, qa = (qu - σ'v)/FS"

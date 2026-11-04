@@ -715,6 +715,37 @@ The floor vibration and pile values are the default pack's (see bnbc2020/VERIFY.
 | P5U17 | nonlinearHistory.forceControlled.strength | the member design strength φPn,max, φVn (safe side of the expected strength) | ASCE 7-22 Sec 16.4.2 allows expected strength | SAEngine practice |
 | P5U18 | nonlinear gravity load of the runs | the model's gravity case (D + SD + the pack's live share); ASCE asks 1.0D + 0.5L | ASCE 7-22 Sec 16.3.2 | Check |
 
+## Alpha 9 P6: seismic isolation (isolation, ASCE 7-22 Ch 17) and damping systems (dampers, Ch 18)
+
+| # | Key | Value | Clause | Confidence |
+|---|---|---|---|---|
+| P6U1 | isolation.procedure.method | singleLevel: the MCER only, both property bounds | ASCE 7-22 Sec 17.2.8.4, 17.5 | Sure |
+| P6U2 | isolation.spectrum.mceFactor, mcePeriod | 1.5 × the design spectrum, SaM at TM | ASCE 7-22 Sec 11.4.5 (SDS = 2/3 SMS) | Sure |
+| P6U3 | DM | g Sa(TM) TM² / (4π² BM) (= g SM1 TM / (4π² BM) in the 1/T range) | ASCE 7-22 Eq 17.5-1 | Check (7-22 prints the SM1 form or the SaM form) |
+| P6U4 | isolation.dampingCoefficients | BM 0.8, 1.0, 1.2, 1.5, 1.7, 1.9 at 2, 5, 10, 20, 30, ≥ 40 % | ASCE 7-22 Table 17.5-1 | Sure |
+| P6U5 | isolation.torsion | periodRatio: DTM = DM (1 + y 12e / (PT² (b² + d²))), PT = (1/rI)√(Σ(x² + y²)/N), at least 1.15 DM | ASCE 7-22 Eqs 17.5-3, 17.5-4 | Check (the 1.15 floor and PT ≥ 1) |
+| P6U6 | isolation.procedure.shearExponent | Vst = Vb (Ws/W)^(1 − 2.5 βM) | ASCE 7-22 Eq 17.5-7 | Sure |
+| P6U7 | isolation.forces reduction | RI = 3/8 R, at most 2.0, at least 1.0 | ASCE 7-22 Sec 17.5.4.2 | Sure |
+| P6U8 | isolation.procedure.minima, forces.fixedBaseR | fixed base of Ws at TM (R = RI), factored wind, Vst of the activation force (max of upper bound and 1.5 × nominal) | ASCE 7-22 Sec 17.5.4.3 | Unsure (which R in limit 1; the activation force wording) |
+| P6U9 | isolation.procedure.distribution | k = 14 βM Tfb, F1 = (Vb − Vst)/RI at the base level | ASCE 7-22 Eqs 17.5-8 to 17.5-11 | Check |
+| P6U10 | isolation.restoring | F(DM) − F(0.5 DM) ≥ 0.025 W | ASCE 7-22 Sec 17.2.4.4 | Check |
+| P6U11 | isolation.staticLimits | site class A–D (SA–SD with SBC, SCD), ≤ 4 storeys and 19.8 m, TM ≤ 3.0 s, TM > 3 Tfixed, k(DM) > 1/3 k(0.2 DM) | ASCE 7-22 Sec 17.4.1 | Unsure (7-22 site classes; any S1 limit) |
+| P6U12 | isolation.drift | 0.015 hsx (ELF, RSA), 0.020 hsx (response history), Cd = RI | ASCE 7-22 Sec 17.5.6, 17.6.4.4 | Check |
+| P6U13 | isolation.history | 7 pairs, scaled over 0.75 TM to 1.25 TM, the MCER (90 %) | ASCE 7-22 Sec 17.3.3 | Unsure (the range and the criterion of 7-22) |
+| P6U14 | isolation.propertyModification.aeShare | 0.75 on (λae − 1) | ASCE 7-22 Eqs 17.2-1, 17.2-2 | Check |
+| P6U15 | isolation.propertyModification limits | not entered (default λ limits for preliminary design) | ASCE 7-22 Sec 17.2.8.4 | Unsure (values to add) |
+| P6U16 | isolation.testing.steps | 20 wind cycles; 3 at 0.25, 0.5, 0.67, 1.0 DM; 10 at 0.75 DM; 1 at DTM | ASCE 7-22 Sec 17.8.2.2 | Unsure (the cycle counts and the 30 SM1/(SMS BM) rule) |
+| P6U17 | isolation.requirements | Sec 17.2.4.1-17.2.4.9, 17.2.5, 17.8 (short labels) | ASCE 7-22 Sec 17.2.4 | Check |
+| P6U18 | dampers.method | modalStrength (fundamental + residual mode ELF) | ASCE 7-22 Sec 18.7.1 | Check |
+| P6U19 | dampers.dampingCoefficients | B 0.8, 1.0, 1.2, 1.5, 1.8, 2.1, 2.4, 2.7, 3.0, 3.3, 3.6 at 2, 5, 10, 20, ..., ≥ 90 % | ASCE 7-22 Table 18.7-1 | Check |
+| P6U20 | dampers.inherentMax | βI at most 3 % | ASCE 7-22 Sec 18.7 (inherent damping) | Unsure |
+| P6U21 | dampers.minimumShare | Vmin = max(V / B(V+I), 0.75 V) | ASCE 7-22 Sec 18.2.2.1 | Check |
+| P6U22 | dampers.residualPeriodShare | TR = 0.4 T1, βR = βI + βV1 | ASCE 7-22 Sec 18.7.1.2 | Unsure (the residual mode damping) |
+| P6U23 | Cs1, CsR | (R/Cd) Sa / (Ω0 B) | ASCE 7-22 Sec 18.7.1.2 | Check |
+| P6U24 | dampers.ductility | βHD = qH (0.64 − βI)(1 − 1/μD), qH = 0.67 TS/T1 in [0.5, 1.0], DY = g/(4π²)(Ω0 Cd/R) Γ1 Cs T1², μmax = R/(Ω0 Ie) | ASCE 7-22 Sec 18.7.4 | Unsure (the formulas as recalled; the short-period μmax not applied) |
+| P6U25 | dampers.mceFactor | devices at 1.5 × the design response | ASCE 7-22 Sec 18.2.2 | SAEngine practice |
+| P6U26 | dampers.dampedFromShare, isolation.spectrumAnalysis.dampedFromShare | 0.8 T1 / 0.8 TM | none | SAEngine practice |
+
 ## Alpha 9 P4: assessment and retrofit of existing buildings (existing)
 
 | # | Key | Value | Clause | Confidence |

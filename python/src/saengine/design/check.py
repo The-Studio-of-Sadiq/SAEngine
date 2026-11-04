@@ -4277,8 +4277,12 @@ def _beam_checks(
                 "kN",
                 shear_demand[1],
                 (
+                    # Alpha 9 C25: the inclined section (SP 63 type) where Q > Qb,min.
+                    "links below the least qsw: Q must not exceed Qb,min (the least Qb)"
+                    if tabulated_shear.rules() is not None
+                    and getattr(tabulated_shear.rules(), "inclinedSection", None) is not None
                     # C8: the tabulated method asks for them where τv > τc / 2.
-                    "stirrups below the least Asv: Vu must not exceed Vc / 2 (τc / 2)"
+                    else "stirrups below the least Asv: Vu must not exceed Vc / 2 (τc / 2)"
                     if tabulated_shear.rules() is not None
                     # Alpha 9 C17: the compression field method where Vf > Vc.
                     else "stirrups below Av,min: Vf must not exceed Vc"

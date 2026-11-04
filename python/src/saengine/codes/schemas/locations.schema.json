@@ -168,6 +168,22 @@
           "default": null,
           "description": "Id of the pack's seismic.spectra the town takes (e.g. its design earthquake group); empty: the pack's spectrumType.",
           "title": "Spectrumtype"
+        },
+        "mapZones": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "type": "integer"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Zone (index into zoneCoefficients) by hazard map id (seismic.hazardMaps); empty: zone for every map.",
+          "title": "Mapzones"
         }
       },
       "required": [

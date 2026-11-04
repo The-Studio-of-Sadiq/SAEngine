@@ -274,6 +274,111 @@ export interface IFemNonlinearSuite {
 	/** P5: how the records were brought to the target. */
 	readonly modification?: 'scaling' | 'matching';
 	readonly cases: readonly IFemNonlinearRecord[];
+	/** Alpha 9 P6: the isolators and dampers over the records (`fem/device_response.py`). */
+	readonly devices?: IFemDeviceSuite;
+}
+
+/** Alpha 9 P6: a device (isolator or damper) over a nonlinear suite: its design values and governing record. */
+export interface IFemDeviceRow {
+	readonly kind: 'isolator' | 'damper';
+	readonly name: string;
+	readonly element: string;
+	readonly record: string;
+	readonly displacement_mm: number;
+	readonly force_kN: number;
+	readonly velocity_ms: number;
+	readonly energy_kJ: number;
+}
+
+/** Alpha 9 P6: the isolators and dampers of a nonlinear suite, with the hysteresis loops of those that dissipate most. */
+export interface IFemDeviceSuite {
+	readonly rows: readonly IFemDeviceRow[];
+	readonly loops: readonly { readonly kind: 'isolator' | 'damper'; readonly name: string; readonly record: string; readonly u_mm: readonly number[]; readonly F_kN: readonly number[] }[];
+	readonly rule: 'max' | 'mean';
+}
+
+/** Alpha 9 P6: one earthquake level (or bound) of the isolation design. */
+export interface IFemIsolationLevel {
+	readonly D_mm: number;
+	readonly T: number;
+	readonly beta: number;
+	readonly B: number;
+	readonly kMin_kNm: number;
+	readonly kMax_kNm: number;
+}
+
+/** Alpha 9 P6: the forces of one direction of the isolation design. */
+export interface IFemIsolationForces {
+	readonly R: number;
+	readonly RI: number;
+	readonly Vb_kN: number;
+	readonly Vst_kN?: number;
+	readonly Vs_kN: number;
+	readonly governs: string;
+	readonly levels: readonly { readonly h: number; readonly F_kN: number }[];
+}
+
+/** B37 / alpha 9 P6: the isolation design beside the model (`fem/isolation.py`, `08 FEM/isolation.json`). */
+export interface IFemIsolationDesign {
+	readonly procedure?: 'singleLevel';
+	readonly weight_kN: number;
+	readonly design: IFemIsolationLevel;
+	readonly maximum: IFemIsolationLevel;
+	readonly bounds?: { readonly [bound: string]: IFemIsolationLevel };
+	readonly total: { readonly DTD_mm: number; readonly DTM_mm: number; readonly demand_mm?: number };
+	readonly forces: { readonly X: IFemIsolationForces; readonly Y: IFemIsolationForces };
+	readonly checks: readonly { readonly id: string; readonly label: string; readonly value: number | null; readonly limit: number | null; readonly ok: boolean | null; readonly clause?: string }[];
+	readonly staticAnalysis: { readonly permitted: boolean; readonly conditions: readonly { readonly id: string; readonly label: string; readonly ok: boolean | null }[] };
+	readonly units: readonly { readonly column: string; readonly kind: string; readonly kDmax_kNm: number; readonly DTD_mm: number; readonly DTM_mm: number; readonly capacity_mm: number | null }[];
+	readonly notes?: readonly string[];
+	readonly clauses?: { readonly [key: string]: string };
+}
+
+/** Alpha 9 P6: the damped design of one direction (`fem/dampers.py`). */
+export interface IFemDamperAxis {
+	readonly available: boolean;
+	readonly reason?: string;
+	readonly T1?: number;
+	readonly T1D?: number;
+	readonly mu?: number;
+	readonly betaI?: number;
+	readonly betaV?: number;
+	readonly betaH?: number;
+	readonly beta?: number;
+	readonly B1D?: number;
+	readonly D1D_mm?: number;
+	readonly Vfixed_kN?: number;
+	readonly V_kN?: number;
+	readonly Vmin_kN?: number;
+	readonly Vdesign_kN?: number;
+	readonly ratio?: number;
+}
+
+/** Alpha 9 P6: a damper of the schedule. */
+export interface IFemDamperDevice {
+	readonly member: string;
+	readonly type: string;
+	readonly kind: string;
+	readonly axis?: string;
+	readonly stroke_mm?: number;
+	readonly strokeMCE_mm?: number;
+	readonly velocityMCE_ms?: number;
+	readonly forceMCE_kN?: number;
+	readonly energy_kJ?: number;
+	readonly strokeOk?: boolean | null;
+	readonly forceOk?: boolean | null;
+}
+
+/** Alpha 9 P6: the damper design beside the model (`fem/dampers.py`, `08 FEM/dampers.json`). */
+export interface IFemDamperDesign {
+	readonly available: boolean;
+	readonly reason?: string;
+	readonly method?: string;
+	readonly mceFactor?: number;
+	readonly byAxis?: { readonly [axis: string]: IFemDamperAxis };
+	readonly devices: readonly IFemDamperDevice[];
+	readonly notes?: readonly string[];
+	readonly clauses?: { readonly [key: string]: string };
 }
 
 /** P5: a record of a nonlinear suite: its run, metadata, applied PGA and matching. */
@@ -367,6 +472,9 @@ export interface IFemStoryResponse {
 	readonly columnShortening?: IFemColumnShortening | null;
 	/** B36: the nonlinear time history design, for the nonlinear time history model. */
 	readonly nonlinearHistory?: IFemNonlinearHistory | null;
+	/** Alpha 9 P6: the isolation and damper designs beside the model. */
+	readonly isolation?: IFemIsolationDesign | null;
+	readonly dampers?: IFemDamperDesign | null;
 	/** Alpha 9 P7: the floor vibration and wind comfort tables (`fem/floor_vibration.py`, `fem/wind_comfort.py`). */
 	readonly serviceSheets?: readonly IFemSheet[];
 	readonly notes: readonly string[];

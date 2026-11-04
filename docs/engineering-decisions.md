@@ -75,6 +75,64 @@ here, newest first, with the date, the question, the decision, the reason and wh
 - **Planned.** The fire resistance of composite members (EN 1994-1-2, AISC 360 Appendix 4) stays
   a planned feature; the US pack's composite slabs (ANSI/SDI C-2017) are not entered.
 
+## 2026-11-05: base isolators and supplemental dampers (alpha 9 track P6)
+
+- **What was built.** B37's isolation design now takes its procedure from the pack
+  (`isolation.procedure.method`): `twoLevel` (the default pack's DD/DM form, unchanged) or
+  `singleLevel` (`fem/isolation_single_level.py`): one earthquake level, the displacement with
+  the lower- and the upper-bound properties, Vb = k·D of the governing bound,
+  Vst = Vb (Ws/W)^(1 − c β), Vs = Vst / RI with the pack's minima, k = 14 β Tfb or a fixed
+  exponent, the base level force (Vb − Vst)/RI, γx on the devices' displacements, the total
+  displacement by the rigid deck or (`torsion.method: "periodRatio"`) the closed form with PT
+  and a floor. Isolator kinds: lead-rubber, high-damping rubber, elastomeric, single and triple
+  friction pendulum, flat slider; a sliding unit's curve from μ and R (Qd = μP, Kd = P/R);
+  property modification factors λ combined by the pack (`propertyModification`). The US pack
+  gets ASCE 7-22 Ch 17, the Eurocodes pack EN 1998-1 Section 10 with EN 15129; BNBC keeps its
+  procedure and results.
+- **Dampers** (`fem/dampers.py`, new `dampers` table, not in the default pack): a brace type's
+  `damper` (viscous, viscoelastic, metallic, friction). The pack's method `modalStrength` (the
+  ASCE 7-22 Ch 18 fundamental and residual mode ELF with the effective ductility and the
+  hysteretic damping) or `dampedSpectrum` (generic); the static earthquake cases scaled to the
+  damped base shear (never below the pack's minimum), the response spectrum divided by the
+  damping ratio, the damper schedule (stroke, velocity, force, energy at the pack's earthquake
+  level) against the devices' capacities, a report section, BOQ items. The US pack gets
+  ASCE 7-22 Ch 18; EN 1998-1 has no damped-structure procedure, so the Eurocodes packs model the
+  dampers but take no reduction (the same for the default pack).
+- **Nonlinear time history.** The isolators become bearing elements of their kind in the NLTH
+  model (Bouc-Wen elastomeric bearing, single friction pendulum, flat slider; before P6 the NLTH
+  model kept the fixed bases), the dampers twoNodeLink elements (a new Maxwell `ViscousDamper`
+  material in the solver, Kelvin for viscoelastic, Steel02, elastic-perfectly-plastic). The
+  results give each device's design displacement, force, velocity and energy over a suite, and
+  hysteresis loops.
+- **SAEngine practice (no code gives it):**
+  - The NLTH takes the isolators' nominal properties; the bounds are run by setting the types'
+    bound factors and deriving again. A triple friction pendulum runs as its equivalent single
+    pendulum (the solver has no triple pendulum element yet).
+  - A sliding unit's vertical load P is the type's test vertical load, else the seismic weight
+    per unit.
+  - A damper brace in the linear model keeps 0.1 % of its area for a viscous damper (no static
+    stiffness), K′ for a viscoelastic one, the device's initial stiffness for metallic and
+    friction ones; the brace member is designed for the analysis forces and the device force
+    comes from the schedule.
+  - The damped response spectrum is divided by B1D/B(ξ) from 0.8 T1 up, as the isolation
+    spectrum (0.8 TD) already is.
+  - The fundamental mode of the damper design is φ = h/hr (Ch 18 permits it for the ELF), and
+    the devices are designed at 1.5 × the design-earthquake response for the MCER.
+  - The damped base shear is used even where it is above the fixed-base one (with a note).
+  - Dampers together with isolators: the isolation design sets the earthquake forces.
+  - EN 1998-1: the superstructure drift limit of an isolated building is taken as
+    0.005 h / ν with ν = 0.5 (Sec 4.4.3.2), and the importance factor γI is not applied by the
+    isolation design (to check).
+- **Packs that extend the US pack** (Saudi, Pakistan, Philippines, Indonesia, Myanmar, Canada,
+  Mexico) now inherit ASCE 7-22 Ch 17 and Ch 18 in place of the default pack's isolation table
+  they inherited before; the National Annex packs inherit EN 1998-1 Section 10.
+- **Placeholder removed:** "Viscous Dampers" (fem.dampers). Placement uses the existing tools:
+  isolators go under the columns of isolator types that stand on supports (the isolation
+  plane), dampers in the braces of damper types.
+- **Where:** `fem/isolation.py`, `fem/isolation_single_level.py`, `fem/dampers.py`,
+  `fem/device_response.py`, `codes/damper_tables.py`, `library/objects.py`
+  (`SeismicIsolator`, `SupplementalDamper`), the packs' `VERIFY.md` (P6 sections).
+
 ## 2026-11-05: online hazard lookup by site coordinates (alpha 9 track C22)
 
 - **Opt-in and asked every time (owner).** A global setting "Allow online hazard lookups"
@@ -102,6 +160,45 @@ here, newest first, with the date, the question, the decision, the reason and wh
 - **Not covered.** Wind and snow lookups (the ASCE Hazard Tool's API needs a subscription key),
   Canada (the NRCan seismic hazard calculator has no documented public API), New Zealand and the
   other packs: values by hand.
+## 2026-11-05: Russia / CIS SP pack (alpha 9 track C25)
+
+Pack `russia-sp` (extends `bnbc2020`): SP 20.13330.2016, SP 14.13330.2018, SP 63.13330.2018,
+SP 16.13330.2017, SP 22.13330.2016, values entered from knowledge of the codes (no text on this
+PC); `VERIFY.md` lists every value with its clause, most marked uncertain. Nothing was run this
+week (owner, 2026-11-05): the tests are written, not run.
+
+- **SAEngine practice, limit state groups.** The first group is the strength combinations with
+  the design values; the second the service combinations with γf 1. One γf on D (1.1) for the
+  self-weight and the superimposed dead load (the site-made layers' 1.3 not told apart: the
+  combinations have one D factor); live γf 1.3 at every intensity (1.2 from 2.0 kN/m²: on the
+  safe side). The seismic combination's factors 0.9 / 0.5 are on the design values; the floor
+  live load is all short-term (its long-term share at 0.8 not split).
+- **SAEngine practice, earthquake.** The map of the OSR-2015 set by the occupancy category: A for
+  I-II, B for III, C for IV (the client's choice in SP 14 4.3); 6 points take A = 0.05 g and 10
+  points 0.8 g (outside SP 14). The soil category's one-point shift is the soil factor S 0.5 / 1 /
+  2 on the design spectrum (C24's `soilFactors`; A doubles per point); category IV takes III with the site-specific study warning. R = 1/K1
+  with Kψ 1 and Cd = R; Ω0 1; the storey drift limits 2 % / 1.5 % / 1 % (SP 14 gives none); the
+  SP 14 Section 6 detailing as SAEngine's intermediate level at 8 and 9 points; the accidental
+  eccentricity 0.1; orthogonal 100 % + 30 %; no scaling of the modal results to the static ones.
+- **SAEngine practice, wind.** ze by the windward width (the EN 1991-1-4 split); the pulsation
+  with ν of Table 11.6 at ρ = b, χ = h; ξ = 1 for flexible buildings; G 1.7 for the parent's
+  roof and wall pressures.
+- **SAEngine practice, concrete.** γb1 0.9 on Rb and Rbt in every combination; the rectangular
+  block is the default section method and the nonlinear deformation model's diagrams are a
+  project override (`concreteMethods.ultimate.stressBlock` bilinear / trilinear); shear Q at the
+  support face; the columns' shear by τc = 0.5 × 0.9 Rbt with the ties on d (no φn); ψs = 1 in
+  the crack width; the deflection by the generic long-term stiffness B = Bs/θ in place of SP 63's
+  curvature, with the SP 20 Table E.1 limits at the stricter end of each step; durability limits
+  of the cover conditions not from SP 63.
+- **SAEngine practice, steel and soil.** γc 1.0; cx 1.05; φb by the parent's χLT; the SP 22
+  design resistance R for the soil report's founding layer with γc1 1.25 (sands) / 1.1 (clays),
+  γc2 1.0, k 1.1, qa = R - σv; the deeper layers keep the parent's check.
+- **Generic mechanisms (no existing pack sets them):** `locations.*.mapZones` with
+  `seismic.hazardMaps`, `seismic.lateralForce.correctionMethod` "linearMode", `wind.referenceHeight`
+  "proportions", `wind.pulsation` with `exposures.*.pulsationZeta`,
+  `concreteMethods.ultimate.designStrengths`, `cubePrefix`, `stressBlock` "bilinear" /
+  "trilinear", `concreteMethods.shear.inclinedSection` with `stirrupYieldShare` /
+  `stirrupYieldMax`, `foundations.shallow.designResistance` (method `frictionAngleFactors`).
 
 ## 2026-11-05: assessment and retrofit of existing buildings (alpha 9 track P4)
 
