@@ -106,7 +106,8 @@
 }
 
 .saengine-worksheet-editor .sa-worksheet-expression .sa-worksheet-clause,
-.saengine-worksheet-editor .sa-worksheet-quantity .sa-worksheet-clause {
+.saengine-worksheet-editor .sa-worksheet-quantity .sa-worksheet-clause,
+.saengine-worksheet-editor .sa-worksheet-expression .sa-worksheet-values {
 	display: block;
 }
 

@@ -3,6 +3,8 @@
  *  Licensed under the AGPL-3.0-only license. See LICENSE in the repository root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { activeDisplayUnits, IDisplayUnits, inputText, isConverted, parseQuantity } from '../../../services/saengineProject/common/displayUnits.js';
+
 /**
  * Calculation worksheets (`11 Exports/worksheets/<id>.json`, `saengine.library.worksheet`): a
  * kind of hand calculation and the values entered for it. The backend
@@ -56,6 +58,10 @@ export interface IWorksheetStep {
 	readonly unit?: string;
 	readonly formula?: string;
 	readonly clause?: string;
+	/** C13b, US customary units: the expression with its values (the backend's, in the display units). */
+	readonly expression?: string;
+	/** The expression is the code's SI form (valid in N, mm and MPa only): its values are the SI ones. */
+	readonly siForm?: boolean;
 }
 
 export interface IWorksheetCheck {
@@ -110,14 +116,26 @@ export function kindsByGroup(kinds: readonly IWorksheetKind[]): Map<string, IWor
 	return groups;
 }
 
-/** The value of an input as the file stores it, or undefined when the text is not one. */
-export function parseInput(input: IWorksheetInput, text: string | boolean): number | string | boolean | undefined {
+/**
+ * The value of an input as the file stores it, or undefined when the text is not one. C13b: a
+ * number with a unit is typed in the display units (or with a unit of its own) and stored in SI.
+ */
+export function parseInput(input: IWorksheetInput, text: string | boolean, units: IDisplayUnits = activeDisplayUnits()): number | string | boolean | undefined {
 	if (input.kind === 'bool') {
 		return Boolean(text);
 	}
 	if (input.kind === 'choice') {
 		return String(text);
 	}
+	if (input.unit && isConverted(input.unit, units)) {
+		const typed = String(text).trim() !== '' ? parseQuantity(String(text), input.unit, units) : undefined;
+		return typed !== undefined && Number.isFinite(typed) ? typed : undefined;
+	}
 	const value = Number(String(text).trim().replace(/,/g, ''));
 	return String(text).trim() !== '' && Number.isFinite(value) ? value : undefined;
+}
+
+/** C13b: an input's value as its field shows it (a number with a unit in the display units). */
+export function inputValueText(input: IWorksheetInput, value: unknown, units: IDisplayUnits = activeDisplayUnits()): string {
+	return typeof value === 'number' && input.unit && isConverted(input.unit, units) ? inputText(value, input.unit, units) : String(value);
 }

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../nls.js';
-import { formatField, formatNumber, IBorehole, IFieldSpec, ISoilLayer, ISoilProblem, ISoilSample, ISptRecord, LAYER_FIELDS, parseField, SOIL_TYPES, soilTypeLabel } from './soilDocument.js';
+import { fieldUnitLabel, formatField, formatNumber, IBorehole, IFieldSpec, ISoilLayer, ISoilProblem, ISoilSample, ISptRecord, LAYER_FIELDS, parseField, SOIL_TYPES, soilTypeLabel } from './soilDocument.js';
 
 /*
  * The log sheet of a borehole as a spreadsheet: the model behind the grid (soilGrid.ts), free of
@@ -263,7 +263,7 @@ const PERCENT = '%';
 /** A column read from a field spec of soilDocument.ts. */
 function fieldColumn(spec: IFieldSpec, group: string, extra: Partial<ISheetColumn> = {}): ISheetColumn {
 	return {
-		id: spec.key, group, label: spec.label, unit: spec.unit, title: spec.title,
+		id: spec.key, group, label: spec.label, unit: fieldUnitLabel(spec), title: spec.title,
 		width: Math.max(52, Math.min(spec.width ?? 60, 240)), numeric: spec.kind !== 'text' && spec.kind !== 'soilType', ...extra,
 	};
 }

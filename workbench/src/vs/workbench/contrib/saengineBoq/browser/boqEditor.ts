@@ -41,6 +41,7 @@ import { ISaengineProjectService, partById } from '../../../services/saenginePro
 import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
 import { appendPropertyHeading, appendPropertyNote, appendPropertyRow, EditorFrame, IEditorFrameStatus } from '../../saengineProject/browser/editorFrame.js';
 import { BOQ_ARCHITECTURE_FILE, BOQ_COMPUTE_COMMAND, BOQ_GROUPS, BOQ_SOURCES, BoqGroup, boqComputeArgs, boqProblems, changedSources, displayQuantity, formatQuantity, totalledItems, IBoqComputeResult, IBoqDocument, IBoqItem, parseBoq, quantityText, totalRows, totals, unitLabel } from './boqDocument.js';
+import { convertText } from '../../../services/saengineProject/common/displayUnits.js';
 import { BoqEditorInput } from './boqEditorInput.js';
 import { exportBoqCsv, exportBoqXlsx } from './boqExport.js';
 import { BOQ_CARBON_FILE, BOQ_COST_COMMAND, BOQ_RATES_FILE, BoqCostPart, boqFile, formatCarbon, formatMoney, IBoqCostResult, readBoqFile } from './boqCosting.js';
@@ -480,7 +481,7 @@ export class BoqEditor extends EditorPane {
 				appendPropertyRow(panel, localize('boq.propKind', "Element"), item.kind);
 			}
 			if (typeof item.diameter === 'number') {
-				appendPropertyRow(panel, localize('boq.propDiameter', "Bar diameter"), localize('boq.mm', "{0} mm", item.diameter));
+				appendPropertyRow(panel, localize('boq.propDiameter', "Bar diameter"), convertText(localize('boq.mm', "{0} mm", item.diameter)));
 			}
 			appendPropertyRow(panel, localize('boq.propElements', "Elements"), String(item.breakdown?.length ?? 0));
 			const line = this.costing?.costing?.lines.find(l => l.code === item.code);
@@ -490,6 +491,11 @@ export class BoqEditor extends EditorPane {
 				appendPropertyRow(panel, localize('boq.rateItem', "Rate item"), line.rateCode ?? localize('boq.noRateItem', "None"));
 				if (line.rateCode && typeof line.rate === 'number') {
 					appendPropertyRow(panel, localize('boq.rate', "Rate"), localize('boq.ratePer', "{0} {1} per {2}", formatMoney(line.rate), currency, unitLabel(line.rateUnit ?? '')));
+					// C13b: the rate per unit of the quantity as shown (US customary display units), the amount the same
+					const shown = displayQuantity(1, line.unit, false);
+					if (typeof line.conversion === 'number' && shown.unit !== line.unit && shown.quantity > 0) {
+						appendPropertyRow(panel, localize('boq.rateShown', "Rate per {0}", unitLabel(shown.unit)), `${formatMoney(line.rate * line.conversion / shown.quantity)} ${currency}`);
+					}
 				}
 				appendPropertyRow(panel, localize('boq.amount', "Amount"), typeof line.amount === 'number' ? `${formatMoney(line.amount)} ${currency}` : costStatus(line.status));
 			}

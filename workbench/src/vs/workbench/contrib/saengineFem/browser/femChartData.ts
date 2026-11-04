@@ -535,26 +535,27 @@ export function inDisplayUnits<T extends { readonly columns: readonly string[]; 
 	if (display.system !== 'USCustomary') {
 		return table;
 	}
-	const factors: (number | undefined)[] = [];
+	// C13b: each cell by toDisplay (a temperature has an offset, not only a factor)
+	const units: (string | undefined)[] = [];
 	const columns = table.columns.map((column, k) => {
 		const bracket = /^(.*)\[([^\]]+)\]$/.exec(column);
 		if (!bracket || !kindOfUnit(bracket[2])) {
 			return column;
 		}
-		factors[k] = toDisplay(1, bracket[2], display);
+		units[k] = bracket[2];
 		return `${bracket[1]}[${displayUnit(bracket[2], display)}]`;
 	});
 	const unitColumn = table.columns.indexOf('Unit');
 	const valueColumns = table.columns.map((c, k) => /^(Value|Min|Max)$/.test(c) ? k : -1).filter(k => k >= 0);
 	const rows = table.rows.map(row => {
 		const unit = unitColumn >= 0 ? String(row[unitColumn]) : '';
-		const perRow = unit && kindOfUnit(unit) ? toDisplay(1, unit, display) : undefined;
+		const perRow = unit && kindOfUnit(unit) ? unit : undefined;
 		return row.map((cell, k) => {
 			if (k === unitColumn && perRow !== undefined) {
 				return displayUnit(unit, display);
 			}
-			const factor = perRow !== undefined && valueColumns.includes(k) ? perRow : factors[k];
-			return typeof cell === 'number' && factor !== undefined ? cell * factor : cell;
+			const own = perRow !== undefined && valueColumns.includes(k) ? perRow : units[k];
+			return typeof cell === 'number' && own !== undefined ? toDisplay(cell, own, display) : cell;
 		});
 	});
 	if (table.title === undefined) {

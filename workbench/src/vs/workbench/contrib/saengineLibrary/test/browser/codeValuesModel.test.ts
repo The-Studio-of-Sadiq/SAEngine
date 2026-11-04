@@ -9,6 +9,7 @@ import { codeOverrides, filterCodeValues, formatCodeValue, parseCodeValue, readC
 import { JsonObject } from '../../browser/schemaForm.js';
 import { settingsSections } from '../../browser/settingsEditor.js';
 import { SETTINGS_SCHEMA } from '../../../../services/saengineProject/common/projectLibraries.generated.js';
+import { IDisplayUnits, SI_UNITS_SETTING } from '../../../../services/saengineProject/common/displayUnits.js';
 
 suite('SAEngine - Code values (project overrides of the code pack)', () => {
 
@@ -70,5 +71,20 @@ suite('SAEngine - Code values (project overrides of the code pack)', () => {
 		assert.strictEqual(filterCodeValues(rows, '').length, 3);
 		// SL-1: the description's words find a value too.
 		assert.deepStrictEqual(filterCodeValues(rows, 'controlled').map(r => r.path), ['factors.phi.tension']);
+	});
+
+	test('C13b: a value with a unit in the display units, stored in SI; as it was in SI', () => {
+		const us: IDisplayUnits = { system: 'USCustomary', choices: {} };
+		assert.strictEqual(formatCodeValue(25, 'mm', SI_UNITS_SETTING), '25');
+		assert.strictEqual(formatCodeValue(25.4, 'mm', us), '1');
+		assert.strictEqual(formatCodeValue([25.4, 50.8], 'mm', us), '[1,2]');
+		assert.strictEqual(formatCodeValue(0.9, '', us), '0.9');
+		const near = (actual: unknown, expected: number) => assert.ok(typeof actual === 'number' && Math.abs(actual - expected) < 1e-9, `${actual} ≠ ${expected}`);
+		near(parseCodeValue('1', 25, 'mm', us).value, 25.4);
+		near(parseCodeValue('40 mm', 25, 'mm', us).value, 40);
+		const list = parseCodeValue('[1, 2]', [25], 'mm', us).value as number[];
+		near(list[0], 25.4);
+		near(list[1], 50.8);
+		assert.deepStrictEqual(parseCodeValue('40', 25, 'mm', SI_UNITS_SETTING), { value: 40 });
 	});
 });

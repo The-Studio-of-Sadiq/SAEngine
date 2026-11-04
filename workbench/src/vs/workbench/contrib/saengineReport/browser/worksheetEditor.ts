@@ -28,7 +28,8 @@ import { IDocumentFrameActions, IShapeError, isObject, JsonDocumentEditor } from
 import { LibraryEditorInput } from '../../saengineLibrary/browser/libraryEditorInput.js';
 import { JsonObject } from '../../saengineLibrary/browser/schemaForm.js';
 import { PRINT_REPORT_COMMAND_ID } from './reportBuild.js';
-import { IWorksheetInput, IWorksheetKind, IWorksheetResult, parseInput, WORKSHEET_SCHEMA_ID, WORKSHEETS_REQUEST_COMMAND_ID } from './worksheetModel.js';
+import { inputValueText, IWorksheetInput, IWorksheetKind, IWorksheetResult, parseInput, WORKSHEET_SCHEMA_ID, WORKSHEETS_REQUEST_COMMAND_ID } from './worksheetModel.js';
+import { displayUnit } from '../../../services/saengineProject/common/displayUnits.js';
 
 /** The kinds, asked of the backend once per window. */
 let kindsPromise: Promise<readonly IWorksheetKind[]> | undefined;
@@ -217,10 +218,11 @@ export class WorksheetEditor extends JsonDocumentEditor {
 			this.viewDisposables.add(addDisposableListener(select, EventType.CHANGE, () => this.storeInput(input, inputs, select.value, select)));
 		} else {
 			const field = append(row, $<HTMLInputElement>('input', { type: 'text', inputmode: 'decimal' }));
-			field.value = String(current);
+			field.value = inputValueText(input, current);
 			this.viewDisposables.add(addDisposableListener(field, EventType.INPUT, () => this.storeInput(input, inputs, field.value, field)));
 		}
-		append(row, $('span.sa-worksheet-unit', undefined, input.unit));
+		// C13b: the unit as shown (the display units)
+		append(row, $('span.sa-worksheet-unit', undefined, input.unit ? displayUnit(input.unit) : input.unit));
 	}
 
 	private storeInput(input: IWorksheetInput, inputs: JsonObject, text: string | boolean, element: HTMLElement): void {
@@ -283,6 +285,14 @@ export class WorksheetEditor extends JsonDocumentEditor {
 				append(row, $('td.sa-worksheet-quantity', undefined, step.label ?? ''));
 				const expression = append(row, $('td.sa-worksheet-expression'));
 				append(expression, $('span', undefined, step.formula ?? ''));
+				if (step.expression) {
+					// C13b (US customary units): the expression with its values; the code's SI form with the SI values
+					const values = append(expression, $('span.sa-worksheet-values', undefined, `= ${step.expression}`));
+					if (step.siForm) {
+						values.title = localize('worksheet.siFormHover', "The code's SI form, valid in N, mm and MPa only: its values are the SI ones; the result is converted.");
+						append(expression, $('span.sa-worksheet-clause', undefined, localize('worksheet.siForm', "SI form")));
+					}
+				}
 				if (step.clause) {
 					append(expression, $('span.sa-worksheet-clause', undefined, step.clause));
 				}

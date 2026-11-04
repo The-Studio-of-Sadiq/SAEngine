@@ -29,6 +29,7 @@ import { IEditorService } from '../../../services/editor/common/editorService.js
 import { appendPropertyHeading, appendPropertyNote, appendPropertyRow, EditorFrame } from '../../saengineProject/browser/editorFrame.js';
 import { checkStmModel, emptyStmModel, formatUtilisation, IFemDesignCheck, IStmFile, IStmMember, IStmModel, IStmNode, IStmResult, nextStmId, parseStmFile, stmFile, stmTemplate } from './femDesign.js';
 import { FemStrutAndTieInput } from './femStrutAndTieInput.js';
+import { convertText, displayUnit, inputText, isConverted, parseQuantity, significantText, toDisplay } from '../../../services/saengineProject/common/displayUnits.js';
 
 /** What a click on the drawing does. */
 type StmTool = 'select' | 'node' | 'strut' | 'tie';
@@ -500,7 +501,7 @@ export class FemStrutAndTieEditor extends EditorPane {
 		} else if (!model) {
 			this.frame.setStatus(undefined);
 		} else if (this.tool === 'node') {
-			this.frame.setStatus({ text: localize('femStm.statusNode', "Click the drawing to place a node (snapped to {0} mm); Escape to stop.", SNAP) });
+			this.frame.setStatus({ text: convertText(localize('femStm.statusNode', "Click the drawing to place a node (snapped to {0} mm); Escape to stop.", SNAP)) });
 		} else if (this.tool === 'strut' || this.tool === 'tie') {
 			this.frame.setStatus({ text: this.pending ? localize('femStm.statusSecond', "Click the node at the other end of the member from {0}.", this.pending) : localize('femStm.statusFirst', "Click the node at one end of the new member.") });
 		} else if (this.checking) {
@@ -591,7 +592,7 @@ export class FemStrutAndTieEditor extends EditorPane {
 			}
 			this.svgEl(group, 'line', { x1: px(a.x), y1: py(a.y), x2: px(b.x), y2: py(b.y), class: 'axis-line' });
 			this.svgEl(group, 'line', { x1: px(a.x), y1: py(a.y), x2: px(b.x), y2: py(b.y), class: 'hit' });
-			const label = r ? `${m.id} ${r.force > 0 ? '+' : ''}${r.force.toFixed(0)} kN` : m.id;
+			const label = r ? convertText(`${m.id} ${r.force > 0 ? '+' : ''}${r.force.toFixed(0)} kN`) : m.id;
 			this.svgEl(group, 'text', { x: (px(a.x) + px(b.x)) / 2 + 4, y: (py(a.y) + py(b.y)) / 2 - 4, class: 'label' }, label);
 		}
 		const loads = model.cases[this.caseIndex]?.loads ?? [];
@@ -621,7 +622,7 @@ export class FemStrutAndTieEditor extends EditorPane {
 				const length = 40;
 				this.svgEl(group, 'line', { x1: x - ux * length, y1: y - uy * length, x2: x - ux * 8, y2: y - uy * 8, class: 'load' });
 				this.svgEl(group, 'path', { d: `M ${x - ux * 8} ${y - uy * 8} l ${-ux * 8 - uy * 4} ${-uy * 8 + ux * 4} l ${uy * 8} ${-ux * 8} Z`, class: 'load-head' });
-				this.svgEl(group, 'text', { x: x - ux * (length + 4), y: y - uy * (length + 4), class: 'label load-label', 'text-anchor': 'middle' }, `${size.toFixed(0)} kN`);
+				this.svgEl(group, 'text', { x: x - ux * (length + 4), y: y - uy * (length + 4), class: 'label load-label', 'text-anchor': 'middle' }, convertText(`${size.toFixed(0)} kN`));
 			}
 		}
 	}
@@ -629,15 +630,17 @@ export class FemStrutAndTieEditor extends EditorPane {
 	// ── properties ──
 
 	private numberRow(container: HTMLElement, label: string, value: number, apply: (value: number) => void, unit?: string): void {
-		const input = $<HTMLInputElement>('input.fem-stm-input', { type: 'number', value: String(value), step: 'any', 'aria-label': label });
+		// C13b: a value with a unit is shown and typed in the display units, kept in SI
+		const converted = !!unit && isConverted(unit);
+		const input = $<HTMLInputElement>('input.fem-stm-input', { type: 'number', value: converted ? inputText(value, unit!) : String(value), step: 'any', 'aria-label': label });
 		const cell = $('span.fem-stm-field');
 		cell.appendChild(input);
 		if (unit) {
-			append(cell, $('span.fem-stm-unit', undefined, unit));
+			append(cell, $('span.fem-stm-unit', undefined, converted ? displayUnit(unit) : unit));
 		}
 		appendPropertyRow(container, label, cell);
 		this.propertiesStore.add(addDisposableListener(input, EventType.CHANGE, () => {
-			const parsed = Number(input.value);
+			const parsed = converted ? parseQuantity(input.value, unit) ?? NaN : Number(input.value);
 			if (Number.isFinite(parsed)) {
 				apply(parsed);
 				this.changed();
@@ -670,8 +673,12 @@ export class FemStrutAndTieEditor extends EditorPane {
 	private checkRows(container: HTMLElement, checks: readonly IFemDesignCheck[]): void {
 		for (const check of checks) {
 			const row = append(container, $(`details.fem-stm-check${check.ok ? '' : '.fail'}`));
-			append(row, $('summary', undefined, `${check.name}: ${check.demand} / ${check.capacity} ${check.unit} (${formatUtilisation(check.utilisation)})${check.combination ? `, ${check.combination}` : ''}`));
-			append(row, $('.fem-stm-check-note', undefined, check.note));
+			// C13b: the demand and capacity in the display units (the check is made in SI)
+			const values = check.unit && isConverted(check.unit)
+				? `${significantText(toDisplay(check.demand, check.unit))} / ${significantText(toDisplay(check.capacity, check.unit))} ${displayUnit(check.unit)}`
+				: `${check.demand} / ${check.capacity} ${check.unit}`;
+			append(row, $('summary', undefined, `${convertText(check.name)}: ${values} (${formatUtilisation(check.utilisation)})${check.combination ? `, ${check.combination}` : ''}`));
+			append(row, $('.fem-stm-check-note', undefined, convertText(check.note ?? '')));
 		}
 	}
 
@@ -728,7 +735,7 @@ export class FemStrutAndTieEditor extends EditorPane {
 		}
 		const reactions = this.result?.cases?.[this.caseIndex]?.reactions?.[node.id];
 		if (reactions) {
-			appendPropertyRow(container, localize('femStm.reaction', "Reaction"), `${reactions[0].toFixed(1)}, ${reactions[1].toFixed(1)} kN`);
+			appendPropertyRow(container, localize('femStm.reaction', "Reaction"), convertText(`${reactions[0].toFixed(1)}, ${reactions[1].toFixed(1)} kN`));
 		}
 		const result = this.result?.nodes?.find(n => n.id === node.id);
 		if (result) {
@@ -757,9 +764,9 @@ export class FemStrutAndTieEditor extends EditorPane {
 		}
 		const result = this.result?.members?.find(m => m.id === member.id);
 		if (result) {
-			appendPropertyRow(container, localize('femStm.force', "Governing force"), `${result.force.toFixed(1)} kN${result.case ? `, ${result.case}` : ''}`, !result.ok);
+			appendPropertyRow(container, localize('femStm.force', "Governing force"), convertText(`${result.force.toFixed(1)} kN${result.case ? `, ${result.case}` : ''}`), !result.ok);
 			if (result.required !== undefined) {
-				appendPropertyRow(container, localize('femStm.required', "Ats needed"), `${result.required.toFixed(0)} mm²`, member.barArea + 1e-6 < result.required);
+				appendPropertyRow(container, localize('femStm.required', "Ats needed"), convertText(`${result.required.toFixed(0)} mm²`), member.barArea + 1e-6 < result.required);
 			}
 			const own = new RegExp(`(^| )(strut|tie|Strut|Tie) ${member.id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}( |$|:)`);
 			this.checkRows(container, this.result!.checks.filter(c => own.test(c.name)));

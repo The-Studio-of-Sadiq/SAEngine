@@ -6,7 +6,8 @@
 import { $, append } from '../../../../base/browser/dom.js';
 import { localize } from '../../../../nls.js';
 import { appendPropertyHeading, appendPropertyNote, appendPropertyRow } from '../../saengineProject/browser/editorFrame.js';
-import { formatNumber, IFieldSpec } from '../../saengineSoil/browser/soilDocument.js';
+import { fieldUnitLabel, formatNumber, IFieldSpec } from '../../saengineSoil/browser/soilDocument.js';
+import { formatQuantity, isConverted } from '../../../services/saengineProject/common/displayUnits.js';
 import { equipmentPressure } from './mepDocument.js';
 import { IMepFormHost, ITEM_FIELDS, settingsGrid, storyRowIds, UNIT_KN, UNIT_MM } from './mepForm.js';
 import { pathLength, staticListNote, storyFloorArea } from './mepRead.js';
@@ -49,7 +50,7 @@ const H = {
 	outdoorWB: { key: 'outdoorWB', label: localize('hvacView.f.outdoorWB', "Outdoor wet bulb"), unit: C, kind: 'number', min: 0, max: 60, title: localize('hvacView.f.outdoorWBTitle', "Override of the mean coincident wet bulb (Table 8.2.2, 2 % column, Sec 2.12.2.1)") },
 	indoorDB: { key: 'indoorDB', label: localize('hvacView.f.indoorDB', "Indoor dry bulb"), unit: C, kind: 'number', min: 0, max: 60, title: localize('hvacView.f.indoorDBTitle', "Inside design condition; empty for the backend's from Table 8.2.1") },
 	indoorRH: { key: 'indoorRH', label: localize('hvacView.f.indoorRH', "Indoor humidity"), unit: '%', kind: 'number', min: 1, max: 99, title: localize('hvacView.f.indoorRHTitle', "Inside relative humidity; empty for the backend's from Table 8.2.1") },
-	dailyRange: { key: 'dailyRange', label: localize('hvacView.f.dailyRange', "Daily range"), unit: C, kind: 'number', min: 0.1, title: localize('hvacView.f.dailyRangeTitle', "Mean daily range; empty for the station's (Table 8.2.2 column 14)") },
+	dailyRange: { key: 'dailyRange', label: localize('hvacView.f.dailyRange', "Daily range"), unit: 'Δ°C', kind: 'number', min: 0.1, title: localize('hvacView.f.dailyRangeTitle', "Mean daily range; empty for the station's (Table 8.2.2 column 14)") },
 	uWall: { key: 'uWall', label: localize('hvacView.f.uWall', "Wall U"), unit: WM2K, kind: 'number', min: 0.01, title: localize('hvacView.f.uOverride', "Override of the construction's U-value") },
 	uRoof: { key: 'uRoof', label: localize('hvacView.f.uRoof', "Roof U"), unit: WM2K, kind: 'number', min: 0.01, title: localize('hvacView.f.uOverride', "Override of the construction's U-value") },
 	uGlazing: { key: 'uGlazing', label: localize('hvacView.f.uGlazing', "Glazing U"), unit: WM2K, kind: 'number', min: 0.01, title: localize('hvacView.f.uOverride', "Override of the construction's U-value") },
@@ -69,6 +70,10 @@ function wwrField(facade: string): IFieldSpec {
 }
 
 function cityOption(city: IHvacCity): { value: string; label: string } {
+	if (city.db !== undefined && city.wb !== undefined && isConverted('°C')) {
+		// C13b: the station's temperatures in the display unit
+		return { value: city.key, label: localize('hvacView.cityOptionShown', "{0} ({1} / {2})", city.label, formatQuantity(city.db, '°C'), formatQuantity(city.wb, '°C')) };
+	}
 	return { value: city.key, label: city.db !== undefined && city.wb !== undefined ? localize('hvacView.cityOption', "{0} ({1} / {2} °C)", city.label, formatNumber(city.db, 2), formatNumber(city.wb, 2)) : city.label };
 }
 
@@ -95,11 +100,11 @@ export function renderHvacData(view: HTMLElement, host: IMepFormHost, tables: IH
 		undefined, localize('hvacView.f.cityTitle', "The nearest station of {0} Table 8.2.2 (outside design conditions); its cooling dry bulb / mean coincident wet bulb at 2 % (Sec 2.12.2.1) in brackets", defaultCodeName()));
 	const store = (target: () => { [key: string]: unknown }, key: string) => (v: number | string | undefined) => host.setField(target(), key, v);
 	const placeholder = (n: number | undefined) => n === undefined ? localize('hvacView.default', "default") : formatNumber(n, 2);
-	setting(H.outdoorDB.label, host.textInput(H.outdoorDB, hvac?.design.outdoorDB, store(() => h().design, 'outdoorDB'), 'hvac.design.outdoorDB', placeholder(city?.db)), H.outdoorDB.unit, H.outdoorDB.title);
-	setting(H.outdoorWB.label, host.textInput(H.outdoorWB, hvac?.design.outdoorWB, store(() => h().design, 'outdoorWB'), 'hvac.design.outdoorWB', placeholder(city?.wb)), H.outdoorWB.unit, H.outdoorWB.title);
-	setting(H.dailyRange.label, host.textInput(H.dailyRange, hvac?.design.dailyRange, store(() => h().design, 'dailyRange'), 'hvac.design.dailyRange', placeholder(city?.range)), H.dailyRange.unit, H.dailyRange.title);
-	setting(H.indoorDB.label, host.textInput(H.indoorDB, hvac?.design.indoorDB, store(() => h().design, 'indoorDB'), 'hvac.design.indoorDB', localize('hvacView.code', "code")), H.indoorDB.unit, H.indoorDB.title);
-	setting(H.indoorRH.label, host.textInput(H.indoorRH, hvac?.design.indoorRH, store(() => h().design, 'indoorRH'), 'hvac.design.indoorRH', localize('hvacView.code', "code")), H.indoorRH.unit, H.indoorRH.title);
+	setting(H.outdoorDB.label, host.textInput(H.outdoorDB, hvac?.design.outdoorDB, store(() => h().design, 'outdoorDB'), 'hvac.design.outdoorDB', placeholder(city?.db)), fieldUnitLabel(H.outdoorDB), H.outdoorDB.title);
+	setting(H.outdoorWB.label, host.textInput(H.outdoorWB, hvac?.design.outdoorWB, store(() => h().design, 'outdoorWB'), 'hvac.design.outdoorWB', placeholder(city?.wb)), fieldUnitLabel(H.outdoorWB), H.outdoorWB.title);
+	setting(H.dailyRange.label, host.textInput(H.dailyRange, hvac?.design.dailyRange, store(() => h().design, 'dailyRange'), 'hvac.design.dailyRange', placeholder(city?.range)), fieldUnitLabel(H.dailyRange), H.dailyRange.title);
+	setting(H.indoorDB.label, host.textInput(H.indoorDB, hvac?.design.indoorDB, store(() => h().design, 'indoorDB'), 'hvac.design.indoorDB', localize('hvacView.code', "code")), fieldUnitLabel(H.indoorDB), H.indoorDB.title);
+	setting(H.indoorRH.label, host.textInput(H.indoorRH, hvac?.design.indoorRH, store(() => h().design, 'indoorRH'), 'hvac.design.indoorRH', localize('hvacView.code', "code")), fieldUnitLabel(H.indoorRH), H.indoorRH.title);
 	if (!tables.tablesFromBackend) {
 		append(design, $('p.mep-note.plb-static-note', undefined, staticListNote(localize('hvacView.citiesWhat', "the stations of {0} Table 8.2.2 and the uses of Table 8.2.3", defaultCodeName()))));
 	}
@@ -114,11 +119,11 @@ export function renderHvacData(view: HTMLElement, host: IMepFormHost, tables: IH
 	};
 	const e = hvac?.envelope;
 	envelopeSetting(localize('hvacView.f.wall', "Walls"), host.selectInput(constructionOptions(tables.constructions.wall), String(e?.wall ?? ''), v => host.setOptional(h().envelope, 'wall', v), 'hvac.envelope.wall', localize('hvacView.f.wall', "Walls"), true));
-	envelopeSetting(H.uWall.label, host.textInput(H.uWall, e?.uWall, store(() => h().envelope, 'uWall'), 'hvac.envelope.uWall', uPlaceholder(tables.constructions.wall, e?.wall)), H.uWall.unit, H.uWall.title);
+	envelopeSetting(H.uWall.label, host.textInput(H.uWall, e?.uWall, store(() => h().envelope, 'uWall'), 'hvac.envelope.uWall', uPlaceholder(tables.constructions.wall, e?.wall)), fieldUnitLabel(H.uWall), H.uWall.title);
 	envelopeSetting(localize('hvacView.f.roof', "Roof"), host.selectInput(constructionOptions(tables.constructions.roof), String(e?.roof ?? ''), v => host.setOptional(h().envelope, 'roof', v), 'hvac.envelope.roof', localize('hvacView.f.roof', "Roof"), true));
-	envelopeSetting(H.uRoof.label, host.textInput(H.uRoof, e?.uRoof, store(() => h().envelope, 'uRoof'), 'hvac.envelope.uRoof', uPlaceholder(tables.constructions.roof, e?.roof)), H.uRoof.unit, H.uRoof.title);
+	envelopeSetting(H.uRoof.label, host.textInput(H.uRoof, e?.uRoof, store(() => h().envelope, 'uRoof'), 'hvac.envelope.uRoof', uPlaceholder(tables.constructions.roof, e?.roof)), fieldUnitLabel(H.uRoof), H.uRoof.title);
 	envelopeSetting(localize('hvacView.f.glazing', "Glazing"), host.selectInput(constructionOptions(tables.constructions.glazing), String(e?.glazing ?? ''), v => host.setOptional(h().envelope, 'glazing', v), 'hvac.envelope.glazing', localize('hvacView.f.glazing', "Glazing"), true));
-	envelopeSetting(H.uGlazing.label, host.textInput(H.uGlazing, e?.uGlazing, store(() => h().envelope, 'uGlazing'), 'hvac.envelope.uGlazing', uPlaceholder(tables.constructions.glazing, e?.glazing)), H.uGlazing.unit, H.uGlazing.title);
+	envelopeSetting(H.uGlazing.label, host.textInput(H.uGlazing, e?.uGlazing, store(() => h().envelope, 'uGlazing'), 'hvac.envelope.uGlazing', uPlaceholder(tables.constructions.glazing, e?.glazing)), fieldUnitLabel(H.uGlazing), H.uGlazing.title);
 	const shgc = tables.constructions.glazing.find(c => c.key === e?.glazing)?.shgc;
 	envelopeSetting(H.shgc.label, host.textInput(H.shgc, e?.shgc, store(() => h().envelope, 'shgc'), 'hvac.envelope.shgc', shgc === undefined ? localize('hvacView.construction', "construction") : formatNumber(shgc, 2)), undefined, H.shgc.title);
 	envelopeSetting(localize('hvacView.f.shading', "Shading"), host.selectInput(SHADINGS.map(s => ({ value: s, label: shadingLabel(s) })), String(e?.shading ?? ''), v => host.setOptional(h().envelope, 'shading', v), 'hvac.envelope.shading', localize('hvacView.f.shading', "Shading"), true),
@@ -246,7 +251,7 @@ function renderDuctTable(host: IMepFormHost, actions: IHvacActions): void {
 		{ label: F.id.label, width: 64 }, { label: localize('hvacView.f.ductSystem', "System"), width: 150 }, { label: localize('hvacView.f.shape', "Shape"), width: 110 },
 		{ label: H.ductWidth.label, unit: UNIT_MM, numeric: true, width: 64 }, { label: H.ductHeight.label, unit: UNIT_MM, numeric: true, width: 64 }, { label: H.diameter.label, unit: UNIT_MM, numeric: true, width: 64 },
 		{ label: localize('hvacView.f.storyRun', "Story"), width: 100 }, { label: F.bottom.label, unit: UNIT_MM, numeric: true, width: 80 }, { label: localize('hvacView.f.run', "Run"), width: 130 },
-		{ label: H.flow.label, unit: H.flow.unit, numeric: true, width: 72 }, { label: localize('hvacView.f.beams', "Beams crossed"), width: 140 }, { label: '', width: 28 },
+		{ label: H.flow.label, unit: fieldUnitLabel(H.flow), numeric: true, width: 72 }, { label: localize('hvacView.f.beams', "Beams crossed"), width: 140 }, { label: '', width: 28 },
 	];
 	host.tableHead(table, columns);
 	const body = append(table, $('tbody'));
@@ -428,7 +433,7 @@ export function renderDuctProperties(panel: HTMLElement, host: IMepFormHost, duc
 	if (result) {
 		appendPropertyHeading(panel, localize('hvacView.check', "Check"));
 		if (result.load !== undefined) {
-			appendPropertyRow(panel, H.flow.label, `${formatNumber(result.load, 2)} ${H.flow.unit}`);
+			appendPropertyRow(panel, H.flow.label, `${formatNumber(result.load, 2)} ${fieldUnitLabel(H.flow)}`);
 		}
 		if (result.velocity !== undefined) {
 			appendPropertyRow(panel, localize('hvacView.f.velocity', "Velocity"), localize('hvacView.msValue', "{0} m/s", formatNumber(result.velocity, 1)));

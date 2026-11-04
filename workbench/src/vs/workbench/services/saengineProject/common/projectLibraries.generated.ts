@@ -947,6 +947,7 @@ export const MATERIALS_SCHEMA: IJSONSchema = {
 					default: null,
 					description: 'Sustained service temperature above normal [°C] (temperature factor); none: normal temperatures.',
 					title: 'Service temperature',
+					unitKind: 'temperatureChange',
 				},
 			},
 			title: 'TimberProperties',
@@ -11196,6 +11197,7 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 					minimum: -60,
 					title: 'Uniform change ΔTu',
 					type: 'number',
+					unitKind: 'temperatureChange',
 				},
 				gradient: {
 					default: 10.0,
@@ -11204,6 +11206,7 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 					minimum: -40,
 					title: 'Roof gradient ΔTg',
 					type: 'number',
+					unitKind: 'temperatureChange',
 				},
 				scope: {
 					default: 'roof',
@@ -28364,6 +28367,7 @@ export const MEP_SCHEMA: IJSONSchema = {
 					default: null,
 					description: 'Of the outdoor dry bulb [°C]; empty: Table 8.2.2 column 14.',
 					title: 'Daily range',
+					unitKind: 'temperatureChange',
 				},
 			},
 			title: 'HvacDesign',

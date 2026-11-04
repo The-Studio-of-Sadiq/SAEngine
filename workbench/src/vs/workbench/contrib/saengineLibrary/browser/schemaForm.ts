@@ -19,7 +19,7 @@ import { IContextViewService } from '../../../../platform/contextview/browser/co
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { defaultButtonStyles, defaultCheckboxStyles, defaultInputBoxStyles, defaultSelectBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { createValidator } from '../../../services/preferences/common/preferencesValidation.js';
-import { displayUnit, inputText, isConverted, kindOfUnit, parseQuantity, UNIT_KINDS } from '../../../services/saengineProject/common/displayUnits.js';
+import { convertText, displayUnit, inputText, isConverted, kindOfUnit, parseQuantity, UNIT_KINDS } from '../../../services/saengineProject/common/displayUnits.js';
 
 export type JsonValue = string | number | boolean | null | JsonObject | JsonValue[];
 export interface JsonObject { [key: string]: JsonValue }
@@ -103,6 +103,22 @@ export function fieldUnit(description: string | undefined, schema?: IJSONSchema)
 	}
 	const unit = description?.match(UNIT)?.[1];
 	return unit && unit !== '-' ? unit : undefined;
+}
+
+/**
+ * C13b: a field's greyed placeholder (the code value an override replaces, "34.5 (BNBC 2020
+ * Table 6.2.8)") in the display units: its leading number in the field's unit `siUnit` when the
+ * field converts, the quantities of its words by {@link convertText}; as it is in SI.
+ */
+export function placeholderText(text: string | undefined, siUnit: string | undefined): string | undefined {
+	if (text === undefined) {
+		return undefined;
+	}
+	if (!siUnit) {
+		return convertText(text);
+	}
+	const lead = /^(-?\d+(?:\.\d+)?)(?![\d.]*\s*(?:mm|m|kN|MPa|kPa)\b)/.exec(text);
+	return lead ? inputText(Number(lead[1]), siUnit) + convertText(text.slice(lead[0].length)) : convertText(text);
 }
 
 /** A table column's heading: the field's title with its unit as shown (C13: the display units), "Elevation (mm)". */
@@ -545,15 +561,22 @@ export class SchemaForm {
 		const row = this.fieldRow(container, title, description);
 		const list = Array.isArray(owner[key]) ? owner[key] as JsonValue[] : [];
 		const parts = append(row.control, $('.form-inline-array'));
+		// C13b: numbers with a unit (the list's or its items') are shown and typed in the display units
+		const unit = fieldUnit(description, schema) ?? fieldUnit(item.description, item);
+		const numericUnit = unit && (item.type === 'number' || item.type === 'integer') && kindOfUnit(unit) ? unit : undefined;
 		list.forEach((entry, i) => {
 			if (i > 0) {
 				append(parts, $('span.form-inline-separator', undefined, ':'));
 			}
-			this.input(append(parts, $('.form-inline-input')), item, String(entry ?? ''), false, `${path}.${i}`, title, parsed => {
+			const initial = numericUnit && typeof entry === 'number' ? inputText(entry, numericUnit) : String(entry ?? '');
+			this.input(append(parts, $('.form-inline-input')), item, initial, false, `${path}.${i}`, title, parsed => {
 				list[i] = parsed!;
 				owner[key] = list;
-			});
+			}, numericUnit);
 		});
+		if (numericUnit && isConverted(numericUnit)) {
+			append(parts, $('span.form-inline-separator', { 'aria-hidden': 'true' }, displayUnit(numericUnit)));
+		}
 		const min = schema.minItems ?? 0;
 		const max = schema.maxItems ?? Number.MAX_SAFE_INTEGER;
 		if (list.length > min) {
@@ -733,7 +756,7 @@ export class SchemaForm {
 			// An empty field means the schema's default (an underlay's offset 0, scale 1) or, for an
 			// override, the value it overrides: show it greyed in the field. Set on the element, not
 			// as the InputBox placeholder, which would also show it as the hover of a field that has a value.
-			const own = this.ctx.placeholder?.(path);
+			const own = placeholderText(this.ctx.placeholder?.(path), converted ? siUnit : undefined);
 			const fallback = typeof schema.default === 'number' && converted && siUnit ? inputText(schema.default, siUnit) : String(schema.default);
 			box.inputElement.placeholder = own ?? (schema.default !== undefined && schema.default !== null && typeof schema.default !== 'object' ? fallback : '');
 		};

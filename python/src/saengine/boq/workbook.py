@@ -134,8 +134,14 @@ def write_boq_xlsx(
                    f"Rate ({rates.currency})", f"Amount ({rates.currency})", *parts, "Status"]  # fmt: skip
         _heading(sheet, columns)
         for line in costing.lines:
-            sheet.append([line.code, line.group, line.description, line.quantity, line.unit,
-                          line.rateCode, line.rateDescription, line.rateUnit, line.conversion,
+            # C13b: the quantity in the display unit and the rate's units per unit as shown, so
+            # the amount (quantity × units per unit × rate) is the same; as it was in SI
+            show, unit = _shown_quantity(units, line.unit)
+            per = line.conversion
+            if per is not None and unit != line.unit and show(1.0):
+                per = per / show(1.0)
+            sheet.append([line.code, line.group, line.description, show(line.quantity), unit,
+                          line.rateCode, line.rateDescription, line.rateUnit, per,
                           line.rate])  # fmt: skip
             r = sheet.max_row
             if line.conversion is not None:
@@ -168,10 +174,16 @@ def write_boq_xlsx(
     carbon_last = None
     if costing is not None and factors is not None:
         sheet = book.create_sheet("Embodied Carbon")
-        _heading(sheet, ["Material", "Mass (kg)", "Factor (kg CO2e/kg)", "Carbon (kg CO2e)",
-                         "Carbon (t CO2e)", "Bill items", "Source"])  # fmt: skip
+        # C13b: the masses in the display unit, the factors per that unit (the carbon the same)
+        show_mass, mass_unit = _shown_quantity(units, "kg")
+        _heading(sheet, ["Material", f"Mass ({mass_unit})", f"Factor (kg CO2e/{mass_unit})",
+                         "Carbon (kg CO2e)", "Carbon (t CO2e)", "Bill items",
+                         "Source"])  # fmt: skip
         for line in costing.carbon:
-            sheet.append([line.material, line.mass, line.factor])
+            factor = line.factor
+            if factor is not None and mass_unit != "kg":
+                factor = factor / show_mass(1.0)
+            sheet.append([line.material, show_mass(line.mass), factor])
             r = sheet.max_row
             sheet.cell(r, 4, f"=IF(ISNUMBER(C{r}),B{r}*C{r},0)")
             sheet.cell(r, 5, f"=D{r}/1000")

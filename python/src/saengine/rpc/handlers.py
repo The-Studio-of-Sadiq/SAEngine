@@ -2800,13 +2800,16 @@ def worksheet_calculate(
     kind: str, inputs: dict[str, Any], project_root: str | None = None
 ) -> dict[str, Any]:
     """The calculation of a worksheet ``kind`` for ``inputs``, with the project's code pack."""
-    from saengine.report.worksheets import calculate, project_pack
+    from saengine.report.worksheets import calculate, displayed, project_pack
+    from saengine.units import units_at
 
+    # C13b: in the project's display units (SI: as it was)
+    units = units_at(project_root)
     with project_pack(project_root) as problems:
-        result = calculate(kind, inputs)
+        result = calculate(kind, inputs, units)
     if problems:
         result.setdefault("notes", []).extend(problems)
-    return result
+    return displayed(result, units)
 
 
 def worksheet_list(project_root: str) -> dict[str, Any]:

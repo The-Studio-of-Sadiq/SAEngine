@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../nls.js';
-import { formatNumber, IConsolidationPoint, IFieldSpec, IShearSpecimen, ISieve, ISoilSample, ITriaxialSpecimen, parseField } from './soilDocument.js';
+import { fieldUnitLabel, formatNumber, IConsolidationPoint, IFieldSpec, IShearSpecimen, ISieve, ISoilSample, ITriaxialSpecimen, parseField } from './soilDocument.js';
 import { ISheet, ISheetCellError, ISheetColumn, ISheetGroup, ISheetWrite, ISheetWriteResult } from './soilSheet.js';
 
 /*
@@ -232,7 +232,7 @@ class LabListSheet implements ISheet {
 		private readonly order?: (a: LabItem, b: LabItem) => number,
 	) {
 		this.groups = [{ id: id, label }];
-		this.columns = fields.map(({ spec, width }) => ({ id: spec.key, group: id, label: spec.label, unit: spec.unit, title: spec.title, width: width ?? 76, numeric: true }));
+		this.columns = fields.map(({ spec, width }) => ({ id: spec.key, group: id, label: spec.label, unit: fieldUnitLabel(spec), title: spec.title, width: width ?? 76, numeric: true }));
 	}
 
 	rowCount(): number {

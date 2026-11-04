@@ -278,7 +278,7 @@ export function lengthCell(length: number): string {
 
 /** The rows as CSV (RFC 4180), as the table shows them. */
 export function membersCsv(rows: readonly IMemberRow[], storyName: (id: string) => string): string {
-	const lines = [['ID', 'Kind', 'Object Type', 'Section (mm)', headingWithUnit('Length (mm)'), 'Story', 'Base', 'Location']];
+	const lines = [['ID', 'Kind', 'Object Type', headingWithUnit('Section (mm)'), headingWithUnit('Length (mm)'), 'Story', 'Base', 'Location']];
 	for (const row of rows) {
 		lines.push([row.id, GROUP_LABELS[row.group], row.type, row.section, row.length === undefined ? '' : lengthCell(row.length), storyName(row.story), row.base !== undefined ? storyName(row.base) : '', row.location]);
 	}

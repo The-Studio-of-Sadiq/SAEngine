@@ -13,8 +13,9 @@ field's description): :data:`SI_UNITS` maps each to a quantity kind (:data:`KIND
 factor to the kind's base unit. A field whose unit is not written that way names its kind in
 its JSON schema (``unitKind``).
 
-Temperatures (°C) stay as they are: an absolute temperature and a temperature change convert
-differently, and the fields do not say which they are (SAEngine practice, alpha 9).
+Temperatures (C13b): "°C" is a temperature (°F = 1.8 °C + 32), "Δ°C" a temperature change
+(1.8 °F per °C; a field names it with ``unitKind`` "temperatureChange", and printed text writes
+it as a change, "ΔT = 20 °C" or "±20 °C"); "1/°C" a coefficient of thermal expansion.
 """
 
 from __future__ import annotations
@@ -47,6 +48,13 @@ class Kind:
     si: str
     us: tuple[tuple[str, float], ...]
     title: str
+    #: Added after the factor (``value_us = value_si * factor + offset``): absolute temperatures.
+    offsets: tuple[tuple[str, float], ...] = ()
+    #: The unit text shown in SI when it is not :attr:`si` (a temperature change shows "°C").
+    si_label: str = ""
+
+    def offset(self, unit: str) -> float:
+        return dict(self.offsets).get(unit, 0.0)
 
     def factor(self, unit: str) -> float:
         if unit == self.si:
@@ -137,6 +145,16 @@ def _kinds() -> dict[str, Kind]:
         ),
         Kind("inertia", "mm⁴", (("in⁴", 1e-12 / INCH**4),), "Second moments of area [mm⁴]"),
         Kind("sectionModulus", "mm³", (("in³", 1e-9 / INCH**3),), "Section moduli [mm³]"),
+        # C13b: temperatures (an absolute one with the offset, a change without)
+        Kind("temperature", "°C", (("°F", 1.8),), "Temperatures [°C]", offsets=(("°F", 32.0),)),
+        Kind(
+            "temperatureChange",
+            "Δ°C",
+            (("°F", 1.8),),
+            "Temperature changes [°C]",
+            si_label="°C",
+        ),
+        Kind("perTemperature", "1/°C", (("1/°F", 1 / 1.8),), "Thermal expansion [1/°C]"),
     ]
     return {k.id: k for k in kinds}
 
@@ -171,6 +189,9 @@ SI_UNITS: dict[str, tuple[str, float]] = {
     "kN/mm": ("stiffness", 1.0),
     "mm⁴": ("inertia", 1.0),
     "mm³": ("sectionModulus", 1.0),
+    "°C": ("temperature", 1.0),
+    "Δ°C": ("temperatureChange", 1.0),
+    "1/°C": ("perTemperature", 1.0),
 }
 
 #: The per-quantity choices a project can make (Project Settings › Units), kind -> options.
@@ -228,6 +249,20 @@ def feet_inches(mm: float, denominator: int = 8) -> str:
     return f'{sign}{inch_text or "0"}"'
 
 
+def inches_text(mm: float, denominator: int = 8) -> str:
+    """A size [mm] in inches to the nearest 1/``denominator`` inch, without feet: 300 ->
+    ``11 3/4"``, 600 -> ``23 5/8"`` (member sizes, as US drawings write them)."""
+    sign = "-" if mm < 0 else ""
+    steps = round(abs(mm) / 25.4 * denominator)
+    whole, part = divmod(steps, denominator)
+    fraction = ""
+    if part:
+        g = math.gcd(part, denominator)
+        fraction = f"{part // g}/{denominator // g}"
+    text = " ".join(t for t in (str(whole) if whole else "", fraction) if t)
+    return f'{sign}{text or "0"}"'
+
+
 # ─────────────────────────────────────── the project's units ───────────────────────────────
 
 
@@ -260,7 +295,8 @@ class Units:
             return value, si_unit
         kind, scale = known
         unit = self.unit(kind)
-        return value * scale * KINDS[kind].factor(unit), unit
+        k = KINDS[kind]
+        return value * scale * k.factor(unit) + k.offset(unit), unit
 
     def to_si(self, value: float, si_unit: str) -> float:
         """The inverse of :meth:`convert`: a value as shown -> the value in ``si_unit``."""
@@ -268,10 +304,15 @@ class Units:
         if self.si or known is None:
             return value
         kind, scale = known
-        return value / (scale * KINDS[kind].factor(self.unit(kind)))
+        k = KINDS[kind]
+        unit = self.unit(kind)
+        return (value - k.offset(unit)) / (scale * k.factor(unit))
 
     def label(self, si_unit: str) -> str:
         """The unit text shown for values stored in ``si_unit``."""
+        if self.si:
+            known = kind_of(si_unit)
+            return (KINDS[known[0]].si_label or si_unit) if known else si_unit
         return self.convert(1.0, si_unit)[1]
 
     def format(self, value: float, si_unit: str, significant: int = 3) -> str:
@@ -283,6 +324,13 @@ class Units:
     def length_text(self, mm: float) -> str:
         """A dimension [mm] as a drawing writes it: "250" in SI, ``9'-10 1/8"`` in US units."""
         return f"{mm:.0f}" if self.si else feet_inches(mm)
+
+    def size_text(self, mm: float) -> str:
+        """A member size [mm] as a drawing or a table writes it: "300" in SI; in US units in
+        inches (``11 3/4"``), or feet and inches when the project shows sizes in feet."""
+        if self.si:
+            return f"{mm:g}"
+        return feet_inches(mm) if self.unit("dimension") == "ft" else inches_text(mm)
 
     def bar(self, dia: float) -> str:
         """A bar size: "Ø16" in SI, the pack's name ("#5") in US units when it has one."""
@@ -359,6 +407,21 @@ def project_units(settings: Any) -> Units:
     return Units(units.system, units.choices, {str(k): str(v) for k, v in names.items()})
 
 
+def units_at(project_root: Any) -> Units:
+    """:func:`project_units` of the project at ``project_root`` (its Project Settings file);
+    SI without a root or when the file cannot be read."""
+    if not project_root:
+        return SI
+    from pathlib import Path
+
+    path = Path(project_root) / "02 Project Settings" / "project-settings.json"
+    try:
+        settings = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return SI
+    return project_units(settings) if isinstance(settings, Mapping) else SI
+
+
 def pack_bar_names() -> dict[str, str]:
     """The bar names of the code pack in force (``concrete.barNames``), {} when it has none."""
     try:
@@ -375,17 +438,31 @@ def pack_bar_names() -> dict[str, str]:
 # A number as SAEngine prints one: 1,234.5, -12, 0.25 (not part of a word, a clause number
 # like 6.2.19 or a bar size like Ø16).
 _NUM = r"(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?"
-_UNIT_TEXTS = sorted((u for u in SI_UNITS if u not in ("t", "kNm")), key=len, reverse=True)
+_UNIT_TEXTS = sorted(
+    (u for u in SI_UNITS if u not in ("t", "kNm", "Δ°C", "1/°C")), key=len, reverse=True
+)
 _UNIT = "|".join(re.escape(u) for u in _UNIT_TEXTS)
 _QUANTITY = re.compile(
     rf"(?<![\w.,#Ø/·])(-?{_NUM})((?:\s*(?:×|x|–|to)\s*-?{_NUM})*)\s?({_UNIT})(?![\w²³⁴/·])"
 )
 _SEPARATOR = re.compile(rf"(\s*(?:×|x|–|to)\s*)(-?{_NUM})")
-_BAR = re.compile(r"Ø(\d+(?:\.\d+)?)(?:\s*@\s*(\d+(?:\.\d+)?)(?!\s*(?:mm|m)\b))?")
+_BAR = re.compile(
+    r"(?:(?<![\w.,])(\d+)(\s?))?Ø(\d+(?:\.\d+)?)(?:\s*@\s*(\d+(?:\.\d+)?)(?!\s*(?:mm|m)\b))?"
+)
 
 
 def _number(text: str) -> float:
     return float(text.replace(",", ""))
+
+
+#: Words before a temperature that make it a change ("ΔT = 20 °C", "±20 °C", "differ by 11 °C").
+_CHANGE = re.compile(r"Δ|±|\b(?:by|range|rise|drop|change|gradient)\b", re.IGNORECASE)
+
+
+def _is_change(text: str, at: int) -> bool:
+    """Whether the temperature printed at ``at`` in ``text`` is a change (SAEngine practice: a
+    "Δ", "±" or one of :data:`_CHANGE`'s words within the 20 characters before it)."""
+    return _CHANGE.search(text[max(0, at - 20) : at]) is not None
 
 
 def convert_text(text: str, units: Units) -> str:
@@ -396,6 +473,8 @@ def convert_text(text: str, units: Units) -> str:
 
     def quantity(match: re.Match[str]) -> str:
         unit = match.group(3)
+        if unit == "°C" and _is_change(text, match.start()):
+            unit = "Δ°C"
         first = units.convert(_number(match.group(1)), unit)
         shown = first[1]
         rest = _SEPARATOR.sub(
@@ -405,13 +484,110 @@ def convert_text(text: str, units: Units) -> str:
         return f"{fmt(first[0])}{rest} {shown}"
 
     def bar(match: re.Match[str]) -> str:
-        name = units.bar(float(match.group(1)))
-        if match.group(2) is None:
+        name = units.bar(float(match.group(3)))
+        if match.group(1) is not None:
+            # a count before the size: "4Ø16" -> "4-#5" by the pack's name, as it was without
+            gap = match.group(2) if name.startswith("Ø") else "-"
+            name = f"{match.group(1)}{gap}{name}"
+        if match.group(4) is None:
             return name
-        spacing = fmt(units.convert(float(match.group(2)), "mm")[0])
+        spacing = fmt(units.convert(float(match.group(4)), "mm")[0])
         return f"{name} @ {spacing} {units.unit('dimension')}"
 
     return _BAR.sub(bar, _QUANTITY.sub(quantity, text))
+
+
+#: Sizes in mm a drawing writes without a unit ("300x500", "500 x 500 x 600"); not a section
+#: designation ("SHS 150x150x8" after two capitals and a space, "W310x39" after a letter).
+_SIZE = re.compile(
+    r"(?<![\w.,#Ø/\"'])(?<![A-Z]{2} )(\d+(?:\.\d+)?)((?:\s?[x×]\s?\d+(?:\.\d+)?){1,2})"
+    r"(?![\w.²³/\"'])"
+)
+_SIZE_PART = re.compile(r"(\s?[x×]\s?)(\d+(?:\.\d+)?)")
+#: Lengths in mm a drawing writes with a word: "LAP 800", "WAIST 150", "COVER 40", "150 THK".
+_WORD_SIZE = re.compile(
+    r"\b(LAP|WAIST|COVER|TIE COLUMN|TIE BEAM)(\s+)(\d+(?:\.\d+)?)(?![\w.])"
+    r"|(?<![\w.,/])(\d+(?:\.\d+)?)(\s+THK)\b"
+)
+
+
+def convert_sizes(text: str, units: Units) -> str:
+    """The sizes in mm a drawing's text writes without a unit (``300x500``, ``LAP 800``,
+    ``150 THK``) in the display units (:meth:`Units.size_text`); as it is in SI."""
+    if units.si or not text:
+        return text
+
+    def size(match: re.Match[str]) -> str:
+        rest = _SIZE_PART.sub(
+            lambda m: m.group(1) + units.size_text(float(m.group(2))), match.group(2)
+        )
+        return units.size_text(float(match.group(1))) + rest
+
+    def word(match: re.Match[str]) -> str:
+        if match.group(1):
+            return f"{match.group(1)}{match.group(2)}{units.size_text(float(match.group(3)))}"
+        return f"{units.size_text(float(match.group(4)))}{match.group(5)}"
+
+    return _WORD_SIZE.sub(word, _SIZE.sub(size, text))
+
+
+_MM_TITLE = re.compile(r"\(mm\)")
+_PILE_CELL = re.compile(r"(\d+(?:\.\d+)?) x (\d+(?:\.\d+)?)")
+_MM_CELL = re.compile(r"(?<![\w.,#Ø/\"'])(\d+(?:\.\d+)?)(?![\w.²³/\"'])")
+
+
+def convert_mm_table(
+    columns: list[dict[str, Any]], rows: list[list[str]], units: Units
+) -> tuple[list[dict[str, Any]], list[list[str]]]:
+    """A drawing's table (columns ``{"title", ...}``, rows of text) in the display units: the
+    numbers of its "(mm)" columns by :meth:`Units.size_text` (a bar size column "Ø (mm)" by
+    the pack's bar names), their titles with the unit, the other cells by
+    :func:`convert_text`; the same table in SI."""
+    if units.si:
+        return columns, rows
+    shown = units.unit("dimension")
+    kinds: dict[int, str] = {}
+    out_columns = []
+    for i, column in enumerate(columns):
+        title = str(column.get("title") or "")
+        if _MM_TITLE.search(title):
+            if "Ø x L (mm)" in title:  # a pile type: its diameter [mm] and length [m]
+                kinds[i] = "pile"
+                title = _MM_TITLE.sub("", title).rstrip()
+            elif "Ø (mm)" in title:
+                kinds[i] = "bar"
+                title = title.replace("Ø (mm)", "size")
+            elif re.search(r"Length|Position", title):  # lengths along members, positions
+                kinds[i] = "length"
+                title = _MM_TITLE.sub("(ft-in)", title)
+            else:
+                kinds[i] = "size"
+                title = _MM_TITLE.sub(f"({'ft-in' if shown == 'ft' else 'in'})", title)
+        out_columns.append({**column, "title": title})
+    out_rows = []
+    for row in rows:
+        cells = []
+        for i, cell in enumerate(row):
+            text = str(cell)
+            if kinds.get(i) == "pile":
+                text = _PILE_CELL.sub(
+                    lambda m: (
+                        f"{units.size_text(float(m.group(1)))} x "
+                        f"{fmt(units.convert(float(m.group(2)), 'm')[0])} {units.unit('length')}"
+                    ),
+                    text,
+                )
+            elif kinds.get(i) == "bar":
+                text = _MM_CELL.sub(lambda m: units.bar(float(m.group(1))), text)
+            elif kinds.get(i) == "length":
+                text = _MM_CELL.sub(lambda m: feet_inches(float(m.group(1))), text)
+            elif kinds.get(i) == "size":
+                text = _MM_CELL.sub(lambda m: units.size_text(float(m.group(1))), text)
+            else:
+                text = convert_text(text, units)
+            cells.append(text)
+        out_rows.append(cells)
+    return out_columns, out_rows
 
 
 #: A level as the drawings write it: a signed number of metres to 3 decimals ("+3.000").
@@ -499,7 +675,10 @@ def _texts(value: Any, units: Units) -> Any:
 
 
 def convert_block(block: dict[str, Any], units: Units) -> dict[str, Any]:
-    """One report block (:mod:`saengine.report.document`) in the display units."""
+    """One report block (:mod:`saengine.report.document`) in the display units; a block made
+    in them already (``shown``: a calculation worksheet's, C13b) as it is."""
+    if block.get("shown"):
+        return block
     kind = block.get("t")
     out = dict(block)
     if kind == "table":
@@ -531,9 +710,10 @@ def convert_block(block: dict[str, Any], units: Units) -> dict[str, Any]:
 
 #: What the report says of its units in US customary units.
 UNITS_NOTE = (
-    "Values are computed in SI and printed in US customary units (3 significant figures); "
-    "the expressions of the calculations are written as the code's SI form, and "
-    "temperatures stay in °C."
+    "Values are computed in SI and printed in US customary units (3 significant figures). "
+    "The calculation worksheets give each expression with its values as printed; an "
+    "expression in the code's SI form (valid in N, mm and MPa only) is given with its SI "
+    "values and marked so."
 )
 
 

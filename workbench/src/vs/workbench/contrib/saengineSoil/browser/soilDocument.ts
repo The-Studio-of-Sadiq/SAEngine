@@ -5,6 +5,7 @@
 
 import { localize } from '../../../../nls.js';
 import { defaultCodeName } from '../../../services/saengineProject/common/activeCodePack.js';
+import { activeDisplayUnits, convertText, displayUnit, IDisplayUnits, inputText, isConverted, kindOfUnit, parseQuantity, toDisplay } from '../../../services/saengineProject/common/displayUnits.js';
 
 /*
  * The soil report of a project (`01 Soil Report/soil-report.json`, `saengine.soilReport/1`):
@@ -1774,10 +1775,42 @@ export const DESIGN_FIELDS: readonly IFieldSpec[] = [
 	{ key: 'pga', label: localize('soil.f.pga', "PGA"), unit: 'g', kind: 'number', min: 0, max: 2, title: localize('soil.f.pgaTitle', "Peak ground acceleration; empty takes it from the project settings' seismic zone and site class") },
 ];
 
-/** The value an input shows for a stored value (depths and lengths in m). */
+/**
+ * C13b: the SI unit a field's value is shown in when SAEngine converts it in US customary units: m
+ * for depths and lengths (the file holds mm), else the field's own unit ("kPa", "kN/m³", "mm");
+ * undefined in SI and for the units it does not convert (%, °, g).
+ */
+export function convertedUnit(spec: IFieldSpec, units: IDisplayUnits = activeDisplayUnits()): string | undefined {
+	const si = spec.kind === 'depth' || spec.kind === 'length' ? 'm' : spec.unit && kindOfUnit(spec.unit) ? spec.unit : undefined;
+	return si && isConverted(si, units) ? si : undefined;
+}
+
+/** The unit a field shows (C13b: in the display units): "ft" for a depth in US units, its own unit otherwise. */
+export function fieldUnitLabel(spec: IFieldSpec): string | undefined {
+	const si = convertedUnit(spec);
+	// a unit SAEngine knows shows its own text in SI ("Δ°C", a change, shows "°C")
+	return si ? displayUnit(si) : spec.unit && kindOfUnit(spec.unit) ? displayUnit(spec.unit) : spec.unit;
+}
+
+/**
+ * C13b: a field's greyed placeholder in the display units: a leading number in the field's unit
+ * (a depth's in m) when the field converts, the quantities of its words by convertText; as it is in SI.
+ */
+export function fieldPlaceholder(spec: IFieldSpec, text: string): string {
+	const converted = convertedUnit(spec);
+	const lead = converted ? /^(-?\d+(?:\.\d+)?)(?![\d.]*\s*(?:mm|m|kN|MPa|kPa)\b)/.exec(text) : null;
+	return lead ? inputText(Number(lead[1]), converted!) + convertText(text.slice(lead[0].length)) : convertText(text);
+}
+
+/** The value an input shows for a stored value (depths and lengths in m; C13b: in the display units). */
 export function formatField(spec: IFieldSpec, value: unknown): string {
 	if (value === undefined || value === null || value === '') {
 		return '';
+	}
+	const converted = convertedUnit(spec);
+	if (converted && typeof value === 'number') {
+		const si = spec.kind === 'depth' || spec.kind === 'length' ? value / 1000 : value;
+		return formatNumber(toDisplay(si, converted), spec.kind === 'depth' || spec.kind === 'length' ? 3 : spec.decimals ?? 4);
 	}
 	if (spec.kind === 'depth' || spec.kind === 'length') {
 		return typeof value === 'number' ? formatNumber(value / 1000, 3) : String(value);
@@ -1827,7 +1860,10 @@ export function parseField(spec: IFieldSpec, raw: string): IFieldValue {
 	if (spec.kind === 'soilType') {
 		return SOIL_TYPES.includes(text as SoilType) ? { value: text } : { error: localize('soil.v.soilType', "Pick one of: {0}.", SOIL_TYPES.join(', ')) };
 	}
-	const number = parseNumber(text);
+	// C13b: in US customary units a number is typed in the display unit (or with a unit of its
+	// own: "300 mm", `12'-6"`) and checked and stored in SI
+	const converted = convertedUnit(spec);
+	const number = converted ? parseQuantity(text, converted) ?? NaN : parseNumber(text);
 	if (number === 'comma') {
 		return { error: localize('soil.v.comma', "{0}: use a point for decimals (1.5); commas only group thousands (1,200).", spec.label) };
 	}
@@ -1837,11 +1873,13 @@ export function parseField(spec: IFieldSpec, raw: string): IFieldValue {
 	if (spec.kind === 'integer' && !Number.isInteger(number)) {
 		return { error: localize('soil.v.integer', "{0} must be a whole number.", spec.label) };
 	}
+	const limit = (value: number) => converted ? inputText(value, converted) : value;
+	const unit = fieldUnitLabel(spec);
 	if (spec.min !== undefined && number < spec.min) {
-		return { error: localize('soil.v.min', "{0} must be at least {1}{2}.", spec.label, spec.min, spec.unit ? ` ${spec.unit}` : '') };
+		return { error: localize('soil.v.min', "{0} must be at least {1}{2}.", spec.label, limit(spec.min), unit ? ` ${unit}` : '') };
 	}
 	if (spec.max !== undefined && number > spec.max) {
-		return { error: localize('soil.v.max', "{0} must be at most {1}{2}.", spec.label, spec.max, spec.unit ? ` ${spec.unit}` : '') };
+		return { error: localize('soil.v.max', "{0} must be at most {1}{2}.", spec.label, limit(spec.max), unit ? ` ${unit}` : '') };
 	}
 	return { value: spec.kind === 'depth' || spec.kind === 'length' ? Math.round(number * 1000) : number };
 }

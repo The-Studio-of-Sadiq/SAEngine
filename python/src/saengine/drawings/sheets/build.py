@@ -149,7 +149,19 @@ def _details(make, items, scale: float, area, problems: list[str]) -> list[ViewS
 
 
 def categories(data: DrawingSet, settings: DrawingSettings) -> tuple[list[_Category], list[str]]:
-    """The views of the drawing set by sheet category."""
+    """The views of the drawing set by sheet category; the tables in the set's display units
+    (C13b, :data:`schedules.TABLE_UNITS`)."""
+    from saengine.units import units_from_json
+
+    token = schedules.TABLE_UNITS.set(units_from_json(data.title.units))
+    try:
+        return _categories(data, settings)
+    finally:
+        schedules.TABLE_UNITS.reset(token)
+
+
+def _categories(data: DrawingSet, settings: DrawingSettings) -> tuple[list[_Category], list[str]]:
+    """:func:`categories`."""
     area = drawing_area(settings.size)
     height = area[3] - area[1]
     problems: list[str] = []

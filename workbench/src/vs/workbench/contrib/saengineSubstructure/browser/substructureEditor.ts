@@ -37,8 +37,10 @@ import { IEditorService } from '../../../services/editor/common/editorService.js
 import { DEVELOPER_MODE_SETTING } from '../../../services/saengineProject/common/developerMode.js';
 import { partById } from '../../../services/saengineProject/common/saengineProject.js';
 import { appendPropertyHeading, appendPropertyNote, appendPropertyRow, EditorFrame, IEditorFrameStatus } from '../../saengineProject/browser/editorFrame.js';
+import { convertTableCells, convertTextNodes } from '../../saengineProject/browser/displayUnitsTable.js';
+import { displayUnit } from '../../../services/saengineProject/common/displayUnits.js';
 import { appendPlannedFeatureChip } from '../../saengineProject/browser/plannedFeatureEditor.js';
-import { formatField, formatNumber, IFieldSpec, parseField } from '../../saengineSoil/browser/soilDocument.js';
+import { fieldPlaceholder, fieldUnitLabel, formatField, formatNumber, IFieldSpec, parseField } from '../../saengineSoil/browser/soilDocument.js';
 import {
 	addPiles, applyPileLayout, applyProposal, capPileType, connectGradeBeams, DEFAULT_SPACING_FACTOR, deletePiles, formatSpacings, foundationOf, gridLines, IPile, intersectionsInBox, makePileCap, MIN_SPACING_FACTOR, movePiles, newPileGrid, parseSpacings, PILE_GROUPS, pileAt, pileCaps, pilesInBox, placePileGroup, refitCap, setCapPileType, snapPoint, tied, formatPileBars, formatPileTies, minimumMesh, parsePileBars, parsePileTies, carriedAlready, checkStateText, checkSubstructure, documentSignatures, defaultFoundingLevel, EMPTY_CONTEXT, formatMesh, formatUtilisation, foundationCenter, foundationOutlines, foundationSize, foundationTypeLabel, FOUNDATION_TYPES, FoundationType, governingCheck, IColumnBase, IFoundation, IFoundationResult, IPileType, ISiteContext, ISiteTexts,
 	ISizingProposal, ISubstructure, ISubstructureCheck, ISubstructureMigration, ISubstructureProblem, ISubstructureReport, ISubstructureRequest, IRetainingWall, ITieBeam, importFoundations, maxPressure, MESH_KEYS, MeshKey, newFooting, newPileCap, newPileType, newRaft, newRetainingWall, newTieBeam, parseIdList, parseMesh, parseSubstructure, PILE_FACTOR_OF_SAFETY, pileFactorsUsed, PILE_KINDS, PILE_LAYOUTS,
@@ -1778,6 +1780,8 @@ export class SubstructureEditor extends EditorPane {
 		this.foundationRows.clear();
 		const scroll = this.viewElement.scrollTop;
 		clearNode(this.viewElement);
+		// C13b: the quantities of the texts drawn below in the display units
+		convertTextNodes(this.viewElement);
 		this.viewElement.className = `sub-view ${this.view}`;
 		this.lastSize = `${this.viewElement.clientWidth}x${this.viewElement.clientHeight}`;
 		const document = this.document;
@@ -2071,9 +2075,12 @@ export class SubstructureEditor extends EditorPane {
 			const th = append(head, $(column.numeric ? 'th.number' : 'th'));
 			append(th, $('span', undefined, column.label));
 			if (column.unit) {
-				append(th, $('span.sub-unit', undefined, column.unit));
+				append(th, $('span.sub-unit', undefined, displayUnit(column.unit)));
 			}
 		}
+		// C13b: the plain numbers of the columns with a unit in the display units once the rows are in
+		// (the inputs show them so themselves: formatField); nothing changes in SI
+		convertTableCells(table, columns.map(c => c.unit));
 	}
 
 	private removeButton(row: HTMLElement, run: () => void): void {
@@ -3181,10 +3188,10 @@ export class SubstructureEditor extends EditorPane {
 	/** An input for a field: a valid value is stored (and saved after a pause), an invalid one is marked. */
 	private textInput(field: IFieldSpec, value: unknown, store: (value: number | string | undefined) => void, key: string, placeholder?: string): HTMLInputElement {
 		const numeric = field.kind !== 'text';
-		const input = $<HTMLInputElement>(`input.sub-input${numeric ? '.number' : ''}`, { type: 'text', spellcheck: 'false', 'aria-label': field.unit ? `${field.label} (${field.unit})` : field.label });
+		const input = $<HTMLInputElement>(`input.sub-input${numeric ? '.number' : ''}`, { type: 'text', spellcheck: 'false', 'aria-label': field.unit ? `${field.label} (${fieldUnitLabel(field)})` : field.label });
 		input.value = formatField(field, value);
 		if (placeholder) {
-			input.placeholder = placeholder;
+			input.placeholder = fieldPlaceholder(field, placeholder); // C13b: in the display units
 		}
 		this.inputStore.add(addDisposableListener(input, EventType.INPUT, () => {
 			const parsed = parseField(field, input.value);
@@ -3779,6 +3786,8 @@ export class SubstructureEditor extends EditorPane {
 		this.propertiesDisposables.clear();
 		this.propertyInputs.clear();
 		clearNode(panel);
+		// C13b: the quantities of the texts drawn below in the display units
+		convertTextNodes(panel);
 		this.propertiesFor = { document, selection };
 		if (!document) {
 			// Before the file is open (opening waits on the backend, busy on a big model): loading.
@@ -3851,7 +3860,7 @@ export class SubstructureEditor extends EditorPane {
 	}
 
 	private fieldRow(panel: HTMLElement, field: IFieldSpec, value: unknown, store: (value: number | string | undefined) => void, key: string, placeholder?: string): void {
-		this.propertyRow(panel, field.label, this.textInput(field, value, store, key, placeholder), field.unit, field.title);
+		this.propertyRow(panel, field.label, this.textInput(field, value, store, key, placeholder), fieldUnitLabel(field), field.title);
 	}
 
 	private renderFoundationProperties(panel: HTMLElement, document: ISubstructure, foundation: IFoundation): void {

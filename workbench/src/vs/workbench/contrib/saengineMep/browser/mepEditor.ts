@@ -41,7 +41,9 @@ import { DEVELOPER_MODE_SETTING } from '../../../services/saengineProject/common
 import { IPartSectionPane, sectionOption } from '../../../services/saengineProject/common/partSections.js';
 import { partById } from '../../../services/saengineProject/common/saengineProject.js';
 import { appendPropertyHeading, appendPropertyNote, appendPropertyRow, EditorFrame, IEditorFrameStatus } from '../../saengineProject/browser/editorFrame.js';
-import { formatField, formatNumber, IFieldSpec, parseField } from '../../saengineSoil/browser/soilDocument.js';
+import { fieldPlaceholder, fieldUnitLabel, formatField, formatNumber, IFieldSpec, parseField } from '../../saengineSoil/browser/soilDocument.js';
+import { convertTableCells, convertTextNodes } from '../../saengineProject/browser/displayUnitsTable.js';
+import { displayUnit } from '../../../services/saengineProject/common/displayUnits.js';
 import {
 	checkMep, DISCIPLINES, disciplineLabel, EMPTY_CONTEXT, EQUIPMENT_KINDS, EQUIPMENT_PRESETS, equipmentArea, equipmentKindLabel, equipmentPressure, findHost, formatUtilisation, guessDiscipline, hostKindLabel, hostStory, IClash, IEquipment, IEquipmentPreset,
 	IIfcModel, IImportIfcRequest, IMep, IMepContext, IMepContextTexts, IMepProblem, IMepReport, IMepRequest, IOpening, IShaft, MEP_IFC_FOLDER, MEP_IMPORT_IFC_COMMAND, MEP_REPORT_COMMAND, MEP_SUGGEST_SLEEVES_COMMAND, MEP_SUMMARY_FILE, mepSummary, mepSummaryFile,
@@ -1653,6 +1655,8 @@ export class MepEditor extends EditorPane implements IPartSectionPane {
 		this.selectableRows.clear();
 		const scroll = this.viewElement.scrollTop;
 		clearNode(this.viewElement);
+		// C13b: the quantities of the texts drawn below in the display units
+		convertTextNodes(this.viewElement);
 		this.viewElement.className = `mep-view ${this.view}`;
 		this.lastSize = `${this.viewElement.clientWidth}x${this.viewElement.clientHeight}`;
 		const document = this.document;
@@ -2111,12 +2115,14 @@ export class MepEditor extends EditorPane implements IPartSectionPane {
 		for (const column of columns) {
 			append(colgroup, $('col', { style: `width: ${column.width ?? 72}px` }));
 			const th = append(head, $(column.numeric ? 'th.number' : 'th'));
-			th.title = column.title ?? (column.unit ? `${column.label} (${column.unit})` : column.label);
+			th.title = column.title ?? (column.unit ? `${column.label} (${displayUnit(column.unit)})` : column.label);
 			append(th, $('span', undefined, column.label));
 			if (column.unit) {
-				append(th, $('span.mep-unit', undefined, column.unit));
+				append(th, $('span.mep-unit', undefined, displayUnit(column.unit)));
 			}
 		}
+		// C13b: the plain numbers of the columns with a unit in the display units once the rows are in
+		convertTableCells(table, columns.map(c => c.unit));
 	}
 
 	private removeButton(row: HTMLElement, run: () => void): void {
@@ -2511,10 +2517,10 @@ export class MepEditor extends EditorPane implements IPartSectionPane {
 	/** An input for a field: a valid value is stored (and saved after a pause), an invalid one is marked. */
 	private textInput(field: IFieldSpec, value: unknown, store: (value: number | string | undefined) => void, key: string, placeholder?: string): HTMLInputElement {
 		const numeric = field.kind !== 'text';
-		const input = $<HTMLInputElement>(`input.mep-input${numeric ? '.number' : ''}`, { type: 'text', spellcheck: 'false', 'aria-label': field.unit ? `${field.label} (${field.unit})` : field.label });
+		const input = $<HTMLInputElement>(`input.mep-input${numeric ? '.number' : ''}`, { type: 'text', spellcheck: 'false', 'aria-label': field.unit ? `${field.label} (${fieldUnitLabel(field)})` : field.label });
 		input.value = formatField(field, value);
 		if (placeholder) {
-			input.placeholder = placeholder;
+			input.placeholder = fieldPlaceholder(field, placeholder); // C13b: in the display units
 		}
 		this.inputStore.add(addDisposableListener(input, EventType.INPUT, () => {
 			let parsed = parseField(field, input.value);
@@ -2924,6 +2930,8 @@ export class MepEditor extends EditorPane implements IPartSectionPane {
 		this.propertiesDisposables.clear();
 		this.propertyInputs.clear();
 		clearNode(panel);
+		// C13b: the quantities of the texts drawn below in the display units
+		convertTextNodes(panel);
 		this.propertiesFor = { document, selection };
 		if (!document) {
 			appendPropertyNote(panel, this.parseError ?? localize('mep.propsNone', "No MEP file."));
@@ -3023,7 +3031,7 @@ export class MepEditor extends EditorPane implements IPartSectionPane {
 	}
 
 	private fieldRow(panel: HTMLElement, field: IFieldSpec, value: unknown, store: (value: number | string | undefined) => void, key: string, placeholder?: string): void {
-		this.propertyRow(panel, field.label, this.textInput(field, value, store, key, placeholder), field.unit, field.title);
+		this.propertyRow(panel, field.label, this.textInput(field, value, store, key, placeholder), fieldUnitLabel(field), field.title);
 	}
 
 	private yesNo(current: boolean, store: (value: boolean) => void, key: string, label: string): HTMLSelectElement {

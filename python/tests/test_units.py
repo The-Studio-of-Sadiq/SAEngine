@@ -45,7 +45,7 @@ def test_choices_and_si():
     assert yards.convert(1.0, "m³")[1] == "yd³"
     assert math.isclose(yards.convert(1.0, "kN")[0], 224.8089431, rel_tol=1e-9)
     assert u.SI.convert(250.0, "mm") == (250.0, "mm")
-    assert US.convert(20.0, "°C") == (20.0, "°C")  # temperatures stay
+    assert US.convert(20.0, "°C") == (68.0, "°F")  # C13b: temperatures convert too
 
 
 def test_formats():

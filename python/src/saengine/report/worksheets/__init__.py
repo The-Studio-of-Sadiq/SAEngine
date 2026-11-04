@@ -18,12 +18,13 @@ from typing import Any
 # The kinds register themselves on import.
 from saengine.report.worksheets import concrete as _concrete  # noqa: F401
 from saengine.report.worksheets import ground_loads as _ground_loads  # noqa: F401
-from saengine.report.worksheets.core import KINDS, calculate, kinds
+from saengine.report.worksheets.core import KINDS, calculate, displayed, kinds
 
 __all__ = [
     "KINDS",
     "calculate",
     "create_worksheet",
+    "displayed",
     "kinds",
     "list_worksheets",
     "project_pack",
@@ -46,10 +47,17 @@ def project_pack(project_root: str | Path | None) -> Iterator[list[str]]:
         yield problems
 
 
-def worksheet_blocks(result: dict[str, Any], reference: str = "", notes: str = "") -> list[dict]:
+def worksheet_blocks(
+    result: dict[str, Any], reference: str = "", notes: str = "", units: Any = None
+) -> list[dict]:
     """The report blocks of a calculation (:func:`calculate`): the inputs, the steps (full
-    detail only), the checks and the notes."""
+    detail only), the checks and the notes. In US customary ``units`` (C13b) the blocks are
+    in the display units already (marked ``shown``, so the report leaves them) and the steps
+    have a "With values" column: each expression with its values."""
     from saengine.report.document import bullets, full, label, method, note, pairs, table
+
+    if units is not None and not units.si:
+        return _shown_blocks(result, reference, notes, units)
 
     out: list[dict[str, Any]] = []
     if reference:
@@ -106,19 +114,64 @@ def worksheet_blocks(result: dict[str, Any], reference: str = "", notes: str = "
     return out
 
 
+#: What the report says of the expressions given in the code's SI form (C13b).
+SI_FORM_NOTE = (
+    "Expressions marked (SI form) are the code's SI form, valid in N, mm and MPa only: they "
+    "are given with the SI values; the results are converted."
+)
+
+
+def _shown_blocks(
+    result: dict[str, Any], reference: str, notes: str, units: Any
+) -> list[dict[str, Any]]:
+    """:func:`worksheet_blocks` in US customary ``units``: the SI blocks converted, with the
+    expressions with their values in a column of their own."""
+    from saengine.report.document import bullets
+    from saengine.units import convert_block
+
+    steps = list(result.get("steps", []))
+    si_form = any(s.get("siForm") for s in steps if "heading" not in s)
+    out: list[dict[str, Any]] = []
+    for block in worksheet_blocks(result, reference, "", None):
+        shown = convert_block(block, units)
+        head = list(shown.get("head") or [])
+        if shown.get("t") == "table" and head[:2] == ["Quantity", "Expression"]:
+            rows = []
+            for row, step in zip(shown["rows"], steps, strict=False):
+                if "heading" in step:
+                    rows.append([row[0], "", "", "", "", ""])
+                    continue
+                expression = str(step.get("expression") or "")
+                if expression and step.get("siForm"):
+                    expression += " (SI form)"
+                rows.append([row[0], row[1], expression, *row[2:]])
+            shown["head"] = [head[0], head[1], "With values", *head[2:]]
+            shown["rows"] = rows
+            shown["widths"] = ["auto", "1fr", "1fr", "auto", "auto", "22%"]
+            shown["align"] = "lllrll"
+        shown["shown"] = True
+        out.append(shown)
+    texts = ([SI_FORM_NOTE] if si_form else []) + ([notes] if notes else [])
+    if texts:
+        out.append({**bullets(texts, 8), "shown": True})
+    return out
+
+
 def project_worksheets(project_root: str | Path) -> tuple[list[dict[str, Any]], list[str]]:
     """The worksheets of a project marked to print, calculated now: ``[{title, blocks}]`` for
     the report's ``worksheets`` section, and the warnings (files that could not be read,
     unknown kinds, failing checks)."""
     from saengine.library.worksheet import WORKSHEETS_FOLDER, load_worksheets
+    from saengine.units import units_at
 
     found, warnings = load_worksheets(project_root)
+    units = units_at(project_root)
     sheets: list[dict[str, Any]] = []
     for path, sheet in found:
         if not sheet.print_:
             continue
         with project_pack(project_root):
-            result = calculate(sheet.kind, sheet.inputs)
+            result = calculate(sheet.kind, sheet.inputs, units)
         where = f"{WORKSHEETS_FOLDER}/{path.name}"
         if result.get("problems"):
             warnings.append(f"Worksheet {where}: " + "; ".join(result["problems"]))
@@ -134,7 +187,7 @@ def project_worksheets(project_root: str | Path) -> tuple[list[dict[str, Any]], 
         sheets.append(
             {
                 "title": heading,
-                "blocks": worksheet_blocks(result, sheet.reference, sheet.notes),
+                "blocks": worksheet_blocks(result, sheet.reference, sheet.notes, units),
             }
         )
     return sheets, warnings

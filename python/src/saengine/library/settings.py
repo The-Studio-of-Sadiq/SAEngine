@@ -1188,6 +1188,7 @@ class Thermal(_Model):
         ge=-60,
         le=60,
         title="Uniform change ΔTu",
+        json_schema_extra={"unitKind": "temperatureChange"},
         description="Change of the members' temperature from the construction temperature [°C], "
         "+ expansion. The default pack gives no design range; take the site's range of shade air "
         "temperature (Sec 2.6.4(a)). The combinations apply it as a rise (+T) and a fall (-T); "
@@ -1198,6 +1199,7 @@ class Thermal(_Model):
         ge=-40,
         le=40,
         title="Roof gradient ΔTg",
+        json_schema_extra={"unitKind": "temperatureChange"},
         description="Top face minus bottom face of the roof's beams and slabs [°C] (sun-heated "
         "roof); 0 for none. Not given by the default pack; about 10 °C is a common assumption for an "
         "uninsulated concrete roof.",
