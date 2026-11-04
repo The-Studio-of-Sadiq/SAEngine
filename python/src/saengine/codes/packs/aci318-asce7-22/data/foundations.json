@@ -130,7 +130,32 @@
     "retainingWall.stemCrack": "SAEngine practice, the default pack's value kept (IBC 2021, ASCE 7-22 and ACI 318-19 give none)",
     "retainingWall.baseMinimum": "SAEngine practice, the default pack's value kept (IBC 2021, ASCE 7-22 and ACI 318-19 give none)",
     "loadTestSafety": "IBC 2021 Sec 1810.3.3.1.2: allowable axial load at most one-half of the ultimate from a load test (FS 2.0)",
-    "strutAndTie": "ACI 318-19 Chapter 23: Table 23.4.3(a) βs = 1.0 boundary struts, 0.75 interior struts with the distributed reinforcement of 23.5, 0.4 interior struts without it and struts in tension members; Table 23.9.2 βn = 1.0 CCC, 0.80 CCT, 0.60 CTT; 23.2.7 least strut angle 25°; Table 23.5.1 web reinforcement ratio; 21.2.1(g) φ 0.75; the confinement factor βc of 23.4.3 is taken as 1.0 (on the safe side); tieArm is SAEngine practice"
+    "strutAndTie": "ACI 318-19 Chapter 23: Table 23.4.3(a) βs = 1.0 boundary struts, 0.75 interior struts with the distributed reinforcement of 23.5, 0.4 interior struts without it and struts in tension members; Table 23.9.2 βn = 1.0 CCC, 0.80 CCT, 0.60 CTT; 23.2.7 least strut angle 25°; Table 23.5.1 web reinforcement ratio; 21.2.1(g) φ 0.75; the confinement factor βc of 23.4.3 is taken as 1.0 (on the safe side); tieArm is SAEngine practice",
+    "shallow.raftStiffness": "ACI 336.2R-88 Sec 4.2 and 6.1 (a report, not a code): a mat is rigid when the column spacing is below 1.75/λ, λ = (ks B / (4 Ec I))^¼, with adjacent loads and spacings varying by at most 20 %; otherwise flexible (the plate on springs SAEngine runs in both cases)",
+    "strutAndTie.tieArm": "SAEngine practice: the tie lever arm 0.9 d of the deep members own models",
+    "strutAndTie.betaCCC": "ACI 318-19 Chapter 23 (Sec 23.2-23.9, Tables 23.4.3(a) and 23.9.2): the value of the default pack, whose strut-and-tie appendix follows ACI 318; βs of interior struts without the distributed reinforcement 0.4 (Table 23.4.3(a))",
+    "strutAndTie.betaCCT": "ACI 318-19 Chapter 23 (Sec 23.2-23.9, Tables 23.4.3(a) and 23.9.2): the value of the default pack, whose strut-and-tie appendix follows ACI 318; βs of interior struts without the distributed reinforcement 0.4 (Table 23.4.3(a))",
+    "strutAndTie.betaCTT": "ACI 318-19 Chapter 23 (Sec 23.2-23.9, Tables 23.4.3(a) and 23.9.2): the value of the default pack, whose strut-and-tie appendix follows ACI 318; βs of interior struts without the distributed reinforcement 0.4 (Table 23.4.3(a))",
+    "strutAndTie.betaPrism": "ACI 318-19 Chapter 23 (Sec 23.2-23.9, Tables 23.4.3(a) and 23.9.2): the value of the default pack, whose strut-and-tie appendix follows ACI 318; βs of interior struts without the distributed reinforcement 0.4 (Table 23.4.3(a))",
+    "strutAndTie.betaBottle": "ACI 318-19 Chapter 23 (Sec 23.2-23.9, Tables 23.4.3(a) and 23.9.2): the value of the default pack, whose strut-and-tie appendix follows ACI 318; βs of interior struts without the distributed reinforcement 0.4 (Table 23.4.3(a))",
+    "strutAndTie.betaBottlePlain": "ACI 318-19 Chapter 23 (Sec 23.2-23.9, Tables 23.4.3(a) and 23.9.2): the value of the default pack, whose strut-and-tie appendix follows ACI 318; βs of interior struts without the distributed reinforcement 0.4 (Table 23.4.3(a))",
+    "strutAndTie.minAngle": "ACI 318-19 Chapter 23 (Sec 23.2-23.9, Tables 23.4.3(a) and 23.9.2): the value of the default pack, whose strut-and-tie appendix follows ACI 318; βs of interior struts without the distributed reinforcement 0.4 (Table 23.4.3(a))",
+    "strutAndTie.webRatio": "ACI 318-19 Chapter 23 (Sec 23.2-23.9, Tables 23.4.3(a) and 23.9.2): the value of the default pack, whose strut-and-tie appendix follows ACI 318; βs of interior struts without the distributed reinforcement 0.4 (Table 23.4.3(a))",
+    "strutAndTie.general": "ACI 318-19 Chapter 23 (Sec 23.2-23.9, Tables 23.4.3(a) and 23.9.2): the value of the default pack, whose strut-and-tie appendix follows ACI 318; βs of interior struts without the distributed reinforcement 0.4 (Table 23.4.3(a))",
+    "strutAndTie.effective": "ACI 318-19 Chapter 23 (Sec 23.2-23.9, Tables 23.4.3(a) and 23.9.2): the value of the default pack, whose strut-and-tie appendix follows ACI 318; βs of interior struts without the distributed reinforcement 0.4 (Table 23.4.3(a))",
+    "strutAndTie.betaTension": "ACI 318-19 Chapter 23 (Sec 23.2-23.9, Tables 23.4.3(a) and 23.9.2): the value of the default pack, whose strut-and-tie appendix follows ACI 318; βs of interior struts without the distributed reinforcement 0.4 (Table 23.4.3(a))",
+    "strutAndTie.betaOther": "ACI 318-19 Chapter 23 (Sec 23.2-23.9, Tables 23.4.3(a) and 23.9.2): the value of the default pack, whose strut-and-tie appendix follows ACI 318; βs of interior struts without the distributed reinforcement 0.4 (Table 23.4.3(a))",
+    "strutAndTie.lightweightBottle": "ACI 318-19 Chapter 23 (Sec 23.2-23.9, Tables 23.4.3(a) and 23.9.2): the value of the default pack, whose strut-and-tie appendix follows ACI 318; βs of interior struts without the distributed reinforcement 0.4 (Table 23.4.3(a))",
+    "strutAndTie.webRatioFcMax": "ACI 318-19 Chapter 23 (Sec 23.2-23.9, Tables 23.4.3(a) and 23.9.2): the value of the default pack, whose strut-and-tie appendix follows ACI 318; βs of interior struts without the distributed reinforcement 0.4 (Table 23.4.3(a))",
+    "strutAndTie.webAngleMin": "ACI 318-19 Chapter 23 (Sec 23.2-23.9, Tables 23.4.3(a) and 23.9.2): the value of the default pack, whose strut-and-tie appendix follows ACI 318; βs of interior struts without the distributed reinforcement 0.4 (Table 23.4.3(a))",
+    "strutAndTie.spreadSlope": "ACI 318-19 Chapter 23 (Sec 23.2-23.9, Tables 23.4.3(a) and 23.9.2): the value of the default pack, whose strut-and-tie appendix follows ACI 318; βs of interior struts without the distributed reinforcement 0.4 (Table 23.4.3(a))",
+    "strutAndTie.deltaFpBonded": "ACI 318-19 Chapter 23 (Sec 23.2-23.9, Tables 23.4.3(a) and 23.9.2): the value of the default pack, whose strut-and-tie appendix follows ACI 318; βs of interior struts without the distributed reinforcement 0.4 (Table 23.4.3(a))",
+    "strutAndTie.deltaFpUnbonded": "ACI 318-19 Chapter 23 (Sec 23.2-23.9, Tables 23.4.3(a) and 23.9.2): the value of the default pack, whose strut-and-tie appendix follows ACI 318; βs of interior struts without the distributed reinforcement 0.4 (Table 23.4.3(a))",
+    "strutAndTie.dRegionDepth": "ACI 318-19 Chapter 23 (Sec 23.2-23.9, Tables 23.4.3(a) and 23.9.2): the value of the default pack, whose strut-and-tie appendix follows ACI 318; βs of interior struts without the distributed reinforcement 0.4 (Table 23.4.3(a))",
+    "strutAndTie.compressionSteel": "ACI 318-19 Chapter 23 (Sec 23.2-23.9, Tables 23.4.3(a) and 23.9.2): the value of the default pack, whose strut-and-tie appendix follows ACI 318; βs of interior struts without the distributed reinforcement 0.4 (Table 23.4.3(a))",
+    "strutAndTie.nodeArea": "ACI 318-19 Chapter 23 (Sec 23.2-23.9, Tables 23.4.3(a) and 23.9.2): the value of the default pack, whose strut-and-tie appendix follows ACI 318; βs of interior struts without the distributed reinforcement 0.4 (Table 23.4.3(a))",
+    "strutAndTie.equilibrium": "ACI 318-19 Chapter 23 (Sec 23.2-23.9, Tables 23.4.3(a) and 23.9.2): the value of the default pack, whose strut-and-tie appendix follows ACI 318; βs of interior struts without the distributed reinforcement 0.4 (Table 23.4.3(a))",
+    "strutAndTie.anchorage": "ACI 318-19 Chapter 23 (Sec 23.2-23.9, Tables 23.4.3(a) and 23.9.2): the value of the default pack, whose strut-and-tie appendix follows ACI 318; βs of interior struts without the distributed reinforcement 0.4 (Table 23.4.3(a))"
   },
   "source": "IBC 2021 Chapter 18, ASCE 7-22 Sec 2.4, ACI 318-19 Chapters 13, 16, 23",
   "shallow": {
@@ -339,11 +364,16 @@
       "areaRatioMax": 2.0,
       "dowelRatio": 0.005,
       "minBars": 4
+    },
+    "raftStiffness": {
+      "method": "beamOnElasticFoundation",
+      "spacingFactor": 1.75,
+      "spacingVariation": 0.2
     }
   },
   "loadTestSafety": 2.0,
   "noLoadTestSafety": 3.0,
   "clauses": {
-    "subgradeModulus": "SAEngine practice (Winkler springs; ACI 336.2R)"
+    "subgradeModulus": "336.2R (Winkler springs; SAEngine practice)"
   }
 }

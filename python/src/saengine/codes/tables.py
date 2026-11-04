@@ -491,6 +491,17 @@ class StructuralSystem(_Row):
     note: str | None = None
 
 
+class DesignEccentricity(BaseModel):
+    """The design eccentricity of the static torsion cases: ed = staticAmplification × es +
+    the accidental share, or es - the accidental share; es from the plan's centres of mass
+    and rigidity (:mod:`saengine.fem.design_eccentricity`)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    method: Literal["amplifiedStatic"] = "amplifiedStatic"
+    staticAmplification: float = Field(ge=1, description="a of a·es.")
+
+
 class PeriodCoefficient(_Row):
     Ct: float = Field(gt=0)
     m: float = Field(gt=0)
@@ -498,6 +509,17 @@ class PeriodCoefficient(_Row):
         default=False,
         description="C7: T = Ct·h^m / √d, d the base plan dimension along the shaking [m] "
         "(False: T = Ct·h^m).",
+    )
+    # Alpha 9 C12: the period of structural wall buildings by the walls' effective area.
+    wallArea: bool = Field(
+        default=False,
+        description="T = Ct·h^m / √Aw, Aw = Σ Awi (wallBase + min(Lwi/h, wallRatioMax)²) of "
+        "the first storey's walls along the shaking [m²]; at least the lowerFamily's T.",
+    )
+    wallBase: float = Field(default=0.2, ge=0)
+    wallRatioMax: float = Field(default=0.9, gt=0)
+    lowerFamily: str | None = Field(
+        default=None, description="The family whose period bounds this one from below."
     )
 
 
@@ -949,6 +971,8 @@ class SeismicTable(TableModel):
     )
     minimumScale: float = Field(description="Least share of the static base shear for RS.")
     accidentalEccentricity: float
+    # Alpha 9 C12: the design eccentricity a·es ± accidental (empty: the accidental alone).
+    designEccentricity: DesignEccentricity | None = None
     orthogonalShare: float
     massParticipation: float
     torsionIrregular: float
@@ -1473,6 +1497,57 @@ class RiskCoefficientRow(_Row):
     k1: list[tuple[float, float]] = Field(min_length=1)
 
 
+class SlopeTopography(_Row):
+    """k3 = 1 + C s of a site on a hill, ridge or escarpment (:func:`saengine.fem.
+    wind_speed_factors.slope_factor`)."""
+
+    flatSlope: float = Field(gt=0, description="θ up to this [°]: k3 = 1.")
+    steepSlope: float = Field(gt=0, description="θ above this [°]: C = steepFactor.")
+    gentleFactor: float = Field(gt=0, description="C = this × Z / L between the slopes.")
+    steepFactor: float = Field(gt=0, description="C above steepSlope.")
+    speedUp: float = Field(gt=0, description="s, the factor of the figures (a project sets it).")
+    upwindLengthFactor: float = Field(
+        default=2.0, gt=0, description="L = this × the settings' Lh (half-height distance)."
+    )
+
+
+class GustFactorRules(_Row):
+    """The gust factor method of tall or flexible buildings (:mod:`saengine.fem.gust_response`):
+    G = 1 + r √(gv² Bs (1 + φ)² + Hs gR² S E / β), the along-wind force F = Cf Ae p̄ G with the
+    hourly mean pressure p̄ = airFactor V̄², V̄ = Vb k1 k̄2 k3 k4."""
+
+    heightRatio: float = Field(gt=0, description="Applies when h / b exceeds this ...")
+    frequencyLimit: float = Field(gt=0, description="... or the first frequency is below [Hz].")
+    meanFactors: dict[str, list[tuple[float, float]]] = Field(
+        description="k̄2: terrain -> (height [m], hourly mean speed factor) points."
+    )
+    roughness: dict[str, float] = Field(description="z0 [m] by terrain.")
+    turbulence: tuple[float, float, float, float] = Field(
+        description="(a1, b1, a4, b4): I1 = a1 - b1 log10(z/z0,1), I4 = a4 - b4 log10(z/z0,4)."
+    )
+    terrainShares: dict[str, float] = Field(
+        description="I = I1 + share (I4 - I1) by terrain (0 for the first, 1 for the last)."
+    )
+    peakFactor: float = Field(gt=0, description="gv, the peak factor of the upwind velocity.")
+    scaleCoefficients: dict[str, float] = Field(
+        description="Lh = coefficient (h / 10)^0.25 [m] by terrain."
+    )
+    backgroundTerms: tuple[float, float] = Field(
+        description="Bs = 1 / (1 + √(c1 (h - s)² + c2 bsh²) / Lh): (c1, c2)."
+    )
+    sizeTerms: tuple[float, float] = Field(
+        description="S = 1 / ((1 + c1 f0 h / V̄h)(1 + c2 f0 b0h / V̄h)): (c1, c2)."
+    )
+    spectrumTerms: tuple[float, float] = Field(
+        description="E = π N / (1 + c1 N²)^c2: (c1, c2), N = f0 Lh / V̄h."
+    )
+    duration: float = Field(gt=0, description="gR = √(2 ln(duration f0)) [s].")
+    damping: float = Field(gt=0, lt=1, description="β, the default damping ratio.")
+    accelerationReturn: float | None = Field(
+        default=None, gt=0, description="The speed of the comfort check × this (empty: same)."
+    )
+
+
 class SpeedFactors(_Row):
     """C7, ``method: speedFactors``: the design wind speed Vz = Vb·k1·k2·k3·k4 and the design
     pressure pd = max(Kd·Ka·Kc, minimumShare)·airFactor·Vz² [N/m², V in m/s]; k3 is the table's
@@ -1512,6 +1587,9 @@ class SpeedFactors(_Row):
     cyclonicDirectionality: float | None = Field(
         default=None, gt=0, description="Kd in a cyclone-prone region (None: unchanged)."
     )
+    # Alpha 9 C12: k3 from the site's slope, and the gust factor method of tall buildings.
+    topography: SlopeTopography | None = None
+    gustFactor: GustFactorRules | None = None
 
 
 class CpHeightRow(_Row):
@@ -2211,6 +2289,13 @@ class PrestressLimits(_Group):
     integrity: PrestressIntegrity | None = None
     anchorage: PrestressAnchorage | None = None
     compression: PrestressCompression | None = None
+    # Alpha 9 C12: codes that give the tension limits as stresses (IS 1343) rather than k √f'c.
+    tensionForm: Literal["root", "absolute"] = Field(
+        default="root",
+        description="'root': the tension limits (transferTension, transferTensionEnds, "
+        "tensionClassU, tensionClassT, tensionTwoWay, bondedPositiveTension) are k √f'ci or "
+        "k √f'c; 'absolute': they are stresses [MPa].",
+    )
     note: str = Field(default="", description="Why the values are what they are.")
 
 
@@ -3341,6 +3426,16 @@ class BearingFactorRules(_Group):
     undrainedNc: Positive = Field(description="Nc at φ = 0.")
 
 
+class RaftStiffness(_Group):
+    """The rigid / flexible classification of a raft by the beam on elastic foundation:
+    λ = (ks / (4 Ec I / b))^¼ of a unit strip; rigid when the largest column spacing is below
+    ``spacingFactor`` / λ and adjacent spacings vary by at most ``spacingVariation``."""
+
+    method: Literal["beamOnElasticFoundation"] = "beamOnElasticFoundation"
+    spacingFactor: Positive = Field(description="Rigid when the spacing < this / λ.")
+    spacingVariation: Share = Field(description="Adjacent spacings within this share.")
+
+
 class ShallowFoundations(_Group):
     """The geotechnical rules of shallow foundations (footings and rafts): load combinations,
     allowable increase, factors of safety, depths, thicknesses, presumptive values, subgrade
@@ -3395,6 +3490,18 @@ class ShallowFoundations(_Group):
     columnBase: ColumnBaseTransfer
     tieBeams: TieBeamRules | None = Field(
         default=None, description="Tie beams between foundations; empty: not covered."
+    )
+    # Alpha 9 C12: the rigidity correction of the elastic settlement of footings.
+    settlementRigidity: Share | None = Field(
+        default=None,
+        description="The elastic (Steinbrenner, flexible centre) settlement of clay under an "
+        "isolated footing × this for a rigid footing; empty: not reduced.",
+    )
+    # Alpha 9 C12: the rigid / flexible classification of rafts (none: not classified).
+    raftStiffness: RaftStiffness | None = Field(
+        default=None,
+        description="Rafts classed rigid when the column spacing is below spacingFactor / λ "
+        "(method ``beamOnElasticFoundation``); empty: not classified.",
     )
     # Alpha 9 C8: the bearing capacity factors by method id (none: Vesic, De Beer, Hansen).
     bearingFactors: BearingFactorRules | None = Field(

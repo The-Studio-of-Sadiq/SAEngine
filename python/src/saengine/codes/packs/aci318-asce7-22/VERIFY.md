@@ -492,6 +492,33 @@ Rows numbered S1-S18 (their own series, so the parallel tracks do not collide).
 | S17 | θcr: the temperature at which ky = μ0 | App 4.2.4c | Members without compression | PRACTICE |
 | S18 | `steel.bracing.rows` true: the Appendix 6 brace strength and stiffness as flagged rows of the member | App 6.2, 6.3 | Reported, not a new value | PRACTICE |
 
+### Alpha 9 C12 (concrete, foundations, loads half): foundations, anchors, tanks, deflections — `foundations.json`, `anchors.json`, `plumbing.json`, `serviceability.json`
+
+Rows U1-U20 (their own series).
+
+| # | Path | Value | Clause | What | Confidence |
+| --- | --- | --- | --- | --- | --- |
+| U1 | foundations.shallow.presumptive | 574.6, 191.5, 143.6, 95.8, 71.8 kPa (12 000, 4 000, 3 000, 2 000, 1 500 psf) for classes 1-5; soft clay, organic soils, fill by investigation; no water reduction | IBC 2021 Table 1806.2 | Presumptive load-bearing values (the UI ids kept: softRock = class 2, gravel = class 3, sand and fineSand = class 4, silt and clay = class 5) | Check (soft clay by investigation is SAEngine practice) |
+| U2 | foundations.shallow.friction | 0.25 | IBC 2021 Table 1806.2 | Sliding coefficient of class 4 (0.35 classes 2-3) | Check |
+| U3 | foundations.shallow.lateralIncrease | 1.0 | IBC 2021 Sec 1806.1 | No one-third increase with the basic ASD combinations | Check |
+| U4 | foundations.shallow.bearingCombinations, stabilityCombinations | D; D + L; D + 0.6W; D + 0.75L + 0.45W; D + 0.7E; D + 0.75L + 0.525E; 0.6D + B; stability 0.6D + 0.6W, 0.6D + 0.7E | ASCE 7-22 Sec 2.4.1, 2.4.5 | Soil pressure and stability | Check (Ev left out; Lr, S not separate cases here) |
+| U5 | foundations.shallow.minDepth | 305 mm | IBC 2021 Sec 1809.4 | Least depth below undisturbed ground (frost depth not checked) | Check |
+| U6 | foundations.loadTestSafety, noLoadTestSafety; retainingWall FS | 2.0 by load test; 3.0 by analysis (practice); 1.5 sliding and overturning | IBC 2021 Sec 1810.3.3.1.2, 1807.2.3 | Pile and wall factors of safety | Check / Uncertain (3.0) |
+| U7 | foundations.shallow.columnBase | φ 0.65, 0.85 f'c, √(A2/A1) <= 2, dowels 0.005 Ag | ACI 318-19 Sec 22.8.3, Table 21.2.1, Sec 16.3.4.1 | Column base | Check |
+| U8 | foundations.shallow.raftStiffness | rigid below 1.75/λ, spacings within 20 % | ACI 336.2R-88 (a report) | Raft class (a note) | Uncertain (the report's section) |
+| U9 | foundations sources | settlement limits, subgrade moduli, pile static methods, machine foundations: the default pack's values as SAEngine practice | none in IBC / ACI 318 | Kept values, no longer cited as BNBC | Owner to confirm |
+| U10 | anchors.breakoutShear.capCoefficient | Vb <= 3.7 λa √f'c ca1^1.5 (SI) | ACI 318-19 Eq 17.7.2.2.1b | Bound of the basic shear breakout | Check |
+| U11 | anchors.applicability.diameterMax | 100 mm (4 in) | ACI 318-19 Sec 17.3 / 17.6.2.2 | Breakout method range | Check |
+| U12 | anchors.seismic.categories | C, D, E, F | ACI 318-19 Sec 17.10.1 | Where the seismic rules apply | Check |
+| U13 | anchors (the rest) | φ, kc 10 / 7, 3.9 hef^(5/3), 8 Abrg f'c, 13 ca1 √Abrg, 0.6 (le/da)^0.2, kcp 1 / 2, 0.2 and 1.2 interaction, spacings 4 / 6 da: the values the default pack's Appendix K gives, cited by the Chapter 17 sections | ACI 318-19 Sec 17.5-17.9 | Unchanged values | Check (the 0.4 reduced-strength and 0.5 stud-wall options are not ACI 318-19 options: kept as SAEngine practice) |
+| U14 | plumbing.tanks.crackControl, steelStress | steelStress; 138 MPa (20 ksi) direct tension and flexure, all faces | ACI 350-06 Sec 9.2.6 | Service steel stress of liquid-retaining sections (Sd not applied separately) | Uncertain (flexure at the 20 ksi floor of fs,max: SAEngine practice) |
+| U15 | plumbing.tanks.surfaceZone | 0.003 of the section, half each face, the surface layer at most 300 mm | ACI 350-06 Sec 7.12.2.1-7.12.2.2 | Shrinkage and temperature steel (joints less than 9 m apart) | Uncertain (the ratio by joint spacing) |
+| U16 | plumbing.tanks.cover, weatherCover, againstEarth | 50 mm; 50 mm; 75 mm; f'c >= 28 MPa | ACI 350-06 Sec 7.7.1, 4.2 | Cover | Check |
+| U17 | plumbing.tanks.maxWaterCement, spacingMax | 0.45; 300 mm and 3h | ACI 350-06 Table 4.2.2, Sec 7.6.5 | Durability, spacing | Check |
+| U18 | plumbing.tanks.combinations | 1.4(D + F); 1.2(D + F) + 1.6H + 0.5Lr (H = 0, F = 0 variants); 0.9D + 1.6H; 1.2D + 1.6Lr; service D + F (+ H, + Lr), 0.6D + H | ACI 350-06 Sec 9.2.1, 9.2.6; ASCE 7-22 2.4.1 | Tank combinations | Check (the ACI 350 numbering) |
+| U19 | serviceability.deflection.uses | IBC Table 1604.3 (the default pack's rows have the same values) plus exterior walls with plaster or stucco l/360 | IBC 2021 Table 1604.3, notes a, h | Member deflections | Check |
+| U20 | serviceability.storeyDrift, sway | h/400 and H/400 under D + 0.5L + 0.6W | ASCE 7-22 Appendix C commentary CC.1.2 | Wind drift (no code limit) | Uncertain (SAEngine practice) |
+
 ## Not covered in this version (fall back or absent)
 
 - Timber: the NDS species and grades not listed (Southern Pine, the machine stress rated
@@ -502,13 +529,15 @@ Rows numbered S1-S18 (their own series, so the parallel tracks do not collide).
   walls of the strength method): BNBC 2020's, named so.
 - AISC 360-22 Appendix 4: the simple method only (rows S12-S17); the advanced method of
   analysis and the qualification testing are not covered.
-- The geotechnical foundation tables and the remaining material tables: inherited from BNBC 2020
-  (the report names them as the BNBC tables).
+- The remaining material tables: inherited from BNBC 2020 (the report names them as the BNBC
+  tables). Foundations (C12): the values IBC 2021 and ACI 318-19 do not give (settlement limits,
+  subgrade moduli, pile static methods, machine foundations) keep the default pack's numbers,
+  cited as SAEngine practice.
 - The seismic detailing rows of special, intermediate and ordinary frames (ductile members and
   joints) still print the extended pack's clause numbers in their row names: their values are
   ACI 318-19's (the same numbers), the row clauses are not yet read from the pack.
-- ACI 318 Chapter 17 anchorage and ACI 350 tanks: no ACI values in this version (the anchor and
-  tank checks use the extended pack's).
+- ACI 350 tanks (C12): the strength design stays ACI 318 with φ; the durability factor Sd is
+  represented by the service stress check (U14).
 - Dead load unit weights (`deadLoads`): BNBC's.
 - Nonstructural components (Ch 13), isolation (Ch 17), dampers (Ch 18), nonlinear response
   history (Ch 16), ice (Ch 10): BNBC's tables or not covered.

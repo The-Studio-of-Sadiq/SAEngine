@@ -605,6 +605,64 @@
       "title": "CrackWidthRules",
       "type": "object"
     },
+    "DeepBeamHogging": {
+      "additionalProperties": false,
+      "description": "The tension steel over the supports of continuous deep beams: a share a (l/D - b) of\nit within ``topZone`` D of the tension face, the rest within ``middleZone`` D each side of\nthe mid-depth; at l/D up to ``evenRatio`` spread evenly over ``evenZone`` D.",
+      "properties": {
+        "topShare": {
+          "description": "(a, b): share = a (l/D - b), 0-1.",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Topshare",
+          "type": "array"
+        },
+        "topZone": {
+          "description": "The top zone's depth / D.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Topzone",
+          "type": "number"
+        },
+        "middleZone": {
+          "description": "Half the middle zone's depth / D (about mid-depth).",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Middlezone",
+          "type": "number"
+        },
+        "evenRatio": {
+          "description": "At l/D up to this the steel is spread evenly.",
+          "exclusiveMinimum": 0,
+          "title": "Evenratio",
+          "type": "number"
+        },
+        "evenZone": {
+          "description": "... over this × D from the tension face.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Evenzone",
+          "type": "number"
+        }
+      },
+      "required": [
+        "topShare",
+        "topZone",
+        "middleZone",
+        "evenRatio",
+        "evenZone"
+      ],
+      "title": "DeepBeamHogging",
+      "type": "object"
+    },
     "DuctileBeamRules": {
       "additionalProperties": false,
       "properties": {
@@ -1860,6 +1918,17 @@
           ],
           "title": "Tensionzone",
           "type": "array"
+        },
+        "hogging": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DeepBeamHogging"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         }
       },
       "required": [

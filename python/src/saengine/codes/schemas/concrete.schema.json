@@ -1069,6 +1069,16 @@
           ],
           "default": null
         },
+        "tensionForm": {
+          "default": "root",
+          "description": "'root': the tension limits (transferTension, transferTensionEnds, tensionClassU, tensionClassT, tensionTwoWay, bondedPositiveTension) are k √f'ci or k √f'c; 'absolute': they are stresses [MPa].",
+          "enum": [
+            "root",
+            "absolute"
+          ],
+          "title": "Tensionform",
+          "type": "string"
+        },
         "note": {
           "default": "",
           "description": "Why the values are what they are.",

@@ -165,6 +165,29 @@
       "title": "DesignCategories",
       "type": "object"
     },
+    "DesignEccentricity": {
+      "additionalProperties": false,
+      "description": "The design eccentricity of the static torsion cases: ed = staticAmplification × es +\nthe accidental share, or es - the accidental share; es from the plan's centres of mass\nand rigidity (:mod:`saengine.fem.design_eccentricity`).",
+      "properties": {
+        "method": {
+          "const": "amplifiedStatic",
+          "default": "amplifiedStatic",
+          "title": "Method",
+          "type": "string"
+        },
+        "staticAmplification": {
+          "description": "a of a·es.",
+          "minimum": 1,
+          "title": "Staticamplification",
+          "type": "number"
+        }
+      },
+      "required": [
+        "staticAmplification"
+      ],
+      "title": "DesignEccentricity",
+      "type": "object"
+    },
     "DesignSpectrumRule": {
       "additionalProperties": false,
       "description": "The design spectrum: a method id the pack picks (C4, C1). Empty: ``reducedElastic``.\n\n- ``reducedElastic`` (the default pack's): Sa = pgaFactor·Z·I/R·Cs(T), Cs the elastic shape\n  of the site class (S, TB, TC, TD; :func:`saengine.fem.loads.design_acceleration`).\n- ``behaviourFactor`` (EN 1998-1 3.2.2.5): ag = Z·I, Sd = ag·S·[2/3 + T/TB·(2.5/q - 2/3)] up\n  to TB, ag·S·2.5/q to TC, ·TC/T to TD, ·TC·TD/T² beyond, at least ``lowerBound``·ag from TC\n  (:mod:`saengine.fem.spectra`); R stands for q.\n- ``mappedSpectral`` (ASCE 7-22 Ch 11-12, :mod:`saengine.fem.spectral_hazard`): the site's\n  SDS and SD1 (and S1, TL) entered from the code's hazard tool (Site > Mapped spectral\n  values) instead of a zone: a two-period spectrum (T0 = ``t0Share``·TS, TS = SD1/SDS;\n  ``rampStart``·SDS at T = 0 up to SDS at T0, SDS to TS, SD1/T to TL, SD1·TL/T² beyond) or\n  the site's multi-period design spectrum, × I/R; the equivalent lateral force coefficient\n  Cs = SDS/(R/Ie) ≤ SD1/(T R/Ie) (SD1 TL/(T² R/Ie) beyond TL) within ``csLimits``; the\n  Seismic Design Category read by the band of SDS and SD1 (``sdsBands``, ``sd1Bands``, the\n  more severe; the band after the last where S1 ≥ ``s1Extreme``) as zone packs read it by\n  zone; the period's upper limit Cu·Ta from ``periodUpper`` by SD1. The fields after\n  ``lowerBound`` are this method's.",
@@ -944,6 +967,37 @@
           "description": "C7: T = Ct·h^m / √d, d the base plan dimension along the shaking [m] (False: T = Ct·h^m).",
           "title": "Plandimension",
           "type": "boolean"
+        },
+        "wallArea": {
+          "default": false,
+          "description": "T = Ct·h^m / √Aw, Aw = Σ Awi (wallBase + min(Lwi/h, wallRatioMax)²) of the first storey's walls along the shaking [m²]; at least the lowerFamily's T.",
+          "title": "Wallarea",
+          "type": "boolean"
+        },
+        "wallBase": {
+          "default": 0.2,
+          "minimum": 0,
+          "title": "Wallbase",
+          "type": "number"
+        },
+        "wallRatioMax": {
+          "default": 0.9,
+          "exclusiveMinimum": 0,
+          "title": "Wallratiomax",
+          "type": "number"
+        },
+        "lowerFamily": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The family whose period bounds this one from below.",
+          "title": "Lowerfamily"
         }
       },
       "required": [
@@ -1818,6 +1872,17 @@
     "accidentalEccentricity": {
       "title": "Accidentaleccentricity",
       "type": "number"
+    },
+    "designEccentricity": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/DesignEccentricity"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
     },
     "orthogonalShare": {
       "title": "Orthogonalshare",

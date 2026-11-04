@@ -91,6 +91,9 @@ class DeepSpan:
     horizontal: tuple[float, float] | None = None
     #: Landing columns: (distance from the left face [mm], length along the beam [mm]).
     loads: list[tuple[float, float]] = field(default_factory=list)
+    #: C12: the top bars (As [mm²]) by zone from the top face: within 0.2 D (the pack's top
+    #: zone) and within the middle zone, for the hogging steel of continuous deep beams.
+    top_zones: tuple[float, float] = (0.0, 0.0)
 
 
 @dataclass
@@ -102,6 +105,8 @@ class SpanDemands:
     shear: tuple[float, str | None]  # largest shear
     #: Per landing column of :attr:`DeepSpan.loads`: (P, combination).
     loads: list[tuple[float, str | None]] = field(default_factory=list)
+    #: C12: the largest hogging moment at the supports (continuous spans), with its combination.
+    hogging: tuple[float, str | None] = (0.0, None)
 
 
 def is_deep(span: DeepSpan) -> tuple[bool, str]:
@@ -343,6 +348,73 @@ def lever_arm(span: DeepSpan, continuous: bool) -> float:
     return arm.coefficient * (length + arm.depthFactor * span.depth)
 
 
+def _hogging_checks(
+    span: DeepSpan, demands: SpanDemands, length: float, z: float, fyd: float, tail: str
+) -> list[dict[str, Any]]:
+    """C12: the support steel of a continuous deep beam by the pack's ``hogging`` zones: the
+    total for Mu = fyd As z, then the top zone's share a (l/D - b) and the rest at mid-depth
+    (the side face bars across the middle zone counted); spread evenly at small l/D."""
+    from saengine.design.check import _check
+
+    hog = lever_rules().hogging
+    mu, combination = demands.hogging
+    need = mu / (fyd * z)
+    top, middle = span.top_zones
+    side = 0.0
+    if span.horizontal and span.horizontal[1] > 0:
+        side = span.horizontal[0] * 2 * hog.middleZone * span.depth / span.horizontal[1]
+    ratio = length / span.depth
+    rows = [
+        _check(
+            "Deep beam support (hogging) steel",
+            mu / 1e6,
+            fyd * (top + middle + side) * z / 1e6,
+            "kN·m",
+            combination,
+            f"Mu <= fyd As z over the supports, z = {z:.0f} mm, As = {top:.0f} mm² (top "
+            f"zone) + {middle + side:.0f} mm² (middle zone, side bars included){tail}",
+        )
+    ]
+    if ratio <= hog.evenRatio:
+        rows.append(
+            _check(
+                "Deep beam support steel spread",
+                need,
+                top + middle + side,
+                "mm²",
+                combination,
+                f"l/D = {ratio:.2f} <= {hog.evenRatio:g}: the support steel spread evenly over "
+                f"{hog.evenZone:g} D from the tension face{tail}",
+            )
+        )
+        return rows
+    a, b = hog.topShare
+    share = min(max(a * (ratio - b), 0.0), 1.0)
+    rows.append(
+        _check(
+            "Deep beam support steel, top zone",
+            share * need,
+            top,
+            "mm²",
+            combination,
+            f"{share:.2f} of As = {need:.0f} mm² ({a:g} (l/D - {b:g}), l/D = {ratio:.2f}) within "
+            f"{hog.topZone:g} D of the top{tail}",
+        )
+    )
+    if share < 1.0:
+        rows.append(
+            _check(
+                "Deep beam support steel, middle zone",
+                (1 - share) * need,
+                middle + side,
+                "mm²",
+                combination,
+                f"the rest within {hog.middleZone:g} D each side of the mid-depth{tail}",
+            )
+        )
+    return rows
+
+
 def lever_span_checks(
     span: DeepSpan, demands: SpanDemands, where: str, continuous: bool
 ) -> list[dict[str, Any]]:
@@ -386,6 +458,8 @@ def lever_span_checks(
             f"(their zone {span.tie_height:.0f} mm){tail}",
         )
     )
+    if continuous and r.hogging is not None and demands.hogging[0] > 0:
+        checks += _hogging_checks(span, demands, length, z, fyd, tail)
     w = wall_rules()
     if w is None:
         return checks
@@ -460,6 +534,19 @@ def _tie(section: RcSection) -> tuple[float, float]:
     area = sum(b.area for b in low)
     centroid = sum(b.area * b.y for b in low) / area
     return area, 2 * (section.depth / 2 + centroid)
+
+
+def _top_zones(section: RcSection) -> tuple[float, float]:
+    """C12: (As within the pack's top zone, As within its middle zone) [mm²] of the section's
+    bars, measured from the top face (the hogging tension face); (0, 0) without the rules."""
+    rules = lever_rules()
+    hog = getattr(rules, "hogging", None) if rules is not None else None
+    if hog is None:
+        return 0.0, 0.0
+    depth = section.depth
+    top = sum(b.area for b in section.bars if depth / 2 - b.y <= hog.topZone * depth)
+    middle = sum(b.area for b in section.bars if abs(b.y) <= hog.middleZone * depth)
+    return float(top), float(middle)
 
 
 def _stations(
@@ -554,6 +641,7 @@ def member_checks(
         return [], []
     vertical, horizontal = _web_of(beam, section)
     tie_area, tie_height = _tie(section)
+    top_zones = _top_zones(section)  # C12: (0, 0) unless the pack checks hogging zones
     try:
         d = section.effective_depth(top=False)
     except ValueError:
@@ -582,6 +670,7 @@ def member_checks(
             vertical=vertical,
             horizontal=horizontal,
             loads=loads,
+            top_zones=top_zones,
         )
         lever = lever_rules() is not None  # Alpha 9 C9b: the pack's lever arm method
         continuous = len(below) > 2
@@ -628,6 +717,9 @@ def member_checks(
             shear=_peak(shear, combinations),
             loads=point_loads,
         )
+        if lever and continuous:  # C12: the support moment of a continuous deep beam
+            hog = np.max(np.stack([r[2] for r in inside]), axis=0)
+            demands.hogging = _peak(np.maximum(hog, 0.0), combinations)
         cited = _lever_cite() if lever else CLAUSES["deep"]
         where = f"span {s0 / 1e3:.2f}-{s1 / 1e3:.2f} m: deep ({why}, {cited})"
         if loads:

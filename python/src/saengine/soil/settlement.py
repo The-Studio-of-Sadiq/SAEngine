@@ -94,6 +94,28 @@ def _limits() -> tuple[Any, str] | None:
     return rows, table.sources.get("shallow.settlementLimits", "")
 
 
+def _rigidity() -> float | None:
+    """C12: the pack's ``foundations.shallow.settlementRigidity`` (None: not reduced)."""
+    from saengine.codes import context as code_context
+
+    try:
+        table = code_context.table("foundations")
+    except Exception:  # noqa: BLE001 - a pack without the table: no correction
+        return None
+    found = getattr(getattr(table, "shallow", None), "settlementRigidity", None)
+    return float(found) if found is not None else None
+
+
+def _rigidity_clause() -> str:
+    from saengine.codes import context as code_context
+
+    try:
+        found = code_context.table("foundations").sources.get("shallow.settlementRigidity", "")
+        return found.split(": ", 1)[0]
+    except Exception:  # noqa: BLE001
+        return ""
+
+
 def permissible(foundation: str, soil: str) -> dict[str, Any] | None:
     """The code pack's maximum settlement for a foundation type ("isolated" or "raft") and a
     soil column, for RCC structures (``value``) and for a multistoried framed building with
@@ -305,9 +327,15 @@ def settlement(
             i_top = steinbrenner_i1(m, (top - df) / half)
             i_bottom = steinbrenner_i1(m, (bottom - df) / half)
             ds = factor * (i_bottom - i_top) * 1e3
+            rigid = _rigidity() if foundation == "isolated" else None
+            if rigid is not None:  # C12: the pack's rigidity correction of a rigid footing
+                ds *= rigid
             immediate += ds
             row["immediate"] += ds
-            row["method"].append("elastic, Steinbrenner")
+            row["method"].append(
+                "elastic, Steinbrenner"
+                + (f", × {rigid:g} rigid footing ({_rigidity_clause()})" if rigid else "")
+            )
         else:
             notes.append(f"layer {layer.index + 1}: no undrained modulus, no immediate settlement")
         if layer.calpha and layer.e0 is not None and years_secondary > years_primary:

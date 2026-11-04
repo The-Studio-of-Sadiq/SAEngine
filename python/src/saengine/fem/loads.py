@@ -25,15 +25,40 @@ from saengine.fem.slab_load_shapes import EdgeProfile, slab_load_shapes
 # ───────────────────────── seismic: equivalent static force method ─────────────────────────
 
 
-def approximate_period(height: float, system: str, depth: float | None = None) -> float:
+def approximate_period(
+    height: float,
+    system: str,
+    depth: float | None = None,
+    walls: list[tuple[float, float]] | None = None,
+    family: str | None = None,
+) -> float:
     """Fundamental period T = Ct·hn^m [s] for a building ``height`` metres tall; C7: for a period
     family of the pack with ``planDimension`` T = Ct·hn^m / √d, d = ``depth`` the base plan
-    dimension along the shaking [m] (without it d = hn: the caller gives no plan)."""
+    dimension along the shaking [m] (without it d = hn: the caller gives no plan). C12: a family
+    with ``wallArea`` takes T = Ct·hn^m / √Aw from ``walls`` (area Awi [m²], length Lwi [m] of
+    the first storey's walls along the shaking), at least its ``lowerFamily``'s period; without
+    walls the lower family's period alone."""
     seismic = code_context.table("seismic")
-    row = seismic.systems.get(system)
-    family = (row.periodFamily if row else None) or "other"
+    if family is None:
+        row = seismic.systems.get(system)
+        family = (row.periodFamily if row else None) or "other"
     coefficient = seismic.periodCoefficients[family]
     ct, m = coefficient.Ct, coefficient.m
+    if getattr(coefficient, "wallArea", False):
+        lower = coefficient.lowerFamily
+        bound = (
+            approximate_period(height, system, depth, None, lower)
+            if lower and lower != family
+            else 0.0
+        )
+        cap = coefficient.wallRatioMax
+        aw = sum(
+            a * (coefficient.wallBase + min(length / max(height, 1e-9), cap) ** 2)
+            for a, length in (walls or [])
+        )
+        if aw <= 0:
+            return bound if bound > 0 else ct * height**m
+        return max(ct * height**m / math.sqrt(aw), bound)
     if getattr(coefficient, "planDimension", False):
         d = depth if depth and depth > 0 else max(height, 1e-9)
         return ct * height**m / math.sqrt(d)
