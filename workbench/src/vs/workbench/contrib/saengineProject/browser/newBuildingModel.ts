@@ -27,7 +27,8 @@ export type StructuralSystemChoice = 'rcFrame' | 'rcFrameCore' | 'flatSlab' | 'm
 export type FootingChoice = 'isolated' | 'mat' | 'none';
 export type OccupancyCategory = 'I' | 'II' | 'III' | 'IV';
 /** BNBC 2020 site classes (Part 6, Table 6.2.13), as in the project settings (`site.siteClass`). */
-export type SiteClass = 'SA' | 'SB' | 'SC' | 'SD' | 'SE';
+/** C7: a pack other than the default has its own site classes (IS soil types I-III). */
+export type SiteClass = string;
 
 export const SYSTEM_CHOICES: readonly { readonly value: StructuralSystemChoice; readonly label: string; readonly description: string }[] = [
 	{ value: 'rcFrame', label: localize('system.rcFrame', "RC frame"), description: localize('system.rcFrame.description', "Columns at every grid intersection, beams on every grid line, a slab in every bay.") },
@@ -104,6 +105,8 @@ export interface INewBuildingForm {
 	readonly zoneCoefficient: string;
 	readonly windSpeed: string;
 	readonly exposure: string;
+	/** C7: the chosen pack lists its own towns: the location is one of them, not Custom. */
+	readonly packTowns?: boolean;
 }
 
 /**
@@ -411,6 +414,14 @@ function otherPackSite(form: INewBuildingForm): { designCode: string; site?: INe
 	}
 	const z = Number(form.zoneCoefficient);
 	const v = Number(form.windSpeed);
+	if (form.packTowns) {
+		// C7: a pack with towns (IS): the town sets Z and V, the site class is one of the pack's.
+		return {
+			designCode: code,
+			site: { location: form.location, siteClass: form.siteClass, siteClassSource: 'assumed' },
+			...(form.exposure ? { wind: { exposure: form.exposure } } : {}),
+		};
+	}
 	return {
 		designCode: code,
 		site: {

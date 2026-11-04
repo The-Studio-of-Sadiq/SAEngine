@@ -368,13 +368,6 @@
     "siteClass": {
       "anyOf": [
         {
-          "enum": [
-            "SA",
-            "SB",
-            "SC",
-            "SD",
-            "SE"
-          ],
           "type": "string"
         },
         {
@@ -382,6 +375,7 @@
         }
       ],
       "default": null,
+      "description": "One of the code pack's site classes (the default pack: SA-SE); none: the settings' class.",
       "title": "Siteclass"
     },
     "siteClassSource": {

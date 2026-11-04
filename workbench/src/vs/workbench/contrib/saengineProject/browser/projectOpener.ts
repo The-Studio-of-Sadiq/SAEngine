@@ -11,6 +11,8 @@ import { localize } from '../../../../nls.js';
 import { IDialogService, IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
+import { DEFAULT_CODE_PACK_ID } from '../../../services/saengineProject/common/activeCodePack.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { IPathService } from '../../../services/path/common/pathService.js';
 import { ISaengineProject, ISaengineProjectService, partById, ProjectType } from '../../../services/saengineProject/common/saengineProject.js';
@@ -63,6 +65,7 @@ export class ProjectOpener {
 		@IHostService private readonly hostService: IHostService,
 		@IPathService private readonly pathService: IPathService,
 		@IStorageService private readonly storageService: IStorageService,
+		@ICommandService private readonly commandService: ICommandService,
 	) { }
 
 	async defaultLocation(): Promise<URI> {
@@ -160,7 +163,26 @@ export class ProjectOpener {
 		if (choices.use) {
 			settings.occupancy = { ...settings.occupancy, use: choices.use };
 		}
-		await this.fileService.writeFile(file, VSBuffer.fromString(JSON.stringify(settings, undefined, '\t') + '\n'));
+		const adapted = choices.codePack && choices.codePack !== DEFAULT_CODE_PACK_ID ? await this.settingsForPack(settings, choices.codePack, project.root.fsPath) : undefined;
+		await this.fileService.writeFile(file, VSBuffer.fromString(JSON.stringify(adapted ?? settings, undefined, '\t') + '\n'));
+	}
+
+	/**
+	 * The settings switched to another code pack by the backend (`saengine.codes.settingsForPack`:
+	 * the town, site class, systems and exposure the pack lists, its area loads and combinations);
+	 * undefined without the backend or when it refuses (the settings then name the pack only, and
+	 * Project Settings shows what to choose).
+	 */
+	private async settingsForPack(settings: object, codePack: string, root: string): Promise<object | undefined> {
+		if (!CommandsRegistry.getCommand('saengine.codes.settingsForPack')) {
+			return undefined;
+		}
+		try {
+			const result = await this.commandService.executeCommand<{ readonly settings?: object }>('saengine.codes.settingsForPack', { settings: JSON.stringify(settings), id: codePack, root });
+			return result?.settings;
+		} catch {
+			return undefined;
+		}
 	}
 
 	/** Asks for a folder and opens it, offering to add the project structure if it has none. */

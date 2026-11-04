@@ -1,0 +1,92 @@
+{
+  "schema": "saengine.codePack/1",
+  "id": "is-codes",
+  "name": "Indian Standards (IS)",
+  "edition": "IS 875 (Parts 1, 2, 3:2015, 5), IS 1893 (Part 1):2016",
+  "country": "IN",
+  "version": "0.1.0",
+  "extends": "bnbc2020",
+  "covers": [
+    "locations",
+    "zoneCoefficients",
+    "occupancyCategories",
+    "areaLoads",
+    "deadLoads",
+    "liveReduction",
+    "combinations",
+    "seismic",
+    "wind"
+  ],
+  "description": "Indian Standards, loads (alpha 9 track C7): unit weights (IS 875 Part 1), imposed loads and their reduction (Part 2), wind by the design wind speed Vz = Vb k1 k2 k3 k4 (Part 3:2015), load combinations (Part 5 with IS 456 Table 18 and IS 1893 6.3.4), and earthquake to IS 1893 (Part 1):2016 (zones, soil types I-III, R, I, Ah = (Z/2)(I/R)(Sa/g), Ta, the least base shear, Qi by hi², scaling to VB, drift 0.004, irregularities). Materials are not covered yet: concrete, steel, masonry, timber, foundations, detailing, services and every other table come from BNBC 2020 (the pack this one extends) until the IS material packs exist. Every value names its clause; VERIFY.md lists them for checking against the printed codes.",
+  "sources": [
+    {
+      "id": "IS875-1",
+      "title": "IS 875 (Part 1) Code of practice for design loads (other than earthquake): dead loads",
+      "edition": "1987",
+      "publisher": "Bureau of Indian Standards"
+    },
+    {
+      "id": "IS875-2",
+      "title": "IS 875 (Part 2) Code of practice for design loads (other than earthquake): imposed loads",
+      "edition": "1987",
+      "publisher": "Bureau of Indian Standards"
+    },
+    {
+      "id": "IS875-3",
+      "title": "IS 875 (Part 3) Design loads (other than earthquake) for buildings and structures: wind loads",
+      "edition": "2015",
+      "publisher": "Bureau of Indian Standards"
+    },
+    {
+      "id": "IS875-5",
+      "title": "IS 875 (Part 5) Code of practice for design loads (other than earthquake): special loads and combinations",
+      "edition": "1987",
+      "publisher": "Bureau of Indian Standards"
+    },
+    {
+      "id": "IS1893-1",
+      "title": "IS 1893 (Part 1) Criteria for earthquake resistant design of structures: general provisions and buildings",
+      "edition": "2016",
+      "publisher": "Bureau of Indian Standards"
+    }
+  ],
+  "clauses": {
+    "locations": [
+      "IS 875 (Part 3):2015 Annex A",
+      "IS 1893 (Part 1):2016 Annex E"
+    ],
+    "zoneCoefficients": [
+      "IS 1893 (Part 1):2016 Table 3"
+    ],
+    "occupancyCategories": [
+      "IS 1893 (Part 1):2016 Table 8",
+      "IS 875 (Part 3):2015 Table 1"
+    ],
+    "areaLoads": [
+      "IS 875 (Part 2):1987 Tables 1 and 2"
+    ],
+    "deadLoads": [
+      "IS 875 (Part 1):1987 Table 1"
+    ],
+    "liveReduction": [
+      "IS 875 (Part 2):1987 Clause 3.2, Table 3"
+    ],
+    "combinations": [
+      "IS 875 (Part 5):1987 Clause 8.4",
+      "IS 456:2000 Table 18",
+      "IS 1893 (Part 1):2016 Clause 6.3.4"
+    ],
+    "seismic": [
+      "IS 1893 (Part 1):2016 Clauses 6-7"
+    ],
+    "wind": [
+      "IS 875 (Part 3):2015 Clauses 6-7"
+    ]
+  },
+  "basis": {
+    "general": "IS 875 (Parts 1-3, 5), IS 1893 (Part 1):2016"
+  },
+  "author": "SAEngine contributors",
+  "licence": "AGPL-3.0-only",
+  "hooks": null
+}

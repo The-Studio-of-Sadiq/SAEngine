@@ -33,6 +33,6 @@ export function plannedCodePacks(): readonly IPlannedCodePack[] {
 	return [
 		{ feature: PLANNED_CODE_PACK_US, name: localize('plannedPack.us', "ACI 318-19 + ASCE 7-22"), region: localize('plannedPack.usRegion', "United States") },
 		{ feature: PLANNED_CODE_PACK_EUROCODES, name: localize('plannedPack.eurocodes', "Eurocodes EN 1990–1998 with National Annexes"), region: localize('plannedPack.eurocodesRegion', "Europe"), coveredBy: { packId: 'eurocodes', what: localize('plannedPack.eurocodesCovered', "Loads and seismic actions (EN 1990, EN 1991, EN 1998-1) are covered by the built-in Eurocodes pack; the materials (EN 1992 to EN 1999) are planned.") } },
-		{ feature: PLANNED_CODE_PACK_INDIA, name: localize('plannedPack.india', "IS 456, 1893, 800, 875, 13920"), region: localize('plannedPack.indiaRegion', "India") },
+		{ feature: PLANNED_CODE_PACK_INDIA, name: localize('plannedPack.india', "IS 456, 1893, 800, 875, 13920"), region: localize('plannedPack.indiaRegion', "India"), coveredBy: { packId: 'is-codes', what: localize('plannedPack.indiaCovered', "Loads and seismic actions (IS 875 Parts 1, 2, 3 and 5, IS 1893 Part 1) are covered by the built-in Indian Standards (IS) pack; the materials (IS 456, IS 800, IS 13920) are planned.") } },
 	];
 }

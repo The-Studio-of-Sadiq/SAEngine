@@ -1,0 +1,155 @@
+{
+  "$schema": "../../../schemas/combinations.schema.json",
+  "$replace": true,
+  "$sources": [
+    "IS 875 (Part 5):1987 Clause 8.4 and IS 1893 (Part 1):2016 Clause 6.3.4",
+    "IS 456:2000 Table 18 (partial safety factors for loads)"
+  ],
+  "source": "IS 875 (Part 5):1987 Clause 8.4 and IS 1893 (Part 1):2016 Clause 6.3.4; IS 456:2000 Table 18. D includes the superimposed dead load SD; L includes the roof imposed load Lr (IS takes the roof imposed load as imposed load).",
+  "loadCases": {
+    "D": "Dead (self-weight)",
+    "SD": "Superimposed dead (finishes)",
+    "L": "Imposed (live)",
+    "Lr": "Roof imposed",
+    "WX": "Wind in X",
+    "WY": "Wind in Y",
+    "EX": "Earthquake in X",
+    "EY": "Earthquake in Y",
+    "F": "Fluids (equipment contents)",
+    "H": "Earth and groundwater pressure (basement walls)",
+    "T": "Temperature"
+  },
+  "strength": [
+    {
+      "id": "1",
+      "name": "1.5(D + L)",
+      "factors": {
+        "D": 1.5,
+        "F": 1.5,
+        "L": 1.5,
+        "Lr": 1.5,
+        "H": 1.5
+      },
+      "source": "IS 456:2000 Table 18, IS 875 (Part 5):1987 Clause 8.4: 1.5 (DL + IL)"
+    },
+    {
+      "id": "2W",
+      "name": "1.2(D + L + W)",
+      "factors": {
+        "D": 1.2,
+        "F": 1.2,
+        "L": 1.2,
+        "Lr": 1.2,
+        "W": 1.2
+      },
+      "source": "IS 456:2000 Table 18: 1.2 (DL + IL ± WL)"
+    },
+    {
+      "id": "2E",
+      "name": "1.2(D + L + E)",
+      "factors": {
+        "D": 1.2,
+        "F": 1.2,
+        "L": 1.2,
+        "E": 1.2
+      },
+      "source": "IS 1893 (Part 1):2016 Clause 6.3.4.1: 1.2 (DL + IL ± EL)"
+    },
+    {
+      "id": "3W",
+      "name": "1.5(D + W)",
+      "factors": {
+        "D": 1.5,
+        "F": 1.5,
+        "W": 1.5
+      },
+      "source": "IS 456:2000 Table 18: 1.5 (DL ± WL)"
+    },
+    {
+      "id": "3E",
+      "name": "1.5(D + E)",
+      "factors": {
+        "D": 1.5,
+        "F": 1.5,
+        "E": 1.5
+      },
+      "source": "IS 1893 (Part 1):2016 Clause 6.3.4.1: 1.5 (DL ± EL)"
+    },
+    {
+      "id": "4W",
+      "name": "0.9D + 1.5W",
+      "factors": {
+        "D": 0.9,
+        "W": 1.5
+      },
+      "source": "IS 456:2000 Table 18 note / IS 875 (Part 5):1987 Clause 8.4: 0.9 DL ± 1.5 WL (dead load favourable)"
+    },
+    {
+      "id": "4E",
+      "name": "0.9D + 1.5E",
+      "factors": {
+        "D": 0.9,
+        "E": 1.5
+      },
+      "source": "IS 1893 (Part 1):2016 Clause 6.3.4.1: 0.9 DL ± 1.5 EL"
+    }
+  ],
+  "service": [
+    {
+      "id": "1",
+      "name": "D + L",
+      "factors": {
+        "D": 1.0,
+        "L": 1.0,
+        "Lr": 1.0
+      },
+      "source": "IS 456:2000 Table 18 serviceability: 1.0 (DL + IL)"
+    },
+    {
+      "id": "2",
+      "name": "D + W",
+      "factors": {
+        "D": 1.0,
+        "W": 1.0
+      },
+      "source": "IS 456:2000 Table 18 serviceability: 1.0 (DL + WL)"
+    },
+    {
+      "id": "3",
+      "name": "D + 0.8L + 0.8W",
+      "factors": {
+        "D": 1.0,
+        "L": 0.8,
+        "W": 0.8
+      },
+      "source": "IS 456:2000 Table 18 serviceability: 1.0 DL + 0.8 IL + 0.8 WL (the wind service combination the storey drift and sway checks name)"
+    }
+  ],
+  "gravity": [
+    {
+      "name": "1.5(D + L)",
+      "factors": {
+        "D": 1.5,
+        "L": 1.5
+      }
+    }
+  ],
+  "temperature": [],
+  "seismicDeadUpper": 1.2,
+  "seismicDeadLower": 0.9,
+  "overstrength": "IS 1893 (Part 1):2016 has no system overstrength factor in its load combinations; Ω0 (2.5) is SAEngine's for the elements the design names (collectors, transfer members)",
+  "optionalCases": [
+    "F",
+    "H",
+    "T"
+  ],
+  "sources": {
+    "strength": "IS 875 (Part 5):1987 Clause 8.4 and IS 1893 (Part 1):2016 Clause 6.3.4",
+    "service": "IS 456:2000 Table 18 (limit state of serviceability)",
+    "seismicDeadUpper": "IS 1893 (Part 1):2016 Clause 6.3.4.1: 1.2 (DL + IL ± EL)",
+    "seismicDeadLower": "IS 1893 (Part 1):2016 Clause 6.3.4.1: 0.9 DL ± 1.5 EL"
+  },
+  "clauses": {
+    "strength": "IS 875 (Part 5) Clause 8.4; IS 1893 (Part 1) Clause 6.3.4"
+  }
+}

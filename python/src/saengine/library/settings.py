@@ -2661,14 +2661,97 @@ def default_area_loads() -> list[AreaLoad]:
     ]
 
 
-def default_project_settings(name: str = "Project") -> ProjectSettings:
-    return ProjectSettings(
+def default_project_settings(
+    name: str = "Project", code_pack: str | None = None
+) -> ProjectSettings:
+    """A new project's settings; with ``code_pack`` (another pack than the default) the
+    settings of :func:`settings_for_pack` under it."""
+    settings = ProjectSettings(
         project=ProjectInfo(name=name),
         areaLoads=default_area_loads(),
         floorLoad="FL",
         roofLoad="RF",
         combinations=strength_combinations(),
     )
+    if code_pack and code_pack != settings.codePack:
+        return settings_for_pack(settings, code_pack)
+    return settings
+
+
+def settings_for_pack(
+    settings: ProjectSettings | dict[str, Any], code_pack: str
+) -> ProjectSettings:
+    """``settings`` switched to the code pack ``code_pack`` (C7): every choice the pack's lists
+    lack (town, site class, systems, exposure, area uses) becomes the pack's default (its
+    ``locations.default``, ``seismic.defaultSiteClass``, ``seismic.defaultSystem``,
+    ``wind.defaultExposure``, else the first of its list); the area loads take the pack's live
+    load of their use, and the combinations the pack's. Raises :class:`CodePackError` when the
+    pack cannot be found (with the project's own packs of
+    :func:`saengine.codes.context.project`)."""
+    data = (
+        settings.model_dump(mode="json", by_alias=True, exclude_none=True)
+        if isinstance(settings, ProjectSettings)
+        else dict(settings)
+    )
+    data["codePack"] = code_pack
+    pack = code_context.pack_for(
+        {"codePack": code_pack, "codeOverrides": data.get("codeOverrides") or {}}, strict=True
+    )
+    lists = {k: [c["id"] for c in v] for k, v in pack_choices(pack).items()}
+
+    def pick(key: str, value: Any, preferred: str | None) -> Any:
+        ids = lists.get(key)
+        if not ids or value in ids:
+            return value
+        return preferred if preferred in ids else ids[0]
+
+    seismic = pack.table("seismic") if pack.has("seismic") else None
+    wind = pack.table("wind") if pack.has("wind") else None
+    locations = pack.table("locations") if pack.has("locations") else None
+    site = dict(data.get("site") or {})
+    if site.get("location") != "custom":
+        site["location"] = pick(
+            "locations", site.get("location", "dhaka"), getattr(locations, "default", None)
+        )
+    site["siteClass"] = pick(
+        "siteClasses", site.get("siteClass", "SD"), getattr(seismic, "defaultSiteClass", None)
+    )
+    data["site"] = site
+    quake = dict(data.get("seismic") or {})
+    default_system = getattr(seismic, "defaultSystem", None)
+    quake["system"] = pick("systems", quake.get("system", "rcSmf"), default_system)
+    if quake.get("systemY") is not None:
+        quake["systemY"] = pick("systems", quake["systemY"], default_system)
+    for key in ("otherSystems", "otherSystemsY"):
+        if quake.get(key):
+            quake[key] = [v for v in quake[key] if v in lists.get("systems", [v])]
+    data["seismic"] = quake
+    wind_data = dict(data.get("wind") or {})
+    wind_data["exposure"] = pick(
+        "exposures", wind_data.get("exposure", "A"), getattr(wind, "defaultExposure", None)
+    )
+    data["wind"] = wind_data
+    if pack.has("areaLoads"):
+        uses = pack.table("areaLoads").uses
+        allowance = getattr(pack.table("areaLoads"), "partitions", None)
+        loads = []
+        for load in data.get("areaLoads") or []:
+            load = dict(load)
+            use = load.get("use")
+            if allowance is not None and load.get("partitions"):
+                load["partitions"] = allowance.minimum
+            if use in uses:
+                load["live"] = uses[use].live
+            elif use != "custom":
+                load["use"] = "custom"
+            loads.append(load)
+        data["areaLoads"] = loads
+    if pack.has("combinations"):
+        data["combinations"] = [
+            c.model_dump(mode="json", by_alias=True, exclude_none=True)
+            for c in strength_combinations(pack=pack)
+        ]
+    return ProjectSettings.model_validate(data)
 
 
 def code_pack(settings: ProjectSettings | None = None) -> CodePack:

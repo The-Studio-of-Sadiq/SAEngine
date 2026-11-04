@@ -200,7 +200,11 @@ class BuildingSpec(_Spec):
     windExposure: str | None = Field(
         default=None, description="Exposure or terrain category id of the pack's wind table."
     )
-    siteClass: Literal["SA", "SB", "SC", "SD", "SE"] | None = None
+    siteClass: str | None = Field(
+        default=None,
+        description="One of the code pack's site classes (the default pack: SA-SE); none: the "
+        "settings' class.",
+    )
     siteClassSource: Literal["entered", "assumed"] = Field(
         default="entered",
         description="How siteClass was found: entered (known, e.g. from a soil report read by "
@@ -608,7 +612,7 @@ def stiffness_estimate(
     values = derived(settings)
     tops = list(itertools.accumulate(heights[1:]))
     rel = [t / 1000 for t in tops]
-    ta = fl.approximate_period(rel[-1], settings.seismic.system)
+    ta = fl.approximate_period(rel[-1], settings.seismic.system, (xs[-1] - xs[0]) / 1000)
     upper = code_context.table("seismic").periodUpperFactor
     shape = fl.vertical_distribution(list(zip(rel, weights, strict=True)), 1.0, ta)
     lx_m, ly_m = (xs[-1] - xs[0]) / 1000, (ys[-1] - ys[0]) / 1000
@@ -782,7 +786,7 @@ def lateral_column_sizes(
     forces: dict[str, list[float]] = {}
     if seismic and values["Z"]:
         weights = parts.get("seismicLevels", parts["levels"])[1:]
-        period = fl.approximate_period(base[-1] / 1000, settings.seismic.system)
+        period = fl.approximate_period(base[-1] / 1000, settings.seismic.system, lx_m)
         sa = fl.design_acceleration(
             period, settings.site.siteClass, values["Z"], values["seismicImportance"], values["R"]
         )
@@ -1347,7 +1351,18 @@ def _code_pack_patch(
     ]
     towns = pack.table("locations").locations if pack.has("locations") else {}
     if (s.location or base.site.location) not in towns:
-        site["location"] = "custom"
+        # C7: a pack with towns starts at its default town (else the first); without: Custom.
+        default = getattr(pack.table("locations"), "default", None) if towns else None
+        town = default if default in towns else next(iter(towns), None)
+        site["location"] = town if town and s.zoneCoefficient is None else "custom"
+    else:
+        site["location"] = s.location or base.site.location
+    seismic = pack.table("seismic") if pack.has("seismic") else None
+    classes = list(seismic.siteClasses) if seismic is not None else []
+    if classes and site.get("siteClass", base.site.siteClass) not in classes:
+        # C7: the pack's default site class (its first) where the spec's is not one of its own.
+        chosen = getattr(seismic, "defaultSiteClass", None)
+        site["siteClass"] = chosen if chosen in classes else classes[0]
     if s.zoneCoefficient is not None:
         site["zoneCoefficient"] = s.zoneCoefficient
     if s.windSpeed is not None:
@@ -1355,7 +1370,8 @@ def _code_pack_patch(
     exposures = list(pack.table("wind").exposures) if pack.has("wind") else []
     exposure = s.windExposure or base.wind.exposure
     if exposures and exposure not in exposures:
-        exposure = "II" if "II" in exposures else exposures[0]
+        chosen = getattr(pack.table("wind"), "defaultExposure", None)  # C7
+        exposure = chosen if chosen in exposures else "II" if "II" in exposures else exposures[0]
     if exposures:
         patch["wind"] = {"exposure": exposure}
     notes.append(
@@ -1377,6 +1393,21 @@ def generate_building(spec: BuildingSpec | dict[str, Any], settings: Any = None)
     "settingsPatch", "notes", "summary"}``; the parts as JSON (validated by their models).
     """
     s = spec if isinstance(spec, BuildingSpec) else BuildingSpec.model_validate(spec)
+    if s.codePack:
+        # C7: a pack that names its own default system (its systems carry the category height
+        # limits the system choice reads: is-codes) is generated under it (its systems, period
+        # and loads); other packs as before, under the settings' pack.
+        from saengine.codes import registry
+
+        pack = registry.load(s.codePack, code_context.project_root())
+        if pack.has("seismic") and getattr(pack.table("seismic"), "defaultSystem", None):
+            with code_context.using(pack):
+                return _generate_building(s, settings)
+    return _generate_building(s, settings)
+
+
+def _generate_building(s: BuildingSpec, settings: Any) -> dict[str, Any]:
+    """:func:`generate_building` of the parsed ``s``."""
     if s.system == "masonry":
         # T31: load-bearing masonry walls, a generator of their own.
         from saengine.library.masonry_building import generate_masonry_building

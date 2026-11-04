@@ -259,6 +259,12 @@ CommandsRegistry.registerCommand('saengine.codes.choices', async (accessor, raw:
 	return orThrow(await call(accessor, 'codes/choices', { id: args.id, root: str(args.root) }));
 });
 
+// C7: a new project's settings under another code pack (its town, site class, systems, exposure, area loads and combinations).
+CommandsRegistry.registerCommand('saengine.codes.settingsForPack', async (accessor, raw: unknown) => {
+	const args = bag(raw);
+	return orThrow(await call(accessor, 'codes/settingsForPack', { settings: str(args.settings), id: args.id, root: str(args.root) }));
+});
+
 // Project Settings > Code Values: the pack the settings choose with their overrides, and the values of one table.
 CommandsRegistry.registerCommand('saengine.codes.values', async (accessor, raw: unknown) => {
 	const args = bag(raw);

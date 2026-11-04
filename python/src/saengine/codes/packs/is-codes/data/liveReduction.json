@@ -1,0 +1,67 @@
+{
+  "$schema": "../../../schemas/liveReduction.schema.json",
+  "$replace": true,
+  "$sources": [
+    "IS 875 (Part 2):1987 Clause 3.2, Table 3"
+  ],
+  "source": "IS 875 (Part 2):1987 Clause 3.2 (reduction in imposed floor loads)",
+  "method": "floorCount",
+  "floorCount": {
+    "rows": [
+      [
+        1,
+        0.0
+      ],
+      [
+        2,
+        0.1
+      ],
+      [
+        3,
+        0.2
+      ],
+      [
+        4,
+        0.3
+      ],
+      [
+        10,
+        0.4
+      ],
+      [
+        1000,
+        0.5
+      ]
+    ],
+    "beamArea": 50.0,
+    "beamShare": 0.05,
+    "beamMax": 0.25
+  },
+  "heavyLive": 5.0,
+  "heavyFactor": 1.0,
+  "notReduced": [
+    "storageLight",
+    "libraryStacks",
+    "manufacturingLight",
+    "manufacturingMedium",
+    "manufacturingHeavy",
+    "wholesale",
+    "parking"
+  ],
+  "twoFloorsOnly": [],
+  "kll": {
+    "interiorColumn": 1,
+    "exteriorColumn": 1,
+    "edgeColumnCantilever": 1,
+    "cornerColumnCantilever": 1,
+    "interiorBeam": 1,
+    "edgeBeam": 1,
+    "other": 1
+  },
+  "sources": {
+    "floorCount.rows": "IS 875 (Part 2):1987 Clause 3.2.1, Table 3: reduction of the imposed load on columns, piers, walls and foundations by the number of floors (including the roof) carried: 1 0 %, 2 10 %, 3 20 %, 4 30 %, 5-10 40 %, over 10 50 %",
+    "floorCount.beamArea": "IS 875 (Part 2):1987 Clause 3.2.2: a beam supporting at least 50 m² of floor at one level, 5 % for each 50 m², at most 25 %",
+    "heavyLive": "IS 875 (Part 2):1987 Clause 3.2.1: no reduction for loads due to storage and for factories and warehouses (SAEngine reads it as the uses in notReduced and floors over 5.0 kN/m²)",
+    "kll": "Not an IS 875 value: the floor-count rule has no live load element factor (all 1)"
+  }
+}

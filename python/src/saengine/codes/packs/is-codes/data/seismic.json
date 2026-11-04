@@ -1,0 +1,613 @@
+{
+  "$schema": "../../../schemas/seismic.schema.json",
+  "$replace": true,
+  "$sources": [
+    "IS 1893 (Part 1):2016 Clauses 6-7"
+  ],
+  "source": "IS 1893 (Part 1):2016: design horizontal acceleration coefficient Ah = (Z/2)(I/R)(Sa/g) (Clause 6.4.2), the equivalent static (7.6) and dynamic (7.7) methods, drift (7.11)",
+  "defaultSiteClass": "II",
+  "defaultSystem": "rcSmf",
+  "siteClasses": {
+    "I": {
+      "description": "Type I: rock or hard soil (well graded gravel, sand-gravel, dense sand; N > 30)",
+      "S": 1.0,
+      "TB": 0.1,
+      "TC": 0.4,
+      "TD": 4.0
+    },
+    "II": {
+      "description": "Type II: medium or stiff soil (poorly graded sand, sand with little fines; N 10-30)",
+      "S": 1.0,
+      "TB": 0.1,
+      "TC": 0.544,
+      "TD": 4.0
+    },
+    "III": {
+      "description": "Type III: soft soil (N < 10)",
+      "S": 1.0,
+      "TB": 0.1,
+      "TC": 0.668,
+      "TD": 4.0
+    }
+  },
+  "designSpectrum": {
+    "method": "reducedElastic",
+    "factor": 0.5,
+    "longPeriod": "constant",
+    "staticPlateau": true,
+    "clause": "IS 1893 (Part 1):2016 Clause 6.4.2"
+  },
+  "systems": {
+    "rcSmf": {
+      "name": "RC special moment resisting frame (SMRF)",
+      "R": 5.0,
+      "Omega0": 2.5,
+      "Cd": 5.0,
+      "row": "Table 9 (i)(b)",
+      "heightLimits": {
+        "B": null,
+        "C": null,
+        "D": null
+      },
+      "frame": "special",
+      "specialWalls": false,
+      "concrete": true,
+      "momentFrame": true,
+      "periodFamily": "concreteMomentFrame",
+      "group": "momentFrame",
+      "dual": false
+    },
+    "rcOmf": {
+      "name": "RC ordinary moment resisting frame (OMRF)",
+      "R": 3.0,
+      "Omega0": 2.5,
+      "Cd": 3.0,
+      "row": "Table 9 (i)(a)",
+      "heightLimits": {
+        "B": null,
+        "C": 0.0,
+        "D": 0.0
+      },
+      "frame": "ordinary",
+      "specialWalls": false,
+      "concrete": true,
+      "momentFrame": true,
+      "periodFamily": "concreteMomentFrame",
+      "group": "momentFrame",
+      "dual": false
+    },
+    "steelSmf": {
+      "name": "Steel special moment resisting frame",
+      "R": 5.0,
+      "Omega0": 2.5,
+      "Cd": 5.0,
+      "row": "Table 9 (i)(d)",
+      "heightLimits": {
+        "B": null,
+        "C": null,
+        "D": null
+      },
+      "frame": null,
+      "specialWalls": false,
+      "concrete": false,
+      "momentFrame": true,
+      "periodFamily": "steelMomentFrame",
+      "group": "momentFrame",
+      "dual": false
+    },
+    "steelOmf": {
+      "name": "Steel ordinary moment resisting frame",
+      "R": 3.0,
+      "Omega0": 2.5,
+      "Cd": 3.0,
+      "row": "Table 9 (i)(c)",
+      "heightLimits": {
+        "B": null,
+        "C": 0.0,
+        "D": 0.0
+      },
+      "frame": null,
+      "specialWalls": false,
+      "concrete": false,
+      "momentFrame": true,
+      "periodFamily": "steelMomentFrame",
+      "group": "momentFrame",
+      "dual": false
+    },
+    "steelScbf": {
+      "name": "Steel concentric braced frame",
+      "R": 4.0,
+      "Omega0": 2.5,
+      "Cd": 4.0,
+      "row": "Table 9 (ii)(a)",
+      "heightLimits": {
+        "B": null,
+        "C": null,
+        "D": null
+      },
+      "frame": null,
+      "specialWalls": false,
+      "concrete": false,
+      "momentFrame": false,
+      "periodFamily": null,
+      "group": "buildingFrame",
+      "dual": false
+    },
+    "steelEbf": {
+      "name": "Steel eccentric braced frame",
+      "R": 5.0,
+      "Omega0": 2.5,
+      "Cd": 5.0,
+      "row": "Table 9 (ii)(b)",
+      "heightLimits": {
+        "B": null,
+        "C": null,
+        "D": null
+      },
+      "frame": null,
+      "specialWalls": false,
+      "concrete": false,
+      "momentFrame": false,
+      "periodFamily": null,
+      "group": "buildingFrame",
+      "dual": false
+    },
+    "masonryOrdinaryPlain": {
+      "name": "Load bearing masonry walls: unreinforced, without horizontal bands",
+      "R": 1.5,
+      "Omega0": 2.5,
+      "Cd": 1.5,
+      "row": "Table 9 (iii)(a)(1)",
+      "heightLimits": {
+        "B": null,
+        "C": null,
+        "D": null
+      },
+      "frame": null,
+      "specialWalls": false,
+      "concrete": false,
+      "momentFrame": false,
+      "periodFamily": null,
+      "group": "bearingWall",
+      "dual": false,
+      "masonry": true
+    },
+    "masonryBands": {
+      "name": "Load bearing masonry walls: unreinforced, with horizontal RC bands",
+      "R": 2.0,
+      "Omega0": 2.5,
+      "Cd": 2.0,
+      "row": "Table 9 (iii)(a)(2)",
+      "heightLimits": {
+        "B": null,
+        "C": null,
+        "D": null
+      },
+      "frame": null,
+      "specialWalls": false,
+      "concrete": false,
+      "momentFrame": false,
+      "periodFamily": null,
+      "group": "bearingWall",
+      "dual": false,
+      "masonry": true
+    },
+    "masonryOrdinaryReinforced": {
+      "name": "Load bearing masonry walls: with horizontal RC bands and vertical bars at corners and openings",
+      "R": 2.5,
+      "Omega0": 2.5,
+      "Cd": 2.5,
+      "row": "Table 9 (iii)(a)(3)",
+      "heightLimits": {
+        "B": null,
+        "C": null,
+        "D": null
+      },
+      "frame": null,
+      "specialWalls": false,
+      "concrete": false,
+      "momentFrame": false,
+      "periodFamily": null,
+      "group": "bearingWall",
+      "dual": false,
+      "masonry": true
+    },
+    "rcOrdinaryWallFrame": {
+      "name": "RC ordinary structural walls",
+      "R": 3.0,
+      "Omega0": 2.5,
+      "Cd": 3.0,
+      "row": "Table 9 (iii)(b)",
+      "heightLimits": {
+        "B": null,
+        "C": 0.0,
+        "D": 0.0
+      },
+      "frame": null,
+      "specialWalls": false,
+      "concrete": true,
+      "momentFrame": false,
+      "periodFamily": null,
+      "group": "buildingFrame",
+      "dual": false
+    },
+    "rcSpecialWallFrame": {
+      "name": "RC ductile structural walls",
+      "R": 4.0,
+      "Omega0": 2.5,
+      "Cd": 4.0,
+      "row": "Table 9 (iii)(c)",
+      "heightLimits": {
+        "B": null,
+        "C": null,
+        "D": null
+      },
+      "frame": null,
+      "specialWalls": true,
+      "concrete": true,
+      "momentFrame": false,
+      "periodFamily": null,
+      "group": "buildingFrame",
+      "dual": false
+    },
+    "rcDualOrdinary": {
+      "name": "Dual: ordinary RC structural walls with RC OMRF",
+      "R": 3.0,
+      "Omega0": 2.5,
+      "Cd": 3.0,
+      "row": "Table 9 (iv)(a)",
+      "heightLimits": {
+        "B": null,
+        "C": 0.0,
+        "D": 0.0
+      },
+      "frame": "ordinary",
+      "specialWalls": false,
+      "concrete": true,
+      "momentFrame": false,
+      "periodFamily": null,
+      "group": "dualOrdinary",
+      "dual": true
+    },
+    "rcDualSpecialOrdinaryWalls": {
+      "name": "Dual: ordinary RC structural walls with RC SMRF",
+      "R": 4.0,
+      "Omega0": 2.5,
+      "Cd": 4.0,
+      "row": "Table 9 (iv)(b)",
+      "heightLimits": {
+        "B": null,
+        "C": 0.0,
+        "D": 0.0
+      },
+      "frame": "special",
+      "specialWalls": false,
+      "concrete": true,
+      "momentFrame": false,
+      "periodFamily": null,
+      "group": "dualSpecial",
+      "dual": true
+    },
+    "rcDualOrdinaryFrameDuctileWalls": {
+      "name": "Dual: ductile RC structural walls with RC OMRF",
+      "R": 4.5,
+      "Omega0": 2.5,
+      "Cd": 4.5,
+      "row": "Table 9 (iv)(c)",
+      "heightLimits": {
+        "B": null,
+        "C": 0.0,
+        "D": 0.0
+      },
+      "frame": "ordinary",
+      "specialWalls": true,
+      "concrete": true,
+      "momentFrame": false,
+      "periodFamily": null,
+      "group": "dualOrdinary",
+      "dual": true
+    },
+    "rcDualSpecial": {
+      "name": "Dual: ductile RC structural walls with RC SMRF",
+      "R": 5.0,
+      "Omega0": 2.5,
+      "Cd": 5.0,
+      "row": "Table 9 (iv)(d)",
+      "heightLimits": {
+        "B": null,
+        "C": null,
+        "D": null
+      },
+      "frame": "special",
+      "specialWalls": true,
+      "concrete": true,
+      "momentFrame": false,
+      "periodFamily": null,
+      "group": "dualSpecial",
+      "dual": true
+    },
+    "rcFlatSlabWalls": {
+      "name": "Flat slab with RC ductile structural walls (the walls resist all the lateral load)",
+      "R": 3.0,
+      "Omega0": 2.5,
+      "Cd": 3.0,
+      "row": "Table 9 (v)",
+      "heightLimits": {
+        "B": null,
+        "C": null,
+        "D": null
+      },
+      "frame": null,
+      "specialWalls": true,
+      "concrete": true,
+      "momentFrame": false,
+      "periodFamily": null,
+      "group": "buildingFrame",
+      "dual": false
+    }
+  },
+  "periodCoefficients": {
+    "concreteMomentFrame": {
+      "Ct": 0.075,
+      "m": 0.75
+    },
+    "steelMomentFrame": {
+      "Ct": 0.085,
+      "m": 0.75
+    },
+    "other": {
+      "Ct": 0.09,
+      "m": 1.0,
+      "planDimension": true
+    }
+  },
+  "designCategories": {
+    "occupancyGroups": {
+      "I": "all",
+      "II": "all",
+      "III": "all",
+      "IV": "all"
+    },
+    "bySiteClass": {
+      "I": {
+        "all": [
+          "B",
+          "B",
+          "C",
+          "C",
+          "C"
+        ]
+      },
+      "II": {
+        "all": [
+          "B",
+          "B",
+          "C",
+          "C",
+          "C"
+        ]
+      },
+      "III": {
+        "all": [
+          "B",
+          "B",
+          "C",
+          "C",
+          "C"
+        ]
+      }
+    }
+  },
+  "requiredDetailing": {
+    "B": "ordinary",
+    "C": "special",
+    "D": "special"
+  },
+  "allowableDrift": {
+    "I": 0.004,
+    "II": 0.004,
+    "III": 0.004,
+    "IV": 0.004
+  },
+  "allowableDriftLabel": "All buildings (storey drift of the design lateral force, partial load factor 1.0)",
+  "driftLimits": [],
+  "driftRedundancyCategories": [],
+  "driftAmplification": "designForces",
+  "dampingEta": 1.0,
+  "dampingCorrection": {
+    "method": "none",
+    "referenceDamping": 0.05
+  },
+  "systemCombination": {
+    "R": "min",
+    "Cd": "max",
+    "Omega0": "max",
+    "heightLimit": "min"
+  },
+  "separation": {
+    "propertyLineFactor": 1.0,
+    "sameProperty": "sum",
+    "equalFloorLevelsFactor": 0.5
+  },
+  "irregularities": {
+    "reentrantProjection": 0.15,
+    "openingShare": 0.5,
+    "nonparallelTolerance": 5.0,
+    "nonparallelOrthogonal": [
+      "C"
+    ],
+    "offsets": true,
+    "soft": {
+      "storeyAbove": 1.0
+    },
+    "mass": {
+      "adjacent": 2.0,
+      "topExempt": true
+    },
+    "geometry": {
+      "adjacent": 1.25,
+      "topExempt": true
+    },
+    "weak": {
+      "storeyAbove": 1.0
+    },
+    "strength": {
+      "method": "shearStrength",
+      "concreteFactor": 0.17,
+      "depthFactor": 0.8
+    },
+    "labels": {
+      "torsion": {
+        "group": "plan",
+        "label": "Torsional irregularity (Table 5 (i))"
+      },
+      "extremeTorsion": {
+        "group": "plan",
+        "label": "Torsional irregularity over 1.4: revise the configuration (Table 5 (i))"
+      },
+      "reentrantCorner": {
+        "group": "plan",
+        "label": "Re-entrant corners (Table 5 (ii))"
+      },
+      "diaphragmDiscontinuity": {
+        "group": "plan",
+        "label": "Floor slabs with excessive cut-outs or openings (Table 5 (iii))"
+      },
+      "outOfPlaneOffset": {
+        "group": "plan",
+        "label": "Out-of-plane offsets in vertical elements (Table 5 (iv))"
+      },
+      "nonparallel": {
+        "group": "plan",
+        "label": "Non-parallel lateral force system (Table 5 (v))"
+      },
+      "soft": {
+        "group": "vertical",
+        "label": "Stiffness irregularity: soft storey (Table 6 (i))"
+      },
+      "mass": {
+        "group": "vertical",
+        "label": "Mass irregularity (Table 6 (ii))"
+      },
+      "geometry": {
+        "group": "vertical",
+        "label": "Vertical geometric irregularity (Table 6 (iii))"
+      },
+      "inPlaneDiscontinuity": {
+        "group": "vertical",
+        "label": "In-plane discontinuity in vertical elements (Table 6 (iv))"
+      },
+      "weak": {
+        "group": "vertical",
+        "label": "Strength irregularity: weak storey (Table 6 (v))"
+      }
+    },
+    "clauses": {
+      "plan": "IS 1893 (Part 1):2016 Clause 7.1, Table 5",
+      "vertical": "IS 1893 (Part 1):2016 Clause 7.1, Table 6",
+      "torsion": "Table 5 (i)",
+      "extremeTorsion": "Table 5 (i)",
+      "reentrantCorner": "Table 5 (ii)",
+      "diaphragmDiscontinuity": "Table 5 (iii)",
+      "outOfPlaneOffset": "Table 5 (iv)",
+      "nonparallel": "Table 5 (v)",
+      "soft": "Table 6 (i)",
+      "mass": "Table 6 (ii)",
+      "geometry": "Table 6 (iii)",
+      "inPlaneDiscontinuity": "Table 6 (iv)",
+      "weak": "Table 6 (v)",
+      "orthogonal": "Clause 6.3.2.2"
+    }
+  },
+  "dynamicAnalysis": {
+    "regularHeights": {
+      "2": 15.0,
+      "3": 0.0,
+      "4": 0.0,
+      "5": 0.0
+    },
+    "irregularHeights": {
+      "2": 0.0,
+      "3": 0.0,
+      "4": 0.0,
+      "5": 0.0
+    },
+    "recommendedIrregular": [],
+    "verticalIrregularity": false,
+    "clause": "Clause 7.7.1",
+    "staticClause": "Clause 7.6"
+  },
+  "liveShare": 0.25,
+  "heavyLiveLimit": 3.0,
+  "heavyLiveShare": 0.5,
+  "partitionWeight": "full",
+  "periodUpperFactor": 1.0,
+  "lateralForce": {
+    "distribution": "heightSquared",
+    "minimumShare": {
+      "2": 0.007,
+      "3": 0.011,
+      "4": 0.016,
+      "5": 0.024
+    },
+    "clause": "IS 1893 (Part 1):2016 Clauses 7.2.2 and 7.6.3"
+  },
+  "minimumScale": 1.0,
+  "accidentalEccentricity": 0.05,
+  "orthogonalShare": 0.3,
+  "massParticipation": 0.9,
+  "torsionIrregular": 1.0909,
+  "torsionExtreme": 1.1667,
+  "torsionAmplificationMax": 1.0,
+  "pgaFactor": 0.5,
+  "verticalFactor": 0.0,
+  "clauses": {
+    "scale": "Clause 7.7.3",
+    "torsion": "Clause 7.8.2",
+    "orthogonal": "Clause 6.3.2.2",
+    "combinations": "Clause 6.3.4.1",
+    "drift": "Clause 7.11.1",
+    "sdc": "Clause 6.4.2 and Table 3 (zones)",
+    "modes": "Clause 7.7.5.2",
+    "irregularity": "Table 5 (i)",
+    "amplification": "Table 5 (i) (no amplification: IS asks for a 3D dynamic analysis)",
+    "systems": "Table 9",
+    "damping": "Clause 6.4.2, Table 4",
+    "separation": "Clause 7.11.3",
+    "displacement": "Clause 7.11.1",
+    "irregularities": "Clause 7.1, Tables 5-6",
+    "dynamicAnalysis": "Clause 7.7.1",
+    "period": "Clause 7.6.2",
+    "weight": "Clause 7.4, Table 10",
+    "minimumBaseShear": "Clause 7.2.2, Table 7",
+    "distribution": "Clause 7.6.3",
+    "spectrum": "Clause 6.4.2, Figure 2"
+  },
+  "sources": {
+    "siteClasses": "IS 1893 (Part 1):2016 Table 4 (soil types I, II, III) and Clause 6.4.2: Sa/g = 2.5 up to 0.40 / 0.55 / 0.67 s, then 1.00/T, 1.36/T, 1.67/T to 4 s, constant beyond; TC = 1.36/2.5 = 0.544 s and 1.67/2.5 = 0.668 s make the falling branch the code's (the code's printed plateau end 0.55 / 0.67 s differs by under 1.2 %); S = 1 (the soil enters through TC); TB = 0.10 s: the rising branch 1 + 15T of the response spectrum method",
+    "designSpectrum": "IS 1893 (Part 1):2016 Clause 6.4.2: Ah = (Z/2)(I/R)(Sa/g); Figure 2(a) (equivalent static: the plateau from T = 0) and 2(b) (response spectrum: 1 + 15T below 0.1 s); Sa/g constant beyond 4 s",
+    "systems": "IS 1893 (Part 1):2016 Table 9: R of the systems SAEngine models; Cd = R (the displacement estimate of Clause 7.11.3 is R times the elastic one); Ω0 = 2.5 is SAEngine's (IS gives no system overstrength); the ordinary (non-ductile) systems are not permitted in zones III-V (Table 9 note, SAEngine reading), shown as height limit 0 in categories C and D",
+    "periodCoefficients": "IS 1893 (Part 1):2016 Clause 7.6.2: (a) bare RC moment frame 0.075 h^0.75, bare steel frame 0.085 h^0.75; (c) all other buildings 0.09 h/√d. The wall-building form (b) 0.075 h^0.75/√Aw is not modelled: such buildings take (c)",
+    "designCategories": "SAEngine practice: IS 1893 has no Seismic Design Category; zone II reads as category B (ordinary detailing permitted) and zones III-V as C (ductile detailing, IS 13920), with 100 % + 30 % only for non-parallel systems",
+    "requiredDetailing": "IS 13920:2016 Clause 1 (ductile detailing in zones III, IV and V; SAEngine reading)",
+    "allowableDrift": "IS 1893 (Part 1):2016 Clause 7.11.1.1: storey drift at most 0.004 times the storey height under the design lateral force with partial load factor 1.0",
+    "driftAmplification": "IS 1893 (Part 1):2016 Clause 7.11.1: the drift of the design forces is checked as computed",
+    "separation": "IS 1893 (Part 1):2016 Clause 7.11.3: separation of R times the sum of the displacements of the two units, half of it where the floor levels match (SAEngine reading of the two parts of the clause)",
+    "dampingCorrection": "IS 1893 (Part 1):2016 Table 4: the damping factors other than at 5 % are not modelled (1.0 at 5 %)",
+    "irregularities": "IS 1893 (Part 1):2016 Tables 5 and 6; soft and weak storey: lateral stiffness or strength less than that of the storey above (ratio 1.0); mass: seismic weight over 2 times an adjacent storey's; geometry: plan dimension over 125 % of the storey below",
+    "torsionIrregular": "IS 1893 (Part 1):2016 Table 5 (i): Δmax over 1.2 Δmin at the two ends of the floor; as Δmax/Δavg of the two ends, 2(1.2)/(1 + 1.2) = 1.0909, and 1.4 (revise the configuration) gives 1.1667",
+    "torsionAmplificationMax": "IS 1893 (Part 1):2016: no amplification of the accidental torsion (1.0); a torsionally irregular building needs the 3D dynamic analysis of Table 5 (i)",
+    "dynamicAnalysis": "IS 1893 (Part 1):2016 Clause 7.7.1: dynamic analysis for every building except regular buildings below 15 m in zone II",
+    "liveShare": "IS 1893 (Part 1):2016 Clause 7.3.1, Table 10: 25 % of imposed loads up to 3.0 kN/m², 50 % above",
+    "lateralForce.minimumShare": "IS 1893 (Part 1):2016 Clause 7.2.2, Table 7: least design base shear 0.7 %, 1.1 %, 1.6 %, 2.4 % of W in zones II-V",
+    "lateralForce.distribution": "IS 1893 (Part 1):2016 Clause 7.6.3: Qi = VB Wi hi² / Σ Wj hj²",
+    "minimumScale": "IS 1893 (Part 1):2016 Clause 7.7.3: the dynamic base shear scaled up to the equivalent static VB (of Ta)",
+    "accidentalEccentricity": "IS 1893 (Part 1):2016 Clause 7.8.2: ± 0.05 bi (the 1.5 factor on the static eccentricity esi is not modelled: the 3D model carries esi itself)",
+    "orthogonalShare": "IS 1893 (Part 1):2016 Clause 6.3.4.1 (100 % + 30 %)",
+    "massParticipation": "IS 1893 (Part 1):2016 Clause 7.7.5.2: modes to 90 % of the mass",
+    "pgaFactor": "IS 1893 (Part 1):2016 Clause 6.4.2: Z/2, the peak ground acceleration of the design basis earthquake",
+    "verticalFactor": "IS 1893 (Part 1):2016 Clause 6.3.3.1: the vertical motion only for the structures it lists (not applied: 0)",
+    "partitionWeight": "SAEngine practice: partitions as dead load in the seismic weight",
+    "periodUpperFactor": "IS 1893 (Part 1):2016 Clause 7.6.2 and 7.7.3: VB is found with the approximate period Ta; a period from the modal analysis is not taken above it (1.0)"
+  }
+}

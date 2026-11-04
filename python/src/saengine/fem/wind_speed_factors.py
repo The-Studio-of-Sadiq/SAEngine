@@ -1,0 +1,113 @@
+"""Design wind pressure from factors on the design wind speed (a code pack's wind table with
+``pressureMethod: "speedFactors"``).
+
+The method of codes that scale the basic wind speed by factors and turn the design speed into a
+pressure (the form of IS 875 (Part 3)):
+
+    Vz = Vb · k1 · k2(z, terrain) · k3 · k4
+    pz = airFactor · Vz²                          [N/m², V in m/s]
+    pd = max(Kd · Ka · Kc, minimumShare) · pz
+
+- k1, the risk coefficient: the pack's ``speedFactors.riskCoefficients`` row whose
+  ``importance`` is the occupancy category's wind importance, at the basic wind speed Vb (linear
+  between its points, constant outside); the importance itself when no row has it;
+- k2, terrain and height: ``speedFactors.heightFactors`` of the terrain (the settings' exposure)
+  at the height z (linear between its points, constant below the first and above the last);
+- k3, topography: the wind table's ``topographic`` (a project overrides it in Project Settings
+  > Wind, the field the default pack calls Kzt);
+- k4, cyclonic importance: ``speedFactors.importance`` (a project overrides it through Code
+  Values, ``wind.speedFactors.importance``);
+- Kd, directionality: the wind table's ``directionality`` (or the project's override); Ka, area
+  averaging of the main wind-force resisting system: ``speedFactors.areaAveraging``; Kc,
+  combination: ``speedFactors.combination``.
+
+The pressures enter the storey forces of :func:`saengine.fem.loads.wind_levels` in place of the
+velocity pressure qz, with the pack's wall pressure coefficients and its gust factor (1.0 for a
+code whose coefficients include the gusts). Every number comes from the code pack in force.
+
+Units: m, m/s; :func:`design_pressure` returns kN/m².
+"""
+
+from __future__ import annotations
+
+import itertools
+from typing import Any
+
+from saengine.codes import context as code_context
+
+__all__ = ["design_pressure", "design_speed", "factors", "height_factor", "risk_coefficient"]
+
+
+def _table() -> Any:
+    table = getattr(code_context.table("wind"), "speedFactors", None)
+    if table is None:
+        raise ValueError("the code pack's wind table has no speedFactors")
+    return table
+
+
+def _interpolate(points: list[tuple[float, float]] | list[list[float]], x: float) -> float:
+    pts = sorted((float(a), float(b)) for a, b in points)
+    if x <= pts[0][0]:
+        return pts[0][1]
+    for (x0, y0), (x1, y1) in itertools.pairwise(pts):
+        if x <= x1:
+            return y0 + (y1 - y0) * (x - x0) / (x1 - x0) if x1 > x0 else y1
+    return pts[-1][1]
+
+
+def height_factor(height: float, exposure: str) -> float:
+    """k2 at ``height`` [m] in the terrain ``exposure``."""
+    rows = _table().heightFactors
+    if exposure not in rows:
+        raise ValueError(f"no height factors for terrain '{exposure}' in the code pack")
+    return _interpolate(rows[exposure], max(float(height), 0.0))
+
+
+def risk_coefficient(speed: float, importance: float) -> float:
+    """k1 of the occupancy categories of wind importance ``importance`` at the basic wind
+    speed ``speed`` [m/s]."""
+    for row in _table().riskCoefficients:
+        if abs(row.importance - importance) < 1e-9:
+            return _interpolate(row.k1, float(speed))
+    return float(importance)
+
+
+def factors(height: float, speed: float, exposure: str, importance: float) -> dict[str, float]:
+    """Every factor of the design pressure at ``height``: k1, k2, k3, k4, Kd, Ka, Kc, the
+    product K (at least the pack's minimum share), Vz [m/s], pz and pd [kN/m²]."""
+    from saengine.fem.loads import wind_factor
+
+    table = _table()
+    k1 = risk_coefficient(speed, importance)
+    k2 = height_factor(height, exposure)
+    k3 = wind_factor("topographic")
+    k4 = float(table.importance)
+    kd = wind_factor("directionality")
+    ka, kc = float(table.areaAveraging), float(table.combination)
+    k = max(kd * ka * kc, float(table.minimumShare))
+    vz = float(speed) * k1 * k2 * k3 * k4
+    pz = table.airFactor * vz**2 / 1000.0
+    return {
+        "k1": k1,
+        "k2": k2,
+        "k3": k3,
+        "k4": k4,
+        "Kd": kd,
+        "Ka": ka,
+        "Kc": kc,
+        "K": k,
+        "Vz": vz,
+        "pz": pz,
+        "pd": k * pz,
+    }
+
+
+def design_speed(height: float, speed: float, exposure: str, importance: float) -> float:
+    """Vz = Vb·k1·k2·k3·k4 [m/s]."""
+    return factors(height, speed, exposure, importance)["Vz"]
+
+
+def design_pressure(height: float, speed: float, exposure: str, importance: float) -> float:
+    """pd = max(Kd·Ka·Kc, minimumShare)·airFactor·Vz² [kN/m²] at ``height`` [m] for the basic
+    wind speed ``speed`` [m/s], terrain ``exposure`` and wind importance ``importance``."""
+    return factors(height, speed, exposure, importance)["pd"]

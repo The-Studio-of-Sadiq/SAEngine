@@ -2622,6 +2622,29 @@ def codes_choices(pack_id: str, root: str | None = None) -> dict[str, Any]:
     return {"id": pack.id, "name": pack.edition or pack.name, "choices": pack_choices(pack)}
 
 
+def codes_settings_for_pack(
+    settings_text: str, pack_id: str, root: str | None = None
+) -> dict[str, Any]:
+    """C7: the project settings ``settings_text`` switched to the code pack ``pack_id``
+    (:func:`saengine.library.settings.settings_for_pack`: the choices the pack does not list
+    become its defaults, the area loads and combinations the pack's): ``{settings}`` (JSON), or
+    a refusal."""
+    import json
+
+    from pydantic import ValidationError
+
+    from saengine.codes import CodePackError
+    from saengine.codes import context as code_context
+    from saengine.library.settings import settings_for_pack
+
+    try:
+        with code_context.project(_pack_root(root)):
+            settings = settings_for_pack(json.loads(settings_text), pack_id)
+    except (CodePackError, ValidationError, ValueError) as error:
+        return _refusal(error)
+    return {"settings": settings.model_dump(mode="json", by_alias=True, exclude_none=True)}
+
+
 def codes_values(
     settings_text: str | None = None, root: str | None = None, table: str | None = None
 ) -> dict[str, Any]:

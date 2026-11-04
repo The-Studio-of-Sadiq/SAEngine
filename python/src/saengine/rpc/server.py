@@ -1401,6 +1401,11 @@ def create_server() -> JsonRPCServer:
         args = _plain(params)
         return handlers.codes_choices(args["id"], args.get("root"))
 
+    @server.feature("codes/settingsForPack")
+    def _codes_settings_for_pack(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.codes_settings_for_pack(args["settings"], args["id"], args.get("root"))
+
     @server.feature("codes/values")
     def _codes_values(params: Any) -> dict[str, Any]:
         args = _plain(params)

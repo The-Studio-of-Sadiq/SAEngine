@@ -2408,7 +2408,18 @@ def _derive_fem(
                 values["seismicImportance"],
                 values.get(f"R{case[1]}", values["R"]),  # each direction its own R (B2)
                 settings.seismic.damping,
+                static=True,
             )
+            # C7: the pack's least base shear V / W of the zone (IS 1893 Table 7), where given.
+            from saengine.fem.seismic_design import zone_of
+
+            least = fl.minimum_base_share(zone_of(values["Z"]))
+            if least > sa:
+                b.notes.append(
+                    f"{case}: Sa/g = {sa:.4f} is below the code pack's least base shear "
+                    f"{least:g} W of the zone: V = {least:g} W"
+                )
+                sa = least
             # C4: the pack's base shear correction (λ of EN 1998-1 4.3.3.2.2), 1 without it
             correction = fl.base_shear_correction(period, len(heights), settings.site.siteClass)
             shear = sa * sum(weights) * correction
@@ -2454,11 +2465,18 @@ def _derive_fem(
     # cases stay empty, never the other's.
     approximate = approximate_y = 0.0
     if heights and values["Z"]:
-        # Each direction with the period of its own system (Sec 2.5.5.5.1; B2).
+        # Each direction with the period of its own system (Sec 2.5.5.5.1; B2); a pack's period
+        # by the plan dimension along the shaking takes the building's extent (C7).
+        extent = [
+            float(max(c[k] for c in b.coords.values()) - min(c[k] for c in b.coords.values()))
+            if b.coords
+            else 0.0
+            for k in (0, 1)
+        ]
         approximate_y = fl.approximate_period(
-            hn, settings.seismic.systemY or settings.seismic.system
+            hn, settings.seismic.systemY or settings.seismic.system, extent[1] or None
         )
-        approximate = fl.approximate_period(hn, settings.seismic.system)
+        approximate = fl.approximate_period(hn, settings.seismic.system, extent[0] or None)
         loads, info = seismic_loads({"X": approximate, "Y": approximate_y})
         for case, nodal in loads.items():
             target = patterns.setdefault(case, {"nodal": {}, "element": {}})["nodal"]

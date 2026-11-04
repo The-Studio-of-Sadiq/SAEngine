@@ -41,6 +41,41 @@ here, newest first, with the date, the question, the decision, the reason and wh
 - **No unlicensed software.** ETABS, SAP2000 and STAAD are not used for cross-checks or cited.
   Open-source tools are used instead (2026-10-25).
 
+## 2026-11-04: Indian Standards loads pack (alpha 9 track C7)
+
+- **The IS loads pack extends BNBC 2020 until the IS material packs exist.**
+  - Question: `is-codes` covers the loads only (IS 875 Parts 1, 2, 3:2015, 5; IS 1893 (Part
+    1):2016). How does a project under it design its members?
+  - Decision: the pack `extends` `bnbc2020` and replaces its load tables whole (`$replace`);
+    concrete, steel, masonry, timber, foundations, services, serviceability and every other
+    table come from BNBC 2020 and the report names the pack "BNBC 2020, modified by Indian
+    Standards (IS)". Placeholder for the IS materials (tracks C8, C9); the planned entry stays.
+- **IS 1893 has no Seismic Design Category (SAEngine practice).** Zone II reads as category B
+  (ordinary detailing permitted), zones III-V as C (ductile detailing, IS 13920); 100 % + 30 %
+  only for non-parallel systems (IS 1893 6.3.2.2). Ordinary systems carry height limit 0 in C
+  (not permitted in zones III-V, a reading of the Table 9 note).
+- **IS spectrum in the generic form.** Ah = (Z/2)(I/R)(Sa/g) as S = 1 and TC = 1.36/2.5 =
+  0.544 s (soil II), 1.67/2.5 = 0.668 s (soil III), so the falling branch is the code's; the
+  printed plateau ends (0.55, 0.67 s) differ by under 1.2 % (read as). The equivalent static
+  method takes Figure 2(a) (no rising branch), the response spectrum Figure 2(b).
+- **Drift and displacement (read as).** The drift of the design forces is checked as computed
+  against 0.004 (7.11.1; `driftAmplification: designForces`); Cd = R stands for the displacement estimate of 7.11.3, used for the
+  separation (R × the sum, R/2 for equal floor levels). Ω0 = 2.5 where the design names it
+  (SAEngine practice: IS gives no system overstrength).
+- **Torsional irregularity as Δmax/Δavg.** IS compares Δmax with 1.2 Δmin at the two ends;
+  with two ends that is Δmax/Δavg > 2·1.2/2.2 = 1.091 (1.4: 1.167). No Ax amplification.
+- **Wind area averaging Ka = 1.0 for the storey forces (SAEngine practice, conservative)**;
+  Kc = 0.9, Kd = 0.9, Kd·Ka·Kc ≥ 0.7. k3 is the topographic factor setting, k4 the Code Values
+  override `wind.speedFactors.importance`. The wind risk class (k1) of a category is its
+  `windImportance` marker (0.9 / 1.0 / 1.07), k1 interpolated by Vb in Table 1.
+- **Live load reduction by floors carried (IS 875-2 3.2)** as a pack method (`floorCount`);
+  storage, industrial, wholesale and parking floors and loads over 5.0 kN/m² are not reduced
+  (SAEngine reading of 3.2.1).
+- **Generation under the pack.** The New Building generator runs under a chosen pack that
+  names its own default system (`seismic.defaultSystem`: is-codes), so the system, period and
+  loads are the pack's; a town or site class the pack does not list falls to its defaults.
+- Every value and its confidence: `python/src/saengine/codes/packs/is-codes/VERIFY.md`.
+
 ## 2026-11-02: decisions from the feature and code-completion tracks
 
 | # | Track | Question | Decision | Why |

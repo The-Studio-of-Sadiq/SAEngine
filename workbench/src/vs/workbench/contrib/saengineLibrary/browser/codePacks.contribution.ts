@@ -141,8 +141,9 @@ registerPlannedFeature({
 	id: PLANNED_CODE_PACK_INDIA,
 	part: 'settings',
 	title: localize('codePacks.planned.india', "Code Pack: Indian Standards (IS)"),
-	summary: localize('codePacks.planned.indiaSummary', "A design-code pack for projects designed to the Indian Standards: concrete to IS 456, seismic loads to IS 1893, steel to IS 800, other loads to IS 875 and ductile detailing to IS 13920."),
+	summary: localize('codePacks.planned.indiaSummary', "A design-code pack for projects designed to the Indian Standards: concrete to IS 456, seismic loads to IS 1893, steel to IS 800, other loads to IS 875 and ductile detailing to IS 13920. Covered now: the loads (IS 875 Parts 1, 2, 3:2015 and 5, IS 1893 (Part 1):2016) in the built-in pack Indian Standards (IS) (is-codes); its material and member design still come from {0} until the IS 456, IS 800 and IS 13920 tables exist.", activeCodeName()),
 	steps: [
+		localize('codePacks.planned.india0', "Covered: choose Indian Standards (IS) in Project Settings or the New Building wizard; it lists its cities (zone and basic wind speed), soil types I-III and terrain categories 1-4."),
 		localize('codePacks.planned.india1', "Install the pack from the Packages page."),
 		localize('codePacks.planned.india2', "Choose it as the project's design code in Project Settings or in the New Building wizard."),
 		localize('codePacks.planned.india3', "Loads, combinations, member design and detailing read the pack instead of {0}.", activeCodeName()),

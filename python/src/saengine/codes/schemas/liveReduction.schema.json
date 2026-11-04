@@ -66,6 +66,78 @@
       "title": "AreaAndStoreys",
       "type": "object"
     },
+    "FloorCountReduction": {
+      "additionalProperties": false,
+      "description": "C7, ``method: floorCount`` (IS 875-2 3.2): L / L0 = 1 − the share of the first (floors,\nshare) row whose floors is at least the floors the member carries (the last row above it);\na member of one floor (beams) with a tributary area of ``beamArea`` m² or more is reduced by\n``beamShare`` per ``beamArea`` m², at most ``beamMax``.",
+      "properties": {
+        "rows": {
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "integer"
+              },
+              {
+                "exclusiveMaximum": 1,
+                "minimum": 0,
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "minItems": 1,
+          "title": "Rows",
+          "type": "array"
+        },
+        "beamArea": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Beamarea"
+        },
+        "beamShare": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Beamshare"
+        },
+        "beamMax": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Beammax"
+        }
+      },
+      "required": [
+        "rows"
+      ],
+      "title": "FloorCountReduction",
+      "type": "object"
+    },
     "LiveElementFactors": {
       "additionalProperties": false,
       "properties": {
@@ -241,7 +313,7 @@
     }
   },
   "additionalProperties": false,
-  "description": "Reduction of floor live loads by influence area (the default pack's Part 6 Sec 2.3.13),\nor (C4, ``method`` areaAndStoreys) by the loaded area and the number of storeys.",
+  "description": "Reduction of floor live loads by influence area (the default pack's Part 6 Sec 2.3.13),\nor (C4, ``method`` areaAndStoreys) by the loaded area and the number of storeys, or (C7,\n``floorCount``) by the number of floors carried.",
   "properties": {
     "source": {
       "default": "",
@@ -269,7 +341,8 @@
       "default": "influenceArea",
       "enum": [
         "influenceArea",
-        "areaAndStoreys"
+        "areaAndStoreys",
+        "floorCount"
       ],
       "title": "Method",
       "type": "string"
@@ -278,6 +351,17 @@
       "anyOf": [
         {
           "$ref": "#/$defs/AreaAndStoreys"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "floorCount": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/FloorCountReduction"
         },
         {
           "type": "null"

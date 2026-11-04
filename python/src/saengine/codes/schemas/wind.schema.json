@@ -848,6 +848,59 @@
       "title": "CladdingTable",
       "type": "object"
     },
+    "CpHeightRow": {
+      "additionalProperties": false,
+      "description": "C7: the wall pressure coefficients of a building up to ``heightRatioMax`` = h / w (w the\nlesser plan dimension): windward ``windward``; leeward the first (l/w max, Cp) row with l/w\n(l the greater plan dimension) up to it, else the last.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "heightRatioMax": {
+          "exclusiveMinimum": 0,
+          "title": "Heightratiomax",
+          "type": "number"
+        },
+        "windward": {
+          "title": "Windward",
+          "type": "number"
+        },
+        "leeward": {
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "minItems": 1,
+          "title": "Leeward",
+          "type": "array"
+        }
+      },
+      "required": [
+        "heightRatioMax",
+        "windward",
+        "leeward"
+      ],
+      "title": "CpHeightRow",
+      "type": "object"
+    },
     "DomeCurve": {
       "additionalProperties": false,
       "description": "Cp at one point of a dome (A windward springline, B top, C leeward springline) against\nf/D, for one hD/D.",
@@ -2168,6 +2221,65 @@
       "title": "ReturnCorner",
       "type": "object"
     },
+    "RiskCoefficientRow": {
+      "additionalProperties": false,
+      "description": "C7: a class of the risk coefficient k1 (design life): the occupancy categories whose\nwind importance is ``importance`` take k1 from the (basic wind speed [m/s], k1) points.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "importance": {
+          "description": "The occupancy categories' windImportance.",
+          "exclusiveMinimum": 0,
+          "title": "Importance",
+          "type": "number"
+        },
+        "k1": {
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "minItems": 1,
+          "title": "K1",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "importance",
+        "k1"
+      ],
+      "title": "RiskCoefficientRow",
+      "type": "object"
+    },
     "RoofCpRow": {
       "additionalProperties": false,
       "description": "One h/L row of a roof pressure coefficient table: per tabulated angle, the first\n(suction) and second (pressure, where two are listed) Cp; None where none is printed (0.0 for\ninterpolation).",
@@ -2714,6 +2826,122 @@
       "title": "SolidSignsTable",
       "type": "object"
     },
+    "SpeedFactors": {
+      "additionalProperties": false,
+      "description": "C7, ``method: speedFactors``: the design wind speed Vz = Vb·k1·k2·k3·k4 and the design\npressure pd = max(Kd·Ka·Kc, minimumShare)·airFactor·Vz² [N/m², V in m/s]; k3 is the table's\n``topographic``, Kd its ``directionality`` (:mod:`saengine.fem.wind_speed_factors`).",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "airFactor": {
+          "description": "pz = airFactor·Vz² [N/m²].",
+          "exclusiveMinimum": 0,
+          "title": "Airfactor",
+          "type": "number"
+        },
+        "heightFactors": {
+          "additionalProperties": {
+            "items": {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            "type": "array"
+          },
+          "description": "k2: terrain (exposure) -> (height [m], k2) points, constant below the first and above the last.",
+          "title": "Heightfactors",
+          "type": "object"
+        },
+        "riskCoefficients": {
+          "items": {
+            "$ref": "#/$defs/RiskCoefficientRow"
+          },
+          "title": "Riskcoefficients",
+          "type": "array"
+        },
+        "importance": {
+          "default": 1.0,
+          "description": "k4 (cyclonic importance); a project overrides it.",
+          "exclusiveMinimum": 0,
+          "title": "Importance",
+          "type": "number"
+        },
+        "importanceRows": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "description": "The code's k4 values, for the engineer's choice.",
+          "title": "Importancerows",
+          "type": "object"
+        },
+        "areaAveraging": {
+          "default": 1.0,
+          "description": "Ka of the main wind-force resisting system.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Areaaveraging",
+          "type": "number"
+        },
+        "areaAveragingRows": {
+          "description": "The code's (tributary area [m²], Ka) points.",
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "title": "Areaaveragingrows",
+          "type": "array"
+        },
+        "combination": {
+          "default": 1.0,
+          "description": "Kc.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Combination",
+          "type": "number"
+        },
+        "minimumShare": {
+          "default": 0.0,
+          "description": "Least Kd·Ka·Kc.",
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Minimumshare",
+          "type": "number"
+        }
+      },
+      "required": [
+        "airFactor",
+        "heightFactors"
+      ],
+      "title": "SpeedFactors",
+      "type": "object"
+    },
     "StructuralFactorRule": {
       "additionalProperties": false,
       "description": "cscd of buildings: ``value`` where ``heightMax`` (h below it) or ``frameHeightMax`` and\n``depthRatioMax`` (frame buildings with walls, h below it and below that × the depth along\nthe wind) hold (EN 1991-1-4 6.2(1) a and c); else the detailed procedure, not covered: the\nvalue is used with a note.",
@@ -3059,13 +3287,54 @@
     },
     "method": {
       "default": "powerLaw",
-      "description": "C4: how the storey forces are made: powerLaw (qz = 0.000613·Kz·Kzt·Kd·V²·I with the exposures' α and zg, G, Cp) or peakVelocityPressure (EN 1991-1-4: qp(ze) from the terrain categories' z0 and zmin, cpe of walls by h/d, lack of correlation, cscd).",
+      "description": "C4: how the storey forces are made: powerLaw (qz = 0.000613·Kz·Kzt·Kd·V²·I with the exposures' α and zg, G, Cp) or peakVelocityPressure (EN 1991-1-4: qp(ze) from the terrain categories' z0 and zmin, cpe of walls by h/d, lack of correlation, cscd); C7: speedFactors (IS 875-3: pd from Vz = Vb·k1·k2·k3·k4, see ``speedFactors``).",
       "enum": [
         "powerLaw",
-        "peakVelocityPressure"
+        "peakVelocityPressure",
+        "speedFactors"
       ],
       "title": "Method",
       "type": "string"
+    },
+    "speedFactors": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/SpeedFactors"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "cpByHeight": {
+      "anyOf": [
+        {
+          "items": {
+            "$ref": "#/$defs/CpHeightRow"
+          },
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "C7: wall Cp by h/w and l/w in place of cpWindward and cpLeeward; empty: those.",
+      "title": "Cpbyheight"
+    },
+    "defaultExposure": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "C7: the exposure (terrain) of a new project under this pack.",
+      "title": "Defaultexposure"
     },
     "peakVelocityPressure": {
       "anyOf": [
