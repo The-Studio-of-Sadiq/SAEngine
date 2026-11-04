@@ -546,3 +546,15 @@ length along the bar's centre line (SAEngine practice), with the mandrel diamete
 | BI5 | barSchedule.standards.iso3766.shapes.77 | C √((π(A - d))² + B²) | geometry | Helix of C turns, pitch B | Sure (geometry) |
 | BI6 | barSchedule.standards.iso3766.shapes.26 | A + B + C | SAEngine practice | Crank, kinks neglected | Check |
 | BI7 | barSchedule.standards.iso3766.roundTo | 25 mm, up | SAEngine practice (not in the standard) | Rounding | Practice |
+
+## Alpha 9 P7: floor vibration, wind comfort, embedded walls
+
+| # | Path | Value | Source | Sure? |
+|---|---|---|---|---|
+| P7E1 | floorVibration.steelMethod / concreteMethod | responseFactor (SCI P354 / CCIP-016); values as bnbc2020 FV9-FV17 | SCI P354, CCIP-016, ISO 10137 | Check |
+| P7E2 | windComfort.response | EN 1991-1-4 Annex B.4 Eqs B.10-B.11 (Kx, me = m1 (2ξ+1)/h) | EN 1991-1-4 | Check |
+| P7E3 | windComfort.probabilityTerms | K 0.2, n 0.5, p = 1 - exp(-1/T) | EN 1991-1-4 4.2(2) Note 4 | Sure (p for T = 1: SAEngine practice) |
+| P7E4 | windComfort.duration, peakConstant | 600 s, 0.6 | EN 1991-1-4 Eq B.4 | Sure |
+| P7E5 | windComfort.limits | 15 / 18 / 25 milli-g | SAEngine practice (EN 1990 A1.4.4 leaves them to the project) | Practice |
+| P7E6 | embeddedWalls.materials, variableFactor | M2, 1.3 | EN 1997-1 Annex A (DA1 C2) | Sure |
+| P7E7 | embeddedWalls.embedmentIncrease | 1.2 | Blum, SAEngine practice | Practice |
