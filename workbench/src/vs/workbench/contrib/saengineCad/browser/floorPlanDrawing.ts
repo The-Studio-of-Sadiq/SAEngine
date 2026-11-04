@@ -6,6 +6,7 @@
 import type { CadEntitySpec, CadGeneratedDrawing, CadLayerSpec, CadPoint } from '@saengine/cad-editor';
 import { localize } from '../../../../nls.js';
 import { centroid } from '../../../../platform/saengine/common/geometry.js';
+import { sizeText } from '../../../services/saengineProject/common/displayUnits.js';
 import { storiesOf } from '../../../services/saengineProject/common/floorPlanMembers.js';
 import { MemberGroup, ModelSelection } from '../../../services/saengineProject/common/modelSelection.js';
 
@@ -287,7 +288,8 @@ export function gridsOf(layout: unknown): { readonly x: ReadonlyMap<string, numb
 }
 
 /**
- * The size of an object type in mm, as drawings give it: "300×500" (width × depth), "Ø500",
+ * The size of an object type in mm, as drawings give it: "300×500" (width × depth), "Ø500" (C13b: in
+ * the display units, `11 3/4"×19 5/8"` in US units),
  * "t 150" for a slab or wall, "2000×1500" for a footing; undefined when it has none.
  */
 export function sectionLabel(type: Json | undefined): string | undefined {
@@ -297,15 +299,15 @@ export function sectionLabel(type: Json | undefined): string | undefined {
 	const profile = isObject(type.profile) ? type.profile : undefined;
 	const n = (key: string) => profile ? num(profile[key]) : undefined;
 	if (profile?.shape === 'rectangle' && n('xDim') && n('yDim')) {
-		return `${n('xDim')}×${n('yDim')}`;
+		return `${sizeText(n('xDim')!)}×${sizeText(n('yDim')!)}`;
 	}
 	if ((profile?.shape === 'circle' || profile?.shape === 'circleHollow') && n('radius')) {
-		return `Ø${2 * n('radius')!}`;
+		return `Ø${sizeText(2 * n('radius')!)}`;
 	}
 	if (num(type.thickness)) {
-		return `t ${num(type.thickness)}`;
+		return `t ${sizeText(num(type.thickness)!)}`;
 	}
-	return num(type.length) && num(type.width) ? `${num(type.length)}×${num(type.width)}` : undefined;
+	return num(type.length) && num(type.width) ? `${sizeText(num(type.length)!)}×${sizeText(num(type.width)!)}` : undefined;
 }
 
 /** A label's extent on the plan: centred on its position, about 0.84 text heights per character. */

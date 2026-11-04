@@ -35,8 +35,11 @@ groups) does not cover those checks, and the report says so. What is checked:
 - the general notes of the drawings (:func:`construction_notes`).
 
 An excavation's embedded wall (``wall``) is designed by the pack's ``embeddedWalls`` method in
-:mod:`saengine.substructure.embedded_wall` (alpha 9 P7: embedment, moment, prop force); its
-checks join the excavation's. The wall sections, walers, struts and anchors are not designed.
+:mod:`saengine.substructure.embedded_wall` (alpha 9 P7: embedment, moment, prop force); with a
+wall type it is also analysed stage by stage and its section, struts, walers, anchors and
+rakers designed by the pack's ``excavationSupport`` method in
+:mod:`saengine.substructure.excavation_support` (alpha 9 P1). Their checks join the
+excavation's.
 
 Units: mm and levels in mm (project datum) inside; kPa, kN/m³; depths of the soil in m.
 """
@@ -738,6 +741,14 @@ def design_excavations(ctx: Any) -> tuple[list[dict[str, Any]], list[str]]:
         wall, wall_notes = wall_checks(excavation, ground, soil)
         checks += wall
         needs += wall_notes
+        # Alpha 9 P1: a wall with a type, stage by stage with its supports (the pack's
+        # excavationSupport method, saengine.substructure.excavation_support).
+        from saengine.substructure.excavation_support import support_checks
+
+        staged = support_checks(ctx, excavation, ground, soil)
+        if staged is not None:
+            checks += staged["checks"]
+            needs += staged["notes"]
         counted = [c for c in checks if not c["flag"]]
         results.append(
             {
@@ -752,6 +763,8 @@ def design_excavations(ctx: Any) -> tuple[list[dict[str, Any]], list[str]]:
                 "soil": soil.source,
             }
         )
+        if staged is not None and staged["support"] is not None:
+            results[-1]["support"] = staged["support"]
         notes += [f"{excavation.id}: {n}" for n in needs]
     return results, notes
 

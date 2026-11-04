@@ -36,6 +36,7 @@ import { appendPropertyHeading, appendPropertyNote, EditorFrame } from '../../sa
 import { renderChart } from '../../saengineFem/browser/femChart.js';
 import { svg } from '../../saengineSoil/browser/soilLog.js';
 import { SectionDesignerInput } from './sectionDesignerInput.js';
+import { convertTextNodes } from '../../saengineProject/browser/displayUnitsTable.js';
 import {
 	barArea, barsAlongEdges, barsLine, barsRing, bilinearPoints, bounds, CompressionSide, cleanProperties, contourPoints, curvaturePoints, formatNumber, hitTest, IBar, ICapacityStudy, IContour, IDesignedSection, IMomentCurvature, IMomentCurvaturePoint, interactionCurve, ISectionAnalysis, ITemplateParams, IUniaxial, KAPPA_SCALE, sideAngle,
 	moveSelection, parseSection, Point, pointInRegion, propertyRows, rectangle, Ring, sameRegions, Selection, serializeSection, snapPoint, TEMPLATE_DEFAULTS, templateBars, templateFields, TemplateKind, templateLabel, templateProblem, templateRegions,
@@ -672,6 +673,8 @@ export class SectionDesignerEditor extends EditorPane {
 		}
 		this.panelDisposables.clear();
 		clearNode(panel);
+		// C13b: the quantities of the texts drawn below in the display units
+		convertTextNodes(panel);
 		const concrete = this.materials.filter(m => m.category !== 'rebar');
 		const rebar = this.materials.filter(m => m.category === 'rebar');
 

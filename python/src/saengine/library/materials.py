@@ -227,6 +227,7 @@ class TimberProperties(_Model):
         default=None,
         gt=0,
         title="Service temperature",
+        json_schema_extra={"unitKind": "temperatureChange"},
         description="Sustained service temperature above normal [°C] (temperature factor); "
         "none: normal temperatures.",
     )

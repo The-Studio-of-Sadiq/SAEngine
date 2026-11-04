@@ -789,6 +789,7 @@ class HvacDesign(_Model):
         default=None,
         ge=0,
         title="Daily range",
+        json_schema_extra={"unitKind": "temperatureChange"},
         description="Of the outdoor dry bulb [°C]; empty: Table 8.2.2 column 14.",
     )
 

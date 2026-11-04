@@ -1,0 +1,27 @@
+{
+  "$schema": "../../../schemas/excavationSupport.schema.json",
+  "$sources": [
+    "PTI DC35.1 (Recommendations for Prestressed Rock and Soil Anchors) and FHWA GEC No. 4 (Ground Anchors and Anchored Systems, 1999): tendon design load ≤ 0.6 fpu A, bond factor of safety 2.0, proof and performance tests to 1.33 DL, lock-off at the design load, free length ≥ 4.5 m, bond length 4.5-12 m; SAEngine practice (IBC 2021, ASCE 7-22 and ACI 318-19 give no rules for excavation support); see VERIFY.md"
+  ],
+  "source": "SAEngine practice where IBC 2021, ASCE 7-22 and ACI 318-19 are silent: staged analysis on subgrade springs, steel struts by the pack's steel methods, ground anchors by PTI DC35.1 and FHWA GEC No. 4",
+  "anchors": {
+    "standard": "PTI DC35.1 and FHWA GEC No. 4 (SAEngine practice)",
+    "tendonFactor": 1.6667,
+    "groundFactor": 2.0,
+    "permanentTendonFactor": 1.6667,
+    "permanentGroundFactor": 2.0,
+    "proofFactor": 1.33,
+    "permanentProofFactor": 1.33,
+    "lockOffShare": 1.0,
+    "freeLengthMin": 4.5,
+    "fixedLengthMin": 4.5,
+    "fixedLengthMax": 12.0
+  },
+  "clauses": {
+    "required": "IBC 2021 Sec 3304 (site work: excavation and fill), no method for excavation support",
+    "method": "SAEngine practice where IBC 2021 and ASCE 7-22 are silent: the wall on elastic-plastic subgrade springs stage by stage (kh by Schmitt 1995)",
+    "effects": "ASCE/SEI 7-22 2.3.1 combinations with 1.6H (2.3.2 load H): on the wall's and the supports' effects",
+    "struts": "AISC 360 Chapters E, F and H (the pack's steel); temperature and self weight SAEngine practice",
+    "anchors": "PTI DC35.1 and FHWA GEC No. 4 (SAEngine practice): design load ≤ 0.6 fpu A, bond FS 2.0, tests to 1.33 DL"
+  }
+}

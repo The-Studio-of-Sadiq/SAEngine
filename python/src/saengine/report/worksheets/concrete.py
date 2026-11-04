@@ -464,7 +464,7 @@ def _column_slenderness(s: Sheet) -> None:
     dns = SL.delta_ns(cm, pu, pc)
     s.step("δns", dns, "", "Cm / (1 - Pu / 0.75 Pc) ≥ 1", _code("wsMagnifier"))
     mmin = SL.minimum_moment(pu, h) / 1e6
-    s.step("M2,min", mmin, "kN·m", "Pu (15 + 0.03 h)", _code("wsMinimumMoment"))
+    s.step("M2,min", mmin, "kN·m", "Pu (15 + 0.03 h)", _code("wsMinimumMoment"), si_form=True)
     if math.isfinite(dns):
         s.step("Mc", dns * max(m2, mmin), "kN·m", "δns max(M2, M2,min)", _code("wsMagnifiedMoment"))
         s.note("Design the section for Pu with Mc.")

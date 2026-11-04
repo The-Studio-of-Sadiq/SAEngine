@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import math
 from collections.abc import Sequence
+from contextvars import ContextVar
 
 from saengine.drawings.sheets.layout import (
     CHAR_WIDTH,
@@ -30,6 +31,7 @@ from saengine.drawings.sheets.model import (
     Table,
 )
 from saengine.drawings.sheets.sections import beam_section, column_section
+from saengine.units import SI, Units, convert_mm_table, convert_text
 
 ROW = 6.0  # paper mm per table row
 LINE = TEXT * 1.6
@@ -138,11 +140,22 @@ def _row_height(row: Sequence[str]) -> float:
     return max(ROW, lines * LINE + 2.0)
 
 
+#: C13b: the display units of the drawing set being built (:func:`build.categories` sets them);
+#: the tables' "(mm)" columns are shown in them. SI: the tables as they are.
+TABLE_UNITS: ContextVar[Units] = ContextVar("TABLE_UNITS", default=SI)
+
+
 def table_specs(
     table: Table, max_height: float, key: str = "table", max_width: float | None = None
 ) -> list[ViewSpec]:
     """``table`` as views no taller than ``max_height`` (paper mm), split between row groups,
-    and no wider than ``max_width`` (its columns narrowed and wrapped: :func:`fit_table`)."""
+    and no wider than ``max_width`` (its columns narrowed and wrapped: :func:`fit_table`). In US
+    customary units (:data:`TABLE_UNITS`) its "(mm)" columns in feet and inches (C13b; the bar
+    bending schedule is in them already)."""
+    units = TABLE_UNITS.get()
+    if not units.si and not key.startswith("bbs:"):
+        columns, rows = convert_mm_table(table.columns, table.rows, units)
+        table = Table(convert_text(table.title, units), columns, rows, table.groups, table.notes)
     table, widths, _ = fit_table(table, None if max_width is None else max_width - 4.0)
     width = sum(widths)
     head = _header_height(table)

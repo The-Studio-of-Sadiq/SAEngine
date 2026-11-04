@@ -390,8 +390,8 @@ export class MembersTableEditor extends EditorPane {
 			const sorted = this.sort.key === column.key;
 			const th = append(headRow, $(`th.${column.className}`, { 'aria-sort': sorted ? (this.sort.descending ? 'descending' : 'ascending') : 'none' }));
 			const button = append(th, $('button.sort', { type: 'button' }));
-			// C13: the Length column in the display units (the section stays as its type names it)
-			append(button, $('span', undefined, column.key === 'length' ? headingWithUnit(column.label) : column.label));
+			// C13: the Length column in the display units; C13b: the Section column too (sectionLabel)
+			append(button, $('span', undefined, column.key === 'length' || column.key === 'section' ? headingWithUnit(column.label) : column.label));
 			if (sorted) {
 				append(button, $(`span${ThemeIcon.asCSSSelector(this.sort.descending ? Codicon.arrowDown : Codicon.arrowUp)}`));
 			}

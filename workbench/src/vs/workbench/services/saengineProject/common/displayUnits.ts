@@ -15,7 +15,9 @@ import { formatNumber } from './formatting.js';
  *
  * A quantity is known by the SI unit SAEngine writes it in ("mm", "kN/m²", the "[mm]" of a schema
  * field's description); a field whose unit is not written that way names its kind (`unitKind`).
- * Temperatures (°C) stay as they are.
+ * Temperatures (C13b): "°C" is a temperature (°F = 1.8 °C + 32), "Δ°C" a change (a field names it
+ * with `unitKind` "temperatureChange"; it shows "°C" in SI). {@link convertText} converts the
+ * quantities of a text as the backend does; {@link sizeText} and {@link barName} member and bar sizes.
  */
 
 export type UnitSystem = 'SI' | 'USCustomary';
@@ -24,6 +26,10 @@ interface IKind {
 	readonly si: string;
 	/** US customary units with the factor from the SI base unit (value_us = value_si × factor); the first is the default. */
 	readonly us: readonly (readonly [string, number])[];
+	/** Added after the factor (value_us = value_si × factor + offset): absolute temperatures (C13b). */
+	readonly offsets?: { readonly [unit: string]: number };
+	/** The unit text shown in SI when it is not `si` (a temperature change "Δ°C" shows "°C"). */
+	readonly siLabel?: string;
 }
 
 // exact definitions (NIST SP 811)
@@ -61,6 +67,10 @@ export const UNIT_KINDS: { readonly [kind: string]: IKind } = {
 	stiffness: { si: 'kN/mm', us: [['kip/in', 1000 * INCH * 1000 / KIP]] },
 	inertia: { si: 'mm⁴', us: [['in⁴', 1e-12 / INCH ** 4]] },
 	sectionModulus: { si: 'mm³', us: [['in³', 1e-9 / INCH ** 3]] },
+	// C13b: temperatures (an absolute one with the offset; a change without, named by `unitKind`)
+	temperature: { si: '°C', us: [['°F', 1.8]], offsets: { '°F': 32 } },
+	temperatureChange: { si: 'Δ°C', us: [['°F', 1.8]], siLabel: '°C' },
+	perTemperature: { si: '1/°C', us: [['1/°F', 1 / 1.8]] },
 };
 
 /** SAEngine's SI unit texts → [kind, factor to the kind's base unit] (saengine.units.SI_UNITS). */
@@ -71,6 +81,7 @@ const SI_UNITS: { readonly [unit: string]: readonly [string, number] } = {
 	'mm²': ['area', 1], 'mm²/m': ['areaPerLength', 1], 'mm²/mm': ['areaPerSpacing', 1], 'm²': ['areaLarge', 1],
 	'm³': ['volume', 1], 'kg': ['mass', 1], 't': ['massLarge', 1], 'm/s': ['velocity', 1], 'kN/mm': ['stiffness', 1],
 	'mm⁴': ['inertia', 1], 'mm³': ['sectionModulus', 1],
+	'°C': ['temperature', 1], 'Δ°C': ['temperatureChange', 1], '1/°C': ['perTemperature', 1],
 };
 
 /** The per-quantity choices of Project Settings › Units (saengine.units.OVERRIDABLE). */
@@ -126,6 +137,10 @@ function factorTo(kind: string, unit: string): number {
 	return k.us.find(([label]) => label === unit)?.[1] ?? 1;
 }
 
+function offsetTo(kind: string, unit: string): number {
+	return UNIT_KINDS[kind]?.offsets?.[unit] ?? 0;
+}
+
 /** Whether values in `siUnit` are shown in another unit than their own. */
 export function isConverted(siUnit: string | undefined, units: IDisplayUnits = activeDisplayUnits()): boolean {
 	return units.system === 'USCustomary' && !!kindOfUnit(siUnit);
@@ -134,7 +149,10 @@ export function isConverted(siUnit: string | undefined, units: IDisplayUnits = a
 /** The unit text shown for values stored in `siUnit` (the SI text itself in SI, or for a unit SAEngine does not convert). */
 export function displayUnit(siUnit: string, units: IDisplayUnits = activeDisplayUnits()): string {
 	const known = kindOfUnit(siUnit);
-	return known && units.system === 'USCustomary' ? unitOf(known[0], units) : siUnit;
+	if (known && units.system !== 'USCustomary') {
+		return UNIT_KINDS[known[0]].siLabel ?? siUnit;
+	}
+	return known ? unitOf(known[0], units) : siUnit;
 }
 
 /** A value stored in `siUnit` as shown (unchanged in SI). */
@@ -143,7 +161,8 @@ export function toDisplay(value: number, siUnit: string, units: IDisplayUnits = 
 	if (!known || units.system !== 'USCustomary') {
 		return value;
 	}
-	return value * known[1] * factorTo(known[0], unitOf(known[0], units));
+	const unit = unitOf(known[0], units);
+	return value * known[1] * factorTo(known[0], unit) + offsetTo(known[0], unit);
 }
 
 /** A value as shown → the value stored in `siUnit` (unchanged in SI). */
@@ -152,7 +171,14 @@ export function fromDisplay(value: number, siUnit: string, units: IDisplayUnits 
 	if (!known || units.system !== 'USCustomary') {
 		return value;
 	}
-	return value / (known[1] * factorTo(known[0], unitOf(known[0], units)));
+	const unit = unitOf(known[0], units);
+	return (value - offsetTo(known[0], unit)) / (known[1] * factorTo(known[0], unit));
+}
+
+/** A scale of values stored in `siUnit` (a length on a chart axis) as shown: the factor without an offset. */
+export function displayFactor(siUnit: string, units: IDisplayUnits = activeDisplayUnits()): number {
+	const known = kindOfUnit(siUnit);
+	return known && units.system === 'USCustomary' ? known[1] * factorTo(known[0], unitOf(known[0], units)) : 1;
 }
 
 /** `significant` significant figures, whole units from 10^(significant-1), as the backend's `fmt`. */
@@ -179,7 +205,7 @@ export function formatQuantity(value: number, siUnit: string, options: { readonl
 	const units = options.units ?? activeDisplayUnits();
 	if (!isConverted(siUnit, units)) {
 		const text = options.siDecimals !== undefined ? formatNumber(value, { decimals: options.siDecimals }) : significantText(value, options.significant);
-		return siUnit ? `${text} ${siUnit}` : text;
+		return siUnit ? `${text} ${displayUnit(siUnit, units)}` : text;
 	}
 	return `${significantText(toDisplay(value, siUnit, units), options.significant)} ${displayUnit(siUnit, units)}`;
 }
@@ -234,6 +260,9 @@ function typedUnits(kind: string): Map<string, number> {
 			out.set(unit, 1 / scale);
 		}
 	}
+	if (kind === 'temperatureChange') {
+		out.set('°C', 1);
+	}
 	if (kind === 'length' || kind === 'dimension') {
 		const metre = kind === 'length' ? 1 : 1000;
 		out.set('ft', 1 / FOOT / metre).set('\'', 1 / FOOT / metre).set('in', 1 / INCH / metre).set('"', 1 / INCH / metre);
@@ -263,6 +292,11 @@ export function parseQuantity(text: string, siUnit: string | undefined, units: I
 		return undefined;
 	}
 	const [kind, scale] = known;
+	if (kind === 'temperature') {
+		// an absolute temperature typed with its unit: "68 °F", "20 °C"
+		const typed = /^([-+]?(?:\d+(?:\.\d*)?|\.\d+))\s*°?\s*([CF])$/i.exec(trimmed);
+		return typed ? (typed[2].toUpperCase() === 'F' ? (Number(typed[1]) - 32) / 1.8 : Number(typed[1])) : undefined;
+	}
 	// typed unit → the kind's base unit → the field's own SI unit
 	const toSi = (value: number, factor: number) => value / factor / scale;
 	if (kind === 'length' || kind === 'dimension') {
@@ -337,4 +371,96 @@ export function setActiveDisplayUnits(value: unknown): void {
 /** A table or CSV heading with its unit in the display units: "Mass (kg)" → "Mass (lb)". */
 export function headingWithUnit(heading: string, units: IDisplayUnits = activeDisplayUnits()): string {
 	return heading.replace(/([(\[])([^()\[\]]+)([)\]])\s*$/, (whole, open: string, unit: string, close: string) => kindOfUnit(unit) ? `${open}${displayUnit(unit.trim(), units)}${close}` : whole);
+}
+
+// ─────────────────────────────── sizes and printed text (C13b) ───────────────────────────────
+
+/** A size [mm] in inches to the nearest 1/`denominator` inch, without feet: 300 → `11 3/4"` (saengine.units.inches_text). */
+export function inchesText(mm: number, denominator = 8): string {
+	const sign = mm < 0 ? '-' : '';
+	const steps = Math.round(Math.abs(mm) / 25.4 * denominator);
+	const whole = Math.floor(steps / denominator);
+	const part = steps % denominator;
+	let fraction = '';
+	if (part) {
+		const g = gcd(part, denominator);
+		fraction = `${part / g}/${denominator / g}`;
+	}
+	const text = [whole ? String(whole) : '', fraction].filter(t => t).join(' ');
+	return `${sign}${text || '0'}"`;
+}
+
+/**
+ * A member size [mm] as a label or a table writes it: the number as it is in SI ("300"); in US
+ * units in inches (`11 3/4"`), or feet and inches when sizes are shown in feet (saengine.units.Units.size_text).
+ */
+export function sizeText(mm: number, units: IDisplayUnits = activeDisplayUnits()): string {
+	if (!isConverted('mm', units)) {
+		return String(mm);
+	}
+	return unitOf('dimension', units) === 'ft' ? feetInches(mm) : inchesText(mm);
+}
+
+let barNames: { readonly [dia: string]: string } = {};
+
+/** Records the code pack's bar names by diameter (`concrete.barNames`: "16" → "#5"), which US customary units show. */
+export function setActiveBarNames(names: unknown): void {
+	const out: { [dia: string]: string } = {};
+	if (typeof names === 'object' && names !== null && !Array.isArray(names)) {
+		for (const [dia, name] of Object.entries(names)) {
+			if (typeof name === 'string' && name) {
+				out[dia] = name;
+			}
+		}
+	}
+	barNames = out;
+}
+
+/** A bar size: "Ø16" in SI, the pack's name ("#5") in US units when it has one (saengine.units.Units.bar). */
+export function barName(dia: number, units: IDisplayUnits = activeDisplayUnits()): string {
+	if (units.system === 'USCustomary') {
+		const name = barNames[String(dia)];
+		if (name) {
+			return name;
+		}
+	}
+	return `Ø${dia}`;
+}
+
+const NUM = String.raw`(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?`;
+const UNIT_TEXTS = Object.keys(SI_UNITS).filter(u => !['t', 'kNm', 'Δ°C', '1/°C'].includes(u)).sort((a, b) => b.length - a.length);
+const UNIT_PATTERN = UNIT_TEXTS.map(u => u.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&')).join('|');
+const QUANTITY = new RegExp(String.raw`(?<![\w.,#Ø/·])(-?${NUM})((?:\s*(?:×|x|–|to)\s*-?${NUM})*)\s?(${UNIT_PATTERN})(?![\w²³⁴/·])`, 'g');
+const SEPARATOR = new RegExp(String.raw`(\s*(?:×|x|–|to)\s*)(-?${NUM})`, 'g');
+const BAR = /(?:(?<![\w.,])(\d+)(\s?))?Ø(\d+(?:\.\d+)?)(?:\s*@\s*(\d+(?:\.\d+)?)(?!\s*(?:mm|m)\b))?/g;
+/** Words before a temperature that make it a change ("ΔT = 20 °C", "±20 °C", "differ by 11 °C"). */
+const CHANGE = /Δ|±|\b(?:by|range|rise|drop|change|gradient)\b/i;
+
+function numberOf(text: string): number {
+	return Number(text.replace(/,/g, ''));
+}
+
+/**
+ * `text` with every SI quantity it writes ("250 mm", "300 × 500 mm", "4.5 kN/m²", "20 °C") in the
+ * display units, and bar sizes ("Ø16 @ 150") by the pack's names; as it is in SI. The rules of the
+ * backend's `saengine.units.convert_text` (a temperature after "Δ", "±", "by" ... is a change).
+ */
+export function convertText(text: string, units: IDisplayUnits = activeDisplayUnits()): string {
+	if (units.system !== 'USCustomary' || !text) {
+		return text;
+	}
+	const quantities = text.replace(QUANTITY, (_whole: string, first: string, rest: string, unit: string, at: number) => {
+		// the words before it in its own clause (up to a ; , : ( ) or the temperature before it)
+		const before = text.slice(Math.max(0, at - 20), at).split(/[;,:()\n°]/).pop() ?? '';
+		const own = unit === '°C' && CHANGE.test(before) ? 'Δ°C' : unit;
+		const shown = rest.replace(SEPARATOR, (_part: string, gap: string, value: string) => gap + significantText(toDisplay(numberOf(value), own, units)));
+		return `${significantText(toDisplay(numberOf(first), own, units))}${shown} ${displayUnit(own, units)}`;
+	});
+	return quantities.replace(BAR, (_whole: string, count: string | undefined, gap: string | undefined, dia: string, spacing: string | undefined) => {
+		let name = barName(Number(dia), units);
+		if (count !== undefined) {
+			name = `${count}${name.startsWith('Ø') ? gap ?? '' : '-'}${name}`;
+		}
+		return spacing === undefined ? name : `${name} @ ${significantText(toDisplay(Number(spacing), 'mm', units))} ${displayUnit('mm', units)}`;
+	});
 }

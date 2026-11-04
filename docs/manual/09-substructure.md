@@ -102,9 +102,26 @@ divided by 2.0, SAEngine practice where BNBC 2020 is silent; the Eurocodes pack:
 the M2 strengths): *Cantilever*, *Propped, free earth* or *Propped, fixed earth*, with the
 *Prop level*, the *Toe level* as built and the wall's *Moment capacity* (kN·m/m). The checks give
 the required embedment (with the unplanned overdig and the least surcharge), the largest bending
-moment and the prop force. The wall sections (contiguous and secant pile walls, sheet piles),
-the struts, walers and anchors of staged excavations stay planned: each chip opens its
-planned-feature page.
+moment and the prop force.
+
+**Staged excavations** (the code pack's excavation support method): give the wall a *Wall type*
+in *Embedded wall sections* (steel sheet piles, contiguous or secant bored piles, soldier piles
+and lagging, a diaphragm wall) with its section, material, pile diameter and spacing or
+thickness, bars and links, and the *Toe level* in *Embedded walls*. *Struts, anchors and
+rakers* lists its supports (level, spacing, steel section and length of struts and rakers, the
+waler, an anchor's inclination, tendon area and fpk, grout diameter and lengths); *Excavation
+stages* the construction sequence (place supports, then dig to the level). Without stages the
+wall is dug to 0.5 m below each support before it is placed, then to the bottom. Adjoining
+structures with a *Footing pressure* and width load the wall as strip loads. The analysis runs
+each stage on soil springs between the active and passive pressures (the default pack:
+SAEngine practice where BNBC 2020 is silent, effects × 1.6H; the Eurocodes pack: DA1 C1 and
+C2) and gives the envelopes of moment, shear and deflection, the last stage's pressures, the
+stages and the supports' forces (charts and tables under the supports). The checks cover the
+wall's section, the struts, rakers and walers (the pack's steel member checks with temperature
+and self weight), the anchors (tendon, free and fixed length, proof and lock-off loads by the
+pack's standard: BS 8081 in the default pack), basal heave of a soft base, piping at the toe
+and the deflection (reported). The bill measures the wall and its supports; the drawings add
+a section of the wall with its stages and supports.
 
 **Machine foundations:** the *Machine foundations* table (Add Machine Foundation) gives each
 block under a generator, compressor, turbine or hammer its kind, base L × B, depth and founding

@@ -136,6 +136,49 @@ practice where BNBC 2020 is silent**, except the non-building structures, which 
   H up to 0.5 m; the Eurocodes pack uses EN 1997-1 M2 strengths and q × 1.3. Wall sections,
   walers, struts and anchors stay with track P1.
 
+## 2026-11-04: staged excavation support and shoring (alpha 9 track P1)
+
+The pack's new `excavationSupport` table holds the method ids and values; BNBC 2020 asks for
+retained excavation sides and names sheet piles with tie-back anchors (Part 6 Sec 3.12, 3.16)
+without a method, so in the default pack each item is **SAEngine practice where BNBC 2020 is
+silent** (the 1.6H factor on the effects is BNBC's Sec 2.7.3.1). Every value is overridable in
+Code Values. P7's limit-equilibrium embedment check stays as it is; P1 adds rows only when an
+excavation's wall has a *wall type*, so existing projects keep their results.
+
+- **Staged analysis (SAEngine practice).** The wall per metre on elastic-plastic springs (at
+  rest to active behind, to passive in front, kh by Schmitt 1995 from the borehole's E or the
+  pack's correlation), Coulomb pressures with δa = 2/3 φ' and δp = 1/3 φ' (Coulomb passive is
+  taken no further than φ'/3, where it stays near the curved-surface values), hydrostatic water
+  both sides (front dewatered to the dig level), adjoining footings as Boussinesq strip loads.
+  Each stage is solved on the total deflection from the at-rest state (no unloading memory of
+  the soil); a support placed in a stage starts from the wall's deflection at that moment, which
+  is what carries the staging. A support that would pull drops out. The last stage takes P7's
+  unplanned overdig. Bored and diaphragm walls use 0.7 × the uncracked EI.
+- **Runs and factors.** The default pack: one characteristic run, effects × the pack's factor on
+  earth pressure (1.6H); the Eurocodes pack: DA1 C1 (characteristic, × 1.35) and C2 (M2
+  strengths, × 1.0), enveloped. Anchors' working loads come from the characteristic run.
+- **Sections.** Sheet piles from a nominal per-metre table (JIS U types, generic Z types; VERIFY
+  with the supplier), W fy / γM0 or φb Fy W (elastic); bored piles by the pack's P-M surface per
+  reinforced pile (secant: every second pile unless all are reinforced), pile shear by the pile
+  section rule (ACI packs) or the pack's one-way shear on bw = D, d = 0.8 D (others); diaphragm
+  walls by the retaining walls' strip design both faces; soldier piles by the pack's steel
+  member checks (braced at the supports) with timber lagging against the formwork rules'
+  allowable stress, the soil below the dig acting on 3 × the flange width.
+- **Supports.** Struts and rakers by the pack's steel member checks with the temperature force
+  (ΔT 15 °C, half restrained, × 1.0) and the self weight (× 1.2); a strut's stiffness from half
+  its length (symmetric pit). Walers continuous: M = w s²/10, V = 0.6 w s. Ground anchors by the
+  pack's standard (BS 8081 in the default pack, EN 1997-1 8 / EN 1537 in the Eurocodes pack, PTI
+  DC35.1 / FHWA GEC 4 in the US pack): tendon and bond factors, proof and lock-off loads, the
+  free length beyond the active wedge from the dig level plus max(0.2 H, 1.5 m), the fixed length
+  by the bond integrated along it.
+- **Base.** Basal heave of a cohesive base by Bjerrum and Eide (needs the outline), piping at the
+  toe by Harr's exit gradient Δh / (π d) (one wall in deep uniform soil; a flow net decides for
+  layered ground), the wall's deflection reported against 0.5 % H.
+- **Quantities and drawings.** The bill measures sheet piles (kg), bored and diaphragm walls'
+  concrete and bars, soldier piles, lagging, struts (one per two spacings: a strut joins two
+  walls), rakers, walers and anchors (number and drilled length, given or the pack's least);
+  the drawings add a section of each typed wall with its stages, supports and water table.
+
 ## 2026-11-04: display units, SI or US customary (alpha 9 track C13)
 
 - **Stored and computed in SI only** (owner, alpha 9 plan). Project Settings › Units (`units`)
@@ -155,11 +198,47 @@ practice where BNBC 2020 is silent**, except the non-building structures, which 
   convert differently and the fields do not say which), the expressions of the calculation
   worksheets (written in the code's SI form; their values, checks and units are converted, and
   the report says so), the costing (rates stay in the units of the schedule of rates), and the
-  BOQ's cft, cement bags, litres and counts.
+  BOQ's cft, cement bags, litres and counts. (C13b below converts temperatures, the worksheets'
+  expressions and the costing sheet.)
 - **US bar names from the pack** (`concrete.barNames`): the US pack names its soft-metric bars
   #3–#11 (ASTM A615). Drawings and the bar bending schedule print dimensions in feet and inches
   to 1/8" (DXF architectural units, the geometry stays in mm) and levels in feet; the BBS's
   lengths in ft-in, totals in ft and masses in lb.
+
+## 2026-11-04: display units, the remainder (alpha 9 track C13b)
+
+What C13 left in SI, through the same two modules (`saengine.units`, `displayUnits.ts`); SI
+projects print and show exactly as before. SAEngine practice throughout:
+
+- **Temperatures convert** (owner: complete units). "°C" is a temperature (°F = 1.8 °C + 32);
+  a field that holds a change names the kind `temperatureChange` (the thermal ΔTu and ΔTg, a
+  timber service temperature above normal, the HVAC daily range: 1.8 °F per °C). In printed
+  text a temperature is a change when "Δ", "±" or "by", "range", "rise", "drop", "change",
+  "gradient" stand within the 20 characters before it, in its own clause.
+- **Worksheet expressions with their values.** In US units every step whose expression is
+  mathematics gets a "With values" form: the symbols replaced by the values as printed, juxtaposed
+  factors joined by ×. An expression in the code's SI form (a root of a stress, a constant above
+  100 or a small one of two or more digits, or marked by its kind, as ACI's 15 + 0.03h) keeps its
+  SI form and gets the SI values, marked "(SI form)"; the report says so. Steps in words get none.
+- **Sizes.** Member sizes in US units are written in inches to 1/8" (feet and inches when the
+  project shows sizes in feet): the Members Table and plan labels (12"x20" style), the drawings'
+  sizes without a unit ("300x500", "LAP 800", "150 THK"; a section designation such as
+  "SHS 150x150x8" stays) and the "(mm)" columns of the drawings' tables (lengths and positions in
+  feet and inches, bar size columns by the pack's bar names, a pile type's length in feet).
+  "4Ø16" reads "4-#5" with a pack name.
+- **Code values and placeholders.** Project Settings › Code Values shows and reads a value with
+  its unit (and lists of numbers) in the display units; the greyed code values of the forms too.
+- **Editors.** Substructure, soil, MEP (HVAC temperatures included), architecture, strut-and-tie
+  and the walls, stairs and detailing panels show and read their numbers in the display units;
+  the readouts written as SI text are converted where they are drawn (never the text a user
+  types). The FEM charts' elevations and member stations are in feet, the P–M and Mx–My charts in
+  kip and kip·ft.
+- **Costing.** The quantity is shown in its display unit and the rate's units per unit as shown
+  follow it, so every amount is the same; the BOQ editor shows a rate per display unit beside
+  the schedule's rate. The embodied carbon's masses in lb with the factors per lb.
+- **Still SI** (to do when wanted): the section designer's geometry and its charts, the drawings'
+  MEP pipe sizes (Ø in mm), bar and mesh inputs typed as "12@150", the BOQ's cft, bags and litres,
+  and SAEngine's chart tick numbers drawn in SVG by other editors' own code.
 
 ## 2026-11-04: bar bending schedules by the pack's standard (alpha 9 track C14)
 

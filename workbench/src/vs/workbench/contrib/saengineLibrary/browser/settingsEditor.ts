@@ -38,7 +38,7 @@ import { IEditorService } from '../../../services/editor/common/editorService.js
 import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
 import { ILocaleService } from '../../../services/localization/common/locale.js';
 import { DEFAULT_CODE_TABLES, DEFAULT_SETTINGS, REDUCED_LIVE, SETTINGS_SCHEMA, SETTLEMENT_COMBINATIONS, TEMPLATES, THERMAL_COMBINATIONS } from '../../../services/saengineProject/common/projectLibraries.generated.js';
-import { setActiveDisplayUnits } from '../../../services/saengineProject/common/displayUnits.js';
+import { convertText, setActiveDisplayUnits } from '../../../services/saengineProject/common/displayUnits.js';
 import { IPartSectionPane, sectionOption } from '../../../services/saengineProject/common/partSections.js';
 import { IPartCheckItem, ISaenginePartStatusService } from '../../../services/saengineProject/common/partStatus.js';
 import { ISaengineProjectService, partById, PROJECT_TYPES, ProjectType } from '../../../services/saengineProject/common/saengineProject.js';
@@ -46,7 +46,7 @@ import { appendPropertyRow, EditorFrame } from '../../saengineProject/browser/ed
 import { IReportTemplateInfo, IReportTemplates, REPORT_TEMPLATES_COMMAND_ID } from '../../saengineReport/browser/reportBuild.js';
 import './media/codePacks.css';
 import { changePackWarning, chosenPackId, CODES_CHOICES_COMMAND, CODES_LIST_COMMAND, coverageLabel, DEFAULT_CODE_PACK, ICodePackInfo, ICodePackOption, packOptionBlock, packOptions, readCodePacks, readPackLists } from './codePacksModel.js';
-import { CODE_OVERRIDES_KEY, codeOverrides, CODES_VALUES_COMMAND, filterCodeValues, formatCodeValue, ICodeValueRow, ICodeValues, parseCodeValue, readCodeValues, setCodeOverride } from './codeValuesModel.js';
+import { CODE_OVERRIDES_KEY, codeOverrides, CODES_VALUES_COMMAND, codeValueUnit, filterCodeValues, formatCodeValue, ICodeValueRow, ICodeValues, parseCodeValue, readCodeValues, setCodeOverride } from './codeValuesModel.js';
 import { clone, IDocumentFrameActions, IShapeError, isObject, JsonDocumentEditor } from './jsonDocumentEditor.js';
 import { LibraryEditorInput } from './libraryEditorInput.js';
 import { humanize, JsonObject, JsonValue, SchemaForm, titleCase } from './schemaForm.js';
@@ -405,7 +405,7 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 	private codeValuesTable: string | undefined;
 	private codeValuesFilter = '';
 	/** The override typed last, until the backend has checked it (SL-3). */
-	private pendingOverride: { readonly path: string; readonly value: JsonValue; readonly label: string } | undefined;
+	private pendingOverride: { readonly path: string; readonly value: JsonValue; readonly label: string; readonly unit?: string } | undefined;
 	/** Why a value typed on the Code Values page was not kept (SL-2, SL-3). */
 	private codeValuesNotice: string | undefined;
 	/** Text typed in a code value field that was not kept (R1-12: it vanished when the page was drawn again). */
@@ -1484,7 +1484,7 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 		this.pendingOverride = undefined;
 		const refused = pending && answer?.problems.find(p => p.path === pending.path);
 		if (refused && this.document === document && setCodeOverride(document, pending.path, undefined)) {
-			this.codeValuesNotice = localize('settings.codeValuesRefused', "{0} for {1} was not kept: {2}. The code pack's value {3} applies.", formatCodeValue(pending.value), pending.label, refused.message, formatCodeValue(refused.packValue));
+			this.codeValuesNotice = localize('settings.codeValuesRefused', "{0} for {1} was not kept: {2}. The code pack's value {3} applies.", formatCodeValue(pending.value, pending.unit), pending.label, convertText(refused.message), formatCodeValue(refused.packValue, pending.unit));
 			this.changed(true);
 			return;
 		}
@@ -1635,7 +1635,7 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 		const name = append(line, $('span.settings-code-values-path', { role: 'cell' }));
 		const path = fullPath ? row.path : row.path.slice(row.table.length + 1);
 		if (row.label) {
-			append(name, $('span.settings-code-values-label', undefined, row.unit ? `${row.label} (${row.unit})` : row.label));
+			append(name, $('span.settings-code-values-label', undefined, row.unit ? `${row.label} (${codeValueUnit(row.unit)})` : row.label));
 			append(name, $('span.settings-code-values-key', undefined, path));
 		} else {
 			name.textContent = path;
@@ -1648,26 +1648,26 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 			const tag = append(name, $('span.settings-code-values-tag', undefined, localize('settings.codeValuesGeneric', "generic default")));
 			store.add(this.hoverService.setupDelayedHover(tag, { content: localize('settings.codeValuesGenericHover', "Not given by {0}: a generic default (SAEngine practice). {1}", this.codeValues?.name ?? this.codeName, row.note) }));
 		}
-		append(line, $('span.settings-code-values-pack', { role: 'cell' }, formatCodeValue(row.packValue)));
+		append(line, $('span.settings-code-values-pack', { role: 'cell' }, formatCodeValue(row.packValue, row.unit)));
 		const like: JsonValue = row.packValue ?? own ?? null;
 		const cell = append(line, $('.settings-code-values-input', { role: 'cell' }));
 		const box = store.add(new InputBox(cell, this.contextViewService, {
 			inputBoxStyles: defaultInputBoxStyles,
 			ariaLabel: localize('settings.codeValuesInput', "Project value of {0}", row.path),
-			placeholder: formatCodeValue(row.packValue),
-			validationOptions: { validation: text => { const error = parseCodeValue(text, like).error; return error ? { content: error, type: MessageType.ERROR } : null; } },
+			placeholder: formatCodeValue(row.packValue, row.unit),
+			validationOptions: { validation: text => { const error = parseCodeValue(text, like, row.unit).error; return error ? { content: error, type: MessageType.ERROR } : null; } },
 		}));
 		// R1-12: text that was not kept stays in its field (with the notice) to be corrected.
 		const draft = this.codeValuesDraft?.path === row.path ? this.codeValuesDraft.text : undefined;
-		box.value = draft ?? (own === undefined ? '' : formatCodeValue(own));
+		box.value = draft ?? (own === undefined ? '' : formatCodeValue(own, row.unit));
 		// No browser autofill list under the field (R1-12).
 		box.inputElement.autocomplete = 'off';
 		store.add(addDisposableListener(box.inputElement, EventType.CHANGE, () => {
-			const parsed = parseCodeValue(box.value, like);
+			const parsed = parseCodeValue(box.value, like, row.unit);
 			const label = row.label ? `${row.label} (${row.path})` : row.path;
 			if (parsed.error) {
 				// SL-2: not saved, and said so (not only a red box).
-				this.codeValuesNotice = localize('settings.codeValuesNotTyped', "\"{0}\" for {1} was not kept: {2} The code pack's value {3} applies.", box.value.trim(), label, parsed.error, formatCodeValue(row.packValue));
+				this.codeValuesNotice = localize('settings.codeValuesNotTyped', "\"{0}\" for {1} was not kept: {2} The code pack's value {3} applies.", box.value.trim(), label, parsed.error, formatCodeValue(row.packValue, row.unit));
 				this.codeValuesDraft = { path: row.path, text: box.value };
 				this.renderPage();
 				return;
@@ -1676,7 +1676,7 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 			this.codeValuesNotice = undefined;
 			this.codeValuesDraft = undefined;
 			if (this.document === document && setCodeOverride(document, row.path, parsed.value)) {
-				this.pendingOverride = parsed.value === undefined ? undefined : { path: row.path, value: parsed.value, label };
+				this.pendingOverride = parsed.value === undefined ? undefined : { path: row.path, value: parsed.value, label, unit: row.unit };
 				this.changed(true);
 			} else if (hadNotice) {
 				// Cleared after a refused entry: nothing to save, and the notice goes (R1-12).
@@ -1694,7 +1694,7 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 			}));
 		}
 		if (problem) {
-			append(line, $('.settings-code-values-problem', { role: 'alert' }, localize('settings.codeValuesNotUsed', "{0} Not used: the code pack's value applies.", problem)));
+			append(line, $('.settings-code-values-problem', { role: 'alert' }, localize('settings.codeValuesNotUsed', "{0} Not used: the code pack's value applies.", convertText(problem))));
 		}
 	}
 

@@ -44,7 +44,7 @@ import { appendPlannedChips, FemPlanned } from './femPlannedFeatures.js';
 import { errorSummary, FEM_RESULT_LIST_COMMAND, IFemRunTracker } from './femResultsBar.js';
 import { formatNumber } from '../../../services/saengineProject/common/formatting.js';
 import { activeCodeName, defaultCodeName } from '../../../services/saengineProject/common/activeCodePack.js';
-import { activeDisplayUnits, displayUnit, IDisplayUnits, SI_UNITS_SETTING, toDisplay } from '../../../services/saengineProject/common/displayUnits.js';
+import { activeDisplayUnits, displayFactor, displayUnit, IDisplayUnits, SI_UNITS_SETTING, toDisplay } from '../../../services/saengineProject/common/displayUnits.js';
 
 const chartsIcon = registerIcon('saengine-fem-results-label-icon', Codicon.graph, localize('femResultsLabelIcon', "Icon of the analysis charts and member pages."));
 
@@ -138,6 +138,8 @@ export interface IChartUnits {
 	readonly force: IUnit;
 	readonly moment: IUnit;
 	readonly acceleration: IUnit;
+	/** C13b: levels, elevations and distances along a member (the model's m; ft in US units). */
+	readonly level: IUnit;
 }
 
 /**
@@ -147,15 +149,21 @@ export interface IChartUnits {
  */
 export function chartUnits(units: string | undefined, display: IDisplayUnits = SI_UNITS_SETTING): IChartUnits {
 	if (units?.startsWith('SI')) {
-		const shown = (scale: number, unit: string): IUnit => ({ scale: scale * toDisplay(1, unit, display), unit: displayUnit(unit, display) });
+		const shown = (scale: number, unit: string): IUnit => ({ scale: scale * displayFactor(unit, display), unit: displayUnit(unit, display) });
 		return {
 			length: shown(1000, 'mm'),
 			force: shown(1e-3, 'kN'),
 			moment: shown(1e-3, 'kN·m'),
 			acceleration: { scale: 1 / 9.80665, unit: 'g' },
+			level: shown(1, 'm'),
 		};
 	}
-	return { length: { scale: 1, unit: '' }, force: { scale: 1, unit: '' }, moment: { scale: 1, unit: '' }, acceleration: { scale: 1, unit: '' } };
+	return { length: { scale: 1, unit: '' }, force: { scale: 1, unit: '' }, moment: { scale: 1, unit: '' }, acceleration: { scale: 1, unit: '' }, level: { scale: 1, unit: 'm' } };
+}
+
+/** C13b: a level or a distance [m] as the charts' readouts write it: "3.00 m" (SI), "9.84 ft". */
+function levelText(value: number, unit: IUnit): string {
+	return unit.unit ? `${(value * unit.scale).toFixed(2)} ${unit.unit}` : value.toFixed(2);
 }
 
 function withUnit(label: string, unit: IUnit): string {
@@ -900,11 +908,11 @@ export class FemResultsEditor extends EditorPane {
 			renderChart(this.grid(section), {
 				title: localize('femResults.nlthDrift', "Storey Drift Ratio"),
 				xLabel: localize('femResults.driftRatio', "Drift ratio [%]"),
-				yLabel: localize('femResults.levelZ', "Level [m]"),
+				yLabel: withUnit(localize('femResults.levelName', "Level"), this.units.level),
 				series: names.map((name, k) => ({
 					name,
 					color: colors[k % colors.length],
-					points: drift.filter(d => `${d.suite} ${d.direction}` === name).flatMap(d => [[d.ratio * 100, d.bottom], [d.ratio * 100, d.top]] as [number, number][]),
+					points: drift.filter(d => `${d.suite} ${d.direction}` === name).flatMap(d => [[d.ratio * 100, d.bottom * this.units.level.scale], [d.ratio * 100, d.top * this.units.level.scale]] as [number, number][]),
 				})),
 				guides: [{ axis: 'x', value: limit.ratio * 100, label: localize('femResults.nlthLimit', "limit"), color: 'red' }],
 			});
@@ -914,7 +922,7 @@ export class FemResultsEditor extends EditorPane {
 					localize('femResults.suiteCol', "Suite"), localize('femResults.directionCol', "Direction"), localize('femResults.storeyCol', "Storey"),
 					localize('femResults.driftCol', "Drift"), localize('femResults.ratioPctCol', "Ratio [%]"), localize('femResults.okCol', "OK"),
 				],
-				rows: drift.map(d => [d.suite, d.direction, `${d.bottom} – ${d.top} m`, this.format('length', d.drift), (d.ratio * 100).toFixed(3), d.ok ? yes : no]),
+				rows: drift.map(d => [d.suite, d.direction, this.units.level.scale === 1 ? `${d.bottom} – ${d.top} m` : `${levelText(d.bottom, this.units.level)} – ${levelText(d.top, this.units.level)}`, this.format('length', d.drift), (d.ratio * 100).toFixed(3), d.ok ? yes : no]),
 				notes: [clauses.drift].filter((c): c is string => !!c),
 			});
 		}
@@ -960,8 +968,8 @@ export class FemResultsEditor extends EditorPane {
 		renderChart(this.grid(section), {
 			title: localize('femResults.shorteningProfile', "Shortening after Casting at the End of the Service Life"),
 			xLabel: withUnit(localize('femResults.shortening', "Shortening"), this.units.length),
-			yLabel: localize('femResults.levelZ', "Level [m]"),
-			series: shown.map((line, k) => ({ name: line.line, color: colors[k], points: line.rows.map(r => [r.afterCasting * length, r.z]) })),
+			yLabel: withUnit(localize('femResults.levelName', "Level"), this.units.level),
+			series: shown.map((line, k) => ({ name: line.line, color: colors[k], points: line.rows.map(r => [r.afterCasting * length, r.z * this.units.level.scale]) })),
 		});
 		const history = found.history;
 		if (history) {
@@ -1127,13 +1135,13 @@ export class FemResultsEditor extends EditorPane {
 					color: AXIS_COLORS[axis],
 					// Storey forces act at the levels: a line through them, each level marked.
 					style: 'line',
-					points: profile.map(p => [p.value * unit.scale, p.z]),
-					tooltips: profile.map(p => `${axis}, ${p.level} (${p.z.toFixed(2)} m): ${[show(p.value), unit.unit].filter(Boolean).join(' ')}`),
+					points: profile.map(p => [p.value * unit.scale, p.z * this.units.level.scale]),
+					tooltips: profile.map(p => `${axis}, ${p.level} (${levelText(p.z, this.units.level)}): ${[show(p.value), unit.unit].filter(Boolean).join(' ')}`),
 				});
 				const peak = profilePeak(profile);
 				if (peak && Math.abs(peak.value) > 0) {
 					captions.push(localize('femResults.peakCaption', "{0}: largest {1} at {2}", axis, [show(peak.value), unit.unit].filter(Boolean).join(' '), peak.level));
-					marks.push({ x: peak.value * unit.scale, y: peak.z, text: show(peak.value), color: AXIS_COLORS[axis] });
+					marks.push({ x: peak.value * unit.scale, y: peak.z * this.units.level.scale, text: show(peak.value), color: AXIS_COLORS[axis] });
 				}
 			}
 			const guides = quantity === 'drift' && limit !== undefined && (isEarthquakeResult(result.label) || spectrum)
@@ -1159,18 +1167,22 @@ export class FemResultsEditor extends EditorPane {
 					const rows = (response.spectrumDesign?.drift ?? []).filter(d => d.direction === axis);
 					const worst = rows.reduce<typeof rows[number] | undefined>((w, d) => !w || d.ratio > w.ratio ? d : w, undefined);
 					if (worst) {
-						captions.push(localize('femResults.designDriftCaption', "{0}: design drift Cd·δ/I with the accidental torsion {1} % between {2} and {3} m (allowable {4} %, {5}).", axis, (100 * worst.ratio).toFixed(2), worst.bottom, worst.top, (100 * worst.allowableRatio).toFixed(2), worst.ok ? localize('femResults.ok', "OK") : localize('femResults.notOk', "exceeded")));
+						const verdict = worst.ok ? localize('femResults.ok', "OK") : localize('femResults.notOk', "exceeded");
+						captions.push(this.units.level.scale === 1
+							? localize('femResults.designDriftCaption', "{0}: design drift Cd·δ/I with the accidental torsion {1} % between {2} and {3} m (allowable {4} %, {5}).", axis, (100 * worst.ratio).toFixed(2), worst.bottom, worst.top, (100 * worst.allowableRatio).toFixed(2), verdict)
+							// C13b: the levels in the display unit
+							: localize('femResults.designDriftCaptionShown', "{0}: design drift Cd·δ/I with the accidental torsion {1} % between {2} and {3} (allowable {4} %, {5}).", axis, (100 * worst.ratio).toFixed(2), levelText(worst.bottom, this.units.level), levelText(worst.top, this.units.level), (100 * worst.allowableRatio).toFixed(2), verdict));
 					}
 				}
 			}
 			renderChart(grid, {
 				title,
 				xLabel: withUnit(storeyQuantityLabel(quantity), unit),
-				yLabel: localize('femResults.elevation', "Elevation [m]"),
+				yLabel: withUnit(localize('femResults.elevationName', "Elevation"), this.units.level),
 				series,
 				guides,
 				marks,
-				include: { x: [0], y: response.levels.map(l => l.z) },
+				include: { x: [0], y: response.levels.map(l => l.z * this.units.level.scale) },
 				caption: captions.join(' · ') || localize('femResults.zeroCaption', "No {0} in this result.", storeyQuantityLabel(quantity).toLowerCase()),
 				height: 320,
 			});
@@ -1302,7 +1314,10 @@ export class FemResultsEditor extends EditorPane {
 			{ c: 'u2', title: localize('femResults.deflection2', "Deflection u2 (relative to the chord)"), unit: this.units.length },
 			{ c: 'u3', title: localize('femResults.deflection3', "Deflection u3 (relative to the chord)"), unit: this.units.length },
 		];
-		const x = detail.stations;
+		// C13b: the stations in the display unit of levels (m in SI, ft in US units)
+		const level = this.units.level;
+		const x = detail.stations.map(s => s * level.scale);
+		const atText = (v: number) => level.scale === 1 ? v.toFixed(2) : `${v.toFixed(2)} ${level.unit}`;
 		for (const { c, title, unit } of components) {
 			const digits = unit === this.units.length ? 3 : 1;
 			const show = (v: number) => `${fixed(v * unit.scale, digits)} ${unit.unit}`;
@@ -1311,17 +1326,17 @@ export class FemResultsEditor extends EditorPane {
 			if (envelope) {
 				const env = memberEnvelope(detail, c);
 				series = [
-					{ name: localize('femResults.max', "Max"), color: 'blue', style: 'area', points: x.map((s, k) => [s, env.max[k] * unit.scale]), tooltips: x.map((s, k) => `${s.toFixed(2)} m: ${show(env.max[k])} (${env.maxBy[k]})`) },
-					{ name: localize('femResults.min', "Min"), color: 'red', style: 'area', points: x.map((s, k) => [s, env.min[k] * unit.scale]), tooltips: x.map((s, k) => `${s.toFixed(2)} m: ${show(env.min[k])} (${env.minBy[k]})`) },
+					{ name: localize('femResults.max', "Max"), color: 'blue', style: 'area', points: x.map((s, k) => [s, env.max[k] * unit.scale]), tooltips: x.map((s, k) => `${s.toFixed(2)} ${level.unit}: ${show(env.max[k])} (${env.maxBy[k]})`) },
+					{ name: localize('femResults.min', "Min"), color: 'red', style: 'area', points: x.map((s, k) => [s, env.min[k] * unit.scale]), tooltips: x.map((s, k) => `${s.toFixed(2)} ${level.unit}: ${show(env.min[k])} (${env.minBy[k]})`) },
 				];
 				const hi = extremes(x, env.max);
 				const lo = extremes(x, env.min);
-				caption = hi && lo ? localize('femResults.envelopeCaption', "Max {0} at {1} m; min {2} at {3} m", show(hi.max.value), hi.max.at.toFixed(2), show(lo.min.value), lo.min.at.toFixed(2)) : '';
+				caption = hi && lo ? (level.scale === 1 ? localize('femResults.envelopeCaption', "Max {0} at {1} m; min {2} at {3} m", show(hi.max.value), atText(hi.max.at), show(lo.min.value), atText(lo.min.at)) : localize('femResults.envelopeCaptionShown', "Max {0} at {1}; min {2} at {3}", show(hi.max.value), atText(hi.max.at), show(lo.min.value), atText(lo.min.at))) : '';
 			} else if (result) {
 				const values = memberValues(result, c);
-				series = [{ name: result.label, color: 'blue', style: 'area', points: x.map((s, k) => [s, values[k] * unit.scale]), tooltips: x.map((s, k) => `${s.toFixed(2)} m: ${show(values[k])}`) }];
+				series = [{ name: result.label, color: 'blue', style: 'area', points: x.map((s, k) => [s, values[k] * unit.scale]), tooltips: x.map((s, k) => `${s.toFixed(2)} ${level.unit}: ${show(values[k])}`) }];
 				const e = extremes(x, values);
-				caption = e ? localize('femResults.extremesCaption', "Max {0} at {1} m; min {2} at {3} m", show(e.max.value), e.max.at.toFixed(2), show(e.min.value), e.min.at.toFixed(2)) : '';
+				caption = e ? (level.scale === 1 ? localize('femResults.extremesCaption', "Max {0} at {1} m; min {2} at {3} m", show(e.max.value), atText(e.max.at), show(e.min.value), atText(e.min.at)) : localize('femResults.extremesCaptionShown', "Max {0} at {1}; min {2} at {3}", show(e.max.value), atText(e.max.at), show(e.min.value), atText(e.min.at))) : '';
 			} else {
 				continue;
 			}
@@ -1336,12 +1351,12 @@ export class FemResultsEditor extends EditorPane {
 			});
 			renderChart(grid, {
 				title,
-				xLabel: localize('femResults.station', "Distance along the member [m]"),
+				xLabel: withUnit(localize('femResults.stationName', "Distance along the member"), level),
 				yLabel: withUnit(title.split(' (')[0], unit),
 				series,
 				marks,
-				include: { x: [0, detail.length], y: [0] },
-				xDomain: [0, detail.length],
+				include: { x: [0, detail.length * level.scale], y: [0] },
+				xDomain: [0, detail.length * level.scale],
 				caption,
 				height: 220,
 			});
@@ -1377,21 +1392,27 @@ export class FemResultsEditor extends EditorPane {
 			append(section, $('.fem-results-note.warning', undefined, localize('femResults.pmAssumed', "Object type {0} has no bars: the diagram is of the bars the design checks assume.", diagram.type)));
 		}
 		const grid = this.grid(section);
+		// C13b: forces and moments in the display units (kN and kN·m in SI)
+		const display = activeDisplayUnits();
+		const F = (v: number) => toDisplay(v, 'kN', display);
+		const M = (v: number) => toDisplay(v, 'kN·m', display);
+		const fu = displayUnit('kN', display);
+		const mu = displayUnit('kN·m', display);
 		for (const axis of ['x', 'y'] as const) {
 			const moment = (p: typeof diagram.points[number]) => axis === 'x' ? p.Mx : p.My;
 			renderChart(grid, {
 				title: axis === 'x' ? localize('femResults.pmX', "P–Mx (about the section's x axis)") : localize('femResults.pmY', "P–My (about the section's y axis)"),
-				xLabel: localize('femResults.phiM', "φMn, Mu [kN·m]"),
-				yLabel: localize('femResults.phiP', "φPn, Pu [kN] (compression +)"),
+				xLabel: localize('femResults.phiMUnit', "φMn, Mu [{0}]", mu),
+				yLabel: localize('femResults.phiPUnit', "φPn, Pu [{0}] (compression +)", fu),
 				series: [
-					{ name: localize('femResults.capacitySeries', "φ capacity"), color: 'blue', points: closedPmCurve(diagram, axis) },
+					{ name: localize('femResults.capacitySeries', "φ capacity"), color: 'blue', points: closedPmCurve(diagram, axis).map(([m, p]) => [M(m), F(p)]) },
 					{
 						name: localize('femResults.demands', "Demands"), color: 'orange', style: 'points',
-						points: diagram.points.map(p => [moment(p), p.P]),
-						tooltips: diagram.points.map(p => `${p.combination}, ${p.where}: Pu ${fixed(p.P, 1)} kN, M${axis} ${fixed(moment(p), 1)} kN·m`),
+						points: diagram.points.map(p => [M(moment(p)), F(p.P)]),
+						tooltips: diagram.points.map(p => `${p.combination}, ${p.where}: Pu ${fixed(F(p.P), 1)} ${fu}, M${axis} ${fixed(M(moment(p)), 1)} ${mu}`),
 					},
 				],
-				caption: diagram.governing ? localize('femResults.pmGoverning', "Governing: {0} at {1}, Pu = {2} kN, utilisation {3}", diagram.governing.combination, diagram.governing.where, fixed(diagram.governing.P, 1), diagram.governing.utilisation.toFixed(2)) : undefined,
+				caption: diagram.governing ? localize('femResults.pmGoverningUnit', "Governing: {0} at {1}, Pu = {2} {4}, utilisation {3}", diagram.governing.combination, diagram.governing.where, fixed(F(diagram.governing.P), 1), diagram.governing.utilisation.toFixed(2), fu) : undefined,
 				height: 320,
 			});
 		}
@@ -1399,16 +1420,16 @@ export class FemResultsEditor extends EditorPane {
 			const governing = diagram.governing;
 			const near = diagram.points.filter(p => p.combination === governing.combination);
 			renderChart(grid, {
-				title: localize('femResults.biaxial', "Mx–My at Pu = {0} kN (biaxial)", fixed(governing.P, 1)),
-				xLabel: localize('femResults.mx', "Mx [kN·m]"),
-				yLabel: localize('femResults.my', "My [kN·m]"),
+				title: localize('femResults.biaxialUnit', "Mx–My at Pu = {0} {1} (biaxial)", fixed(F(governing.P), 1), fu),
+				xLabel: localize('femResults.mxUnit', "Mx [{0}]", mu),
+				yLabel: localize('femResults.myUnit', "My [{0}]", mu),
 				equalAxes: true,
 				series: [
-					{ name: localize('femResults.contour', "φ capacity at Pu"), color: 'blue', points: [...diagram.contour, diagram.contour[0]].map(p => [p[0], p[1]]) },
+					{ name: localize('femResults.contour', "φ capacity at Pu"), color: 'blue', points: [...diagram.contour, diagram.contour[0]].map(p => [M(p[0]), M(p[1])]) },
 					{
 						name: governing.combination, color: 'orange', style: 'points',
-						points: near.map(p => [p.Mx, p.My]),
-						tooltips: near.map(p => `${p.combination}, ${p.where}: Pu ${fixed(p.P, 1)} kN, Mx ${fixed(p.Mx, 1)}, My ${fixed(p.My, 1)} kN·m`),
+						points: near.map(p => [M(p.Mx), M(p.My)]),
+						tooltips: near.map(p => `${p.combination}, ${p.where}: Pu ${fixed(F(p.P), 1)} ${fu}, Mx ${fixed(M(p.Mx), 1)}, My ${fixed(M(p.My), 1)} ${mu}`),
 					},
 				],
 				caption: localize('femResults.biaxialCaption', "The contour is the capacity at the governing combination's axial force; its demands are shown (absolute moments)."),
@@ -1436,33 +1457,39 @@ export class FemResultsEditor extends EditorPane {
 			append(section, $('.fem-results-note', undefined, localize('femResults.steelNone', "The design checks have no steel for {0}.", member)));
 			return;
 		}
-		const at = (location: string) => /start/i.test(location) ? 0 : /end/i.test(location) ? detail.length : /mid/i.test(location) ? detail.length / 2 : undefined;
+		// C13b: the stations and the areas in the display units (m and mm² in SI)
+		const level = this.units.level;
+		const display = activeDisplayUnits();
+		const area = (v: number) => toDisplay(v, 'mm²', display);
+		const areaUnit = displayUnit('mm²', display);
+		const digits = areaUnit === 'mm²' ? 0 : 2;
+		const at = (location: string) => /start/i.test(location) ? 0 : /end/i.test(location) ? detail.length * level.scale : /mid/i.test(location) ? detail.length * level.scale / 2 : undefined;
 		const series: IChartSeries[] = [];
 		const colors: ChartColor[] = ['blue', 'orange', 'green', 'purple'];
 		const quantities = [...new Set(rows.filter(r => r.unit === 'mm²' && at(r.location) !== undefined).map(r => r.quantity))];
 		quantities.forEach((quantity, k) => {
 			const mine = rows.filter(r => r.quantity === quantity && at(r.location) !== undefined).sort((a, b) => at(a.location)! - at(b.location)!);
-			series.push({ name: localize('femResults.requiredSeries', "{0}: required", quantity), color: colors[k % colors.length], points: mine.map(r => [at(r.location)!, r.required]), tooltips: mine.map(r => `${r.location}, ${quantity}: required ${fixed(r.required, 0)} mm² (${r.combination ?? ''})`) });
+			series.push({ name: localize('femResults.requiredSeries', "{0}: required", quantity), color: colors[k % colors.length], points: mine.map(r => [at(r.location)!, area(r.required)]), tooltips: mine.map(r => `${r.location}, ${quantity}: required ${fixed(area(r.required), digits)} ${areaUnit} (${r.combination ?? ''})`) });
 			const provided = mine.filter(r => r.provided !== null);
 			if (provided.length) {
-				series.push({ name: localize('femResults.providedSeries', "{0}: provided", quantity), color: colors[k % colors.length], style: 'dashed', points: provided.map(r => [at(r.location)!, r.provided!]), tooltips: provided.map(r => `${r.location}, ${quantity}: provided ${fixed(r.provided!, 0)} mm²`) });
+				series.push({ name: localize('femResults.providedSeries', "{0}: provided", quantity), color: colors[k % colors.length], style: 'dashed', points: provided.map(r => [at(r.location)!, area(r.provided!)]), tooltips: provided.map(r => `${r.location}, ${quantity}: provided ${fixed(area(r.provided!), digits)} ${areaUnit}`) });
 			}
 		});
 		if (series.length) {
 			renderChart(this.grid(section), {
 				title: localize('femResults.steelChart', "Longitudinal Steel Along the Span"),
-				xLabel: localize('femResults.station', "Distance along the member [m]"),
-				yLabel: localize('femResults.area', "Steel area [mm²]"),
+				xLabel: withUnit(localize('femResults.stationName', "Distance along the member"), level),
+				yLabel: withUnit(localize('femResults.areaName', "Steel area"), { scale: 1, unit: areaUnit }),
 				series,
-				include: { x: [0, detail.length] },
-				xDomain: [0, detail.length],
+				include: { x: [0, detail.length * level.scale] },
+				xDomain: [0, detail.length * level.scale],
 				caption: rows.some(r => r.ok === false) ? localize('femResults.steelShort', "Bars short of the requirement: {0}", rows.filter(r => r.ok === false).map(r => `${r.location} ${r.quantity}`).join(', ')) : undefined,
 			});
 		}
 		renderSheet(section, {
 			name: localize('femResults.steelTable', "Steel required"),
 			columns: [localize('femResults.location', "Location"), localize('femResults.quantity', "Quantity"), localize('femResults.requiredCol', "Required"), localize('femResults.providedCol', "Provided"), localize('femResults.unitCol', "Unit"), localize('femResults.combinationCol', "Combination"), localize('femResults.okCol', "OK")],
-			rows: rows.map(r => [r.location, r.quantity, r.required, r.provided ?? '', r.unit, r.combination ?? '', r.ok === null ? '' : r.ok ? localize('femResults.yes', "yes") : localize('femResults.no', "no")]),
+			rows: rows.map(r => [r.location, r.quantity, toDisplay(r.required, r.unit, display), typeof r.provided === 'number' ? toDisplay(r.provided, r.unit, display) : (r.provided ?? ''), displayUnit(r.unit, display), r.combination ?? '', r.ok === null ? '' : r.ok ? localize('femResults.yes', "yes") : localize('femResults.no', "no")]),
 		});
 	}
 }

@@ -47,7 +47,7 @@ import {
 	IChoiceSpec, ISiteClassFlag, parseSoilReport, readSoilResults, splitError, REPORT_FIELDS, resultsBasis, serializeSoilReport, SOIL_COMPUTE_COMMAND, SOIL_IMPORT_COMMAND, SOIL_TEMPLATE_COMMAND, SOIL_TYPES, KS_LOW, siteClassLabel, siteFlagMeaning, siteFlagsOf, siltNeedsPlasticity, soilSummary, soilTypeLabel,
 	GisFormat, ILatLon, IOpenInQgisRequest, IOpenInQgisResult, ISoilGisExportRequest, ISoilGisExportResult, ISoilGisImportRequest, ISoilGisImportResult, ISoilLocationRequest, ISoilLocationResult, ISoilSample, QgisProgramResult,
 	MAP_TILE_ATTRIBUTION_SETTING, MAP_TILE_URL_SETTING, SOIL_GIS_EXPORT_COMMAND, SOIL_GIS_IMPORT_COMMAND, SOIL_LOCATION_COMMAND, SOIL_OPEN_IN_QGIS_COMMAND, SOIL_QGIS_PROGRAM_COMMAND,
-	GEO_HAZARDS, GeoHazardReview, idWords, INVESTIGATION_CHOICES, INVESTIGATION_FIELDS,
+	GEO_HAZARDS, GeoHazardReview, idWords, INVESTIGATION_CHOICES, INVESTIGATION_FIELDS, fieldPlaceholder, fieldUnitLabel,
 } from './soilDocument.js';
 import { SoilEditorInput } from './soilEditorInput.js';
 import { canCreate, DEFAULT_VIEW, editBoreholeEntry, ENTRY_STEPS, EntryStep, entryProblems, entryStepOf, firstStepWithError, goToStep, IEntryProblem, IEntryState, newBoreholeEntry, nextStep, shownProblems, SoilView } from './soilEntry.js';
@@ -60,6 +60,7 @@ import { applyPlotEdit, boreholeXY, formatDistance, ICodeSiteSuggestion, positio
 import { IMapViewState, ISoilMapHost, SoilMapView } from './soilMapView.js';
 import { SampleSheet, SPT_DRIVE, StrataSheet } from './soilSheet.js';
 import { activeCodeName, defaultCodeName } from '../../../services/saengineProject/common/activeCodePack.js';
+import { convertTextNodes } from '../../saengineProject/browser/displayUnitsTable.js';
 
 type View = SoilView;
 
@@ -1172,6 +1173,8 @@ export class SoilEditor extends EditorPane {
 		const scroll = this.viewElement.scrollTop;
 		const shownBefore = this.viewElement.dataset.shown;
 		clearNode(this.viewElement);
+		// C13b: the quantities of the texts drawn below in the display units
+		convertTextNodes(this.viewElement);
 		const entry = this.entry;
 		this.viewElement.className = entry ? 'soil-view entry' : `soil-view ${this.view}`;
 		this.viewElement.dataset.step = entry?.step ?? '';
@@ -1360,7 +1363,7 @@ export class SoilEditor extends EditorPane {
 					continue;
 				}
 				const item = append(fields, $('label.soil-entry-field', { title: field.title ?? '' }));
-				const label = append(item, $('span.soil-entry-field-label', undefined, field.unit ? `${field.label} (${field.unit})` : field.label));
+				const label = append(item, $('span.soil-entry-field-label', undefined, field.unit ? `${field.label} (${fieldUnitLabel(field)})` : field.label));
 				if (REQUIRED_DETAILS.has(key)) {
 					append(label, $('span.soil-entry-required', { 'aria-hidden': 'true' }, ' *'));
 				}
@@ -1550,6 +1553,8 @@ export class SoilEditor extends EditorPane {
 		}
 		this.labDisposables.clear();
 		clearNode(container);
+		// C13b: the quantities of the texts drawn below in the display units
+		convertTextNodes(container);
 		const sample = this.labSample;
 		const row = this.sampleSheet?.rowOf(sample) ?? -1;
 		const data = row >= 0 ? this.sampleSheet?.rowAt(row) : undefined;
@@ -1641,10 +1646,10 @@ export class SoilEditor extends EditorPane {
 			return select;
 		}
 		const numeric = field.kind !== 'text';
-		const input = $<HTMLInputElement>(`input.soil-input${numeric ? '.number' : ''}`, { type: 'text', spellcheck: 'false', 'aria-label': field.unit ? `${field.label} (${field.unit})` : field.label });
+		const input = $<HTMLInputElement>(`input.soil-input${numeric ? '.number' : ''}`, { type: 'text', spellcheck: 'false', 'aria-label': field.unit ? `${field.label} (${fieldUnitLabel(field)})` : field.label });
 		input.value = formatField(field, value);
 		if (placeholder) {
-			input.placeholder = placeholder;
+			input.placeholder = fieldPlaceholder(field, placeholder); // C13b: in the display units
 		}
 		const disposables = this.inputStore;
 		disposables.add(addDisposableListener(input, EventType.INPUT, () => {
@@ -2267,6 +2272,8 @@ export class SoilEditor extends EditorPane {
 		this.propertiesDisposables.clear();
 		this.propertyInputs.clear();
 		clearNode(panel);
+		// C13b: the quantities of the texts drawn below in the display units
+		convertTextNodes(panel);
 		this.propertiesFor = { report, selected: this.selected };
 		if (!report) {
 			appendPropertyNote(panel, this.parseError ?? localize('soil.propsNone', "No soil report."));
@@ -2301,7 +2308,7 @@ export class SoilEditor extends EditorPane {
 		const control = $('.soil-prop-control');
 		append(control, this.createInput(field, value, store, key, placeholder));
 		if (field.unit) {
-			append(control, $('span.soil-prop-unit', undefined, field.unit));
+			append(control, $('span.soil-prop-unit', undefined, fieldUnitLabel(field) ?? field.unit));
 		}
 		const row = appendPropertyRow(panel, field.label, control);
 		row.classList.add('soil-prop-row');

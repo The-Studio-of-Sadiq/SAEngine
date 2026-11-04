@@ -28,7 +28,7 @@ from ezdxf.document import Drawing
 from ezdxf.enums import TextEntityAlignment
 
 from saengine import i18n
-from saengine.units import Units, convert_levels, convert_text, units_from_json
+from saengine.units import Units, convert_levels, convert_sizes, convert_text, units_from_json
 
 # ─────────────────────────────────── paper ───────────────────────────────────
 
@@ -606,7 +606,9 @@ class Sheet:
         rectangle (``labels.taken``). In a Bangla set the labels the catalogue knows are
         translated and numbers get Bengali digits (:func:`saengine.i18n.translate`)."""
         if not self.units.si:
-            text = convert_levels(convert_text(text, self.units), self.units)
+            text = convert_levels(
+                convert_sizes(convert_text(text, self.units), self.units), self.units
+            )
         if self.language != "en":
             text = i18n.translate(text, self.language)
         lines = text.split("\n")

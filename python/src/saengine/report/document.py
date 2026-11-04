@@ -660,6 +660,53 @@ def _foundations(data: dict[str, Any], ctx: Context) -> dict[str, Any]:
                 size=7.5,
             ),
         ]
+    for staged in fdn.get("excavationSupport") or []:  # Alpha 9 P1: staged excavations
+        ids = staged["supportIds"]
+        n = 7 + len(ids)
+        out += [h(2, "Staged excavation support")] + full(
+            p(staged["title"]),
+            table(
+                [
+                    "Stage",
+                    "Dig [m]",
+                    "M+ [kN·m/m]",
+                    "M- [kN·m/m]",
+                    "V [kN/m]",
+                    "y [mm]",
+                    "Passive used [%]",
+                    *[f"{i} [kN/m]" for i in ids],
+                ],
+                staged["stages"],
+                ["1fr"] + ["auto"] * (n - 1),
+                "l" + "r" * (n - 1),
+                size=7.5,
+            ),
+        )
+        if staged["supports"]:
+            out += full(
+                p(
+                    "Supports: the force per metre of wall (unfactored run), the working and "
+                    "design force per support along it, an anchor's proof and lock-off loads, "
+                    "and the stiffness the analysis took (M+ puts the retained face in tension)."
+                ),
+                table(
+                    [
+                        "Support",
+                        "Kind",
+                        "Level [m]",
+                        "kN/m",
+                        "Working [kN]",
+                        "Design [kN]",
+                        "Proof [kN]",
+                        "Lock-off [kN]",
+                        "Stiffness",
+                    ],
+                    staged["supports"],
+                    ["auto"] * 8 + ["1fr"],
+                    "llrrrrrrl",
+                    size=7.5,
+                ),
+            )
     if fdn["skipped"]:
         out += [
             h(2, "Foundations not designed"),

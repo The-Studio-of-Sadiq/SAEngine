@@ -13,6 +13,7 @@ import math
 
 from saengine.drawings.sheets.layout import TEXT, View, ViewSpec, tag, text_width
 from saengine.drawings.sheets.model import (
+    ExcavationWallDetail,
     FootingDetail,
     LintelDetail,
     Mesh,
@@ -392,6 +393,118 @@ def retaining_wall_detail(w: RetainingWallDetail, scale: float = 25) -> ViewSpec
         pad=(2, 2, 2, 2),
         subtitle=f"L = {w.length / 1000:.2f} m   SCALE 1:{S:g}",
         key=f"retaining:{w.mark}",
+    )
+
+
+def excavation_wall_detail(w: ExcavationWallDetail, scale: float = 100) -> ViewSpec:
+    """Alpha 9 P1: section of an excavation's embedded wall at ``1:scale``: the wall to its
+    toe, the retained ground (right) and the dig level of each stage (left, the last one
+    solid), the struts and rakers across the excavation, the ground anchors behind the wall
+    (free length thin, fixed length thick), the water table and the levels."""
+    S = scale
+    t = max(w.thickness, 100.0)
+    pit = 4000.0  # mm of the excavation drawn
+    reach = max(
+        [3000.0]
+        + [
+            (a.free + a.fixed) * math.cos(math.radians(a.inclination)) + 500
+            for a in w.supports
+            if a.kind == "anchor"
+        ]
+    )
+    deepest = max(
+        [w.toe]
+        + [
+            a.depth + (a.free + a.fixed) * math.sin(math.radians(a.inclination))
+            for a in w.supports
+            if a.kind == "anchor"
+        ]
+    )
+    label_w = 70.0
+    width = (pit + t + reach) / S + 30 + label_w
+    height = deepest / S + 40
+    ox = 20 + pit / S  # paper x of the wall's excavated face
+
+    def draw(view: View) -> None:
+        s = view.inset(ox, 25 + deepest / S, S)
+        s.rect(0, -w.toe, t, 0, "S-CONC")
+        s.hatch([(0, -w.toe), (t, -w.toe), (t, 0), (0, 0)], pattern="AR-CONC")
+        s.line((t, 0), (t + reach, 0), "S-TEXT")
+        s.text("RETAINED GROUND", (t + reach / 2, s.real(3)), TEXT, "BC")
+        final = w.stages[-1][1] if w.stages else 0.0
+        for i, (name, depth) in enumerate(w.stages):
+            last = i == len(w.stages) - 1
+            s.line((-pit, -depth), (0, -depth), "S-TEXT" if last else "S-FNDN")
+            s.text(
+                f"STAGE {i + 1}: {name.upper()}",
+                (-pit + s.real(2), -depth + s.real(1.5)),
+                TEXT,
+                "BL",
+            )
+        for a in w.supports:
+            angle = math.radians(a.inclination)
+            y = -a.depth
+            if a.kind == "strut":
+                s.line((-pit, y), (0, y), "S-STEEL", lineweight=50)
+                text = f"{a.mark} STRUT {a.section} @ {a.spacing / 1000:.2f} M".strip()
+                s.label(text, (-pit / 2, y), [(0, 3, "BC")], leader=False)
+            elif a.kind == "raker":
+                drop = max(final - a.depth, 500.0)
+                run = drop / max(math.tan(angle), 0.2)
+                s.line(
+                    (0, y),
+                    (-min(run, pit), y - drop * min(run, pit) / run),
+                    "S-STEEL",
+                    lineweight=50,
+                )
+                s.label(
+                    f"{a.mark} RAKER {a.section}".strip(),
+                    (-min(run, pit) / 2, y - drop / 2),
+                    [(-5, 0, "MR")],
+                    leader=True,
+                )
+            else:
+                free_end = (t + a.free * math.cos(angle), y - a.free * math.sin(angle))
+                end = (
+                    free_end[0] + a.fixed * math.cos(angle),
+                    free_end[1] - a.fixed * math.sin(angle),
+                )
+                s.line((t, y), free_end, "S-STEEL")
+                s.line(free_end, end, "S-STEEL", lineweight=70)
+                s.label(
+                    f"{a.mark} ANCHOR @ {a.spacing / 1000:.2f} M, {a.inclination:g}°\n"
+                    f"FREE {a.free / 1000:.1f} M, FIXED {a.fixed / 1000:.1f} M",
+                    end,
+                    [(3, 0, "ML")],
+                    leader=True,
+                )
+        if w.water is not None and 0 < w.water < w.toe:
+            s.line((t, -w.water), (t + reach, -w.water), "S-TEXT")
+            s.text("WATER TABLE", (t + reach / 2, -w.water + s.real(1.5)), TEXT, "BC")
+        s.dim((0, 0), (0, -final), 8, angle=90)
+        s.dim((0, -final), (0, -w.toe), 8, angle=90)
+        s.text(f"TOE {(w.ground_level - w.toe) / 1000:+.3f}", (t + s.real(2), -w.toe), TEXT, "ML")
+        view.text(
+            "\n".join(
+                (
+                    "SECTION (PER METRE RUN)",
+                    w.kind.upper(),
+                    f"TOP OF WALL {w.ground_level / 1000:+.3f}",
+                )
+            ),
+            (ox + t / S / 2, 12),
+            TEXT,
+            "TC",
+        )
+
+    return ViewSpec(
+        f"Excavation wall {w.mark}",
+        1,
+        (0, 0, width, height),
+        draw,
+        pad=(2, 2, 2, 2),
+        subtitle=f"{w.text}   SCALE 1:{S:g}".strip(),
+        key=f"excavation:{w.mark}",
     )
 
 

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../nls.js';
+import { activeDisplayUnits, displayUnit, fromDisplay, IDisplayUnits, inputText, isConverted, parseQuantity } from '../../../services/saengineProject/common/displayUnits.js';
 import { JsonObject, JsonValue } from './schemaForm.js';
 
 /*
@@ -111,26 +112,57 @@ export function readCodeValues(value: unknown): ICodeValues | undefined {
 	};
 }
 
-/** A value as the page shows it: numbers as given, lists and groups as JSON. */
-export function formatCodeValue(value: JsonValue | undefined): string {
+/**
+ * A value as the page shows it: numbers as given, lists and groups as JSON. C13b: with the value's
+ * SI `unit` (the row's), its numbers (a number, or a list of numbers) in the display units; as
+ * given in SI and for a unit SAEngine does not convert.
+ */
+export function formatCodeValue(value: JsonValue | undefined, unit?: string, units: IDisplayUnits = activeDisplayUnits()): string {
 	if (value === undefined || value === null) {
 		return '–';
 	}
+	if (unit && isConverted(unit, units)) {
+		if (typeof value === 'number') {
+			return inputText(value, unit, units);
+		}
+		if (Array.isArray(value) && value.every(v => typeof v === 'number')) {
+			return JSON.stringify(value.map(v => Number(inputText(v as number, unit, units))));
+		}
+	}
 	return typeof value === 'object' ? JSON.stringify(value) : String(value);
+}
+
+/** The unit a row's values are shown in (C13b): the display unit of its SI `unit`, the unit itself otherwise. */
+export function codeValueUnit(unit: string, units: IDisplayUnits = activeDisplayUnits()): string {
+	return unit ? displayUnit(unit, units) : unit;
 }
 
 /**
  * The project's value typed for a pack value of `like`'s type: a number, true or false, text, or
  * JSON for a list or group. `{ value: undefined }` for an empty field (the pack's value again).
+ * C13b: with the value's SI `unit`, a number (or a list of numbers) is typed in the display units
+ * (a number may carry a unit of its own: "300 mm", `12'-6"`) and stored in SI.
  */
-export function parseCodeValue(text: string, like: JsonValue): { readonly value?: JsonValue; readonly error?: string } {
+export function parseCodeValue(text: string, like: JsonValue, unit?: string, units: IDisplayUnits = activeDisplayUnits()): { readonly value?: JsonValue; readonly error?: string } {
 	const trimmed = text.trim();
 	if (!trimmed) {
 		return { value: undefined };
 	}
+	const converted = !!unit && isConverted(unit, units);
 	if (typeof like === 'number') {
-		const n = Number(trimmed);
+		const n = converted ? parseQuantity(trimmed, unit, units) ?? NaN : Number(trimmed);
 		return isFinite(n) ? { value: n } : { error: localize('codeValues.number', "Enter a number.") };
+	}
+	if (converted && Array.isArray(like) && like.every(v => typeof v === 'number')) {
+		try {
+			const typed = JSON.parse(trimmed) as JsonValue;
+			if (Array.isArray(typed) && typed.every(v => typeof v === 'number')) {
+				return { value: typed.map(v => fromDisplay(v as number, unit!, units)) };
+			}
+		} catch {
+			// not JSON: the message below
+		}
+		return { error: localize('codeValues.list', "Enter a list, as [1, 2].") };
 	}
 	if (typeof like === 'boolean') {
 		return trimmed === 'true' || trimmed === 'false' ? { value: trimmed === 'true' } : { error: localize('codeValues.boolean', "Enter true or false.") };

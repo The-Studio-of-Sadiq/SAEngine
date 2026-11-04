@@ -40,6 +40,8 @@ export interface IBoqCostLine {
 	readonly rateDescription?: string | null;
 	readonly rateUnit?: string | null;
 	readonly rate?: number | null;
+	/** Units of the rate per unit of the bill item (saengine.boq.costing.conversion). */
+	readonly conversion?: number | null;
 	readonly amount?: number | null;
 	readonly status: 'priced' | 'not rated' | 'no rate item' | 'unit mismatch';
 }

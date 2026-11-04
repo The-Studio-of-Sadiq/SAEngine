@@ -50,6 +50,8 @@ import { FLOOR_PLAN_LAYERS, floorPlanDrawing } from './floorPlanDrawing.js';
 import { siblingPartFile } from './floorPlanEditorInput.js';
 import { ISnap, SNAP_NAMES, snapLinear, snapMarker, squareMarker } from './floorPlanSnap.js';
 import { defaultCodeName } from '../../../services/saengineProject/common/activeCodePack.js';
+import { convertTextNodes } from '../../saengineProject/browser/displayUnitsTable.js';
+import { displayUnit, inputText, isConverted, parseQuantity } from '../../../services/saengineProject/common/displayUnits.js';
 
 /** Screen distances: snapping, picking and marker size [px]; travel below which a press is a click. */
 const SNAP_PIXELS = 24;
@@ -1003,6 +1005,8 @@ export class ArchitectureEditor extends EditorPane {
 		}
 		this.propertiesDisposables.clear();
 		clearNode(panel);
+		// C13b: the quantities of the texts drawn below in the display units
+		convertTextNodes(panel);
 		const arch = this.arch;
 		const story = this.story;
 		if (!arch || !story) {
@@ -1044,7 +1048,7 @@ export class ArchitectureEditor extends EditorPane {
 						if (Number.isFinite(value) && value > 0) {
 							change({ height: Math.round(value), top: undefined }, localize('arch.heightChanged', "{0} is {1} mm high.", wall.id, Math.round(value)));
 						}
-					});
+					}, 'mm');
 				} else {
 					appendPropertyRow(panel, localize('arch.height', "Height"), localize('arch.mm', "{0} mm", Math.round(levels.top - levels.bottom)));
 				}
@@ -1053,7 +1057,7 @@ export class ArchitectureEditor extends EditorPane {
 					if (Number.isFinite(value)) {
 						change({ baseOffset: value ? Math.round(value) : undefined }, localize('arch.baseOffsetChanged', "{0} starts {1} mm above its story.", wall.id, Math.round(value)));
 					}
-				});
+				}, 'mm');
 				this.inputRow(panel, localize('arch.sitsOn', "Sits on (floor-plan member)"), wall.structuralRef ?? '', text => change({ structuralRef: text.trim() || undefined }, localize('arch.sitsOnChanged', "{0} sits on {1}.", wall.id, text.trim() || '-')));
 				const hosted = [...arch.doors, ...arch.windows].filter(o => o.wall === wall.id).map(o => o.id);
 				if (hosted.length) {
@@ -1076,14 +1080,14 @@ export class ArchitectureEditor extends EditorPane {
 					if (Number.isFinite(value) && value >= 0) {
 						change({ offset: Math.round(value) }, localize('arch.offsetChanged', "{0} is {1} mm along its wall.", opening.id, Math.round(value)));
 					}
-				});
+				}, 'mm');
 				if (ref.kind === 'windows') {
 					this.inputRow(panel, localize('arch.sill', "Sill (mm, empty: the type's)"), opening.sill === undefined ? '' : String(opening.sill), text => {
 						const value = text.trim() === '' ? undefined : Number(text);
 						if (value === undefined || (Number.isFinite(value) && value >= 0)) {
 							change({ sill: value === undefined ? undefined : Math.round(value) }, localize('arch.sillChanged', "{0}'s sill is {1}.", opening.id, value === undefined ? localize('arch.typeSill', "its type's") : `${Math.round(value)} mm`));
 						}
-					});
+					}, 'mm');
 				} else {
 					this.selectRow(panel, localize('arch.swing', "Swing"), [{ id: '', text: localize('arch.swingNormal', "This side") }, { id: 'flip', text: localize('arch.swingFlip', "Other side") }], opening.flip ? 'flip' : '', id => change({ flip: id ? true : undefined }, localize('arch.flipped', "{0} swings to the other side.", opening.id)));
 				}
@@ -1125,7 +1129,7 @@ export class ArchitectureEditor extends EditorPane {
 					if (value === undefined || (Number.isFinite(value) && value > 0)) {
 						change({ height: value === undefined ? undefined : Math.round(value), top: undefined }, localize('arch.curtainHeightChanged', "{0}'s height: {1}.", wall.id, value === undefined ? localize('arch.nextStory', "the next story") : `${Math.round(value)} mm`));
 					}
-				});
+				}, 'mm');
 				appendPropertyNote(panel, localize('arch.curtainNote', "A facade of glazing on a mullion grid: its weight loads the beams or slab edges under it (superimposed dead load); it bounds rooms as a wall does, but is not a partition."));
 				break;
 			}
@@ -1169,7 +1173,7 @@ export class ArchitectureEditor extends EditorPane {
 					if (Number.isFinite(n) && n >= min) {
 						change({ [field]: Math.round(n) }, localize('arch.fieldChanged', "{0}: {1} {2}.", ramp.id, label, Math.round(n)));
 					}
-				});
+				}, 'mm');
 				positive('rise', localize('arch.rise', "Rise (mm)"), ramp.rise ?? 0, 0);
 				positive('width', localize('arch.width', "Width (mm)"), ramp.width ?? 1500, 1);
 				const floors = arch.finishTypes.filter(f => f.kind === 'floor');
@@ -1179,7 +1183,7 @@ export class ArchitectureEditor extends EditorPane {
 					if (Number.isFinite(n) && n >= 0) {
 						change({ fillUnitWeight: n }, localize('arch.fillChanged', "{0}'s fill weighs {1} kN/m³.", ramp.id, n));
 					}
-				});
+				}, 'kN/m³');
 				this.occupancyRow(panel, ramp.id, ramp.occupancy, change);
 				const kind = ramp.kind ?? 'walkway';
 				this.selectRow(panel, localize('arch.rampKind', "Serves"), RAMP_KINDS.map(k => ({ id: k, text: RAMP_KIND_NAMES[k] })), kind,
@@ -1331,13 +1335,20 @@ export class ArchitectureEditor extends EditorPane {
 			picked => change({ occupancy: picked || undefined }, localize('arch.occupancyChanged', "{0}: {1}.", id, picked ? DEFAULT_CODE_TABLES.areaUses[picked]?.name ?? picked : localize('arch.noOccupancy', "no occupancy"))));
 	}
 
-	private inputRow(panel: HTMLElement, label: string, value: string, apply: (text: string) => void): void {
+	private inputRow(panel: HTMLElement, label: string, value: string, apply: (text: string) => void, siUnit?: string): void {
+		// C13b: a value in `siUnit` is shown and typed in the display units; `apply` gets the SI text
+		const converted = !!siUnit && isConverted(siUnit);
+		if (converted) {
+			label = label.replace(/\((mm|kN\/m³)/, () => `(${displayUnit(siUnit!)}`);
+		}
+		const shown = converted && value.trim() !== '' && Number.isFinite(Number(value)) ? inputText(Number(value), siUnit!) : value;
 		const cell = $('.floor-plan-prop-control');
 		const box = this.propertiesDisposables.add(new InputBox(cell, this.contextViewService, { inputBoxStyles: defaultInputBoxStyles, ariaLabel: label }));
-		box.value = value;
+		box.value = shown;
 		const commit = () => {
-			if (box.value !== value) {
-				apply(box.value);
+			if (box.value !== shown) {
+				const typed = converted && box.value.trim() !== '' ? parseQuantity(box.value, siUnit) : undefined;
+				apply(converted && box.value.trim() !== '' ? (typed === undefined ? 'NaN' : String(typed)) : box.value);
 			}
 		};
 		this.propertiesDisposables.add(addDisposableListener(box.inputElement, EventType.KEY_DOWN, e => {

@@ -122,6 +122,8 @@ def _fit_plan(
 
 
 DETAIL_SCALES = (25, 50, 75, 100, 150, 200)
+#: The least scale of an excavation wall's section (alpha 9 P1): a wall is metres deep.
+EXCAVATION_SCALE = 100
 
 
 def _fit_detail(
@@ -149,7 +151,19 @@ def _details(make, items, scale: float, area, problems: list[str]) -> list[ViewS
 
 
 def categories(data: DrawingSet, settings: DrawingSettings) -> tuple[list[_Category], list[str]]:
-    """The views of the drawing set by sheet category."""
+    """The views of the drawing set by sheet category; the tables in the set's display units
+    (C13b, :data:`schedules.TABLE_UNITS`)."""
+    from saengine.units import units_from_json
+
+    token = schedules.TABLE_UNITS.set(units_from_json(data.title.units))
+    try:
+        return _categories(data, settings)
+    finally:
+        schedules.TABLE_UNITS.reset(token)
+
+
+def _categories(data: DrawingSet, settings: DrawingSettings) -> tuple[list[_Category], list[str]]:
+    """:func:`categories`."""
     area = drawing_area(settings.size)
     height = area[3] - area[1]
     problems: list[str] = []
@@ -242,6 +256,20 @@ def categories(data: DrawingSet, settings: DrawingSettings) -> tuple[list[_Categ
                 settings.detail_scale,
                 specs,
                 scale_text=f"1:{settings.detail_scale:g}",
+            )
+        )
+    # Alpha 9 P1: the excavations' embedded walls with their stages and supports.
+    excavation_scale = max(settings.detail_scale, EXCAVATION_SCALE)
+    specs = _details(
+        details.excavation_wall_detail, data.excavation_walls, excavation_scale, area, problems
+    )
+    if specs:
+        out.append(
+            _Category(
+                "Excavation support",
+                excavation_scale,
+                specs,
+                scale_text=f"1:{excavation_scale:g}",
             )
         )
     specs = _details(

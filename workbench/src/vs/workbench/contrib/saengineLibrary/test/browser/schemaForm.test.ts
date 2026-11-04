@@ -9,7 +9,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { DEFAULT_MATERIALS, MATERIALS_SCHEMA, TEMPLATES } from '../../../../services/saengineProject/common/projectLibraries.generated.js';
 import { setActiveDisplayUnits } from '../../../../services/saengineProject/common/displayUnits.js';
-import { JsonObject, SchemaForm } from '../../browser/schemaForm.js';
+import { JsonObject, placeholderText, SchemaForm } from '../../browser/schemaForm.js';
 
 suite('SAEngine - SchemaForm', () => {
 
@@ -74,6 +74,17 @@ suite('SAEngine - SchemaForm', () => {
 			assert.ok(Math.abs(((item.concrete as JsonObject).fc as number) - 27.579029172672) < 1e-9);
 			type('Compressive strength f\'c', '30 MPa'); // a unit of its own
 			assert.strictEqual((item.concrete as JsonObject).fc, 30);
+		} finally {
+			setActiveDisplayUnits(undefined);
+		}
+	});
+
+	test('C13b: the greyed code value of an override follows the display units; as it was in SI', () => {
+		assert.strictEqual(placeholderText('34.5 (Dhaka, Table 6.2.8)', undefined), '34.5 (Dhaka, Table 6.2.8)');
+		setActiveDisplayUnits({ system: 'USCustomary' });
+		try {
+			assert.strictEqual(placeholderText('34.5 (Dhaka, Table 6.2.8)', 'm/s'), '77.174 (Dhaka, Table 6.2.8)');
+			assert.strictEqual(placeholderText('0.25; 0.5 above 3 kN/m² (Sec 2.5.7.3)', undefined), '0.25; 0.5 above 62.7 psf (Sec 2.5.7.3)');
 		} finally {
 			setActiveDisplayUnits(undefined);
 		}

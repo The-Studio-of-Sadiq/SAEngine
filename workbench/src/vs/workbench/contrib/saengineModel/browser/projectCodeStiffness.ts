@@ -11,7 +11,7 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { DEFAULT_CODE_PACK_ID, setActiveCodePack } from '../../../services/saengineProject/common/activeCodePack.js';
-import { setActiveDisplayUnits } from '../../../services/saengineProject/common/displayUnits.js';
+import { setActiveBarNames, setActiveDisplayUnits } from '../../../services/saengineProject/common/displayUnits.js';
 import { ISaengineProjectService } from '../../../services/saengineProject/common/saengineProject.js';
 import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
 import { flushModifierFields } from './modifiersPanel.js';
@@ -84,6 +84,8 @@ export class ProjectCodeStiffnessContribution extends Disposable implements IWor
 		}
 		const packId = isObject(settings) && typeof settings.codePack === 'string' ? settings.codePack : DEFAULT_PACK;
 		let crackedTable: Json | undefined;
+		// C13b: the pack's bar names (concrete.barNames), which US customary display units show
+		let barNames: Json = {};
 		let packName: string | undefined;
 		try {
 			const pack = await this.show(packId, root);
@@ -96,6 +98,9 @@ export class ProjectCodeStiffnessContribution extends Disposable implements IWor
 				if (isObject(table) && isObject(table.crackedStiffness)) {
 					crackedTable = { ...crackedTable, ...table.crackedStiffness };
 				}
+				if (isObject(table) && isObject(table.barNames)) {
+					barNames = { ...barNames, ...table.barNames };
+				}
 			}
 		} catch {
 			// No backend (web) or the pack cannot be found: the fields say "code".
@@ -104,6 +109,7 @@ export class ProjectCodeStiffnessContribution extends Disposable implements IWor
 			setProjectCode({ settings, crackedTable, packName });
 			// The editors name the project's code pack in their text (activeCodePack.ts).
 			setActiveCodePack(packId, packName);
+			setActiveBarNames(barNames);
 		}
 	}
 

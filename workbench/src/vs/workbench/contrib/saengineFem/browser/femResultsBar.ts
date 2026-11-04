@@ -33,6 +33,7 @@ import { describeSteelSummary, memberConnectionChecks, steelSection } from './fe
 import { appendPlannedChips, FemPlanned, STEEL_CONNECTIONS_PLANNED, STEEL_SHEDS_PLANNED } from './femPlannedFeatures.js';
 import { timberSection } from './femTimberDesign.js';
 import { checkItems, describeStaircaseVerdict, describeWallsSummary, formatPierForce, IFemPierDiagram, isStaircase, isWall, ownChecks, pierDiagram, staircasesOf, staircaseSection, wallSection } from './femWallsStairs.js';
+import { activeDisplayUnits, convertText, formatQuantity } from '../../../services/saengineProject/common/displayUnits.js';
 
 export { resultsFolder } from './femDesign.js';
 
@@ -268,7 +269,21 @@ type Quantity = FemValueQuantity;
  */
 export function resultFormatter(units: string | undefined): (quantity: Quantity, value: number) => string {
 	// Steel per width comes from the design in mm²/m, whatever the model's units.
-	const steel = (value: number) => localize('femResults.mm2PerM', "{0} mm²/m", Math.round(value).toString());
+	const steel = (value: number) => convertText(localize('femResults.mm2PerM', "{0} mm²/m", Math.round(value).toString()));
+	if (units?.startsWith('SI') && activeDisplayUnits().system === 'USCustomary') {
+		// C13b: in the display units (the SI model's m and N to in, kip, kip·ft, ...)
+		return (quantity, value) => {
+			switch (quantity) {
+				case 'length': return formatQuantity(value * 1000, 'mm');
+				case 'force': return formatQuantity(value / 1000, 'kN');
+				case 'moment': return formatQuantity(value / 1000, 'kN·m');
+				case 'forcePerLength': return formatQuantity(value / 1000, 'kN/m');
+				case 'momentPerLength': return formatQuantity(value / 1000, 'kN·m/m');
+				case 'stress': return formatQuantity(value / 1e6, 'MPa');
+				case 'areaPerLength': return steel(value);
+			}
+		};
+	}
 	if (units?.startsWith('SI')) {
 		// "-0.0" reads as a value: what rounds to zero is shown as 0.
 		const fixed = (v: number, digits: number) => {
@@ -1738,25 +1753,26 @@ export class FemResultsBar extends Disposable {
 
 	/** Draws the items of a seismic detailing section (a member's, or a joint's). */
 	private renderDetailing(container: HTMLElement, items: readonly FemDetailingItem[]): void {
+		// C13b: the quantities of the texts in the display units (as they are in SI)
 		for (const item of items) {
 			switch (item.kind) {
-				case 'heading': appendPropertyHeading(container, item.text); break;
-				case 'subheading': append(container, $('.fem-detailing-group', undefined, item.text)); break;
-				case 'note': appendPropertyNote(container, item.text); break;
+				case 'heading': appendPropertyHeading(container, convertText(item.text)); break;
+				case 'subheading': append(container, $('.fem-detailing-group', undefined, convertText(item.text))); break;
+				case 'note': appendPropertyNote(container, convertText(item.text)); break;
 				case 'row': {
 					const row = append(container, $(`.sa-props-row.fem-detailing-row${item.ok === false ? '.fail' : ''}`));
-					append(row, $('span.name', undefined, item.name));
-					append(row, $('span.value', undefined, item.value));
+					append(row, $('span.name', undefined, convertText(item.name)));
+					append(row, $('span.value', undefined, convertText(item.value)));
 					break;
 				}
 				case 'check': {
 					const row = append(container, $(`.fem-design-check${item.ok ? '' : '.fail'}`));
 					const head = append(row, $('.fem-design-check-head'));
-					append(head, $('span.name', undefined, item.name));
-					append(head, $('span.value', undefined, item.value));
-					append(row, $('.fem-design-check-detail', undefined, item.detail));
+					append(head, $('span.name', undefined, convertText(item.name)));
+					append(head, $('span.value', undefined, convertText(item.value)));
+					append(row, $('.fem-design-check-detail', undefined, convertText(item.detail)));
 					if (item.note && !item.ok) {
-						append(row, $('.fem-design-check-detail', undefined, item.note));
+						append(row, $('.fem-design-check-detail', undefined, convertText(item.note)));
 					}
 					break;
 				}
@@ -1779,14 +1795,14 @@ export class FemResultsBar extends Disposable {
 			['M3', localize('femResults.pierM3', "M3"), diagram.max.M3],
 		] as const;
 		for (const [key, name, max] of columns) {
-			append(head, $('span.force', { role: 'columnheader', title: localize('femResults.pierMax', "{0}: largest {1}", name, formatPierForce(key, max)) }, name));
+			append(head, $('span.force', { role: 'columnheader', title: localize('femResults.pierMax', "{0}: largest {1}", name, convertText(formatPierForce(key, max))) }, name));
 		}
 		for (const bar of diagram.bars) {
 			const row = append(grid, $(`.fem-pier-row${bar.selected ? '.selected' : ''}${bar.ok ? '' : '.fail'}`, { role: 'row' }));
 			append(row, $('span.label', { role: 'rowheader', title: bar.governing ? localize('femResults.pierGoverning', "{0} (governing)", bar.label) : bar.label }, bar.label));
 			for (const [key, name, max] of columns) {
 				const value = bar[key];
-				const cell = append(row, $('span.force', { role: 'cell', title: localize('femResults.pierValue', "{0} {1}", name, formatPierForce(key, value)) }));
+				const cell = append(row, $('span.force', { role: 'cell', title: localize('femResults.pierValue', "{0} {1}", name, convertText(formatPierForce(key, value))) }));
 				const fill = append(cell, $(`span.bar${value < 0 ? '.negative' : ''}`));
 				fill.style.width = `${max > 0 ? Math.abs(value) / max * 100 : 0}%`;
 			}
@@ -1828,13 +1844,13 @@ export class FemResultsBar extends Disposable {
 			const foot = line.rows[line.rows.length - 1];
 			const details = append(container, $('details.fem-stair'));
 			// FD-24 of walk 3: a line may start above the base (a column on a transfer beam).
-			append(details, $('summary', undefined, foot
+			append(details, $('summary', undefined, convertText(foot
 				? localize('femResults.takedownLineFoot', "{0}: {1} kN factored at its foot ({2}, {3})", line.line, foot.factored.toFixed(0), foot.column, foot.story)
-				: localize('femResults.takedownLine', "{0}: {1} kN factored at the base", line.line, '0')));
+				: localize('femResults.takedownLine', "{0}: {1} kN factored at the base", line.line, '0'))));
 			for (const row of line.rows) {
 				const added = Object.values(row.storey).reduce((sum, v) => sum + v, 0);
 				appendPropertyRow(details, localize('femResults.takedownStorey', "{0} ({1})", row.story, row.column),
-					localize('femResults.takedownValue', "{0} kN factored, {1} kN unfactored (+{2} kN this storey)", row.factored.toFixed(0), row.total.toFixed(0), added.toFixed(0)));
+					convertText(localize('femResults.takedownValue', "{0} kN factored, {1} kN unfactored (+{2} kN this storey)", row.factored.toFixed(0), row.total.toFixed(0), added.toFixed(0))));
 			}
 		}
 		if (report.takedown?.note) {
@@ -1974,14 +1990,14 @@ export class FemResultsBar extends Disposable {
 	private renderSeismic(container: HTMLElement, axis: FemAxis | undefined, combinations: boolean): void {
 		for (const item of seismicSection(this.seismic, axis, combinations)) {
 			switch (item.kind) {
-				case 'heading': appendPropertyHeading(container, item.text); break;
-				case 'note': appendPropertyNote(container, item.text); break;
-				case 'row': appendPropertyRow(container, item.name, item.value); break;
+				case 'heading': appendPropertyHeading(container, convertText(item.text)); break;
+				case 'note': appendPropertyNote(container, convertText(item.text)); break;
+				case 'row': appendPropertyRow(container, convertText(item.name), convertText(item.value)); break;
 				case 'combination': {
 					const row = append(container, $('.fem-seismic-combination'));
-					append(row, $('.sa-props-row', undefined, item.name));
+					append(row, $('.sa-props-row', undefined, convertText(item.name)));
 					if (item.detail) {
-						append(row, $('.fem-design-check-detail', undefined, item.detail));
+						append(row, $('.fem-design-check-detail', undefined, convertText(item.detail)));
 					}
 					break;
 				}

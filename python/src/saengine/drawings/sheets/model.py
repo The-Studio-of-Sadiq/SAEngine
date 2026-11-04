@@ -433,6 +433,38 @@ class RetainingWallDetail:
 
 
 @dataclass
+class ExcavationSupportItem:
+    """A strut, raker or ground anchor of an embedded wall in section (mm below the top of
+    the wall; anchors with their free and fixed lengths, mm)."""
+
+    mark: str
+    kind: str  # strut | raker | anchor
+    depth: float
+    inclination: float  # degrees below the horizontal
+    spacing: float
+    section: str = ""
+    free: float = 0.0
+    fixed: float = 0.0
+
+
+@dataclass
+class ExcavationWallDetail:
+    """Alpha 9 P1: an excavation's embedded wall in section (mm below the top of the wall at
+    the retained ground): its type and thickness, the dig level of each stage, the supports,
+    the toe and the water table."""
+
+    mark: str
+    kind: str  # the wall type's name
+    thickness: float
+    ground_level: float  # mm, project datum (the top of the wall)
+    toe: float
+    stages: list[tuple[str, float]] = field(default_factory=list)  # (name, depth)
+    supports: list[ExcavationSupportItem] = field(default_factory=list)
+    water: float | None = None  # depth of the design water table [mm]
+    text: str = ""
+
+
+@dataclass
 class LintelDetail:
     """A lintel over an opening of a wall (:mod:`saengine.design.lintels`), in the wall's
     elevation: from ``x0`` to ``x1`` along the wall, its underside ``bottom`` above the wall's
@@ -626,6 +658,8 @@ class DrawingSet:
     slabs: list[SlabDetail] = field(default_factory=list)
     footings: list[FootingDetail] = field(default_factory=list)
     retaining_walls: list[RetainingWallDetail] = field(default_factory=list)
+    # alpha 9 P1: the excavations' embedded walls in section with their stages and supports
+    excavation_walls: list[ExcavationWallDetail] = field(default_factory=list)
     walls: list[WallDetail] = field(default_factory=list)
     stairs: list[StairDetail] = field(default_factory=list)
     bbs: list[Table] = field(default_factory=list)  # the bar schedule, then its totals
