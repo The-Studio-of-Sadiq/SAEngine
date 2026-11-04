@@ -2817,6 +2817,11 @@ class SteelConnectionData(_Group):
         description="Method ids where the code gives a requirement but no method (e.g. "
         "``prying``: ``tStub``); a missing key: the check is not made.",
     )
+    references: dict[str, str] = Field(
+        default_factory=dict,
+        description="Alpha 9 C3: the clause references the connection notes are written with "
+        "(the default pack's) -> this pack's references; empty: the notes as written.",
+    )
 
 
 class SteelBracingRow(_Group):
@@ -2926,7 +2931,9 @@ class SteelTensionField(_Group):
 
     kv: Positive = Field(description="kv = this + this / (a/h)² of stiffened webs.")
     aspectMax: Positive = Field(description="a/h above this: kv of an unstiffened web, no TFA.")
-    webLimit: Positive = Field(description="a/h above (this / (h/tw))²: likewise.")
+    webLimit: Positive | None = Field(
+        description="a/h above (this / (h/tw))²: likewise (null: no such limit, alpha 9 C3)."
+    )
     webFlange: Positive = Field(description="No TFA when 2 Aw / (Afc + Aft) exceeds this.")
     depthFlange: Positive = Field(description="No TFA when h / bf exceeds this.")
     factor: Positive = Field(description="Vn = 0.6 Fy Aw (Cv + (1 - Cv) / (this √(1+(a/h)²))).")
@@ -2952,10 +2959,95 @@ class SteelMembers(_Group):
     )
 
 
+class SteelEffectiveWidthFactors(_Group):
+    """Alpha 9 C3: the imperfection factors c1, c2 of the effective width of a slender element
+    in compression, be = b (1 - c1 √(Fel/Fcr)) √(Fel/Fcr), Fel = (c2 λr/λ)² Fy."""
+
+    c1: Positive
+    c2: Positive
+
+
+class SteelMemberMethods(_Group):
+    """Alpha 9 C3: the member strength methods a pack chooses where its steel code differs from
+    the default pack's (each a method id of :mod:`saengine.design.steel.members`; a missing
+    group: the default pack's methods)."""
+
+    compressionSlender: Literal["formFactor", "effectiveWidth"] = Field(
+        default="formFactor",
+        description="Slender elements in compression: ``formFactor`` (Q = Qs Qa, Fcr of Q Fy) "
+        "or ``effectiveWidth`` (Pn = Fcr Ae with the effective widths of every slender element).",
+    )
+    effectiveWidth: dict[str, SteelEffectiveWidthFactors] = Field(
+        default_factory=dict,
+        description="c1, c2 of ``effectiveWidth`` by element kind: ``stiffened`` (webs and "
+        "other stiffened elements), ``hssWalls`` (walls of rectangular HSS), ``other`` "
+        "(unstiffened elements: flanges, legs, stems).",
+    )
+    roundEffectiveArea: tuple[Positive, Positive] = Field(
+        default=(0.038, 0.6667),
+        description="Round HSS with a slender wall: Ae / Ag (or Q) = a E / (Fy D/t) + b: [a, b].",
+    )
+    webShear: Literal["cv", "cv1"] = Field(
+        default="cv",
+        description="Webs of I-shapes and channels without tension field action: ``cv`` (Cv "
+        "with the elastic branch) or ``cv1`` (Cv1 = 1.10 √(kv E/Fy) / (h/tw) at most 1).",
+    )
+    kvUnstiffened: Positive = Field(
+        default=5.0, description="kv of an unstiffened web (and of a/h beyond the limits)."
+    )
+    tensionField: Literal["limited", "reduced"] = Field(
+        default="limited",
+        description="Panels outside the proportion limits of tension field action: "
+        "``limited`` (none counted) or ``reduced`` (the denominator 1.15 (a/h + √(1+(a/h)²))).",
+    )
+    teeFlexure: Literal["criticalMoment", "lengthLimits"] = Field(
+        default="criticalMoment",
+        description="Tees about the major axis: ``criticalMoment`` (Mn the least of Mp and Mcr) "
+        "or ``lengthLimits`` (Lp, Lr of the stem in tension, stem local buckling, flange local "
+        "buckling by λp, λr).",
+    )
+    teeCompression: Literal["twoStress", "general"] = Field(
+        default="twoStress",
+        description="Flexural-torsional buckling of tees: ``twoStress`` (Fcry, Fcrz, H) or "
+        "``general`` (Fe of singly symmetric members, then the flexural buckling curve).",
+    )
+    hssLateralTorsional: bool = Field(
+        default=False,
+        description="Rectangular HSS about the major axis also checked for lateral-torsional "
+        "buckling with Lp = a E ry √(J A) / Mp and Lr = b E ry √(J A) / (0.7 Fy Sx).",
+    )
+    hssLtb: tuple[Positive, Positive] = Field(
+        default=(0.13, 2.0), description="[a, b] of ``hssLateralTorsional``."
+    )
+    teeStem: tuple[Positive, Positive, Positive, Positive, Positive] = Field(
+        default=(0.84, 1.52, 1.43, 0.515, 1.52),
+        description="Tee stems in flexural compression: d/tw <= a √(E/Fy) Fcr = Fy; <= b √(E/Fy) "
+        "Fcr = (c - d (d/tw) √(Fy/E)) Fy; above Fcr = e E / (d/tw)².",
+    )
+    teeFlangeSlender: Positive = Field(
+        default=0.7, description="Slender tee flange: Mn = this E Sxc / (bf/2tf)²."
+    )
+
+
 class SteelTable(TableModel):
     phi: SteelPhi
     slenderness: SteelSlenderness
     netAreaMax: Share
+    #: Alpha 9 C3: the design basis of the steel checks. LRFD: Rn times φ (``phi``); ASD: Rn
+    #: divided by Ω (``omega``, else ``omegaFromPhi`` / φ), under the allowable stress
+    #: combinations. The project may override it.
+    designMethod: Literal["LRFD", "ASD"] = Field(
+        default="LRFD", description="LRFD (φ, strength combinations) or ASD (Ω, ASD combinations)."
+    )
+    omega: dict[str, Positive] = Field(
+        default_factory=dict, description="Ω by the limit state keys of ``phi`` (ASD)."
+    )
+    omegaFromPhi: Positive | None = Field(
+        default=None,
+        description="ASD: Ω = this / φ for a limit state ``omega`` does not list (None: the pack "
+        "does not cover ASD and the steel checks stay LRFD, with a note).",
+    )
+    memberMethods: SteelMemberMethods | None = None
     #: None in a pack without the data: the connection, bracing or ponding checks are then
     #: those of the default pack (connections) or not made (bracing, ponding).
     connections: SteelConnectionData | None = None
@@ -8020,6 +8112,11 @@ class SteelSeismicWidthThickness(_Group):
         description="Columns of special moment frames may use λp when the column-beam moment "
         "ratio exceeds this."
     )
+    expectedYield: bool = Field(
+        default=False,
+        description="Alpha 9 C3: the limits are of √(E / (Ry Fy)) (and E / (Ry Fy)) with the "
+        "member's expected yield ratio Ry, not of √(E/Fy).",
+    )
     note: str = ""
 
 
@@ -8052,8 +8149,9 @@ class SteelSeismicFrame(_Group):
         default=None, gt=0, description="Connection resistance at the drift / Mp."
     )
     hingeFactor: Positive = Field(description="Expected moment = this × Ry Mp.")
-    compactness: Literal["seismic", "compact", "none"] = Field(
-        description="Width-thickness limits of the beams and columns."
+    compactness: Literal["seismic", "moderate", "compact", "none"] = Field(
+        description="Width-thickness limits of the beams and columns (alpha 9 C3: ``moderate`` "
+        "the moderately ductile limits, ``widthThicknessModerate``)."
     )
     fyLimit: Positive = Field(description="Fy of members expected to yield at most [MPa].")
     panelZone: bool = Field(description="Panel zone shear and thickness of the frame's own.")
@@ -8167,6 +8265,10 @@ class SteelSeismicConcentric(_Group):
     )
     compactMembers: list[Literal["brace", "column", "beam"]] = Field(
         default_factory=list, description="Members that must be seismically compact."
+    )
+    moderateMembers: list[Literal["brace", "column", "beam"]] = Field(
+        default_factory=list,
+        description="Alpha 9 C3: members that must meet the moderately ductile limits.",
     )
     filledHssExempt: bool = Field(
         default=False, description="Concrete-filled HSS braces need not be compact."
@@ -8344,6 +8446,8 @@ class SteelSeismicTable(TableModel):
     expected: SteelSeismicExpectedTable
     toughness: SteelSeismicToughness
     widthThickness: SteelSeismicWidthThickness
+    #: Alpha 9 C3: the moderately ductile limits (None: the highly ductile ones are used).
+    widthThicknessModerate: SteelSeismicWidthThickness | None = None
     columns: SteelSeismicColumns
     splices: SteelSeismicSplices
     bases: SteelSeismicBases

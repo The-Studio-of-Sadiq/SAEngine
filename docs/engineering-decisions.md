@@ -574,6 +574,36 @@ against the printed standard). Its behaviour choices:
     every grade.
   - A pack names the code of each table's clauses (`tableCodes`, `designClauses.shortNames`), so
     one pack can cite ACI 318-19 and ASCE 7-22 side by side.
+- **US pack steel and masonry (AISC 360-22, AISC 341-22, TMS 402-22, alpha 9 C3): SAEngine
+  practice where the code leaves a gap or the engine has no method** (pack values, overridable
+  per project; listed in the pack's VERIFY.md).
+  - Steel shapes are SAEngine's own shape list (library/steel_sections.py and the steelSections
+    table), not the AISC shapes database (owner).
+  - LRFD is the pack's design basis; ASD (`steel.designMethod`) designs the steel members and
+    their connections by Rn / Ω under the pack's allowable stress combinations. Ω is the pack's
+    `omega` of each limit state, else 1.5 / φ (`omegaFromPhi`). Composite members, the members
+    of a steel seismic force-resisting system and runs by the direct analysis method stay LRFD,
+    with a note: those modules work with φ and the strength combinations. α = 1.6 on Pr (B1 and
+    the K = 1 check) of members checked by ASD.
+  - AISC's KL/r ≤ 200 and L/r ≤ 300 user notes are checked as limits (flags for beams).
+  - Short-slotted holes take the slip factor of slots along the load (0.85) whatever their
+    direction; the long-joint reduction (0.833 beyond 950 mm) is applied to the tension splices
+    SAEngine checks, as before.
+  - The connection notes are written with the default pack's references; a pack maps them to its
+    own (`steel.connections.references`). The HSS connection equations (Chapter K) keep their
+    BNBC 2020 numbers, named as BNBC 2020's, and the default pack's φ.
+  - Built-up members, stability bracing, ponding and the tension field stiffener area are the
+    default pack's rules, cited as BNBC 2020's.
+  - AISC 341-22 width-thickness limits use the member's own Ry (Table A3.2 by its grade); IMF
+    beams and columns, SCBF beams and OCBF braces are checked against the moderately ductile
+    limits. The seismic rules not revised (connections, panel zones, links, BRBF, SPSW,
+    composite systems ...) are the default pack's, cited as BNBC 2020's.
+  - Composite columns: C1 and C3 from As / Ag (the bars' area left out: conservative); filled
+    sections are designed as compact only (noncompact and slender walls are refused).
+  - Masonry: TMS 402-22 strength design is the wall type's `masonryMethod` "strength"; the
+    default method stays the allowable stress design of BNBC 2020 Chapter 7 (TMS 402-22 Chapter 8
+    is not in the pack), named so. εmu 0.0025 (the clay masonry value) for all units, γg = 1.0.
+  - Timber stays BNBC 2020 Chapter 11: the NDS needs its own reference values and method.
 
 ## Earlier owner decisions
 

@@ -1,0 +1,53 @@
+{
+  "$schema": "../../../schemas/steelStability.schema.json",
+  "$sources": [
+    "AISC 360-22 Chapter C (Sec C1-C2, the direct analysis method), Appendix 7 (the effective length method, Sec 7.2, and design by first-order analysis, Sec 7.3), Appendix 8 (approximate second-order analysis)"
+  ],
+  "source": "AISC 360-22 Chapter C and Appendices 7-8 (design for stability)",
+  "sources": {
+    "method": "AISC 360-22 Chapter C (the direct analysis method, Sec C1-C2)",
+    "required": "AISC 360-22 Appendix 7, Sec 7.2.1",
+    "secondOrderUnitK": "AISC 360-22 Appendix 7, Sec 7.2.3",
+    "firstOrderUnitK": "AISC 360-22 Appendix 7, Sec 7.3.1",
+    "unitK": "AISC 360-22 Sec C3",
+    "pSmallDelta": "AISC 360-22 Sec C2.1 and Appendix 8, Sec 8.1",
+    "notional": "AISC 360-22 Sec C2.2b",
+    "secondOrderNotional": "AISC 360-22 Appendix 7, Sec 7.2.2",
+    "firstOrderNotional": "AISC 360-22 Appendix 7, Sec 7.3.2",
+    "gravityOnly": "AISC 360-22 Sec C2.2b(4)",
+    "tau": "AISC 360-22 Sec C2.3(c)",
+    "stiffness": "AISC 360-22 Sec C2.3(a)-(c)",
+    "amplifier": "AISC 360-22 Appendix 8, Sec 8.1.2 (B1)"
+  },
+  "alpha": {
+    "lrfd": 1.0,
+    "asd": 1.6,
+    "source": "AISC 360-22 Sec C2.3, Appendix 7, Appendix 8: α = 1.0 (LRFD), 1.6 (ASD)"
+  },
+  "notional": {
+    "secondOrder": 0.002,
+    "firstOrderDriftFactor": 2.1,
+    "firstOrderMinimum": 0.0042,
+    "source": "AISC 360-22 Appendix 7, Sec 7.2.2: Ni = 0.002 α Yi in the gravity-only combinations; Sec 7.3.2: Ni = 2.1 α (Δ/L) Yi >= 0.0042 Yi in all combinations"
+  },
+  "limits": {
+    "directAnalysisRequiredAbove": 1.5,
+    "secondOrderUnitKMax": 1.1,
+    "firstOrderAxialMax": 0.5,
+    "source": "AISC 360-22 Appendix 7, Sec 7.2.1: the effective length method while Δ2nd/Δ1st <= 1.5 (else the direct analysis method); Sec 7.2.3: K = 1.0 while Δ2nd/Δ1st <= 1.1; Sec 7.3.1: first-order analysis while αPr <= 0.5 Py"
+  },
+  "directAnalysis": {
+    "method": "directAnalysis",
+    "effectiveLengthFactor": 1.0,
+    "notionalCoefficient": 0.002,
+    "additiveNotionalCoefficient": 0.001,
+    "gravityOnlyDriftRatioMax": 1.7,
+    "flexuralStiffnessFactor": 0.8,
+    "axialStiffnessFactor": 0.8,
+    "tauLimit": 0.5,
+    "tauFactor": 4.0,
+    "pSmallDeltaLimit": 0.15,
+    "asdAnalysisFactor": 1.6,
+    "source": "AISC 360-22 Sec C3 (K = 1.0); Sec C2.1(4) ASD analysis under 1.6 x the ASD combinations; Sec C2.2b Ni = 0.002 α Yi, in the gravity-only combinations only while Δ2nd/Δ1st <= 1.7 on the reduced stiffness (C2.2b(4)); Sec C2.3 EI* = 0.8 τb EI, τb = 1.0 for αPr/Pns <= 0.5, else 4 (αPr/Pns)(1 - αPr/Pns), or τb = 1.0 with an additive 0.001 α Yi; EA* = 0.8 EA; P-δ on the lateral displacement neglected while αPr < 0.15 PeL (Appendix 8)"
+  }
+}

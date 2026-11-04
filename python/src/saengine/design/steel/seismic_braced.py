@@ -159,14 +159,22 @@ def brace_compact_checks(
     filled: bool = False,
     ca: float = 0.0,
     table: Any | None = None,
+    ry: float = 1.0,
 ) -> list[dict[str, Any]]:
     """Seismically compact braces, columns or beams of a braced kind (Sec 10.20.8.2.2, Table
     6.10.18) as the kind asks (``compactMembers``); a concrete-filled HSS brace of an ordinary
-    frame is exempt. ``ca``: Pu / (φb Py) of a column's web."""
+    frame is exempt. ``ca``: Pu / (φb Py) of a column's web. Alpha 9 C3: the members of
+    ``moderateMembers`` by the moderately ductile limits; ``ry`` as
+    :func:`saengine.design.steel.seismic.seismic_compact_limits`."""
     t = S._table(table)
+    ductility = "high"
     if kind in ("scbf", "ocbf"):
         rules = t.concentric[kind]
-        if member not in rules.compactMembers or (filled and rules.filledHssExempt):
+        if member not in rules.compactMembers:
+            if member not in rules.moderateMembers:
+                return []
+            ductility = "moderate"
+        if filled and rules.filledHssExempt:
             return []
         clause = cite(t, "scbfCompact" if kind == "scbf" else "ocbfBrace")
     elif kind == "ebf":
@@ -177,16 +185,21 @@ def brace_compact_checks(
         clause = cite(t, "brbfMembers")
     else:
         clause = cite(t, "compact")
+    label, symbol = (
+        ("moderately ductile", "λmd") if ductility == "moderate" else ("seismically compact", "λps")
+    )
     return [
         _check(
-            f"{name} width-thickness (seismically compact)",
+            f"{name} width-thickness ({label})",
             ratio,
             limit,
             "",
             clause,
-            f"λ = {ratio:.1f} ≤ λps = {limit:.1f}" + (f", Ca = {ca:.3f}" if ca else ""),
+            f"λ = {ratio:.1f} ≤ {symbol} = {limit:.1f}" + (f", Ca = {ca:.3f}" if ca else ""),
         )
-        for name, ratio, limit in S.seismic_compact_limits(shape, fy, e, member, kind, ca, t)
+        for name, ratio, limit in S.seismic_compact_limits(
+            shape, fy, e, member, kind, ca, t, ry, ductility
+        )
     ]
 
 
@@ -1203,7 +1216,16 @@ def apply(
             if is_slender:
                 slender.add(m.id)
             filled = getattr(getattr(m.object, "composite", None), "form", None) == "filled"
-            rows += brace_compact_checks(shape, steel.fy, steel.e, kind, "brace", filled, table=t)
+            rows += brace_compact_checks(
+                shape,
+                steel.fy,
+                steel.e,
+                kind,
+                "brace",
+                filled,
+                table=t,
+                ry=S.expected_yield_ratio(m.material, shape.family, t),
+            )
             phi_c = _steel_phi("compression")
             pn = _capacity(m.entry, "Compression: buckling") / phi_c
             if pn <= 0:
@@ -1430,7 +1452,7 @@ def apply(
                 f"λ = {ratio:.1f} ≤ λps = {limit:.1f}, Ca = {ca:.3f}",
             )
             for name, ratio, limit in S.seismic_compact_limits(
-                shape, steel.fy, steel.e, "beam", "ebf", ca, t
+                shape, steel.fy, steel.e, "beam", "ebf", ca, t, S.limit_ry(info[beam.id]["ry"], t)
             )
         ]
         vn = link_strength(link, t)["Vn"]
@@ -1515,7 +1537,14 @@ def apply(
             )
             ca = S.axial_coefficient(pu_plain, i["shape"].area * i["steel"].fy, t)
             rows += brace_compact_checks(
-                i["shape"], i["steel"].fy, i["steel"].e, kind_col, "column", ca=ca, table=t
+                i["shape"],
+                i["steel"].fy,
+                i["steel"].e,
+                kind_col,
+                "column",
+                ca=ca,
+                table=t,
+                ry=S.expected_yield_ratio(m.material, i["shape"].family, t),
             )
         if add_p > 0:
             phi_pn = _capacity(m.entry, "Compression: buckling")

@@ -46,6 +46,13 @@ except ImportError:  # pragma: no cover - SciPy ships with the engine
 NOISE = 1e3
 
 
+def _factor(phi: float) -> float:
+    """Alpha 9 C3: φT, or 1 / Ω of torsion when the member is checked by ASD."""
+    from saengine.design.steel import basis as steel_basis
+
+    return steel_basis.factor("torsion", float(phi))
+
+
 def members_data() -> Any:
     """The pack's ``steel.members`` data (None: the pack in force has none)."""
     try:
@@ -117,12 +124,15 @@ def hss_torsion(shape: Any, fy: float, e: float, length: float) -> TorsionCapaci
         else:
             if ratio > k.rectMaxRatio:
                 return TorsionCapacity(
-                    k.phi, 0.0, clause("torsionHss"), f"h/t = {ratio:.0f} > {k.rectMaxRatio:g}"
+                    _factor(k.phi),
+                    0.0,
+                    clause("torsionHss"),
+                    f"h/t = {ratio:.0f} > {k.rectMaxRatio:g}",
                 )
             fcr, regime = k.rectElastic * math.pi**2 * e / ratio**2, "elastic buckling"
         note = f"rectangular: h/t = {ratio:.1f} ({regime}), Fcr = {fcr:.1f} MPa"
     return TorsionCapacity(
-        k.phi, fcr * c, clause("torsionHss"), f"{note}, C = {c / 1e3:.1f}×10³ mm³"
+        _factor(k.phi), fcr * c, clause("torsionHss"), f"{note}, C = {c / 1e3:.1f}×10³ mm³"
     )
 
 

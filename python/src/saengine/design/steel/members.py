@@ -49,7 +49,9 @@ import numpy as np
 
 from saengine.codes import context as code_context
 from saengine.design.clauses import clause
+from saengine.design.clauses import text as clause_text
 from saengine.design.rc import DesignError
+from saengine.design.steel import basis as steel_basis
 from saengine.design.steel import classify as cl
 from saengine.design.steel.lengths import (
     LengthOptions,
@@ -70,10 +72,16 @@ def _shear_modulus() -> float:
     return float(code_context.table("materials").steelShearModulus)
 
 
-def _phi(name: str) -> float:
-    """φ ``name`` of the pack's ``steel`` table (default pack BNBC 2020: tensionYield 0.90, tensionRupture
-    0.75, compression, flexure and shear 0.90)."""
-    return float(code_context.table("steel").phi[name])
+def _phi(name: str, default: float | None = None) -> float:
+    """The factor on Rn of limit state ``name``: φ ``name`` of the pack's ``steel`` table (default
+    pack BNBC 2020: tensionYield 0.90, tensionRupture 0.75, compression, flexure and shear 0.90;
+    ``default`` for a key the pack does not list) under LRFD, 1 / Ω under ASD (alpha 9 C3,
+    :mod:`saengine.design.steel.basis`)."""
+    table = code_context.table("steel").phi
+    value = getattr(table, name, None)
+    if value is None:
+        value = (getattr(table, "model_extra", None) or {}).get(name, default)
+    return steel_basis.factor(name, float(value))
 
 
 def _slenderness(name: str) -> float:
@@ -87,31 +95,68 @@ def _s(key: str) -> str:
     return clause("steelMembers", key)
 
 
+def _c(key: str, literal: str) -> str:
+    """Alpha 9 C3: the pack's clause of the limit state ``key`` when it gives one, else the
+    default pack's reference ``literal`` after the pack's part ("<code> Part 6 Sec ...")."""
+    if clause_text("steelMembers", key):
+        return _s(key)
+    return f"{_s('part')} {literal}"
+
+
+def _t(key: str, literal: str) -> str:
+    """Alpha 9 C3: the pack's short reference ``key`` (an equation in a note, without the code's
+    name) when it gives one, else the default pack's ``literal``."""
+    return clause_text("steelMembers", key) or literal
+
+
+def _methods() -> Any:
+    """The pack's member strength methods (``steel.memberMethods``; the default pack's methods
+    when the pack gives none)."""
+    from saengine.codes.tables import SteelMemberMethods
+
+    found = getattr(code_context.table("steel"), "memberMethods", None)
+    return found if found is not None else SteelMemberMethods()
+
+
 def _method() -> list[str]:
     """``METHOD``: the method text of the design report, with the clauses of the code pack in
     force (read as a module attribute)."""
+    first = (
+        f"Steel members: LRFD to {clause('steelMembers', 'code')}; the load combinations are the "
+        "project's factored ones."
+    )
+    if steel_basis.chosen() == steel_basis.ASD:  # alpha 9 C3
+        first = (
+            f"Steel members: ASD to {clause('steelMembers', 'code')} (available strength Rn / Ω, "
+            "the code pack's safety factors) under the code pack's allowable stress "
+            "combinations; composite members, the members of a steel seismic force-resisting "
+            "system and runs by the direct analysis method by LRFD under the factored ones."
+        )
     return [
-        (
-            f"Steel members: LRFD to {clause('steelMembers', 'code')}; the load combinations are the "
-            "project's factored ones."
-        ),
-        (
+        first,
+        _t(
+            "methodTension",
             "Tension: yielding φ 0.90 Fy Ag (Eq 6.10.11) and rupture φ 0.75 Fu Ae (Eq 6.10.12), Ae "
             "= An U (Table 6.10.2 defaults: I-shapes and tees 0.90 / 0.85 by bf ≥ 2/3 d, channels "
             "0.85, angles 0.60, rectangular HSS 1 - x̄/l at l = H, round HSS 1 - 1/π at l = D); "
-            "An = Ag (welded ends) unless set."
+            "An = Ag (welded ends) unless set.",
         ),
-        (
+        _t(
+            "methodCompression",
             "Compression: flexural, torsional and flexural-torsional buckling (Secs 10.5.3, 10.5.4), "
             "single angles by Sec 10.5.5, slender elements by Q = Qs Qa (Sec 10.5.7); K = 1.0 "
             "(Secs 10.3.1.2.1, 10.3.2.2.2) unless overridden, lengths between the brace points the "
-            "analysis model shows."
+            "analysis model shows.",
         ),
-        (
+        _t(
+            "methodFlexure",
             "Flexure: Sec 10.6 by shape (yielding, lateral-torsional buckling with Cb from the "
-            "moment diagram, flange and web local buckling); a slab braces the top flange."
+            "moment diagram, flange and web local buckling); a slab braces the top flange.",
         ),
-        "Shear: Sec 10.7; combined forces: Sec 10.8.1 (H1), moments amplified by B1 (Eq 6.10.4).",
+        _t(
+            "methodShear",
+            "Shear: Sec 10.7; combined forces: Sec 10.8.1 (H1), moments amplified by B1 (Eq 6.10.4).",
+        ),
         (
             "Deflection of beams (serviceability): the deflection relative to the chord between the "
             "member's ends (a cantilever: the free end relative to the support), from the "
@@ -305,7 +350,8 @@ def _elastic_buckling(
     modes = [(fex, "flexural buckling about x"), (fey, "flexural buckling about y")]
     torsion = (math.pi**2 * e * shape.cw / klz**2 if klz > 0 else 0.0) + _shear_modulus() * shape.j
     if shape.family == "I":
-        modes.append((torsion / (shape.ix + shape.iy), "torsional buckling (Eq 6.10.23)"))
+        eq = _t("eqTorsional", "Eq 6.10.23")
+        modes.append((torsion / (shape.ix + shape.iy), f"torsional buckling ({eq})"))
     elif shape.family in ("channel", "tee"):
         fez = torsion / (shape.area * shape.ro2)
         h = shape.big_h
@@ -314,8 +360,71 @@ def _elastic_buckling(
         ft = (
             (fs + fez) / (2 * h) * (1 - math.sqrt(max(0.0, 1 - 4 * fs * fez * h / (fs + fez) ** 2)))
         )
-        modes.append((ft, "flexural-torsional buckling (Eq 6.10.24)"))
+        eq = _t("eqFlexuralTorsional", "Eq 6.10.24")
+        modes.append((ft, f"flexural-torsional buckling ({eq})"))
     return min(modes, key=lambda m: m[0])
+
+
+def _effective_area(
+    shape: ShapeProperties, steel: Steel, fcr: float, slender: Sequence[cl.Element]
+) -> tuple[float, list[str]]:
+    """Alpha 9 C3, method ``effectiveWidth``: Ae = Ag - Σ (b - be) t of the slender elements at
+    the critical stress Fcr, be = b (1 - c1 √(Fel/Fcr)) √(Fel/Fcr) when λ > λr √(Fy/Fcr), Fel =
+    (c2 λr / λ)² Fy, with the pack's c1, c2 by element kind; round HSS by the pack's
+    ``roundEffectiveArea``. ``(Ae, notes)``."""
+    m = _methods()
+    e, fy = steel.e, steel.fy
+    d = shape.dims
+    if shape.family == "chs":
+        ratio = d["D"] / d["t"]
+        if ratio >= 0.45 * e / fy:
+            raise SteelDesignError(
+                f"round HSS with D/t = {ratio:.0f} ≥ 0.45 E/Fy: outside the code pack's slender "
+                "element rule"
+            )
+        a, b = m.roundEffectiveArea
+        share = min(1.0, a * e / (fy * ratio) + b)
+        return share * shape.area, [f"round HSS wall: Ae / Ag = {share:.3f}"]
+    # (element kind, flat width b, thickness t, how many such elements) by the element's name.
+    parts: list[tuple[str, str, float, float, int, float, float]] = []
+    for el in slender:
+        match shape.family, el.name:
+            case (("I" | "channel"), "web"):
+                parts.append(("web", "stiffened", d["h"], d["tw"], 1, el.ratio, el.lambda_r))
+            case "I", "flange":
+                parts.append(("flange", "other", d["bf"] / 2, d["tf"], 4, el.ratio, el.lambda_r))
+            case "channel", "flange":
+                parts.append(("flange", "other", d["bf"], d["tf"], 2, el.ratio, el.lambda_r))
+            case "tee", "flange":
+                parts.append(("flange", "other", d["bf"] / 2, d["tf"], 2, el.ratio, el.lambda_r))
+            case "tee", "stem":
+                parts.append(("stem", "other", d["d"], d["tw"], 1, el.ratio, el.lambda_r))
+            case "angle", "leg":
+                for leg in (d["d"], d["b"]):
+                    if leg / d["t"] > el.lambda_r:
+                        parts.append(("leg", "other", leg, d["t"], 1, leg / d["t"], el.lambda_r))
+            case "rhs", "wall (width)":
+                parts.append(("wall", "hssWalls", d["b"], d["t"], 2, el.ratio, el.lambda_r))
+            case "rhs", "wall (depth)":
+                parts.append(("wall", "hssWalls", d["h"], d["t"], 2, el.ratio, el.lambda_r))
+    removed = 0.0
+    notes: list[str] = []
+    for name, kind, b, t, count, lam, lam_r in parts:
+        if fcr <= 0 or lam <= lam_r * math.sqrt(fy / fcr):
+            continue
+        factors = m.effectiveWidth.get(kind)
+        if factors is None:
+            raise SteelDesignError(
+                f"the code pack gives no effective width factors c1, c2 for '{kind}' elements"
+            )
+        fel = (factors.c2 * lam_r / lam) ** 2 * fy
+        root = math.sqrt(fel / fcr)
+        be = min(b, max(0.0, b * (1 - factors.c1 * root) * root))
+        removed += count * (b - be) * t
+        notes.append(
+            f"{name} be = {be:.0f} of b = {b:.0f} mm (c1 {factors.c1:g}, c2 {factors.c2:g})"
+        )
+    return shape.area - removed, notes
 
 
 def compression(
@@ -350,7 +459,7 @@ def compression(
         clause = _s("compressionAngle")
         notes.append(
             "connected through the longer leg, ends loaded through that leg, no transverse "
-            "load (Sec 10.5.5 conditions assumed)"
+            f"load ({_t('angleConditions', 'Sec 10.5.5')} conditions assumed)"
         )
         if slender:
             qs = _qs_angle(slender[0].ratio, e, fy)
@@ -358,7 +467,7 @@ def compression(
         fe, mode = _elastic_buckling(shape, e, klx, kly, klz)
         if mode.startswith(("torsional", "flexural-torsional")):
             clause = _s("compressionTorsional")
-        if shape.family == "tee" and not slender:
+        if shape.family == "tee" and not slender and _methods().teeCompression == "twoStress":
             fcry = _fcr(_euler(e, kly, shape.ry), fy)
             fcrz = _shear_modulus() * shape.j / (shape.area * shape.ro2)
             h = shape.big_h
@@ -380,6 +489,19 @@ def compression(
             )
         kl_r = max(klx / shape.rx, kly / shape.ry)
 
+    if slender and _methods().compressionSlender == "effectiveWidth":
+        # Alpha 9 C3: Pn = Fcr Ae, Fcr of the member's buckling mode at Q = 1.
+        fcr = _fcr(fe, fy)
+        ae, widths = _effective_area(shape, steel, fcr, slender)
+        note = (
+            f"KL/r = {kl_r:.1f}, Fe = {fe:.1f} MPa, Fcr = {fcr:.1f} MPa ({mode}); slender "
+            f"elements: Ae = {ae:.0f} of Ag = {shape.area:.0f} mm²"
+        )
+        if widths:
+            note += " (" + "; ".join(widths) + ")"
+        if notes:
+            note += "; " + "; ".join(notes)
+        return Capacity(_phi("compression"), fcr * ae, mode, _s("compressionSlender"), note)
     if slender:
         clause = _s("compressionSlender")
         for el in slender:
@@ -468,7 +590,7 @@ def _i_major(shape: ShapeProperties, steel: Steel, lb: float, cb: float) -> Capa
             * math.sqrt(jc)
             * math.sqrt(1 + math.sqrt(1 + 6.76 * (0.7 * fy / e / jc) ** 2))
         )
-        candidates.append((mp, "yielding", "Sec 10.6.2.1, Eq 6.10.56"))
+        candidates.append((mp, "yielding", _c("flexureYield", "Sec 10.6.2.1, Eq 6.10.56")))
         notes.append(f"Lb = {lb:.0f} mm, Lp = {lp:.0f} mm, Lr = {lr:.0f} mm, Cb = {cb:.2f}")
         if lb > lp:
             if lb <= lr:
@@ -483,17 +605,29 @@ def _i_major(shape: ShapeProperties, steel: Steel, lb: float, cb: float) -> Capa
                 )
                 mn = fcr * sx
             candidates.append(
-                (min(mn, mp), "lateral-torsional buckling", "Sec 10.6.2.2, Eqs 6.10.57-63")
+                (
+                    min(mn, mp),
+                    "lateral-torsional buckling",
+                    _c("flexureLtb", "Sec 10.6.2.2, Eqs 6.10.57-63"),
+                )
             )
         if flange.cls == cl.NONCOMPACT:
             lam = flange.ratio
             mn = mp - (mp - 0.7 * fy * sx) * (lam - flange.lambda_p) / (
                 flange.lambda_r - flange.lambda_p
             )
-            candidates.append((mn, "flange local buckling", "Sec 10.6.3.2(a), Eq 6.10.64"))
+            candidates.append(
+                (mn, "flange local buckling", _c("flexureFlb", "Sec 10.6.3.2(a), Eq 6.10.64"))
+            )
         elif flange.cls == cl.SLENDER:
             mn = 0.9 * e * _kc(web.ratio) * sx / flange.ratio**2
-            candidates.append((mn, "flange local buckling", "Sec 10.6.3.2(b), Eq 6.10.65"))
+            candidates.append(
+                (
+                    mn,
+                    "flange local buckling",
+                    _c("flexureFlbSlender", "Sec 10.6.3.2(b), Eq 6.10.65"),
+                )
+            )
         if channel and flange.cls != cl.COMPACT:
             notes.append("channel with a noncompact flange: Sec 10.6.3 applied (approximation)")
     else:
@@ -520,7 +654,11 @@ def _i_major(shape: ShapeProperties, steel: Steel, lb: float, cb: float) -> Capa
                 * math.sqrt(1 + math.sqrt(1 + 6.76 * (fl * sx * ho / (e * j)) ** 2))
             )
             candidates.append(
-                (rpc * myc, "compression flange yielding", "Sec 10.6.4.1, Eq 6.10.66")
+                (
+                    rpc * myc,
+                    "compression flange yielding",
+                    _c("flexureNoncompactWebYield", "Sec 10.6.4.1, Eq 6.10.66"),
+                )
             )
             notes.append(f"Rpc = {rpc:.3f}, rt = {rt:.1f} mm, Lp = {lp:.0f}, Lr = {lr:.0f} mm")
             if lb > lp:
@@ -539,17 +677,29 @@ def _i_major(shape: ShapeProperties, steel: Steel, lb: float, cb: float) -> Capa
                     (
                         min(mn, rpc * myc),
                         "lateral-torsional buckling",
-                        "Sec 10.6.4.2, Eqs 6.10.67-73",
+                        _c("flexureNoncompactWebLtb", "Sec 10.6.4.2, Eqs 6.10.67-73"),
                     )
                 )
             if flange.cls == cl.NONCOMPACT:
                 mn = rpc * myc - (rpc * myc - fl * sx) * (flange.ratio - flange.lambda_p) / (
                     flange.lambda_r - flange.lambda_p
                 )
-                candidates.append((mn, "flange local buckling", "Sec 10.6.4.3(b), Eq 6.10.77"))
+                candidates.append(
+                    (
+                        mn,
+                        "flange local buckling",
+                        _c("flexureNoncompactWebFlb", "Sec 10.6.4.3(b), Eq 6.10.77"),
+                    )
+                )
             elif flange.cls == cl.SLENDER:
                 mn = 0.9 * e * _kc(web.ratio) * sx / flange.ratio**2
-                candidates.append((mn, "flange local buckling", "Sec 10.6.4.3(c), Eq 6.10.78"))
+                candidates.append(
+                    (
+                        mn,
+                        "flange local buckling",
+                        _c("flexureNoncompactWebFlbSlender", "Sec 10.6.4.3(c), Eq 6.10.78"),
+                    )
+                )
         else:
             aw = min(aw, 10.0)
             rpg = min(1.0, 1 - aw / (1200 + 300 * aw) * (web.ratio - 5.7 * math.sqrt(e / fy)))
@@ -557,7 +707,11 @@ def _i_major(shape: ShapeProperties, steel: Steel, lb: float, cb: float) -> Capa
             lp = 1.1 * rt * math.sqrt(e / fy)
             lr = math.pi * rt * math.sqrt(e / (0.7 * fy))
             candidates.append(
-                (rpg * fy * sx, "compression flange yielding", "Sec 10.6.5.1, Eq 6.10.81")
+                (
+                    rpg * fy * sx,
+                    "compression flange yielding",
+                    _c("flexureSlenderWebYield", "Sec 10.6.5.1, Eq 6.10.81"),
+                )
             )
             notes.append(f"Rpg = {rpg:.3f}, rt = {rt:.1f} mm, Lp = {lp:.0f}, Lr = {lr:.0f} mm")
             if lb > lp:
@@ -566,30 +720,40 @@ def _i_major(shape: ShapeProperties, steel: Steel, lb: float, cb: float) -> Capa
                 else:
                     fcr = min(fy, cb * math.pi**2 * e / (lb / rt) ** 2)
                 candidates.append(
-                    (rpg * fcr * sx, "lateral-torsional buckling", "Sec 10.6.5.2, Eqs 6.10.82-85")
+                    (
+                        rpg * fcr * sx,
+                        "lateral-torsional buckling",
+                        _c("flexureSlenderWebLtb", "Sec 10.6.5.2, Eqs 6.10.82-85"),
+                    )
                 )
             if flange.cls == cl.NONCOMPACT:
                 fcr = fy - 0.3 * fy * (flange.ratio - flange.lambda_p) / (
                     flange.lambda_r - flange.lambda_p
                 )
                 candidates.append(
-                    (rpg * fcr * sx, "flange local buckling", "Sec 10.6.5.3(b), Eq 6.10.88")
+                    (
+                        rpg * fcr * sx,
+                        "flange local buckling",
+                        _c("flexureSlenderWebFlb", "Sec 10.6.5.3(b), Eq 6.10.88"),
+                    )
                 )
             elif flange.cls == cl.SLENDER:
                 fcr = 0.9 * e * _kc(web.ratio) / flange.ratio**2
                 candidates.append(
-                    (rpg * fcr * sx, "flange local buckling", "Sec 10.6.5.3(c), Eq 6.10.89")
+                    (
+                        rpg * fcr * sx,
+                        "flange local buckling",
+                        _c("flexureSlenderWebFlbSlender", "Sec 10.6.5.3(c), Eq 6.10.89"),
+                    )
                 )
     return _least(candidates, notes)
 
 
 def _least(
-    candidates: list[tuple[float, str, str]], notes: list[str], prefix: str | None = None
+    candidates: list[tuple[float, str, str]], notes: list[str], prefix: str = ""
 ) -> Capacity:
     """The least of the candidate (Mn, state, clause); ``prefix`` goes before the clause (the
-    pack's clause strings, B31, come whole: prefix "")."""
-    if prefix is None:
-        prefix = _s("part") + " "
+    clauses come whole: :func:`_c`, the pack's clause strings of B31)."""
     mn, state, clause = min(candidates, key=lambda c: c[0])
     others = ", ".join(f"{s} {m / 1e6:.1f}" for m, s, _ in candidates if s != state)
     note = f"Mn = {mn / 1e6:.1f} kN·m ({state})" + (f"; also {others} kN·m" if others else "")
@@ -661,7 +825,9 @@ def flexure_unsymmetric(
     return _least(candidates, [f"S = {s_least / 1e3:.1f}×10³ mm³ (the least)"], prefix="")
 
 
-def _hss_flexure(shape: ShapeProperties, steel: Steel, axis: str) -> Capacity:
+def _hss_flexure(
+    shape: ShapeProperties, steel: Steel, axis: str, lb: float = 0.0, cb: float = 1.0
+) -> Capacity:
     e, fy = steel.e, steel.fy
     d = shape.dims
     if shape.family == "chs":
@@ -672,45 +838,63 @@ def _hss_flexure(shape: ShapeProperties, steel: Steel, axis: str) -> Capacity:
             )
         (wall,) = cl.flexure_elements(shape, fy, e, axis)
         mp = fy * shape.zx
-        candidates = [(mp, "yielding", "Sec 10.6.8.1, Eq 6.10.100")]
+        candidates = [(mp, "yielding", _c("flexureRoundYield", "Sec 10.6.8.1, Eq 6.10.100"))]
         if wall.cls == cl.NONCOMPACT:
             candidates.append(
                 (
                     (0.021 * e / ratio + fy) * shape.sx,
                     "local buckling",
-                    "Sec 10.6.8.2(b), Eq 6.10.101",
+                    _c("flexureRoundLocal", "Sec 10.6.8.2(b), Eq 6.10.101"),
                 )
             )
         elif wall.cls == cl.SLENDER:
             candidates.append(
-                (0.33 * e / ratio * shape.sx, "local buckling", "Sec 10.6.8.2(c), Eqs 6.10.102-103")
+                (
+                    0.33 * e / ratio * shape.sx,
+                    "local buckling",
+                    _c("flexureRoundLocalSlender", "Sec 10.6.8.2(c), Eqs 6.10.102-103"),
+                )
             )
         return _least(candidates, [wall.describe()])
     flange, web = cl.flexure_elements(shape, fy, e, axis)
     z, s = (shape.zx, shape.sx) if axis == "x" else (shape.zy, shape.sy)
     mp = fy * z
     t = d["t"]
-    candidates = [(mp, "yielding", "Sec 10.6.7.1, Eq 6.10.95")]
+    candidates = [(mp, "yielding", _c("flexureRhsYield", "Sec 10.6.7.1, Eq 6.10.95"))]
     if flange.cls == cl.NONCOMPACT:
         mn = mp - (mp - fy * s) * (3.57 * flange.ratio * math.sqrt(fy / e) - 4.0)
-        candidates.append((min(mn, mp), "flange local buckling", "Sec 10.6.7.2(b), Eq 6.10.96"))
+        candidates.append(
+            (
+                min(mn, mp),
+                "flange local buckling",
+                _c("flexureRhsFlb", "Sec 10.6.7.2(b), Eq 6.10.96"),
+            )
+        )
     elif flange.cls == cl.SLENDER:
         be = _effective_width(t, flange.ratio, e, fy, 0.38)
         candidates.append(
             (
                 fy * _rhs_seff(shape, axis, be),
                 "flange local buckling",
-                "Sec 10.6.7.2(c), Eqs 6.10.97-98",
+                _c("flexureRhsFlbSlender", "Sec 10.6.7.2(c), Eqs 6.10.97-98"),
             )
         )
     if web.cls == cl.NONCOMPACT:
         mn = mp - (mp - fy * s) * (0.305 * web.ratio * math.sqrt(fy / e) - 0.738)
-        candidates.append((min(mn, mp), "web local buckling", "Sec 10.6.7.3(b), Eq 6.10.99"))
+        candidates.append(
+            (min(mn, mp), "web local buckling", _c("flexureRhsWlb", "Sec 10.6.7.3(b), Eq 6.10.99"))
+        )
     elif web.cls == cl.SLENDER:
         raise SteelDesignError(
             f"rectangular HSS web h/t = {web.ratio:.0f} is slender: outside Sec 10.6.7"
         )
-    return _least(candidates, [flange.describe(), web.describe()])
+    notes = [flange.describe(), web.describe()]
+    if axis == "x" and lb > 0 and _methods().hssLateralTorsional:
+        found = _hss_ltb(shape, steel, lb, cb, mp)
+        if found is not None:
+            candidates.append(found[:3])
+            notes.append(found[3])
+    return _least(candidates, notes)
 
 
 def _rhs_seff(shape: ShapeProperties, axis: str, be: float) -> float:
@@ -736,12 +920,16 @@ def _rhs_seff(shape: ShapeProperties, axis: str, be: float) -> float:
 def _tee_flexure(
     shape: ShapeProperties, steel: Steel, lb: float, stem_compression: bool
 ) -> Capacity:
+    if _methods().teeFlexure == "lengthLimits":
+        return _tee_flexure_lengths(shape, steel, lb, stem_compression)
     e, fy = steel.e, steel.fy
     d = shape.dims
     my = fy * shape.sx
     mp = fy * shape.zx
     limit = my if stem_compression else 1.6 * my
-    candidates = [(min(mp, limit), "yielding", "Sec 10.6.9.1, Eqs 6.10.104-106")]
+    candidates = [
+        (min(mp, limit), "yielding", _c("flexureTeeYield", "Sec 10.6.9.1, Eqs 6.10.104-106"))
+    ]
     if lb > 0:
         b = (-1 if stem_compression else 1) * 2.3 * (d["d"] / lb) * math.sqrt(shape.iy / shape.j)
         mcr = (
@@ -750,20 +938,124 @@ def _tee_flexure(
             / lb
             * (b + math.sqrt(1 + b * b))
         )
-        candidates.append((mcr, "lateral-torsional buckling", "Sec 10.6.9.2, Eqs 6.10.107-108"))
+        candidates.append(
+            (
+                mcr,
+                "lateral-torsional buckling",
+                _c("flexureTeeLtb", "Sec 10.6.9.2, Eqs 6.10.107-108"),
+            )
+        )
     (flange,) = cl.flexure_elements(shape, fy, e, "x")
     if not stem_compression and flange.cls != cl.COMPACT:
         lam = flange.ratio
         if flange.cls == cl.NONCOMPACT:
             fcr = fy * (1.19 - 0.50 * lam * math.sqrt(fy / e))
-            clause = "Sec 10.6.9.3(b), Eqs 6.10.109-110"
+            clause = _c("flexureTeeFlb", "Sec 10.6.9.3(b), Eqs 6.10.109-110")
         else:
             fcr = 0.69 * e / lam**2
-            clause = "Sec 10.6.9.3(c), Eqs 6.10.109, 6.10.111"
+            clause = _c("flexureTeeFlbSlender", "Sec 10.6.9.3(c), Eqs 6.10.109, 6.10.111")
         candidates.append((fcr * shape.sx_top, "flange local buckling", clause))
     return _least(
         candidates,
         [flange.describe(), "stem in " + ("compression" if stem_compression else "tension")],
+    )
+
+
+def _tee_flexure_lengths(
+    shape: ShapeProperties, steel: Steel, lb: float, stem_compression: bool
+) -> Capacity:
+    """Alpha 9 C3, method ``lengthLimits``: tees about the major axis by yielding (Mp <= 1.6 My,
+    stem in compression My), lateral-torsional buckling with Lp = 1.76 ry √(E/Fy) and Lr = 1.95
+    (E/Fy) √(Iy J) / Sx √(2.36 (Fy/E) d Sx / J + 1) for a stem in tension (Mcr above Lr; a stem in
+    compression Mcr <= My), flange local buckling by λp, λr (flange in compression) and stem
+    local buckling (stem in compression), with the pack's factors (``memberMethods``)."""
+    m = _methods()
+    e, fy = steel.e, steel.fy
+    d = shape.dims
+    sx = shape.sx
+    my = fy * sx
+    mp = fy * shape.zx
+    notes: list[str] = []
+    yield_state = min(mp, my if stem_compression else 1.6 * my)
+    candidates = [(yield_state, "yielding", _c("flexureTeeYield", ""))]
+    if lb > 0:
+        b = (-1 if stem_compression else 1) * 2.3 * (d["d"] / lb) * math.sqrt(shape.iy / shape.j)
+        mcr = (
+            math.pi
+            * math.sqrt(e * shape.iy * _shear_modulus() * shape.j)
+            / lb
+            * (b + math.sqrt(1 + b * b))
+        )
+        if stem_compression:
+            candidates.append((min(mcr, my), "lateral-torsional buckling", _c("flexureTeeLtb", "")))
+        else:
+            lp = 1.76 * shape.ry * math.sqrt(e / fy)
+            lr = (
+                1.95
+                * (e / fy)
+                * math.sqrt(shape.iy * shape.j)
+                / sx
+                * math.sqrt(2.36 * (fy / e) * d["d"] * sx / shape.j + 1)
+            )
+            notes.append(f"Lb = {lb:.0f} mm, Lp = {lp:.0f} mm, Lr = {lr:.0f} mm")
+            if lb > lp:
+                mn = yield_state - (yield_state - my) * (lb - lp) / (lr - lp) if lb <= lr else mcr
+                candidates.append(
+                    (min(mn, yield_state), "lateral-torsional buckling", _c("flexureTeeLtb", ""))
+                )
+    (flange,) = cl.flexure_elements(shape, fy, e, "x")
+    if not stem_compression and flange.cls != cl.COMPACT:
+        sxc = shape.sx_top
+        if flange.cls == cl.NONCOMPACT:
+            mn = mp - (mp - 0.7 * fy * sxc) * (flange.ratio - flange.lambda_p) / (
+                flange.lambda_r - flange.lambda_p
+            )
+            candidates.append((min(mn, 1.6 * my), "flange local buckling", _c("flexureTeeFlb", "")))
+        else:
+            mn = m.teeFlangeSlender * e * sxc / flange.ratio**2
+            candidates.append((mn, "flange local buckling", _c("flexureTeeFlbSlender", "")))
+    if stem_compression:
+        a, b2, c, k, el = m.teeStem
+        ratio = d["d"] / d["tw"]
+        root = math.sqrt(e / fy)
+        if ratio <= a * root:
+            fcr = fy
+        elif ratio <= b2 * root:
+            fcr = (c - k * ratio / root) * fy
+        else:
+            fcr = el * e / ratio**2
+        notes.append(f"stem d/tw = {ratio:.1f}, Fcr = {fcr:.0f} MPa")
+        candidates.append((fcr * sx, "stem local buckling", _c("flexureTeeStem", "")))
+    return _least(
+        candidates,
+        [
+            flange.describe(),
+            "stem in " + ("compression" if stem_compression else "tension"),
+            *notes,
+        ],
+    )
+
+
+def _hss_ltb(shape: ShapeProperties, steel: Steel, lb: float, cb: float, mp: float) -> Any:
+    """Alpha 9 C3, ``memberMethods.hssLateralTorsional``: lateral-torsional buckling of a
+    rectangular HSS about its major axis, Lp = a E ry √(J A) / Mp, Lr = b E ry √(J A) / (0.7 Fy
+    Sx); None when Lb <= Lp."""
+    a, b = _methods().hssLtb
+    e, fy = steel.e, steel.fy
+    root = math.sqrt(shape.j * shape.area)
+    lp = a * e * shape.ry * root / mp
+    lr = b * e * shape.ry * root / (0.7 * fy * shape.sx)
+    if lb <= lp:
+        return None
+    if lb <= lr:
+        mn = cb * (mp - (mp - 0.7 * fy * shape.sx) * (lb - lp) / (lr - lp))
+    else:
+        mn = b * e * cb * root / (lb / shape.ry)
+    return (
+        min(mn, mp),
+        "lateral-torsional buckling",
+        _c("flexureRhsLtb", ""),
+        f"Lb = {lb:.0f} mm, Lp = {lp:.0f} mm, Lr = {lr:.0f} mm, Cb = {cb:.2f}",
     )
 
 
@@ -783,7 +1075,7 @@ def _angle_flexure(
     notes = [f"toe in compression assumed, leg {leg:g} mm"]
     restrained = lb <= 0
     my = (1.0 if restrained else 0.8) * fy * s_geo
-    candidates = [(1.5 * my, "yielding", "Sec 10.6.10.1, Eq 6.10.112")]
+    candidates = [(1.5 * my, "yielding", _c("flexureAngleYield", "Sec 10.6.10.1, Eq 6.10.112"))]
     if not restrained:
         cb = min(cb, 1.5)
         me = 0.66 * e * leg**4 * t * cb / lb**2 * (math.sqrt(1 + 0.78 * (lb * t / leg**2) ** 2) - 1)
@@ -791,7 +1083,13 @@ def _angle_flexure(
             mn = (0.92 - 0.17 * me / my) * me
         else:
             mn = min((1.92 - 1.17 * math.sqrt(my / me)) * my, 1.5 * my)
-        candidates.append((mn, "lateral-torsional buckling", "Sec 10.6.10.2, Eqs 6.10.113-115a"))
+        candidates.append(
+            (
+                mn,
+                "lateral-torsional buckling",
+                _c("flexureAngleLtb", "Sec 10.6.10.2, Eqs 6.10.113-115a"),
+            )
+        )
         notes.append("My = 0.80 Fy S (no lateral-torsional restraint)")
         if d["d"] != d["b"]:
             notes.append("unequal legs: the equal-leg Me of Eq 6.10.115a used (approximation)")
@@ -800,10 +1098,18 @@ def _angle_flexure(
     if ratio > 0.54 * r:
         if ratio <= 0.91 * r:
             mn = fy * sc * (2.43 - 1.72 * ratio / r)
-            candidates.append((mn, "leg local buckling", "Sec 10.6.10.3(b), Eq 6.10.118"))
+            candidates.append(
+                (mn, "leg local buckling", _c("flexureAngleLeg", "Sec 10.6.10.3(b), Eq 6.10.118"))
+            )
         else:
             mn = 0.71 * e / ratio**2 * sc
-            candidates.append((mn, "leg local buckling", "Sec 10.6.10.3(c), Eqs 6.10.119-120"))
+            candidates.append(
+                (
+                    mn,
+                    "leg local buckling",
+                    _c("flexureAngleLegSlender", "Sec 10.6.10.3(c), Eqs 6.10.119-120"),
+                )
+            )
     return _least(candidates, notes)
 
 
@@ -815,7 +1121,7 @@ def flexure_major(
         case "I" | "channel":
             return _i_major(shape, steel, lb, cb)
         case "rhs" | "chs":
-            return _hss_flexure(shape, steel, "x")
+            return _hss_flexure(shape, steel, "x", lb, cb)
         case "tee":
             return _tee_flexure(shape, steel, lb, stem_compression=not top_compression)
         case "angle":
@@ -834,16 +1140,26 @@ def flexure_minor(
         case "I" | "channel":
             (flange,) = cl.flexure_elements(shape, fy, e, "y")
             mp = min(fy * shape.zy, 1.6 * fy * shape.sy)
-            candidates = [(mp, "yielding", "Sec 10.6.6.1, Eq 6.10.91")]
+            candidates = [(mp, "yielding", _c("flexureMinorYield", "Sec 10.6.6.1, Eq 6.10.91"))]
             if flange.cls == cl.NONCOMPACT:
                 mn = mp - (mp - 0.7 * fy * shape.sy) * (flange.ratio - flange.lambda_p) / (
                     flange.lambda_r - flange.lambda_p
                 )
-                candidates.append((mn, "flange local buckling", "Sec 10.6.6.2(b), Eq 6.10.92"))
+                candidates.append(
+                    (
+                        mn,
+                        "flange local buckling",
+                        _c("flexureMinorFlb", "Sec 10.6.6.2(b), Eq 6.10.92"),
+                    )
+                )
             elif flange.cls == cl.SLENDER:
                 fcr = 0.69 * e / flange.ratio**2
                 candidates.append(
-                    (fcr * shape.sy, "flange local buckling", "Sec 10.6.6.2(c), Eqs 6.10.93-94")
+                    (
+                        fcr * shape.sy,
+                        "flange local buckling",
+                        _c("flexureMinorFlbSlender", "Sec 10.6.6.2(c), Eqs 6.10.93-94"),
+                    )
                 )
             return _least(candidates, [flange.describe()])
         case "rhs" | "chs":
@@ -851,7 +1167,14 @@ def flexure_minor(
         case "tee":
             mn = min(fy * shape.zy, 1.6 * fy * shape.sy)
             return _least(
-                [(mn, "yielding", "Sec 10.6.6.1, Eq 6.10.91 (applied to the tee flange)")],
+                [
+                    (
+                        mn,
+                        "yielding",
+                        _c("flexureMinorYield", "Sec 10.6.6.1, Eq 6.10.91")
+                        + " (applied to the tee flange)",
+                    )
+                ],
                 ["tee about its axis of symmetry: yielding of the flange only (approximation)"],
             )
         case "angle":
@@ -872,6 +1195,28 @@ def web_shear_coefficient(h_tw: float, kv: float, e: float, fy: float) -> float:
     if h_tw <= 1.37 * r:
         return 1.10 * r / h_tw
     return 1.51 * e * kv / (h_tw**2 * fy)
+
+
+def web_shear_cv1(h_tw: float, kv: float, e: float, fy: float) -> float:
+    """Alpha 9 C3, ``memberMethods.webShear = cv1``: Cv1 = 1 while h/tw <= 1.10 √(kv E/Fy),
+    else 1.10 √(kv E/Fy) / (h/tw) (no elastic branch)."""
+    r = math.sqrt(kv * e / fy)
+    return 1.0 if h_tw <= 1.10 * r else 1.10 * r / h_tw
+
+
+def _web_cv(h_tw: float, kv: float, e: float, fy: float) -> float:
+    """The web shear coefficient of the pack's method (Cv, or Cv1 of ``cv1``) for a web without
+    tension field action."""
+    if _methods().webShear == "cv1":
+        return web_shear_cv1(h_tw, kv, e, fy)
+    return web_shear_coefficient(h_tw, kv, e, fy)
+
+
+def _factor_label(name: str, symbol: str, phi: float) -> str:
+    """ "φv = 1.0" (LRFD) or "Ωv = 1.50" (ASD) of limit state ``name`` in a note."""
+    if steel_basis.current() == steel_basis.ASD:
+        return f"Ω{symbol} = {steel_basis.omega(name, phi):.2f}"
+    return f"φ{symbol} = {phi:.1f}"
 
 
 def _chs_shear(shape: ShapeProperties, steel: Steel, lv: float) -> Capacity:
@@ -921,17 +1266,35 @@ def stiffened_web(shape: ShapeProperties, steel: Steel, a: float) -> dict[str, A
     h, tw = d["h"], d["tw"]
     aspect = a / h
     h_tw = h / tw
-    plain = aspect > tf_data.aspectMax or aspect > (tf_data.webLimit / h_tw) ** 2
-    kv = tf_data.kv if plain else tf_data.kv + tf_data.kv / aspect**2
+    plain = aspect > tf_data.aspectMax or (
+        tf_data.webLimit is not None and aspect > (tf_data.webLimit / h_tw) ** 2
+    )
+    methods = getattr(code_context.table("steel"), "memberMethods", None)
+    # Alpha 9 C3: kv of a/h beyond the limits is the pack's kv of an unstiffened web.
+    kv_plain = methods.kvUnstiffened if methods is not None else tf_data.kv
+    kv = kv_plain if plain else tf_data.kv + tf_data.kv / aspect**2
     why = []
     if plain:
         why.append(f"a/h = {aspect:.2f} beyond the limits: kv of an unstiffened web")
     flanges = 2 * d["bf"] * d["tf"]
+    proportions = []
     if 2 * d["d"] * tw / flanges > tf_data.webFlange:
-        why.append(f"2 Aw / (Afc + Aft) > {tf_data.webFlange:g}")
+        proportions.append(f"2 Aw / (Afc + Aft) > {tf_data.webFlange:g}")
     if h / d["bf"] > tf_data.depthFlange:
-        why.append(f"h / bf > {tf_data.depthFlange:g}")
-    return {"kv": kv, "aspect": aspect, "tfa": not plain and len(why) == 0, "why": why}
+        proportions.append(f"h / bf > {tf_data.depthFlange:g}")
+    # Alpha 9 C3, ``tensionField = reduced``: a panel outside the proportion limits keeps a
+    # reduced tension field action instead of none.
+    reduced = bool(proportions) and methods is not None and methods.tensionField == "reduced"
+    if not reduced:
+        why.extend(proportions)
+    return {
+        "kv": kv,
+        "aspect": aspect,
+        "tfa": not plain and len(why) == 0,
+        "why": why,
+        "reduced": reduced and not plain,
+        "proportions": proportions,
+    }
 
 
 def shear_major(
@@ -955,14 +1318,28 @@ def shear_major(
             h_tw = d["h"] / d["tw"]
             aw = d["d"] * d["tw"]
             if h_tw >= 260:
-                raise SteelDesignError(f"web h/tw = {h_tw:.0f} ≥ 260 needs stiffeners (Sec 10.7.2)")
+                raise SteelDesignError(
+                    f"web h/tw = {h_tw:.0f} ≥ 260 needs stiffeners ({_t('webLimit', 'Sec 10.7.2')})"
+                )
             if shape.family == "I" and h_tw <= 2.24 * math.sqrt(e / fy):
+                label = _factor_label("shearWebYield", "v", 1.0)
                 return Capacity(
-                    1.0,
+                    _phi("shearWebYield", 1.0),
                     0.6 * fy * aw,
                     "shear yielding",
                     _s("shearWebYield"),
-                    f"Aw = d tw = {aw:.0f} mm², h/tw = {h_tw:.1f}, φv = 1.0, Cv = 1.0",
+                    f"Aw = d tw = {aw:.0f} mm², h/tw = {h_tw:.1f}, {label}, Cv = 1.0",
+                )
+            if _methods().webShear == "cv1":
+                # Alpha 9 C3: Cv1 of the pack's method with kv of an unstiffened web.
+                kv = _methods().kvUnstiffened
+                cv = web_shear_cv1(h_tw, kv, e, fy)
+                return Capacity(
+                    _phi("shear"),
+                    0.6 * fy * aw * cv,
+                    "shear yielding / buckling",
+                    _s("shearWeb"),
+                    f"Aw = {aw:.0f} mm², h/tw = {h_tw:.1f}, kv = {kv:g}, Cv1 = {cv:.3f}",
                 )
             cv = web_shear_coefficient(h_tw, 5.0, e, fy)
             return Capacity(
@@ -1014,13 +1391,18 @@ def _stiffened_shear(
     kv, aspect = web["kv"], web["aspect"]
     cv = web_shear_coefficient(h_tw, kv, e, fy)
     note = f"Aw = {aw:.0f} mm², h/tw = {h_tw:.1f}, a = {a:.0f} mm, a/h = {aspect:.2f}, kv = "
-    note += f"{kv:.2f}, Cv = {cv:.3f}"
     if tension_field and web["tfa"]:
+        note += f"{kv:.2f}, Cv = {cv:.3f}"
         factor = members_data().tensionField.factor
+        root = math.sqrt(1 + aspect**2)
+        if web.get("reduced"):
+            # Alpha 9 C3: outside the proportion limits, the reduced tension field action.
+            root += aspect
+            note += "; reduced tension field action (" + ", ".join(web["proportions"]) + ")"
         if h_tw <= 1.10 * math.sqrt(kv * e / fy):
             vn = 0.6 * fy * aw
         else:
-            vn = 0.6 * fy * aw * (cv + (1 - cv) / (factor * math.sqrt(1 + aspect**2)))
+            vn = 0.6 * fy * aw * (cv + (1 - cv) / (factor * root))
         return Capacity(
             _phi("shear"),
             vn,
@@ -1028,10 +1410,17 @@ def _stiffened_shear(
             clause("tensionField"),
             note + "; tension field action",
         )
+    if _methods().webShear == "cv1":  # alpha 9 C3: no tension field action: Cv1
+        cv = web_shear_cv1(h_tw, kv, e, fy)
+        note += f"{kv:.2f}, Cv1 = {cv:.3f}"
+    else:
+        note += f"{kv:.2f}, Cv = {cv:.3f}"
     if web["why"]:
         note += "; no tension field action: " + ", ".join(web["why"])
     if h_tw >= 260 and kv <= members_data().tensionField.kv:
-        raise SteelDesignError(f"web h/tw = {h_tw:.0f} ≥ 260 needs stiffeners (Sec 10.7.2)")
+        raise SteelDesignError(
+            f"web h/tw = {h_tw:.0f} ≥ 260 needs stiffeners ({_t('webLimit', 'Sec 10.7.2')})"
+        )
     return Capacity(
         _phi("shear"),
         0.6 * fy * aw * cv,
@@ -1142,8 +1531,8 @@ def interaction(
     mx = abs(mrx) / mcx if mcx > 0 else (0.0 if mrx == 0 else math.inf)
     my = abs(mry) / mcy if mcy > 0 else (0.0 if mry == 0 else math.inf)
     if p >= 0.2:
-        return p + 8 / 9 * (mx + my), "Eq 6.10.147a"
-    return p / 2 + mx + my, "Eq 6.10.147b"
+        return p + 8 / 9 * (mx + my), _t("interactionHigh", "Eq 6.10.147a")
+    return p / 2 + mx + my, _t("interactionLow", "Eq 6.10.147b")
 
 
 @dataclass(frozen=True)
@@ -1221,7 +1610,7 @@ def angle_principal(shape: ShapeProperties, steel: Steel, lb: float, cb: float) 
         cbx = min(cb, 1.5)
         if abs(d["d"] - d["b"]) < 1e-9:
             me = 0.46 * e * leg**2 * t**2 * cbx / lb
-            notes.append(f"Me = {me / 1e6:.1f} kN·m (Eq 6.10.116)")
+            notes.append(f"Me = {me / 1e6:.1f} kN·m ({_t('eqAngleEqual', 'Eq 6.10.116')})")
         else:
             beta = -_angle_beta_w(shape, w_dir, np.array([-w_dir[1], w_dir[0]]))
             rz = math.sqrt(iz / shape.area)
@@ -1233,7 +1622,8 @@ def angle_principal(shape: ShapeProperties, steel: Steel, lb: float, cb: float) 
                 / lb**2
                 * (math.sqrt(beta**2 + 0.052 * (lb * t / rz) ** 2) + beta)
             )
-            notes.append(f"Me = {me / 1e6:.1f} kN·m (Eq 6.10.117, βw = {beta:.1f} mm)")
+            eq = _t("eqAngleUnequal", "Eq 6.10.117")
+            notes.append(f"Me = {me / 1e6:.1f} kN·m ({eq}, βw = {beta:.1f} mm)")
         if me <= my_w:
             mn_w.append((0.92 - 0.17 * me / my_w) * me)
         else:
@@ -1328,6 +1718,8 @@ class SteelOptions:
     tension_field: bool = True
     warping: str = "free"
     built_up: Any = None
+    #: Alpha 9 C3: the design basis of the checks, "LRFD" or "ASD" (saengine.design.steel.basis).
+    basis: str = "LRFD"
 
     @classmethod
     def of(cls, value: SteelOptions | dict[str, Any] | None) -> SteelOptions:
@@ -1517,7 +1909,7 @@ class _MemberTorsion:
         if st.T is None:
             return
         tor, shape, fy = self.tor, self.shape, self.steel.fy
-        phi = self.data.phi
+        phi = steel_basis.factor("torsion", float(self.data.phi))  # alpha 9 C3
         tr = abs(float(st.T[k]))
         if self.hss:
             cap = self.capacity
@@ -1637,8 +2029,21 @@ def check_member(
 ) -> list[dict[str, Any]]:
     """The strength checks of one steel member, enveloping its combinations and stations, in
     the design report's format (``{name, demand, capacity, unit, utilisation, combination, ok,
-    note, flag, clause}``, forces in kN and kN·m)."""
+    note, flag, clause}``, forces in kN and kN·m), on the design basis of ``options.basis``
+    (alpha 9 C3: the stations are then those of that basis' combinations)."""
     options = SteelOptions.of(options)
+    with steel_basis.using(options.basis):
+        return _check_member(shape, steel, stations, lengths, kind, options)
+
+
+def _check_member(
+    shape: ShapeProperties,
+    steel: Steel,
+    stations: Sequence[Stations],
+    lengths: MemberLengths,
+    kind: str,
+    options: SteelOptions,
+) -> list[dict[str, Any]]:
     e = steel.e
     tension_y = tension_yielding(shape, steel)
     tension_r = tension_rupture(shape, steel, options.shear_lag, options.net_ratio)
@@ -1690,6 +2095,8 @@ def check_member(
     unit_k = getattr(stability, "unit_k", None)
     direct = bool(getattr(stability, "direct", False))
     py_member = steel.fy * shape.area
+    # Alpha 9 C3: α on Pr (1.0 under LRFD; the pack's ASD α for a member checked by ASD).
+    alpha = float(getattr(stability, "alpha", 1.0) or 1.0)
 
     def comp(klx: float, kly: float, klz: float) -> Capacity:
         key = (round(klx, 1), round(kly, 1), round(klz, 1))
@@ -1792,7 +2199,7 @@ def check_member(
                 if kind == "column" and not direct:
                     share = getattr(stability, "first_order_axial", 0.5)
                     worst["k1"].offer(
-                        _ratio(p, share * py_member),
+                        _ratio(alpha * p, share * py_member),
                         p,
                         share * py_member,
                         st.combination,
@@ -1823,10 +2230,14 @@ def check_member(
                 # Direct analysis method: Pe1 on the reduced stiffness 0.8 τb EI.
                 e1 = e * (stability.flexural_stiffness(p, py_member) if direct else 1.0)
                 b1x = amplifier_b1(
-                    moment_coefficient(s, st.Mx, xa, xb), p, _euler_load(e1, shape.ix, kx * lx)
+                    moment_coefficient(s, st.Mx, xa, xb),
+                    alpha * p,
+                    _euler_load(e1, shape.ix, kx * lx),
                 )
                 b1y = amplifier_b1(
-                    moment_coefficient(s, st.My, ya, yb), p, _euler_load(e1, shape.iy, ky * ly)
+                    moment_coefficient(s, st.My, ya, yb),
+                    alpha * p,
+                    _euler_load(e1, shape.iy, ky * ly),
                 )
             mrx, mry = abs(mx) * b1x, abs(my) * b1y
             note_b1 = f"; B1 = {b1x:.2f} / {b1y:.2f}" if (b1x > 1 or b1y > 1) else ""
@@ -1926,11 +2337,15 @@ def check_member(
     checks.append(_check("Shear along x (width)", worst["vx"], "kN", 1e3))
     checks.append(_check("Axial force and flexure (H1)", worst["h1"], "", 1.0))
     if shape.family == "tee":
-        checks[-1]["note"] += "; H1 of Sec 10.8.1 applied to a tee (singly symmetric)"
+        checks[-1]["note"] += (
+            f"; H1 of {_t('interactionSection', 'Sec 10.8.1')} applied to a tee (singly symmetric)"
+        )
     elif shape.family == "angle" and principal is not None:
         # B31: a single angle is unsymmetric; Sec 10.8.2 governs and H1 stays for information.
         checks[-1]["flag"] = True
-        checks[-1]["note"] += "; single angle: for information, Eq 6.10.149 governs"
+        checks[-1]["note"] += (
+            f"; single angle: for information, {_t('unsymmetricEq', 'Eq 6.10.149')} governs"
+        )
         checks.append(
             _check("Axial force and flexure, unsymmetric (principal axes)", worst["h2"], "", 1.0)
         )
@@ -2128,7 +2543,7 @@ def bracing_requirements(
     table = _bracing_table()
     if table is None:
         return []
-    phi = table.phi
+    phi = steel_basis.factor("bracing", float(table.phi))  # alpha 9 C3: Ω by ASD
     out: list[dict[str, Any]] = []
     if kind == "column":
         pr = max((float(p) for st in stations for p in st.P), default=0.0)
@@ -2140,9 +2555,17 @@ def bracing_requirements(
             if lb <= 0 or inner > _DISCRETE_BRACES:
                 continue
             row, kind_, eqs = (
-                (table.columnNodal, "nodal", "Sec 10.19.2.2 Eqs 6.10.287-288")
+                (
+                    table.columnNodal,
+                    "nodal",
+                    _t("bracingColumnNodal", "Sec 10.19.2.2 Eqs 6.10.287-288"),
+                )
                 if inner > 0
-                else (table.columnRelative, "relative", "Sec 10.19.2.1 Eqs 6.10.285-286")
+                else (
+                    table.columnRelative,
+                    "relative",
+                    _t("bracingColumnRelative", "Sec 10.19.2.1 Eqs 6.10.285-286"),
+                )
             )
             out.append(
                 {
@@ -2181,7 +2604,7 @@ def bracing_requirements(
                     "demand": f"Mr = {mr / 1e6:.1f} kN·m, Cd = {cd:g}, ho = {ho:.0f} mm",
                     "Pbr": round(row.strength * mr * cd / ho / 1e3, 2),
                     "betaBr": round(row.stiffness * mr * cd / (phi * lb * ho) / 1e3, 3),
-                    "note": "Sec 10.19.3.1(b) Eqs 6.10.291-292",
+                    "note": _t("bracingBeamNodal", "Sec 10.19.3.1(b) Eqs 6.10.291-292"),
                 }
             )
     return out
@@ -2211,7 +2634,12 @@ def torsional_bracing(
         return None
     lb = lb or span / (braces + 1)
     mbr = table.torsionalMoment * mr * span / (braces * cb * lb)
-    beta_t = table.torsionalStiffness * span * mr**2 / (table.phi * braces * e * iy * cb**2)
+    beta_t = (
+        table.torsionalStiffness
+        * span
+        * mr**2
+        / (steel_basis.factor("bracing", float(table.phi)) * braces * e * iy * cb**2)
+    )
     beta_sec = table.distortional * e / ho * (1.5 * ho * tw**3 / 12 + ts * bs**3 / 12)
     beta_tb = beta_t / (1 - beta_t / beta_sec) if beta_sec > beta_t else None
     return {"Mbr": mbr, "betaT": beta_t, "betaSec": beta_sec, "betaTb": beta_tb}
@@ -2235,7 +2663,7 @@ def brace_slenderness_check(
         None,
         f"L/r with r = {r:.1f} mm; applies when the member is a stability brace of a column or "
         "beam (unless a second-order analysis justifies more)",
-        _s("part") + " Sec 10.19.4",
+        _c("braceSlenderness", "Sec 10.19.4"),
     )
     return _check("Slenderness L/r (stability bracing)", worst, "", 1.0, flag=True)
 
@@ -2290,8 +2718,28 @@ def design_steel_member(
     type, members, checks, utilisation, ok, section, lengths}``. ``pieces``: its analysis
     elements with their combined forces (:func:`saengine.design.check._demands`), ``project``:
     the OpenSees Studio model they come from (for the bracing; without it the member is braced
-    at its ends only). Raises :class:`SteelDesignError` when it cannot be checked."""
+    at its ends only). Raises :class:`SteelDesignError` when it cannot be checked. Alpha 9 C3:
+    on the design basis ``options.basis`` (the pieces' forces those of its combinations)."""
     options = SteelOptions.of(options)
+    with steel_basis.using(options.basis):
+        return _design_steel_member(
+            member_id, kind, type_id, object_type, material, pieces, combinations, turned,
+            project, options,
+        )  # fmt: skip
+
+
+def _design_steel_member(
+    member_id: str,
+    kind: str,
+    type_id: str,
+    object_type: Any,
+    material: Any,
+    pieces: Sequence[Any],
+    combinations: Sequence[str],
+    turned: bool,
+    project: dict[str, Any] | None,
+    options: SteelOptions,
+) -> dict[str, Any]:
     if not pieces:
         raise SteelDesignError("not in the analysis results")
     try:

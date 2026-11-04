@@ -256,7 +256,7 @@ def axial_coefficient(pu: float, py: float, table: Any | None = None) -> float:
     return max(pu, 0.0) / (t.widthThickness.phiB * py) if py > 0 else 0.0
 
 
-def web_limit(ca: float, root: float, table: Any | None = None) -> float:
+def web_limit(ca: float, root: float, table: Any | None = None, group: Any = None) -> float:
     """λps of webs in flexure or flexure and axial compression (Table 6.10.18) at Ca;
     ``root`` = √(E/Fy). With ``leastOfBoth`` the least of the printed range assignment and the
     swapped one (owner decision on misprints)."""
@@ -271,12 +271,47 @@ def web_limit(ca: float, root: float, table: Any | None = None) -> float:
     return min(printed, swapped)
 
 
+def width_thickness(table: Any | None = None, ductility: str = "high") -> Any:
+    """Alpha 9 C3: the width-thickness group of the ductility: ``widthThickness`` (highly
+    ductile, the seismically compact limits) or the pack's ``widthThicknessModerate`` (moderately
+    ductile members; the highly ductile limits when the pack has none: conservative)."""
+    t = _table(table)
+    if ductility == "moderate" and getattr(t, "widthThicknessModerate", None) is not None:
+        return t.widthThicknessModerate
+    return t.widthThickness
+
+
+def expected_yield_ratio(material: Any, family: str, table: Any | None = None) -> float:
+    """Alpha 9 C3: Ry in the width-thickness limits (``widthThickness.expectedYield``: the limits
+    are of √(E / (Ry Fy))); 1.0 when the pack's limits are of √(E/Fy) or no material is known."""
+    t = _table(table)
+    if material is None or not getattr(t.widthThickness, "expectedYield", False):
+        return 1.0
+    return expected_ratios(material, family, t)[0]
+
+
+def limit_ry(ry: float, table: Any | None = None) -> float:
+    """Alpha 9 C3: a member's known Ry for the width-thickness limits (1.0 when the pack's limits
+    are of √(E/Fy))."""
+    return float(ry) if getattr(_table(table).widthThickness, "expectedYield", False) else 1.0
+
+
 def seismic_compact_limits(
-    shape: Any, fy: float, e: float, kind: str, frame: str, ca: float, table: Any | None = None
+    shape: Any,
+    fy: float,
+    e: float,
+    kind: str,
+    frame: str,
+    ca: float,
+    table: Any | None = None,
+    ry: float = 1.0,
+    ductility: str = "high",
 ) -> list[tuple[str, float, float]]:
     """``(element, λ, λps)`` of a shape's compression elements (Table 6.10.18) for a beam or
-    column of the frame kind."""
-    wt = _table(table).widthThickness
+    column of the frame kind. Alpha 9 C3: ``ry`` the Ry of the limits of √(E / (Ry Fy)) (1.0:
+    of √(E/Fy)), ``ductility`` "high" or "moderate" (:func:`width_thickness`)."""
+    wt = width_thickness(table, ductility)
+    fy = fy * ry
     root = math.sqrt(e / fy)
     d = shape.dims
     out: list[tuple[str, float, float]] = []
@@ -286,12 +321,12 @@ def seismic_compact_limits(
             web = (
                 wt.smfBeamWeb * root
                 if kind == "beam" and frame == "smf" and ca <= 0
-                else web_limit(ca, root, table)
+                else web_limit(ca, root, table, wt)
             )
             out.append(("web", d["h"] / d["tw"], web))
         case "channel":
             out.append(("flange", d["bf"] / d["tf"], wt.channelFlange * root))
-            out.append(("web", d["h"] / d["tw"], web_limit(ca, root, table)))
+            out.append(("web", d["h"] / d["tw"], web_limit(ca, root, table, wt)))
         case "tee":
             out.append(("flange", d["bf"] / 2 / d["tf"], wt.angleLeg * root))
             out.append(("stem", d["d"] / d["tw"], wt.teeStem * root))
@@ -314,12 +349,29 @@ def compactness_checks(
     pu: float,
     relaxed: bool = False,
     table: Any | None = None,
+    ry: float = 1.0,
 ) -> list[dict[str, Any]]:
     """Width-thickness checks of a beam or column of the frame kind: seismically compact
     (Sec 10.20.8.2.2, Table 6.10.18) or compact (Sec 10.20.8.2.1, Table 6.10.1) as the frame
     asks; ``relaxed``: a special moment frame column whose moment ratios exceed the table's
-    ``relaxedRatio`` (note [b]: λp of Table 6.10.1 is permitted)."""
+    ``relaxedRatio`` (note [b]: λp of Table 6.10.1 is permitted). Alpha 9 C3: ``moderate``
+    frames by the moderately ductile limits; ``ry`` as :func:`seismic_compact_limits`."""
     t = _table(table)
+    if t.frames[frame].compactness == "moderate":
+        ca = axial_coefficient(pu, shape.area * fy, t) if kind == "column" else 0.0
+        return [
+            _check(
+                f"{name} width-thickness (moderately ductile)",
+                ratio,
+                limit,
+                "",
+                cite(t, "compact"),
+                f"λ = {ratio:.1f} ≤ λmd = {limit:.1f}" + (f", Ca = {ca:.3f}" if ca else ""),
+            )
+            for name, ratio, limit in seismic_compact_limits(
+                shape, fy, e, kind, frame, ca, t, ry, "moderate"
+            )
+        ]
     rules = t.frames[frame]
     level = rules.compactness
     if level == "none":
@@ -358,7 +410,7 @@ def compactness_checks(
             clause,
             f"λ = {ratio:.1f} ≤ λps = {limit:.1f}" + (f", Ca = {ca:.3f}" if ca else ""),
         )
-        for name, ratio, limit in seismic_compact_limits(shape, fy, e, kind, frame, ca, t)
+        for name, ratio, limit in seismic_compact_limits(shape, fy, e, kind, frame, ca, t, ry)
     ]
 
 
@@ -1254,7 +1306,16 @@ def apply(
         hinges[m.id] = hinge
         checks = material_checks("beam", steel.fy, frame, t)
         checks += toughness_flags(shape, t)
-        checks += compactness_checks(shape, steel.fy, steel.e, "beam", frame, 0.0, table=t)
+        checks += compactness_checks(
+            shape,
+            steel.fy,
+            steel.e,
+            "beam",
+            frame,
+            0.0,
+            table=t,
+            ry=expected_yield_ratio(m.material, shape.family, t),
+        )
         try:
             lengths = member_lengths(project, m.pieces, m.turned)
             lb = max(lengths.ltb_top.longest(), lengths.ltb_bottom.longest()) * 1e3
@@ -1472,7 +1533,17 @@ def apply(
         own = ratios.get(m.id, [])
         relaxed = bool(own) and min(own) > t.widthThickness.relaxedRatio
         checks += toughness_flags(shape, t)
-        checks += compactness_checks(shape, steel.fy, steel.e, "column", frame, pu, relaxed, t)
+        checks += compactness_checks(
+            shape,
+            steel.fy,
+            steel.e,
+            "column",
+            frame,
+            pu,
+            relaxed,
+            t,
+            expected_yield_ratio(m.material, shape.family, t),
+        )
         omega_rows = [
             (stations[c].combination, float(np.max(stations[c].P)))
             for c in sorted(omega)
