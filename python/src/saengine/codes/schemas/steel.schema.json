@@ -200,6 +200,16 @@
           "title": "Torsionalstiffness",
           "type": "number"
         },
+        "torsionalMomentForm": {
+          "default": "spanRatio",
+          "description": "Mbr of a nodal torsional brace: ``spanRatio`` (this × Mr L / (n Cb Lb)) or ``share`` (torsionalMoment × Mr).",
+          "enum": [
+            "spanRatio",
+            "share"
+          ],
+          "title": "Torsionalmomentform",
+          "type": "string"
+        },
         "distortional": {
           "description": "βsec = this × E / ho × (...).",
           "exclusiveMinimum": 0,
@@ -340,6 +350,39 @@
           "maximum": 1,
           "title": "Tieplatethickness",
           "type": "number"
+        },
+        "method": {
+          "default": "alpha",
+          "description": "Welded or pretensioned connectors: ``alpha`` ((KL/r)m with α = h / 2rib and ``welded``) or ``ki`` ((KL/r)o up to a/ri = ``kiLimit``, above it √((KL/r)o² + (Ki a/ri)²) with Ki by the components, ``ki``).",
+          "enum": [
+            "alpha",
+            "ki"
+          ],
+          "title": "Method",
+          "type": "string"
+        },
+        "kiLimit": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "``ki``: a/ri up to which (KL/r)m = (KL/r)o.",
+          "title": "Kilimit"
+        },
+        "ki": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "description": "``ki``: Ki by the components: ``angles`` (back-to-back), ``channels`` (back-to-back), ``other``.",
+          "title": "Ki",
+          "type": "object"
         }
       },
       "required": [
@@ -937,6 +980,14 @@
           },
           "title": "Secondarycurves",
           "type": "array"
+        },
+        "clauses": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Alpha 9 C3b: the references of the check notes (``simplified``, ``deck``, ``primary``, ``secondary``, ``stress``); a missing key: the default pack's numbers.",
+          "title": "Clauses",
+          "type": "object"
         }
       },
       "required": [
@@ -1128,6 +1179,45 @@
           "description": "Ds by stiffener kind (pair, angle, plate).",
           "title": "Ds",
           "type": "object"
+        },
+        "stiffenerMethod": {
+          "default": "area",
+          "description": "Stiffeners of panels with tension field action: ``area`` (Ast of ``stiffenerArea``, ``stiffenerWeb``, ``Ds``) or ``inertia`` (Ist >= Ist2 + (Ist1 - Ist2) ρw, Ist2 = b tw³ j, Ist1 = h⁴ ρst^b / a (Fyw/E)^c of ``stiffenerInertia``).",
+          "enum": [
+            "area",
+            "inertia"
+          ],
+          "title": "Stiffenermethod",
+          "type": "string"
+        },
+        "stiffenerInertia": {
+          "anyOf": [
+            {
+              "maxItems": 3,
+              "minItems": 3,
+              "prefixItems": [
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                },
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                },
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "``inertia``: Ist1 = h⁴ ρst^b / a (Fyw/E)^c: [a, b, c].",
+          "title": "Stiffenerinertia"
         }
       },
       "required": [

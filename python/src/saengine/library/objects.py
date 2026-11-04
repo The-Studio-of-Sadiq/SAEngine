@@ -1172,7 +1172,7 @@ class TimberMember(_Model):
     spaced: TimberSpaced | None = None
     repetitive: bool = Field(
         default=False,
-        description="Alpha 9 C3b: one of three or more members at most 610 mm apart joined by "
+        description="One of three or more members at most 610 mm apart joined by "
         "a load-distributing floor or roof (the repetitive member factor of a code pack that "
         "designs timber by reference design values).",
     )

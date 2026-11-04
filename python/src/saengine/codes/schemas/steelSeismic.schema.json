@@ -1054,6 +1054,36 @@
           "description": "Lb ≤ this × ry E / Fy.",
           "title": "Beambracing"
         },
+        "beamBracingExpected": {
+          "default": false,
+          "description": "Lb ≤ beamBracing × ry E / (Ry Fy) (else E / Fy).",
+          "title": "Beambracingexpected",
+          "type": "boolean"
+        },
+        "hingeFactorMethod": {
+          "default": "fixed",
+          "description": "The expected moment: ``fixed`` (hingeFactor × Ry Mp) or ``cpr`` (Cpr Ry Mp, Cpr = (Fy + Fu) / (2 Fy) at most ``cprMax``).",
+          "enum": [
+            "fixed",
+            "cpr"
+          ],
+          "title": "Hingefactormethod",
+          "type": "string"
+        },
+        "cprMax": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "``cpr``: Cpr at most this.",
+          "title": "Cprmax"
+        },
         "braceStrength": {
           "anyOf": [
             {
