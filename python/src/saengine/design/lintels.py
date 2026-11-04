@@ -239,7 +239,9 @@ def probable_moment(area: float, b: float, d: float, fc: float, fy: float) -> fl
     if area <= 0:
         return 0.0
     probable = lintel_limit("probable")
-    a = area * probable * fy / (0.85 * fc * b)
+    from saengine.design.rc import alpha1  # Alpha 9 C18: the pack's block
+
+    a = area * probable * fy / (alpha1(fc) * fc * b)
     return area * probable * fy * (d - a / 2)
 
 

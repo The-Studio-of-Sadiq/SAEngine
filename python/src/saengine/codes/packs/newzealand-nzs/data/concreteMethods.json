@@ -1,0 +1,8 @@
+{
+  "$schema": "../../../schemas/concreteMethods.schema.json",
+  "$replace": true,
+  "$sources": [
+    "NZS 3101:2006 9.3.9 (shear by vc of ρw: concrete.shearStress)"
+  ],
+  "source": "NZS 3101 designs every concrete area by the strength design with φ: no method group (the beam shear by vc = (0.07 + 10 ρw) √f'c, concrete.shearStress)"
+}

@@ -89,6 +89,7 @@ from saengine.design import slab_systems
 from saengine.design.clauses import clause as pack_clause
 from saengine.design.clauses import short_clause, short_name
 from saengine.design.rc import (
+    alpha1,
     bar_area,
     beta1,
     phi_axial_flexure,
@@ -450,7 +451,7 @@ def layer_capacity(
         return LayerCapacity(
             area, d, p.lam * x, x, eps_t, 1.0, mn, mn, cu / (cu + fyd / es + extra)
         )
-    a = area * fy / (0.85 * fc * width)
+    a = area * fy / (alpha1(fc) * fc * width)  # Alpha 9 C18: the pack's block
     c = a / beta1(fc)
     eps_t = rc_value("EPS_CU") * (d - c) / c if c > 0 else math.inf
     phi = phi_axial_flexure(eps_t, fy, es)
@@ -526,7 +527,7 @@ def required_area(moment: float, d: float, fc: float, fy: float, width: float = 
 
         return limit_state_rows.required_area(moment, d, fc, fy, width)
     rn = moment / (rc_value("PHI_TENSION") * width * d**2)
-    k = 0.85 * fc
+    k = alpha1(fc) * fc  # Alpha 9 C18
     root = max(0.0, 1 - 2 * rn / k)
     return k / fy * (1 - math.sqrt(root)) * width * d
 

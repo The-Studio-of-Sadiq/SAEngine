@@ -116,6 +116,11 @@ def normalized_spectrum(
 
         return sc.vibration_factor(period, sc.site_corner(site_class), rule.shearCoefficient)
     site = seismic.siteClasses[site_class]
+    if site.shape:  # Alpha 9 C18: the class's spectral shape factor Ch(T) (AS 1170.4 type)
+        from saengine.fem.spectra import shape_factor
+
+        plateau = static and rule is not None and rule.staticPlateau
+        return damping_correction(damping) * shape_factor(period, site.shape, plateau)
     s, tb, tc, td = site.S, site.TB, site.TC, site.TD
     eta = damping_correction(damping)
     if rule is not None and (rule.shapePlateau is not None or rule.descendingExponent is not None):
@@ -196,6 +201,13 @@ def design_acceleration(
         from saengine.fem import shear_coefficient as sc
 
         return sc.coefficient(period, site_class, z, importance, r)
+    if rule is not None and rule.method == "shapeFactors":  # Alpha 9 C18: R stands for μ
+        from saengine.fem.spectra import shape_factor_acceleration
+
+        shape = normalized_spectrum(period, site_class, damping, static=static)
+        return shape_factor_acceleration(
+            period, site_class, z, importance, r, shape, rule.shapeFactors
+        )
     factor = rule.factor if rule is not None and rule.factor is not None else 2 / 3
     sa = (
         factor

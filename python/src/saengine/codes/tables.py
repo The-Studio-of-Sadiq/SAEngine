@@ -509,8 +509,30 @@ class CombinationsTable(TableModel):
 # ─────────────────────────────────────────── seismic ───────────────────────────────────────────
 
 
+class ShapeBranch(BaseModel):
+    """Alpha 9 C18: one branch of a site class's spectral shape factor Ch(T) (AS 1170.4 Table
+    6.4, NZS 1170.5 Table 3.1 type): Ch = a + b T + c (t0 / T)^n, at most ``most``, for T up
+    to ``upTo`` [s] (empty: the last branch, beyond)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    upTo: float | None = Field(default=None, gt=0)
+    a: float = 0.0
+    b: float = 0.0
+    c: float = 0.0
+    n: float = 1.0
+    t0: float = Field(default=1.0, gt=0)
+    most: float | None = Field(default=None, gt=0)
+
+
 class SiteClass(_Row):
     description: str
+    # Alpha 9 C18: the spectral shape factor Ch(T) as branches (empty: the S, TB, TC, TD shape).
+    shape: list[ShapeBranch] = Field(
+        default_factory=list,
+        description="Branches of the spectral shape factor Ch(T), in period order; empty: the "
+        "shape of S, TB, TC, TD.",
+    )
     # The spectrum's shape by site class (zoneFactor hazard). A pack whose spectrum comes from
     # the site's mapped values (``designSpectrum.method`` mappedSpectral) leaves them at their defaults.
     S: float = Field(default=1.0, gt=0, description="Soil factor.")
@@ -924,12 +946,53 @@ class DiaphragmConnections(BaseModel):
 
 class TimeHistoryTarget(BaseModel):
     """The spectrum records are scaled to: the design spectrum with ``R`` and ``I`` (empty: the
-    building's own)."""
+    building's own). P5: ``factor`` times it (e.g. the maximum considered earthquake as a
+    multiple of the design spectrum); the other fields, when given, replace the table's own
+    for this procedure (empty: the table's)."""
 
     model_config = ConfigDict(extra="forbid")
 
     R: float | None = Field(default=None, gt=0)
     I: float | None = Field(default=None, gt=0)
+    factor: float = Field(default=1.0, gt=0, description="Factor on the target spectrum.")
+    spectrum: Literal["design", "elastic"] = Field(
+        default="design",
+        description="The design spectrum with R and I, or (packs whose design spectrum is "
+        "by a behaviour factor) the elastic response spectrum of the same shape with I.",
+    )
+    minimumRecords: int | None = Field(default=None, ge=1)
+    periodLower: float | None = Field(default=None, gt=0)
+    periodUpper: float | None = Field(default=None, gt=0)
+    periodBasis: Literal["governing", "bounds"] | None = None
+    singleRatio: float | None = Field(default=None, gt=0)
+    pairRatio: float | None = Field(default=None, gt=0)
+    matchedRatio: float | None = Field(default=None, gt=0)
+    modification: Literal["amplitude", "matching"] = Field(
+        default="amplitude",
+        description="How the records of this procedure are modified to the target by default: "
+        "amplitude scaling over the period range, or spectral matching (the table's "
+        "``matching``).",
+    )
+
+
+class SpectralMatching(BaseModel):
+    """P5: spectral matching of a record to the target (``fem.spectral_matching``), by method
+    id: ``frequencyDomain`` (the Fourier amplitudes adjusted by the ratio of the target to the
+    record's spectrum, iterated, with a baseline correction). The record is matched from ``lowerShare`` × the lower to ``upperShare`` × the upper bound
+    of the procedure's period range on ``points`` periods, until every ordinate there is within
+    ``tolerance`` of the target or after ``iterations``; ``baselineOrder``: the degree of the
+    polynomial taken off the displacement."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    method: Literal["frequencyDomain"]
+    lowerShare: float = Field(default=0.8, gt=0, le=1)
+    upperShare: float = Field(default=1.25, ge=1)
+    tolerance: float = Field(default=0.1, gt=0, lt=1)
+    iterations: int = Field(default=20, ge=1, le=200)
+    points: int = Field(default=40, ge=8, le=200)
+    baselineOrder: int = Field(default=3, ge=1, le=6)
+    note: str = ""
 
 
 class TimeHistoryRules(BaseModel):
@@ -959,6 +1022,26 @@ class TimeHistoryRules(BaseModel):
     simultaneousPairs: bool = True
     targets: dict[str, TimeHistoryTarget] = Field(default_factory=dict)
     clauses: dict[str, str] = Field(default_factory=dict)
+    # ── P5: how a pair is combined, the period range of pairs, spectral matching ──
+    pairCombination: Literal["srss", "maxDirection", "eachComponent"] = Field(
+        default="srss",
+        description="The spectrum of a pair: the SRSS of its two components, the maximum-"
+        "direction (RotD100) spectrum, or each component's own (the mean of each component "
+        "must meet the criterion).",
+    )
+    periodBasis: Literal["governing", "bounds"] = Field(
+        default="governing",
+        description="The period range of a pair: periodLower to periodUpper times the longer "
+        "fundamental period (governing), or periodLower times the shorter to periodUpper times "
+        "the longer (bounds).",
+    )
+    matchedRatio: float | None = Field(
+        default=None,
+        gt=0,
+        description="The criterion of a suite of spectrally matched records (empty: the "
+        "single or pair ratio).",
+    )
+    matching: SpectralMatching | None = None
 
 
 # ── C1: the seismic hazard of the site from mapped spectral values (saengine.fem.spectral_hazard) ──
@@ -1199,6 +1282,47 @@ class ShearCoefficientRule(BaseModel):
     clauses: dict[str, str] = Field(default_factory=dict)
 
 
+class ShapeFactorsRule(BaseModel):
+    """Alpha 9 C18: the terms of the method ``shapeFactors`` (AS 1170.4 Section 6, NZS 1170.5
+    Section 5 type, :mod:`saengine.fem.spectra`): Cd(T) = (Z I) Ch(T) N(T, D) Sp / kμ, the
+    system's R standing for the structural ductility factor μ."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    performance: list[tuple[Positive, Positive]] = Field(
+        min_length=1, description="(μ, Sp) points: Sp linear between, the end values beyond."
+    )
+    ductilityPeriod: Positive | None = Field(
+        default=None,
+        description="kμ = μ from this period [s] on, (μ - 1) T / this + 1 below; empty: kμ = μ.",
+    )
+    ductilityMinPeriod: float = Field(default=0.0, ge=0, description="T of kμ at least [s].")
+    softClasses: list[str] = Field(default_factory=list, description="Site classes of soft.")
+    softPeriod: Positive | None = Field(default=None, description="kμ = μ from T [s] (soft).")
+    softDuctility: Positive | None = Field(
+        default=None, description="Soft: kμ = μ below this μ, else (μ - this) T/softPeriod + this."
+    )
+    hazardMin: Positive | None = Field(default=None, description="Z I at least.")
+    hazardMax: Positive | None = Field(default=None, description="Z I at most.")
+    leastZShare: Positive | None = Field(
+        default=None, description="Cd at least (this Z + leastOffset) I."
+    )
+    leastOffset: float | None = Field(default=None, ge=0)
+    leastFloor: Positive | None = Field(default=None, description="Cd at least this × I.")
+    faultDistance: float | None = Field(
+        default=None,
+        ge=0,
+        description="D [km] of the site to the nearest major fault (a project's value); empty: "
+        "N = 1.",
+    )
+    nearFault: list[tuple[Positive, Positive]] = Field(
+        default_factory=list, description="(T [s], Nmax) points of the near-fault factor."
+    )
+    nearFaultFull: float = Field(default=2.0, ge=0, description="N = Nmax up to D [km].")
+    nearFaultNone: Positive = Field(default=20.0, description="N = 1 from D [km].")
+    clauses: dict[str, str] = Field(default_factory=dict)
+
+
 class DesignSpectrumRule(BaseModel):
     """The design spectrum: a method id the pack picks (C4, C1). Empty: ``reducedElastic``.
 
@@ -1220,7 +1344,10 @@ class DesignSpectrumRule(BaseModel):
       from SS, S1 by Fa, Fv, and a town may carry SS, S1, TL.
     - ``ubc97`` (alpha 9 C16, UBC 1997 Sec 1629-1630 and the codes that adopt it): the same
       two-period spectrum and Cs bounds with 2.5 Ca for SDS and Cv for SD1, Ca and Cv from the
-      zone's Z and the soil profile by ``ubc97`` (:class:`Ubc97Rule`)."""
+      zone's Z and the soil profile by ``ubc97`` (:class:`Ubc97Rule`).
+    - ``shapeFactors`` (alpha 9 C18, AS 1170.4 / NZS 1170.5): the site class's spectral shape
+      factor Ch(T) (its ``shape`` branches), Cd(T) = (Z I) Ch(T) N Sp / kμ with R standing for μ
+      (:class:`ShapeFactorsRule`, :mod:`saengine.fem.spectra`); ``factor`` is not used."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -1231,6 +1358,7 @@ class DesignSpectrumRule(BaseModel):
         "ubc97",
         "ductilityOverstrength",
         "standardShearCoefficient",
+        "shapeFactors",
     ] = "reducedElastic"
     plateau: float = Field(default=2.5, gt=0, description="Spectral amplification of the plateau.")
     lowerBound: float = Field(default=0.0, ge=0, lt=1, description="β: least Sd / ag.")
@@ -1303,6 +1431,8 @@ class DesignSpectrumRule(BaseModel):
     ductility: DuctilityOverstrength | None = None
     # Alpha 9 C19: the method standardShearCoefficient (Ci = Z Rt Ai C0).
     shearCoefficient: ShearCoefficientRule | None = None
+    # Alpha 9 C18: the terms of the shapeFactors method.
+    shapeFactors: ShapeFactorsRule | None = None
     clauses: dict[str, str] = Field(default_factory=dict)
 
     @model_validator(mode="after")
@@ -1315,6 +1445,8 @@ class DesignSpectrumRule(BaseModel):
             raise ValueError(
                 "standardShearCoefficient: the method needs its 'shearCoefficient' block"
             )
+        if self.method == "shapeFactors" and self.shapeFactors is None:
+            raise ValueError("the design spectrum method shapeFactors needs its shapeFactors block")
         return self
 
 
@@ -2609,7 +2741,41 @@ class FatigueTable(TableModel):
 # ─────────────────────────────────────── materials, factors ───────────────────────────────────────
 
 
+class LinearInStrength(BaseModel):
+    """Alpha 9 C18: a factor linear in f'c within bounds: min(max(base + slope f'c, least),
+    most)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    base: float
+    slope: float = 0.0
+    least: Positive
+    most: Positive
+
+    def at(self, fc: float) -> float:
+        return min(max(self.base + self.slope * float(fc), self.least), self.most)
+
+
+class StressBlockRule(BaseModel):
+    """Alpha 9 C18: the rectangular stress block of the strength design by f'c (AS 3600 8.1.3,
+    NZS 3101 7.4.2.7 type): the stress ``alpha`` f'c over the depth ``gamma`` c, and the squash
+    load P0 = ``squash`` f'c (Ag - Ast) + fy Ast (empty: ``alpha``). A pack without it keeps
+    ACI 318's 0.85 f'c over β1 c (:mod:`saengine.design.rc`)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    alpha: LinearInStrength
+    gamma: LinearInStrength
+    squash: LinearInStrength | None = None
+    clause: str = ""
+
+
 class MaterialsTable(TableModel):
+    # Alpha 9 C18: the pack's stress block (empty: ACI 318's).
+    stressBlock: StressBlockRule | None = Field(
+        default=None,
+        description="The rectangular stress block's factors by f'c; empty: 0.85 f'c over β1 c.",
+    )
     concreteStrain: float = Field(description="εcu at the extreme compression fibre.")
     steelE: float = Field(description="Es of reinforcement [MPa].")
     steelShearModulus: float = Field(description="G of structural steel [MPa].")
@@ -2699,10 +2865,38 @@ class ConcretePhi(_Group):
     )
 
 
+class PhiTransition(BaseModel):
+    """Alpha 9 C18: φ of moment and axial force by the neutral-axis depth (method
+    ``neutralAxisDepth``, AS 3600:2018 Table 2.2.2): φ = intercept - slope kuo within the
+    compression and tension φ, kuo = c / d0 = εcu / (εcu + εt) of the extreme tension bar. A
+    pack without it interpolates by εt between εty and εty + εcu (ACI 318 Table 21.2.2)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    method: Literal["neutralAxisDepth"] = "neutralAxisDepth"
+    intercept: Positive
+    slope: Positive
+    clause: str = ""
+
+
+class AxialCap(BaseModel):
+    """Alpha 9 C18: the largest design axial compression as a share of φ P0 (ACI 318 Table
+    22.4.2.1: 0.80 tied, 0.85 spiral; NZS 3101 10.3.4.2: 0.85)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    tied: Share
+    spiral: Share
+    clause: str = ""
+
+
 class FactorsTable(TableModel):
     """Strength reduction factors φ."""
 
     phi: ConcretePhi
+    # Alpha 9 C18: φ by kuo and the axial cap (empty: ACI 318's).
+    phiTransition: PhiTransition | None = None
+    axialCap: AxialCap | None = None
 
 
 # ──────────────────────────────────────── concrete, detailing ────────────────────────────────────────
@@ -3038,8 +3232,24 @@ class ShrinkageSteel(_Group):
     ratioMin: Rho = Field(description="Never less than this.")
 
 
+class ShearStressRule(BaseModel):
+    """Alpha 9 C18: the concrete's shear stress of beams by the tension steel ratio (NZS 3101
+    9.3.9.3.4 type): vc = min(max(base + ratioFactor ρw, least), most) λ √f'c, with or without
+    the least links. A pack without it keeps ACI 318 Table 22.5.5.1."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    base: float = Field(ge=0)
+    ratioFactor: float = Field(ge=0)
+    least: Positive
+    most: Positive
+    clause: str = ""
+
+
 class ConcreteTable(TableModel):
     barDiameters: BarDiameters = Field(description="Bar size sets [mm] by use.")
+    # Alpha 9 C18: vc of beams by ρw (empty: ACI 318 Table 22.5.5.1).
+    shearStress: ShearStressRule | None = None
     barNames: dict[str, str] | None = Field(
         default=None,
         description="C13: the bar designations of the code's bar standard by diameter [mm] as "
@@ -10271,6 +10481,16 @@ class NonlinearHistoryProcedure(_Row):
     designReview: bool = Field(
         default=False, description="The code asks for an independent design review."
     )
+    unacceptableResponses: dict[str, int] = Field(
+        default_factory=dict,
+        description="P5: by occupancy (risk) category, how many records of a suite may stop "
+        "early (an unacceptable response) and the suite still be accepted (absent: none).",
+    )
+    damping: NonlinearHistoryDamping | None = Field(
+        default=None,
+        description="P5: the damping of the runs (empty: the first-mode, committed-stiffness "
+        "ratio of each time history).",
+    )
     note: str = Field(default="", description="Why the values are what they are.")
 
 
@@ -10293,30 +10513,96 @@ class NonlinearHistoryDrift(_Row):
 class NonlinearHistoryAcceptance(_Row):
     """Acceptance of the members over the records (``fem.acceptance``). Method
     ``fibreStrain``: each fibre's peak strain at the member's end sections against a share of
-    the strain at which its material fails."""
+    the strain at which its material fails. P5: method ``hingeRotation``: the hinges of the
+    pack's ``pushover.hinges`` (``fem.hinges``) at the member ends, their peak deformation over
+    each record against the limit of ``performanceLevel``."""
 
-    method: Literal["fibreStrain"] = Field(
+    method: Literal["fibreStrain", "hingeRotation"] = Field(
         description="Method id (the engine's generic implementation)."
     )
-    deformationShare: Share = Field(
+    deformationShare: Share | None = Field(
+        default=None,
         description="A member's deformation may reach at most this × the deformation at which "
-        "it fails."
+        "it fails (fibreStrain).",
     )
-    residualStrengthShare: Share = Field(
-        description="Strength (share of the peak) below which the component has failed."
+    residualStrengthShare: Share | None = Field(
+        default=None,
+        description="Strength (share of the peak) below which the component has failed "
+        "(fibreStrain).",
     )
     gravityLossAllMembers: bool = Field(
         default=True,
         description="The smaller of the gravity-loss and the strength-loss deformation for "
         "every member (false: the gravity loss only for members carrying gravity loads).",
     )
-    reinforcementFractureStrain: Positive = Field(
-        description="Strain at which a reinforcing bar is taken as lost (fracture or buckling)."
+    reinforcementFractureStrain: Positive | None = Field(
+        default=None,
+        description="Strain at which a reinforcing bar is taken as lost (fracture or buckling; "
+        "fibreStrain).",
     )
-    steelFractureStrain: Positive = Field(
-        description="Strain at which a structural steel fibre is taken as lost."
+    steelFractureStrain: Positive | None = Field(
+        default=None,
+        description="Strain at which a structural steel fibre is taken as lost (fibreStrain).",
+    )
+    performanceLevel: str | None = Field(
+        default=None,
+        description="hingeRotation: the level of ``pushover.hinges.levels`` the hinges are "
+        "checked against (empty: the last, the most lenient).",
     )
     note: str = Field(default="", description="Why the values are what they are.")
+
+    @model_validator(mode="after")
+    def _fibre_values(self) -> NonlinearHistoryAcceptance:
+        if self.method == "fibreStrain" and None in (
+            self.deformationShare,
+            self.residualStrengthShare,
+            self.reinforcementFractureStrain,
+            self.steelFractureStrain,
+        ):
+            raise ValueError(
+                "method fibreStrain needs deformationShare, residualStrengthShare, "
+                "reinforcementFractureStrain and steelFractureStrain"
+            )
+        return self
+
+
+class NonlinearHistoryDamping(_Row):
+    """P5: the damping of the nonlinear time histories, by method id: ``mode1Stiffness`` (the
+    ratio on the first mode, in proportion to the committed stiffness) or ``rayleigh`` (mass and
+    committed stiffness proportional, the ratio at the first mode's period and at
+    ``secondPeriodShare`` times it)."""
+
+    method: Literal["mode1Stiffness", "rayleigh"] = "mode1Stiffness"
+    ratio: Share | None = Field(
+        default=None, description="Damping ratio (empty: each time history's own)."
+    )
+    secondPeriodShare: Share | None = Field(
+        default=None, description="rayleigh: the second period as a share of the first."
+    )
+    note: str = ""
+
+
+class NonlinearHistoryForceAction(_Row):
+    """P5: a force-controlled action of the members checked over the records: ``action``
+    (``columnAxial``: the compression of the columns, ``shear``: the shear of the beams and
+    columns), its class and the factor on its earthquake part, γ·(Fu − Fg) + Fg ≤ the design
+    strength of the member design (Fu the design value over the suite, Fg the force under
+    gravity alone)."""
+
+    action: Literal["columnAxial", "shear"]
+    category: str = Field(description="The code's class of the action (e.g. critical).")
+    factor: Positive = Field(description="γ on the earthquake part of the demand.")
+
+
+class NonlinearHistoryForceControlled(_Row):
+    """P5: force-controlled actions (``actions``), the importance factor on their earthquake part
+    when ``importance``, and how the strength is read (``strength``: the member design's design
+    strength, the safe side of an expected strength)."""
+
+    actions: list[NonlinearHistoryForceAction] = Field(min_length=1)
+    importance: bool = False
+    strength: Literal["designStrength"] = "designStrength"
+    note: str = ""
 
 
 class NonlinearHistoryTable(TableModel):
@@ -10326,6 +10612,7 @@ class NonlinearHistoryTable(TableModel):
     procedure: NonlinearHistoryProcedure
     drift: NonlinearHistoryDrift
     acceptance: NonlinearHistoryAcceptance
+    forceControlled: NonlinearHistoryForceControlled | None = None
 
 
 # ───────────────────────────────── seismically isolated buildings (B37) ─────────────────────────────────

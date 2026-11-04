@@ -209,6 +209,20 @@ class TransientResults:
                     out[end] = np.asarray(f[key][:])
         return out
 
+    def element_section_deformations(self, element_id: int) -> dict[str, np.ndarray]:
+        """The end sections' deformation histories of a fibre element
+        (``TransientCase.record_section_deformations``): ``{"start", "end"}`` -> shape
+        (steps, n) in the section's order; empty when the run did not keep them."""
+        import h5py
+
+        out: dict[str, np.ndarray] = {}
+        with h5py.File(self.h5_path, "r") as f:
+            for end in ("start", "end"):
+                key = f"elements/{element_id}/sectionDeformation/{end}"
+                if key in f:
+                    out[end] = np.asarray(f[key][:])
+        return out
+
     def element_deformation_history(self, element_id: int) -> np.ndarray:
         """Return the shape-(n_steps, n_directions) basicDeformation history of a
         twoNodeLink (the order and sign of its force history)."""

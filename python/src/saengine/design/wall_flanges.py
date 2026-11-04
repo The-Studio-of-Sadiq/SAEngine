@@ -341,7 +341,9 @@ class FlangedSection:
     @property
     def p0(self) -> float:
         ast = self.steel_area
-        return 0.85 * self.fc * (self.gross_area - ast) + self.fy * ast
+        from saengine.design.rc import squash_share  # Alpha 9 C18: the pack's P0 share
+
+        return squash_share(self.fc) * self.fc * (self.gross_area - ast) + self.fy * ast
 
     @property
     def phi_pn_max(self) -> float:

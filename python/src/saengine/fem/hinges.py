@@ -1155,3 +1155,130 @@ def _evaluated(
         if hist is not None:
             found.append(evaluate_hinge(hinge, hist, step, rules, levels))
     return found
+
+
+# ───────────────────────── P5: hinges over a nonlinear time history ─────────────────────────
+
+
+class _Lazy:
+    """A read-only mapping whose values are worked out (and kept) on first use; true even
+    before, as the pushover results' dictionaries are where they hold anything."""
+
+    def __init__(self, make: Any) -> None:
+        self._make = make
+        self._cache: dict[int, Any] = {}
+
+    def get(self, key: int, default: Any = None) -> Any:
+        if key not in self._cache:
+            try:
+                self._cache[key] = self._make(int(key))
+            except (KeyError, OSError, ValueError):
+                self._cache[key] = None
+        found = self._cache[key]
+        return default if found is None else found
+
+    def __bool__(self) -> bool:
+        return True
+
+
+def _strains(coords: np.ndarray, deformation: np.ndarray, signs: tuple[float, float]) -> np.ndarray:
+    y, z = coords[:, 0][None, :], coords[:, 1][None, :]
+    return (
+        deformation[:, :1] + signs[0] * y * deformation[:, 1:2] + signs[1] * z * deformation[:, 2:3]
+    )
+
+
+def section_signs(
+    coords: np.ndarray, deformation: np.ndarray, peaks: np.ndarray
+) -> tuple[float, float]:
+    """The signs (s1, s2) of ε = ε0 + s1·y·κ1 + s2·z·κ2 (the section's deformations ε0, κ1,
+    κ2 in its order) that best give the fibres' recorded least and largest strains."""
+    best, best_error = (-1.0, 1.0), math.inf
+    for s1 in (-1.0, 1.0):
+        for s2 in (-1.0, 1.0):
+            strain = _strains(coords, deformation, (s1, s2))
+            error = float(
+                np.abs(strain.min(axis=0) - peaks[:, 3]).sum()
+                + np.abs(strain.max(axis=0) - peaks[:, 4]).sum()
+            )
+            if error < best_error:
+                best, best_error = (s1, s2), error
+    return best
+
+
+def _fibres_from_sections(results: Any, element: int, end: str) -> np.ndarray | None:
+    """The fibres of an end section of a time history run, (steps, fibres, 5): y, z, area, 0,
+    strain, rebuilt from the section's deformations at every step and the fibres' places of the
+    fibre peaks (``TransientCase.record_section_deformations`` and ``record_fibre_peaks``)."""
+    deformation = results.element_section_deformations(element).get(end)
+    peaks = results.element_fibre_peaks(element).get(end)
+    if deformation is None or peaks is None or deformation.ndim != 2 or deformation.shape[1] < 3:
+        return None
+    strain = _strains(peaks[:, :2], deformation, section_signs(peaks[:, :2], deformation, peaks))
+    steps, count = strain.shape
+    out = np.zeros((steps, count, 5))
+    out[:, :, 0] = peaks[:, 0][None, :]
+    out[:, :, 1] = peaks[:, 1][None, :]
+    out[:, :, 2] = peaks[:, 2][None, :]
+    out[:, :, 4] = strain
+    return out
+
+
+@dataclass
+class TransientHingeResults:
+    """A time history run read as the pushover results the hinges take (:func:`history`):
+    node displacements, element forces and the end sections' fibres per step, worked out on
+    first use."""
+
+    node_disp: Any
+    element_forces: Any
+    element_start_fibers: Any
+    element_end_fibers: Any
+
+
+def transient_results(results: Any) -> TransientHingeResults:
+    """The hinge view of OpenSees Studio's ``TransientResults`` of a run that kept the section
+    deformations and the fibre peaks."""
+    return TransientHingeResults(
+        node_disp=_Lazy(results.node_disp_history),
+        element_forces=_Lazy(results.element_force_history),
+        element_start_fibers=_Lazy(lambda e: _fibres_from_sections(results, e, "start")),
+        element_end_fibers=_Lazy(lambda e: _fibres_from_sections(results, e, "end")),
+    )
+
+
+def history_rows(
+    project: dict[str, Any],
+    results: Any,
+    level: str | None,
+    library: dict[str, Any] | None = None,
+) -> tuple[list[dict[str, Any]], list[str]]:
+    """The hinges of the pack's ``pushover.hinges`` over one time history run (``results``:
+    :func:`transient_results`): each hinge's parameters at the step of its largest chord
+    rotation, its peak deformation over the record against the limit of ``level`` (empty or
+    unknown: the last level). Returns the rows (:func:`row_at`, with ``step``) and notes."""
+    rules = table()
+    if rules is None:
+        return [], ["the code pack gives no hinges"]
+    levels = [lv.id for lv in rules.levels]
+    checked = level if level in levels else levels[-1]
+    rows: list[dict[str, Any]] = []
+    for hinge in assign(project, library):
+        hist = history(hinge, results)
+        if hist is None or not len(hist.theta):
+            continue
+        peak = int(np.argmax(np.abs(hist.theta).max(axis=1)))
+        item = evaluate_hinge(hinge, hist, peak, rules, levels)
+        step = int(np.argmax(item.demand)) if len(item.demand) else 0
+        row = row_at(item, step, levels, checked, rules.clauses.get(item.hinge.component, ""))
+        row["step"] = step
+        row["level"] = checked
+        rows.append(row)
+    notes = []
+    uncovered = sorted({r["component"] for r in rows if not r.get("covered")})
+    if uncovered:
+        notes.append(
+            "Not covered by the code pack's hinge tables (shown, not checked): "
+            + ", ".join(uncovered)
+        )
+    return rows, notes

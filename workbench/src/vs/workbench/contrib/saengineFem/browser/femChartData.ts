@@ -269,9 +269,56 @@ export interface IFemNonlinearSuite {
 	readonly complete: boolean;
 	readonly used: boolean;
 	readonly period: number | null;
-	readonly check: { readonly least: number; readonly governing: number; readonly ratio: number; readonly ok: boolean } | null;
+	readonly check: { readonly least: number; readonly governing: number; readonly ratio: number; readonly ok: boolean; readonly periods?: readonly number[]; readonly mean?: readonly number[]; readonly target?: readonly number[] } | null;
 	readonly baseShear?: { readonly x: number; readonly y: number };
-	readonly cases: readonly { readonly id: number; readonly name: string; readonly complete: boolean; readonly baseShear: { readonly x: number; readonly y: number } }[];
+	/** P5: how the records were brought to the target. */
+	readonly modification?: 'scaling' | 'matching';
+	readonly cases: readonly IFemNonlinearRecord[];
+}
+
+/** P5: a record of a nonlinear suite: its run, metadata, applied PGA and matching. */
+export interface IFemNonlinearRecord {
+	readonly id: number;
+	readonly name: string;
+	readonly complete: boolean;
+	readonly baseShear: { readonly x: number; readonly y: number };
+	readonly magnitude?: number;
+	readonly distance?: number;
+	readonly vs30?: number;
+	readonly source?: string;
+	readonly pga?: readonly number[];
+	readonly matching?: readonly { readonly component: number; readonly method: string; readonly misfit: number; readonly iterations: number; readonly converged: boolean }[];
+}
+
+/** P5: a member's hinge over a nonlinear suite (P3's hinges read from the records). */
+export interface IFemNonlinearHingeRow {
+	readonly member: string;
+	readonly end: string;
+	readonly component: string;
+	readonly demand: number;
+	readonly limits?: { readonly [level: string]: number };
+	readonly state?: string;
+	readonly ratio: number;
+	readonly ok: boolean;
+	readonly suite: string;
+	readonly record: string;
+}
+
+/** P5: a force-controlled action over a nonlinear suite. */
+export interface IFemForceControlledRow {
+	readonly member: string;
+	readonly kind: string;
+	readonly action: 'columnAxial' | 'shear';
+	readonly category: string;
+	readonly factor: number;
+	readonly suite: string;
+	readonly record: string;
+	readonly Fu: number;
+	readonly Fg: number;
+	readonly demand: number;
+	readonly capacity: number | null;
+	readonly ratio: number | null;
+	readonly ok: boolean | null;
 }
 
 /** B36: a storey's design drift over a nonlinear suite, against the code pack's limit. */
@@ -294,7 +341,10 @@ export interface IFemNonlinearHistory {
 	readonly suites?: readonly IFemNonlinearSuite[];
 	readonly drift?: readonly IFemNonlinearDrift[];
 	readonly limit?: { readonly allowable: number; readonly factor: number; readonly ratio: number; readonly row: string; readonly amplified: boolean };
-	readonly acceptance?: { readonly rows: readonly (IFemAcceptanceRow & { readonly suite: string; readonly record: string })[]; readonly failed: number; readonly share: number; readonly residual: number; readonly clause: string };
+	/** `method` "fibreStrain": rows are IFemAcceptanceRow; P5 "hingeRotation": IFemNonlinearHingeRow, checked at `level`. */
+	readonly acceptance?: { readonly method?: string; readonly level?: string; readonly rows: readonly (IFemAcceptanceRow & { readonly suite: string; readonly record: string })[]; readonly failed: number; readonly share: number | null; readonly residual: number | null; readonly clause: string };
+	/** P5: force-controlled actions, when the code pack checks them. */
+	readonly forceControlled?: { readonly rows: readonly IFemForceControlledRow[]; readonly failed: number; readonly clause: string };
 	readonly clauses?: { readonly [key: string]: string };
 	readonly review?: string;
 	readonly notes?: readonly string[];

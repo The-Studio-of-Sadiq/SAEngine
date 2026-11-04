@@ -189,7 +189,45 @@
     "magnitude": 5.5,
     "text": "override seismic.spectrumType; a National Annex may use both or give its own rule"
   },
+  "timeHistory": {
+    "method": "periodRange",
+    "minimumRecords": 3,
+    "periodLower": 0.2,
+    "periodUpper": 2.0,
+    "spectrumDamping": 0.05,
+    "singleRatio": 0.9,
+    "pairRatio": 0.9,
+    "meanFrom": 7,
+    "baseShearShare": 1.0,
+    "scaleDrifts": true,
+    "simultaneousPairs": true,
+    "pairCombination": "eachComponent",
+    "periodBasis": "governing",
+    "targets": {
+      "linear": {"R": null, "I": null},
+      "nonlinear": {"R": 1.0, "I": null, "spectrum": "elastic", "modification": "amplitude"}
+    },
+    "matching": {
+      "method": "frequencyDomain",
+      "lowerShare": 0.8,
+      "upperShare": 1.25,
+      "tolerance": 0.1,
+      "iterations": 20,
+      "points": 40,
+      "baselineOrder": 3,
+      "note": "EN 1998-1 Sec 3.2.3.1.2 allows artificial accelerograms matching the elastic spectrum; the matching range, tolerance, iterations and the baseline polynomial are SAEngine practice."
+    },
+    "clauses": {
+      "linear": "EN 1998-1 Sec 3.2.3.1 and 4.3.3.4.3 (time-history representation of the seismic action)",
+      "records": "EN 1998-1 Sec 3.2.3.1.2 (at least 3 accelerograms; from 0.2T1 to 2T1 no value of the mean 5 %-damped spectrum below 90 % of the elastic spectrum)",
+      "response": "EN 1998-1 Sec 4.3.3.4.3(3) (at least 7 analyses: the mean, otherwise the most unfavourable value)",
+      "drift": "EN 1998-1 Sec 4.4.3.2 (damage limitation)",
+      "pairs": "EN 1998-1 Sec 3.2.3.1.1 and 4.3.3.5.1 (the horizontal components applied simultaneously, each meeting the spectrum criterion)",
+      "nonlinearRecords": "EN 1998-1 Sec 3.2.3.1.2 and 4.3.3.4.3 (the elastic response spectrum, q = 1, with the importance factor in ag)"
+    }
+  },
   "sources": {
+    "timeHistory": "EN 1998-1 Sec 3.2.3.1.2: at least 3 accelerograms, the mean of their zero-period spectral values not below ag S, from 0.2T1 to 2T1 the mean 5 %-damped spectrum at least 90 % of the elastic spectrum; Sec 4.3.3.4.3: the most unfavourable response below 7 analyses, the mean from 7. Each horizontal component of a pair is checked (eachComponent). The zero-period (ag S) condition is not checked by SAEngine; the scaling to the equivalent static base shear for linear analyses (baseShearShare, not in EN 1998-1) and the scaling method (each record fitted in log space, then one factor on the suite) are SAEngine practice; check against the printed code and the National Annex",
     "spectra": "EN 1998-1 Tables 3.2 (Type 1) and 3.3 (Type 2), recommended values; Type 2 where the earthquakes that contribute most have Ms ≤ 5.5 (Sec 3.2.2.2(2)): override seismic.spectrumType",
     "siteClasses": "EN 1998-1 Table 3.1 ground types A-E: SAEngine keeps the site class ids SA-SE (the soil report classes the ground by the same vs,30, NSPT and cu limits)",
     "designSpectrum": "EN 1998-1 Sec 3.2.2.5, Eqs 3.13-3.16, β = 0.2 recommended (3.2.2.5(5)); ag = γI·agR (3.2.1(3)), the settings' Z is agR in g",

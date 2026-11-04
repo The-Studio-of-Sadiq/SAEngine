@@ -8525,6 +8525,22 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 					title: 'Time history: suite scaling',
 					type: 'string',
 				},
+				timeHistoryModification: {
+					default: 'pack',
+					description: 'How the records scaled to the code spectrum are brought to it. By the code pack: its choice for each procedure (linear, nonlinear). Amplitude scaling: one factor per record (or pair) over the period range. Spectral matching: each record adjusted until its spectrum matches the target over the range (the code pack\'s matching method and its criterion for matched records), written to 08 FEM/matched-records.',
+					enum: ['pack', 'amplitude', 'matching'],
+					enumDescriptions: ['By the code pack', 'Amplitude scaling', 'Spectral matching'],
+					title: 'Time history: modification',
+					type: 'string',
+				},
+				timeHistoryMatching: {
+					default: 'pack',
+					description: 'The spectral matching method: the code pack\'s, or matching in the frequency domain (the Fourier amplitudes adjusted by the ratio of the target to the record\'s spectrum, with a baseline correction).',
+					enum: ['pack', 'frequencyDomain'],
+					enumDescriptions: ['By the code pack', 'Frequency domain'],
+					title: 'Time history: matching method',
+					type: 'string',
+				},
 				seismicOrthogonal: {
 					default: 'auto',
 					description: 'Automatic: each direction\'s earthquake with the code pack\'s share of the other direction\'s (E = EX + a EY and a EX + EY) in Seismic Design Category D; one direction at a time in B and C. Always: also for a Category C building with non-parallel systems (irregularity type V).',
@@ -10200,6 +10216,20 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 					description: 'Damping ratio of the first mode [-], in proportion to the committed stiffness. Empty: each time history\'s own.',
 					title: 'Damping ratio',
 				},
+				dampingModel: {
+					default: 'pack',
+					description: 'By the code pack: its damping for the nonlinear runs (the ratio above still wins when given). First mode, stiffness: the ratio on the first mode in proportion to the committed stiffness. Rayleigh: in proportion to the mass and the committed stiffness, the ratio at the first mode and at the code pack\'s second period (a fifth of the first when the pack gives none).',
+					enum: ['pack', 'mode1Stiffness', 'rayleigh'],
+					enumDescriptions: ['By the code pack', 'First mode, stiffness proportional', 'Rayleigh'],
+					title: 'Damping model',
+					type: 'string',
+				},
+				checkHinges: {
+					default: true,
+					description: 'Where the code pack checks the members by hinges (its pushover hinges), the runs keep the end sections\' deformations so that each hinge\'s peak over the record is read (a larger results file).',
+					title: 'Hinges',
+					type: 'boolean',
+				},
 			},
 			title: 'NonlinearHistory',
 			type: 'object',
@@ -11516,7 +11546,7 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 					type: 'string',
 				},
 				record: {
-					description: 'Acceleration record in the project folder, e.g. \'02 Project Settings/records/ElCentro.AT2\': PEER .AT2, two columns (time, acceleration) or one value per line.',
+					description: 'Acceleration record in the project folder, e.g. \'02 Project Settings/records/ElCentro.AT2\': PEER .AT2, two columns (time, acceleration; spaces or commas, a CSV file may start with a header line) or one value per line. SAEngine bundles no third-party records: use records whose terms allow it.',
 					minLength: 1,
 					title: 'Record file',
 					type: 'string',
@@ -11584,6 +11614,55 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 					enum: ['auto', 'code', 'manual'],
 					enumDescriptions: ['Automatic', 'To the code spectrum', 'Manual factor'],
 					title: 'Scaling',
+					type: 'string',
+				},
+				magnitude: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							maximum: 10,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Moment magnitude.',
+					title: 'Magnitude Mw',
+				},
+				distance: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Source-to-site distance [km] (as the record\'s database gives it, e.g. the rupture distance).',
+					title: 'Distance R',
+				},
+				vs30: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Time-averaged shear-wave velocity of the top 30 m at the station [m/s].',
+					title: 'Vs30',
+				},
+				source: {
+					default: '',
+					description: 'Where the record comes from and under which terms it may be used (e.g. the database and its record number).',
+					title: 'Source and licence',
 					type: 'string',
 				},
 			},
@@ -12483,6 +12562,8 @@ export const DEFAULT_SETTINGS: object = {
 		},
 		seismicDesign: 'responseSpectrum',
 		timeHistoryScaling: 'individual',
+		timeHistoryModification: 'pack',
+		timeHistoryMatching: 'pack',
 		seismicOrthogonal: 'auto',
 		seismicAccidentalTorsion: true,
 		seismicVerticalComponent: true,
@@ -19030,6 +19111,8 @@ export const TEMPLATES: { readonly [defName: string]: object } = {
 		seismicDesign: 'responseSpectrum',
 		timeHistoryPeriod: null,
 		timeHistoryScaling: 'individual',
+		timeHistoryModification: 'pack',
+		timeHistoryMatching: 'pack',
 		seismicOrthogonal: 'auto',
 		seismicAccidentalTorsion: true,
 		seismicVerticalComponent: true,

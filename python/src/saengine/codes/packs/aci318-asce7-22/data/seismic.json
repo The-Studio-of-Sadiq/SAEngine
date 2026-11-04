@@ -177,7 +177,52 @@
     "wingsDynamicExempt": false,
     "clause": "Sec 12.3.3.4"
   },
-  "timeHistory": null,
+  "timeHistory": {
+    "method": "periodRange",
+    "minimumRecords": 3,
+    "periodLower": 0.2,
+    "periodUpper": 2.0,
+    "periodBasis": "bounds",
+    "spectrumDamping": 0.05,
+    "singleRatio": 1.0,
+    "pairRatio": 1.0,
+    "meanFrom": 1,
+    "baseShearShare": 1.0,
+    "scaleDrifts": false,
+    "simultaneousPairs": true,
+    "pairCombination": "maxDirection",
+    "targets": {
+      "linear": {"R": null, "I": null},
+      "nonlinear": {
+        "R": 1.0,
+        "I": 1.0,
+        "factor": 1.5,
+        "minimumRecords": 11,
+        "singleRatio": 0.9,
+        "pairRatio": 0.9,
+        "matchedRatio": 1.1,
+        "modification": "amplitude"
+      }
+    },
+    "matching": {
+      "method": "frequencyDomain",
+      "lowerShare": 0.8,
+      "upperShare": 1.25,
+      "tolerance": 0.1,
+      "iterations": 20,
+      "points": 40,
+      "baselineOrder": 3,
+      "note": "The matching range (0.8 x the lower to 1.25 x the upper bound of the period range), the tolerance (10 %), the iterations and the baseline polynomial are SAEngine practice; ASCE 7-22 Sec 16.2.3.3 sets only the criterion of the matched suite (110 % of the target)."
+    },
+    "clauses": {
+      "linear": "ASCE 7-22 Sec 12.9.2 (linear response history analysis)",
+      "records": "ASCE 7-22 Sec 12.9.2.3 (ground motion selection and modification, by Sec 16.2)",
+      "response": "ASCE 7-22 Sec 12.9.2.5 and 12.9.2.6 (scaling to the equivalent lateral force base shear, the mean of the responses)",
+      "drift": "ASCE 7-22 Sec 12.9.2.6 and 12.12 (drifts from the mean response, Cd/Ie)",
+      "pairs": "ASCE 7-22 Sec 16.2.3 (maximum-direction spectra of the pairs, applied together)",
+      "nonlinearRecords": "ASCE 7-22 Sec 16.2.1-16.2.4 (the MCER target spectrum, at least 11 pairs, period range 0.2 Tmin to 2.0 Tmax, the mean maximum-direction spectrum at least 90 % of the target when amplitude scaled, 110 % when spectrally matched)"
+    }
+  },
   "liveShare": 0.0,
   "heavyLiveLimit": 4.79,
   "heavyLiveShare": 0.25,
@@ -194,6 +239,7 @@
   "verticalFactor": 0.5,
   "stabilityGravity": {"D": 1.0, "SD": 1.0, "F": 1.0, "L": 1.0},
   "sources": {
+    "timeHistory": "ASCE 7-22 Sec 12.9.2 (linear response history: at least three records by Sec 16.2, the mean response, scaled to the equivalent lateral force base shear; verify the ratio of the target and the drift scaling against the printed code) and Chapter 16 (nonlinear response history: the MCER target, 1.5 x the design spectrum with R = 1 and I = 1; at least 11 records, Sec 16.2.2; period range from 0.2 x the shorter to 2.0 x the longer fundamental period, Sec 16.2.1; the mean maximum-direction spectrum of the pairs at least 90 % of the target (amplitude scaling, Sec 16.2.3.2) or 110 % (spectral matching, Sec 16.2.3.3); the mean responses, Sec 16.4). The period range lower bound may also need to cover 90 % mass participation (Sec 16.2.1), which SAEngine does not check. The scaling method (each pair fitted in log space, then one factor on the suite) is SAEngine practice",
     "designSpectrum": "ASCE 7-22 Sec 11.4: SDS = (2/3) SMS, SD1 = (2/3) SM1 (Eqs 11.4-3, 11.4-4); the two-period spectrum of Sec 11.4.6 (T0 = 0.2 SD1/SDS, TS = SD1/SDS, Sa = SDS(0.4 + 0.6 T/T0) below T0); the multi-period spectrum (Sec 11.4.5.1); SMS, SM1 from the multi-period MCER spectrum by Sec 21.4 (0.9 x the largest Sa from 0.2 to 5 s; the largest T Sa from 1 to 2 s, 1 to 5 s for vs30 at most 442 m/s); SDC bands of Tables 11.6-1 (SDS 0.167, 0.33, 0.50) and 11.6-2 (SD1 0.067, 0.133, 0.20), E/F where S1 >= 0.75 (Sec 11.6); Cs of Sec 12.8.1.1, at least 0.044 SDS Ie and 0.01 (Eq 12.8-5), 0.5 S1/(R/Ie) where S1 >= 0.6 (Eq 12.8-6); Cu of Table 12.8-1",
     "siteClasses": "ASCE 7-22 Table 20.2-1, the classes by vs30 (ft/s 5000, 3000, 2100, 1450, 1000, 700, 500 in m/s); ids keep SAEngine's S prefix",
     "systems": "ASCE 7-22 Table 12.2-1: R, Omega0, Cd and the height limits for SDC B-F (NL: empty, NP: 0; 160 ft = 48.8 m, 100 ft = 30.5 m, 35 ft = 10.7 m); the rows SAEngine designs",

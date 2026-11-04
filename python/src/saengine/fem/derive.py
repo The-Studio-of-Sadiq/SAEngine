@@ -3119,17 +3119,26 @@ def _derive_fem(
         # ── time histories: each record after the dead loads (D, SD); B19: suites scaled to
         # the code spectrum (saengine.fem.records) and pairs applied simultaneously ──
         code_factors: dict[int, float] = {}
+        # P5: the records spectrally matched to the code spectrum, by history index.
+        th_matched: dict[int, tuple[str, str | None]] = {}
         if options.timeHistories and model_dir is not None:
-            from saengine.fem.records import suite_factors
+            from saengine.fem.records import MATCHED_FOLDER, suite_factors
 
             code_factors, th_notes = suite_factors(
                 options.timeHistories,
                 settings,
                 Path(model_dir).parent,
                 {"X": approximate, "Y": approximate_y},
+                matched_dir=Path(model_dir) / MATCHED_FOLDER,
+                matched=th_matched,
             )
             b.notes.extend(th_notes)
         for index, history in enumerate(options.timeHistories):
+            if index in th_matched:
+                first, second = th_matched[index]
+                history = history.model_copy(
+                    update={"record": first, "recordOrthogonal": second, "units": "g", "dt": None}
+                )
             record = _ground_motion(history, len(records) + 1, model_dir)
             if isinstance(record, str):
                 b.notes.append(f"time history '{history.name}' left out: {record}")
@@ -3256,8 +3265,9 @@ def _derive_fem(
         from saengine.fem.nonlinear import WallSpec, history_model
 
         nl_factors: dict[int, float] = {}
+        nl_matched: dict[int, tuple[str, str | None]] = {}  # P5: spectrally matched records
         if options.timeHistories and model_dir is not None:
-            from saengine.fem.records import suite_factors
+            from saengine.fem.records import MATCHED_FOLDER, suite_factors
 
             nl_factors, nl_notes = suite_factors(
                 options.timeHistories,
@@ -3266,10 +3276,13 @@ def _derive_fem(
                 {"X": approximate, "Y": approximate_y},
                 procedure=nonlinear_history.target_procedure(),
                 mean_from=nonlinear_history.mean_from(),
+                matched_dir=Path(model_dir) / MATCHED_FOLDER,
+                matched=nl_matched,
             )
             b.notes.extend(nl_notes)
         amplitudes = {
-            series: nl_factors.get(index, history.scale) * (G if history.units == "g" else 1.0)
+            series: nl_factors.get(index, history.scale)
+            * (G if history.units == "g" or index in nl_matched else 1.0)
             for index, history in enumerate(options.timeHistories)
             for series in series_of_history.get(index, [])
         }
@@ -3298,6 +3311,30 @@ def _derive_fem(
             amplitudes,
         )
         b.notes.extend(more)
+        # P5: the spectrally matched records in place of the linear model's (the same ids,
+        # step and length: the series and the runs are unchanged).
+        if history_project is not None and nl_matched:
+            series_record = {
+                int(s["id"]): int(s["record_id"])
+                for s in history_project.get("time_series", [])
+                if s.get("record_id") is not None
+            }
+            by_id = {int(r["id"]): k for k, r in enumerate(history_project["ground_motions"])}
+            for index, paths in nl_matched.items():
+                history = options.timeHistories[index]
+                for series, path in zip(series_of_history.get(index, []), paths, strict=False):
+                    record_id = series_record.get(series)
+                    if path is None or record_id is None or record_id not in by_id:
+                        continue
+                    found = _ground_motion(
+                        history.model_copy(update={"record": path, "units": "g", "dt": None}),
+                        record_id,
+                        model_dir,
+                    )
+                    if isinstance(found, str):
+                        b.notes.append(f"time history '{history.name}': {found}")
+                        continue
+                    history_project["ground_motions"][by_id[record_id]] = found
 
     # ── the temperature case T (after the pushover copy, which has none) ──
     thermal_corrections = None

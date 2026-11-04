@@ -1,0 +1,35 @@
+{
+  "$schema": "../../../schemas/nonlinearHistory.schema.json",
+  "$replace": true,
+  "$sources": [
+    "EN 1998-1 Sec 4.3.3.4.3 (non-linear time-history analysis), Sec 3.2.3.1 (time-history representation), Sec 4.4.3.2 (damage limitation)",
+    "EN 1998-3 Sec 4.4.2 and Annex A.3 (chord rotation capacities, through the pack's pushover hinges)"
+  ],
+  "source": "EN 1998-1 Sec 4.3.3.4.3 (Non-linear time-history analysis)",
+  "sources": {
+    "modelling": "EN 1998-1 Sec 4.3.3.4.3(1) and 4.3.3.4.1: the time-dependent response by direct integration, with the element models of Sec 4.3.3.4.1 (cyclic behaviour)",
+    "groundMotion": "EN 1998-1 Sec 3.2.3.1.2: at least 3 accelerograms; the mean 5 %-damped spectrum at least 90 % of the elastic response spectrum from 0.2T1 to 2T1",
+    "response": "EN 1998-1 Sec 4.3.3.4.3(3): at least 7 analyses: the mean of the responses; otherwise the most unfavourable value",
+    "acceptance": "EN 1998-1 gives no member deformation criteria for the time histories of a new building; SAEngine checks the pack's EN 1998-3 chord rotation hinges at the Significant Damage level (SAEngine practice; check with the National Annex and the engineer)",
+    "review": "",
+    "drift": "EN 1998-1 Sec 4.4.3.2: the storey drift under the seismic action times the reduction factor nu within the limit (the pack's allowable drift alpha/nu), the drift of the time history used directly (q = 1)"
+  },
+  "procedure": {
+    "target": "nonlinear",
+    "meanFrom": 7,
+    "scaleToStaticShear": false,
+    "pDelta": true,
+    "designReview": false,
+    "note": "The elements follow the fibre model of the pushover (Concrete02, Steel02). The damping is each time history's ratio on the first mode in proportion to the committed stiffness (SAEngine practice; EN 1998-1 gives no damping model for the non-linear analysis)."
+  },
+  "drift": {
+    "limitFactor": 1.0,
+    "amplify": false,
+    "note": "The non-linear analysis gives the drifts dr directly (no q), checked against the pack's allowable drift alpha/nu of Sec 4.4.3.2; the damage limitation action is taken as nu times the design action, as there."
+  },
+  "acceptance": {
+    "method": "hingeRotation",
+    "performanceLevel": "SD",
+    "note": "Each member end's hinge of the pack's EN 1998-3 Annex A tables (pushover.hinges), its chord rotation's peak over each record against the Significant Damage limit; the design value over the suite by Sec 4.3.3.4.3(3)."
+  }
+}

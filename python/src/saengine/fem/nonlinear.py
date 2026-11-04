@@ -775,6 +775,11 @@ def _moved_weights(values: dict[int, float], moved: dict[int, int]) -> dict[int,
 HISTORY_MODES = 12
 
 
+#: P5: the second period of Rayleigh damping as a share of the first, where the code pack
+#: gives none (SAEngine practice: the damping then stays near the ratio from about T1/5 to T1).
+RAYLEIGH_SECOND_SHARE = 0.2
+
+
 def history_model(
     linear: dict[str, Any],
     section_keys: dict[int, tuple[str, int, bool]],
@@ -795,7 +800,9 @@ def history_model(
     suite check); per time history of ``linear`` a Transient case after G, damped on its first
     mode in proportion to the committed stiffness (``options.damping`` or the record's own),
     keeping the peak strains of the fibres of the members' end sections (the acceptance,
-    :mod:`saengine.fem.acceptance`)."""
+    :mod:`saengine.fem.acceptance`). P5: the pack's damping (``nonlinearHistory.procedure.
+    damping``, the project's ``dampingModel`` over it: Rayleigh at T1 and a share of it), and,
+    where the pack checks hinges, the end sections' deformations at every step."""
     histories = [a for a in linear.get("analyses", []) if a.get("type") == "Transient"]
     if not histories:
         return None, ["nonlinear time history: the model has no time history; add records"]
@@ -826,29 +833,52 @@ def history_model(
         },
     ]
     damping = getattr(options, "damping", None)
+    # P5: the damping and the hinge check by the code pack (saengine.fem.nonlinear_history).
+    from saengine.fem import nonlinear_history
+
+    rule = nonlinear_history.table()
+    pack_damping = rule.procedure.damping if rule is not None else None
+    model = getattr(options, "dampingModel", "pack")
+    if model == "pack":
+        model = pack_damping.method if pack_damping is not None else "mode1Stiffness"
+    if damping is None and pack_damping is not None and pack_damping.ratio is not None:
+        damping = pack_damping.ratio
+    second_share = (
+        pack_damping.secondPeriodShare
+        if pack_damping is not None and pack_damping.secondPeriodShare
+        else RAYLEIGH_SECOND_SHARE
+    )
+    keep_hinges = bool(
+        getattr(options, "checkHinges", True)
+        and rule is not None
+        and rule.acceptance.method == "hingeRotation"
+    )
     for history in histories:
         name = str(history.get("name", "")).removeprefix("TH: ")
-        analyses.append(
-            {
-                "id": len(analyses) + 1,
-                "name": f"NTH: {name}",
-                "type": "Transient",
-                "pattern_ids": list(history["pattern_ids"]),
-                "dt": history["dt"],
-                "n_steps": history["n_steps"],
-                "system": "BandGeneral",
-                "algorithm": "Newton",
-                "test": "NormDispIncr",
-                "tolerance": 1e-6,
-                "max_iter": 50,
-                "rayleigh_mode1_damping": damping
-                if damping is not None
-                else history.get("rayleigh_mode1_damping", 0.05),
-                "rayleigh_mode1_stiffness": "committed",
-                "record_fibre_peaks": True,
-                "preload_case_ids": [1],
-            }
-        )
+        case = {
+            "id": len(analyses) + 1,
+            "name": f"NTH: {name}",
+            "type": "Transient",
+            "pattern_ids": list(history["pattern_ids"]),
+            "dt": history["dt"],
+            "n_steps": history["n_steps"],
+            "system": "BandGeneral",
+            "algorithm": "Newton",
+            "test": "NormDispIncr",
+            "tolerance": 1e-6,
+            "max_iter": 50,
+            "rayleigh_mode1_damping": damping
+            if damping is not None
+            else history.get("rayleigh_mode1_damping", 0.05),
+            "rayleigh_mode1_stiffness": "committed",
+            "record_fibre_peaks": True,
+            "preload_case_ids": [1],
+        }
+        if model == "rayleigh":
+            case["rayleigh_second_period_share"] = second_share
+        if keep_hinges:
+            case["record_section_deformations"] = True
+        analyses.append(case)
     project["analyses"] = analyses
     meta = project["meta"]
     project["meta"] = {

@@ -90,14 +90,31 @@ class BucklingCurveRule(_Group):
     minor: str
 
 
+class ModifiedSlenderness(_Group):
+    """Alpha 9 C18: the member slenderness reduction factor αc of the curves by αb (AS 4100
+    6.3.3, NZS 3404 6.3.3 type): λn = (KL/r) √kf √(fy / referenceFy), αa = a1 (λn - a2) /
+    (λn² - a3 λn + a4), λ = λn + αa αb, η = e1 (λ - e2) >= 0, ξ = ((λ/s)² + 1 + η) / (2 (λ/s)²),
+    αc = ξ [1 - √(1 - (s / (ξ λ))²)] <= 1; kf the effective over the gross area."""
+
+    referenceFy: Positive
+    alphaA: tuple[Positive, Positive, Positive, Positive] = Field(description="(a1, a2, a3, a4).")
+    eta: tuple[Positive, Positive] = Field(description="(e1, e2).")
+    scale: Positive = Field(description="s.")
+    alphaB: dict[str, float] = Field(description="αb by curve id (the curves' names).")
+
+
 class SteelCompression(_Group):
     """Flexural buckling by buckling curves (method ``bucklingCurves``): fcd = χ fy / γm0, χ =
     1 / (φ + √(φ² - λ²)) ≤ 1, φ = 0.5 [1 + α (λ - plateau) + λ²], λ = √(fy / fcc), fcc = π² E /
-    (KL/r)²."""
+    (KL/r)². Alpha 9 C18: with ``slendernessReduction`` χ is the αc of those curves instead
+    (``alpha`` and ``plateau`` are then not read)."""
 
     method: Literal["bucklingCurves"] = "bucklingCurves"
-    alpha: dict[str, Positive] = Field(description="Imperfection factor α by curve (a, b, c, d).")
-    plateau: Positive = Field(description="λ0 of the plateau (χ = 1 below it).")
+    alpha: dict[str, Positive] = Field(
+        default_factory=dict, description="Imperfection factor α by curve (a, b, c, d)."
+    )
+    plateau: Positive = Field(default=0.2, description="λ0 of the plateau (χ = 1 below it).")
+    slendernessReduction: ModifiedSlenderness | None = None
     rolledI: list[tuple[float, Positive, str, str]] = Field(
         description="Rolled I and H sections: (h/bf above, tf up to [mm], major curve, minor "
         "curve); the first row that matches."
@@ -134,6 +151,13 @@ class SteelTension(_Group):
     angleBolts: int = Field(ge=1, description="The bolts taken in a single angle's end.")
 
 
+class LtbSlenderness(_Group):
+    """Alpha 9 C18: the slenderness reduction factor αs of lateral-torsional buckling."""
+
+    share: Positive
+    offset: Positive
+
+
 class SteelFlexure(_Group):
     """Flexure (method ``elasticCriticalMoment``): laterally supported Md = βb Zp fy / γm0 ≤
     ``elasticCap`` Ze fy / γm0; lateral-torsional buckling Md = βb Zp χLT fy / γm0 with λLT =
@@ -150,6 +174,12 @@ class SteelFlexure(_Group):
     robertson: bool = Field(
         default=False,
         description="``alphaLT`` holds BS type constants: α = αLT π √(E / fy) / 1000.",
+    )
+    # Alpha 9 C18 (AS 4100 5.6.1.1, NZS 3404 5.6.1.1): Mb = αm αs Ms <= Ms.
+    slendernessReduction: LtbSlenderness | None = Field(
+        default=None,
+        description="Lateral-torsional buckling by αs = share [√((Ms/Mo)² + offset) - Ms/Mo] "
+        "with Mo at c1 = 1 and αm = c1 (empty: χLT of λLT).",
     )
 
 

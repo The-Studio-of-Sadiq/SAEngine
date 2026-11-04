@@ -1,0 +1,131 @@
+{
+  "$schema": "../../../schemas/areaLoads.schema.json",
+  "$sources": [
+    "AS/NZS 1170.1:2002 Table 3.1, Clauses 3.3-3.5 and 3.6 (roofs)"
+  ],
+  "source": "AS/NZS 1170.1:2002 Table 3.1: uniformly distributed [kPa] and concentrated [kN] imposed actions by occupancy type (A-F, R); the other tables of the parent pack (roof live by slope, partitions, vehicles, barriers, impact) are BNBC 2020's, named so",
+  "uses": {
+    "$replace": true,
+    "residential": {
+      "name": "A: self-contained dwellings, general areas",
+      "live": 1.5,
+      "concentrated": 1.8
+    },
+    "balcony": {
+      "name": "A: balconies and roofs used for floor-type activities of dwellings",
+      "live": 2.0,
+      "concentrated": 1.8
+    },
+    "residentialPublic": {
+      "name": "C1: hotel bedrooms, hospital wards and similar",
+      "live": 2.0,
+      "concentrated": 1.8
+    },
+    "office": {
+      "name": "B: offices for general use",
+      "live": 3.0,
+      "concentrated": 2.7
+    },
+    "officeCorridor": {
+      "name": "C3: corridors, hallways, passageways (public)",
+      "live": 4.0,
+      "concentrated": 4.5
+    },
+    "classroom": {
+      "name": "C1: classrooms and areas with tables",
+      "live": 3.0,
+      "concentrated": 2.7
+    },
+    "hospitalWard": {
+      "name": "C1: hospital wards and bedrooms",
+      "live": 2.0,
+      "concentrated": 1.8
+    },
+    "operatingRoom": {
+      "name": "C1: operating theatres, laboratories",
+      "live": 3.0,
+      "concentrated": 4.5
+    },
+    "assemblyFixed": {
+      "name": "C2: areas with fixed seats",
+      "live": 4.0,
+      "concentrated": 3.6
+    },
+    "assemblyMovable": {
+      "name": "C3: areas without obstacles for moving people",
+      "live": 5.0,
+      "concentrated": 3.6
+    },
+    "retailGround": {
+      "name": "D: shopping areas",
+      "live": 4.0,
+      "concentrated": 3.6
+    },
+    "retailUpper": {
+      "name": "D: shopping areas, upper floors",
+      "live": 4.0,
+      "concentrated": 3.6
+    },
+    "storageLight": {
+      "name": "E: storage, general (2.4 kPa per metre of storage height, 3 m taken)",
+      "live": 7.2,
+      "concentrated": 7.0
+    },
+    "parking": {
+      "name": "F: vehicles up to 2500 kg",
+      "live": 2.5,
+      "concentrated": 13.0
+    },
+    "stairs": {
+      "name": "C3: stairs, landings, ramps (public)",
+      "live": 4.0,
+      "concentrated": 4.5
+    },
+    "stairsDwelling": {
+      "name": "A: stairs and landings within self-contained dwellings",
+      "live": 1.5,
+      "concentrated": 1.8
+    },
+    "roof": {
+      "name": "R2: roofs, structural elements, not trafficable",
+      "live": 0.25,
+      "concentrated": 1.4,
+      "roof": true
+    },
+    "roofGarden": {
+      "name": "R1: trafficable roofs (as the floor use, C3 taken)",
+      "live": 4.0,
+      "concentrated": 4.5
+    },
+    "dining": {
+      "name": "C1: restaurants and dining areas",
+      "live": 3.0,
+      "concentrated": 2.7
+    },
+    "libraryReading": {
+      "name": "C1: reading rooms of libraries",
+      "live": 2.5,
+      "concentrated": 4.5
+    },
+    "libraryStacks": {
+      "name": "E: library stacks (2.4 kPa per metre, 3 m)",
+      "live": 7.2,
+      "concentrated": 7.0
+    },
+    "gymnasium": {
+      "name": "C4: areas for physical activities",
+      "live": 5.0,
+      "concentrated": 3.6
+    },
+    "manufacturingLight": {
+      "name": "E: light industrial and workshops",
+      "live": 5.0,
+      "concentrated": 4.5
+    }
+  },
+  "sources": {
+    "uses": "AS/NZS 1170.1:2002 Table 3.1 by occupancy type (A domestic, B offices, C assembly, D shopping, E storage, F vehicles, R roofs); every value to be checked (entered from knowledge of the standard)",
+    "uses.roof": "AS/NZS 1170.1 Table 3.1 R2: 0.25 kPa (the 0.12 + 1.8/A rule for small areas not applied: the 0.25 floor governs above 14.4 m²), 1.4 kN",
+    "uses.storageLight": "AS/NZS 1170.1 Table 3.1 E: 2.4 kPa per metre of storage height; SAEngine takes 3 m (7.2 kPa): change the area use for the actual height"
+  }
+}

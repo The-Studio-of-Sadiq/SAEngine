@@ -142,6 +142,8 @@ def beam_shear(
     else:
         a, c = r.betaNoStirrups
         beta = a / (c + dv)
+        if r.betaNoStirrupsMax is not None:  # Alpha 9 C18: the pack's cap (AS 3600 8.2.4.3)
+            beta = min(beta, r.betaNoStirrupsMax)
     theta = math.radians(r.thetaDeg)
     vc = r.phiC * lam * beta * root * b * dv
     vs = r.phiS * av * fy * dv / (math.tan(theta) * spacing) if av else 0.0

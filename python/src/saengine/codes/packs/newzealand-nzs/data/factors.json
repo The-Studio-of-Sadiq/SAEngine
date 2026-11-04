@@ -1,0 +1,41 @@
+{
+  "$schema": "../../../schemas/factors.schema.json",
+  "$sources": [
+    "NZS 3101:2006 (A3) 2.3.2.2, 10.3.4.2"
+  ],
+  "source": "NZS 3101:2006 2.3.2.2: strength reduction factors φ",
+  "$remove": [
+    "phiTransition"
+  ],
+  "phi": {
+    "$replace": true,
+    "tension": 0.85,
+    "compressionTied": 0.85,
+    "compressionSpiral": 0.85,
+    "shear": 0.75,
+    "punching": 0.75,
+    "shearSeismic": 0.75,
+    "diagonalCoupling": 0.85,
+    "joint": 0.75,
+    "strutAndTie": 0.75,
+    "stiffnessReduction": 0.75,
+    "bearing": 0.65,
+    "plain": 0.65
+  },
+  "axialCap": {
+    "tied": 0.85,
+    "spiral": 0.85,
+    "clause": "NZS 3101:2006 10.3.4.2"
+  },
+  "sources": {
+    "tension": "NZS 3101:2006 2.3.2.2(a): flexure with or without axial tension or compression φ = 0.85 (no transition by strain)",
+    "compressionTied": "NZS 3101:2006 2.3.2.2(a): 0.85 for flexure with axial compression; the axial cap 10.3.4.2 N*max = 0.85 φ N0",
+    "shear": "NZS 3101:2006 2.3.2.2(b): shear and torsion φ = 0.75",
+    "joint": "NZS 3101:2006 2.3.2.2: 0.75 (shear of joints)",
+    "strutAndTie": "NZS 3101:2006 2.3.2.2(e): strut-and-tie models φ = 0.75",
+    "bearing": "NZS 3101:2006 2.3.2.2(d): bearing φ = 0.65",
+    "plain": "NZS 3101:2006 2.3.2.2(f): plain concrete φ = 0.65 (uncertain)",
+    "diagonalCoupling": "NZS 3101: diagonally reinforced coupling beams designed by flexure (φ 0.85; SAEngine practice)",
+    "stiffnessReduction": "NZS 3101 10.4.6: the buckling load with the moment magnifier's factor (0.75 kept: SAEngine practice)"
+  }
+}

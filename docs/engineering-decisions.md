@@ -67,6 +67,77 @@ here, newest first, with the date, the question, the decision, the reason and wh
 - **Not done.** Bar names in SI (the engine prints pack bar names only in US units), the column
   live reduction by floors (Art. 85(2)), the braces' ranks, per-storey Ds, route 2 area ratios.
 
+## 2026-11-05: nonlinear time history in design, record scaling and spectral matching (alpha 9 track P5)
+
+- **What was built.** The B36 nonlinear time history now reads everything that differs between
+  codes from the pack: a procedure's own least number of records, period range, ratios and a
+  factor on its target spectrum (`seismic.timeHistory.targets.<procedure>`), the spectrum of a
+  pair (`pairCombination`: SRSS, maximum-direction RotD100, or each component), a pair's range
+  from the shorter to the longer period (`periodBasis: "bounds"`), spectral matching
+  (`matching`, method `frequencyDomain`) with its own criterion (`matchedRatio`), how many
+  unacceptable responses a suite may have by category, the damping model (Rayleigh or first
+  mode), the member acceptance by P3's hinges (`acceptance.method: "hingeRotation"`, read from
+  each record) and force-controlled actions (`forceControlled`). The US pack gets ASCE 7-22
+  Ch 16 values, the Eurocodes pack EN 1998-1 values; BNBC keeps its rules and results.
+- **SAEngine practice (no code gives it):**
+  - Matched records are matched component by component to the pair's criterion times 1/√2
+    (SRSS) or 1 (maximum direction, each component): the maximum-direction spectrum is never
+    below a component's, so this meets the criterion when matching is exact. A matched suite
+    that still falls short is lifted by one factor (never scaled down).
+  - Matching range 0.8 × the lower to 1.25 × the upper bound of the period range, tolerance
+    10 %, 20 iterations, the record first fitted by one amplitude factor; baseline: the best
+    t² + t³ fit of the displacement taken off, then a line that brings velocity and
+    displacement to zero at the end.
+  - Rayleigh damping at T1 and 0.2 T1 (`RAYLEIGH_SECOND_SHARE`) where the pack gives no
+    second period; the US pack's 2.5 % follows the commentary of ASCE 7 Ch 16.
+  - Hinges over a record: each hinge's parameters at the step of its largest chord rotation,
+    its demand the peak over the record; the end sections' fibre strains are rebuilt from the
+    section deformations recorded at every step (the signs fitted to the recorded peaks).
+  - Force-controlled actions: the column compression is taken as critical and the shear of
+    beams and columns as ordinary; the strength is the member design's design strength (the
+    safe side of the expected strength ASCE 7 allows); walls are not checked.
+  - The Eurocodes pack checks the EN 1998-3 hinges at Significant Damage (EN 1998-1 gives no
+    member deformation criteria for a new building).
+- **Not built (placeholder "Record Search and Wavelet Matching"):** searching open record
+  databases and time-domain wavelet matching. No third-party records are bundled.
+- **Packs that extend the US or the Eurocodes pack:** the National Annex packs on the
+  Eurocodes inherit its rules; the packs on the US pack (Saudi, Pakistan, Philippines,
+  Indonesia, Myanmar, Canada, Mexico) replace its seismic table, so they show the time history
+  procedures as not covered until they give their own `seismic.timeHistory`. IS 1893 (the IS
+  pack) likewise gives none.
+- **Where:** `fem/records.py`, `fem/spectral_matching.py`, `fem/nonlinear_history.py`,
+  `fem/hinges.py` (P5 section), `fem/nonlinear.py` (`history_model`), the packs' `VERIFY.md`.
+
+## 2026-11-05: Australia and New Zealand packs (alpha 9 track C18)
+
+Packs `australia-as` (extends `bnbc2020`) and `newzealand-nzs` (extends `australia-as`). The
+values were entered from knowledge of the standards (no text on this PC); each pack's `VERIFY.md`
+lists them with their clauses and marks the uncertain ones.
+
+- **SAEngine practice, slots.** Importance levels IL1-IL4 sit in the category slots I-IV; the
+  towns' Z values in zone slots 1-n (`zoneLabel` "Z = 0.08"); the earthquake design categories
+  EDC I-III in the slots B, C, D. Every building is designed by the equivalent static method
+  (and the modal method where chosen): the category table is the 12-50 m row for every height,
+  so the EDC I simple static method (AS 1170.4 Section 5) and the EDC III rule over 50 m are not
+  chosen automatically.
+- **SAEngine practice, μ in R.** Under `shapeFactors` the system's R holds μ and Cd = μ/Sp (AU)
+  or kdm μ/Sp with kdm 1.5 for all heights (NZ, on the safe side); Ω0 = 1.0 (no system
+  overstrength factor in AS 1170.4 / NZS 1170.5). NZ's kμ is taken at each period of the modal
+  spectrum (5.2.2 takes it at T1: larger Cd at short periods), T at least 0.4 s for kμ.
+- **SAEngine practice, wind.** Md = 1.0, Ms = 1.0, Kc,e = 1.0 (Table 5.5 allows 0.8-0.9),
+  Ka = 1.0, Mt as entered (the hill multiplier is not computed); VR / V500 by the 2011 regional
+  formulas at V500 45 / 51 / 57 / 66 / 80 m/s; the serviceability wind 0.68 Wu ((37/45)², region
+  A) in the service combinations.
+- **SAEngine practice, concrete.** AS 3600 keeps the parent's axial cap 0.80 φ P0 in place of the
+  0.05 D minimum eccentricity; the beam shear runs the simplified kv and θv (the general method's
+  terms need M* at the section); Ec = 5000 √f'c (at or below Table 3.1.2). NZS 3101 vc takes
+  kd = ka = kn = 1; the ductile detailing and Appendix D capacity design are the parent's rules
+  (probable moments with 1.25, which is λo of 500E).
+- **SAEngine practice, steel.** AS 4100 by the limit state module with γm0 = 1/0.9: λep as the
+  plastic and compact limits, noncompact sections at Ze = Z, αm = the program's c1, the
+  interaction by its conservative linear form, the shear buckling by the family's post-critical
+  method in place of αv = (82/λw)².
+
 ## 2026-11-04: Canada and Mexico City packs (alpha 9 track C17)
 
 - **What was built.** `canada-nbcc` (NBCC 2020 Part 4, CSA A23.3-19, CSA S16-19) and

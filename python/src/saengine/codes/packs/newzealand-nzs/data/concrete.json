@@ -1,0 +1,120 @@
+{
+  "$schema": "../../../schemas/concrete.schema.json",
+  "$sources": [
+    "AS/NZS 4671 bar sizes; NZS 3101:2006 (A3) 5.2.3, 8.8.1, 9.3.9.3.4, 10.3.8.1"
+  ],
+  "source": "NZS 3101:2006 Amendment 3 and AS/NZS 4671 (500E bars HD10-HD40); the other values the Australian pack's",
+  "barDiameters": {
+    "$replace": true,
+    "all": [
+      10.0,
+      12.0,
+      16.0,
+      20.0,
+      25.0,
+      32.0,
+      40.0
+    ],
+    "main": [
+      12.0,
+      16.0,
+      20.0,
+      25.0,
+      32.0
+    ],
+    "column": [
+      16.0,
+      20.0,
+      25.0,
+      32.0
+    ],
+    "slab": [
+      10.0,
+      12.0,
+      16.0
+    ],
+    "stirrup": [
+      10.0,
+      12.0
+    ],
+    "wall": [
+      10.0,
+      12.0,
+      16.0,
+      20.0
+    ],
+    "boundary": [
+      16.0,
+      20.0,
+      25.0,
+      32.0
+    ],
+    "hoop": [
+      10.0,
+      12.0
+    ],
+    "lintel": [
+      12.0,
+      16.0,
+      20.0,
+      25.0
+    ],
+    "tank": [
+      12.0,
+      16.0,
+      20.0,
+      25.0
+    ],
+    "foundation": [
+      12.0,
+      16.0,
+      20.0,
+      25.0
+    ]
+  },
+  "barNames": {
+    "$replace": true,
+    "10": "HD10",
+    "12": "HD12",
+    "16": "HD16",
+    "20": "HD20",
+    "25": "HD25",
+    "32": "HD32",
+    "40": "HD40"
+  },
+  "shearStress": {
+    "base": 0.07,
+    "ratioFactor": 10.0,
+    "least": 0.08,
+    "most": 0.2,
+    "clause": "NZS 3101:2006 9.3.9.3.4"
+  },
+  "columnRho": [
+    0.008,
+    0.08
+  ],
+  "slabStrainMin": 0.004,
+  "modulus": {
+    "normal": 4700.0
+  },
+  "shrinkage": {
+    "ratioLow": 0.0023,
+    "referenceFy": 500.0,
+    "ratioReference": 0.0014,
+    "ratioMin": 0.0014
+  },
+  "clauses": {
+    "modulus": "5.2.3",
+    "shrinkage": "8.8.1",
+    "shrinkageBrick": "8.8.1 (no brick aggregate rule)"
+  },
+  "sources": {
+    "barDiameters": "AS/NZS 4671 Grade 500E deformed bars 10, 12, 16, 20, 25, 32, 40 mm (the sizes rolled for New Zealand; SAEngine's sets by use)",
+    "barNames": "New Zealand practice HD (high-strength deformed, 500E) and the diameter; D for 300E (not offered)",
+    "shearStress": "NZS 3101:2006 9.3.9.3.4: vc = kd ka kn vb, vb = (0.07 + 10 ρw) √f'c within 0.08 √f'c and 0.2 √f'c; kd = ka = kn = 1 taken (aggregate at least 20 mm, at least the minimum shear reinforcement, no axial force: SAEngine practice)",
+    "columnRho": "NZS 3101:2006 10.3.8.1: Ast at least 0.8 Ag / fy (0.0016 at 500 MPa: SAEngine keeps 0.008 as the practical least) and at most 0.08 Ag (ductile columns 18/fy in 10.4.6.2: not checked)",
+    "slabStrainMin": "NZS 3101 has no εt limit of slabs: the parent's ACI-type 0.004 (SAEngine practice)",
+    "modulus": "NZS 3101:2006 5.2.3: Ec = 4700 √f'c (ρ/2300)^1.5 (normal density 2300 kg/m³)",
+    "shrinkage": "NZS 3101:2006 8.8.1: shrinkage and temperature steel 0.7 Ag/fy, at least 0.0014 Ag (0.0023 for 300E below 500 MPa)"
+  }
+}

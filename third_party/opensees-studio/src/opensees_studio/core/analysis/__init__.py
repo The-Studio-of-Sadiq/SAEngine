@@ -331,6 +331,24 @@ class TransientCase(_SolverOptions):
             "``.../end`` of the results file, rows y, z, area, least strain, largest strain."
         ),
     )
+    record_section_deformations: bool = Field(
+        default=False,
+        description=(
+            "Keep the section deformations (axial strain and curvatures, the section's order) "
+            "of the first and the last integration section of each force- or displacement-"
+            "based element at every committed step: ``elements/<id>/sectionDeformation/start`` "
+            "and ``.../end`` of the results file, one row per step."
+        ),
+    )
+    rayleigh_second_period_share: float | None = Field(
+        default=None,
+        gt=0.0,
+        lt=1.0,
+        description=(
+            "With ``rayleigh_mode1_damping``: Rayleigh damping with the ratio at the first "
+            "mode and at this share of its period (αM and βK from the two; ω2 = ω1 / share)."
+        ),
+    )
     section_overrides: list[Section] = _section_overrides_field()  # type: ignore[assignment]
 
     serialize_without_defaults = omit_when_default(
@@ -340,6 +358,8 @@ class TransientCase(_SolverOptions):
         "section_overrides",
         "rayleigh_mode1_stiffness",
         "record_fibre_peaks",
+        "record_section_deformations",
+        "rayleigh_second_period_share",
     )
 
 
