@@ -930,15 +930,51 @@ def _nonlinear_history_blocks(nh: dict[str, Any]) -> list[Block]:
                 bad=nh.get("driftFails"),
             )
         )
-    out.append(p(str(nh.get("membersText", ""))))
-    if nh.get("members"):
+    if nh.get("records"):  # P5: the records of the suites
         out.append(
             table(
-                ["Member", "Suite", "End", "Fibre", "Strain [‰]", "Limit [‰]", "Ratio", "Result"],
+                ["Record", "Suite", "Mw", "R [km]", "Vs30 [m/s]", "PGA [g]", "Matching", "Source"],
+                nh["records"],
+                ["1fr"] + ["auto"] * 6 + ["1fr"],
+                "llrrrrll",
+            )
+        )
+    out.append(p(str(nh.get("membersText", ""))))
+    if nh.get("members"):
+        heads = (
+            ["Member", "Suite", "End", "Hinge", "Demand", "Limit", "Ratio", "Result"]
+            if nh.get("hinged")
+            else ["Member", "Suite", "End", "Fibre", "Strain [‰]", "Limit [‰]", "Ratio", "Result"]
+        )
+        out.append(
+            table(
+                heads,
                 nh["members"],
                 ["1fr"] + ["auto"] * 7,
                 "llllrrrc",
                 bad=nh.get("memberFails"),
+            )
+        )
+    if nh.get("forces"):  # P5: force-controlled actions
+        out.append(p(str(nh.get("forcesText", ""))))
+        out.append(
+            table(
+                [
+                    "Member",
+                    "Action",
+                    "Class",
+                    "Suite",
+                    "Fu [kN]",
+                    "Fg [kN]",
+                    "Demand [kN]",
+                    "Strength [kN]",
+                    "Ratio",
+                    "Result",
+                ],
+                nh["forces"],
+                ["1fr"] + ["auto"] * 9,
+                "lllrrrrrrc",
+                bad=nh.get("forceFails"),
             )
         )
     if nh.get("notes"):

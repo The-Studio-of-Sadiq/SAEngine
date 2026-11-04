@@ -171,7 +171,21 @@ def _float_tokens(line: str) -> list[float]:
     Raises ``ValueError`` on the first non-numeric token so a stray text
     line is reported instead of silently skipped.
     """
-    return [float(tok) for tok in line.replace(",", " ").split()]
+    return [float(tok) for tok in line.replace(",", " ").replace(";", " ").split()]
+
+
+def _without_header(lines: list[str]) -> list[str]:
+    """``lines`` without a leading column-header line (a CSV export's ``time,accel``): the
+    first non-empty line is dropped when it is not numeric and the rest is."""
+    for i, line in enumerate(lines):
+        if not line.strip():
+            continue
+        try:
+            _float_tokens(line)
+        except ValueError:
+            return lines[i + 1 :]
+        return lines
+    return lines
 
 
 def read_peer_at2(path: str | Path) -> tuple[float, np.ndarray, dict[str, Any]]:
@@ -248,7 +262,10 @@ def read_two_column(
             or a non-uniform time step.
     """
     rows: list[tuple[float, float]] = []
-    for lineno, line in enumerate(Path(path).read_text().splitlines(), start=1):
+    lines = Path(path).read_text().splitlines()
+    body = _without_header(lines)
+    offset = len(lines) - len(body)
+    for lineno, line in enumerate(body, start=1 + offset):
         if not line.strip():
             continue
         toks = _float_tokens(line)
@@ -305,7 +322,7 @@ def read_plain_values(path: str | Path) -> list[float]:
         ValueError: no values, or a non-numeric token.
     """
     values: list[float] = []
-    for line in Path(path).read_text().splitlines():
+    for line in _without_header(Path(path).read_text().splitlines()):
         values.extend(_float_tokens(line))
     if not values:
         raise ValueError(f"{path}: no numeric values found.")
@@ -335,7 +352,7 @@ def detect_format(path: str | Path) -> GroundMotionFormat:
             return "peer_at2"
 
     numeric_lines: list[list[float]] = []
-    for line in lines:
+    for line in _without_header(lines):
         if not line.strip():
             continue
         try:

@@ -41,6 +41,44 @@ here, newest first, with the date, the question, the decision, the reason and wh
 - **No unlicensed software.** ETABS, SAP2000 and STAAD are not used for cross-checks or cited.
   Open-source tools are used instead (2026-10-25).
 
+## 2026-11-05: nonlinear time history in design, record scaling and spectral matching (alpha 9 track P5)
+
+- **What was built.** The B36 nonlinear time history now reads everything that differs between
+  codes from the pack: a procedure's own least number of records, period range, ratios and a
+  factor on its target spectrum (`seismic.timeHistory.targets.<procedure>`), the spectrum of a
+  pair (`pairCombination`: SRSS, maximum-direction RotD100, or each component), a pair's range
+  from the shorter to the longer period (`periodBasis: "bounds"`), spectral matching
+  (`matching`, method `frequencyDomain`) with its own criterion (`matchedRatio`), how many
+  unacceptable responses a suite may have by category, the damping model (Rayleigh or first
+  mode), the member acceptance by P3's hinges (`acceptance.method: "hingeRotation"`, read from
+  each record) and force-controlled actions (`forceControlled`). The US pack gets ASCE 7-22
+  Ch 16 values, the Eurocodes pack EN 1998-1 values; BNBC keeps its rules and results.
+- **SAEngine practice (no code gives it):**
+  - Matched records are matched component by component to the pair's criterion times 1/√2
+    (SRSS) or 1 (maximum direction, each component): the maximum-direction spectrum is never
+    below a component's, so this meets the criterion when matching is exact. A matched suite
+    that still falls short is lifted by one factor (never scaled down).
+  - Matching range 0.8 × the lower to 1.25 × the upper bound of the period range, tolerance
+    10 %, 20 iterations, the record first fitted by one amplitude factor; baseline: the best
+    t² + t³ fit of the displacement taken off, then a line that brings velocity and
+    displacement to zero at the end.
+  - Rayleigh damping at T1 and 0.2 T1 (`RAYLEIGH_SECOND_SHARE`) where the pack gives no
+    second period; the US pack's 2.5 % follows the commentary of ASCE 7 Ch 16.
+  - Hinges over a record: each hinge's parameters at the step of its largest chord rotation,
+    its demand the peak over the record; the end sections' fibre strains are rebuilt from the
+    section deformations recorded at every step (the signs fitted to the recorded peaks).
+  - Force-controlled actions: the column compression is taken as critical and the shear of
+    beams and columns as ordinary; the strength is the member design's design strength (the
+    safe side of the expected strength ASCE 7 allows); walls are not checked.
+  - The Eurocodes pack checks the EN 1998-3 hinges at Significant Damage (EN 1998-1 gives no
+    member deformation criteria for a new building).
+- **Not built (placeholder "Record Search and Wavelet Matching"):** searching open record
+  databases and time-domain wavelet matching. No third-party records are bundled.
+- **Packs that extend the US pack** (Saudi, Pakistan, Philippines, Indonesia) inherit its
+  Ch 16 rules with their ASCE 7-22 clause names until they set their own.
+- **Where:** `fem/records.py`, `fem/spectral_matching.py`, `fem/nonlinear_history.py`,
+  `fem/hinges.py` (P5 section), `fem/nonlinear.py` (`history_model`), the packs' `VERIFY.md`.
+
 ## 2026-11-04: packs that adopt the US codes with local values (alpha 9 track C16)
 
 - **What was built.** Four built-in packs that `extends: "aci318-asce7-22"`, start in SI units

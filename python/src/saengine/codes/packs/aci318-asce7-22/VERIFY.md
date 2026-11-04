@@ -691,3 +691,26 @@ The floor vibration and pile values are the default pack's (see bnbc2020/VERIFY.
 | P2U12 | concreteTime.ageing.chi | χ = 0.8 | the usual AAEM value | SAEngine practice |
 | P2U13 | combinations.creepShrinkage | 1.2D + 1.0CS + 1.6L + 0.5Lr | ASCE 7-22 Sec 2.3.4 (T factor at least 1.0) | Check |
 | P2U14 | concreteTime.sources.effects | ACI 318-19 Sec 5.3.6, self-straining effects | ACI 318-19 | Unsure (section number from memory) |
+
+## Alpha 9 P5: nonlinear response history in design (seismic.timeHistory, nonlinearHistory)
+
+| # | Key | Value | Clause | Confidence |
+|---|---|---|---|---|
+| P5U1 | seismic.timeHistory.targets.nonlinear (R, I, factor) | R = 1, I = 1, 1.5 × the design spectrum (the MCER spectrum) | ASCE 7-22 Sec 16.2.1, Sec 11.4.5 (SDS = 2/3 SMS) | Sure |
+| P5U2 | seismic.timeHistory.targets.nonlinear.minimumRecords | 11 | ASCE 7-22 Sec 16.2.2 | Sure |
+| P5U3 | seismic.timeHistory.periodLower, periodUpper, periodBasis | 0.2 Tmin to 2.0 Tmax | ASCE 7-22 Sec 16.2.1 | Check (the 90 % mass condition on the lower bound is not checked) |
+| P5U4 | seismic.timeHistory.pairCombination | maximum-direction (RotD100) spectrum of each pair | ASCE 7-22 Sec 16.2.3 | Sure |
+| P5U5 | seismic.timeHistory.targets.nonlinear.pairRatio | 0.9 (amplitude scaling) | ASCE 7-22 Sec 16.2.3.2 | Sure |
+| P5U6 | seismic.timeHistory.targets.nonlinear.matchedRatio | 1.1 (spectral matching) | ASCE 7-22 Sec 16.2.3.3 | Sure |
+| P5U7 | seismic.timeHistory (linear: minimumRecords, singleRatio, pairRatio) | 3; 1.0; 1.0 of the design spectrum | ASCE 7-22 Sec 12.9.2.3 | Unsure (linear response history ratios from memory) |
+| P5U8 | seismic.timeHistory.meanFrom | 1 (always the mean) | ASCE 7-22 Sec 12.9.2.6, Sec 16.4.1 | Check |
+| P5U9 | seismic.timeHistory.baseShearShare, scaleDrifts | 1.0 × the ELF base shear; drifts not scaled | ASCE 7-22 Sec 12.9.2.5 | Unsure |
+| P5U10 | seismic.timeHistory.matching | frequency domain, 0.8 × lower to 1.25 × upper bound, 10 %, 20 iterations, t² + t³ baseline | none (Sec 16.2.3.3 sets only the criterion) | SAEngine practice |
+| P5U11 | nonlinearHistory.procedure.meanFrom | 1 (the mean) | ASCE 7-22 Sec 16.4.1 | Sure |
+| P5U12 | nonlinearHistory.procedure.unacceptableResponses | 1 record in Risk Category I and II, 0 in III and IV | ASCE 7-22 Sec 16.4.1.1 | Unsure (count by category from memory) |
+| P5U13 | nonlinearHistory.procedure.damping | Rayleigh, 2.5 % at T1 and 0.2 T1 | ASCE 7-22 Sec 16.3 limits damping, gives no model; commentary C16.3 | SAEngine practice |
+| P5U14 | nonlinearHistory.drift.limitFactor | 1.5 × the allowable drift of Table 12.12-1 | ASCE 7-22 Sec 16.4.1.2 | Unsure (ASCE 7-16 read as 2.0 ×) |
+| P5U15 | nonlinearHistory.acceptance | ASCE 41-17 hinges at Collapse Prevention | ASCE 7-22 Sec 16.4.2 | Check (the level for Risk Category III and IV) |
+| P5U16 | nonlinearHistory.forceControlled.actions | column compression critical γ = 2.0; shear ordinary γ = 1.5; × Ie | ASCE 7-22 Sec 16.4.2 | Unsure (the factors and the classification) |
+| P5U17 | nonlinearHistory.forceControlled.strength | the member design strength φPn,max, φVn (safe side of the expected strength) | ASCE 7-22 Sec 16.4.2 allows expected strength | SAEngine practice |
+| P5U18 | nonlinear gravity load of the runs | the model's gravity case (D + SD + the pack's live share); ASCE asks 1.0D + 0.5L | ASCE 7-22 Sec 16.3.2 | Check |

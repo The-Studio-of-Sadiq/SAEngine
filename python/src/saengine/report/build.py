@@ -1846,18 +1846,68 @@ def _nonlinear_history(folder: Path, warnings: list[str]) -> dict[str, Any]:
     ]
     accepted = found["acceptance"]
     rows = accepted["rows"]
-    members = [
+    hinged = accepted.get("method") == "hingeRotation"  # P5: P3's hinges over the records
+    if hinged:
+        members = [
+            [
+                r["member"],
+                r["suite"],
+                r["end"],
+                str(r.get("component", "")),
+                f"{r['demand']:.4f}",
+                f"{(r.get('limits') or {}).get(accepted.get('level') or '', 0.0) or 0.0:.4f}",
+                fmt(r["ratio"], 2),
+                "OK" if r["ok"] else "FAIL",
+            ]
+            for r in rows[:MAX_PUSHOVER_MEMBERS]
+        ]
+    else:
+        members = [
+            [
+                r["member"],
+                r["suite"],
+                r["end"],
+                r["fibre"],
+                f"{1e3 * r['strain']:.2f}",
+                f"{1e3 * r['limit']:.2f}",
+                fmt(r["ratio"], 2),
+                "OK" if r["ok"] else "FAIL",
+            ]
+            for r in rows[:MAX_PUSHOVER_MEMBERS]
+        ]
+    # P5: the records of the suites (metadata, PGA, matching) and the force-controlled actions.
+    records = []
+    for s in found["suites"]:
+        for c in s.get("cases", []):
+            matching = c.get("matching") or []
+            records.append(
+                [
+                    str(c.get("name", "")).removeprefix("NTH: "),
+                    s["key"],
+                    fmt(c.get("magnitude"), 1) if c.get("magnitude") is not None else "-",
+                    fmt(c.get("distance"), 1) if c.get("distance") is not None else "-",
+                    fmt(c.get("vs30"), 0) if c.get("vs30") is not None else "-",
+                    " / ".join(f"{v:.3f}" for v in c.get("pga") or []) or "-",
+                    " / ".join(f"{100 * float(m.get('misfit') or 0):.0f} %" for m in matching)
+                    or "scaled",
+                    str(c.get("source", "")) or "-",
+                ]
+            )
+    forced = found.get("forceControlled") or {}
+    force_rows = [
         [
             r["member"],
+            r["action"],
+            r["category"],
             r["suite"],
-            r["end"],
-            r["fibre"],
-            f"{1e3 * r['strain']:.2f}",
-            f"{1e3 * r['limit']:.2f}",
-            fmt(r["ratio"], 2),
-            "OK" if r["ok"] else "FAIL",
+            f"{r['Fu']:.0f}",
+            f"{r['Fg']:.0f}",
+            f"{r['demand']:.0f}",
+            f"{r['capacity']:.0f}" if r.get("capacity") else "-",
+            fmt(r["ratio"], 2) if r.get("ratio") is not None else "-",
+            "-" if r.get("ok") is None else "OK" if r["ok"] else "FAIL",
         ]
-        for r in rows[:MAX_PUSHOVER_MEMBERS]
+        for r in (forced.get("rows") or [])[:MAX_PUSHOVER_MEMBERS]
     ]
     limit = found["limit"]
     if not found.get("ok"):
@@ -1877,6 +1927,17 @@ def _nonlinear_history(folder: Path, warnings: list[str]) -> dict[str, Any]:
         ),
         "members": members,
         "memberFails": [row[-1] == "FAIL" for row in members],
+        "hinged": hinged,
+        "records": records,
+        "forces": force_rows,
+        "forceFails": [row[-1] == "FAIL" for row in force_rows],
+        "forcesText": (
+            f"Force-controlled actions: γ·(Fu − Fg) + Fg against the member design strength; "
+            f"{forced.get('failed', 0)} of {len(forced.get('rows') or [])} fail "
+            f"({forced.get('clause', '')})."
+            if forced
+            else ""
+        ),
         "membersText": (
             f"{accepted['failed']} of {len(rows)} members fail; the "
             f"{min(len(rows), MAX_PUSHOVER_MEMBERS)} with the largest ratios are listed "

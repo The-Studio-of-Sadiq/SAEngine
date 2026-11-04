@@ -2256,6 +2256,7 @@ class OpenSeesRunner:
         # is the same as the unloaded value, but for PDelta frames it
         # picks up the geometric-softening contribution).
         beta_k_override: float | None = None
+        alpha_override: float | None = None
         damping = getattr(case, "rayleigh_mode1_damping", None)
         if damping is not None:
             # For mode-1 Rayleigh calibration we only need the first
@@ -2272,6 +2273,14 @@ class OpenSeesRunner:
                     f"{lam1:.3e} — cannot compute mode-1 Rayleigh damping."
                 )
             beta_k_override = 2.0 * float(damping) / _math.sqrt(float(lam1))
+            # Rayleigh: the ratio at the first mode and at share x its period (mass and
+            # stiffness proportional), ω2 = ω1 / share.
+            share = getattr(case, "rayleigh_second_period_share", None)
+            if share:
+                w1 = _math.sqrt(float(lam1))
+                w2 = w1 / float(share)
+                alpha_override = 2.0 * float(damping) * w1 * w2 / (w1 + w2)
+                beta_k_override = 2.0 * float(damping) / (w1 + w2)
 
         # Drop preload patterns the user flagged for removal (classic
         # ``remove loadPattern`` free-vibration idiom).
@@ -2326,7 +2335,7 @@ class OpenSeesRunner:
         if beta_k_override is not None:
             committed = getattr(case, "rayleigh_mode1_stiffness", "current") == "committed"
             ops.rayleigh(
-                float(case.rayleigh_alpha_m),
+                float(case.rayleigh_alpha_m) if alpha_override is None else alpha_override,
                 0.0 if committed else beta_k_override,
                 0.0,
                 beta_k_override if committed else 0.0,
@@ -2362,6 +2371,23 @@ class OpenSeesRunner:
         if fibre_elements:
             _track_fibres()  # the state after the preload
 
+        # The section deformations (axial strain, curvatures) of the end sections of the fibre
+        # elements at every committed step (opt-in), for hinges read from a time history.
+        section_elements = (
+            [el for el in self.project.elements if isinstance(el, ForceBeamColumn | DispBeamColumn)]
+            if getattr(case, "record_section_deformations", False)
+            else []
+        )
+        section_rows: dict[tuple[int, str], list[list[float]]] = {}
+
+        def _track_sections() -> None:
+            for el in section_elements:
+                for end, section in (("start", 1), ("end", el.integration_points)):
+                    data = ops.eleResponse(el.id, "section", section, "deformation")
+                    section_rows.setdefault((el.id, end), []).append(
+                        [float(v) for v in (data or [])]
+                    )
+
         # Step-by-step with a ModifiedNewton -initial fallback on any
         # step the configured Newton-type algorithm fails to converge.
         # Matches the OpenSees RC Portal Earthquake example's while-
@@ -2388,6 +2414,8 @@ class OpenSeesRunner:
                 break
             if fibre_elements:
                 _track_fibres()
+            if section_elements:
+                _track_sections()
             # Counts successful steps only, so enumerate() would be wrong here.
             # Reported as TransientResults.n_steps; recorders write one row
             # per committed step, so the history arrays have the same length.
@@ -2479,6 +2507,13 @@ class OpenSeesRunner:
                         start += width
                 for (eid, end), peaks in fibre_peaks.items():
                     f.create_dataset(f"elements/{eid}/fibrePeaks/{end}", data=peaks)
+                for (eid, end), rows in section_rows.items():
+                    width = min((len(r) for r in rows), default=0)
+                    if width:
+                        f.create_dataset(
+                            f"elements/{eid}/sectionDeformation/{end}",
+                            data=np.asarray([r[:width] for r in rows], dtype=float),
+                        )
             os.replace(tmp_h5, h5_path)
         except BaseException:
             tmp_h5.unlink(missing_ok=True)

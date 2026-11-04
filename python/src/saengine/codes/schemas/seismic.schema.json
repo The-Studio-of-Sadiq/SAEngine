@@ -1518,6 +1518,68 @@
       "title": "SoftStoreyDesign",
       "type": "object"
     },
+    "SpectralMatching": {
+      "additionalProperties": false,
+      "description": "P5: spectral matching of a record to the target (``fem.spectral_matching``), by method\nid: ``frequencyDomain`` (the Fourier amplitudes adjusted by the ratio of the target to the\nrecord's spectrum, iterated, with a baseline correction). The record is matched from ``lowerShare`` × the lower to ``upperShare`` × the upper bound\nof the procedure's period range on ``points`` periods, until every ordinate there is within\n``tolerance`` of the target or after ``iterations``; ``baselineOrder``: the degree of the\npolynomial taken off the displacement.",
+      "properties": {
+        "method": {
+          "const": "frequencyDomain",
+          "title": "Method",
+          "type": "string"
+        },
+        "lowerShare": {
+          "default": 0.8,
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Lowershare",
+          "type": "number"
+        },
+        "upperShare": {
+          "default": 1.25,
+          "minimum": 1,
+          "title": "Uppershare",
+          "type": "number"
+        },
+        "tolerance": {
+          "default": 0.1,
+          "exclusiveMaximum": 1,
+          "exclusiveMinimum": 0,
+          "title": "Tolerance",
+          "type": "number"
+        },
+        "iterations": {
+          "default": 20,
+          "maximum": 200,
+          "minimum": 1,
+          "title": "Iterations",
+          "type": "integer"
+        },
+        "points": {
+          "default": 40,
+          "maximum": 200,
+          "minimum": 8,
+          "title": "Points",
+          "type": "integer"
+        },
+        "baselineOrder": {
+          "default": 3,
+          "maximum": 6,
+          "minimum": 1,
+          "title": "Baselineorder",
+          "type": "integer"
+        },
+        "note": {
+          "default": "",
+          "title": "Note",
+          "type": "string"
+        }
+      },
+      "required": [
+        "method"
+      ],
+      "title": "SpectralMatching",
+      "type": "object"
+    },
     "SpectrumTypeGuidance": {
       "additionalProperties": false,
       "description": "Alpha 9 C5c: when to choose the pack's second spectrum type: ``type`` where the\nearthquakes that contribute most to the hazard have a surface-wave magnitude Ms at most\n``magnitude``.",
@@ -1926,6 +1988,52 @@
           },
           "title": "Clauses",
           "type": "object"
+        },
+        "pairCombination": {
+          "default": "srss",
+          "description": "The spectrum of a pair: the SRSS of its two components, the maximum-direction (RotD100) spectrum, or each component's own (the mean of each component must meet the criterion).",
+          "enum": [
+            "srss",
+            "maxDirection",
+            "eachComponent"
+          ],
+          "title": "Paircombination",
+          "type": "string"
+        },
+        "periodBasis": {
+          "default": "governing",
+          "description": "The period range of a pair: periodLower to periodUpper times the longer fundamental period (governing), or periodLower times the shorter to periodUpper times the longer (bounds).",
+          "enum": [
+            "governing",
+            "bounds"
+          ],
+          "title": "Periodbasis",
+          "type": "string"
+        },
+        "matchedRatio": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The criterion of a suite of spectrally matched records (empty: the single or pair ratio).",
+          "title": "Matchedratio"
+        },
+        "matching": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SpectralMatching"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         }
       },
       "required": [
@@ -1941,7 +2049,7 @@
     },
     "TimeHistoryTarget": {
       "additionalProperties": false,
-      "description": "The spectrum records are scaled to: the design spectrum with ``R`` and ``I`` (empty: the\nbuilding's own).",
+      "description": "The spectrum records are scaled to: the design spectrum with ``R`` and ``I`` (empty: the\nbuilding's own). P5: ``factor`` times it (e.g. the maximum considered earthquake as a\nmultiple of the design spectrum); the other fields, when given, replace the table's own\nfor this procedure (empty: the table's).",
       "properties": {
         "R": {
           "anyOf": [
@@ -1968,6 +2076,127 @@
           ],
           "default": null,
           "title": "I"
+        },
+        "factor": {
+          "default": 1.0,
+          "description": "Factor on the target spectrum.",
+          "exclusiveMinimum": 0,
+          "title": "Factor",
+          "type": "number"
+        },
+        "spectrum": {
+          "default": "design",
+          "description": "The design spectrum with R and I, or (packs whose design spectrum is by a behaviour factor) the elastic response spectrum of the same shape with I.",
+          "enum": [
+            "design",
+            "elastic"
+          ],
+          "title": "Spectrum",
+          "type": "string"
+        },
+        "minimumRecords": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Minimumrecords"
+        },
+        "periodLower": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Periodlower"
+        },
+        "periodUpper": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Periodupper"
+        },
+        "periodBasis": {
+          "anyOf": [
+            {
+              "enum": [
+                "governing",
+                "bounds"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Periodbasis"
+        },
+        "singleRatio": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Singleratio"
+        },
+        "pairRatio": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Pairratio"
+        },
+        "matchedRatio": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Matchedratio"
+        },
+        "modification": {
+          "default": "amplitude",
+          "description": "How the records of this procedure are modified to the target by default: amplitude scaling over the period range, or spectral matching (the table's ``matching``).",
+          "enum": [
+            "amplitude",
+            "matching"
+          ],
+          "title": "Modification",
+          "type": "string"
         }
       },
       "title": "TimeHistoryTarget",

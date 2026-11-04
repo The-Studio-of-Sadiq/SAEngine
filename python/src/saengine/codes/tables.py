@@ -880,12 +880,53 @@ class DiaphragmConnections(BaseModel):
 
 class TimeHistoryTarget(BaseModel):
     """The spectrum records are scaled to: the design spectrum with ``R`` and ``I`` (empty: the
-    building's own)."""
+    building's own). P5: ``factor`` times it (e.g. the maximum considered earthquake as a
+    multiple of the design spectrum); the other fields, when given, replace the table's own
+    for this procedure (empty: the table's)."""
 
     model_config = ConfigDict(extra="forbid")
 
     R: float | None = Field(default=None, gt=0)
     I: float | None = Field(default=None, gt=0)
+    factor: float = Field(default=1.0, gt=0, description="Factor on the target spectrum.")
+    spectrum: Literal["design", "elastic"] = Field(
+        default="design",
+        description="The design spectrum with R and I, or (packs whose design spectrum is "
+        "by a behaviour factor) the elastic response spectrum of the same shape with I.",
+    )
+    minimumRecords: int | None = Field(default=None, ge=1)
+    periodLower: float | None = Field(default=None, gt=0)
+    periodUpper: float | None = Field(default=None, gt=0)
+    periodBasis: Literal["governing", "bounds"] | None = None
+    singleRatio: float | None = Field(default=None, gt=0)
+    pairRatio: float | None = Field(default=None, gt=0)
+    matchedRatio: float | None = Field(default=None, gt=0)
+    modification: Literal["amplitude", "matching"] = Field(
+        default="amplitude",
+        description="How the records of this procedure are modified to the target by default: "
+        "amplitude scaling over the period range, or spectral matching (the table's "
+        "``matching``).",
+    )
+
+
+class SpectralMatching(BaseModel):
+    """P5: spectral matching of a record to the target (``fem.spectral_matching``), by method
+    id: ``frequencyDomain`` (the Fourier amplitudes adjusted by the ratio of the target to the
+    record's spectrum, iterated, with a baseline correction). The record is matched from ``lowerShare`` × the lower to ``upperShare`` × the upper bound
+    of the procedure's period range on ``points`` periods, until every ordinate there is within
+    ``tolerance`` of the target or after ``iterations``; ``baselineOrder``: the degree of the
+    polynomial taken off the displacement."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    method: Literal["frequencyDomain"]
+    lowerShare: float = Field(default=0.8, gt=0, le=1)
+    upperShare: float = Field(default=1.25, ge=1)
+    tolerance: float = Field(default=0.1, gt=0, lt=1)
+    iterations: int = Field(default=20, ge=1, le=200)
+    points: int = Field(default=40, ge=8, le=200)
+    baselineOrder: int = Field(default=3, ge=1, le=6)
+    note: str = ""
 
 
 class TimeHistoryRules(BaseModel):
@@ -915,6 +956,26 @@ class TimeHistoryRules(BaseModel):
     simultaneousPairs: bool = True
     targets: dict[str, TimeHistoryTarget] = Field(default_factory=dict)
     clauses: dict[str, str] = Field(default_factory=dict)
+    # ── P5: how a pair is combined, the period range of pairs, spectral matching ──
+    pairCombination: Literal["srss", "maxDirection", "eachComponent"] = Field(
+        default="srss",
+        description="The spectrum of a pair: the SRSS of its two components, the maximum-"
+        "direction (RotD100) spectrum, or each component's own (the mean of each component "
+        "must meet the criterion).",
+    )
+    periodBasis: Literal["governing", "bounds"] = Field(
+        default="governing",
+        description="The period range of a pair: periodLower to periodUpper times the longer "
+        "fundamental period (governing), or periodLower times the shorter to periodUpper times "
+        "the longer (bounds).",
+    )
+    matchedRatio: float | None = Field(
+        default=None,
+        gt=0,
+        description="The criterion of a suite of spectrally matched records (empty: the "
+        "single or pair ratio).",
+    )
+    matching: SpectralMatching | None = None
 
 
 # ── C1: the seismic hazard of the site from mapped spectral values (saengine.fem.spectral_hazard) ──
@@ -10033,6 +10094,16 @@ class NonlinearHistoryProcedure(_Row):
     designReview: bool = Field(
         default=False, description="The code asks for an independent design review."
     )
+    unacceptableResponses: dict[str, int] = Field(
+        default_factory=dict,
+        description="P5: by occupancy (risk) category, how many records of a suite may stop "
+        "early (an unacceptable response) and the suite still be accepted (absent: none).",
+    )
+    damping: NonlinearHistoryDamping | None = Field(
+        default=None,
+        description="P5: the damping of the runs (empty: the first-mode, committed-stiffness "
+        "ratio of each time history).",
+    )
     note: str = Field(default="", description="Why the values are what they are.")
 
 
@@ -10055,30 +10126,96 @@ class NonlinearHistoryDrift(_Row):
 class NonlinearHistoryAcceptance(_Row):
     """Acceptance of the members over the records (``fem.acceptance``). Method
     ``fibreStrain``: each fibre's peak strain at the member's end sections against a share of
-    the strain at which its material fails."""
+    the strain at which its material fails. P5: method ``hingeRotation``: the hinges of the
+    pack's ``pushover.hinges`` (``fem.hinges``) at the member ends, their peak deformation over
+    each record against the limit of ``performanceLevel``."""
 
-    method: Literal["fibreStrain"] = Field(
+    method: Literal["fibreStrain", "hingeRotation"] = Field(
         description="Method id (the engine's generic implementation)."
     )
-    deformationShare: Share = Field(
+    deformationShare: Share | None = Field(
+        default=None,
         description="A member's deformation may reach at most this × the deformation at which "
-        "it fails."
+        "it fails (fibreStrain).",
     )
-    residualStrengthShare: Share = Field(
-        description="Strength (share of the peak) below which the component has failed."
+    residualStrengthShare: Share | None = Field(
+        default=None,
+        description="Strength (share of the peak) below which the component has failed "
+        "(fibreStrain).",
     )
     gravityLossAllMembers: bool = Field(
         default=True,
         description="The smaller of the gravity-loss and the strength-loss deformation for "
         "every member (false: the gravity loss only for members carrying gravity loads).",
     )
-    reinforcementFractureStrain: Positive = Field(
-        description="Strain at which a reinforcing bar is taken as lost (fracture or buckling)."
+    reinforcementFractureStrain: Positive | None = Field(
+        default=None,
+        description="Strain at which a reinforcing bar is taken as lost (fracture or buckling; "
+        "fibreStrain).",
     )
-    steelFractureStrain: Positive = Field(
-        description="Strain at which a structural steel fibre is taken as lost."
+    steelFractureStrain: Positive | None = Field(
+        default=None,
+        description="Strain at which a structural steel fibre is taken as lost (fibreStrain).",
+    )
+    performanceLevel: str | None = Field(
+        default=None,
+        description="hingeRotation: the level of ``pushover.hinges.levels`` the hinges are "
+        "checked against (empty: the last, the most lenient).",
     )
     note: str = Field(default="", description="Why the values are what they are.")
+
+    @model_validator(mode="after")
+    def _fibre_values(self) -> NonlinearHistoryAcceptance:
+        if self.method == "fibreStrain" and None in (
+            self.deformationShare,
+            self.residualStrengthShare,
+            self.reinforcementFractureStrain,
+            self.steelFractureStrain,
+        ):
+            raise ValueError(
+                "method fibreStrain needs deformationShare, residualStrengthShare, "
+                "reinforcementFractureStrain and steelFractureStrain"
+            )
+        return self
+
+
+class NonlinearHistoryDamping(_Row):
+    """P5: the damping of the nonlinear time histories, by method id: ``mode1Stiffness`` (the
+    ratio on the first mode, in proportion to the committed stiffness) or ``rayleigh`` (mass and
+    committed stiffness proportional, the ratio at the first mode's period and at
+    ``secondPeriodShare`` times it)."""
+
+    method: Literal["mode1Stiffness", "rayleigh"] = "mode1Stiffness"
+    ratio: Share | None = Field(
+        default=None, description="Damping ratio (empty: each time history's own)."
+    )
+    secondPeriodShare: Share | None = Field(
+        default=None, description="rayleigh: the second period as a share of the first."
+    )
+    note: str = ""
+
+
+class NonlinearHistoryForceAction(_Row):
+    """P5: a force-controlled action of the members checked over the records: ``action``
+    (``columnAxial``: the compression of the columns, ``shear``: the shear of the beams and
+    columns), its class and the factor on its earthquake part, γ·(Fu − Fg) + Fg ≤ the design
+    strength of the member design (Fu the design value over the suite, Fg the force under
+    gravity alone)."""
+
+    action: Literal["columnAxial", "shear"]
+    category: str = Field(description="The code's class of the action (e.g. critical).")
+    factor: Positive = Field(description="γ on the earthquake part of the demand.")
+
+
+class NonlinearHistoryForceControlled(_Row):
+    """P5: force-controlled actions (``actions``), the importance factor on their earthquake part
+    when ``importance``, and how the strength is read (``strength``: the member design's design
+    strength, the safe side of an expected strength)."""
+
+    actions: list[NonlinearHistoryForceAction] = Field(min_length=1)
+    importance: bool = False
+    strength: Literal["designStrength"] = "designStrength"
+    note: str = ""
 
 
 class NonlinearHistoryTable(TableModel):
@@ -10088,6 +10225,7 @@ class NonlinearHistoryTable(TableModel):
     procedure: NonlinearHistoryProcedure
     drift: NonlinearHistoryDrift
     acceptance: NonlinearHistoryAcceptance
+    forceControlled: NonlinearHistoryForceControlled | None = None
 
 
 # ───────────────────────────────── seismically isolated buildings (B37) ─────────────────────────────────

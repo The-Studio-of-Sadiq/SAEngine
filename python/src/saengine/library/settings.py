@@ -1161,6 +1161,25 @@ class NonlinearHistory(_Model):
         description="Damping ratio of the first mode [-], in proportion to the committed "
         "stiffness. Empty: each time history's own.",
     )
+    dampingModel: Literal["pack", "mode1Stiffness", "rayleigh"] = Field(
+        default="pack",
+        title="Damping model",
+        description="By the code pack: its damping for the nonlinear runs (the ratio above "
+        "still wins when given). First mode, stiffness: the ratio on the first mode in "
+        "proportion to the committed stiffness. Rayleigh: in proportion to the mass and the "
+        "committed stiffness, the ratio at the first mode and at the code pack's second period "
+        "(a fifth of the first when the pack gives none).",
+        json_schema_extra=_labels(
+            ["By the code pack", "First mode, stiffness proportional", "Rayleigh"]
+        ),
+    )
+    checkHinges: bool = Field(
+        default=True,
+        title="Hinges",
+        description="Where the code pack checks the members by hinges (its pushover hinges), "
+        "the runs keep the end sections' deformations so that each hinge's peak over the "
+        "record is read (a larger results file).",
+    )
 
 
 class TimeHistory(_Model):
@@ -1172,7 +1191,8 @@ class TimeHistory(_Model):
         title="Record file",
         description="Acceleration record in the project folder, e.g. "
         "'02 Project Settings/records/ElCentro.AT2': PEER .AT2, two columns (time, "
-        "acceleration) or one value per line.",
+        "acceleration; spaces or commas, a CSV file may start with a header line) or one value "
+        "per line. SAEngine bundles no third-party records: use records whose terms allow it.",
     )
     units: Literal["g", "m/s2"] = Field(
         default="g",
@@ -1209,6 +1229,29 @@ class TimeHistory(_Model):
         "factor above. Automatic: Code when the earthquake design uses the time histories, "
         "Manual otherwise.",
         json_schema_extra=_labels(["Automatic", "To the code spectrum", "Manual factor"]),
+    )
+    # ── P5: the record's metadata (shown with the suite, not used in the analysis) ──
+    magnitude: float | None = Field(
+        default=None, gt=0, le=10, title="Magnitude Mw", description="Moment magnitude."
+    )
+    distance: float | None = Field(
+        default=None,
+        ge=0,
+        title="Distance R",
+        description="Source-to-site distance [km] (as the record's database gives it, e.g. "
+        "the rupture distance).",
+    )
+    vs30: float | None = Field(
+        default=None,
+        gt=0,
+        title="Vs30",
+        description="Time-averaged shear-wave velocity of the top 30 m at the station [m/s].",
+    )
+    source: str = Field(
+        default="",
+        title="Source and licence",
+        description="Where the record comes from and under which terms it may be used (e.g. "
+        "the database and its record number).",
     )
 
 
@@ -2011,6 +2054,25 @@ class Analysis(_Model):
         "over the period range, then one factor lifts the suite to the criterion. Uniform: one "
         "factor on every record as recorded.",
         json_schema_extra=_labels(["Fitted, then one factor", "One factor"]),
+    )
+    timeHistoryModification: Literal["pack", "amplitude", "matching"] = Field(
+        default="pack",
+        title="Time history: modification",
+        description="How the records scaled to the code spectrum are brought to it. By the "
+        "code pack: its choice for each procedure (linear, nonlinear). Amplitude scaling: one "
+        "factor per record (or pair) over the period range. Spectral matching: each record "
+        "adjusted until its spectrum matches the target over the range (the code pack's "
+        "matching method and its criterion for matched records), written to 08 FEM/matched-"
+        "records.",
+        json_schema_extra=_labels(["By the code pack", "Amplitude scaling", "Spectral matching"]),
+    )
+    timeHistoryMatching: Literal["pack", "frequencyDomain"] = Field(
+        default="pack",
+        title="Time history: matching method",
+        description="The spectral matching method: the code pack's, or matching in the "
+        "frequency domain (the Fourier amplitudes adjusted by the ratio of the target to the "
+        "record's spectrum, with a baseline correction).",
+        json_schema_extra=_labels(["By the code pack", "Frequency domain"]),
     )
     seismicOrthogonal: Literal["auto", "always", "never"] = Field(
         default="auto",

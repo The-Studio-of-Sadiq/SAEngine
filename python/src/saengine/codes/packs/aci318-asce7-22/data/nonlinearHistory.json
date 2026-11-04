@@ -1,0 +1,52 @@
+{
+  "$schema": "../../../schemas/nonlinearHistory.schema.json",
+  "$replace": true,
+  "$sources": [
+    "ASCE 7-22 Chapter 16 (nonlinear response history analysis): Sec 16.2 ground motions, 16.3 modelling, 16.4 analysis results and acceptance criteria, 16.5 design review",
+    "ASCE/SEI 41-17 Ch 9-10 (component modelling parameters and acceptance criteria, through the pack's pushover hinges)"
+  ],
+  "source": "ASCE 7-22 Chapter 16 (Nonlinear Response History Analysis)",
+  "sources": {
+    "modelling": "ASCE 7-22 Sec 16.3: a three-dimensional model with the expected properties of the components, P-Delta effects, the gravity load 1.0D + 0.5L; damping of the structure in Sec 16.3 (check the limit against the printed code)",
+    "groundMotion": "ASCE 7-22 Sec 16.2: the MCER target spectrum; at least 11 pairs of records; the period range from 0.2 Tmin to 2.0 Tmax; amplitude scaling: the mean maximum-direction spectrum at least 90 % of the target over the range; spectral matching: at least 110 %",
+    "response": "ASCE 7-22 Sec 16.4.1: the mean of the responses over the suite; an unacceptable response (no convergence, collapse) allowed for at most one record of a suite in Risk Category I and II, none in III and IV (check the count against the printed code)",
+    "acceptance": "ASCE 7-22 Sec 16.4.2: deformation-controlled actions by the component acceptance criteria of ASCE 41 (SAEngine checks the Collapse Prevention level of the pack's ASCE 41-17 hinges; check the level and any factor for Risk Category III and IV against the printed code)",
+    "forceControlled": "ASCE 7-22 Sec 16.4.2: force-controlled actions, the mean demand times gamma (critical 2.0, ordinary 1.5) and Ie on its earthquake part, plus the gravity part, not above the expected strength times phi (SAEngine uses the member design strength, the safe side; check the factors against the printed code)",
+    "review": "ASCE 7-22 Sec 16.5: independent structural design review of the records, the modelling, the acceptance criteria and the design",
+    "drift": "ASCE 7-22 Sec 16.4.1.2: the mean storey drift at most 1.5 times the allowable storey drift of Table 12.12-1 (check the factor against the printed code; ASCE 7-16 Sec 16.4.1.2 was read as 2.0 times)"
+  },
+  "procedure": {
+    "target": "nonlinear",
+    "meanFrom": 1,
+    "scaleToStaticShear": false,
+    "pDelta": true,
+    "designReview": true,
+    "unacceptableResponses": {"I": 1, "II": 1, "III": 0, "IV": 0},
+    "damping": {
+      "method": "rayleigh",
+      "ratio": 0.025,
+      "secondPeriodShare": 0.2,
+      "note": "Rayleigh damping of 2.5 % at T1 and 0.2 T1 is SAEngine practice after the commentary of ASCE 7 Ch 16 (the code limits the damping, it gives no model); the project's damping ratio and model override it."
+    },
+    "note": "The elements follow the fibre model of the pushover (Concrete02, Steel02): yielding, cracked stiffness and the concrete's strength loss are modelled; strength and stiffness degradation of the bars and pinching are not, which ASCE 7-22 Sec 16.3 asks for where significant. The members' hinges are read from the fibre analysis (the pack's ASCE 41-17 hinges); the analysis itself is not changed by them."
+  },
+  "drift": {
+    "limitFactor": 1.5,
+    "amplify": false,
+    "note": "The nonlinear analysis gives the drifts at the MCER directly, so they are not multiplied by Cd/Ie."
+  },
+  "acceptance": {
+    "method": "hingeRotation",
+    "performanceLevel": "CP",
+    "note": "Each member end's hinge of the pack's ASCE 41-17 tables (pushover.hinges), its parameters at the step of its largest chord rotation, its peak plastic rotation over each record against the Collapse Prevention limit; the design value over the suite is the mean (Sec 16.4.1)."
+  },
+  "forceControlled": {
+    "actions": [
+      {"action": "columnAxial", "category": "critical", "factor": 2.0},
+      {"action": "shear", "category": "ordinary", "factor": 1.5}
+    ],
+    "importance": true,
+    "strength": "designStrength",
+    "note": "The column compression is taken as a critical action and the shear of beams and columns as ordinary (SAEngine practice for a frame building; the engineer classifies them, Sec 16.4.2). The strength is the member design's design strength (phi Pn,max, phi Vn), the safe side of the expected strength the code allows."
+  }
+}

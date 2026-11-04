@@ -47,3 +47,34 @@ def behaviour_factor_spectrum(
     if period <= td:
         return max(top * tc / period, beta * ag)
     return max(top * tc * td / period**2, beta * ag)
+
+
+def elastic_spectrum(
+    period: float,
+    ag: float,
+    soil: float,
+    tb: float,
+    tc: float,
+    td: float,
+    plateau: float = 2.5,
+    eta: float = 1.0,
+) -> float:
+    """P5: Se(T) [g], the elastic response spectrum of the same shape (the target of the
+    nonlinear time histories of a ``behaviourFactor`` pack; EN 1998-1 3.2.2.2, Eqs 3.2-3.5):
+
+        0 ≤ T ≤ TB:   ag·S·[1 + T/TB·(η·plateau - 1)]
+        TB ≤ T ≤ TC:  ag·S·η·plateau
+        TC ≤ T ≤ TD:  ag·S·η·plateau·TC/T
+        TD ≤ T:       ag·S·η·plateau·TC·TD/T²
+
+    ``eta`` the damping correction (1 at 5 %)."""
+    top = ag * soil * eta * plateau
+    if period <= tb:
+        if tb <= 0:
+            return top
+        return ag * soil * (1 + period / tb * (eta * plateau - 1))
+    if period <= tc:
+        return top
+    if period <= td:
+        return top * tc / period
+    return top * tc * td / period**2
