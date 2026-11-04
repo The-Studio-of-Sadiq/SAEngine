@@ -139,6 +139,19 @@ class BeamLoads:
         )
 
 
+def _least_strain(fy: float) -> float:
+    """The least net tensile strain of a beam section: 0.004 (ACI 9.3.3.1), or with the pack's
+    member limits (alpha 9 C8, IS 456 38.1(f)) fyd / Es + their ``neutralAxisStrain``."""
+    from saengine.design.member_limits import limits
+
+    found = limits()
+    if found is None:
+        return 0.004
+    from saengine.design import design_strength
+
+    return design_strength.fyd(fy) / design_strength.rules().steelE + found.neutralAxisStrain
+
+
 def _beam_label(reinforcement: dict[str, Any]) -> str:
     parts = []
     for group in reinforcement.get("longitudinal", []):
@@ -283,7 +296,7 @@ class BeamDesigner:
                 continue
             if capacity.phi_mn <= 0 or round(demand / capacity.phi_mn, 3) > 1.0:
                 return None
-            if capacity.eps_t < 0.004:  # ACI 9.3.3.1
+            if capacity.eps_t < _least_strain(self.fy):  # ACI 9.3.3.1 (C8: the pack's xu,max)
                 return None
             result[name] = demand / capacity.phi_mn
         if round(loads.shear / resistance.phi_vn, 3) > 1.0 or not resistance.with_min_stirrups:
@@ -292,7 +305,12 @@ class BeamDesigner:
             # Sec 6.4.4.6.1-2 with the proposed stirrups and the top bars where they run: the
             # spacing within ph / 8 and 300 mm, a longitudinal bar in each corner.
             t = reinforcement["transverse"]
-            if t["spacing"] > self._torsion_s_max(t["dia"]) + 1e-6:
+            from saengine.design import tabulated_shear
+
+            limit = self._torsion_s_max(t["dia"])
+            if tabulated_shear.torsion_rules() is not None:  # C8: the pack's link spacing
+                limit = min(limit, loads.torsion_s_max)
+            if t["spacing"] > limit + 1e-6:
                 return None
             if not self._corners_held(reinforcement):
                 return None
@@ -1696,6 +1714,38 @@ def design_proposal(
     return result
 
 
+def _in_project_pack(fn: Any) -> Any:
+    """Alpha 9 C8: :func:`propose` under the project's code pack (its settings' ``codePack``),
+    as the design run is (:func:`saengine.design.check.design`): the pack's detailing rules then
+    size the hoops. Under a pack already in force (a caller's :func:`using`) it is kept."""
+    import functools
+    import json
+
+    @functools.wraps(fn)
+    def call(out_dir: Any, *args: Any, **kwargs: Any) -> Any:
+        from saengine.codes import context as code_context
+        from saengine.pipeline.design_mode import SETTINGS_FILE
+
+        if code_context.in_force() is not None:
+            return fn(out_dir, *args, **kwargs)
+        root = code_context.find_project_root(out_dir)
+        settings = None
+        if root is not None and (root / SETTINGS_FILE).is_file():
+            try:
+                settings = json.loads((root / SETTINGS_FILE).read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                settings = None
+        pack_id = (settings or {}).get("codePack") if isinstance(settings, dict) else None
+        if not pack_id or pack_id == code_context.DEFAULT_PACK:
+            # The default pack's projects as before (the built-in pack, no overrides here).
+            return fn(out_dir, *args, **kwargs)
+        with code_context.using(code_context.pack_for(settings, root)):
+            return fn(out_dir, *args, **kwargs)
+
+    return call
+
+
+@_in_project_pack
 def propose(
     out_dir: str | Path,
     project_path: str | Path,
@@ -2470,6 +2520,22 @@ def seismic_transverse(
                 }
         if not found:
             found["spacing"] = round_down(shear_spacing)
+        from saengine.design import ductile_detailing
+
+        caps = ductile_detailing.proposal_caps(kind, section) if special else None
+        if caps is not None:
+            # Alpha 9 C8: the pack's ductile detailing limits (IS 13920) on the zones the
+            # parent's rules proposed (whose Ash and spacing are otherwise the stricter).
+            zone_cap, outside_cap, zone_length = caps
+            # Not below the least spacing offered: the check then reports the shortfall (e.g.
+            # 6 db of 12 mm bars, 72 mm), larger bars being the engineer's choice.
+            least = opts.min_stirrup_spacing
+            if "zone" in found and "spacing" in found["zone"]:
+                spacing = min(found["zone"]["spacing"], zone_cap)
+                found["zone"]["spacing"] = max(round_down(spacing), least)
+                found["zone"]["length"] = max(found["zone"].get("length", 0.0), zone_length)
+            if "spacing" in found:
+                found["spacing"] = round_down(min(found["spacing"], outside_cap))
         smallest = min(
             [found.get("spacing", math.inf), found.get("zone", {}).get("spacing", math.inf)]
         )

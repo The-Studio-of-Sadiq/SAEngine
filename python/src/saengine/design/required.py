@@ -523,8 +523,8 @@ def torsion_rows(member: dict[str, Any], assumed: bool) -> list[dict[str, Any]]:
     Sec 6.4.4), from the torsion design of its checks (``member["torsion"]``, saengine.design.
     torsion; none below the threshold)."""
     design = member.get("torsion")
-    if design is None:
-        return []
+    if design is None or getattr(design, "tabulated", False):
+        return []  # C8: the equivalent shear method's links are in the design checks' rows
     obj = member["object"]
     transverse = obj.reinforcement.transverse
     element, type_id = member["id"], member["type"]

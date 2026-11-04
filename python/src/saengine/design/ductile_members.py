@@ -765,21 +765,45 @@ def _hx(core: float, tie_dia: float, db: float, legs: int) -> float:
     return (core - 2 * tie_dia - db) / (max(legs, 2) - 1)
 
 
+def _prescriptive() -> Any | None:
+    """Alpha 9 C8: the pack's ductile detailing (IS 13920), whose confinement values Design
+    Reinforcement then sizes the hoops by (None: this module's own, the default pack's)."""
+    from saengine.design import ductile_detailing
+
+    return ductile_detailing.rules()
+
+
 def so_special(hx: float) -> float:
-    """so = 100 + (350 - hx) / 3, not above 150 mm and not taken below 100 mm (8.3.5.4(b))."""
+    """so = 100 + (350 - hx) / 3, not above 150 mm and not taken below 100 mm (8.3.5.4(b));
+    C8: the pack's fixed limit with prescriptive ductile detailing."""
+    found = _prescriptive()
+    if found is not None:
+        return float(found.columns.confinedSpacing[2])
     return min(150.0, max(100.0, 100 + (350 - hx) / 3))
 
 
 def ash_per_spacing(bc: float, ag: float, ach: float, fc: float, fyt: float) -> float:
     """Least Ash / s [mm²/mm] of rectangular hoops across a core dimension ``bc``: the larger
-    of Eq. 6.8.7 and Eq. 6.8.8, fyt at most 700 MPa (8.3.3.4(c))."""
+    of Eq. 6.8.7 and Eq. 6.8.8, fyt at most 700 MPa (8.3.3.4(c)); C8: the pack's coefficients
+    with prescriptive ductile detailing (IS 13920 0.18 and 0.05 per leg with h the legs' spacing
+    across the core: the legs together n/(n - 1) times a bc, taken at its largest, 2, for two
+    legs: on the safe side for more)."""
     fyt = min(fyt, _special("fytConfinementMax"))
+    found = _prescriptive()
+    if found is not None:
+        a, b = found.columns.ash
+        return 2 * max(a * (ag / ach - 1), b) * bc * fc / fyt
     return max(0.3 * bc * fc / fyt * (ag / ach - 1), 0.09 * bc * fc / fyt)
 
 
 def rho_s_required(ag: float, ach: float, fc: float, fyt: float) -> float:
-    """Least volumetric ratio of spirals and circular hoops: Eq. 6.8.6 and Eq. 6.6.12."""
+    """Least volumetric ratio of spirals and circular hoops: Eq. 6.8.6 and Eq. 6.6.12; C8: the
+    pack's (Ash = a (Ag/Ak - 1) s Dk fck/fy as ρs = 4 Ash / (s Dk))."""
     fyt = min(fyt, _special("fytConfinementMax"))
+    found = _prescriptive()
+    if found is not None:
+        a, b = found.columns.spiral
+        return 4 * max(a * (ag / ach - 1), b) * fc / fyt
     return max(0.12 * fc / fyt, 0.45 * (ag / ach - 1) * fc / fyt)
 
 

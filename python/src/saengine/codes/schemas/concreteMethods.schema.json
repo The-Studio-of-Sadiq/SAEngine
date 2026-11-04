@@ -168,6 +168,157 @@
       "title": "AnchorageRules",
       "type": "object"
     },
+    "BiaxialRule": {
+      "additionalProperties": false,
+      "properties": {
+        "method": {
+          "default": "loadContour",
+          "enum": [
+            "loadContour",
+            "surface"
+          ],
+          "title": "Method",
+          "type": "string"
+        },
+        "alphaN": {
+          "description": "(Pu / Puz, αn), linear between.",
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "exclusiveMinimum": 0,
+                "maximum": 1,
+                "type": "number"
+              },
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "title": "Alphan",
+          "type": "array"
+        },
+        "puzShares": {
+          "description": "Puz = a fck Ac + b fy Asc.",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Puzshares",
+          "type": "array"
+        }
+      },
+      "required": [
+        "alphaN",
+        "puzShares"
+      ],
+      "title": "BiaxialRule",
+      "type": "object"
+    },
+    "BondTableRules": {
+      "additionalProperties": false,
+      "description": "Development length Ld = φ σs / (4 τbd) by the design bond stress by grade (method\n``bondStressTable``) and the laps.",
+      "properties": {
+        "method": {
+          "const": "bondStressTable",
+          "default": "bondStressTable",
+          "title": "Method",
+          "type": "string"
+        },
+        "grades": {
+          "items": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "title": "Grades",
+          "type": "array"
+        },
+        "bond": {
+          "description": "τbd [MPa] of plain bars in tension by grade.",
+          "items": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "title": "Bond",
+          "type": "array"
+        },
+        "deformedFactor": {
+          "exclusiveMinimum": 0,
+          "title": "Deformedfactor",
+          "type": "number"
+        },
+        "compressionFactor": {
+          "exclusiveMinimum": 0,
+          "title": "Compressionfactor",
+          "type": "number"
+        },
+        "lapTension": {
+          "description": "Laps in flexural tension: max(Ld, n φ).",
+          "exclusiveMinimum": 0,
+          "title": "Laptension",
+          "type": "number"
+        },
+        "lapCompression": {
+          "description": "Laps in compression: max(Ld,c, n φ).",
+          "exclusiveMinimum": 0,
+          "title": "Lapcompression",
+          "type": "number"
+        },
+        "lapDirectTension": {
+          "description": "Laps in direct tension: max(x Ld, n φ).",
+          "exclusiveMinimum": 0,
+          "title": "Lapdirecttension",
+          "type": "number"
+        },
+        "lapLargeBar": {
+          "description": "No laps of bars larger than this [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Laplargebar",
+          "type": "number"
+        }
+      },
+      "required": [
+        "grades",
+        "bond",
+        "deformedFactor",
+        "compressionFactor",
+        "lapTension",
+        "lapCompression",
+        "lapDirectTension",
+        "lapLargeBar"
+      ],
+      "title": "BondTableRules",
+      "type": "object"
+    },
+    "ColumnMethodRules": {
+      "additionalProperties": false,
+      "description": "Columns: slenderness (``additionalMoment``) and biaxial bending (``loadContour``, or\nthe interaction ``surface``).",
+      "properties": {
+        "slenderness": {
+          "$ref": "#/$defs/SlendernessRule"
+        },
+        "biaxial": {
+          "$ref": "#/$defs/BiaxialRule"
+        }
+      },
+      "required": [
+        "slenderness",
+        "biaxial"
+      ],
+      "title": "ColumnMethodRules",
+      "type": "object"
+    },
     "CoverRules": {
       "additionalProperties": false,
       "description": "Nominal cover from the exposure and structural classes (method ``exposureClass``).",
@@ -405,6 +556,506 @@
         "wideSpacingLimit"
       ],
       "title": "CrackRules",
+      "type": "object"
+    },
+    "CrackWidthRules": {
+      "additionalProperties": false,
+      "description": "Crack width from the strain at the surface and the distance to the nearest bar (method\n``strainSpacing``): Wcr = 3 acr εm / (1 + 2 (acr - cmin) / (h - x)).",
+      "properties": {
+        "method": {
+          "const": "strainSpacing",
+          "default": "strainSpacing",
+          "title": "Method",
+          "type": "string"
+        },
+        "width": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "description": "Wmax [mm] by exposure condition.",
+          "title": "Width",
+          "type": "object"
+        },
+        "stiffeningDivisor": {
+          "description": "εm = ε1 - b (h-x)(a'-x) / (div Es As (d-x)).",
+          "exclusiveMinimum": 0,
+          "title": "Stiffeningdivisor",
+          "type": "number"
+        },
+        "tankWidth": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Liquid-retaining [mm].",
+          "title": "Tankwidth"
+        }
+      },
+      "required": [
+        "width",
+        "stiffeningDivisor"
+      ],
+      "title": "CrackWidthRules",
+      "type": "object"
+    },
+    "DuctileBeamRules": {
+      "additionalProperties": false,
+      "properties": {
+        "minWidth": {
+          "exclusiveMinimum": 0,
+          "title": "Minwidth",
+          "type": "number"
+        },
+        "minRatio": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Minratio",
+          "type": "number"
+        },
+        "depthShare": {
+          "description": "D at most this × the clear span.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Depthshare",
+          "type": "number"
+        },
+        "minBars": {
+          "minimum": 1,
+          "title": "Minbars",
+          "type": "integer"
+        },
+        "minBarDia": {
+          "exclusiveMinimum": 0,
+          "title": "Minbardia",
+          "type": "number"
+        },
+        "rhoMinRoot": {
+          "description": "ρ >= c √fck / fy.",
+          "exclusiveMinimum": 0,
+          "title": "Rhominroot",
+          "type": "number"
+        },
+        "rhoMax": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Rhomax",
+          "type": "number"
+        },
+        "positiveShare": {
+          "description": "Bottom >= share × top at the joint face.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Positiveshare",
+          "type": "number"
+        },
+        "anyShare": {
+          "description": "Any section >= share × the most at the faces.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Anyshare",
+          "type": "number"
+        },
+        "hoopZoneDepths": {
+          "description": "Close hoops over this × d from the faces.",
+          "exclusiveMinimum": 0,
+          "title": "Hoopzonedepths",
+          "type": "number"
+        },
+        "hoopSpacing": {
+          "description": "min(a d, b db, mm).",
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Hoopspacing",
+          "type": "array"
+        },
+        "firstHoop": {
+          "exclusiveMinimum": 0,
+          "title": "Firsthoop",
+          "type": "number"
+        },
+        "elsewhereShare": {
+          "description": "Elsewhere at most this × d.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Elsewhereshare",
+          "type": "number"
+        },
+        "hoopMinDia": {
+          "exclusiveMinimum": 0,
+          "title": "Hoopmindia",
+          "type": "number"
+        },
+        "overstrength": {
+          "description": "Capacity shear: × the moment capacities.",
+          "exclusiveMinimum": 0,
+          "title": "Overstrength",
+          "type": "number"
+        }
+      },
+      "required": [
+        "minWidth",
+        "minRatio",
+        "depthShare",
+        "minBars",
+        "minBarDia",
+        "rhoMinRoot",
+        "rhoMax",
+        "positiveShare",
+        "anyShare",
+        "hoopZoneDepths",
+        "hoopSpacing",
+        "firstHoop",
+        "elsewhereShare",
+        "hoopMinDia",
+        "overstrength"
+      ],
+      "title": "DuctileBeamRules",
+      "type": "object"
+    },
+    "DuctileColumnRules": {
+      "additionalProperties": false,
+      "properties": {
+        "axialShare": {
+          "description": "Members with Pu > share fck Ag are columns.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Axialshare",
+          "type": "number"
+        },
+        "minDimension": {
+          "exclusiveMinimum": 0,
+          "title": "Mindimension",
+          "type": "number"
+        },
+        "minRatio": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Minratio",
+          "type": "number"
+        },
+        "rho": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            }
+          ],
+          "title": "Rho",
+          "type": "array"
+        },
+        "strongColumn": {
+          "exclusiveMinimum": 0,
+          "title": "Strongcolumn",
+          "type": "number"
+        },
+        "confinedLength": {
+          "description": "lo >= max(a D, clear / b, mm).",
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Confinedlength",
+          "type": "array"
+        },
+        "confinedSpacing": {
+          "description": "min(a × least dimension, b db, mm).",
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Confinedspacing",
+          "type": "array"
+        },
+        "ash": {
+          "description": "Ash/(s h) >= max(a (Ag/Ak - 1), b) fck/fy.",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Ash",
+          "type": "array"
+        },
+        "spiral": {
+          "description": "Same, circular hoops (× Dk).",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Spiral",
+          "type": "array"
+        },
+        "hxMax": {
+          "exclusiveMinimum": 0,
+          "title": "Hxmax",
+          "type": "number"
+        },
+        "outsideShare": {
+          "description": "Outside lo: at most share × least dimension.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Outsideshare",
+          "type": "number"
+        },
+        "lapHoopSpacing": {
+          "exclusiveMinimum": 0,
+          "title": "Laphoopspacing",
+          "type": "number"
+        }
+      },
+      "required": [
+        "axialShare",
+        "minDimension",
+        "minRatio",
+        "rho",
+        "strongColumn",
+        "confinedLength",
+        "confinedSpacing",
+        "ash",
+        "spiral",
+        "hxMax",
+        "outsideShare",
+        "lapHoopSpacing"
+      ],
+      "title": "DuctileColumnRules",
+      "type": "object"
+    },
+    "DuctileDetailingRules": {
+      "additionalProperties": false,
+      "description": "Ductile detailing of moment frames and walls by prescriptive limits (method\n``ductileDetailing``).",
+      "properties": {
+        "method": {
+          "const": "ductileDetailing",
+          "default": "ductileDetailing",
+          "title": "Method",
+          "type": "string"
+        },
+        "frames": {
+          "description": "The seismic systems' frame levels it applies to.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Frames",
+          "type": "array"
+        },
+        "beams": {
+          "$ref": "#/$defs/DuctileBeamRules"
+        },
+        "columns": {
+          "$ref": "#/$defs/DuctileColumnRules"
+        },
+        "joints": {
+          "$ref": "#/$defs/DuctileJointRules"
+        },
+        "walls": {
+          "$ref": "#/$defs/DuctileWallRules"
+        }
+      },
+      "required": [
+        "frames",
+        "beams",
+        "columns",
+        "joints",
+        "walls"
+      ],
+      "title": "DuctileDetailingRules",
+      "type": "object"
+    },
+    "DuctileJointRules": {
+      "additionalProperties": false,
+      "properties": {
+        "gamma": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "description": "Vj <= γ √fck Aej by confinement.",
+          "title": "Gamma",
+          "type": "object"
+        },
+        "overstrength": {
+          "exclusiveMinimum": 0,
+          "title": "Overstrength",
+          "type": "number"
+        },
+        "widthShare": {
+          "description": "bj = min(bb + share × hc, bc).",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Widthshare",
+          "type": "number"
+        }
+      },
+      "required": [
+        "gamma",
+        "overstrength",
+        "widthShare"
+      ],
+      "title": "DuctileJointRules",
+      "type": "object"
+    },
+    "DuctileWallRules": {
+      "additionalProperties": false,
+      "properties": {
+        "minThickness": {
+          "exclusiveMinimum": 0,
+          "title": "Minthickness",
+          "type": "number"
+        },
+        "rhoMin": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Rhomin",
+          "type": "number"
+        },
+        "twoCurtainThickness": {
+          "exclusiveMinimum": 0,
+          "title": "Twocurtainthickness",
+          "type": "number"
+        },
+        "twoCurtainRoot": {
+          "description": "Or τv > c √fck.",
+          "exclusiveMinimum": 0,
+          "title": "Twocurtainroot",
+          "type": "number"
+        },
+        "barDiaShare": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Bardiashare",
+          "type": "number"
+        },
+        "spacing": {
+          "description": "min(lw / a, b t, mm).",
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Spacing",
+          "type": "array"
+        },
+        "boundaryStress": {
+          "description": "Boundary elements where σ > share fck ...",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Boundarystress",
+          "type": "number"
+        },
+        "boundaryStop": {
+          "description": "... until σ < this × fck.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Boundarystop",
+          "type": "number"
+        },
+        "couplingRoot": {
+          "description": "Diagonal bars where τv > c (ls/D) √fck ...",
+          "exclusiveMinimum": 0,
+          "title": "Couplingroot",
+          "type": "number"
+        },
+        "couplingSpanRatio": {
+          "description": "... and ls / D below this.",
+          "exclusiveMinimum": 0,
+          "title": "Couplingspanratio",
+          "type": "number"
+        }
+      },
+      "required": [
+        "minThickness",
+        "rhoMin",
+        "twoCurtainThickness",
+        "twoCurtainRoot",
+        "barDiaShare",
+        "spacing",
+        "boundaryStress",
+        "boundaryStop",
+        "couplingRoot",
+        "couplingSpanRatio"
+      ],
+      "title": "DuctileWallRules",
       "type": "object"
     },
     "DuctilityClassRules": {
@@ -812,6 +1463,54 @@
       "title": "DuctilityClassRules",
       "type": "object"
     },
+    "EquivalentTorsionRules": {
+      "additionalProperties": false,
+      "description": "Torsion by the equivalent shear and moment (method ``equivalentShear``): Ve = Vu +\nshearFactor Tu / b, Me1 = Mu + Tu (1 + D/b) / momentDivisor; links Asv = Tu sv / (b1 d1\nfyd) + Vu sv / (depthDivisor d1 fyd), at least (τve - τc) b sv / fyd.",
+      "properties": {
+        "method": {
+          "const": "equivalentShear",
+          "default": "equivalentShear",
+          "title": "Method",
+          "type": "string"
+        },
+        "shearFactor": {
+          "exclusiveMinimum": 0,
+          "title": "Shearfactor",
+          "type": "number"
+        },
+        "momentDivisor": {
+          "exclusiveMinimum": 0,
+          "title": "Momentdivisor",
+          "type": "number"
+        },
+        "depthDivisor": {
+          "exclusiveMinimum": 0,
+          "title": "Depthdivisor",
+          "type": "number"
+        },
+        "spacingDivisor": {
+          "description": "Links at most (x1 + y1) / divisor apart.",
+          "exclusiveMinimum": 0,
+          "title": "Spacingdivisor",
+          "type": "number"
+        },
+        "spacingMax": {
+          "description": "[mm], also at most x1.",
+          "exclusiveMinimum": 0,
+          "title": "Spacingmax",
+          "type": "number"
+        }
+      },
+      "required": [
+        "shearFactor",
+        "momentDivisor",
+        "depthDivisor",
+        "spacingDivisor",
+        "spacingMax"
+      ],
+      "title": "EquivalentTorsionRules",
+      "type": "object"
+    },
     "ExposureClass": {
       "additionalProperties": false,
       "properties": {
@@ -838,6 +1537,449 @@
         "name"
       ],
       "title": "ExposureClass",
+      "type": "object"
+    },
+    "ExposureCondition": {
+      "additionalProperties": false,
+      "properties": {
+        "cover": {
+          "description": "Nominal cover [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Cover",
+          "type": "number"
+        },
+        "cement": {
+          "description": "Least cement content [kg/m³].",
+          "exclusiveMinimum": 0,
+          "title": "Cement",
+          "type": "number"
+        },
+        "waterCement": {
+          "description": "Largest free water-cement ratio.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Watercement",
+          "type": "number"
+        },
+        "grade": {
+          "description": "Least grade fck [MPa].",
+          "exclusiveMinimum": 0,
+          "title": "Grade",
+          "type": "number"
+        }
+      },
+      "required": [
+        "cover",
+        "cement",
+        "waterCement",
+        "grade"
+      ],
+      "title": "ExposureCondition",
+      "type": "object"
+    },
+    "ExposureConditionRules": {
+      "additionalProperties": false,
+      "description": "Cover and mix limits by exposure condition (method ``exposureCondition``).",
+      "properties": {
+        "method": {
+          "const": "exposureCondition",
+          "default": "exposureCondition",
+          "title": "Method",
+          "type": "string"
+        },
+        "conditions": {
+          "additionalProperties": {
+            "$ref": "#/$defs/ExposureCondition"
+          },
+          "title": "Conditions",
+          "type": "object"
+        },
+        "columnCover": {
+          "description": "Longitudinal bars of columns at least [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Columncover",
+          "type": "number"
+        },
+        "footingCover": {
+          "description": "Footings at least [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Footingcover",
+          "type": "number"
+        },
+        "smallBarReduction": {
+          "description": "(mm less, bars up to mm) in the mildest condition.",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Smallbarreduction",
+          "type": "array"
+        },
+        "gradeReduction": {
+          "description": "(mm less, from fck) in the conditions named in gradeReductionConditions.",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Gradereduction",
+          "type": "array"
+        },
+        "gradeReductionConditions": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Gradereductionconditions",
+          "type": "array"
+        }
+      },
+      "required": [
+        "conditions",
+        "columnCover",
+        "footingCover",
+        "smallBarReduction",
+        "gradeReduction"
+      ],
+      "title": "ExposureConditionRules",
+      "type": "object"
+    },
+    "FlatSlabRules": {
+      "additionalProperties": false,
+      "description": "Flat slabs by the direct design method with the end span shares by the column\nstiffness ratio αc (method ``columnStiffness``).",
+      "properties": {
+        "method": {
+          "const": "columnStiffness",
+          "default": "columnStiffness",
+          "title": "Method",
+          "type": "string"
+        },
+        "interiorNegative": {
+          "description": "a - b / (1 + 1/αc).",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Interiornegative",
+          "type": "array"
+        },
+        "positive": {
+          "description": "a - b / (1 + 1/αc).",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Positive",
+          "type": "array"
+        },
+        "exteriorNegative": {
+          "description": "a / (1 + 1/αc).",
+          "exclusiveMinimum": 0,
+          "title": "Exteriornegative",
+          "type": "number"
+        },
+        "columnStrip": {
+          "description": "Column strip share: interior negative, exterior negative, positive.",
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            }
+          ],
+          "title": "Columnstrip",
+          "type": "array"
+        },
+        "minThickness": {
+          "exclusiveMinimum": 0,
+          "title": "Minthickness",
+          "type": "number"
+        }
+      },
+      "required": [
+        "interiorNegative",
+        "positive",
+        "exteriorNegative",
+        "columnStrip",
+        "minThickness"
+      ],
+      "title": "FlatSlabRules",
+      "type": "object"
+    },
+    "FootingMethodRules": {
+      "additionalProperties": false,
+      "description": "Footings: the edge thickness, the bearing of the column on the footing.",
+      "properties": {
+        "edgeThickness": {
+          "exclusiveMinimum": 0,
+          "title": "Edgethickness",
+          "type": "number"
+        },
+        "pileEdgeThickness": {
+          "exclusiveMinimum": 0,
+          "title": "Pileedgethickness",
+          "type": "number"
+        },
+        "bearingFactor": {
+          "description": "Bearing stress factor × fck ...",
+          "exclusiveMinimum": 0,
+          "title": "Bearingfactor",
+          "type": "number"
+        },
+        "bearingRatioMax": {
+          "description": "... × √(A1/A2) at most this.",
+          "exclusiveMinimum": 0,
+          "title": "Bearingratiomax",
+          "type": "number"
+        }
+      },
+      "required": [
+        "edgeThickness",
+        "pileEdgeThickness",
+        "bearingFactor",
+        "bearingRatioMax"
+      ],
+      "title": "FootingMethodRules",
+      "type": "object"
+    },
+    "MemberLimitRules": {
+      "additionalProperties": false,
+      "description": "Least and largest steel and the bar rules of beams, slabs and columns of codes that give\nthem as ratios (beams As/(b d) >= beamMin / fy ...).",
+      "properties": {
+        "beamMin": {
+          "description": "As / (b d) >= beamMin / fy.",
+          "exclusiveMinimum": 0,
+          "title": "Beammin",
+          "type": "number"
+        },
+        "beamMax": {
+          "description": "As (and As') at most this × b D.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Beammax",
+          "type": "number"
+        },
+        "sideFaceDepth": {
+          "description": "[mm] deeper webs: side face steel.",
+          "exclusiveMinimum": 0,
+          "title": "Sidefacedepth",
+          "type": "number"
+        },
+        "sideFaceShare": {
+          "description": "× the web area, both faces together.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Sidefaceshare",
+          "type": "number"
+        },
+        "sideFaceSpacing": {
+          "description": "[mm] at most, and at most the web width.",
+          "exclusiveMinimum": 0,
+          "title": "Sidefacespacing",
+          "type": "number"
+        },
+        "slabMin": {
+          "description": "Of b D: deformed bars, plain (mild) bars.",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            }
+          ],
+          "title": "Slabmin",
+          "type": "array"
+        },
+        "plainFy": {
+          "description": "fy [MPa] at most of plain (mild) bars.",
+          "exclusiveMinimum": 0,
+          "title": "Plainfy",
+          "type": "number"
+        },
+        "slabBarShare": {
+          "description": "Slab bars at most this × D.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Slabbarshare",
+          "type": "number"
+        },
+        "slabSpacing": {
+          "description": "Main bars: min(n d, mm).",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Slabspacing",
+          "type": "array"
+        },
+        "slabDistributionSpacing": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Slabdistributionspacing",
+          "type": "array"
+        },
+        "columnRho": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            }
+          ],
+          "title": "Columnrho",
+          "type": "array"
+        },
+        "columnBars": {
+          "description": "(rectangular, circular) at least.",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "integer"
+            }
+          ],
+          "title": "Columnbars",
+          "type": "array"
+        },
+        "columnBarDia": {
+          "exclusiveMinimum": 0,
+          "title": "Columnbardia",
+          "type": "number"
+        },
+        "tieDiaShare": {
+          "description": "Ties at least share × the largest bar ...",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Tiediashare",
+          "type": "number"
+        },
+        "tieDiaMin": {
+          "description": "... and this [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Tiediamin",
+          "type": "number"
+        },
+        "tiePitch": {
+          "description": "min(least dimension, n φ, mm).",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Tiepitch",
+          "type": "array"
+        },
+        "neutralAxisStrain": {
+          "description": "xu,max: the bars' strain at least fyd/Es + this (limiting depth).",
+          "exclusiveMinimum": 0,
+          "title": "Neutralaxisstrain",
+          "type": "number"
+        }
+      },
+      "required": [
+        "beamMin",
+        "beamMax",
+        "sideFaceDepth",
+        "sideFaceShare",
+        "sideFaceSpacing",
+        "slabMin",
+        "plainFy",
+        "slabBarShare",
+        "slabSpacing",
+        "slabDistributionSpacing",
+        "columnRho",
+        "columnBars",
+        "columnBarDia",
+        "tieDiaShare",
+        "tieDiaMin",
+        "tiePitch",
+        "neutralAxisStrain"
+      ],
+      "title": "MemberLimitRules",
       "type": "object"
     },
     "MemberSteelRules": {
@@ -1049,6 +2191,64 @@
       "title": "MemberSteelRules",
       "type": "object"
     },
+    "PanelCase": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "shortNegative": {
+          "anyOf": [
+            {
+              "items": {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Shortnegative"
+        },
+        "shortPositive": {
+          "items": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "title": "Shortpositive",
+          "type": "array"
+        },
+        "longNegative": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Longnegative"
+        },
+        "longPositive": {
+          "exclusiveMinimum": 0,
+          "title": "Longpositive",
+          "type": "number"
+        }
+      },
+      "required": [
+        "name",
+        "shortPositive",
+        "longPositive"
+      ],
+      "title": "PanelCase",
+      "type": "object"
+    },
     "PowerRelation": {
       "additionalProperties": false,
       "description": "A strength-class relation: ``base`` up to ``highFrom`` MPa, above it\n``highBase + highCoefficient · term^highExponent`` (the term set by the method).",
@@ -1222,6 +2422,53 @@
       "title": "PunchingRules",
       "type": "object"
     },
+    "RootStressPunchingRules": {
+      "additionalProperties": false,
+      "description": "Punching by a shear stress on a perimeter (method ``rootStress``): τc = coefficient √fck\ntimes ks = ratioBase + βc <= 1 at perimeterDistance × d from the loaded area; with shear\nreinforcement τv <= reinforcedMax τc and the steel for Vu - concreteShare Vc.",
+      "properties": {
+        "method": {
+          "const": "rootStress",
+          "default": "rootStress",
+          "title": "Method",
+          "type": "string"
+        },
+        "perimeterDistance": {
+          "exclusiveMinimum": 0,
+          "title": "Perimeterdistance",
+          "type": "number"
+        },
+        "coefficient": {
+          "exclusiveMinimum": 0,
+          "title": "Coefficient",
+          "type": "number"
+        },
+        "ratioBase": {
+          "exclusiveMinimum": 0,
+          "title": "Ratiobase",
+          "type": "number"
+        },
+        "reinforcedMax": {
+          "exclusiveMinimum": 0,
+          "title": "Reinforcedmax",
+          "type": "number"
+        },
+        "concreteShare": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Concreteshare",
+          "type": "number"
+        }
+      },
+      "required": [
+        "perimeterDistance",
+        "coefficient",
+        "ratioBase",
+        "reinforcedMax",
+        "concreteShare"
+      ],
+      "title": "RootStressPunchingRules",
+      "type": "object"
+    },
     "SeismicConcreteRules": {
       "additionalProperties": false,
       "description": "Curvature-ductility detailing (method ``curvatureDuctility``).",
@@ -1302,6 +2549,282 @@
         "k4"
       ],
       "title": "ServiceStressRules",
+      "type": "object"
+    },
+    "SlendernessRule": {
+      "additionalProperties": false,
+      "properties": {
+        "method": {
+          "const": "additionalMoment",
+          "default": "additionalMoment",
+          "title": "Method",
+          "type": "string"
+        },
+        "limit": {
+          "description": "Short when lex / D is at most this.",
+          "exclusiveMinimum": 0,
+          "title": "Limit",
+          "type": "number"
+        },
+        "divisor": {
+          "description": "Ma = Pu D / divisor (lex / D)².",
+          "exclusiveMinimum": 0,
+          "title": "Divisor",
+          "type": "number"
+        },
+        "maxRatio": {
+          "description": "lex / D at most this (unsupported length).",
+          "exclusiveMinimum": 0,
+          "title": "Maxratio",
+          "type": "number"
+        }
+      },
+      "required": [
+        "limit",
+        "divisor",
+        "maxRatio"
+      ],
+      "title": "SlendernessRule",
+      "type": "object"
+    },
+    "SpanDepthFactorRules": {
+      "additionalProperties": false,
+      "description": "Deflection by basic span/effective depth ratios with modification factors (method\n``spanDepthModification``), and the calculated deflection (``calculated``).",
+      "properties": {
+        "method": {
+          "const": "spanDepthModification",
+          "default": "spanDepthModification",
+          "title": "Method",
+          "type": "string"
+        },
+        "basic": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "description": "By support: cantilever, simple, continuous.",
+          "title": "Basic",
+          "type": "object"
+        },
+        "longSpan": {
+          "description": "[mm] beyond it × longSpan / l (not cantilevers).",
+          "exclusiveMinimum": 0,
+          "title": "Longspan",
+          "type": "number"
+        },
+        "tension": {
+          "description": "(a, b, c, max): kt = 1 / (a + b fs - c log10(1 / pt)) (pt in %), a fit of the tension steel curve, at most max; fs = stressShare fy As,req / As,prov.",
+          "maxItems": 4,
+          "minItems": 4,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Tension",
+          "type": "array"
+        },
+        "stressShare": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Stressshare",
+          "type": "number"
+        },
+        "compression": {
+          "description": "(a, max): kc = 1 + pc / (a + pc), at most max (pc in %).",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Compression",
+          "type": "array"
+        },
+        "flange": {
+          "description": "(bw / bf, kf), linear between.",
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "exclusiveMinimum": 0,
+                "maximum": 1,
+                "type": "number"
+              },
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "title": "Flange",
+          "type": "array"
+        },
+        "flatSlabFactor": {
+          "default": 1.0,
+          "description": "× for flat slabs.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Flatslabfactor",
+          "type": "number"
+        },
+        "flangeT": {
+          "description": "T-beams: bf = l / a + bw + b Df (the flange of the modification factor).",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Flanget",
+          "type": "array"
+        },
+        "flangeL": {
+          "description": "L-beams: bf = l / a + bw + b Df.",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Flangel",
+          "type": "array"
+        },
+        "shrinkageStrain": {
+          "exclusiveMinimum": 0,
+          "title": "Shrinkagestrain",
+          "type": "number"
+        },
+        "shrinkageK3": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "description": "k3 by support.",
+          "title": "Shrinkagek3",
+          "type": "object"
+        },
+        "shrinkageK4": {
+          "description": "(pt - pc from [%], coefficient) of k4 = c (pt - pc)/√pt <= 1.",
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              },
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "title": "Shrinkagek4",
+          "type": "array"
+        },
+        "creep": {
+          "description": "(age at loading [days], θ).",
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              },
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "title": "Creep",
+          "type": "array"
+        },
+        "loadingAge": {
+          "description": "Age at loading [days] taken.",
+          "exclusiveMinimum": 0,
+          "title": "Loadingage",
+          "type": "number"
+        },
+        "ruptureCoefficient": {
+          "description": "fcr = c √fck.",
+          "exclusiveMinimum": 0,
+          "title": "Rupturecoefficient",
+          "type": "number"
+        },
+        "limitTotal": {
+          "description": "Final deflection at most span / this.",
+          "exclusiveMinimum": 0,
+          "title": "Limittotal",
+          "type": "number"
+        },
+        "limitAfter": {
+          "description": "After partitions: span / this ...",
+          "exclusiveMinimum": 0,
+          "title": "Limitafter",
+          "type": "number"
+        },
+        "limitAfterMax": {
+          "description": "... and at most this [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Limitaftermax",
+          "type": "number"
+        }
+      },
+      "required": [
+        "basic",
+        "longSpan",
+        "tension",
+        "stressShare",
+        "compression",
+        "flange",
+        "flangeT",
+        "flangeL",
+        "shrinkageStrain",
+        "shrinkageK3",
+        "shrinkageK4",
+        "creep",
+        "loadingAge",
+        "ruptureCoefficient",
+        "limitTotal",
+        "limitAfter",
+        "limitAfterMax"
+      ],
+      "title": "SpanDepthFactorRules",
       "type": "object"
     },
     "SpanDepthRules": {
@@ -1415,7 +2938,7 @@
         },
         "fcmIncrement": {
           "description": "fcm = fck + increment [MPa].",
-          "exclusiveMinimum": 0,
+          "minimum": 0,
           "title": "Fcmincrement",
           "type": "number"
         },
@@ -1712,6 +3235,219 @@
       "title": "StrutTorsionRules",
       "type": "object"
     },
+    "TabulatedShearRules": {
+      "additionalProperties": false,
+      "description": "Shear by a design shear strength of concrete tabulated by the tension steel ratio and the\ngrade (method ``tabulatedStress``): τc from ``tauC`` (rows by ``steelRatios`` [%], columns\nby ``grades`` [MPa], linear between, the end values outside), τv = Vu / (b d) at most\n``maxStress`` by grade, the stirrups Vus = (1/γs) fy Asv d / sv, the least stirrups\nAsv / (b sv) >= ``minStirrupStress`` / ((1/γs) fy).",
+      "properties": {
+        "method": {
+          "const": "tabulatedStress",
+          "default": "tabulatedStress",
+          "title": "Method",
+          "type": "string"
+        },
+        "grades": {
+          "items": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "minItems": 1,
+          "title": "Grades",
+          "type": "array"
+        },
+        "steelRatios": {
+          "description": "pt = 100 As / (b d) [%].",
+          "items": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "minItems": 2,
+          "title": "Steelratios",
+          "type": "array"
+        },
+        "tauC": {
+          "description": "τc [MPa], a row per steel ratio.",
+          "items": {
+            "items": {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            "type": "array"
+          },
+          "title": "Tauc",
+          "type": "array"
+        },
+        "maxStress": {
+          "description": "τc,max [MPa] by grade.",
+          "items": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "title": "Maxstress",
+          "type": "array"
+        },
+        "minStirrupStress": {
+          "description": "Asv fy,d / (b sv) at least this [MPa].",
+          "exclusiveMinimum": 0,
+          "title": "Minstirrupstress",
+          "type": "number"
+        },
+        "fyMax": {
+          "description": "fy of stirrups taken at most this [MPa].",
+          "exclusiveMinimum": 0,
+          "title": "Fymax",
+          "type": "number"
+        },
+        "spacing": {
+          "description": "sv <= min(share d, mm).",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Spacing",
+          "type": "array"
+        },
+        "slabDepths": {
+          "description": "(overall depth [mm], k) of solid slabs, k τc.",
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              },
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "title": "Slabdepths",
+          "type": "array"
+        },
+        "enhancement": {
+          "default": 2.0,
+          "description": "τc × enhancement d / av within d of a support face.",
+          "exclusiveMinimum": 0,
+          "title": "Enhancement",
+          "type": "number"
+        }
+      },
+      "required": [
+        "grades",
+        "steelRatios",
+        "tauC",
+        "maxStress",
+        "minStirrupStress",
+        "fyMax",
+        "spacing"
+      ],
+      "title": "TabulatedShearRules",
+      "type": "object"
+    },
+    "TwoWaySlabRules": {
+      "additionalProperties": false,
+      "description": "Two-way slabs on beams by moment coefficients by edge case (method\n``restrainedPanel``): M = α w lx² per unit width.",
+      "properties": {
+        "method": {
+          "const": "restrainedPanel",
+          "default": "restrainedPanel",
+          "title": "Method",
+          "type": "string"
+        },
+        "ratios": {
+          "description": "ly / lx of the coefficient columns.",
+          "items": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "title": "Ratios",
+          "type": "array"
+        },
+        "cases": {
+          "additionalProperties": {
+            "$ref": "#/$defs/PanelCase"
+          },
+          "title": "Cases",
+          "type": "object"
+        },
+        "simpleRatios": {
+          "items": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "title": "Simpleratios",
+          "type": "array"
+        },
+        "simpleShort": {
+          "items": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "title": "Simpleshort",
+          "type": "array"
+        },
+        "simpleLong": {
+          "items": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "title": "Simplelong",
+          "type": "array"
+        },
+        "middleStrip": {
+          "description": "Middle strip share of the width.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Middlestrip",
+          "type": "number"
+        },
+        "torsionShare": {
+          "description": "Corner steel: × the largest midspan steel ...",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Torsionshare",
+          "type": "number"
+        },
+        "torsionLength": {
+          "description": "... over this × lx each way.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Torsionlength",
+          "type": "number"
+        },
+        "torsionOneEdgeShare": {
+          "description": "× that where one edge is continuous.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Torsiononeedgeshare",
+          "type": "number"
+        }
+      },
+      "required": [
+        "ratios",
+        "cases",
+        "simpleRatios",
+        "simpleShort",
+        "simpleLong",
+        "middleStrip",
+        "torsionShare",
+        "torsionLength",
+        "torsionOneEdgeShare"
+      ],
+      "title": "TwoWaySlabRules",
+      "type": "object"
+    },
     "UltimateRules": {
       "additionalProperties": false,
       "description": "Flexure and axial force by design strengths (method ``partialFactors``).",
@@ -1829,6 +3565,58 @@
           ],
           "title": "Purecompressionstrain",
           "type": "string"
+        },
+        "gradePrefix": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Grades named prefix + fck ('M25'); none: 'C fck/fck,cube'.",
+          "title": "Gradeprefix"
+        },
+        "axialShares": {
+          "anyOf": [
+            {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                },
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "NRd = a fck Ac + b fy As in place of the stress block's (none: that).",
+          "title": "Axialshares"
+        },
+        "eccentricityLengthDivisor": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "e0 = l / this + h / eccentricityDivisor (none: h only).",
+          "title": "Eccentricitylengthdivisor"
         }
       },
       "required": [
@@ -1843,6 +3631,162 @@
         "eccentricityMin"
       ],
       "title": "UltimateRules",
+      "type": "object"
+    },
+    "WallMethodRules": {
+      "additionalProperties": false,
+      "description": "Walls by the empirical eccentricity method and the shear by the aspect ratio (methods\n``eccentricityEmpirical`` and ``aspectRatioShear``).",
+      "properties": {
+        "method": {
+          "const": "eccentricityEmpirical",
+          "default": "eccentricityEmpirical",
+          "title": "Method",
+          "type": "string"
+        },
+        "axialFactor": {
+          "description": "Puw = f (t - a e - 2 ea) fck Lw.",
+          "exclusiveMinimum": 0,
+          "title": "Axialfactor",
+          "type": "number"
+        },
+        "eccentricityFactor": {
+          "exclusiveMinimum": 0,
+          "title": "Eccentricityfactor",
+          "type": "number"
+        },
+        "additionalDivisor": {
+          "description": "ea = Hwe² / (divisor t).",
+          "exclusiveMinimum": 0,
+          "title": "Additionaldivisor",
+          "type": "number"
+        },
+        "minEccentricityShare": {
+          "description": "e at least this × t.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Mineccentricityshare",
+          "type": "number"
+        },
+        "slendernessMax": {
+          "description": "Hwe / t at most.",
+          "exclusiveMinimum": 0,
+          "title": "Slendernessmax",
+          "type": "number"
+        },
+        "minThickness": {
+          "exclusiveMinimum": 0,
+          "title": "Minthickness",
+          "type": "number"
+        },
+        "shearK1": {
+          "description": "τcw = (intercept - αw) K1 √fck for αw <= 1.",
+          "exclusiveMinimum": 0,
+          "title": "Sheark1",
+          "type": "number"
+        },
+        "shearIntercept": {
+          "exclusiveMinimum": 0,
+          "title": "Shearintercept",
+          "type": "number"
+        },
+        "shearK2": {
+          "description": "αw > 1: also K2 fck (αw + 1)/(αw - 1).",
+          "exclusiveMinimum": 0,
+          "title": "Sheark2",
+          "type": "number"
+        },
+        "shearMaxShare": {
+          "description": "τv at most this × fck.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Shearmaxshare",
+          "type": "number"
+        },
+        "depthShare": {
+          "description": "d = share × Lw.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Depthshare",
+          "type": "number"
+        },
+        "vertical": {
+          "description": "Least ρ: deformed small bars, others.",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            }
+          ],
+          "title": "Vertical",
+          "type": "array"
+        },
+        "horizontal": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            }
+          ],
+          "title": "Horizontal",
+          "type": "array"
+        },
+        "smallBarMax": {
+          "exclusiveMinimum": 0,
+          "title": "Smallbarmax",
+          "type": "number"
+        },
+        "spacing": {
+          "description": "min(n t, mm).",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Spacing",
+          "type": "array"
+        }
+      },
+      "required": [
+        "axialFactor",
+        "eccentricityFactor",
+        "additionalDivisor",
+        "minEccentricityShare",
+        "slendernessMax",
+        "minThickness",
+        "shearK1",
+        "shearIntercept",
+        "shearK2",
+        "shearMaxShare",
+        "depthShare",
+        "vertical",
+        "horizontal",
+        "smallBarMax",
+        "spacing"
+      ],
+      "title": "WallMethodRules",
       "type": "object"
     }
   },
@@ -1888,10 +3832,14 @@
           "$ref": "#/$defs/StrutShearRules"
         },
         {
+          "$ref": "#/$defs/TabulatedShearRules"
+        },
+        {
           "type": "null"
         }
       ],
-      "default": null
+      "default": null,
+      "title": "Shear"
     },
     "torsion": {
       "anyOf": [
@@ -1899,10 +3847,14 @@
           "$ref": "#/$defs/StrutTorsionRules"
         },
         {
+          "$ref": "#/$defs/EquivalentTorsionRules"
+        },
+        {
           "type": "null"
         }
       ],
-      "default": null
+      "default": null,
+      "title": "Torsion"
     },
     "punching": {
       "anyOf": [
@@ -1910,10 +3862,14 @@
           "$ref": "#/$defs/PunchingRules"
         },
         {
+          "$ref": "#/$defs/RootStressPunchingRules"
+        },
+        {
           "type": "null"
         }
       ],
-      "default": null
+      "default": null,
+      "title": "Punching"
     },
     "serviceStress": {
       "anyOf": [
@@ -1932,10 +3888,14 @@
           "$ref": "#/$defs/CrackRules"
         },
         {
+          "$ref": "#/$defs/CrackWidthRules"
+        },
+        {
           "type": "null"
         }
       ],
-      "default": null
+      "default": null,
+      "title": "Cracking"
     },
     "deflection": {
       "anyOf": [
@@ -1943,10 +3903,14 @@
           "$ref": "#/$defs/SpanDepthRules"
         },
         {
+          "$ref": "#/$defs/SpanDepthFactorRules"
+        },
+        {
           "type": "null"
         }
       ],
-      "default": null
+      "default": null,
+      "title": "Deflection"
     },
     "cover": {
       "anyOf": [
@@ -1954,10 +3918,14 @@
           "$ref": "#/$defs/CoverRules"
         },
         {
+          "$ref": "#/$defs/ExposureConditionRules"
+        },
+        {
           "type": "null"
         }
       ],
-      "default": null
+      "default": null,
+      "title": "Cover"
     },
     "anchorage": {
       "anyOf": [
@@ -1965,10 +3933,14 @@
           "$ref": "#/$defs/AnchorageRules"
         },
         {
+          "$ref": "#/$defs/BondTableRules"
+        },
+        {
           "type": "null"
         }
       ],
-      "default": null
+      "default": null,
+      "title": "Anchorage"
     },
     "memberSteel": {
       "anyOf": [
@@ -2004,6 +3976,76 @@
       "anyOf": [
         {
           "$ref": "#/$defs/SeismicConcreteRules"
+        },
+        {
+          "$ref": "#/$defs/DuctileDetailingRules"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Seismic"
+    },
+    "memberLimits": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/MemberLimitRules"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "columns": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ColumnMethodRules"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "twoWaySlabs": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/TwoWaySlabRules"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "flatSlabs": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/FlatSlabRules"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "walls": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/WallMethodRules"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "footings": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/FootingMethodRules"
         },
         {
           "type": "null"

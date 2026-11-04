@@ -28,6 +28,7 @@ Units: mm, MPa, N, N·mm.
 from __future__ import annotations
 
 import math
+from dataclasses import dataclass
 from typing import Any
 
 from saengine.codes import context as code_context
@@ -311,6 +312,47 @@ def torsion_rows(
                 )
             )
     return rows
+
+
+@dataclass(frozen=True)
+class TorsionNeed:
+    """What Design Reinforcement sizes the closed links of a beam in torsion from (the fields
+    of :class:`saengine.design.torsion.TorsionDesign` it reads): ``at_s`` the torsion's part of
+    one leg [mm²/mm], ``al`` the added longitudinal steel (0: the equivalent moment carries
+    it), ``s_max`` the link spacing limit [mm]."""
+
+    at_s: float
+    al: float
+    s_max: float
+    #: Marks the equivalent shear method's need (not the thin-walled tube's TorsionDesign).
+    tabulated: bool = True
+
+
+def torsion_need(
+    section: Any, cover: float, stirrups: tuple[float, int, float] | None,
+    points: list[tuple[float, float, float, str, str]],
+) -> TorsionNeed | None:  # fmt: skip
+    """The torsion need of the governing station where τve exceeds τc (None below it)."""
+    t, r = torsion_rules(), rules()
+    if t is None or r is None or not points or max(abs(p[0]) for p in points) < TORSION_FLOOR:
+        return None
+    b, depth = section.width, section.depth
+    tdia = section.transverse_dia or (stirrups[0] if stirrups else 8.0)
+    x1, y1 = b - 2 * cover - tdia, depth - 2 * cover - tdia
+    try:
+        d = section.effective_depth(top=False)
+    except Exception:  # noqa: BLE001
+        d = section.effective_depth(top=True)
+    shear = beam_shear(section, *(stirrups if stirrups else (None, 0, None)))
+    tc = tau_c(section.fc, 100 * shear.rho_w, r)
+    fyd = stirrup_yield(section.fy, r)
+    worst = max(points, key=lambda p: abs(p[1]) + t.shearFactor * abs(p[0]) / b)
+    ve = abs(worst[1]) + t.shearFactor * abs(worst[0]) / b
+    if ve <= tc * b * d:
+        return None
+    # The torsion's part of the two legs, Tu / (b1 d1 fyd), per leg.
+    at_s = abs(worst[0]) / (x1 * y1 * fyd) / 2
+    return TorsionNeed(at_s, 0.0, min(x1, (x1 + y1) / t.spacingDivisor, t.spacingMax))
 
 
 # ─────────────────────────────── punching ───────────────────────────────

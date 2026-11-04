@@ -2,9 +2,9 @@
   "schema": "saengine.codePack/1",
   "id": "is-codes",
   "name": "Indian Standards (IS)",
-  "edition": "IS 875 (Parts 1, 2, 3:2015, 5), IS 1893 (Part 1):2016",
+  "edition": "Indian Standards",
   "country": "IN",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "extends": "bnbc2020",
   "covers": [
     "locations",
@@ -15,9 +15,12 @@
     "liveReduction",
     "combinations",
     "seismic",
-    "wind"
+    "wind",
+    "concreteMethods",
+    "concrete",
+    "foundations"
   ],
-  "description": "Indian Standards, loads (alpha 9 track C7): unit weights (IS 875 Part 1), imposed loads and their reduction (Part 2), wind by the design wind speed Vz = Vb k1 k2 k3 k4 (Part 3:2015), load combinations (Part 5 with IS 456 Table 18 and IS 1893 6.3.4), and earthquake to IS 1893 (Part 1):2016 (zones, soil types I-III, R, I, Ah = (Z/2)(I/R)(Sa/g), Ta, the least base shear, Qi by hi², scaling to VB, drift 0.004, irregularities). Materials are not covered yet: concrete, steel, masonry, timber, foundations, detailing, services and every other table come from BNBC 2020 (the pack this one extends) until the IS material packs exist. Every value names its clause; VERIFY.md lists them for checking against the printed codes.",
+  "description": "Indian Standards. Loads (alpha 9 track C7): unit weights (IS 875 Part 1), imposed loads and their reduction (Part 2), wind by Vz = Vb k1 k2 k3 k4 (Part 3:2015), load combinations (Part 5 with IS 456 Table 18 and IS 1893 6.3.4), earthquake to IS 1893 (Part 1):2016. Concrete and foundations (alpha 9 track C8): IS 456:2000 limit state design (design strengths 0.67 fck/1.5 and fy/1.15, the 0.36 fck xu block, xu,max, shear by τc of Table 19 and τc,max, least stirrups, torsion by the equivalent shear and moment, punching ks τc, columns with emin, the additional moments of slender columns and the αn load contour, deflection by span/depth with the modification factors and Annex C, crack width Annex F, cover and mix by exposure, development and lap lengths by τbd, member steel limits, two-way slabs by Annex D, flat slab end spans by αc, wall shear 32.4, footings 34), IS 13920:2016 ductile detailing (beams, columns with special confining reinforcement, strong column 1.4, joints, special shear walls, boundary elements, coupling beams), IS 6403 bearing capacity factors and IS 2911 (Part 1/Sec 2) static pile capacity. Steel, masonry, timber, services and the tables not in covers come from BNBC 2020 (the pack this one extends). Every value names its clause; VERIFY.md lists them for checking against the printed codes.",
   "sources": [
     {
       "id": "IS875-1",
@@ -47,6 +50,30 @@
       "id": "IS1893-1",
       "title": "IS 1893 (Part 1) Criteria for earthquake resistant design of structures: general provisions and buildings",
       "edition": "2016",
+      "publisher": "Bureau of Indian Standards"
+    },
+    {
+      "id": "IS456",
+      "title": "IS 456 Plain and reinforced concrete - code of practice",
+      "edition": "2000",
+      "publisher": "Bureau of Indian Standards"
+    },
+    {
+      "id": "IS13920",
+      "title": "IS 13920 Ductile design and detailing of reinforced concrete structures subjected to seismic forces - code of practice",
+      "edition": "2016",
+      "publisher": "Bureau of Indian Standards"
+    },
+    {
+      "id": "IS6403",
+      "title": "IS 6403 Code of practice for determination of bearing capacity of shallow foundations",
+      "edition": "1981",
+      "publisher": "Bureau of Indian Standards"
+    },
+    {
+      "id": "IS2911-1-2",
+      "title": "IS 2911 (Part 1/Sec 2) Design and construction of pile foundations: bored cast in-situ concrete piles",
+      "edition": "2010",
       "publisher": "Bureau of Indian Standards"
     }
   ],
@@ -81,10 +108,25 @@
     ],
     "wind": [
       "IS 875 (Part 3):2015 Clauses 6-7"
+    ],
+    "concreteMethods": [
+      "IS 456:2000",
+      "IS 13920:2016"
+    ],
+    "concrete": [
+      "IS 456:2000 6.2.3.1"
+    ],
+    "foundations": [
+      "IS 6403:1981",
+      "IS 2911 (Part 1/Sec 2):2010",
+      "IS 456:2000 34.4"
     ]
   },
   "basis": {
-    "general": "IS 875 (Parts 1-3, 5), IS 1893 (Part 1):2016"
+    "general": "IS 875 (Parts 1-3, 5), IS 1893 (Part 1):2016",
+    "concrete": "IS 456:2000 (limit state) and IS 13920:2016 (ductile detailing), foundations by IS 6403 (bearing capacity), IS 2911 (Part 1/Sec 2) (piles) and IS 456 Clause 34 (footings); other concrete and foundation methods from BNBC 2020 Part 6 Chapters 3 and 6 until covered",
+    "steel": "BNBC 2020 Part 6 Chapter 10 (no IS 800 pack yet)",
+    "method": "Limit state design (IS 456)"
   },
   "author": "SAEngine contributors",
   "licence": "AGPL-3.0-only",

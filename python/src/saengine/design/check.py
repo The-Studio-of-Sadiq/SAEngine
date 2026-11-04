@@ -4192,7 +4192,7 @@ def _beam_torsion_checks(
             tabulated_shear.torsion_rows(
                 section, reinforcement.cover, stirrups, points, capacities
             ),
-            None,
+            tabulated_shear.torsion_need(section, reinforcement.cover, stirrups, points),
         )
     width = section.width
     thickness, sides = framing.slab_beside(element, width)

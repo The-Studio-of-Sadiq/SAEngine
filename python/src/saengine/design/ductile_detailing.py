@@ -399,6 +399,31 @@ def coupling_row(
     return row
 
 
+def proposal_caps(kind: str, section: Any) -> tuple[float, float, float] | None:
+    """Design Reinforcement: (zone spacing, spacing elsewhere, least zone length) [mm] of a
+    beam or column type by the pack's limits (None without the method)."""
+    r = rules()
+    if r is None:
+        return None
+    db = min((x.dia for x in section.bars), default=0.0)
+    if kind == "beam":
+        b = r.beams
+        try:
+            d = section.effective_depth(top=False)
+        except DesignError:
+            d = 0.9 * section.depth
+        a, n, mm = b.hoopSpacing
+        return min(a * d, n * db, mm), b.elsewhereShare * d, b.hoopZoneDepths * d
+    c = r.columns
+    least, other = sorted((section.width, section.depth))
+    sa, sb, smm = c.confinedSpacing
+    return (
+        min(sa * least, sb * db, smm),
+        c.outsideShare * least,
+        max(c.confinedLength[0] * other, c.confinedLength[2]),
+    )
+
+
 def method_lines() -> list[str]:
     from saengine.design.tabulated_shear import cite
 
@@ -460,12 +485,31 @@ def apply(
         if not lateral(d):
             continue
         try:
+            dem = demands(d)
+            height = heights.get(d.id)
+            clear_height = (
+                height - max(beam_sections.values(), key=lambda x: x.depth).depth
+                if height and beam_sections
+                else height
+            )
+            # What Design Reinforcement proposes the hoop zones from (the parent's context
+            # form, :func:`saengine.design.proposal.seismic_transverse`; capped by
+            # :func:`proposal_caps`), without the parent's capacity shear rule.
+            d.context = {
+                "level": level,
+                "lateral": True,
+                "axial": (max(dem.pmax, 0.0) if dem is not None else 0.0, None),
+                "demands": dem,
+                "cover": d.object.reinforcement.cover if d.object.reinforcement else 40.0,
+                "fullHeight": False,
+                "shearLevel": None,
+                "clearSpan": clear.get(d.id),
+                "supports": [],
+                "clearHeight": clear_height,
+            }
             if d.kind == "beam":
-                rows = beam_rows(d, r, clear.get(d.id), demands(d))
+                rows = beam_rows(d, r, clear.get(d.id), dem)
             else:
-                height = heights.get(d.id)
-                clear_height = height - max(beam_sections.values(), key=lambda x: x.depth).depth \
-                    if height and beam_sections else height  # fmt: skip
                 rows = column_rows(d, r, clear_height)
         except (DesignError, ValueError, KeyError) as error:
             notes.append(f"{d.id}: ductile detailing not checked: {error}")

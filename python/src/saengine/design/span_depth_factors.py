@@ -181,7 +181,10 @@ def span_rows(
     theta = creep_coefficient()
     permanent = short_dead + sustained * short_live
     creep = theta * permanent
-    shrink = shrinkage_deflection(span, h, pt, pc, kind)
+    # k3 by the support: a span continuous at one end only takes the pack's "continuousOne".
+    shrink = shrinkage_deflection(
+        span, h, pt, pc, "continuousOne" if kind == "continuous" and ends == 1 else kind
+    )
     total = short_dead + short_live + creep + shrink
     after = creep + shrink + short_live
     common = (
