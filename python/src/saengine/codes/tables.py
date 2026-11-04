@@ -3105,8 +3105,24 @@ class ShrinkageSteel(_Group):
     ratioMin: Rho = Field(description="Never less than this.")
 
 
+class ShearStressRule(BaseModel):
+    """Alpha 9 C18: the concrete's shear stress of beams by the tension steel ratio (NZS 3101
+    9.3.9.3.4 type): vc = min(max(base + ratioFactor ρw, least), most) λ √f'c, with or without
+    the least links. A pack without it keeps ACI 318 Table 22.5.5.1."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    base: float = Field(ge=0)
+    ratioFactor: float = Field(ge=0)
+    least: Positive
+    most: Positive
+    clause: str = ""
+
+
 class ConcreteTable(TableModel):
     barDiameters: BarDiameters = Field(description="Bar size sets [mm] by use.")
+    # Alpha 9 C18: vc of beams by ρw (empty: ACI 318 Table 22.5.5.1).
+    shearStress: ShearStressRule | None = None
     barNames: dict[str, str] | None = Field(
         default=None,
         description="C13: the bar designations of the code's bar standard by diameter [mm] as "

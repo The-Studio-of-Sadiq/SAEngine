@@ -1,0 +1,925 @@
+{
+  "$schema": "../../../schemas/seismic.schema.json",
+  "$sources": [
+    "NZS 1170.5:2004 (Amendment 1) Sections 3-7"
+  ],
+  "source": "NZS 1170.5:2004: site subsoil classes A-E (3.1.3), spectral shape factor Ch(T) (Table 3.1), C(T) = Ch(T) Z R N(T,D) (3.1.1), the design action coefficient Cd(T) = C(T) Sp / kμ (5.2.1.1) with Sp (4.4.2) and kμ (5.2.1.1), its least values, the equivalent static method (6.2) and the modal response spectrum method (6.3), the drift limit (7.5)",
+  "defaultSiteClass": "C",
+  "defaultSystem": "rcImf",
+  "siteClasses": {
+    "$replace": true,
+    "A": {
+      "description": "Class A: strong rock (UCS > 50 MPa, Vs > 1500 m/s)",
+      "S": 1.0,
+      "shape": [
+        {
+          "upTo": 0.1,
+          "a": 1.0,
+          "b": 13.5
+        },
+        {
+          "upTo": 1.5,
+          "c": 1.6,
+          "t0": 0.5,
+          "n": 0.75,
+          "most": 2.35
+        },
+        {
+          "upTo": 3.0,
+          "c": 1.05,
+          "n": 1.0
+        },
+        {
+          "c": 3.15,
+          "n": 2.0
+        }
+      ]
+    },
+    "B": {
+      "description": "Class B: rock (UCS 1-50 MPa, Vs > 360 m/s)",
+      "S": 1.0,
+      "shape": [
+        {
+          "upTo": 0.1,
+          "a": 1.0,
+          "b": 13.5
+        },
+        {
+          "upTo": 1.5,
+          "c": 1.6,
+          "t0": 0.5,
+          "n": 0.75,
+          "most": 2.35
+        },
+        {
+          "upTo": 3.0,
+          "c": 1.05,
+          "n": 1.0
+        },
+        {
+          "c": 3.15,
+          "n": 2.0
+        }
+      ]
+    },
+    "C": {
+      "description": "Class C: shallow soil (low amplitude natural period up to 0.6 s)",
+      "S": 1.33,
+      "shape": [
+        {
+          "upTo": 0.1,
+          "a": 1.33,
+          "b": 16.0
+        },
+        {
+          "upTo": 1.5,
+          "c": 2.0,
+          "t0": 0.5,
+          "n": 0.75,
+          "most": 2.93
+        },
+        {
+          "upTo": 3.0,
+          "c": 1.32,
+          "n": 1.0
+        },
+        {
+          "c": 3.96,
+          "n": 2.0
+        }
+      ]
+    },
+    "D": {
+      "description": "Class D: deep or soft soil (period above 0.6 s)",
+      "S": 1.12,
+      "shape": [
+        {
+          "upTo": 0.1,
+          "a": 1.12,
+          "b": 18.8
+        },
+        {
+          "upTo": 1.5,
+          "c": 2.4,
+          "t0": 0.75,
+          "n": 0.75,
+          "most": 3.0
+        },
+        {
+          "upTo": 3.0,
+          "c": 2.14,
+          "n": 1.0
+        },
+        {
+          "c": 6.42,
+          "n": 2.0
+        }
+      ]
+    },
+    "E": {
+      "description": "Class E: very soft soil (more than 10 m with Vs up to 150 m/s)",
+      "S": 1.12,
+      "shape": [
+        {
+          "upTo": 0.1,
+          "a": 1.12,
+          "b": 18.8
+        },
+        {
+          "upTo": 1.5,
+          "c": 3.0,
+          "t0": 1.0,
+          "n": 0.75,
+          "most": 3.0
+        },
+        {
+          "upTo": 3.0,
+          "c": 3.32,
+          "n": 1.0
+        },
+        {
+          "c": 9.96,
+          "n": 2.0
+        }
+      ]
+    }
+  },
+  "designSpectrum": {
+    "method": "shapeFactors",
+    "staticPlateau": true,
+    "clause": "NZS 1170.5 3.1, 5.2.1",
+    "shapeFactors": {
+      "$replace": true,
+      "performance": [
+        [
+          1.0,
+          1.0
+        ],
+        [
+          2.0,
+          0.7
+        ]
+      ],
+      "ductilityPeriod": 0.7,
+      "ductilityMinPeriod": 0.4,
+      "softClasses": [
+        "E"
+      ],
+      "softPeriod": 1.0,
+      "softDuctility": 1.5,
+      "hazardMax": 0.7,
+      "leastZShare": 0.05,
+      "leastOffset": 0.02,
+      "leastFloor": 0.03,
+      "faultDistance": null,
+      "nearFault": [
+        [
+          1.5,
+          1.0
+        ],
+        [
+          2.0,
+          1.12
+        ],
+        [
+          3.0,
+          1.36
+        ],
+        [
+          4.0,
+          1.6
+        ],
+        [
+          5.0,
+          1.72
+        ]
+      ],
+      "nearFaultFull": 2.0,
+      "nearFaultNone": 20.0,
+      "clauses": {
+        "performance": "4.4.2",
+        "ductility": "5.2.1.1",
+        "least": "5.2.1.1",
+        "nearFault": "3.1.6"
+      }
+    },
+    "clauses": {
+      "$replace": true,
+      "shape": "Table 3.1",
+      "static": "5.2.1.1, 6.2"
+    }
+  },
+  "systems": {
+    "$replace": true,
+    "rcOmf": {
+      "name": "Nominally ductile moment-resisting frame (concrete)",
+      "R": 1.25,
+      "Omega0": 1.0,
+      "Cd": 2.027,
+      "row": "NZS 3101 2.6.1.3.1: nominally ductile, μ 1.25",
+      "heightLimits": {},
+      "frame": "ordinary",
+      "specialWalls": false,
+      "concrete": true,
+      "masonry": false,
+      "momentFrame": true,
+      "periodFamily": "concreteMomentFrame",
+      "note": "μ = 1.25, Sp = 0.925; R holds μ, Cd = kdm μ/Sp with kdm 1.5",
+      "group": "momentFrame"
+    },
+    "rcImf": {
+      "name": "Limited ductile moment-resisting frame (concrete)",
+      "R": 3.0,
+      "Omega0": 1.0,
+      "Cd": 6.429,
+      "row": "NZS 3101 Table 2.? : limited ductile frames, μ up to 3",
+      "heightLimits": {},
+      "frame": "intermediate",
+      "specialWalls": false,
+      "concrete": true,
+      "masonry": false,
+      "momentFrame": true,
+      "periodFamily": "concreteMomentFrame",
+      "note": "μ = 3, Sp = 0.7; R holds μ, Cd = kdm μ/Sp with kdm 1.5",
+      "group": "momentFrame"
+    },
+    "rcSmf": {
+      "name": "Ductile moment-resisting frame (concrete)",
+      "R": 6.0,
+      "Omega0": 1.0,
+      "Cd": 12.857,
+      "row": "NZS 3101 Table 2.? : ductile frames, μ up to 6",
+      "heightLimits": {},
+      "frame": "special",
+      "specialWalls": false,
+      "concrete": true,
+      "masonry": false,
+      "momentFrame": true,
+      "periodFamily": "concreteMomentFrame",
+      "note": "μ = 6, Sp = 0.7; R holds μ, Cd = kdm μ/Sp with kdm 1.5",
+      "group": "momentFrame"
+    },
+    "rcOrdinaryWallFrame": {
+      "name": "Nominally ductile walls",
+      "R": 1.25,
+      "Omega0": 1.0,
+      "Cd": 2.027,
+      "row": "NZS 3101 2.6.1.3.1: nominally ductile walls, μ 1.25",
+      "heightLimits": {},
+      "frame": "ordinary",
+      "specialWalls": false,
+      "concrete": true,
+      "masonry": false,
+      "momentFrame": false,
+      "periodFamily": "other",
+      "note": "μ = 1.25, Sp = 0.925; R holds μ, Cd = kdm μ/Sp with kdm 1.5",
+      "group": "buildingFrame"
+    },
+    "rcSpecialWallFrame": {
+      "name": "Ductile cantilever walls",
+      "R": 5.0,
+      "Omega0": 1.0,
+      "Cd": 10.714,
+      "row": "NZS 3101 Table 2.? : ductile cantilever walls, μ up to 5",
+      "heightLimits": {},
+      "frame": "special",
+      "specialWalls": true,
+      "concrete": true,
+      "masonry": false,
+      "momentFrame": false,
+      "periodFamily": "other",
+      "note": "μ = 5, Sp = 0.7; R holds μ, Cd = kdm μ/Sp with kdm 1.5",
+      "group": "buildingFrame"
+    },
+    "rcDualSpecial": {
+      "name": "Ductile coupled walls",
+      "R": 6.0,
+      "Omega0": 1.0,
+      "Cd": 12.857,
+      "row": "NZS 3101 Table 2.? : ductile coupled walls, μ up to 6",
+      "heightLimits": {},
+      "frame": "special",
+      "specialWalls": true,
+      "concrete": true,
+      "masonry": false,
+      "momentFrame": false,
+      "periodFamily": "other",
+      "note": "μ = 6, Sp = 0.7; R holds μ, Cd = kdm μ/Sp with kdm 1.5",
+      "group": "dualSpecial"
+    },
+    "steelOmf": {
+      "name": "Nominally ductile moment-resisting frame (steel, category 4)",
+      "R": 1.25,
+      "Omega0": 1.0,
+      "Cd": 2.027,
+      "row": "NZS 3404 Table 12.2.4: category 4 (nominally ductile), μ 1.25",
+      "heightLimits": {},
+      "frame": "ordinary",
+      "specialWalls": false,
+      "concrete": false,
+      "masonry": false,
+      "momentFrame": true,
+      "periodFamily": "steelMomentFrame",
+      "note": "μ = 1.25, Sp = 0.925; R holds μ, Cd = kdm μ/Sp with kdm 1.5",
+      "group": "momentFrame"
+    },
+    "steelImf": {
+      "name": "Limited ductile moment-resisting frame (steel, category 3)",
+      "R": 3.0,
+      "Omega0": 1.0,
+      "Cd": 6.429,
+      "row": "NZS 3404 Table 12.2.4: category 3 (limited ductile), μ 3",
+      "heightLimits": {},
+      "frame": "intermediate",
+      "specialWalls": false,
+      "concrete": false,
+      "masonry": false,
+      "momentFrame": true,
+      "periodFamily": "steelMomentFrame",
+      "note": "μ = 3, Sp = 0.7; R holds μ, Cd = kdm μ/Sp with kdm 1.5",
+      "group": "momentFrame"
+    },
+    "steelSmf": {
+      "name": "Ductile moment-resisting frame (steel, category 1)",
+      "R": 6.0,
+      "Omega0": 1.0,
+      "Cd": 12.857,
+      "row": "NZS 3404 Table 12.2.4: category 1 (fully ductile), μ up to 6",
+      "heightLimits": {},
+      "frame": "special",
+      "specialWalls": false,
+      "concrete": false,
+      "masonry": false,
+      "momentFrame": true,
+      "periodFamily": "steelMomentFrame",
+      "note": "μ = 6, Sp = 0.7; R holds μ, Cd = kdm μ/Sp with kdm 1.5",
+      "group": "momentFrame"
+    },
+    "steelOcbf": {
+      "name": "Nominally ductile concentrically braced frame (steel)",
+      "R": 1.25,
+      "Omega0": 1.0,
+      "Cd": 2.027,
+      "row": "NZS 3404 12.12: category 4, μ 1.25",
+      "heightLimits": {},
+      "frame": "ordinary",
+      "specialWalls": false,
+      "concrete": false,
+      "masonry": false,
+      "momentFrame": false,
+      "periodFamily": "other",
+      "note": "μ = 1.25, Sp = 0.925; R holds μ, Cd = kdm μ/Sp with kdm 1.5",
+      "group": "buildingFrame"
+    },
+    "steelScbf": {
+      "name": "Limited ductile concentrically braced frame (steel)",
+      "R": 3.0,
+      "Omega0": 1.0,
+      "Cd": 6.429,
+      "row": "NZS 3404 12.12: category 3, μ 3",
+      "heightLimits": {},
+      "frame": "intermediate",
+      "specialWalls": false,
+      "concrete": false,
+      "masonry": false,
+      "momentFrame": false,
+      "periodFamily": "other",
+      "note": "μ = 3, Sp = 0.7; R holds μ, Cd = kdm μ/Sp with kdm 1.5",
+      "group": "buildingFrame"
+    },
+    "steelEbf": {
+      "name": "Ductile eccentrically braced frame (steel)",
+      "R": 6.0,
+      "Omega0": 1.0,
+      "Cd": 12.857,
+      "row": "NZS 3404 12.11: category 1, μ up to 6",
+      "heightLimits": {},
+      "frame": "special",
+      "specialWalls": false,
+      "concrete": false,
+      "masonry": false,
+      "momentFrame": false,
+      "periodFamily": "eccentricallyBracedSteelFrame",
+      "note": "μ = 6, Sp = 0.7; R holds μ, Cd = kdm μ/Sp with kdm 1.5",
+      "group": "buildingFrame"
+    },
+    "masonryOrdinaryPlain": {
+      "name": "Unreinforced masonry (elastic)",
+      "R": 1.0,
+      "Omega0": 1.0,
+      "Cd": 1.5,
+      "row": "NZS 1170.5 4.3: elastic, μ 1.0",
+      "heightLimits": {},
+      "frame": "ordinary",
+      "specialWalls": false,
+      "concrete": false,
+      "masonry": true,
+      "momentFrame": false,
+      "periodFamily": "other",
+      "note": "μ = 1, Sp = 1; R holds μ, Cd = kdm μ/Sp with kdm 1.5",
+      "group": "bearingWall"
+    },
+    "masonryOrdinaryReinforced": {
+      "name": "Limited ductile reinforced masonry",
+      "R": 2.0,
+      "Omega0": 1.0,
+      "Cd": 4.286,
+      "row": "NZS 4230: limited ductile, μ 2",
+      "heightLimits": {},
+      "frame": "ordinary",
+      "specialWalls": false,
+      "concrete": false,
+      "masonry": true,
+      "momentFrame": false,
+      "periodFamily": "other",
+      "note": "μ = 2, Sp = 0.7; R holds μ, Cd = kdm μ/Sp with kdm 1.5",
+      "group": "bearingWall"
+    }
+  },
+  "designCategories": {
+    "occupancyGroups": {
+      "$replace": true,
+      "I": "I",
+      "II": "II",
+      "III": "III",
+      "IV": "IV"
+    },
+    "bySiteClass": {
+      "$replace": true,
+      "A": {
+        "I": [
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C"
+        ],
+        "II": [
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C"
+        ],
+        "III": [
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C"
+        ],
+        "IV": [
+          "D",
+          "D",
+          "D",
+          "D",
+          "D",
+          "D",
+          "D",
+          "D",
+          "D",
+          "D",
+          "D",
+          "D",
+          "D",
+          "D",
+          "D",
+          "D",
+          "D",
+          "D",
+          "D"
+        ]
+      },
+      "B": {
+        "I": [
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C"
+        ],
+        "II": [
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C"
+        ],
+        "III": [
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C"
+        ],
+        "IV": [
+          "D",
+          "D",
+          "D",
+          "D",
+          "D",
+          "D",
+          "D",
+          "D",
+          "D",
+          "D",
+          "D",
+          "D",
+          "D",
+          "D",
+          "D",
+          "D",
+          "D",
+          "D",
+          "D"
+        ]
+      },
+      "C": {
+        "I": [
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C"
+        ],
+        "II": [
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C"
+        ],
+        "III": [
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C"
+        ],
+        "IV": [
+          "D",
+          "D",
+          "D",
+          "D",
+          "D",
+          "D",
+          "D",
+          "D",
+          "D",
+          "D",
+          "D",
+          "D",
+          "D",
+          "D",
+          "D",
+          "D",
+          "D",
+          "D",
+          "D"
+        ]
+      },
+      "D": {
+        "I": [
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C"
+        ],
+        "II": [
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C"
+        ],
+        "III": [
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C"
+        ],
+        "IV": [
+          "D",
+          "D",
+          "D",
+          "D",
+          "D",
+          "D",
+          "D",
+          "D",
+          "D",
+          "D",
+          "D",
+          "D",
+          "D",
+          "D",
+          "D",
+          "D",
+          "D",
+          "D",
+          "D"
+        ]
+      },
+      "E": {
+        "I": [
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C"
+        ],
+        "II": [
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C"
+        ],
+        "III": [
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C"
+        ],
+        "IV": [
+          "D",
+          "D",
+          "D",
+          "D",
+          "D",
+          "D",
+          "D",
+          "D",
+          "D",
+          "D",
+          "D",
+          "D",
+          "D",
+          "D",
+          "D",
+          "D",
+          "D",
+          "D",
+          "D"
+        ]
+      }
+    },
+    "aliases": {
+      "$replace": true
+    }
+  },
+  "lateralForce": {
+    "distribution": "linear",
+    "topForce": {
+      "periodFrom": 0.0001,
+      "factor": 1000.0,
+      "maxShare": 0.08
+    },
+    "clause": "NZS 1170.5 6.2.1.3"
+  },
+  "allowableDrift": {
+    "$replace": true,
+    "I": 0.025,
+    "II": 0.025,
+    "III": 0.025,
+    "IV": 0.025
+  },
+  "allowableDriftLabel": "All structures (NZS 1170.5 7.5.1: ULS storey drift at most 2.5 % of the storey height)",
+  "minimumScale": 0.8,
+  "accidentalEccentricity": 0.1,
+  "clauses": {
+    "$replace": true,
+    "systems": "NZS 3101 / NZS 3404 (μ), NZS 1170.5 4.4.2 (Sp)",
+    "drift": "7.5.1",
+    "elf": "5.2.1.1, 6.2",
+    "distribution": "6.2.1.3",
+    "torsion": "5.3.1",
+    "scale": "5.2.2.2"
+  },
+  "sources": {
+    "siteClasses": "NZS 1170.5 3.1.3 (classes A-E) and Table 3.1 Ch(T): A and B 1.0 + 13.5 T to 0.1 s, 2.35 to 0.3 s, 1.60 (0.5/T)^0.75 to 1.5 s, 1.05/T to 3 s, 3.15/T²; C 1.33 + 16.0 T, 2.93, 2.0 (0.5/T)^0.75, 1.32/T, 3.96/T²; D 1.12 + 18.8 T, 3.0 to 0.56 s, 2.4 (0.75/T)^0.75, 2.14/T, 6.42/T²; E 1.12 + 18.8 T, 3.0 to 1.0 s, 3.0/T^0.75, 3.32/T, 9.96/T²; the equivalent static method takes the plateau below 0.1 s (the table's bracketed values, staticPlateau); S = Ch(0)",
+    "designSpectrum": "NZS 1170.5 3.1.1: C(T) = Ch(T) Z R N(T,D), Z R at most 0.7; 5.2.1.1: Cd(T1) = C(T1) Sp / kμ at least (Z/20 + 0.02) Ru and 0.03 Ru (R standing for μ in the systems)",
+    "designSpectrum.shapeFactors.performance": "NZS 1170.5 4.4.2: Sp = 1.3 - 0.3 μ for 1 < μ < 2, 0.7 for μ >= 2 (1.0 at μ = 1)",
+    "designSpectrum.shapeFactors.ductilityPeriod": "NZS 1170.5 5.2.1.1: kμ = μ for T1 >= 0.7 s, (μ - 1) T1/0.7 + 1 below (classes A-D); class E: kμ = μ for T1 >= 1 s or μ < 1.5, (μ - 1.5) T1 + 1.5 otherwise; T1 taken at least 0.4 s for kμ (uncertain, to be checked); the modal spectrum takes kμ at each period (SAEngine practice: 5.2.2 takes it at T1, larger at short periods)",
+    "designSpectrum.shapeFactors.nearFault": "NZS 1170.5 3.1.6, Table 3.7: Nmax(T) 1.0 to 1.5 s, 1.12 at 2 s, 1.36 at 3 s, 1.60 at 4 s, 1.72 from 5 s; N = Nmax for D <= 2 km, 1 + (Nmax - 1)(20 - D)/18 to 20 km, 1 beyond (and for annual probabilities above 1/250). D (km) of the site to the nearest major fault of Table 3.6: a project's Code Value designSpectrum.shapeFactors.faultDistance (empty: N = 1)",
+    "systems": "The structural ductility factor μ (in R) of the materials standards (NZS 3101 2.6.1, NZS 3404 Table 12.2.4, NZS 4230), the largest of each class (uncertain: to be checked, and a project's μ must not exceed its detailing); Sp by 4.4.2; Cd = kdm μ/Sp with the drift modification factor kdm = 1.5 (NZS 1170.5 Table 7.1, buildings over 30 m: SAEngine takes it for all heights, on the safe side; 1.2 up to 15 m, 1.3 to 30 m); Ω0 1.0 (overstrength by NZS 3101 capacity design, not a system factor)",
+    "lateralForce": "NZS 1170.5 6.2.1.3: Fi = Ft δ + 0.92 V Wi hi / Σ Wj hj with Ft = 0.08 V at the top (written as the generic top force with factor 1000 T V at most 0.08 V, period from 0.0001 s)",
+    "allowableDrift": "NZS 1170.5 7.5.1: storey drift at the ULS at most 2.5 % of the storey height",
+    "minimumScale": "NZS 1170.5 5.2.2.2: the modal base shear scaled to at least 80 % of the equivalent static one for regular structures (100 % for irregular: set seismic.minimumScale; uncertain)",
+    "accidentalEccentricity": "NZS 1170.5 5.3.1.2: ±0.1 b",
+    "designCategories": "NZS 1170.5 has no earthquake design categories: SAEngine's slot C for IL1-IL3, D for IL4 (orthogonal effects of 5.3.1.1 by the program's option)"
+  }
+}

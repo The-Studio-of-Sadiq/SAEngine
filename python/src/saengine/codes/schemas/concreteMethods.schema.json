@@ -478,6 +478,20 @@
           "title": "Betanostirrups",
           "type": "array"
         },
+        "betaNoStirrupsMax": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "β without Av,min at most this (simplified); empty: no cap.",
+          "title": "Betanostirrupsmax"
+        },
         "thetaDeg": {
           "description": "θ [°] (simplified).",
           "exclusiveMinimum": 0,

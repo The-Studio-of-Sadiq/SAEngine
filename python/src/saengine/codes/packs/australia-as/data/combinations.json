@@ -1,0 +1,182 @@
+{
+  "$schema": "../../../schemas/combinations.schema.json",
+  "$replace": true,
+  "$sources": [
+    "AS/NZS 1170.0:2002 Clauses 4.2.1-4.2.4 and 4.3, Table 4.1"
+  ],
+  "source": "AS/NZS 1170.0:2002 4.2.2 ultimate combinations (1.35G; 1.2G + 1.5Q; 1.2G + ψc Q + Wu; 0.9G + Wu; G + ψE Q + Eu) and 4.3 serviceability (G + ψs Q, G + ψl Q), the factors ψ of Table 4.1 for floors of the general occupancies (residential, offices, parking: ψc 0.4, ψE 0.3, ψs 0.7, ψl 0.4) and roofs (ψc 0, ψE 0)",
+  "loadCases": {
+    "D": "Dead (G, self-weight)",
+    "SD": "Superimposed dead (G, finishes)",
+    "L": "Imposed (Q)",
+    "Lr": "Roof imposed (Q, roofs)",
+    "WX": "Wind in X",
+    "WY": "Wind in Y",
+    "EX": "Earthquake in X",
+    "EY": "Earthquake in Y",
+    "F": "Fluids (liquid pressure, as G)",
+    "H": "Earth and water pressure",
+    "T": "Temperature"
+  },
+  "strength": [
+    {
+      "id": "1",
+      "name": "1.35G",
+      "factors": {
+        "D": 1.35,
+        "F": 1.35,
+        "H": 1.35
+      },
+      "source": "AS/NZS 1170.0 4.2.2(a): 1.35G (permanent action only; F and H with G)"
+    },
+    {
+      "id": "2",
+      "name": "1.2G + 1.5Q",
+      "factors": {
+        "D": 1.2,
+        "F": 1.2,
+        "H": 1.5,
+        "L": 1.5,
+        "Lr": 1.5
+      },
+      "source": "AS/NZS 1170.0 4.2.2(b): 1.2G + 1.5Q (earth pressure with the imposed factor 1.5: AS/NZS 1170.0 4.2.3, SAEngine practice)"
+    },
+    {
+      "id": "3W",
+      "name": "1.2G + ψc Q + Wu",
+      "factors": {
+        "D": 1.2,
+        "F": 1.2,
+        "L": 0.4,
+        "Lr": 0.0,
+        "W": 1.0
+      },
+      "source": "AS/NZS 1170.0 4.2.2(d): 1.2G + ψc Q + Wu, ψc 0.4 (Table 4.1, floors), 0 for roofs"
+    },
+    {
+      "id": "4W",
+      "name": "0.9G + Wu",
+      "factors": {
+        "D": 0.9,
+        "W": 1.0
+      },
+      "source": "AS/NZS 1170.0 4.2.2(e): 0.9G + Wu"
+    },
+    {
+      "id": "5",
+      "name": "G + ψE Q + Eu",
+      "factors": {
+        "D": 1.0,
+        "F": 1.0,
+        "L": 0.3,
+        "E": 1.0
+      },
+      "source": "AS/NZS 1170.0 4.2.2(f): G + ψE Q + Eu, ψE 0.3 (Table 4.1, floors), 0 for roofs"
+    }
+  ],
+  "service": [
+    {
+      "id": "1",
+      "name": "G + ψs Q",
+      "factors": {
+        "D": 1.0,
+        "L": 0.7,
+        "Lr": 0.7
+      },
+      "source": "AS/NZS 1170.0 4.3: short-term, ψs 0.7 (Table 4.1)"
+    },
+    {
+      "id": "2",
+      "name": "G + ψl Q",
+      "factors": {
+        "D": 1.0,
+        "L": 0.4
+      },
+      "source": "AS/NZS 1170.0 4.3: long-term, ψl 0.4 (Table 4.1)"
+    },
+    {
+      "id": "3",
+      "name": "G + ψs Q + Ws",
+      "factors": {
+        "D": 1.0,
+        "L": 0.7,
+        "W": 0.68
+      },
+      "source": "AS/NZS 1170.0 4.3 with the serviceability wind Ws of the 1/25 annual probability: SAEngine takes Ws = (V25 / V500)² Wu = (37 / 45)² = 0.68 Wu (region A, SAEngine practice; enter the region's ratio for B, C, D)"
+    }
+  ],
+  "gravity": [
+    {
+      "name": "1.2G + 1.5Q",
+      "factors": {
+        "D": 1.2,
+        "L": 1.5
+      }
+    }
+  ],
+  "allowable": [
+    {
+      "id": "1",
+      "name": "G",
+      "factors": {
+        "D": 1.0,
+        "F": 1.0
+      },
+      "source": "Permissible stress design (masonry and timber of the parent pack): characteristic actions"
+    },
+    {
+      "id": "2",
+      "name": "G + Q",
+      "factors": {
+        "D": 1.0,
+        "F": 1.0,
+        "H": 1.0,
+        "L": 1.0,
+        "Lr": 1.0
+      },
+      "source": "Characteristic permanent and imposed actions"
+    },
+    {
+      "id": "3W",
+      "name": "G + Ws",
+      "factors": {
+        "D": 1.0,
+        "F": 1.0,
+        "H": 1.0,
+        "W": 0.68
+      },
+      "source": "Characteristic permanent actions with the serviceability wind (0.68 Wu, see service)"
+    },
+    {
+      "id": "4W",
+      "name": "G + ψs Q + Ws",
+      "factors": {
+        "D": 1.0,
+        "F": 1.0,
+        "H": 1.0,
+        "L": 0.7,
+        "Lr": 0.7,
+        "W": 0.68
+      },
+      "source": "Characteristic actions with ψs Q and the serviceability wind"
+    }
+  ],
+  "temperature": [],
+  "seismicDeadUpper": 1.0,
+  "seismicDeadLower": 1.0,
+  "overstrength": "AS/NZS 1170.0 and AS 1170.4 give no system overstrength factor Ω0: the earthquake combination is G + ψE Q + Eu; Ω0 = 1.0 in the systems (SAEngine practice), so the overstrength cases equal the ordinary ones",
+  "optionalCases": [
+    "F",
+    "H",
+    "T"
+  ],
+  "sources": {
+    "seismicDeadUpper": "AS/NZS 1170.0 4.2.2(f): G (factor 1.0); AS 1170.4 has no general vertical earthquake component on G (seismic.verticalFactor 0)",
+    "seismicDeadLower": "AS/NZS 1170.0 4.2.2(f): G (1.0)",
+    "storageFactors": "Table 4.1 storage: ψc 0.6, ψE 0.6, ψs 1.0, ψl 0.6: not applied (the combinations use the general floor factors; override them for storage)"
+  },
+  "clauses": {
+    "strength": "4.2.2",
+    "service": "4.3"
+  }
+}

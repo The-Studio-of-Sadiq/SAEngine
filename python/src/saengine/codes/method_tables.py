@@ -976,6 +976,10 @@ class CompressionFieldShearRules(_Group):
     betaNoStirrups: tuple[Positive, Positive] = Field(
         description="β = a / (b + dv) without Av,min (simplified)."
     )
+    # Alpha 9 C18 (AS 3600:2018 8.2.4.3: kv = 200 / (1000 + 1.3 dv) <= 0.10).
+    betaNoStirrupsMax: Positive | None = Field(
+        default=None, description="β without Av,min at most this (simplified); empty: no cap."
+    )
     thetaDeg: Positive = Field(description="θ [°] (simplified).")
     general: CompressionFieldGeneral
     strainLimits: tuple[float, Positive] = Field(description="εx within (least, largest).")

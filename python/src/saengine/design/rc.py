@@ -742,11 +742,18 @@ def shear(
     lambda_s = min(1.0, math.sqrt(2 / (1 + 0.004 * d)))
     simplified = 0.17 * lam * root * b * d
     with_min = av > 0 and av >= av_min
-    if with_min:
+    from saengine.codes import context as code_context
+
+    stress = getattr(code_context.pack_table("concrete"), "shearStress", None)
+    if stress is not None:  # Alpha 9 C18: vc by ρw (NZS 3101 9.3.9.3.4 type)
+        share = min(max(stress.base + stress.ratioFactor * rho_w, stress.least), stress.most)
+        vc = simplified = share * lam * root * b * d
+    elif with_min:
         vc = simplified
     else:
         vc = 0.66 * lambda_s * lam * rho_w ** (1 / 3) * root * b * d
-    vc = min(vc, 0.42 * lam * root * b * d)
+    if stress is None:
+        vc = min(vc, 0.42 * lam * root * b * d)
     vs = av * fyt * d / spacing if av else 0.0
     vs_max = 0.66 * math.sqrt(section.fc) * b * d  # the 8.3 MPa cap is for Vc only
     limited = vs > vs_max

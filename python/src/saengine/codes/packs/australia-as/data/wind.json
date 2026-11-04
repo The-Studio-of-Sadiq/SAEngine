@@ -1,0 +1,362 @@
+{
+  "$schema": "../../../schemas/wind.schema.json",
+  "$replace": true,
+  "$sources": [
+    "AS/NZS 1170.2:2021 Sections 2-5"
+  ],
+  "source": "AS/NZS 1170.2:2021: site wind speed Vsit = VR Md (Mz,cat Ms Mt) (2.2), design pressure p = (0.5 ρair) Vdes² Cfig Cdyn with 0.5 ρair = 0.6 (2.4), Cfig = Cp,e Ka Kc,e Kl Kp of the walls (5.2, 5.4), Cdyn = 1 (buildings above 1 Hz, 6.1)",
+  "defaultExposure": "TC3",
+  "method": "speedFactors",
+  "exposures": {
+    "TC1": {
+      "description": "Terrain category 1: exposed open terrain, few or no obstructions; water surfaces"
+    },
+    "TC2": {
+      "description": "Terrain category 2: open terrain, grassland, few well scattered obstructions 1.5-10 m high"
+    },
+    "TC3": {
+      "description": "Terrain category 3: numerous closely spaced obstructions 3-10 m high (suburban housing)"
+    },
+    "TC4": {
+      "description": "Terrain category 4: large city centres, numerous large high (10-30 m) closely spaced obstructions"
+    }
+  },
+  "speedFactors": {
+    "airFactor": 0.6,
+    "heightFactors": {
+      "TC1": [
+        [
+          3,
+          0.99
+        ],
+        [
+          5,
+          1.05
+        ],
+        [
+          10,
+          1.12
+        ],
+        [
+          15,
+          1.16
+        ],
+        [
+          20,
+          1.19
+        ],
+        [
+          30,
+          1.22
+        ],
+        [
+          40,
+          1.24
+        ],
+        [
+          50,
+          1.25
+        ],
+        [
+          75,
+          1.27
+        ],
+        [
+          100,
+          1.29
+        ],
+        [
+          150,
+          1.31
+        ],
+        [
+          200,
+          1.32
+        ]
+      ],
+      "TC2": [
+        [
+          3,
+          0.91
+        ],
+        [
+          5,
+          0.91
+        ],
+        [
+          10,
+          1.0
+        ],
+        [
+          15,
+          1.05
+        ],
+        [
+          20,
+          1.08
+        ],
+        [
+          30,
+          1.12
+        ],
+        [
+          40,
+          1.16
+        ],
+        [
+          50,
+          1.18
+        ],
+        [
+          75,
+          1.22
+        ],
+        [
+          100,
+          1.24
+        ],
+        [
+          150,
+          1.27
+        ],
+        [
+          200,
+          1.29
+        ]
+      ],
+      "TC3": [
+        [
+          3,
+          0.83
+        ],
+        [
+          5,
+          0.83
+        ],
+        [
+          10,
+          0.83
+        ],
+        [
+          15,
+          0.89
+        ],
+        [
+          20,
+          0.94
+        ],
+        [
+          30,
+          1.0
+        ],
+        [
+          40,
+          1.04
+        ],
+        [
+          50,
+          1.07
+        ],
+        [
+          75,
+          1.12
+        ],
+        [
+          100,
+          1.16
+        ],
+        [
+          150,
+          1.21
+        ],
+        [
+          200,
+          1.24
+        ]
+      ],
+      "TC4": [
+        [
+          3,
+          0.75
+        ],
+        [
+          5,
+          0.75
+        ],
+        [
+          10,
+          0.75
+        ],
+        [
+          15,
+          0.75
+        ],
+        [
+          20,
+          0.75
+        ],
+        [
+          30,
+          0.8
+        ],
+        [
+          40,
+          0.85
+        ],
+        [
+          50,
+          0.9
+        ],
+        [
+          75,
+          0.98
+        ],
+        [
+          100,
+          1.03
+        ],
+        [
+          150,
+          1.11
+        ],
+        [
+          200,
+          1.16
+        ]
+      ]
+    },
+    "riskCoefficients": [
+      {
+        "id": "IL1",
+        "name": "Importance level 1: annual probability 1/100",
+        "importance": 0.9,
+        "k1": [
+          [
+            45,
+            0.9111
+          ],
+          [
+            51,
+            0.9216
+          ],
+          [
+            57,
+            0.8421
+          ],
+          [
+            66,
+            0.8485
+          ],
+          [
+            80,
+            0.825
+          ]
+        ]
+      },
+      {
+        "id": "IL2",
+        "name": "Importance level 2: 1/500 (VR = V500)",
+        "importance": 1.0,
+        "k1": [
+          [
+            45,
+            1.0
+          ],
+          [
+            80,
+            1.0
+          ]
+        ]
+      },
+      {
+        "id": "IL3",
+        "name": "Importance level 3: 1/1000",
+        "importance": 1.05,
+        "k1": [
+          [
+            45,
+            1.0222
+          ],
+          [
+            51,
+            1.0392
+          ],
+          [
+            57,
+            1.0526
+          ],
+          [
+            66,
+            1.0606
+          ],
+          [
+            80,
+            1.0625
+          ]
+        ]
+      },
+      {
+        "id": "IL4",
+        "name": "Importance level 4: 1/2500",
+        "importance": 1.1,
+        "k1": [
+          [
+            45,
+            1.0667
+          ],
+          [
+            51,
+            1.0784
+          ],
+          [
+            57,
+            1.1228
+          ],
+          [
+            66,
+            1.1212
+          ],
+          [
+            80,
+            1.1375
+          ]
+        ]
+      }
+    ],
+    "importance": 1.0,
+    "areaAveraging": 1.0,
+    "combination": 1.0,
+    "minimumShare": 0.0
+  },
+  "directionality": 1.0,
+  "topographic": 1.0,
+  "gust": 1.0,
+  "cpWindward": 0.7,
+  "cpLeeward": [
+    [
+      1.0,
+      -0.5
+    ],
+    [
+      2.0,
+      -0.3
+    ],
+    [
+      4.0,
+      -0.2
+    ]
+  ],
+  "sources": {
+    "speedFactors.airFactor": "AS/NZS 1170.2:2021 2.4.1: p = 0.5 ρair Vdes² with ρair = 1.2 kg/m³ (0.6 Vdes² [Pa])",
+    "speedFactors.heightFactors": "AS/NZS 1170.2 Table 4.1: terrain/height multiplier Mz,cat (k2 of the method) of TC1-TC4 at 3-200 m, linear between, the 3 m value below (values of the 2011 edition's table; the 2021 edition adds TC1.5 and TC2.5 and may revise them: to be checked)",
+    "speedFactors.riskCoefficients": "AS/NZS 1170.2 Table 3.1(A): VR of the annual probability of the importance level (AS/NZS 1170.0 Table 3.3) over V500 (the town's speed), at V500 = 45 (regions A0-A5, NZ1, NZ2), 51 (NZ3), 57 (B1, B2), 66 (C) and 80 m/s (D): k1 of the method; the regional values of the 2011 formulas (A 67 - 41 R^-0.1, W 104 - 70 R^-0.045, B 106 - 92 R^-0.1, C 122 - 104 R^-0.1, D 156 - 142 R^-0.1) rounded; the 2021 regions' values to be checked",
+    "speedFactors.importance": "AS/NZS 1170.2 4.3: shielding multiplier Ms = 1.0 (no shielding taken, conservative; k4 of the method: set wind.speedFactors.importance for Ms, or for the climate change multiplier Mc of the 2021 edition in regions B2, C and D: uncertain, to be checked)",
+    "speedFactors.combination": "AS/NZS 1170.2 5.4.3, Table 5.5: Kc,e = 1.0 taken (SAEngine practice, conservative); the table allows 0.8-0.9 where several surfaces act together: set wind.speedFactors.combination",
+    "speedFactors.areaAveraging": "AS/NZS 1170.2 5.4.2: Ka = 1.0 for windward and leeward walls",
+    "directionality": "AS/NZS 1170.2 3.3: wind direction multiplier Md = 1.0 (any direction; the largest, conservative: override wind.directionality with the region's Md of the governing direction)",
+    "topographic": "AS/NZS 1170.2 4.4: topographic multiplier Mt = Mh Mlee Ms = 1.0 on flat ground; enter Mt in Project Settings > Wind (the hill multiplier Mh of 4.4.2 is not computed)",
+    "gust": "AS/NZS 1170.2: regional speeds are 0.2 s gusts, the pressure coefficients need no gust factor (1.0); Cdyn = 1 (6.1, buildings with n1 > 1 Hz; the dynamic response factor of Section 6 is not computed)",
+    "cpWindward": "AS/NZS 1170.2 Table 5.2(A): windward wall Cp,e = 0.7 (Kl = 1)",
+    "cpLeeward": "AS/NZS 1170.2 Table 5.2(B): leeward wall Cp,e by d/b: -0.5 (<= 1), -0.3 (2), -0.2 (>= 4), roof pitch below 10° (linear between)"
+  }
+}

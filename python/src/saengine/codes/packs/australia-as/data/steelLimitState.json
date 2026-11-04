@@ -1,0 +1,296 @@
+{
+  "$schema": "../../../schemas/steelLimitState.schema.json",
+  "$sources": [
+    "AS 4100:2020 Sections 3, 5, 6, 7 and 8"
+  ],
+  "source": "AS 4100:2020 limit state design of steel members: φ = 0.9 on the member capacities (the method's γm0 = 1/0.9), section classification by λe = (b/t)√(fy/250) (5.2), the member slenderness reduction factor αc with αb (6.3.3), lateral-torsional buckling Mb = αm αs Ms (5.6.1.1), shear Vw = 0.6 fy Aw (5.11.4), the linear section and member checks (8.3, 8.4 conservative forms); connections and the seismic rules from the parent pack (named so)",
+  "partialFactors": {
+    "gammaM0": 1.111111,
+    "gammaM1": 1.111111,
+    "gammaMb": 1.25,
+    "gammaMf": 1.428571,
+    "gammaMfService": 1.428571,
+    "gammaMw": 1.25,
+    "gammaMwField": 1.25
+  },
+  "designStrength": {
+    "300": [
+      [
+        11,
+        320
+      ],
+      [
+        17,
+        300
+      ],
+      [
+        1000,
+        280
+      ]
+    ],
+    "350": [
+      [
+        11,
+        360
+      ],
+      [
+        17,
+        340
+      ],
+      [
+        1000,
+        330
+      ]
+    ]
+  },
+  "classification": {
+    "method": "epsilonLimits",
+    "referenceFy": 250,
+    "outstandRolled": {
+      "plastic": 9.0,
+      "compact": 9.0,
+      "semiCompact": 16.0
+    },
+    "outstandWelded": {
+      "plastic": 8.0,
+      "compact": 8.0,
+      "semiCompact": 14.0
+    },
+    "internalFlange": {
+      "plastic": 30.0,
+      "compact": 30.0,
+      "semiCompact": 40.0
+    },
+    "internalAxial": 40.0,
+    "web": {
+      "plastic": 82.0,
+      "compact": 82.0,
+      "semiCompact": 115.0
+    },
+    "webAxial": 45.0,
+    "webAxialFactors": [
+      1.0,
+      1.0,
+      1.0
+    ],
+    "channelWeb": {
+      "plastic": 82.0,
+      "compact": 82.0,
+      "semiCompact": 115.0
+    },
+    "angleBending": {
+      "plastic": 9.0,
+      "compact": 9.0,
+      "semiCompact": 16.0
+    },
+    "angleAxial": [
+      16.0,
+      25.0
+    ],
+    "teeStem": {
+      "plastic": 9.0,
+      "compact": 9.0,
+      "semiCompact": 25.0
+    },
+    "circularBending": {
+      "plastic": 50.0,
+      "compact": 50.0,
+      "semiCompact": 120.0,
+      "squared": true
+    },
+    "circularAxial": 82.0
+  },
+  "compression": {
+    "method": "bucklingCurves",
+    "slendernessReduction": {
+      "referenceFy": 250.0,
+      "alphaA": [
+        2100.0,
+        13.5,
+        15.3,
+        2050.0
+      ],
+      "eta": [
+        0.00326,
+        13.5
+      ],
+      "scale": 90.0,
+      "alphaB": {
+        "-1.0": -1.0,
+        "-0.5": -0.5,
+        "0": 0.0,
+        "0.5": 0.5,
+        "1.0": 1.0
+      }
+    },
+    "rolledI": [
+      [
+        0.0,
+        40,
+        "0",
+        "0"
+      ],
+      [
+        0.0,
+        100000,
+        "0.5",
+        "0.5"
+      ]
+    ],
+    "weldedI": [
+      [
+        40,
+        "0.5",
+        "0.5"
+      ],
+      [
+        100000,
+        "0.5",
+        "0.5"
+      ]
+    ],
+    "families": {
+      "channel": {
+        "major": "0.5",
+        "minor": "0.5"
+      },
+      "tee": {
+        "major": "1.0",
+        "minor": "1.0"
+      },
+      "angle": {
+        "major": "0.5",
+        "minor": "0.5"
+      },
+      "rhs": {
+        "major": "-0.5",
+        "minor": "-0.5"
+      },
+      "chs": {
+        "major": "-0.5",
+        "minor": "-0.5"
+      },
+      "bar": {
+        "major": "0.5",
+        "minor": "0.5"
+      },
+      "round": {
+        "major": "0.5",
+        "minor": "0.5"
+      }
+    },
+    "angleConstants": {
+      "minorAxis": [
+        0.0,
+        1.0,
+        0.0
+      ]
+    },
+    "angleCondition": "minorAxis",
+    "angleCurve": "0.5"
+  },
+  "tension": {
+    "method": "yieldRupture",
+    "ruptureShare": 0.85,
+    "angleAlpha": [
+      [
+        1000,
+        0.7225
+      ]
+    ],
+    "angleBolts": 2
+  },
+  "flexure": {
+    "method": "elasticCriticalMoment",
+    "elasticCap": 1.5,
+    "elasticCapCantilever": 1.5,
+    "alphaLT": {
+      "rolled": 0.21,
+      "welded": 0.49
+    },
+    "ltbPlateau": 0.2,
+    "ltbBase": 0.2,
+    "highShare": 0.6,
+    "slendernessReduction": {
+      "share": 0.6,
+      "offset": 3.0
+    }
+  },
+  "shear": {
+    "method": "postCritical",
+    "bucklingLimit": 82.0,
+    "poisson": 0.3,
+    "kvUnstiffened": 5.35,
+    "kvStiffened": [
+      4.0,
+      5.35
+    ],
+    "lambdaLimits": [
+      0.8,
+      1.2
+    ],
+    "lambdaSlope": 0.8,
+    "yieldShare": 0.6
+  },
+  "interaction": {
+    "method": "sectionMember",
+    "plastic": false,
+    "alphaMinor": 1.0,
+    "alphaMajor": 1.0,
+    "flangeShare": 0.5,
+    "majorReduction": 0.5,
+    "minorShare": 1.0,
+    "kCap": 0.0,
+    "ltbFactor": 0.0,
+    "ltbOffset": 0.25,
+    "cmMin": 0.4,
+    "tensionPsi": 0.0
+  },
+  "slenderness": {
+    "compression": 200.0,
+    "tension": 300.0
+  },
+  "shearModulus": 80000.0,
+  "welded": false,
+  "nominalHollowWall": true,
+  "bracing": {
+    "method": "forceShare",
+    "share": 0.025,
+    "clauses": {
+      "bracing": "AS 4100:2020 6.6.3 (restraint 2.5 % of the member's axial force)"
+    }
+  },
+  "clauses": {
+    "code": "Sections 5-8",
+    "designStrength": "2.1.1, Table 2.1",
+    "partialFactors": "3.4, Table 3.4 (φ 0.9)",
+    "classification": "5.2, Table 5.2; 6.2.3",
+    "slenderness": "6.? (SAEngine limit)",
+    "tensionYield": "7.2",
+    "tensionRupture": "7.2, 7.3",
+    "tensionAngle": "7.3.2",
+    "compression": "6.3.3, Tables 6.3.3(1)-(3)",
+    "compressionAngle": "6.3.3",
+    "flexure": "5.1, 5.2",
+    "lateralTorsional": "5.6.1.1",
+    "shear": "5.11.4",
+    "shearBuckling": "5.11.5",
+    "section": "8.3",
+    "sectionPlastic": "8.3.3",
+    "sectionLinear": "8.3.2",
+    "memberCompression": "8.4",
+    "memberTension": "8.4.5"
+  },
+  "sources": {
+    "partialFactors": "AS 4100:2020 Table 3.4: φ = 0.9 members (γm0 = γm1 = 1/0.9), bolts 0.8 (1/0.8), friction-type connections 0.7, SP category fillet welds 0.8 (field welds taken SP too)",
+    "designStrength": "AS/NZS 3679.1 Grade 300 (fy 320 to 11 mm, 300 to 17 mm, 280 beyond) and Grade 350 (360, 340, 330) of hot-rolled sections by flange thickness (AS 4100 Table 2.1; uncertain, to be checked)",
+    "classification": "AS 4100:2020 Table 5.2 (bending) and 6.2.4 (compression): λe = (b/t)√(fy/250), the program's ε = √(250/fy) units; λep as the plastic and compact limit (AS has compact, non-compact and slender only), λey as the semi-compact limit: flange outstands HR 9/16, HW 8/14, both edges supported CF 30/40, webs in bending 82/115, CHS 50/120 on (do/t)(fy/250), axial λey 45 (webs) and 82 (CHS); the web limits with axial force and the angle limits are SAEngine practice (no reduction by axial force)",
+    "compression": "AS 4100:2020 6.3.3: αc of λn = (le/r)√kf √(fy/250), αa = 2100 (λn - 13.5)/(λn² - 15.3 λn + 2050), λ = λn + αa αb, η = 0.00326 (λ - 13.5) >= 0, ξ = ((λ/90)² + 1 + η)/(2 (λ/90)²); αb of Table 6.3.3(1): hot-rolled I sections 0 (flanges up to 40 mm), 0.5 above; welded I sections 0.5 (SAEngine: the as-rolled plate value; 0 for flame-cut flanges up to 40 mm), channels and angles 0.5, tees 1.0, cold-formed RHS and CHS (non stress-relieved) -0.5; single angles about the minor principal axis on the longer length (SAEngine practice)",
+    "tension": "AS 4100:2020 7.2: φNt = min(φ Ag fy, φ 0.85 kt An fu); angles connected by one leg kt 0.85 (7.3.2: α = 0.85 × 0.85)",
+    "flexure": "AS 4100:2020 5.2.3: Ze of compact sections S <= 1.5 Z; 5.6.1.1: Mb = αm αs Ms <= Ms with αs = 0.6 [√((Ms/Mo)² + 3) - Ms/Mo], Mo the elastic buckling moment of the unbraced length (no load height or restraint factors: SAEngine practice), αm the program's equivalent moment factor c1 (AS 5.6.1.1(a)(iii) αm = 1.7 M*m/√(M2² + M3² + M4²) <= 2.5 not computed); noncompact sections at Ze = Z (SAEngine: the elastic modulus, on the safe side of the interpolation of 5.2.4); alphaLT, ltbPlateau, ltbBase are not read",
+    "shear": "AS 4100:2020 5.11.4: Vw = 0.6 fy Aw for dp/tw <= 82/√(fy/250); above, SAEngine's simple post-critical method of the family in place of 5.11.5's αv = (82/λw)² (to be added)",
+    "interaction": "AS 4100:2020 8.3.2-8.3.3 (section: Mr = Ms (1 - N*/φNs), linear) and 8.4.2.2 / 8.4.4.1 by their conservative linear form N*/φNc + M*/φMb <= 1 (SAEngine practice, on the safe side of the in-plane and out-of-plane capacities)",
+    "slenderness": "AS 4100 has no general slenderness limit: le/r 200 for compression, 300 for tension members (SAEngine practice)",
+    "shearModulus": "AS 4100:2020 2.2.4: G = 80 000 MPa"
+  }
+}

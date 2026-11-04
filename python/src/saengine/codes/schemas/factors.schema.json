@@ -1,5 +1,34 @@
 {
   "$defs": {
+    "AxialCap": {
+      "additionalProperties": false,
+      "description": "Alpha 9 C18: the largest design axial compression as a share of φ P0 (ACI 318 Table\n22.4.2.1: 0.80 tied, 0.85 spiral; NZS 3101 10.3.4.2: 0.85).",
+      "properties": {
+        "tied": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Tied",
+          "type": "number"
+        },
+        "spiral": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Spiral",
+          "type": "number"
+        },
+        "clause": {
+          "default": "",
+          "title": "Clause",
+          "type": "string"
+        }
+      },
+      "required": [
+        "tied",
+        "spiral"
+      ],
+      "title": "AxialCap",
+      "type": "object"
+    },
     "ConcretePhi": {
       "additionalProperties": {
         "exclusiveMinimum": 0,
@@ -108,6 +137,39 @@
       ],
       "title": "ConcretePhi",
       "type": "object"
+    },
+    "PhiTransition": {
+      "additionalProperties": false,
+      "description": "Alpha 9 C18: φ of moment and axial force by the neutral-axis depth (method\n``neutralAxisDepth``, AS 3600:2018 Table 2.2.2): φ = intercept - slope kuo within the\ncompression and tension φ, kuo = c / d0 = εcu / (εcu + εt) of the extreme tension bar. A\npack without it interpolates by εt between εty and εty + εcu (ACI 318 Table 21.2.2).",
+      "properties": {
+        "method": {
+          "const": "neutralAxisDepth",
+          "default": "neutralAxisDepth",
+          "title": "Method",
+          "type": "string"
+        },
+        "intercept": {
+          "exclusiveMinimum": 0,
+          "title": "Intercept",
+          "type": "number"
+        },
+        "slope": {
+          "exclusiveMinimum": 0,
+          "title": "Slope",
+          "type": "number"
+        },
+        "clause": {
+          "default": "",
+          "title": "Clause",
+          "type": "string"
+        }
+      },
+      "required": [
+        "intercept",
+        "slope"
+      ],
+      "title": "PhiTransition",
+      "type": "object"
     }
   },
   "additionalProperties": false,
@@ -137,6 +199,28 @@
     },
     "phi": {
       "$ref": "#/$defs/ConcretePhi"
+    },
+    "phiTransition": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/PhiTransition"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "axialCap": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/AxialCap"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
     }
   },
   "required": [
