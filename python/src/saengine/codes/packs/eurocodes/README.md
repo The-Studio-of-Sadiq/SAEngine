@@ -72,7 +72,7 @@ methods"); the glue is `saengine.design.limit_state_rows`, `capacity_design` and
   stay as a serviceability indication. Pile caps' piles: Rc,k from load tests (ξ1, ξ2) or from
   the calculated resistance at every borehole (ξ3, ξ4), Rc,d by the R sets.
 
-The rest of the concrete, foundation and load parts (version 0.4, alpha 9 track C5c; values
+The rest of the concrete, foundation and load parts (version 0.5, alpha 9 track C5c; values
 C5c-1 to C5c-72 of VERIFY.md):
 
 - Deep beams (span below 3 h), corbels (Annex J) and the deep pile caps by strut-and-tie models

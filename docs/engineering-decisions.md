@@ -43,7 +43,7 @@ here, newest first, with the date, the question, the decision, the reason and wh
 
 ## 2026-11-04: the rest of the Eurocodes concrete, foundation and load parts (alpha 9 track C5c)
 
-The `eurocodes` pack (0.4.0) now designs the parts C4, C5 and C5b left to BNBC 2020. Every value
+The `eurocodes` pack (0.5.0) now designs the parts C4, C5 and C5b left to BNBC 2020. Every value
 is in `codes/packs/eurocodes/VERIFY.md` (rows C5c-1 to C5c-72). Each area is a method chosen by
 id (`design/method_selection.py`: `strutAndTie`, `interfaceShear`, `ties`, `footingPunching`,
 `wallSlenderness`, `barShapes`, geotechnical `retaining`; the seismic table's `regularity`,
