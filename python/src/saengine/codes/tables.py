@@ -2622,6 +2622,12 @@ class ShrinkageSteel(_Group):
 
 class ConcreteTable(TableModel):
     barDiameters: BarDiameters = Field(description="Bar size sets [mm] by use.")
+    barNames: dict[str, str] | None = Field(
+        default=None,
+        description="C13: the bar designations of the code's bar standard by diameter [mm] as "
+        "written in barDiameters ('16' -> '#5'), printed in US customary display units; "
+        "None: 'Ø' and the diameter.",
+    )
     spacingStep: float
     minSlabSpacing: float
     minStirrupSpacing: float

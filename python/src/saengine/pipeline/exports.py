@@ -157,6 +157,7 @@ def export_xlsx(project: Project, out: Path | None = None) -> list[Path]:
         boq_folder_text(project, RATES_FILE),
         boq_folder_text(project, CARBON_FILE),
         project.name or "",
+        project.text("settings"),  # C13: the display units of the bill
     )
     if result.get("problems"):
         raise ExportError(" ".join(map(str, result["problems"])))

@@ -1109,13 +1109,26 @@ def drawing_set(
             schedule = bbs.sheet_table(bbs.bar_schedule(detailing))
         except (ValueError, TypeError, KeyError) as error:
             data.problems.append(f"The bar bending schedule could not be made: {error}")
+    # C13: the display units of the sheets (Project Settings › Units, in the title info)
+    from saengine.drawings import bbs as bbs_lib
+    from saengine.units import csv_heading, units_from_json
+
+    units = units_from_json(data.title.units)
     if schedule:
-        data.bbs.append(Table.from_dict(schedule))
-        apply_bbs_lengths(data, data.bbs[0])
-        totals = schedule.get("totals")
+        # the bars take the cutting lengths in mm; the schedule prints in the display units
+        apply_bbs_lengths(data, Table.from_dict(schedule))
+        shown = bbs_lib.display_table(schedule, units)
+        data.bbs.append(Table.from_dict(shown))
+        totals = shown.get("totals")
         if totals:
-            data.bbs.append(Table.from_dict(totals, "Bar masses by size and element (kg)"))
+            title_text = csv_heading("Bar masses by size and element (kg)", units)
+            data.bbs.append(Table.from_dict(totals, title_text))
     data.notes = general_notes(objects, materials, detailing)
+    if not units.si and data.notes:
+        data.notes[0] = (
+            "All dimensions are in feet and inches and levels in feet unless noted. Do not scale "
+            "from the drawings; work to the figured dimensions."
+        )
     from saengine.substructure.excavation import construction_notes
 
     data.notes += construction_notes(substructure)

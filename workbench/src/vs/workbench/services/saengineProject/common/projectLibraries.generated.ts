@@ -9063,6 +9063,162 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 			title: 'CraneRunway',
 			type: 'object',
 		},
+		DisplayUnits: {
+			additionalProperties: false,
+			description: 'How the project shows its numbers (alpha 9, C13). Every value is stored and computed\nin SI; switching the system changes only what the editors, the report, the drawings, the\nbar bending schedule, the BOQ and the CSV files print, never a stored value.',
+			properties: {
+				system: {
+					default: 'SI',
+					description: 'SI (mm, m, kN, MPa, kN/m²) or US customary (in, ft, kip, ksi, psf). A new project takes the code pack\'s suggestion (the US pack: US customary).',
+					enum: ['SI', 'USCustomary'],
+					enumDescriptions: ['SI', 'US customary'],
+					title: 'Unit system',
+					type: 'string',
+				},
+				length: {
+					anyOf: [
+						{
+							enum: ['ft', 'in'],
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'US customary only; empty: ft.',
+					title: 'Lengths and levels',
+				},
+				dimension: {
+					anyOf: [
+						{
+							enum: ['ft', 'in'],
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'US customary only; empty: in.',
+					title: 'Member sizes and spacings',
+				},
+				force: {
+					anyOf: [
+						{
+							enum: ['kip', 'lbf'],
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'US customary only; empty: kip.',
+					title: 'Forces',
+				},
+				stress: {
+					anyOf: [
+						{
+							enum: ['ksi', 'psi'],
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'US customary only; empty: ksi.',
+					title: 'Stresses',
+				},
+				pressure: {
+					anyOf: [
+						{
+							enum: ['psf', 'ksf'],
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'US customary only; empty: psf.',
+					title: 'Area loads and pressures',
+				},
+				moment: {
+					anyOf: [
+						{
+							enum: ['kip·ft', 'kip·in'],
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'US customary only; empty: kip·ft.',
+					title: 'Moments',
+				},
+				lineLoad: {
+					anyOf: [
+						{
+							enum: ['kip/ft', 'plf'],
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'US customary only; empty: kip/ft.',
+					title: 'Line loads',
+				},
+				unitWeight: {
+					anyOf: [
+						{
+							enum: ['pcf', 'kcf'],
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'US customary only; empty: pcf.',
+					title: 'Unit weights',
+				},
+				volume: {
+					anyOf: [
+						{
+							enum: ['ft³', 'yd³'],
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'US customary only; empty: ft³.',
+					title: 'Volumes',
+				},
+				velocity: {
+					anyOf: [
+						{
+							enum: ['mph', 'ft/s'],
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'US customary only; empty: mph.',
+					title: 'Speeds',
+				},
+			},
+			title: 'DisplayUnits',
+			type: 'object',
+		},
 		DraftingStandard: {
 			additionalProperties: false,
 			description: 'The office\'s drafting standard: layer names, colours and lineweights, the text font, the\ndimension arrows, the sheet number prefixes and the office lines of the title block. Saved\nas a file (Drawings, Office standard) it carries over to the office\'s other projects.',
@@ -11608,6 +11764,11 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 			$ref: '#/$defs/Report',
 			description: 'The printed design report (11 Exports).',
 			title: 'Design report',
+		},
+		units: {
+			$ref: '#/$defs/DisplayUnits',
+			description: 'The units the project is shown in; values are stored in SI.',
+			title: 'Units',
 		},
 		codeOverrides: {
 			additionalProperties: true,

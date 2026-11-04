@@ -645,29 +645,117 @@ def _kind_label(kind: str) -> str:
     return kind.replace("_", " ").capitalize() + "s" if kind else "Other"
 
 
-def schedule_csv(schedule: BarSchedule) -> str:
+# ── C13: the schedule in the project's display units (saengine.units) ──
+#: The unit each numeric column's cells are written in (SI), by column key.
+_COLUMN_UNITS = {
+    **{k: "mm" for k in LETTERS},
+    "cutting_length": "mm",
+    "total_length": "m",
+    "mass": "kg",
+    "total": "kg",
+}
+_FT_IN = "ft-in"
+
+
+def _shown(key: str, text: str, units: Any) -> str:
+    """One cell of column ``key`` (as :func:`_cells` writes it, SI) in ``units``: bar
+    dimensions and cutting lengths in feet and inches, total lengths and masses in the
+    display units (two decimals), bar sizes by the pack's names."""
+    from saengine.units import convert_text
+
+    if units.si or not text:
+        return text
+    unit = _COLUMN_UNITS.get(key) or ("kg" if key.startswith("d") and key[1:2].isdigit() else "")
+    if not unit:
+        return "\n".join(convert_text(line, units) for line in text.split("\n"))
+    try:
+        value = float(text.replace(",", ""))
+    except ValueError:
+        return text
+    if unit == "mm":
+        return units.length_text(value)
+    return f"{units.convert(value, unit)[0]:.2f}"
+
+
+def _title(key: str, title: str, units: Any) -> str:
+    """A column title with its unit in ``units``: "A\\n(mm)" -> "A\\n(ft-in)"."""
+    from saengine.units import convert_text, csv_heading
+
+    if units.si:
+        return title
+    if _COLUMN_UNITS.get(key) == "mm":
+        return title.replace("(mm)", f"({_FT_IN})")
+    lines = title.split("\n")
+    return "\n".join(csv_heading(convert_text(line, units), units) for line in lines)
+
+
+def display_table(table: dict[str, Any], units: Any) -> dict[str, Any]:
+    """A table of :func:`sheet_table` (or its ``totals``) in the display units ``units``
+    (:class:`saengine.units.Units`); the same table in SI. Cells are re-wrapped to the
+    columns' widths."""
+    if units.si:
+        return table
+    columns = [dict(c) for c in table.get("columns") or []]
+    keys = [str(c.get("key")) for c in columns]
+    # The cells as one line each (sheet_table wrapped them), wrapped again below.
+    rows = [
+        [_shown(keys[i] if i < len(keys) else "", str(v).replace("\n", " "), units)
+         for i, v in enumerate(r)]
+        for r in table.get("rows") or []
+    ]  # fmt: skip
+    for column in columns:
+        column["title"] = _title(str(column.get("key")), str(column.get("title", "")), units)
+        column.setdefault("max", 28 if column.get("key") in ("member", "remarks") else 14)
+    _widths(columns, rows)
+    for column in columns:
+        column.pop("max", None)
+    out = {**table, "columns": columns, "rows": rows}
+    if isinstance(table.get("totals"), dict):
+        out["totals"] = display_table(table["totals"], units)
+    if table.get("notes"):
+        from saengine.units import convert_text
+
+        out["notes"] = [convert_text(str(n), units) for n in table["notes"]]
+    return out
+
+
+def schedule_csv(schedule: BarSchedule, units: Any = None) -> str:
     """The schedule as CSV for Excel: one row per bar mark, then the totals per bar size and per
     element type. Write it with ``encoding="utf-8-sig"`` (Excel reads the Ø then) and
-    ``newline=""``."""
+    ``newline=""``. ``units`` (:class:`saengine.units.Units`): the display units of the
+    cells and headings (C13); SI when None."""
+    from saengine.units import SI, csv_heading
+
+    units = units or SI
     out = io.StringIO()
     writer = csv.writer(out, lineterminator="\r\n")
-    writer.writerow([title.replace("\n", " ") for _, title in COLUMNS])
+    writer.writerow([_title(key, title, units).replace("\n", " ") for key, title in COLUMNS])
     for row in schedule.rows:
         cells = _cells(row)
-        writer.writerow([cells[key] for key, _ in COLUMNS])
+        writer.writerow([_shown(key, cells[key], units) for key, _ in COLUMNS])
+
+    def mass(value: float) -> str:
+        return _shown("mass", f"{value:.2f}", units)
+
+    def size(dia: float) -> str:
+        return units.bar(dia)
+
     writer.writerow([])
-    writer.writerow(["Totals per bar size", "", "Size", "", "", "", "", "", "", "", "", "",
-                     "", "Total length (m)", "Mass (kg)"])  # fmt: skip
-    for dia, mass in schedule.by_diameter.items():
+    writer.writerow(["Totals per bar size", "", "Size", "", "", "", "", "", "", "", "", "", "",
+                     csv_heading("Total length (m)", units),
+                     csv_heading("Mass (kg)", units)])  # fmt: skip
+    for dia, total in schedule.by_diameter.items():
         length = sum(r.total_length for r in schedule.rows if r.dia == dia)
-        writer.writerow(["", "", f"Ø{dia:g}", *[""] * 10, f"{length:.2f}", f"{mass:.2f}"])
-    writer.writerow(["Total", *[""] * 13, f"{schedule.total:.2f}"])
+        writer.writerow(["", "", size(dia), *[""] * 10,
+                         _shown("total_length", f"{length:.2f}", units), mass(total)])  # fmt: skip
+    writer.writerow(["Total", *[""] * 13, mass(schedule.total)])
     writer.writerow([])
-    writer.writerow(["Totals per element type", "", "Size", *[""] * 11, "Mass (kg)"])
+    writer.writerow(["Totals per element type", "", "Size", *[""] * 11,
+                     csv_heading("Mass (kg)", units)])  # fmt: skip
     for kind, sizes in schedule.by_kind.items():
-        for dia, mass in sizes.items():
-            writer.writerow([_kind_label(kind), "", f"Ø{dia:g}", *[""] * 11, f"{mass:.2f}"])
-        writer.writerow([f"{_kind_label(kind)} total", *[""] * 13, f"{sum(sizes.values()):.2f}"])
+        for dia, total in sizes.items():
+            writer.writerow([_kind_label(kind), "", size(dia), *[""] * 11, mass(total)])
+        writer.writerow([f"{_kind_label(kind)} total", *[""] * 13, mass(sum(sizes.values()))])
     return out.getvalue()
 
 

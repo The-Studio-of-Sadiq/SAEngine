@@ -1169,12 +1169,14 @@ def export_boq_xlsx(
     rates_text: str | None = None,
     carbon_text: str | None = None,
     title: str = "",
+    settings_text: str | None = None,
 ) -> dict[str, Any]:
     """The bill, its costing and embodied carbon written to an Excel workbook
-    (``saengine.boq.workbook``)."""
+    (``saengine.boq.workbook``); ``settings_text``: the project settings, for the display
+    units of the bill (C13; SI without)."""
     from saengine.boq.workbook import write_boq_xlsx_texts
 
-    return write_boq_xlsx_texts(path, boq_text, rates_text, carbon_text, title)
+    return write_boq_xlsx_texts(path, boq_text, rates_text, carbon_text, title, settings_text)
 
 
 def build_report(

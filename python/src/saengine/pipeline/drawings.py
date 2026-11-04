@@ -195,9 +195,11 @@ def drawing_settings(settings_text: str | None) -> tuple[dict[str, Any], dict[st
     """``(settings, title)``: the ``drawings`` section of Project Settings (its defaults when
     there is none) and the title block fields it gives (:class:`TitleInfo` keys)."""
     from saengine.library.settings import Drawings, ProjectSettings
+    from saengine.units import project_units, units_json
 
     drawings = Drawings()
     project: dict[str, Any] = {}
+    units_text = ""
     if settings_text:
         try:
             settings = ProjectSettings.model_validate_json(settings_text)
@@ -217,6 +219,8 @@ def drawing_settings(settings_text: str | None) -> tuple[dict[str, Any], dict[st
         else:
             drawings = settings.drawings
             project = settings.project.model_dump()
+            # C13: the sheets' display units (dimensions in feet and inches, bar names).
+            units_text = units_json(project_units(settings))
     revisions = [
         {"rev": r.code, "date": r.date or "", "description": r.description or "", "by": r.by or ""}
         for r in drawings.revisions
@@ -233,6 +237,7 @@ def drawing_settings(settings_text: str | None) -> tuple[dict[str, Any], dict[st
         "revisions": revisions,
         "office": drawings.standard.officeLine,
         "disclaimer": drawings.standard.disclaimer,
+        "units": units_text,
     }
     return drawings.model_dump(), {k: v for k, v in title.items() if v not in (None, "")}
 
@@ -565,7 +570,10 @@ def _generate(
     step("bbs")
     schedule = bbs.bar_schedule(model)
     folder.mkdir(parents=True, exist_ok=True)
-    (folder / BBS_CSV).write_text(bbs.schedule_csv(schedule), encoding="utf-8-sig", newline="")
+    from saengine.units import units_from_json
+
+    csv_text = bbs.schedule_csv(schedule, units_from_json(title.get("units")))
+    (folder / BBS_CSV).write_text(csv_text, encoding="utf-8-sig", newline="")
     congestion = _congestion(root, model, folder)
     step("sheets")
     errors = check_problems(model, design_report)

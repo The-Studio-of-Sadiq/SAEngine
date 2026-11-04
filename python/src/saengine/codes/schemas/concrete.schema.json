@@ -1447,6 +1447,22 @@
       "$ref": "#/$defs/BarDiameters",
       "description": "Bar size sets [mm] by use."
     },
+    "barNames": {
+      "anyOf": [
+        {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "C13: the bar designations of the code's bar standard by diameter [mm] as written in barDiameters ('16' -> '#5'), printed in US customary display units; None: 'Ø' and the diameter.",
+      "title": "Barnames"
+    },
     "spacingStep": {
       "title": "Spacingstep",
       "type": "number"

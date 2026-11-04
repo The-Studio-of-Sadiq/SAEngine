@@ -59,6 +59,20 @@ def _heading(sheet: Any, columns: list[str]) -> None:
     sheet.freeze_panes = f"A{sheet.max_row + 1}"
 
 
+#: The bill's unit codes (saengine.boq.quantities.Unit) as SI unit texts (saengine.units).
+_SI_UNIT = {"m3": "m³", "m2": "m²", "m": "m", "kg": "kg"}
+
+
+def _shown_quantity(units: Any, code: Any) -> tuple[Any, Any]:
+    """(quantity in the display unit, unit text) of a bill unit code: the code and the
+    quantity as they are in SI and for the units with no conversion (cft, bag, nr, l)."""
+    si_unit = _SI_UNIT.get(str(code))
+    if units is None or units.si or si_unit is None:
+        return (lambda q: q), code
+    label = units.label(si_unit)
+    return (lambda q: q if q is None else units.convert(float(q), si_unit)[0]), label
+
+
 def write_boq_xlsx(
     path: str | Path,
     bill: dict[str, Any],
@@ -66,9 +80,13 @@ def write_boq_xlsx(
     factors: CarbonFactors | None = None,
     title: str = "",
     sample_rates: bool = False,
+    units: Any = None,
 ) -> dict[str, Any]:
     """Writes the bill (``boq.json`` as a dict), priced by ``rates`` with the carbon of
-    ``factors`` when given, to ``path``: ``{"path", "sheets", "total", "carbonTotal"}``."""
+    ``factors`` when given, to ``path``: ``{"path", "sheets", "total", "carbonTotal"}``.
+    ``units`` (:class:`saengine.units.Units`, C13): the display units of the Bill of
+    Quantities sheet (m³ in ft³ or yd³, m² in ft², m in ft, kg in lb; cft, bags, litres and
+    numbers as they are); the costing stays in the units its rates are given in."""
     from openpyxl import Workbook
     from openpyxl.styles import Alignment, Font
     from openpyxl.utils import get_column_letter
@@ -90,16 +108,17 @@ def write_boq_xlsx(
     _heading(sheet, ["Code", "Group", "Description", "Element", "Story", "Detail", "Quantity",
                      "Unit"])  # fmt: skip
     for item in bill.get("items", []):
+        show, unit = _shown_quantity(units, item.get("unit"))
         sheet.append([item.get("code"), GROUP_TITLES.get(item.get("group"), item.get("group")),
-                      item.get("description"), None, None, None, item.get("quantity"),
-                      item.get("unit")])  # fmt: skip
+                      item.get("description"), None, None, None, show(item.get("quantity")),
+                      unit])  # fmt: skip
         row = sheet.max_row
         for cell in sheet[row]:
             cell.font = bold
         sheet.cell(row, 7).number_format = QUANTITY
         for entry in item.get("breakdown") or []:
             sheet.append([None, None, None, entry.get("element"), entry.get("story"),
-                          entry.get("detail"), entry.get("quantity"), item.get("unit")])  # fmt: skip
+                          entry.get("detail"), show(entry.get("quantity")), unit])  # fmt: skip
             sheet.cell(sheet.max_row, 7).number_format = QUANTITY
             sheet.row_dimensions[sheet.max_row].outlineLevel = 1
     _widths(sheet, [9, 15, 48, 14, 10, 34, 14, 7])
@@ -267,6 +286,7 @@ def write_boq_xlsx_texts(
     rates_text: str | None = None,
     carbon_text: str | None = None,
     title: str = "",
+    settings_text: str | None = None,
 ) -> dict[str, Any]:
     """``write_boq_xlsx`` of the project files' texts (the shipped sample rates and factors when
     not given): ``{"path", ...}``, or ``{"problems"}``."""
@@ -289,4 +309,20 @@ def write_boq_xlsx_texts(
     if problems:
         return {"problems": problems}
     sample = not (rates_text and rates_text.strip())
-    return write_boq_xlsx(path, bill, rates, factors, title, sample_rates=sample)
+    return write_boq_xlsx(
+        path, bill, rates, factors, title, sample_rates=sample, units=_units(settings_text)
+    )
+
+
+def _units(settings_text: str | None) -> Any:
+    """The display units of the project settings' text (C13); SI without settings."""
+    import json
+
+    from saengine.units import SI, project_units
+
+    if not settings_text:
+        return SI
+    try:
+        return project_units(json.loads(settings_text))
+    except ValueError:
+        return SI
