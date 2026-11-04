@@ -831,9 +831,11 @@ def evaluate(
             )
     keys = ["target", "period", "c0", "c1", "rd", "pushTo", "noDrop"]
     extra: dict[str, Any] = {}
-    if rule.targetDisplacement.method != "coefficient":
+    if rule.targetDisplacement.method != "coefficient" or hazards:
         # P3: the other methods' clauses, the hazard levels and the performance point.
-        keys = [*keys, "c2", "damping", "sdof", "idealisation", "hazards"]
+        if rule.targetDisplacement.method != "coefficient":
+            keys = [*keys, "c2", "damping", "sdof", "idealisation"]
+        keys.append("hazards")
         extra = {
             "hazards": hazards,
             "performancePoint": [found["target"], float(np.interp(found["target"], d, v))],

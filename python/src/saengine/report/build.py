@@ -1999,8 +1999,9 @@ def _pushover(folder: Path, warnings: list[str]) -> list[dict[str, Any]]:
             ],
         ]
         if target.get("method", "coefficient") != "coefficient":
-            # P3: the other target methods' values, and the hazard levels.
+            # P3: the other target methods' values.
             section["target"] = _pushover_target_rows(target, yes)
+        if target.get("hazards"):  # P3: the hazard levels
             section["hazards"] = [
                 [
                     h.get("label") or h["id"],
