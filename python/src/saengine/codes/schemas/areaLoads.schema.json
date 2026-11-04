@@ -91,6 +91,34 @@
           "default": null,
           "description": "The code's category of use (A, B, C1 ...), where the code groups the uses (the area-and-storeys reduction reads it); empty: none.",
           "title": "Category"
+        },
+        "frameLive": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Live load of the frames [kN/m²] (empty: live).",
+          "title": "Framelive"
+        },
+        "seismicLive": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Live load in the seismic weight [kN/m²] (empty: by the seismic table's liveShare).",
+          "title": "Seismiclive"
         }
       },
       "required": [

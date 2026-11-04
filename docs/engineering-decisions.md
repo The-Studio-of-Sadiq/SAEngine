@@ -41,6 +41,32 @@ here, newest first, with the date, the question, the decision, the reason and wh
 - **No unlicensed software.** ETABS, SAP2000 and STAAD are not used for cross-checks or cited.
   Open-source tools are used instead (2026-10-25).
 
+## 2026-11-05: Japan pack (alpha 9 track C19)
+
+- **What was built.** `japan-bsl` (BSL Enforcement Order Art. 82-91, Notifications 1454, 1455,
+  1792, 1793, AIJ RC and steel standards) extending `aci318-asce7-22`, README and `VERIFY.md`
+  (81 entries). No code text was available: every value is from knowledge and listed to check.
+- **Generic mechanisms (unset in the existing packs: their results are unchanged):** the design
+  spectrum method `standardShearCoefficient`, the distribution `shearCoefficientAi`, the seismic
+  weight by use (`liveWeight` byUse, `seismicLive`), the live load method `frameValue`
+  (`frameLive`), the wind gust by height per exposure, the tables `allowableStress` and
+  `horizontalCapacity` (new, not in the default pack).
+- **SAEngine practice (not the law's), each overridable under Code Values:** the bars are sized by
+  the parent's strength method under sizing combinations (long-term × 1.5, short-term × 1.0); the
+  law's check is the allowable stress rows. Qu is read at a storey drift of 1/100 (or the largest
+  shear before it) of a pushover with the Ai pattern. One Ds for the building from its worst
+  member rank (FD without design ranks). Storey stiffness for Re by 12 E I / h³ of the columns and
+  the walls' in-plane stiffness with the beams rigid; the weights' centre that of the masses at
+  and above the storey. βu by system (frames 0, frame-walls 0.5, walls 1.0, braced 0.8).
+  R = Cd = 1, Ω0 = 2.0; seismic design categories C/D and ordinary detailing for the parent's
+  modules; W of uses without the law's seismic value at 50 %. The heavy-snow rows are formed
+  wherever a snow case exists.
+- **Fixed in passing.** `live_reduction.reduced` dropped the combinations formed after the live
+  parts (fewer parts than forces) and the slenderness check then failed; they now keep their
+  forces unreduced. It only showed with a live factor below 1 on columns.
+- **Not done.** Bar names in SI (the engine prints pack bar names only in US units), the column
+  live reduction by floors (Art. 85(2)), the braces' ranks, per-storey Ds, route 2 area ratios.
+
 ## 2026-11-04: Canada and Mexico City packs (alpha 9 track C17)
 
 - **What was built.** `canada-nbcc` (NBCC 2020 Part 4, CSA A23.3-19, CSA S16-19) and

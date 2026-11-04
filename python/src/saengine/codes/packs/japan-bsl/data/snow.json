@@ -1,0 +1,33 @@
+{
+  "$schema": "../../../schemas/snow.schema.json",
+  "$replace": true,
+  "$sources": [
+    "BSL Enforcement Order Art. 86: the snow load = the unit snow load × the roof's horizontal projection × the vertical snow depth, the unit load at least 20 N/m² per cm of depth (heavy-snow areas: the authority's value), the roof shape factor μb = √cos(1.5β) for β <= 60° (0 above)",
+    "MOC Notification No. 1455 of 2000: the heavy-snow areas and the vertical snow depth of the authority's rules"
+  ],
+  "source": "BSL Enforcement Order Art. 86 (the uniform roof snow load; the ground snow load sk = unit load × depth is the project's, Site > Snow: 20 N/m²/cm × the depth in ordinary areas, the authority's unit load in heavy-snow areas)",
+  "method": "shapeCoefficient",
+  "factor": 1.0,
+  "shape": [[0.0, 1.0], [10.0, 0.9828], [20.0, 0.9306], [30.0, 0.8409], [40.0, 0.7071], [45.0, 0.6186], [50.0, 0.5087], [55.0, 0.3613], [56.0, 0.3233], [57.0, 0.2801], [58.0, 0.2288], [59.0, 0.1618], [60.0, 0.0]],
+  "exposures": {
+    "ordinary": {"description": "Ordinary roof (μb only)", "Ce": 1.0}
+  },
+  "defaultExposure": "ordinary",
+  "thermal": 1.0,
+  "importance": {},
+  "loadCase": "S",
+  "withRoofLive": "separate",
+  "seismicShare": 0.35,
+  "seismicThreshold": 2.0,
+  "sources": {
+    "shape": "BSL Enforcement Order Art. 86(4): μb = √cos(1.5β), 0 for β > 60°, as points (linear between: the chords lie below the curve by at most 0.012 up to 55° and 0.035 near 60°, SAEngine practice)",
+    "factor": "Art. 86(1): the load is the unit load × the depth on the horizontal projection: factor 1.0",
+    "exposures": "The law has no exposure factor (the snow removal reduction of Art. 86(6) is not covered)",
+    "loadCase": "Art. 82: the snow S is its own case in the combinations (with the roof live load in P)",
+    "seismicShare": "Art. 82(2) table: in heavy-snow areas 0.35S acts with K; SAEngine counts 35 % of the roof snow in W where the ground snow load is above 2.0 kN/m² (1 m at 20 N/m²/cm, the depth of N1455's heavy-snow criterion: SAEngine practice)"
+  },
+  "clauses": {
+    "roof": "Art. 86",
+    "minimum": "Art. 86(2)"
+  }
+}

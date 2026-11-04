@@ -152,6 +152,8 @@ def reduction(kll: float, area: float, floors: int, scope: LiveScope) -> tuple[f
     where = clause()
     if scope.building:
         return 1.0, f"{scope.building}: not reduced ({where})"
+    if getattr(table, "method", "influenceArea") == "frameValue":  # Alpha 9 C19
+        return scope.frame, scope.frame_note or f"the uses' live load for frames ({where})"
     if scope.assembly:
         return 1.0, f"assembly use: not reduced ({where})"
     if getattr(table, "method", "influenceArea") == "areaAndStoreys":
@@ -236,6 +238,10 @@ class LiveScope:
     roof: float = 0.0
     #: The code's categories of the floor uses (areaLoads.uses[].category), where it has them.
     categories: set[str] = dataclasses.field(default_factory=set)
+    #: Alpha 9 C19 (liveReduction method frameValue): L / L0 of the frames, the largest of the
+    #: floor uses' frameLive / live (1 for a use without one), and how it was found.
+    frame: float = 1.0
+    frame_note: str = ""
 
     @classmethod
     def of(cls, settings: Any) -> LiveScope:
@@ -276,7 +282,10 @@ class LiveScope:
             if roof_rule is not None and roof_load is not None and roof_load.use in roof_rule.uses
             else 0.0
         )
+        frame, frame_note = _frame_share(loads, uses, getattr(table, "source", ""))
         return cls(
+            frame=frame,
+            frame_note=frame_note,
             live=live,
             assembly=any(
                 a.use in table.notReduced
@@ -296,6 +305,29 @@ class LiveScope:
         )
 
 
+def _frame_share(loads: list[Any], uses: dict[str, Any], where: str) -> tuple[float, str]:
+    """Alpha 9 C19: (L / L0, why) of the frames by the uses' frameLive (method frameValue): the
+    largest frameLive / live over the floor loads (a use without frameLive, or a custom one:
+    1, not reduced), on the safe side for a member under several uses."""
+    shares = []
+    for load in loads:
+        row = uses.get(getattr(load, "use", None))
+        if row is None or row.frameLive is None or not row.live:
+            shares.append((1.0, getattr(load, "use", "custom")))
+            continue
+        shares.append((min(float(row.frameLive) / float(row.live), 1.0), load.use))
+    if not shares:
+        return 1.0, ""
+    share, use = max(shares)
+    row = uses.get(use)
+    if row is None or row.frameLive is None:
+        return share, f"{use}: no live load for frames, not reduced ({where})"
+    return share, (
+        f"frames take {row.frameLive:g} of {row.live:g} kN/m² ({use}): L / L0 = {share:.3f} "
+        f"({where})"
+    )
+
+
 def reduced(pieces: list[Any], factor: float, part: str = "live") -> list[Any]:
     """Copies of a member's pieces with their live load part (``part``: "live" the floor live
     load, "roof" the roof live load) scaled by ``factor``: each combination's forces less
@@ -309,9 +341,12 @@ def reduced(pieces: list[Any], factor: float, part: str = "live") -> list[Any]:
             out.append(piece)
             continue
         twin = copy.copy(piece)
+        # Alpha 9 C19: combinations formed after the parts (fewer parts than forces) keep
+        # their forces unreduced instead of being dropped (on the safe side).
+        padded = list(parts) + [None] * (len(piece.forces) - len(parts))
         twin.forces = [
             np.asarray(f) - (1.0 - factor) * np.asarray(live) if live is not None else f
-            for f, live in zip(piece.forces, parts, strict=False)
+            for f, live in zip(piece.forces, padded, strict=False)
         ]
         if piece.sustained is not None:
             twin.sustained = list(piece.sustained)

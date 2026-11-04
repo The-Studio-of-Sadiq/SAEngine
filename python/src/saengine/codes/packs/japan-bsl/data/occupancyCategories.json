@@ -1,0 +1,17 @@
+{
+  "$schema": "../../../schemas/occupancyCategories.schema.json",
+  "$replace": true,
+  "$sources": [
+    "BSL Enforcement Order Art. 87, 88: the wind pressure and the seismic force carry no importance factor"
+  ],
+  "source": "The Building Standard Law sets one level for every building: I = 1.0 in all four SAEngine categories (I to IV). Higher levels some owners ask for (e.g. the government buildings' seismic standard, 1.25 or 1.5) are not the law's: enter them under Code Values for the project.",
+  "categories": {
+    "I": {"description": "Buildings of low hazard to human life (agricultural, temporary)", "seismicImportance": 1.0, "windImportance": 1.0},
+    "II": {"description": "Ordinary buildings", "seismicImportance": 1.0, "windImportance": 1.0},
+    "III": {"description": "Buildings of many occupants (schools, assembly halls)", "seismicImportance": 1.0, "windImportance": 1.0},
+    "IV": {"description": "Essential facilities (hospitals, fire and police stations, disaster headquarters)", "seismicImportance": 1.0, "windImportance": 1.0}
+  },
+  "sources": {
+    "categories": "BSL Enforcement Order Art. 87 and 88 have no importance factor: 1.0 for every category (SAEngine keeps its four categories for the other modules)"
+  }
+}

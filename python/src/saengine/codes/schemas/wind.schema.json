@@ -1363,6 +1363,34 @@
           "default": null,
           "description": "Kz below this [m].",
           "title": "Kzminheight"
+        },
+        "gustByHeight": {
+          "anyOf": [
+            {
+              "items": {
+                "maxItems": 2,
+                "minItems": 2,
+                "prefixItems": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "exclusiveMinimum": 0,
+                    "type": "number"
+                  }
+                ],
+                "type": "array"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "(building height H [m], G) points, linear between, the end values outside; empty: the table's gust.",
+          "title": "Gustbyheight"
         }
       },
       "required": [

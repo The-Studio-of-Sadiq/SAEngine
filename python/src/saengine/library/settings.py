@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import functools
 from dataclasses import dataclass
+from dataclasses import field as dataclass_field
 from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, WithJsonSchema, model_validator
@@ -2279,11 +2280,17 @@ class SeismicWeightRule:
     heavy_share: float | None
     user_live_share: float | None
     partitions: PartitionWeight
+    #: Alpha 9 C19 (seismic liveWeight "byUse"): the share in W of each area use's live load,
+    #: its seismicLive over its live load (areaLoads); empty: by the shares above.
+    use_shares: dict[str, float] = dataclass_field(default_factory=dict)
 
-    def live(self, kpa: float | None = None) -> float:
-        """The share of a live load of ``kpa`` [kN/m²] in W (unknown: the light-load share)."""
+    def live(self, kpa: float | None = None, use: str | None = None) -> float:
+        """The share of a live load of ``kpa`` [kN/m²] in W (unknown: the light-load share);
+        ``use``: the area use it is of, for a pack that counts each use's own share."""
         if self.user_live_share is not None:
             return float(self.user_live_share)
+        if use is not None and use in self.use_shares:
+            return float(self.use_shares[use])
         if (
             kpa is not None
             and self.heavy_limit is not None
@@ -2293,20 +2300,20 @@ class SeismicWeightRule:
             return max(self.live_share, self.heavy_share)
         return self.live_share
 
-    def area(self, live: float, partitions: float) -> tuple[float, float]:
+    def area(self, live: float, partitions: float, use: str | None = None) -> tuple[float, float]:
         """(share of the live load, share of the partition allowance) in W of a floor area of
-        ``live`` and ``partitions`` [kN/m²]."""
+        ``live`` and ``partitions`` [kN/m²] (of area use ``use``, where known)."""
         rule = self.partitions
         if rule.separate:
-            return self.live(live), rule.share()
+            return self.live(live, use), rule.share()
         if rule.case == "L":
-            both = self.live(live + partitions)
+            both = self.live(live + partitions, use)
             return both, both
-        return self.live(live), 1.0
+        return self.live(live, use), 1.0
 
-    def weight(self, live: float, partitions: float) -> float:
+    def weight(self, live: float, partitions: float, use: str | None = None) -> float:
         """The live load and partition allowance [kN/m²] that count in W."""
-        a, b = self.area(live, partitions)
+        a, b = self.area(live, partitions, use)
         return a * live + b * partitions
 
 
@@ -2361,12 +2368,19 @@ def seismic_weight_rule(
     heavy_share = getattr(table, "heavyLiveShare", None)
     heavy_limit = getattr(table, "heavyLiveLimit", None) if heavy_share is not None else None
     user = _field(_mass_source(settings), "liveShare", None)
+    # Alpha 9 C19: each use's seismicLive / live where the pack counts W by use.
+    use_shares: dict[str, float] = {}
+    if getattr(table, "liveWeight", "share") == "byUse" and pack.has("areaLoads"):
+        for use_id, row in pack.table("areaLoads").uses.items():
+            if row.seismicLive is not None and row.live:
+                use_shares[use_id] = min(float(row.seismicLive) / float(row.live), 1.0)
     return SeismicWeightRule(
         live_share=float(table.liveShare),
         heavy_limit=None if heavy_limit is None else float(heavy_limit),
         heavy_share=None if heavy_share is None else float(heavy_share),
         user_live_share=None if user is None else float(user),
         partitions=partition_weight_basis(settings, pack),
+        use_shares=use_shares,
     )
 
 

@@ -367,10 +367,18 @@ def evaluate_run(
     """``{"target", "acceptance"}`` of one pushover run (``project_path``: the model's file,
     for the object types the hinges read), under the code pack the project's ``settings``
     choose, with its overrides (P3)."""
-    from saengine.fem import pushover_target
+    from saengine.fem import horizontal_capacity, pushover_target
 
     target = pushover_target.evaluate(project, analysis, results, settings)
-    return {"target": target, "acceptance": evaluate(project, results, target, project_path)}
+    out = {"target": target, "acceptance": evaluate(project, results, target, project_path)}
+    if horizontal_capacity.table() is not None:  # Alpha 9 C19: Qu >= Qun per storey
+        try:
+            out["capacity"] = horizontal_capacity.evaluate(
+                project, analysis, results, settings, project_path
+            )
+        except (ValueError, KeyError, IndexError, TypeError, ZeroDivisionError) as error:
+            out["capacity"] = {"available": False, "reason": str(error)}
+    return out
 
 
 @code_context.in_project_pack(path_params=("project_path",))
