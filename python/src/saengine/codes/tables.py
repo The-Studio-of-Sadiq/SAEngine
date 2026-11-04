@@ -546,15 +546,19 @@ class DriftLimit(_Row):
 
 class DampingCorrection(BaseModel):
     """The spectrum's damping correction η(ξ). ``squareRoot``: η = √(numerator / (offset +
-    100ξ)), at least ``minimum``; ``none``: η = dampingEta."""
+    100ξ)), at least ``minimum``; ``none``: η = dampingEta; ``table`` (alpha 9 C9b): η of
+    ``points`` (ξ, η), linear between, the end values outside."""
 
     model_config = ConfigDict(extra="forbid")
 
-    method: Literal["none", "squareRoot"] = "none"
+    method: Literal["none", "squareRoot", "table"] = "none"
     referenceDamping: float = Field(default=0.05, gt=0, lt=1)
     numerator: float = 10.0
     offset: float = 5.0
     minimum: float = 0.0
+    points: list[tuple[float, float]] = Field(
+        default_factory=list, description="(ξ, η) of the method 'table', ξ ascending."
+    )
 
 
 class SystemCombination(BaseModel):
@@ -1494,6 +1498,20 @@ class SpeedFactors(_Row):
     )
     combination: float = Field(default=1.0, gt=0, le=1, description="Kc.")
     minimumShare: float = Field(default=0.0, ge=0, le=1, description="Least Kd·Ka·Kc.")
+    # Alpha 9 C9b: sites in a cyclone-prone region (a project sets ``cyclonic``).
+    cyclonic: bool = Field(
+        default=False,
+        description="The site is in a cyclone-prone region: k4 by the occupancy's risk class "
+        "(cyclonicImportance) and Kd = cyclonicDirectionality.",
+    )
+    cyclonicImportance: dict[str, float] = Field(
+        default_factory=dict,
+        description="k4 by the id of the occupancy's riskCoefficients row ('other': the rest); "
+        "at least ``importance``.",
+    )
+    cyclonicDirectionality: float | None = Field(
+        default=None, gt=0, description="Kd in a cyclone-prone region (None: unchanged)."
+    )
 
 
 class CpHeightRow(_Row):

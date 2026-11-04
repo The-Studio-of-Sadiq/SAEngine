@@ -399,8 +399,61 @@ the major axis z-z and the minor y-y; SAEngine's x is the major axis.
 | 292 | composite.beam.limitState.studs | 12×62: 26-31; 16×75: 44-55; 20×75: 60-75; 20×100: 63-79; 22×100: 77-101; 25×100: 86-113 kN for M20-M40 | IS 11384 Table 1 | Design strength of headed studs | Uncertain (every number from memory) |
 | 293 | composite.materials.concreteMin | 20 MPa | IS 11384 | Slab concrete at least M20 | Check |
 
-Not covered yet (the parent pack's method and values, named after the parent in the notes): the
+Not covered by C9 (the parent pack's method and values, named after the parent in the notes): the
 connection rules IS 800 has no counterpart for in SAEngine's checks (the column side under flange
-forces, HSS truss and moment joints, the base plate bearing on concrete), torsion, the stability
-bracing forces, IS 800 eccentrically braced frames, fatigue and fire, IS 801 cold-formed steel,
-the composite columns and deck rules, IS 4326 masonry earthquake detailing, reinforced masonry.
+forces, HSS truss and moment joints; the base plate bearing since C9b, 320), torsion, the
+stability bracing forces, IS 800 eccentrically braced frames, fatigue and fire, IS 801
+cold-formed steel, the composite columns and deck rules, reinforced masonry (IS 4326 masonry
+strengthening since C9b, 330).
+
+## Alpha 9 C9b: the remainder (concrete, steel, masonry, loads)
+
+| # | Path | Value | Clause | What | Confidence |
+| --- | --- | --- | --- | --- | --- |
+| 294 | concreteMethods.shear.axialFactor / axialMax | δ = 1 + 3 Pu/(Ag fck) <= 1.5 | IS 456 40.2.2 | Column shear: τc × δ under axial compression | Sure |
+| 295 | (SAEngine) column shear under net tension | δ = 1 + 3 Pu/(Ag fck) with Pu < 0, not below 0 | IS 456 40.2.2 | IS gives no tension rule; the line continued (on the safe side) | SAEngine choice |
+| 296 | (SAEngine) column shear steel ratio | pt of the bars in the far half of each axis (a circle: half its bars) | IS 456 40.2.2, Table 19 | | SAEngine choice |
+| 297 | concreteMethods.shear.spacing (columns) | ties for shear at most min(0.75 d, 300 mm) where Vu > Vc | IS 456 26.5.1.5 | The beams' stirrup spacing applied to column ties carrying shear | SAEngine choice |
+| 298 | concreteMethods.shear.enhancement (beams) | not applied to beams; the shear at d from the face | IS 456 40.5.1, 40.5.2 | 2 d τc / av near a support used for corbels only | Check (SAEngine reading, on the safe side) |
+| 299 | concreteMethods.walls.axialFactor, eccentricityFactor, additionalDivisor, minEccentricityShare | Puw = 0.3 (t - 1.2 e - 2 ea) fck Lw, ea = Hwe²/(2500 t), e >= t/20 | IS 456 32.2.5 | Empirical wall strength (informative row: the P-M surface governs) | Check |
+| 300 | concreteMethods.walls.slendernessMax | Hwe/t <= 30 | IS 456 32.2.3 | | Check |
+| 301 | (SAEngine) wall effective height | 0.75 H braced and restrained, 1.0 H braced, 2.0 H unbraced | IS 456 32.2.4 | From SAEngine's bracing flags | Check (the IS cases) |
+| 302 | concreteMethods.twoWaySlabs.torsionShare / torsionLength / torsionOneEdgeShare | 3/4 of the largest midspan steel, over lx/5, half of it with one edge continuous | IS 456 D-1.8, D-1.9, D-1.10 | Corner torsion steel; the panel's own top and bottom meshes counted | Check |
+| 303 | concreteMethods.deepBeams.spanRatio | l/D < 2.0 simply supported, < 2.5 continuous | IS 456 29.1 | Deep beams (continuous: a beam of more than one span, SAEngine) | Check |
+| 304 | concreteMethods.deepBeams.clearFactor | l = min(c/c, 1.15 clear span) | IS 456 29.1 | Effective span | Check |
+| 305 | concreteMethods.deepBeams.leverArm | simple 0.2 (l + 2D), 0.6 l below l/D = 1; continuous 0.2 (l + 1.5 D), 0.5 l | IS 456 29.2 | Lever arm z | Check |
+| 306 | concreteMethods.deepBeams.tensionZone | 0.25 D - 0.05 l | IS 456 29.3.1 | Zone of the positive steel at the tension face | Check |
+| 307 | (SAEngine) deep beam side face steel | the walls' least steel (0.0012 / 0.0020 for fy >= 415, else 0.0015 / 0.0025), spacing min(3 t, 450) | IS 456 29.3.4, 32.5 | | Check (which wall ratio applies to which face) |
+| 308 | (SAEngine) deep beam shear | the sectional shear rows (IS 456 has no deep beam shear method) | IS 456 29 | The strut-and-tie model of the parent is not run | SAEngine choice |
+| 309 | concreteMethods.corbels.spanRatio / edgeDepth | av < d; the outer edge at least half the depth at the face | IS 456 28.1 | | Check |
+| 310 | concreteMethods.corbels.tensionShare | horizontal force at least 0.5 Vu | IS 456 28.2.1 | | Check |
+| 311 | concreteMethods.corbels.tiesShare / tiesDepth | links at least 0.5 As within 2/3 d | IS 456 28.2.4 | | Check |
+| 312 | concreteMethods.corbels.bearing | 0.45 fck | IS 456 28.2.2, 34.4 | No increase for the area around | Check |
+| 313 | (SAEngine) corbel tie | As = Af + An, Af for Vu av + Nuc (h - d) by the pack's stress block at fy/1.15 | IS 456 28.2.1 | The strain compatibility of 28.2.1.1 taken as the section's | SAEngine choice |
+| 314 | (SAEngine) corbel shear | (2 d/av) τc b d + fyd Ah <= τc,max b d | IS 456 28.2.4, 40.5 | All the closed links counted across the failure plane | Uncertain (SAEngine reading) |
+| 315 | stairMethods.builtIn | 110 mm, 150 mm strip, 75 mm breadth | IS 456 33.2 | Same as the parent | Check |
+| 316 | stairMethods.openWellShare | 0.5 | IS 456 33.2 | Same as the parent | Check |
+| 317 | designClauses.stairs.spans | 33.1 (a)-(c) | IS 456 33.1 | The effective spans (same rules as the parent's) | Check ((d) is the parent's: IS has three cases) |
+| 318 | (SAEngine) stairs | k τc b d without shear bars, the slab steel rows (26.3.3, 26.5.2), span/d with kt, no 15 % stair increase | IS 456 33, 23.2.1, 40.2.1.1 | | Check (IS 456 has no 15 % increase for stairs) |
+| 319 | (SAEngine) torsion links in Design Reinforcement | the whole Asv/sv of 41.4.3 on the closed links, τc of the least steel ratio before the bars are known | IS 456 41.4.3, 26.5.1.7 | On the safe side | SAEngine choice |
+| 320 | steel.connections.concreteBearing* | 0.6 fck, no φ, no A2/A1 increase | IS 800 7.4.1 | Base plate bearing | Check (0.6 fck; the increase) |
+| 321 | steelSections.rolled.ISLB | 75x50 3.7/5.0 ... 600x210 10.5/15.5 (17 sizes) | IS 808:1989 | D x B, tw / tf (mean) | Uncertain (every dimension from memory; consistent with the published masses to about 3 %) |
+| 322 | steelSections.rolled.ISWB | 150x100 5.4/7.0 ... 600x250 11.2/21.3 (12 sizes) | IS 808:1989 | The lighter ISWB 600 only | Uncertain (as 321) |
+| 323 | steelSections.rolled.ISHB | 150x150 5.4/9.0 ... 450x250 9.8/13.7 (8 sizes) | IS 808:1989 | The lightest section of each size only | Uncertain (as 321) |
+| 324 | steelSections.rolled.ISLB/ISWB/ISHB r | derived from the published mass per metre, 6-15 mm | IS 808:1989 | Root radius (the printed r1 not recalled) | SAEngine choice |
+| 325 | bolt grade 4.6 | fub 400, fyb 240 (steelLimitState); A307 in the default pack | IS 1367, IS 800 10.3 | Property class 4.6 in the object library's grade list | Check |
+| 326 | seismic.dampingCorrection.points | 0 % 3.2, 2 % 1.4, 5 % 1.0, 7 % 0.9, 10 % 0.8, 15 % 0.7, 20 % 0.6, 25 % 0.55, 30 % 0.5 | IS 1893 (Part 1):2016 Table 4 | Multiplying factors for other damping (linear between) | Check (the values as in the 2002 edition's Table 3) |
+| 327 | seismic.verticalFactor | 0.667 (Ev = 2/3 × Z/2 × D) | IS 1893 (Part 1):2016 6.4.6 | Two-thirds of the horizontal, the vertical response taken rigid (Sa/g = 1) | Uncertain (SAEngine reading: Sa/g of the vertical period not used) |
+| 328 | wind.speedFactors.cyclonicImportance | 1.30 for the 100-year class, 1.0 otherwise | IS 875 (Part 3):2015 6.3.4 | k4 on a cyclone-prone site (wind.speedFactors.cyclonic) | Check (which occupancies are of post-cyclone importance) |
+| 329 | wind.speedFactors.cyclonicDirectionality | Kd = 1.0 | IS 875 (Part 3):2015 7.2.1 | Cyclone-affected regions | Check |
+| 330 | masonry.seismic.zones / strengthening / bands.rows | zones III-V, zone V as the parent's highest group | IS 4326:2013 | The parent's bars and arrangements by IS zone | Uncertain (IS 4326 building categories A-E and its tables not modelled) |
+
+Still the parent's after C9b (named after it in the notes): the column construction joint (shear
+friction; IS 456 13.4 only places the joints), prestressed concrete (IS 1343), IS 8009 settlement,
+IS 2950 rafts and IS 3370 tanks (the tank crack limit is 0.2 mm, the IS 3370 (Part 2) value, by the
+parent's crack width formula), reinforced masonry, the column side under flange forces, HSS joints,
+steel torsion, the stability bracing forces, eccentrically braced frames, IS 801 cold-formed
+members, the composite columns and deck rules, the hogging steel zones of continuous deep beams
+(29.3.2); in the loads the gust factor method (IS 875-3 Clause 10), cladding and roof pressure
+coefficients, k3 by Annex C (enter it as the topographic factor), the 1.5 esi of the design
+eccentricity, the RC wall-building period form (7.6.2 (b)) and the IS 16700 tall-building limits.

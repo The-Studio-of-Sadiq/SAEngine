@@ -294,6 +294,135 @@ def deep_span_checks(span: DeepSpan, demands: SpanDemands, where: str = "") -> l
     return checks
 
 
+# ──────────── Alpha 9 C9b: deep beams by the lever arm (the pack's ``deepBeams``) ────────────
+
+
+def lever_rules() -> Any | None:
+    """The pack's ``concreteMethods.deepBeams`` of method ``leverArm`` (with its design
+    strengths), or None: the strut-and-tie model of the parent above."""
+    from saengine.design.tabulated_shear import _group
+
+    return _group("deepBeams", "leverArm")
+
+
+def _lever_cite() -> str:
+    from saengine.design.tabulated_shear import cite
+
+    return cite("deepBeams")
+
+
+def lever_span(span: DeepSpan) -> float:
+    """l [mm]: the centre-to-centre span, at most ``clearFactor`` × the clear span."""
+    r = lever_rules()
+    centres = span.clear + (span.bearings[0] + span.bearings[1]) / 2
+    return min(centres, r.clearFactor * span.clear)
+
+
+def lever_is_deep(span: DeepSpan, continuous: bool) -> tuple[bool, str]:
+    """(deep, why): l / D below the pack's ratio of the span's support."""
+    r = lever_rules()
+    kind = "continuous" if continuous else "simple"
+    limit = r.spanRatio[kind]
+    length = lever_span(span)
+    ratio = length / span.depth
+    if ratio < limit:
+        return (
+            True,
+            f"l/D = {ratio:.2f} < {limit:g} ({'continuous' if continuous else 'simply supported'})",
+        )
+    return False, ""
+
+
+def lever_arm(span: DeepSpan, continuous: bool) -> float:
+    """z [mm] of the deep span."""
+    r = lever_rules()
+    arm = r.leverArm["continuous" if continuous else "simple"]
+    length = lever_span(span)
+    if length / span.depth < 1.0:
+        return arm.shortShare * length
+    return arm.coefficient * (length + arm.depthFactor * span.depth)
+
+
+def lever_span_checks(
+    span: DeepSpan, demands: SpanDemands, where: str, continuous: bool
+) -> list[dict[str, Any]]:
+    """The rows of a deep span by the lever arm method: the tension steel for the largest
+    sagging moment, its zone at the soffit, and the side face (web) steel each way at least
+    the walls' least ratio, at most their spacing (``concreteMethods.walls``)."""
+    from saengine.design import design_strength
+    from saengine.design.check import _check
+    from saengine.design.tabulated_shear import wall_rules
+
+    r = lever_rules()
+    clause = _lever_cite()
+    tail = f" ({clause})" if clause else ""
+    suffix = f"; {where}" if where else ""
+    length = lever_span(span)
+    z = lever_arm(span, continuous)
+    fyd = design_strength.fyd(span.fy)
+    mu, combination = demands.moment
+    checks = [
+        _check(
+            "Deep beam tension steel (lever arm)",
+            mu / 1e6,
+            fyd * span.tie_area * z / 1e6,
+            "kN·m",
+            combination,
+            f"Mu <= fyd As z, z = {z:.0f} mm (l = {length:.0f} mm, D = {span.depth:.0f} mm, "
+            f"{'continuous' if continuous else 'simply supported'}), As = {span.tie_area:.0f} mm², "
+            f"fyd = {fyd:.0f} MPa{tail}{suffix}",
+        )
+    ]
+    a, b = r.tensionZone
+    zone = max(a * span.depth - b * length, 0.0)
+    checks.append(
+        _check(
+            "Deep beam tension bars near the soffit",
+            span.tie_height,
+            zone,
+            "mm",
+            None,
+            f"the bottom bars within {a:g} D - {b:g} l = {zone:.0f} mm of the tension face "
+            f"(their zone {span.tie_height:.0f} mm){tail}",
+        )
+    )
+    w = wall_rules()
+    if w is None:
+        return checks
+    allowed = min(w.spacing[0] * span.width, w.spacing[1])
+    small = span.fy >= 415.0
+    for key, label, given, need in (
+        ("vertical", "vertical (stirrups)", span.vertical, w.vertical[0 if small else 1]),
+        ("horizontal", "horizontal (side bars)", span.horizontal, w.horizontal[0 if small else 1]),
+    ):
+        area, spacing = given if given else (0.0, 0.0)
+        ratio = area / (span.width * spacing) if spacing > 0 else 0.0
+        checks.append(
+            _check(
+                f"Deep beam side face steel, {label}",
+                need * 1e3,
+                ratio * 1e3,
+                "‰",
+                None,
+                f"A / (bw s) at least {need:g} (the walls' least steel)"
+                + (f", s = {spacing:.0f} mm" if spacing else ": none given (add bars)")
+                + tail,
+            )
+        )
+        if spacing:
+            checks.append(
+                _check(
+                    f"Deep beam side face spacing, {label}",
+                    spacing,
+                    allowed,
+                    "mm",
+                    None,
+                    f"s at most min({w.spacing[0]:g} bw, {w.spacing[1]:g} mm){tail}",
+                )
+            )
+    return checks
+
+
 # ─────────────────────────────────── from the design ───────────────────────────────────
 
 _ON_LINE = 1.0
@@ -454,9 +583,17 @@ def member_checks(
             horizontal=horizontal,
             loads=loads,
         )
-        deep, why = is_deep(span)
+        lever = lever_rules() is not None  # Alpha 9 C9b: the pack's lever arm method
+        continuous = len(below) > 2
+        deep, why = lever_is_deep(span, continuous) if lever else is_deep(span)
         if not deep:
-            if loads:
+            if loads and lever:
+                notes.append(
+                    f"{element.id}: span {s0 / 1e3:.2f}-{s1 / 1e3:.2f} m: a transfer girder "
+                    f"under {len(loads)} landing column(s), not deep ({_lever_cite()}): the "
+                    "sectional checks apply"
+                )
+            elif loads:
                 # FD-6 of walk 3: say what the transfer girder was taken as.
                 table = _table()
                 ratio, reach = table.spanRatio, table.loadDistance
@@ -491,9 +628,13 @@ def member_checks(
             shear=_peak(shear, combinations),
             loads=point_loads,
         )
-        where = f"span {s0 / 1e3:.2f}-{s1 / 1e3:.2f} m: deep ({why}, {CLAUSES['deep']})"
+        cited = _lever_cite() if lever else CLAUSES["deep"]
+        where = f"span {s0 / 1e3:.2f}-{s1 / 1e3:.2f} m: deep ({why}, {cited})"
         if loads:
             where += f"; a transfer girder under {len(loads)} landing column(s)"
-        checks += deep_span_checks(span, demands, where)
+        if lever:
+            checks += lever_span_checks(span, demands, where, continuous)
+        else:
+            checks += deep_span_checks(span, demands, where)
         notes.append(f"{element.id}: {where}")
     return checks, notes

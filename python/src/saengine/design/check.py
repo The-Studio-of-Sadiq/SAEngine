@@ -1172,11 +1172,14 @@ def _design_run(
                             float(object_type.reinforcement.cover or 0.0),
                         )
                     checks += detail_rows
-                    if deep_rows:
+                    if deep_rows and deep_beams.lever_rules() is None:
+                        # The strut-and-tie model governs (the lever arm method of alpha 9 C9b
+                        # keeps the sectional shear as the shear check).
                         for row in checks:
                             if row["name"] == "Shear" or row["name"].startswith("Minimum stirrups"):
                                 row["flag"] = True
                                 row["note"] += f"; {deep_beams.REFERENCE_NOTE}"
+                    if deep_rows:
                         checks += deep_rows
                     notes.extend(deep_notes)
             else:
@@ -1220,6 +1223,11 @@ def _design_run(
                 if member_rules and strut_shear.rules() is not None:
                     # Alpha 9 C5: the pack's shear method (variable strut inclination).
                     checks += strut_shear.column_rows(
+                        section, object_type.reinforcement.transverse, points
+                    )
+                elif tabulated_shear.rules() is not None:
+                    # Alpha 9 C9b: τc with the axial force's δ (IS 456 40.2.2 type).
+                    checks += tabulated_shear.column_rows(
                         section, object_type.reinforcement.transverse, points
                     )
                 else:
