@@ -85,7 +85,12 @@ class UltimateRules(_Group):
     """Flexure and axial force by design strengths (method ``partialFactors``)."""
 
     method: Literal["partialFactors"] = "partialFactors"
-    stressBlock: Literal["rectangular", "parabolaRectangle"] = "rectangular"
+    # Alpha 9 C25 (SP 63.13330.2018 6.1.20-6.1.22, 8.1.20-8.1.30: the nonlinear deformation
+    # model): "bilinear" (fcd from εc3 to εcu3, linear below) and "trilinear" (0.6 fcd at
+    # 0.6 fcd / Ecm, fcd from εc2 to εcu2) diagrams, integrated over the section's mesh.
+    stressBlock: Literal["rectangular", "parabolaRectangle", "bilinear", "trilinear"] = (
+        "rectangular"
+    )
     gammaC: Positive
     gammaS: Positive
     gammaCAccidental: Positive | None = None
@@ -121,6 +126,12 @@ class UltimateRules(_Group):
     gradePrefix: str | None = Field(
         default=None, description="Grades named prefix + fck ('M25'); none: 'C fck/fck,cube'."
     )
+    # Alpha 9 C25 (SP 63.13330.2018 6.1.4: the class B by the cube strength).
+    cubePrefix: str | None = Field(
+        default=None,
+        description="Classes named prefix + fck,cube ('B25') where gradePrefix is not given; "
+        "none: 'C fck/fck,cube'.",
+    )
     axialShares: tuple[Positive, Positive] | None = Field(
         default=None,
         description="NRd = a fck Ac + b fy As in place of the stress block's (none: that).",
@@ -143,6 +154,14 @@ class UltimateRules(_Group):
         default=None,
         description="The axial cap's steel term = this × fyd (the design yield by grade) in "
         "place of axialShares[1] × fyk (none: axialShares).",
+    )
+    # Alpha 9 C25 (SP 63.13330.2018 Tables 6.7, 6.8, 6.11: Rb, Rbt and Eb tabulated by the
+    # class, rounded in the code, in place of αcc fck / γc, αct fctk,0.05 / γc and the Ecm fit).
+    designStrengths: list[tuple[Positive, Positive, Positive, Positive]] | None = Field(
+        default=None,
+        description="(fck, fcd, fctd, Ecm) [MPa] by strength class: fcd = alphaCC × this fcd, "
+        "fctd = alphaCT × this fctd and Ecm of a concrete of that fck; other grades the "
+        "relations (none: the relations for every grade).",
     )
 
 
@@ -448,6 +467,25 @@ class DepthFactor(_Group):
     min: Positive = 1.0
 
 
+class InclinedSectionRule(_Group):
+    """Alpha 9 C25: shear of beams by the inclined section (SP 63.13330.2018 8.1.31-8.1.34
+    type, :func:`saengine.design.tabulated_shear.inclined_resistance`): Q <= Qb + Qsw at the
+    projection c of the inclined section that gives the least, c from h0 to ``spanRange``[1]
+    h0; Qb = concreteFactor fctd b h0² / c within ``concreteRange`` × fctd b h0; Qsw =
+    stirrupFactor qsw c0, c0 = min(c, stirrupSpan h0), qsw = fyd,w Asw / sw; the links count
+    where qsw >= stirrupMin fctd b, below it fctd b is taken as qsw / stirrupMin; the strut
+    Q <= strutFactor fcd b h0."""
+
+    method: Literal["qbQsw"] = "qbQsw"
+    concreteFactor: Positive = Field(description="φb2 of Qb = φb2 fctd b h0² / c.")
+    concreteRange: tuple[Positive, Positive] = Field(description="Qb within (a, b) fctd b h0.")
+    stirrupFactor: Positive = Field(description="φsw of Qsw = φsw qsw c0.")
+    stirrupSpan: Positive = Field(description="c0 at most this × h0.")
+    spanRange: tuple[Positive, Positive] = Field(description="c within (a, b) × h0.")
+    stirrupMin: Share = Field(description="qsw >= this × fctd b for the links to count fully.")
+    strutFactor: Share = Field(description="φb1 of Q <= φb1 fcd b h0.")
+
+
 class TabulatedShearRules(_Group):
     """Shear by a design shear strength of concrete tabulated by the tension steel ratio and the
     grade (method ``tabulatedStress``): τc from ``tauC`` (rows by ``steelRatios`` [%], columns
@@ -478,6 +516,19 @@ class TabulatedShearRules(_Group):
     # Alpha 9 C10 (BS 8110-1 Table 3.8): τc × (reference / d)^exponent, at least min, every member.
     depthFactor: DepthFactor | None = Field(
         default=None, description="τc × (reference / d)^exponent >= min (none: 1)."
+    )
+    # Alpha 9 C25 (SP 63.13330.2018 6.2.10 Table 6.15: Rsw = 0.8 Rs, at most 300 MPa).
+    stirrupYieldShare: Share | None = Field(
+        default=None, description="fyd of stirrups × this (none: fyd)."
+    )
+    stirrupYieldMax: Positive | None = Field(
+        default=None, description="fyd of stirrups at most this [MPa] (none: no cap)."
+    )
+    # Alpha 9 C25 (SP 63.13330.2018 8.1.31-8.1.34): beams by the inclined section, Q <= Qb + Qsw.
+    inclinedSection: InclinedSectionRule | None = Field(
+        default=None,
+        description="Beam shear by the inclined section Qb + Qsw at the worst c (none: τc b d + "
+        "Vus).",
     )
 
 

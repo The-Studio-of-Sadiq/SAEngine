@@ -1458,6 +1458,44 @@
       "title": "GravityShareVerticalRule",
       "type": "object"
     },
+    "HazardMapsRule": {
+      "additionalProperties": false,
+      "description": "Alpha 9 C25 (SP 14.13330.2018 4.3 type: the OSR-2015 maps A, B and C of 10 %, 5 % and\n1 % in 50 years): the map a project's town zone is read from (``locations.*.mapZones``),\nby the occupancy category (``byOccupancy``), else ``default``. A project overrides either\nvalue (``seismic.hazardMaps.default`` ...).",
+      "properties": {
+        "maps": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Map id -> its name, for the settings and report.",
+          "title": "Maps",
+          "type": "object"
+        },
+        "default": {
+          "type": "string",
+          "description": "The map id of an occupancy category not listed.",
+          "title": "Default"
+        },
+        "byOccupancy": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Occupancy category -> map id.",
+          "title": "Byoccupancy",
+          "type": "object"
+        },
+        "clause": {
+          "default": "",
+          "title": "Clause",
+          "type": "string"
+        }
+      },
+      "required": [
+        "maps",
+        "default"
+      ],
+      "title": "HazardMapsRule",
+      "type": "object"
+    },
     "HeightClass": {
       "additionalProperties": false,
       "description": "Alpha 9 C21: a building height class: the building is of this class when its height\nabove the base exceeds ``above`` [m] of its column (the first class, in order, it\nexceeds).",
@@ -1817,6 +1855,16 @@
           "maximum": 1,
           "title": "Correction",
           "type": "number"
+        },
+        "correctionMethod": {
+          "default": "constant",
+          "description": "constant: correction (with periodTcFactor, minStoreys); linearMode: (Σ Wi hi)² / (Σ Wi Σ Wi hi²) of the levels.",
+          "enum": [
+            "constant",
+            "linearMode"
+          ],
+          "title": "Correctionmethod",
+          "type": "string"
         },
         "periodTcFactor": {
           "anyOf": [
@@ -5130,6 +5178,18 @@
       ],
       "default": null,
       "description": "The seismic grade's force factors and γRE in the member design; empty: not applied."
+    },
+    "hazardMaps": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/HazardMapsRule"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "The town's zone by hazard map (locations mapZones), the map by occupancy category; empty: the town's zone."
     }
   },
   "required": [

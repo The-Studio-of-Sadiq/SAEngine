@@ -68,6 +68,45 @@ here, newest first, with the date, the question, the decision, the reason and wh
 - **Not covered.** Wind and snow lookups (the ASCE Hazard Tool's API needs a subscription key),
   Canada (the NRCan seismic hazard calculator has no documented public API), New Zealand and the
   other packs: values by hand.
+## 2026-11-05: Russia / CIS SP pack (alpha 9 track C25)
+
+Pack `russia-sp` (extends `bnbc2020`): SP 20.13330.2016, SP 14.13330.2018, SP 63.13330.2018,
+SP 16.13330.2017, SP 22.13330.2016, values entered from knowledge of the codes (no text on this
+PC); `VERIFY.md` lists every value with its clause, most marked uncertain. Nothing was run this
+week (owner, 2026-11-05): the tests are written, not run.
+
+- **SAEngine practice, limit state groups.** The first group is the strength combinations with
+  the design values; the second the service combinations with γf 1. One γf on D (1.1) for the
+  self-weight and the superimposed dead load (the site-made layers' 1.3 not told apart: the
+  combinations have one D factor); live γf 1.3 at every intensity (1.2 from 2.0 kN/m²: on the
+  safe side). The seismic combination's factors 0.9 / 0.5 are on the design values; the floor
+  live load is all short-term (its long-term share at 0.8 not split).
+- **SAEngine practice, earthquake.** The map of the OSR-2015 set by the occupancy category: A for
+  I-II, B for III, C for IV (the client's choice in SP 14 4.3); 6 points take A = 0.05 g and 10
+  points 0.8 g (outside SP 14). The soil category's one-point shift is the soil factor S 0.5 / 1 /
+  2 on the design spectrum (C24's `soilFactors`; A doubles per point); category IV takes III with the site-specific study warning. R = 1/K1
+  with Kψ 1 and Cd = R; Ω0 1; the storey drift limits 2 % / 1.5 % / 1 % (SP 14 gives none); the
+  SP 14 Section 6 detailing as SAEngine's intermediate level at 8 and 9 points; the accidental
+  eccentricity 0.1; orthogonal 100 % + 30 %; no scaling of the modal results to the static ones.
+- **SAEngine practice, wind.** ze by the windward width (the EN 1991-1-4 split); the pulsation
+  with ν of Table 11.6 at ρ = b, χ = h; ξ = 1 for flexible buildings; G 1.7 for the parent's
+  roof and wall pressures.
+- **SAEngine practice, concrete.** γb1 0.9 on Rb and Rbt in every combination; the rectangular
+  block is the default section method and the nonlinear deformation model's diagrams are a
+  project override (`concreteMethods.ultimate.stressBlock` bilinear / trilinear); shear Q at the
+  support face; the columns' shear by τc = 0.5 × 0.9 Rbt with the ties on d (no φn); ψs = 1 in
+  the crack width; the deflection by the generic long-term stiffness B = Bs/θ in place of SP 63's
+  curvature, with the SP 20 Table E.1 limits at the stricter end of each step; durability limits
+  of the cover conditions not from SP 63.
+- **SAEngine practice, steel and soil.** γc 1.0; cx 1.05; φb by the parent's χLT; the SP 22
+  design resistance R for the soil report's founding layer with γc1 1.25 (sands) / 1.1 (clays),
+  γc2 1.0, k 1.1, qa = R - σv; the deeper layers keep the parent's check.
+- **Generic mechanisms (no existing pack sets them):** `locations.*.mapZones` with
+  `seismic.hazardMaps`, `seismic.lateralForce.correctionMethod` "linearMode", `wind.referenceHeight`
+  "proportions", `wind.pulsation` with `exposures.*.pulsationZeta`,
+  `concreteMethods.ultimate.designStrengths`, `cubePrefix`, `stressBlock` "bilinear" /
+  "trilinear", `concreteMethods.shear.inclinedSection` with `stirrupYieldShare` /
+  `stirrupYieldMax`, `foundations.shallow.designResistance` (method `frictionAngleFactors`).
 
 ## 2026-11-05: assessment and retrofit of existing buildings (alpha 9 track P4)
 

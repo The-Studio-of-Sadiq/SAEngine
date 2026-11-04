@@ -1,0 +1,29 @@
+{
+  "$schema": "../../../schemas/designClauses.schema.json",
+  "$sources": [
+    "SP 63.13330.2018 8.1.46, 8.2.21-8.2.31; SP 20.13330.2016 Appendix E"
+  ],
+  "source": "SP 63.13330.2018: the clauses of the checks of the member design this pack covers, without the code's name. A group given here is given whole; a key the code has no counterpart for is empty, so the row names the code without a clause.",
+  "shortName": "SP 63",
+  "clauses": {
+    "check": {
+      "torsion": "",
+      "deflection": "8.2.21-8.2.31",
+      "columnShear": "",
+      "windCases": "",
+      "patternLive": "",
+      "accidentalTorsion": "",
+      "omega": "",
+      "fireRatings": ""
+    },
+    "punching": {
+      "punching": "8.1.46",
+      "section": "8.1.46"
+    }
+  },
+  "sources": {
+    "check.torsion": "SP 63.13330.2018 8.1.36-8.1.45 (torsion) not covered: the parent's torsion check (U)",
+    "check.deflection": "SP 63.13330.2018 8.2.21-8.2.31 approximated (concreteMethods deflection), SP 20.13330.2016 Table E.1 limits",
+    "punching.punching": "SP 63.13330.2018 8.1.46 (F <= Rbt u h0, the tensile form of rootStress)"
+  }
+}

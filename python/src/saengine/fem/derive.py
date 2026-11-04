@@ -2483,7 +2483,9 @@ def _derive_fem(
                 )
                 sa = least
             # C4: the pack's base shear correction (λ of EN 1998-1 4.3.3.2.2), 1 without it
-            correction = fl.base_shear_correction(period, len(heights), settings.site.siteClass)
+            correction = fl.base_shear_correction(
+                period, len(heights), settings.site.siteClass, levels=rel_levels
+            )  # Alpha 9 C25: the levels for a pack's linear-mode share (SP 14 ηk)
             shear = sa * sum(weights) * correction
             # Alpha 9 C20b: the site class for a top force by TC (GB 50011 Table 5.2.1 type).
             forces = fl.vertical_distribution(rel_levels, shear, period, settings.site.siteClass)

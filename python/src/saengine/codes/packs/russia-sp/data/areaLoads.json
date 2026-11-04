@@ -1,0 +1,103 @@
+{
+  "$schema": "../../../schemas/areaLoads.schema.json",
+  "$sources": [
+    "SP 20.13330.2016 Table 8.3 (uniformly distributed floor loads)"
+  ],
+  "source": "SP 20.13330.2016 8.2.1, Table 8.3: the normative uniformly distributed live loads [kN/m²] by use (full values; the reduced, long-term values are not used: the quasi-permanent service row takes 0.35 L). The other tables (partitions, vehicles, barriers, impact) are the parent's, named BNBC 2020.",
+  "uses": {
+    "$replace": true,
+    "residential": {
+      "name": "Apartments of residential buildings (Table 8.3 item 1)",
+      "live": 1.5
+    },
+    "balcony": {
+      "name": "Balconies and loggias, uniform (item 13)",
+      "live": 2.0
+    },
+    "residentialPublic": {
+      "name": "Dormitories, hotel rooms, hospital wards (item 1)",
+      "live": 1.5
+    },
+    "office": {
+      "name": "Offices, administrative and design rooms (item 2)",
+      "live": 2.0
+    },
+    "officeCorridor": {
+      "name": "Lobbies, corridors and stairs by offices and halls (item 12 b)",
+      "live": 4.0
+    },
+    "classroom": {
+      "name": "Classrooms of schools and colleges (item 2)",
+      "live": 2.0
+    },
+    "hospitalWard": {
+      "name": "Hospital wards (item 1)",
+      "live": 1.5
+    },
+    "operatingRoom": {
+      "name": "Laboratories, operating rooms (item 3)",
+      "live": 2.0
+    },
+    "assemblyFixed": {
+      "name": "Halls with fixed seats (item 4 b)",
+      "live": 4.0
+    },
+    "assemblyMovable": {
+      "name": "Halls without fixed seats, stands (item 4 c)",
+      "live": 5.0
+    },
+    "retailGround": {
+      "name": "Shops, exhibition halls (item 5)",
+      "live": 4.0
+    },
+    "retailUpper": {
+      "name": "Shops, upper floors (item 5)",
+      "live": 4.0
+    },
+    "storageLight": {
+      "name": "Book stores, archives, storage (item 6)",
+      "live": 5.0
+    },
+    "parking": {
+      "name": "Garages and car parks for cars (item 9)",
+      "live": 3.5
+    },
+    "stairs": {
+      "name": "Stairs and corridors of public buildings (item 12 b)",
+      "live": 4.0
+    },
+    "stairsDwelling": {
+      "name": "Stairs and corridors of dwellings (item 12 a)",
+      "live": 3.0
+    },
+    "roof": {
+      "name": "Roofs, other areas (item 9 c)",
+      "live": 0.5,
+      "roof": true
+    },
+    "roofGarden": {
+      "name": "Roofs used for rest (item 9 b)",
+      "live": 1.5
+    },
+    "dining": {
+      "name": "Dining halls, cafes (item 4 a)",
+      "live": 3.0
+    },
+    "libraryReading": {
+      "name": "Reading rooms (item 4 a)",
+      "live": 2.0
+    },
+    "libraryStacks": {
+      "name": "Book depositories with compact shelving (item 6)",
+      "live": 5.0
+    },
+    "gymnasium": {
+      "name": "Sports halls, stages (item 4 c, 8)",
+      "live": 5.0
+    },
+    "manufacturingLight": {
+      "name": "Machine rooms, equipment areas (item 7, by the equipment)",
+      "live": 5.0
+    }
+  }
+}
