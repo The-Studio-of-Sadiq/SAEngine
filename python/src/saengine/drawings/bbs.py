@@ -828,7 +828,8 @@ def _cells(row: BbsRow) -> dict[str, str]:
     return {
         "member": row.member,
         "mark": row.mark,
-        "size": _heading(row.size),
+        # C13: the pack's bar name in US units ("B420 #5" for "B420 No. 16")
+        "size": f"{row.material} {_size(row.size_format, row.dia)}".strip(),
         "shape": row.shape,
         **{k: dim(k) for k in LETTERS},
         "members": str(row.members),
