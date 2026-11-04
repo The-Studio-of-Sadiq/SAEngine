@@ -29,6 +29,10 @@ export interface IFemTimberDesign {
 	readonly joint?: { readonly type?: string; readonly count?: number; readonly size?: string; readonly diameter?: number } | null;
 	/** Member length, the column's Le [mm]. */
 	readonly length?: number | null;
+	/** Alpha 9 C3b: "referenceDesign" when the pack designs timber by reference design values and adjustment factors. */
+	readonly method?: string | null;
+	/** Alpha 9 C3b: "ASD" or "LRFD" of the reference design value method. */
+	readonly format?: string | null;
 }
 
 export function timberOf(element: IFemDesignElement): IFemTimberDesign | undefined {
@@ -74,9 +78,10 @@ export function timberSection(element: IFemDesignElement): FemDetailingItem[] {
 	}
 	const s = timber.stresses ?? {};
 	const value = (name: string) => typeof s[name] === 'number' ? s[name].toFixed(2) : '-';
+	const reference = timber.method === 'referenceDesign';
 	if (Object.keys(s).length) {
 		items.push({
-			kind: 'row', name: localize('femTimber.stresses', "Permissible stresses"),
+			kind: 'row', name: reference ? localize('femTimber.referenceValues', "Reference design values") : localize('femTimber.stresses', "Permissible stresses"),
 			value: localize('femTimber.stressesValue', "Fb {0}, Ft {1}, Fv {2}, Fc {3}, Fc⊥ {4} MPa", value('Fb'), value('Ft'), value('Fv'), value('Fc'), value('Fcn')),
 		});
 	}
@@ -90,6 +95,14 @@ export function timberSection(element: IFemDesignElement): FemDetailingItem[] {
 	const joint = timber.joint;
 	if (joint && joint.type) {
 		items.push({ kind: 'row', name: localize('femTimber.joint', "End joint"), value: jointLabel(joint) });
+	}
+	if (reference) {
+		items.push({
+			kind: 'note', text: timber.format === 'LRFD'
+				? localize('femTimber.basisReferenceLrfd', "Reference design values times their adjustment factors ({0}), LRFD format: the strength combinations, with KF, φ and the time effect factor of each combination.", timber.basis || timber.code || '')
+				: localize('femTimber.basisReferenceAsd', "Reference design values times their adjustment factors ({0}), ASD format: the allowable stress combinations, with the load duration factor CD of each combination.", timber.basis || timber.code || ''),
+		});
+		return items;
 	}
 	items.push({ kind: 'note', text: localize('femTimber.basisPack', "Permissible stress design ({0}) under the allowable stress combinations, with the load duration factor of each combination.", timber.basis || timber.code || '') });
 	return items;

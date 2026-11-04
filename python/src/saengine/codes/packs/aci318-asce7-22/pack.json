@@ -4,7 +4,7 @@
   "name": "ACI 318-19 + ASCE 7-22",
   "edition": "ASCE 7-22",
   "country": "US",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "extends": "bnbc2020",
   "covers": [
     "locations",
@@ -29,9 +29,11 @@
     "steelStability",
     "steelSeismic",
     "composite",
-    "masonry"
+    "masonry",
+    "timber",
+    "fatigue"
   ],
-  "description": "The US pack: ASCE/SEI 7-22 loads (combinations Sec 2.3-2.4, live loads and reduction Ch 4, seismic Ch 11-12 from the site's mapped spectral values, wind Ch 26-30, roof snow Ch 7) and ACI 318-19 structural concrete: strength reduction by strain (21.2), one-way shear with the size effect (22.5), two-way shear (22.6, with prestress 22.6.5.5), deflection with the 2019 effective inertia (24.2.3.5), crack control (24.3), shrinkage steel 0.0018 (24.4), development with the grade factor, the 2019 hooked and headed bar lengths (25.4), laps (25.5), columns (10), walls (11) and special walls (18.10: boundary elements by 1.5 du/hw, the amplified design shear, wall piers, coupling beams), special moment frame members and joints (18.6-18.8), slabs (8: direct design and equivalent frame), composite members (16.4), strut-and-tie (23). Structural steel by AISC 360-22 (LRFD, ASD selectable): members (Chapters D-H with the 2016+ effective width method for slender elements, Cv1 web shear, tees and HSS lateral-torsional buckling), connections (Chapter J values), stability (Chapter C, Appendix 7), composite members (Chapter I values) and AISC 341-22 seismic provisions (expected strengths, highly and moderately ductile width-thickness limits). Masonry: TMS 402-22 strength design values (Chapter 9, a wall type's masonry method 'strength'). Timber, masonry by allowable stresses, the geotechnical tables and the steel and masonry rules the pack does not revise fall back to the pack it extends (BNBC 2020), and the report names them. Every value has its clause in VERIFY.md, to be checked against the printed standards.",
+  "description": "The US pack: ASCE/SEI 7-22 loads (combinations Sec 2.3-2.4, live loads and reduction Ch 4, seismic Ch 11-12 from the site's mapped spectral values, wind Ch 26-30, roof snow Ch 7) and ACI 318-19 structural concrete: strength reduction by strain (21.2), one-way shear with the size effect (22.5), two-way shear (22.6, with prestress 22.6.5.5), deflection with the 2019 effective inertia (24.2.3.5), crack control (24.3), shrinkage steel 0.0018 (24.4), development with the grade factor, the 2019 hooked and headed bar lengths (25.4), laps (25.5), columns (10), walls (11) and special walls (18.10: boundary elements by 1.5 du/hw, the amplified design shear, wall piers, coupling beams), special moment frame members and joints (18.6-18.8), slabs (8: direct design and equivalent frame), composite members (16.4), strut-and-tie (23). Structural steel by AISC 360-22 (LRFD, ASD selectable): members (Chapters D-H with the 2016+ effective width method for slender elements, Cv1 web shear, tees and HSS lateral-torsional buckling), connections (Chapter J values), stability (Chapter C, Appendix 7), composite members (Chapter I values) and AISC 341-22 seismic provisions (expected strengths, highly and moderately ductile width-thickness limits). Masonry: TMS 402-22 allowable stress design (Chapter 8, the default method) and strength design (Chapter 9, a wall type's masonry method 'strength'). Timber: NDS 2018 reference design values of sawn lumber and glulam with their adjustment factors (CD, CM, Ct, CF, Cfu, Ci, Cr, CV, CL, CP, Cb), ASD or LRFD (KF, φ, λ), bolts and nails by the yield limit equations. Steel also: built-up members (E6), stability bracing (Appendix 6), ponding (Appendix 2), tension field stiffeners (G2.3), HSS connections (Chapter K), fatigue (Appendix 3) and the AISC 341-22 moment frame connections, panel zones, links, BRBF, SPSW and composite rules. The geotechnical tables and the masonry empirical and seismic rules fall back to the pack it extends (BNBC 2020), and the report names them. Every value has its clause in VERIFY.md, to be checked against the printed standards.",
   "sources": [
     {
       "id": "ASCE7",
@@ -62,6 +64,12 @@
       "title": "Building Code Requirements for Masonry Structures (TMS 402-22)",
       "edition": "2022",
       "publisher": "The Masonry Society"
+    },
+    {
+      "id": "NDS",
+      "title": "National Design Specification for Wood Construction (ANSI/AWC NDS-2018) with its Supplement",
+      "edition": "2018",
+      "publisher": "American Wood Council"
     }
   ],
   "clauses": {
@@ -126,26 +134,32 @@
       "ACI 318-19 Chapter 23 (strut-and-tie); geotechnical values: BNBC 2020 Part 6 Chapter 3"
     ],
     "steel": [
-      "AISC 360-22 Chapters B-K: φ and Ω, member methods, bolts, welds and connection values"
+      "AISC 360-22 Chapters B-K and Appendices 2 and 6: φ and Ω, member methods (built-up members E6), bolts, welds and connection values (HSS connections Chapter K), ponding, stability bracing"
     ],
     "steelStability": [
       "AISC 360-22 Chapter C, Appendices 7-8"
     ],
     "steelSeismic": [
-      "AISC 341-22 Sec A3, D1, E1-E3, F1-F5 (where revised; the rest BNBC 2020 Part 6 Sec 10.20)"
+      "AISC 341-22 Chapters A-K: moment frames E1-E4 (with AISC 358 for the prequalified connections), braced frames F1-F4, special plate shear walls F5, composite members and walls"
     ],
     "composite": [
       "AISC 360-22 Chapter I (where revised; the rest BNBC 2020 Part 6 Chapter 13)"
     ],
     "masonry": [
-      "TMS 402-22 Chapter 9 (strength design; the rest of the table BNBC 2020 Part 6 Chapter 7)"
+      "TMS 402-22 Chapter 8 (allowable stress design, the default method) and Chapter 9 (strength design); the empirical and seismic rules BNBC 2020 Part 6 Chapter 7"
+    ],
+    "timber": [
+      "NDS 2018 Chapters 2-5, 11-12 and Appendix N: reference design values (Supplement Tables 4A, 4D, 5A) and adjustment factors, ASD and LRFD; dowel-type fasteners"
+    ],
+    "fatigue": [
+      "AISC 360-22 Appendix 3, Table A-3.1"
     ]
   },
   "basis": {
     "general": "ASCE 7-22",
     "concrete": "ACI 318-19",
     "steel": "AISC 360-22 (LRFD; ASD selectable), AISC 341-22",
-    "method": "Strength design (LRFD)"
+    "method": "Strength design (LRFD); timber NDS 2018 and masonry TMS 402-22 by allowable stresses (ASD) unless chosen otherwise"
   },
   "tableCodes": {
     "materials": "ACI 318-19",
@@ -190,7 +204,9 @@
     "steelStability": "AISC 360-22",
     "steelSeismic": "AISC 341-22",
     "composite": "AISC 360-22",
-    "designClauses.steelMembers": "AISC 360-22"
+    "designClauses.steelMembers": "AISC 360-22",
+    "timber": "NDS 2018",
+    "fatigue": "AISC 360-22"
   },
   "author": "SAEngine contributors",
   "licence": "AGPL-3.0-only"

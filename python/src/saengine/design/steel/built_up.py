@@ -96,6 +96,8 @@ def modified_slenderness(built: BuiltUp, kl_r0: float) -> tuple[float, str, str]
         return kl_r0, "", ""
     ri, rib = built.radii()
     a = built.spacing
+    if built.connectors == "welded" and getattr(data.builtUp, "method", "alpha") == "ki":
+        return _ki_slenderness(built, kl_r0, ri, data.builtUp)
     if built.connectors == "welded":
         if not rib or not built.separation:
             return kl_r0, "built-up: rib and h needed for Eq 6.10.35, not modified", ""
@@ -115,6 +117,47 @@ def modified_slenderness(built: BuiltUp, kl_r0: float) -> tuple[float, str, str]
         f"from (KL/r)o = {kl_r0:.1f}"
     )
     return m, note, clause("builtUpSnug")
+
+
+def component_kind(built: BuiltUp) -> str:
+    """Alpha 9 C3b: "angles", "channels" or "other": the components of a built-up member for Ki
+    (back-to-back angles or channels by the component's section family, else other)."""
+    if built.component:
+        from saengine.library.steel_sections import find
+
+        section = find(built.component)
+        if section is not None and section.shape == "L":
+            return "angles"
+        if section is not None and section.shape == "U":
+            return "channels"
+    return "other"
+
+
+def _ki_slenderness(
+    built: BuiltUp, kl_r0: float, ri: float | None, b: Any
+) -> tuple[float, str, str]:
+    """Alpha 9 C3b, the ``ki`` method (AISC 360-16+ Sec E6.1(b)): welded or pretensioned bolted
+    connectors: (KL/r)m = (KL/r)o up to a/ri = ``kiLimit``, else √((KL/r)o² + (Ki a/ri)²)."""
+    ref = clause("builtUpWelded")
+    if not ri:
+        return kl_r0, "built-up: ri needed for the modified slenderness, not modified", ""
+    a = built.spacing
+    ratio = a / ri
+    limit = float(b.kiLimit) if b.kiLimit is not None else 0.0
+    kind = component_kind(built)
+    ki = float((b.ki or {}).get(kind, (b.ki or {}).get("other", 1.0)))
+    if ratio <= limit:
+        note = (
+            f"built-up, welded / pretensioned connectors at a = {a:.0f} mm: a/ri = {ratio:.1f} "
+            f"<= {limit:g}, (KL/r)m = (KL/r)o = {kl_r0:.1f}"
+        )
+        return kl_r0, note, ref
+    m = math.sqrt(kl_r0**2 + (ki * ratio) ** 2)
+    note = (
+        f"built-up, welded / pretensioned connectors at a = {a:.0f} mm: a/ri = {ratio:.1f} > "
+        f"{limit:g}, Ki = {ki:g} ({kind}), (KL/r)m = {m:.1f} from (KL/r)o = {kl_r0:.1f}"
+    )
+    return m, note, ref
 
 
 def lacing_shear(phi_pn: float) -> float:

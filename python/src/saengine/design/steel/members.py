@@ -1455,11 +1455,22 @@ def stiffener_requirements(
         )
     ja, jb, jc = k.stiffenerJ
     j = max(ja / web["aspect"] ** 2 - jb, jc)
-    out.append(
-        f"transverse stiffeners at a = {a:.0f} mm: Ist >= a tw³ j = {a * tw**3 * j / 1e4:.1f}"
-        f"×10⁴ mm⁴ (j = {j:.2f}) ({ref})"
-    )
-    if tension_field and web["tfa"]:
+    if getattr(k, "stiffenerMethod", "area") == "inertia":
+        # Alpha 9 C3b (AISC 360-16+ Sec G2.3): Ist2 = b tw³ j, b the lesser of a and h.
+        b = min(a, h)
+        out.append(
+            f"transverse stiffeners at a = {a:.0f} mm: Ist >= b tw³ j = "
+            f"{b * tw**3 * j / 1e4:.1f}×10⁴ mm⁴ (b = {b:.0f} mm the lesser of a and h, j = "
+            f"{j:.2f}) ({ref})"
+        )
+    else:
+        out.append(
+            f"transverse stiffeners at a = {a:.0f} mm: Ist >= a tw³ j = {a * tw**3 * j / 1e4:.1f}"
+            f"×10⁴ mm⁴ (j = {j:.2f}) ({ref})"
+        )
+    if tension_field and web["tfa"] and getattr(k, "stiffenerMethod", "area") == "inertia":
+        out.append(_tfa_stiffener_inertia(shape, steel, a, vr_vc, web, k, ref))
+    elif tension_field and web["tfa"]:
         cv = web_shear_coefficient(h / tw, web["kv"], e, fy)
         ds = k.Ds.get("pair", 1.0)
         ast = max(0.0, k.stiffenerArea * ds * h * tw * (1 - cv) * vr_vc - k.stiffenerWeb * tw**2)
@@ -1469,6 +1480,43 @@ def stiffener_requirements(
             f"{vr_vc:.2f} ({ref})"
         )
     return out
+
+
+def _tfa_stiffener_inertia(
+    shape: ShapeProperties,
+    steel: Steel,
+    a: float,
+    vr_vc: float,
+    web: dict[str, Any],
+    k: Any,
+    ref: str,
+) -> str:
+    """Alpha 9 C3b, the ``inertia`` method of the stiffeners of tension field panels (AISC
+    360-16+ Sec G2.3): (b/t)st <= stiffenerBt √(E/Fyst) and Ist >= Ist2 + (Ist1 - Ist2) ρw,
+    Ist2 = b tw³ j (b the lesser of a and h), Ist1 = h⁴ ρst^b / a1 (Fyw/E)^c, ρst = Fyw/Fyst >= 1
+    (pairs of the web's steel: 1), ρw = (Vr - Vc2) / (Vc1 - Vc2) >= 0 with Vc1 the strength with
+    tension field action and Vc2 the buckling strength 0.6 Fy Aw Cv2."""
+    e, fy = steel.e, steel.fy
+    d = shape.dims
+    h, tw = d["h"], d["tw"]
+    a1, b1, c1 = k.stiffenerInertia or (40.0, 1.3, 1.5)
+    ja, jb, jc = k.stiffenerJ
+    aspect = web["aspect"]
+    j = max(ja / aspect**2 - jb, jc)
+    ist2 = min(a, h) * tw**3 * j
+    rho_st = 1.0
+    ist1 = h**4 * rho_st**b1 / a1 * (fy / e) ** c1
+    cv2 = web_shear_coefficient(h / tw, web["kv"], e, fy)
+    root = math.sqrt(1 + aspect**2) + (aspect if web.get("reduced") else 0.0)
+    share = cv2 / (cv2 + (1 - cv2) / (k.factor * root))  # Vc2 / Vc1
+    rho_w = max(0.0, (vr_vc - share) / (1 - share)) if share < 1 else 0.0
+    ist = ist2 + (ist1 - ist2) * rho_w
+    return (
+        f"tension field stiffeners (pairs, Fyst = Fy): (b/t)st <= "
+        f"{k.stiffenerBt * (e / fy) ** 0.5:.1f}, Ist >= Ist2 + (Ist1 - Ist2) ρw = "
+        f"{ist / 1e4:.1f}×10⁴ mm⁴ (Ist1 = {ist1 / 1e4:.1f}×10⁴, Ist2 = {ist2 / 1e4:.1f}×10⁴ "
+        f"mm⁴, ρw = {rho_w:.2f} at Vr/Vc = {vr_vc:.2f}) ({ref})"
+    )
 
 
 def _rhs_shear(shape: ShapeProperties, steel: Steel, h: float) -> Capacity:
@@ -2633,12 +2681,17 @@ def torsional_bracing(
     βsec) (Eq 6.10.294), βT = 2.4 L Mr² / (φ n E Iy Cb²) (Eq 6.10.295), βsec = 3.3 E / ho
     (1.5 ho tw³ / 12 + ts bs³ / 12) (Eq 6.10.296); [N·mm, mm, N·mm/rad]. ``lb``: the unbraced
     length (default L / (n + 1)). ``betaTb`` is None when βsec <= βT: torsional bracing is not
-    effective (inadequate web distortional stiffness). None when the pack has no bracing data."""
+    effective (inadequate web distortional stiffness). None when the pack has no bracing data.
+    Alpha 9 C3b: a pack whose ``torsionalMomentForm`` is ``share`` takes Mbr = this × Mr."""
     table = _bracing_table()
     if table is None:
         return None
     lb = lb or span / (braces + 1)
-    mbr = table.torsionalMoment * mr * span / (braces * cb * lb)
+    if getattr(table, "torsionalMomentForm", "spanRatio") == "share":
+        # Alpha 9 C3b (AISC 360-16+ Appendix 6.3.2a): Mbr = torsionalMoment × Mr.
+        mbr = table.torsionalMoment * mr
+    else:
+        mbr = table.torsionalMoment * mr * span / (braces * cb * lb)
     beta_t = (
         table.torsionalStiffness
         * span

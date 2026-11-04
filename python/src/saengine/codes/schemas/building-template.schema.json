@@ -285,7 +285,9 @@
         "rcFrame",
         "rcFrameWithWalls",
         "flatSlab",
-        "masonry"
+        "masonry",
+        "steelMomentFrame",
+        "steelBracedFrame"
       ],
       "title": "System",
       "type": "string"
@@ -310,6 +312,12 @@
     "rebar": {
       "default": "B420DWR",
       "title": "Rebar",
+      "type": "string"
+    },
+    "steel": {
+      "default": "A992",
+      "description": "Alpha 9 C3b: structural steel of the steel systems (a steel of the default materials).",
+      "title": "Steel",
       "type": "string"
     },
     "footing": {

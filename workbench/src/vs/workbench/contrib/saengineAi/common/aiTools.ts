@@ -272,7 +272,7 @@ export const AI_TOOLS: readonly IAiTool[] = [
 				storyCount: { type: 'integer', minimum: 1, maximum: 80 },
 				groundHeight: { type: 'number', description: 'Ground storey height [mm].' },
 				typicalHeight: { type: 'number', description: 'Typical storey height [mm].' },
-				system: { type: 'string', enum: ['rcFrame', 'rcFrameCore', 'flatSlab', 'masonry'] },
+				system: { type: 'string', enum: ['rcFrame', 'rcFrameCore', 'flatSlab', 'masonry', 'steelMomentFrame', 'steelBracedFrame'] },
 				footing: { type: 'string', enum: ['isolated', 'mat', 'none'] },
 				concrete: { type: 'string', description: 'Concrete material id of 03 Materials, e.g. "C24.1".' },
 				rebar: { type: 'string', description: 'Rebar material id, e.g. "B420DWR".' },

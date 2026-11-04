@@ -87,7 +87,9 @@ def _live_in_w(settings: Any) -> str:
 # ─────────────────────────────────────────── the spec ───────────────────────────────────────────
 
 Spacing = Annotated[float, Field(gt=0, description="[mm]")]
-SystemKind = Literal["rcFrame", "rcFrameWithWalls", "flatSlab", "masonry"]
+SystemKind = Literal[
+    "rcFrame", "rcFrameWithWalls", "flatSlab", "masonry", "steelMomentFrame", "steelBracedFrame"
+]
 FootingKind = Literal["isolated", "mat", "none"]
 OccupancyUse = Literal[
     "residential",
@@ -177,6 +179,11 @@ class BuildingSpec(_Spec):
     )
     concrete: str = "C24.1"
     rebar: str = "B420DWR"
+    steel: str = Field(
+        default="A992",
+        description="Alpha 9 C3b: structural steel of the steel systems (a steel of the default "
+        "materials).",
+    )
     footing: FootingKind = "isolated"
     occupancy: OccupancyUse = "residential"
     occupancyCategory: Literal["I", "II", "III", "IV"] | None = Field(
@@ -1424,6 +1431,11 @@ def _generate_building(s: BuildingSpec, settings: Any) -> dict[str, Any]:
         from saengine.library.masonry_building import generate_masonry_building
 
         return generate_masonry_building(s, settings)
+    if s.system in ("steelMomentFrame", "steelBracedFrame"):
+        # Alpha 9 C3b: steel moment or braced frames, a generator of their own.
+        from saengine.library.steel_building import generate_steel_building
+
+        return generate_steel_building(s, settings)
     notes: list[str] = []
 
     # ── materials ──
@@ -2872,6 +2884,11 @@ def building_texts(result: dict[str, Any]) -> dict[str, str]:
     }
     plan = FloorPlan.model_validate(result["floorPlan"])
     bim = generate(plan, source_stamp(texts[PATHS["floorPlan"]]))
+    if result.get("bimMembers"):
+        # Alpha 9 C3b: the braces of a generated steel braced frame (06 BIM inclined members).
+        from saengine.library.bim import InclinedMember
+
+        bim.additions.members = [InclinedMember.model_validate(m) for m in result["bimMembers"]]
     texts[PATHS["bim"]] = _json_text(bim)
     return texts
 

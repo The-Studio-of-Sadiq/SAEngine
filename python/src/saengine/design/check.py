@@ -1609,7 +1609,10 @@ def _design_timber(
             {"id": member_id, "kind": object_type.kind, "type": object_type.id, "reason": reason}
         )
 
-    case_forces, names, factors, reason = _allowable_forces(service, notes, "timber")
+    # Alpha 9 C3b: a pack's timber method in the LRFD format takes the strength combinations.
+    case_forces, names, factors, reason = _allowable_forces(
+        service, notes, "timber", timber_design.combination_set()
+    )
     if reason:
         for member_id, object_type, *_ in todo:
             skip(member_id, object_type, f"timber not checked: {reason}")
@@ -1683,19 +1686,25 @@ def _steel_asd(
 
 
 def _allowable_forces(
-    service: dict[str, Any], notes: list[str], what: str
+    service: dict[str, Any], notes: list[str], what: str, category: str = "allowable"
 ) -> tuple[dict[str, Any], list[str], list[dict[str, float]], str]:
     """The analysis's per-case forces in ``service`` (:func:`_demands`' ``extra["service"]``)
     and the code pack's allowable stress combinations formed from them, ``(case forces, names,
     factors, "")``; the combinations whose wind or earthquake cases have no results are left out
-    (a note for ``what`` says so). With no combinations or forces the reason is the last item."""
-    from saengine.fem.combinations import allowable_combinations
+    (a note for ``what`` says so). With no combinations or forces the reason is the last item.
+    Alpha 9 C3b: ``category`` "strength" forms the strength combinations instead."""
+    from saengine.fem.combinations import allowable_combinations, strength_combinations
 
     case_forces = {**(service.get("forces") or {}), **(service.get("lateralForces") or {})}
-    formed = allowable_combinations(set(case_forces) | {"SD", "L", "Lr"})
+    form = strength_combinations if category == "strength" else allowable_combinations
+    formed = form(set(case_forces) | {"SD", "L", "Lr"})
     if not formed or not case_forces:
         reason = (
-            "the code pack has no allowable stress combinations"
+            (
+                "the code pack has no strength combinations"
+                if category == "strength"
+                else "the code pack has no allowable stress combinations"
+            )
             if not formed
             else "the load cases' forces were not found"
         )
@@ -1708,8 +1717,8 @@ def _allowable_forces(
     left_out = len(formed) - len(usable)
     if left_out:
         notes.append(
-            f"{what}: {left_out} allowable stress combinations left out (their wind or "
-            "earthquake cases have no results)"
+            f"{what}: {left_out} {'strength' if category == 'strength' else 'allowable stress'} "
+            "combinations left out (their wind or earthquake cases have no results)"
         )
     return case_forces, [n for n, _ in usable], [f for _, f in usable], ""
 

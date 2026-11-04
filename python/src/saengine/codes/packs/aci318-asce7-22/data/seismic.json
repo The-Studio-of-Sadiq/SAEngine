@@ -7,6 +7,11 @@
     "ACI 318-19 Sec 18.2.1 (seismic detailing by Seismic Design Category)"
   ],
   "source": "ASCE 7-22 Chapters 11, 12 and 20",
+  "generatorSystems": {
+    "steelMomentFrame": ["steelNotDetailed", "steelOmf", "steelImf", "steelSmf"],
+    "steelBracedFrame": ["steelNotDetailed", "steelOcbf", "steelScbf"],
+    "$comment": "SAEngine practice: the New Building generator's steel systems, least ductile first, of ASCE 7-22 Table 12.2-1 (H steel not specifically detailed, R = 3, in Seismic Design Categories B and C: the AISC 341-22 provisions then do not apply; C.4 OMF, C.3 IMF, C.1 SMF; B.3 OCBF, B.2 SCBF; the braces are hollow sections, so no buckling-restrained braced frame): the first the Seismic Design Category and the height permit is taken; Design mode checks its AISC 341-22 provisions"
+  },
   "designSpectrum": {
     "method": "mappedSpectral",
     "designShare": 0.6666666667,
