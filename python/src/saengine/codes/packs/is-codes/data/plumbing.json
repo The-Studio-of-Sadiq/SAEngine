@@ -1,0 +1,53 @@
+{
+  "$schema": "../../../schemas/plumbing.schema.json",
+  "$sources": [
+    "IS 3370 (Part 1):2009 and IS 3370 (Part 2):2009, concrete structures for the storage of liquids: the RC water tanks' design (alpha 9 track C12); the building services' values stay the default pack's"
+  ],
+  "tanks": {
+    "coverStrengths": [25, 30],
+    "cover": {
+      "$replace": true,
+      "severe": [null, 45],
+      "moderate": [30, 30]
+    },
+    "weatherCover": [45, 45],
+    "againstEarth": 75,
+    "maxSpacingFactor": 3,
+    "maxWaterCement": 0.45,
+    "crackLimit": 0.2,
+    "crackControl": "crackWidth",
+    "steelStress": {
+      "tension": 130,
+      "flexure": 130,
+      "flexureAway": 190
+    },
+    "surfaceZone": {
+      "ratio": 0.0035,
+      "depthMax": 250
+    },
+    "spacingMax": 300,
+    "combinations": [
+      {"kind": "strength", "clause": "IS 456 Table 18, 1.5(D + F)", "factors": {"D": 1.5, "F": 1.5}, "eachFluid": true},
+      {"kind": "strength", "clause": "IS 456 Table 18, 1.5(D + F + H)", "factors": {"D": 1.5, "F": 1.5, "H": 1.5}, "eachFluid": true, "requires": ["H"]},
+      {"kind": "strength", "clause": "IS 456 Table 18, 1.5(D + H), F = 0", "factors": {"D": 1.5, "H": 1.5}, "requires": ["H"]},
+      {"kind": "strength", "clause": "IS 456 Table 18, 0.9D + 1.5H", "factors": {"D": 0.9, "H": 1.5}, "requires": ["H"]},
+      {"kind": "strength", "clause": "IS 456 Table 18, 1.5(D + F + Lr)", "factors": {"D": 1.5, "F": 1.5, "Lr": 1.5}, "eachFluid": true, "requires": ["Lr"]},
+      {"kind": "service", "clause": "IS 3370 (Part 2) 4.1, D + F", "factors": {"D": 1.0, "F": 1.0}, "eachFluid": true},
+      {"kind": "service", "clause": "IS 3370 (Part 2) 4.1, D + F + H", "factors": {"D": 1.0, "F": 1.0, "H": 1.0}, "eachFluid": true, "requires": ["H"]},
+      {"kind": "service", "clause": "IS 3370 (Part 2) 4.1, D + H, F = 0", "factors": {"D": 1.0, "H": 1.0}, "requires": ["H"]},
+      {"kind": "service", "clause": "IS 3370 (Part 2) 4.1, D + F + H + Lr", "factors": {"D": 1.0, "F": 1.0, "H": 1.0, "Lr": 1.0}, "requires": ["Lr"]}
+    ]
+  },
+  "sources": {
+    "tanks.cover": "IS 3370 (Part 1):2009 8.2: nominal cover at least 45 mm on the faces in contact with the liquid and those exposed to the weather (severe, M30 at least: Table 1), IS 456 Table 16 moderate 30 mm on the faces against non-aggressive soil",
+    "tanks.weatherCover": "IS 3370 (Part 1):2009 8.2: 45 mm, any bar size",
+    "tanks.againstEarth": "SAEngine practice: 75 mm cast against the earth, the default pack's value kept (IS 456 26.4.2.2 asks 50 mm for footings)",
+    "tanks.maxSpacing": "IS 3370 (Part 2):2009 8.2 with IS 456 26.3.3: bars at most 3h and 300 mm apart",
+    "tanks.maxWaterCement": "IS 3370 (Part 1):2009 Table 1: w/c at most 0.45 for RC (M30, 320 kg/m³ cement at least)",
+    "tanks.combinations": "IS 456:2000 Table 18 (γf 1.5, 0.9 for the dead load against the earth) with the liquid as an imposed load (IS 3370 (Part 2):2009 4.2), service by IS 3370 (Part 2) 4.1 at γf 1.0",
+    "tanks.crackLimit": "IS 3370 (Part 2):2009 4.1.1 / 4.2: limit state of cracking, surface crack width at most 0.2 mm (0.1 mm for severe exposure or aesthetics: set it under Code Values)",
+    "tanks.steelStress": "IS 3370 (Part 2):2009 Table 2 (working stress method, crackControl steelStress): HYSD bars 130 MPa in direct tension and in flexure on the liquid face, 190 MPa on faces away from the liquid",
+    "tanks.surfaceZone": "IS 3370 (Part 2):2009 8.1.1: least steel 0.35 % (HYSD) of the surface zone in each direction at each face, the surface zone half the thickness up to 250 mm (SAEngine reading of Figure 1)",
+    "tanks.uplift": "IS 3370 (Part 1):2009 and IS 456 20.1: uplift by the full hydrostatic pressure under the base, flotation by IS 456 20.1 (0.9 D)"
+  }
+}

@@ -229,7 +229,7 @@ class TankOptions:
     concreteUnitWeight: float = 24.0  # kN/m³
     liquidUnitWeight: float | None = None  # kN/m³; None: water 9.81
     designWaterTable: float | None = 0.0  # m below ground; None: the soil report's
-    crackLimit: float = 0.2  # mm
+    crackLimit: float | None = None  # mm; None: the pack's (0.2 when it gives none)
     kt: float = 0.4
     crackingAge: float = 3.0  # days, for fct,eff of the minimum reinforcement
     flotationFS: float = 1.1
@@ -687,7 +687,9 @@ def max_spacing(h: float) -> float:
     """The largest bar spacing [mm] in a shell ``h`` thick: the pack's ``maxSpacingFactor`` x h,
     at most ``concrete.walls.spacingMax`` (3h or 450 mm, BNBC Part 6 Sec 6.6.3.5, in the
     default pack)."""
-    return float(min(rules().maxSpacingFactor * h, wall_steel().spacingMax))
+    found = float(min(rules().maxSpacingFactor * h, wall_steel().spacingMax))
+    own = getattr(rules(), "spacingMax", None)  # C12: a liquid-retaining code's own
+    return min(found, float(own)) if own is not None else found
 
 
 def table_cover(exposure: str, fc: float) -> tuple[float, str | None]:
@@ -712,6 +714,40 @@ def table_cover(exposure: str, fc: float) -> tuple[float, str | None]:
     return float(best), note
 
 
+def liquid_face(panel: str, face: str) -> bool:
+    """Whether ``face`` of ``panel`` is in contact with the liquid (a partition's both faces)."""
+    return (
+        (panel not in ("Base", "Roof") and face == "inner")
+        or (panel == "Base" and face == "top")
+        or (panel == "Roof" and face == "bottom")
+        or panel.startswith("Partition")
+    )
+
+
+def crack_limit(options: TankOptions) -> float:
+    """The crack width limit [mm]: the project's ``crackLimit``, else the pack's, else 0.2."""
+    if options.crackLimit is not None:
+        return float(options.crackLimit)
+    found = getattr(rules(), "crackLimit", None)
+    return float(found) if found is not None else 0.2
+
+
+def steel_stress_rules() -> Any | None:
+    """The pack's service steel stress limits when its crack control is ``steelStress``."""
+    r = rules()
+    if getattr(r, "crackControl", "crackWidth") != "steelStress":
+        return None
+    return getattr(r, "steelStress", None)
+
+
+def surface_zone_area(h: float) -> float:
+    """The pack's least steel of a face by its surface zone [mm²/m] (0 without one)."""
+    zone = getattr(rules(), "surfaceZone", None)
+    if zone is None:
+        return 0.0
+    return zone.ratio * min(h / 2, zone.depthMax) * 1000
+
+
 def face_cover(spec: TankSpec, panel: str, face: str, dia: float, options: TankOptions) -> float:
     """Nominal cover [mm] of a face (the pack's cover rules, BNBC Part 6 Sec 8.1.7 in the
     default pack; the larger value, 8.1.7.4)."""
@@ -719,13 +755,7 @@ def face_cover(spec: TankSpec, panel: str, face: str, dia: float, options: TankO
         return options.cover
     r = rules()
     weather = float(r.weatherCover[0] if dia >= r.weatherBarFrom else r.weatherCover[1])
-    liquid = (
-        (panel not in ("Base", "Roof") and face == "inner")
-        or (panel == "Base" and face == "top")
-        or (panel == "Roof" and face == "bottom")
-        or panel.startswith("Partition")
-    )
-    if liquid:
+    if liquid_face(panel, face):
         return table_cover("severe", spec.fc)[0]
     if spec.ground:
         if panel == "Base" and face == "bottom":
@@ -1246,6 +1276,7 @@ def design_panels(
                             fct,
                             es,
                             ec,
+                            face,
                         )
                         record.update({"cover": cover})
                         limit = max_spacing(h)
@@ -1391,8 +1422,10 @@ def _check_layer(
     fct: float,
     es: float,
     ec: float,
+    face: str = "",
 ) -> dict[str, Any]:
-    """Strength, minimum and crack width of one layer with the given bars."""
+    """Strength, minimum and crack width (or the pack's service steel stress) of one layer with
+    the given bars."""
     required, governing = 0.0, None
     ok = True
     for m, n, cname, node in rows:
@@ -1407,11 +1440,13 @@ def _check_layer(
         required = max(required, found.other)
     min_en = min_area(h, spec.fc, spec.fy, options.crackingAge)
     min_code = code_min_area(panel, direction, h, spec.fy, bars.dia)
-    a_min = max(min_en, min_code)
+    a_min = max(min_en, min_code, surface_zone_area(h))
     need = max(required, a_min)
     ok_strength = ok and bars.area + 1e-6 >= need
     # Crack width under the service combinations.
     worst = {"wk": 0.0}
+    stress_rules = steel_stress_rules()
+    stress_worst: dict[str, Any] = {"ratio": 0.0}
     a2 = other_bars.area if other_bars else bars.area
     d2 = other_cover + (other_bars.dia if other_bars else 12.0) / 2
     service = sorted(service_rows, key=lambda r: -(r[0] + abs(r[1]) * h / 2))[:24]
@@ -1424,6 +1459,27 @@ def _check_layer(
         )
         if found["wk"] > worst["wk"]:
             worst = {**found, "combination": cname, "M": m, "N": n}
+        if stress_rules is not None:  # C12: the working stress method's service stress
+            whole = cracked.x <= 0
+            cap = (
+                stress_rules.tension
+                if whole
+                else stress_rules.flexure
+                if liquid_face(panel, face)
+                else stress_rules.flexureAway
+            )
+            ratio = max(cracked.sigma_s, 0.0) / cap
+            if ratio > stress_worst["ratio"]:
+                stress_worst = {
+                    "ratio": ratio,
+                    "sigma_s": max(cracked.sigma_s, 0.0),
+                    "limit": cap,
+                    "combination": cname,
+                }
+    limit = crack_limit(options)
+    ok_crack = worst["wk"] <= limit + 1e-9
+    if stress_rules is not None:
+        ok_crack = stress_worst["ratio"] <= 1.0 + 1e-9
     return {
         "As_required": required,
         "As_min": a_min,
@@ -1433,8 +1489,9 @@ def _check_layer(
         "ok_strength": ok_strength,
         "strength_possible": ok,
         "crack": worst,
-        "ok_crack": worst["wk"] <= options.crackLimit + 1e-9,
-        "crack_limit": options.crackLimit,
+        "ok_crack": ok_crack,
+        "crack_limit": limit,
+        "steel_stress": stress_worst if stress_rules is not None else None,
         "d": d,
     }
 
@@ -1473,6 +1530,15 @@ def _entry(
         "crackLimit": record["crack_limit"],
         "crackCombination": crack.get("combination"),
         "sigmaS": round(crack.get("sigma_s", 0.0), 1),
+        **(
+            {
+                "steelStress": round(record["steel_stress"].get("sigma_s", 0.0), 1),
+                "steelStressLimit": record["steel_stress"].get("limit"),
+                "steelStressCombination": record["steel_stress"].get("combination"),
+            }
+            if record.get("steel_stress") is not None
+            else {}
+        ),
         "ok": bool(ok),
     }
 
@@ -1925,6 +1991,21 @@ def design_tank(tank: dict[str, Any], context: TankContext | dict[str, Any]) -> 
                     f"{e['bars']} ({e['barsFrom']}), As,min {e['As_min']} mm²/m",
                 )
             )
+            if "steelStress" in e:  # C12: the working stress method of the pack
+                checks.append(
+                    _check(
+                        f"{e['name']}: service steel stress, {e['direction']} bars, "
+                        f"{e['face']} face",
+                        e["steelStress"],
+                        e["steelStressLimit"] or 0.0,
+                        "MPa",
+                        e["steelStressCombination"],
+                        f"{plumbing_tables.source('tanks.steelStress')}, cracked elastic "
+                        f"section, cover {e['cover']} mm (crack width {e['crackWidth']} mm "
+                        "for information)",
+                    )
+                )
+                continue
             checks.append(
                 _check(
                     f"{e['name']}: crack width, {e['direction']} bars, {e['face']} face",

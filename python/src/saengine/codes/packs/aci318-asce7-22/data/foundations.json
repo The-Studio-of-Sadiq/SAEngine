@@ -1,13 +1,349 @@
 {
   "$schema": "../../../schemas/foundations.schema.json",
   "$sources": [
-    "ACI 318-19 Chapter 23 (strut-and-tie models of footings, pile caps and deep members); the geotechnical tables (bearing, piles, retaining walls) are the extended pack's until the US geotechnical track"
+    "ACI 318-19 Chapter 23 (strut-and-tie models of footings, pile caps and deep members)",
+    "IBC 2021 Chapter 18 (Sec 1806 presumptive load-bearing values, 1807.2.3 retaining walls, 1809 shallow foundations, 1810 deep foundations) with the ASCE 7-22 Sec 2.4 allowable stress combinations (alpha 9 track C12)",
+    "Where IBC 2021, ASCE 7-22 and ACI 318-19 give no value, the default pack's value is kept as SAEngine practice and named so (settlement limits, subgrade moduli, pile static methods after FHWA practice, machine foundations)"
   ],
   "strutAndTie": {
     "betaBottlePlain": 0.4,
     "betaOther": 0.4
   },
   "sources": {
+    "pileSafety": "SAEngine practice after FHWA (FHWA-NHI-10-016 drilled shafts, FHWA-NHI-16-009 driven piles), the default pack's value kept (IBC 2021 Sec 1810.3.3.1.1 leaves the static capacity to the geotechnical investigation)",
+    "partialSkin": "SAEngine practice after FHWA (FHWA-NHI-10-016 drilled shafts, FHWA-NHI-16-009 driven piles), the default pack's value kept (IBC 2021 Sec 1810.3.3.1.1 leaves the static capacity to the geotechnical investigation)",
+    "sptSafety": "SAEngine practice after FHWA (FHWA-NHI-10-016 drilled shafts, FHWA-NHI-16-009 driven piles), the default pack's value kept (IBC 2021 Sec 1810.3.3.1.1 leaves the static capacity to the geotechnical investigation)",
+    "noLoadTestSafety": "SAEngine practice: FS 3.0 on a static analysis without a load test (IBC 2021 Sec 1810.3.3.1.1 leaves it to the geotechnical investigation)",
+    "retainingWall.sliding": "IBC 2021 Sec 1807.2.3: safety factor 1.5 against lateral sliding",
+    "retainingWall.overturning": "IBC 2021 Sec 1807.2.3: safety factor 1.5 against overturning",
+    "retainingWall.seismic": "IBC 2021 Sec 1807.2.3 permits 1.1 with seismic loads; 1.5 kept as SAEngine practice",
+    "retainingWall.passive": "SAEngine practice, the default pack's value kept (IBC 2021, ASCE 7-22 and ACI 318-19 give none)",
+    "retainingWall.flotation": "SAEngine practice, the default pack's value kept (IBC 2021, ASCE 7-22 and ACI 318-19 give none)",
+    "retainingWall.baseFriction": "SAEngine practice, the default pack's value kept (IBC 2021, ASCE 7-22 and ACI 318-19 give none)",
+    "retainingWall.adhesion": "SAEngine practice, the default pack's value kept (IBC 2021, ASCE 7-22 and ACI 318-19 give none)",
+    "retainingWall.hFactor": "SAEngine practice, the default pack's value kept (IBC 2021, ASCE 7-22 and ACI 318-19 give none)",
+    "retainingWall.yieldingKh": "SAEngine practice, the default pack's value kept (IBC 2021, ASCE 7-22 and ACI 318-19 give none)",
+    "retainingWall.flotationDead": "SAEngine practice, the default pack's value kept (IBC 2021, ASCE 7-22 and ACI 318-19 give none)",
+    "retainingWall.frictionCoefficient": "SAEngine practice, the default pack's value kept (IBC 2021, ASCE 7-22 and ACI 318-19 give none)",
+    "shallow.bearingCombinations": "ASCE 7-22 Sec 2.4 (allowable stress design) for the soil pressure under the foundation",
+    "shallow.stabilityCombinations": "ASCE 7-22 Sec 2.4.1 combination 7 and Sec 2.4.5 combination 10 (0.6D resisting)",
+    "shallow.settlementCombinations": "SAEngine practice (ASCE 7-22 has no settlement combination)",
+    "shallow.lateralIncrease": "IBC 2021 Sec 1806.1: no increase with the basic allowable stress combinations of ASCE 7-22 Sec 2.4 (the one-third increase only with the IBC alternative combinations, not used)",
+    "shallow.factorOfSafety": "SAEngine practice: FS 2.0 to 3.0 on the bearing capacity (IBC 2021 Sec 1806.2 leaves it to the geotechnical investigation)",
+    "shallow.kern": "SAEngine practice, the default pack's value kept (IBC 2021, ASCE 7-22 and ACI 318-19 give none)",
+    "shallow.overturning": "IBC 2021 Sec 1807.2.3 (retaining walls): 1.5 against overturning, used for footings as SAEngine practice",
+    "shallow.sliding": "IBC 2021 Sec 1807.2.3 (retaining walls): 1.5 against sliding, used for footings as SAEngine practice",
+    "shallow.friction": "IBC 2021 Table 1806.2: lateral sliding resistance coefficient 0.25 of class 4, the least granular value (0.35 classes 2-3, 0.70 class 1; class 5 by a cohesion of 130 psf)",
+    "shallow.minDepth": "IBC 2021 Sec 1809.4: at least 12 in (305 mm) below undisturbed ground; frost protection by Sec 1809.5 (the local frost depth, not checked)",
+    "shallow.exteriorDepth": "SAEngine practice, the default pack's value kept (IBC 2021, ASCE 7-22 and ACI 318-19 give none)",
+    "shallow.raftDepth": "SAEngine practice, the default pack's value kept (IBC 2021, ASCE 7-22 and ACI 318-19 give none)",
+    "shallow.slopeDistance": "SAEngine practice, the default pack's value kept (IBC 2021, ASCE 7-22 and ACI 318-19 give none)",
+    "shallow.spreadAngle": "SAEngine practice, the default pack's value kept (IBC 2021, ASCE 7-22 and ACI 318-19 give none)",
+    "shallow.stepLap": "SAEngine practice, the default pack's value kept (IBC 2021, ASCE 7-22 and ACI 318-19 give none)",
+    "shallow.minThickness": "ACI 318-19 Sec 13.3.1.2: footing depth above the bottom bars at least 150 mm; on piles 300 mm (Sec 13.4.2.1)",
+    "shallow.presumptive": "IBC 2021 Sec 1806.2 and Table 1806.2: presumptive load-bearing values 12 000, 4 000, 3 000, 2 000, 1 500 psf (classes 1-5); mud, organic soils, peat and unprepared fill by investigation; no reduction near water",
+    "shallow.presumptiveWaterReduction": "IBC 2021 Table 1806.2 has no reduction near water: no row is reduced",
+    "shallow.subgrade": "SAEngine practice, the default pack's indicative moduli kept (ACI 336.2R: from a plate test or the settlement analysis)",
+    "shallow.settlementLimits": "SAEngine practice, the default pack's permissible settlements kept (IBC 2021 and ACI 318-19 give none; compare ACI 336.2R and Skempton and MacDonald 1956)",
+    "shallow.settlementGuide": "SAEngine practice, the default pack's guide kept (25 mm on sand, 40 mm on clay)",
+    "shallow.columnBase": "ACI 318-19 Sec 22.8.3 (bearing 0.85 f'c A1, × √(A2/A1) <= 2), Table 21.2.1 φ 0.65, Sec 16.3.4.1 dowels at least 0.005 Ag",
+    "piles.staticMethod": "SAEngine practice after FHWA (FHWA-NHI-10-016 drilled shafts, FHWA-NHI-16-009 driven piles), the default pack's value kept (IBC 2021 Sec 1810.3.3.1.1 leaves the static capacity to the geotechnical investigation)",
+    "piles.soilClasses": "SAEngine practice after FHWA (FHWA-NHI-10-016 drilled shafts, FHWA-NHI-16-009 driven piles), the default pack's value kept (IBC 2021 Sec 1810.3.3.1.1 leaves the static capacity to the geotechnical investigation)",
+    "piles.static.alpha": "SAEngine practice after FHWA (FHWA-NHI-10-016 drilled shafts, FHWA-NHI-16-009 driven piles), the default pack's value kept (IBC 2021 Sec 1810.3.3.1.1 leaves the static capacity to the geotechnical investigation)",
+    "piles.static.nc": "SAEngine practice after FHWA (FHWA-NHI-10-016 drilled shafts, FHWA-NHI-16-009 driven piles), the default pack's value kept (IBC 2021 Sec 1810.3.3.1.1 leaves the static capacity to the geotechnical investigation)",
+    "piles.static.sandBeta": "SAEngine practice after FHWA (FHWA-NHI-10-016 drilled shafts, FHWA-NHI-16-009 driven piles), the default pack's value kept (IBC 2021 Sec 1810.3.3.1.1 leaves the static capacity to the geotechnical investigation)",
+    "piles.static.nq": "SAEngine practice after FHWA (FHWA-NHI-10-016 drilled shafts, FHWA-NHI-16-009 driven piles), the default pack's value kept (IBC 2021 Sec 1810.3.3.1.1 leaves the static capacity to the geotechnical investigation)",
+    "piles.static.nqDensity": "SAEngine practice after FHWA (FHWA-NHI-10-016 drilled shafts, FHWA-NHI-16-009 driven piles), the default pack's value kept (IBC 2021 Sec 1810.3.3.1.1 leaves the static capacity to the geotechnical investigation)",
+    "piles.static.criticalDepth": "SAEngine practice after FHWA (FHWA-NHI-10-016 drilled shafts, FHWA-NHI-16-009 driven piles), the default pack's value kept (IBC 2021 Sec 1810.3.3.1.1 leaves the static capacity to the geotechnical investigation)",
+    "piles.static.boredSkin": "SAEngine practice after FHWA (FHWA-NHI-10-016 drilled shafts, FHWA-NHI-16-009 driven piles), the default pack's value kept (IBC 2021 Sec 1810.3.3.1.1 leaves the static capacity to the geotechnical investigation)",
+    "piles.drilledShaft.minDiameter": "SAEngine practice after FHWA (FHWA-NHI-10-016 drilled shafts, FHWA-NHI-16-009 driven piles), the default pack's value kept (IBC 2021 Sec 1810.3.3.1.1 leaves the static capacity to the geotechnical investigation)",
+    "piles.drilledShaft.alpha": "SAEngine practice after FHWA (FHWA-NHI-10-016 drilled shafts, FHWA-NHI-16-009 driven piles), the default pack's value kept (IBC 2021 Sec 1810.3.3.1.1 leaves the static capacity to the geotechnical investigation)",
+    "piles.drilledShaft.sideTop": "SAEngine practice after FHWA (FHWA-NHI-10-016 drilled shafts, FHWA-NHI-16-009 driven piles), the default pack's value kept (IBC 2021 Sec 1810.3.3.1.1 leaves the static capacity to the geotechnical investigation)",
+    "piles.drilledShaft.baseMax": "SAEngine practice after FHWA (FHWA-NHI-10-016 drilled shafts, FHWA-NHI-16-009 driven piles), the default pack's value kept (IBC 2021 Sec 1810.3.3.1.1 leaves the static capacity to the geotechnical investigation)",
+    "piles.drilledShaft.clayReduceAbove": "SAEngine practice after FHWA (FHWA-NHI-10-016 drilled shafts, FHWA-NHI-16-009 driven piles), the default pack's value kept (IBC 2021 Sec 1810.3.3.1.1 leaves the static capacity to the geotechnical investigation)",
+    "piles.drilledShaft.betaIntercept": "SAEngine practice after FHWA (FHWA-NHI-10-016 drilled shafts, FHWA-NHI-16-009 driven piles), the default pack's value kept (IBC 2021 Sec 1810.3.3.1.1 leaves the static capacity to the geotechnical investigation)",
+    "piles.drilledShaft.betaMax": "SAEngine practice after FHWA (FHWA-NHI-10-016 drilled shafts, FHWA-NHI-16-009 driven piles), the default pack's value kept (IBC 2021 Sec 1810.3.3.1.1 leaves the static capacity to the geotechnical investigation)",
+    "piles.drilledShaft.sandBase": "SAEngine practice after FHWA (FHWA-NHI-10-016 drilled shafts, FHWA-NHI-16-009 driven piles), the default pack's value kept (IBC 2021 Sec 1810.3.3.1.1 leaves the static capacity to the geotechnical investigation)",
+    "piles.drilledShaft.lateralRatio": "SAEngine practice after FHWA (FHWA-NHI-10-016 drilled shafts, FHWA-NHI-16-009 driven piles), the default pack's value kept (IBC 2021 Sec 1810.3.3.1.1 leaves the static capacity to the geotechnical investigation)",
+    "piles.drilledShaft.zetaLow": "SAEngine practice after FHWA (FHWA-NHI-10-016 drilled shafts, FHWA-NHI-16-009 driven piles), the default pack's value kept (IBC 2021 Sec 1810.3.3.1.1 leaves the static capacity to the geotechnical investigation)",
+    "piles.drilledShaft.punchingSpan": "SAEngine practice after FHWA (FHWA-NHI-10-016 drilled shafts, FHWA-NHI-16-009 driven piles), the default pack's value kept (IBC 2021 Sec 1810.3.3.1.1 leaves the static capacity to the geotechnical investigation)",
+    "piles.spt": "SAEngine practice after FHWA (FHWA-NHI-10-016 drilled shafts, FHWA-NHI-16-009 driven piles), the default pack's value kept (IBC 2021 Sec 1810.3.3.1.1 leaves the static capacity to the geotechnical investigation)",
+    "piles.settlement.axialShare": "SAEngine practice after FHWA (FHWA-NHI-10-016 drilled shafts, FHWA-NHI-16-009 driven piles), the default pack's value kept (IBC 2021 Sec 1810.3.3.1.1 leaves the static capacity to the geotechnical investigation)",
+    "piles.settlement.cp": "SAEngine practice after FHWA (FHWA-NHI-10-016 drilled shafts, FHWA-NHI-16-009 driven piles), the default pack's value kept (IBC 2021 Sec 1810.3.3.1.1 leaves the static capacity to the geotechnical investigation)",
+    "piles.settlement.csSlope": "SAEngine practice after FHWA (FHWA-NHI-10-016 drilled shafts, FHWA-NHI-16-009 driven piles), the default pack's value kept (IBC 2021 Sec 1810.3.3.1.1 leaves the static capacity to the geotechnical investigation)",
+    "piles.settlement.groupWidthExponent": "SAEngine practice after FHWA (FHWA-NHI-10-016 drilled shafts, FHWA-NHI-16-009 driven piles), the default pack's value kept (IBC 2021 Sec 1810.3.3.1.1 leaves the static capacity to the geotechnical investigation)",
+    "piles.settlement.blockDepth": "SAEngine practice after FHWA (FHWA-NHI-10-016 drilled shafts, FHWA-NHI-16-009 driven piles), the default pack's value kept (IBC 2021 Sec 1810.3.3.1.1 leaves the static capacity to the geotechnical investigation)",
+    "piles.settlement.modulus": "SAEngine practice after FHWA (FHWA-NHI-10-016 drilled shafts, FHWA-NHI-16-009 driven piles), the default pack's value kept (IBC 2021 Sec 1810.3.3.1.1 leaves the static capacity to the geotechnical investigation)",
+    "piles.settlement.limits": "SAEngine practice after FHWA (FHWA-NHI-10-016 drilled shafts, FHWA-NHI-16-009 driven piles), the default pack's value kept (IBC 2021 Sec 1810.3.3.1.1 leaves the static capacity to the geotechnical investigation)",
+    "piles.detailing.bored": "SAEngine practice after FHWA (FHWA-NHI-10-016 drilled shafts, FHWA-NHI-16-009 driven piles), the default pack's value kept (IBC 2021 Sec 1810.3.3.1.1 leaves the static capacity to the geotechnical investigation)",
+    "piles.detailing.bored.guidance": "SAEngine practice after FHWA (FHWA-NHI-10-016 drilled shafts, FHWA-NHI-16-009 driven piles), the default pack's value kept (IBC 2021 Sec 1810.3.3.1.1 leaves the static capacity to the geotechnical investigation)",
+    "piles.detailing.bored.casingExtra": "SAEngine practice after FHWA (FHWA-NHI-10-016 drilled shafts, FHWA-NHI-16-009 driven piles), the default pack's value kept (IBC 2021 Sec 1810.3.3.1.1 leaves the static capacity to the geotechnical investigation)",
+    "piles.detailing.driven": "SAEngine practice after FHWA (FHWA-NHI-10-016 drilled shafts, FHWA-NHI-16-009 driven piles), the default pack's value kept (IBC 2021 Sec 1810.3.3.1.1 leaves the static capacity to the geotechnical investigation)",
+    "piles.detailing.driven.impact": "SAEngine practice after FHWA (FHWA-NHI-10-016 drilled shafts, FHWA-NHI-16-009 driven piles), the default pack's value kept (IBC 2021 Sec 1810.3.3.1.1 leaves the static capacity to the geotechnical investigation)",
+    "piles.detailing.castInPlace": "SAEngine practice after FHWA (FHWA-NHI-10-016 drilled shafts, FHWA-NHI-16-009 driven piles), the default pack's value kept (IBC 2021 Sec 1810.3.3.1.1 leaves the static capacity to the geotechnical investigation)",
+    "piles.detailing.drilledShaftBarsBelow": "SAEngine practice after FHWA (FHWA-NHI-10-016 drilled shafts, FHWA-NHI-16-009 driven piles), the default pack's value kept (IBC 2021 Sec 1810.3.3.1.1 leaves the static capacity to the geotechnical investigation)",
+    "piles.detailing.corrosiveCover": "SAEngine practice after FHWA (FHWA-NHI-10-016 drilled shafts, FHWA-NHI-16-009 driven piles), the default pack's value kept (IBC 2021 Sec 1810.3.3.1.1 leaves the static capacity to the geotechnical investigation)",
+    "piles.detailing.concrete": "SAEngine practice after FHWA (FHWA-NHI-10-016 drilled shafts, FHWA-NHI-16-009 driven piles), the default pack's value kept (IBC 2021 Sec 1810.3.3.1.1 leaves the static capacity to the geotechnical investigation)",
+    "piles.lateral.allowableDeflection": "SAEngine practice after FHWA (FHWA-NHI-10-016 drilled shafts, FHWA-NHI-16-009 driven piles), the default pack's value kept (IBC 2021 Sec 1810.3.3.1.1 leaves the static capacity to the geotechnical investigation)",
+    "piles.lateral.groupRatio": "SAEngine practice after FHWA (FHWA-NHI-10-016 drilled shafts, FHWA-NHI-16-009 driven piles), the default pack's value kept (IBC 2021 Sec 1810.3.3.1.1 leaves the static capacity to the geotechnical investigation)",
+    "piles.lateral.unbracedCu": "SAEngine practice after FHWA (FHWA-NHI-10-016 drilled shafts, FHWA-NHI-16-009 driven piles), the default pack's value kept (IBC 2021 Sec 1810.3.3.1.1 leaves the static capacity to the geotechnical investigation)",
+    "piles.loadTests.compression": "SAEngine practice after FHWA (FHWA-NHI-10-016 drilled shafts, FHWA-NHI-16-009 driven piles), the default pack's value kept (IBC 2021 Sec 1810.3.3.1.1 leaves the static capacity to the geotechnical investigation)",
+    "piles.loadTests.compression.butlerHoyTon": "SAEngine practice after FHWA (FHWA-NHI-10-016 drilled shafts, FHWA-NHI-16-009 driven piles), the default pack's value kept (IBC 2021 Sec 1810.3.3.1.1 leaves the static capacity to the geotechnical investigation)",
+    "piles.loadTests.uplift": "SAEngine practice after FHWA (FHWA-NHI-10-016 drilled shafts, FHWA-NHI-16-009 driven piles), the default pack's value kept (IBC 2021 Sec 1810.3.3.1.1 leaves the static capacity to the geotechnical investigation)",
+    "piles.loadTests.lateral": "SAEngine practice after FHWA (FHWA-NHI-10-016 drilled shafts, FHWA-NHI-16-009 driven piles), the default pack's value kept (IBC 2021 Sec 1810.3.3.1.1 leaves the static capacity to the geotechnical investigation)",
+    "piles.downdrag": "SAEngine practice after FHWA (FHWA-NHI-10-016 drilled shafts, FHWA-NHI-16-009 driven piles), the default pack's value kept (IBC 2021 Sec 1810.3.3.1.1 leaves the static capacity to the geotechnical investigation)",
+    "piles.downdrag.dragloadFactor": "SAEngine practice after FHWA (FHWA-NHI-10-016 drilled shafts, FHWA-NHI-16-009 driven piles), the default pack's value kept (IBC 2021 Sec 1810.3.3.1.1 leaves the static capacity to the geotechnical investigation)",
+    "machine": "SAEngine practice, the default pack's value kept (IBC 2021, ASCE 7-22 and ACI 318-19 give none); compare ACI 351.3R",
+    "machine.impactRatio": "SAEngine practice, the default pack's value kept (IBC 2021, ASCE 7-22 and ACI 318-19 give none); compare ACI 351.3R",
+    "machine.speedClasses": "SAEngine practice, the default pack's value kept (IBC 2021, ASCE 7-22 and ACI 318-19 give none); compare ACI 351.3R",
+    "machine.frequencyRatioBelow": "SAEngine practice, the default pack's value kept (IBC 2021, ASCE 7-22 and ACI 318-19 give none); compare ACI 351.3R",
+    "machine.frequencyRatioAbove": "SAEngine practice, the default pack's value kept (IBC 2021, ASCE 7-22 and ACI 318-19 give none); compare ACI 351.3R",
+    "machine.amplitudes": "SAEngine practice, the default pack's value kept (IBC 2021, ASCE 7-22 and ACI 318-19 give none); compare ACI 351.3R",
+    "machine.hammerAmplitude": "SAEngine practice, the default pack's value kept (IBC 2021, ASCE 7-22 and ACI 318-19 give none); compare ACI 351.3R",
+    "machine.staticPressure": "SAEngine practice, the default pack's value kept (IBC 2021, ASCE 7-22 and ACI 318-19 give none); compare ACI 351.3R",
+    "machine.eccentricity": "SAEngine practice, the default pack's value kept (IBC 2021, ASCE 7-22 and ACI 318-19 give none); compare ACI 351.3R",
+    "machine.waterDepth": "SAEngine practice, the default pack's value kept (IBC 2021, ASCE 7-22 and ACI 318-19 give none); compare ACI 351.3R",
+    "machine.method": "SAEngine practice, the default pack's value kept (IBC 2021, ASCE 7-22 and ACI 318-19 give none); compare ACI 351.3R",
+    "machine.participatingMass": "SAEngine practice, the default pack's value kept (IBC 2021, ASCE 7-22 and ACI 318-19 give none); compare ACI 351.3R",
+    "machine.barkanCoefficient": "SAEngine practice, the default pack's value kept (IBC 2021, ASCE 7-22 and ACI 318-19 give none); compare ACI 351.3R",
+    "machine.barkanPoisson": "SAEngine practice, the default pack's value kept (IBC 2021, ASCE 7-22 and ACI 318-19 give none); compare ACI 351.3R",
+    "machine.plateOffset": "SAEngine practice, the default pack's value kept (IBC 2021, ASCE 7-22 and ACI 318-19 give none); compare ACI 351.3R",
+    "machine.decrement": "SAEngine practice, the default pack's value kept (IBC 2021, ASCE 7-22 and ACI 318-19 give none); compare ACI 351.3R",
+    "machine.hysteresisDivisor": "SAEngine practice, the default pack's value kept (IBC 2021, ASCE 7-22 and ACI 318-19 give none); compare ACI 351.3R",
+    "machine.damping": "SAEngine practice, the default pack's value kept (IBC 2021, ASCE 7-22 and ACI 318-19 give none); compare ACI 351.3R",
+    "machine.separation": "SAEngine practice, the default pack's value kept (IBC 2021, ASCE 7-22 and ACI 318-19 give none); compare ACI 351.3R",
+    "machine.vibration": "SAEngine practice, the default pack's value kept (IBC 2021, ASCE 7-22 and ACI 318-19 give none); compare ACI 351.3R",
+    "retainingWall.baseCover": "ACI 318-19 Table 20.5.1.3.1: 75 mm cast against and permanently in contact with ground",
+    "retainingWall.pressure": "IBC 2021 Sec 1610.1: lateral soil loads with the full hydrostatic pressure below the water",
+    "retainingWall.uplift": "SAEngine practice, the default pack's value kept (IBC 2021, ASCE 7-22 and ACI 318-19 give none)",
+    "shallow.tieBeams": "IBC 2021 Sec 1810.3.13 and ACI 318-19 Sec 18.13.3.2 ask ties for SDS/10 times the larger factored cap or column load; the default pack's 10 % kept as SAEngine practice",
+    "shallow.tieBeams.size": "ACI 318-19 Sec 18.13.3.2",
+    "upliftSkin": "SAEngine practice after FHWA (FHWA-NHI-10-016 drilled shafts, FHWA-NHI-16-009 driven piles), the default pack's value kept (IBC 2021 Sec 1810.3.3.1.1 leaves the static capacity to the geotechnical investigation)",
+    "pileCap": "ACI 318-19 Sec 13.4: pile caps; the soil under the cap carries no load (SAEngine practice)",
+    "pileCap.spacing": "SAEngine practice, the default pack's value kept (IBC 2021, ASCE 7-22 and ACI 318-19 give none)",
+    "pileCap.bracing": "SAEngine practice, the default pack's value kept (IBC 2021, ASCE 7-22 and ACI 318-19 give none)",
+    "pileCap.singlePileDiameter": "SAEngine practice, the default pack's value kept (IBC 2021, ASCE 7-22 and ACI 318-19 give none)",
+    "pileCap.upliftTopBars": "ACI 318-19 Sec 18.13.2.3: top reinforcement of pile caps under earthquake uplift",
+    "retainingWall.stemFlexure": "SAEngine practice, the default pack's value kept (IBC 2021, ASCE 7-22 and ACI 318-19 give none)",
+    "retainingWall.stemShear": "SAEngine practice, the default pack's value kept (IBC 2021, ASCE 7-22 and ACI 318-19 give none)",
+    "retainingWall.stemSpacing": "SAEngine practice, the default pack's value kept (IBC 2021, ASCE 7-22 and ACI 318-19 give none)",
+    "retainingWall.stemCrack": "SAEngine practice, the default pack's value kept (IBC 2021, ASCE 7-22 and ACI 318-19 give none)",
+    "retainingWall.baseMinimum": "SAEngine practice, the default pack's value kept (IBC 2021, ASCE 7-22 and ACI 318-19 give none)",
+    "loadTestSafety": "IBC 2021 Sec 1810.3.3.1.2: allowable axial load at most one-half of the ultimate from a load test (FS 2.0)",
     "strutAndTie": "ACI 318-19 Chapter 23: Table 23.4.3(a) βs = 1.0 boundary struts, 0.75 interior struts with the distributed reinforcement of 23.5, 0.4 interior struts without it and struts in tension members; Table 23.9.2 βn = 1.0 CCC, 0.80 CCT, 0.60 CTT; 23.2.7 least strut angle 25°; Table 23.5.1 web reinforcement ratio; 21.2.1(g) φ 0.75; the confinement factor βc of 23.4.3 is taken as 1.0 (on the safe side); tieArm is SAEngine practice"
+  },
+  "source": "IBC 2021 Chapter 18, ASCE 7-22 Sec 2.4, ACI 318-19 Chapters 13, 16, 23",
+  "shallow": {
+    "bearingCombinations": [
+      {
+        "id": "D",
+        "name": "D",
+        "factors": {
+          "D": 1.0
+        },
+        "source": "ASCE 7-22 Sec 2.4.1 combination 1"
+      },
+      {
+        "id": "DL",
+        "name": "D + L",
+        "factors": {
+          "D": 1.0,
+          "L": 1.0
+        },
+        "source": "ASCE 7-22 Sec 2.4.1 combination 2"
+      },
+      {
+        "id": "DW",
+        "name": "D + 0.6W",
+        "factors": {
+          "D": 1.0,
+          "W": 0.6
+        },
+        "source": "ASCE 7-22 Sec 2.4.1 combination 5"
+      },
+      {
+        "id": "DLW",
+        "name": "D + 0.75L + 0.45W",
+        "factors": {
+          "D": 1.0,
+          "L": 0.75,
+          "W": 0.45
+        },
+        "source": "ASCE 7-22 Sec 2.4.1 combination 6"
+      },
+      {
+        "id": "DE",
+        "name": "D + 0.7E",
+        "factors": {
+          "D": 1.0,
+          "E": 0.7
+        },
+        "source": "ASCE 7-22 Sec 2.4.5 combination 8 (Eh = ρ QE; Ev left out)"
+      },
+      {
+        "id": "DLE",
+        "name": "D + 0.75L + 0.525E",
+        "factors": {
+          "D": 1.0,
+          "L": 0.75,
+          "E": 0.525
+        },
+        "source": "ASCE 7-22 Sec 2.4.5 combination 9"
+      },
+      {
+        "id": "DB",
+        "name": "0.6D + B",
+        "factors": {
+          "D": 0.6,
+          "B": 1.0
+        },
+        "source": "ASCE 7-22 Sec 2.4.1 combination 7 (0.6D against the uplift of the water)"
+      }
+    ],
+    "stabilityCombinations": [
+      {
+        "id": "W",
+        "name": "0.6D + 0.6W",
+        "factors": {
+          "D": 0.6,
+          "W": 0.6
+        },
+        "source": "ASCE 7-22 Sec 2.4.1 combination 7"
+      },
+      {
+        "id": "E",
+        "name": "0.6D + 0.7E",
+        "factors": {
+          "D": 0.6,
+          "E": 0.7
+        },
+        "source": "ASCE 7-22 Sec 2.4.5 combination 10"
+      }
+    ],
+    "settlementCombinations": {
+      "granular": {
+        "id": "sand",
+        "name": "D + L",
+        "factors": {
+          "D": 1.0,
+          "L": 1.0
+        },
+        "source": "SAEngine practice: the sustained service load D + L (ASCE 7-22 gives no settlement combination)"
+      },
+      "cohesive": {
+        "id": "clay",
+        "name": "D + 0.5L",
+        "factors": {
+          "D": 1.0,
+          "L": 0.5
+        },
+        "source": "SAEngine practice: the long-term load D + 0.5L of consolidation (ASCE 7-22 gives no settlement combination)"
+      }
+    },
+    "lateralIncrease": 1.0,
+    "friction": 0.25,
+    "minDepth": 305.0,
+    "presumptive": [
+      {
+        "id": "crystallineBedrock",
+        "name": "Crystalline bedrock (IBC class 1)",
+        "qa": 574.6
+      },
+      {
+        "id": "softRock",
+        "name": "Sedimentary and foliated rock (IBC class 2)",
+        "qa": 191.5
+      },
+      {
+        "id": "gravel",
+        "name": "Sandy gravel and gravel, GW and GP (IBC class 3)",
+        "groups": [
+          "GW",
+          "GP"
+        ],
+        "qa": 143.6
+      },
+      {
+        "id": "sand",
+        "name": "Sand, silty sand, clayey sand, silty gravel, clayey gravel (IBC class 4)",
+        "groups": [
+          "SW",
+          "SP",
+          "SM",
+          "SC",
+          "GM",
+          "GC"
+        ],
+        "qa": 95.8
+      },
+      {
+        "id": "fineSand",
+        "name": "Fine sand (IBC class 4)",
+        "groups": [
+          "SW",
+          "SP"
+        ],
+        "qa": 95.8
+      },
+      {
+        "id": "silt",
+        "name": "Silt, sandy silt, clayey silt (IBC class 5)",
+        "groups": [
+          "ML",
+          "MH"
+        ],
+        "qa": 71.8
+      },
+      {
+        "id": "clay",
+        "name": "Clay, sandy clay, silty clay (IBC class 5)",
+        "groups": [
+          "CL",
+          "CH"
+        ],
+        "qa": 71.8
+      },
+      {
+        "id": "softClay",
+        "name": "Soft clay (by investigation, IBC 1806.2 doubtful soils)",
+        "groups": [
+          "CL",
+          "CH"
+        ]
+      },
+      {
+        "id": "verySoftClay",
+        "name": "Very soft clay (by investigation)",
+        "groups": [
+          "CL",
+          "CH"
+        ]
+      },
+      {
+        "id": "organic",
+        "name": "Mud, organic silt, organic clay, peat (by investigation)",
+        "groups": [
+          "OH",
+          "OL",
+          "Pt"
+        ]
+      },
+      {
+        "id": "fill",
+        "name": "Unprepared fill (by investigation)"
+      }
+    ],
+    "columnBase": {
+      "phi": 0.65,
+      "bearing": 0.85,
+      "areaRatioMax": 2.0,
+      "dowelRatio": 0.005,
+      "minBars": 4
+    }
+  },
+  "loadTestSafety": 2.0,
+  "noLoadTestSafety": 3.0,
+  "clauses": {
+    "subgradeModulus": "SAEngine practice (Winkler springs; ACI 336.2R)"
   }
 }

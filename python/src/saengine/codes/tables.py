@@ -4161,6 +4161,22 @@ class TankCombination(_Row):
     requires: list[str] = Field(default_factory=list)
 
 
+class TankSteelStress(_Group):
+    """Service stress limits of the bars of liquid-retaining sections [MPa] (crackControl
+    ``steelStress``)."""
+
+    tension: PosNum = Field(description="The whole section in tension (direct tension).")
+    flexure: PosNum = Field(description="Flexural tension at a face in contact with the liquid.")
+    flexureAway: PosNum = Field(description="Flexural tension at a face away from the liquid.")
+
+
+class TankSurfaceZone(_Group):
+    """Least steel of each face as a share of its surface zone: ratio × min(h/2, depthMax)."""
+
+    ratio: Share = Field(description="Share of the surface zone per face and direction.")
+    depthMax: PosNum = Field(description="Depth of a surface zone at most this [mm].")
+
+
 class TankRules(_Group):
     """The code values of the RC water tanks' design (D5: ``plumbing/tanks.py``'s constants);
     the minimum wall steel and the largest spacing are the ``concrete`` table's ``walls``."""
@@ -4179,6 +4195,21 @@ class TankRules(_Group):
     )
     maxWaterCement: Share = Field(description="w/c for concrete of low permeability.")
     combinations: list[TankCombination] = Field(min_length=1)
+    # Alpha 9 C12: the liquid-retaining codes' own crack control (a pack without these keeps
+    # the crack width of 0.2 mm and EN 1992-1-1 Eq 7.1 with the wall steel).
+    crackLimit: PosNum | None = Field(
+        default=None, description="Crack width limit [mm] (a project's crackLimit overrides)."
+    )
+    crackControl: Literal["crackWidth", "steelStress"] = Field(
+        default="crackWidth",
+        description="'crackWidth' (wk <= crackLimit) or 'steelStress' (the service stress of "
+        "the bars within steelStress: the working stress method).",
+    )
+    steelStress: TankSteelStress | None = None
+    surfaceZone: TankSurfaceZone | None = None
+    spacingMax: PosNum | None = Field(
+        default=None, description="Bars at most this apart [mm]; empty: concrete.walls'."
+    )
 
     @model_validator(mode="after")
     def _cover(self) -> TankRules:
@@ -7532,6 +7563,10 @@ class AnchorBreakoutShear(_Group):
     stirrupSpacingMax: Positive = Field(description="Stirrups at most this [mm].")
     narrowEdges: int = Field(ge=1)
     eccentricity: Positive = Field(description="ψec,V = 1 / (1 + this × e'/ca1).")
+    # Alpha 9 C12: the upper bound of Vb in the later editions (none: no bound).
+    capCoefficient: Positive | None = Field(
+        default=None, description="Vb at most this × λa √f'c ca1^exponent; empty: no bound."
+    )
 
 
 class AnchorPryout(_Group):
