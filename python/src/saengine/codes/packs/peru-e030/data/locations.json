@@ -1,0 +1,25 @@
+{
+  "$schema": "../../../schemas/locations.schema.json",
+  "$replace": true,
+  "$sources": [
+    "E.030 2018 Anexo I (the seismic zone of each district; SAEngine readings, uncertain: VERIFY.md P1); E.020 12.3 (the least design wind speed 75 km/h: VERIFY.md P2)"
+  ],
+  "source": "E.030 2018: the seismic zone of each town (to be checked against Anexo I, VERIFY.md P1); the wind speed is E.020's least 75 km/h (20.8 m/s) for every town, a placeholder for the base pack's ASCE 7 method. Elsewhere a custom location: enter Z and V.",
+  "default": "lima",
+  "locations": {
+    "lima": { "name": "Lima", "zone": 4, "windSpeed": 20.8 },
+    "callao": { "name": "Callao", "zone": 4, "windSpeed": 20.8 },
+    "arequipa": { "name": "Arequipa", "zone": 4, "windSpeed": 20.8 },
+    "trujillo": { "name": "Trujillo", "zone": 4, "windSpeed": 20.8 },
+    "chiclayo": { "name": "Chiclayo", "zone": 4, "windSpeed": 20.8 },
+    "piura": { "name": "Piura", "zone": 4, "windSpeed": 20.8 },
+    "ica": { "name": "Ica", "zone": 4, "windSpeed": 20.8 },
+    "tacna": { "name": "Tacna", "zone": 4, "windSpeed": 20.8 },
+    "huancayo": { "name": "Huancayo", "zone": 3, "windSpeed": 20.8 },
+    "cajamarca": { "name": "Cajamarca", "zone": 3, "windSpeed": 20.8 },
+    "puno": { "name": "Puno", "zone": 3, "windSpeed": 20.8 },
+    "cusco": { "name": "Cusco", "zone": 2, "windSpeed": 20.8 },
+    "pucallpa": { "name": "Pucallpa", "zone": 2, "windSpeed": 20.8 },
+    "iquitos": { "name": "Iquitos", "zone": 1, "windSpeed": 20.8 }
+  }
+}

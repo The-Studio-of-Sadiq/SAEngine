@@ -1,0 +1,13 @@
+{
+  "$schema": "../../../schemas/zoneCoefficients.schema.json",
+  "$replace": true,
+  "$sources": [
+    "NCh 433 6.2.3.2, Table 6.2: the effective ground acceleration A0 of the seismic zones 1-3"
+  ],
+  "source": "NCh 433 Table 6.2: A0 = 0.20 g (zone 1), 0.30 g (zone 2), 0.40 g (zone 3); Z holds A0 / g",
+  "zones": {
+    "1": 0.2,
+    "2": 0.3,
+    "3": 0.4
+  }
+}

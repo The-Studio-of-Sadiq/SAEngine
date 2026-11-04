@@ -1,0 +1,17 @@
+{
+  "$schema": "../../../schemas/occupancyCategories.schema.json",
+  "$replace": true,
+  "$sources": [
+    "Standard 2800 (4th ed.) 1-6 and Table 3-1: importance groups 1-4 and the importance factor I"
+  ],
+  "source": "Standard 2800 (4th ed.) Table 3-1: group 1 (very high importance, I = 1.4), group 2 (high, 1.2), group 3 (medium, 1.0), group 4 (low, 0.8). The categories I-IV are SAEngine's slots: I takes group 4, II group 3, III group 2, IV group 1. The wind importance stays 1.0 (the base pack's ASCE 7 method).",
+  "categories": {
+    "I": { "description": "Group 4: buildings of low importance (temporary, agricultural, minor storage) (I = 0.8)", "seismicImportance": 0.8, "windImportance": 1.0 },
+    "II": { "description": "Group 3: buildings of medium importance (residences, offices, commercial buildings) (I = 1.0)", "seismicImportance": 1.0, "windImportance": 1.0 },
+    "III": { "description": "Group 2: buildings of high importance (schools, assembly halls, large stores, buildings of cultural value) (I = 1.2)", "seismicImportance": 1.2, "windImportance": 1.0 },
+    "IV": { "description": "Group 1: buildings of very high importance (hospitals, fire and police stations, emergency centres, power and water facilities) (I = 1.4)", "seismicImportance": 1.4, "windImportance": 1.0 }
+  },
+  "sources": {
+    "categories": "Standard 2800 (4th ed.) Table 3-1 (check the uses of each group)"
+  }
+}

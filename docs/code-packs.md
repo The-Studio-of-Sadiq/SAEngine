@@ -844,6 +844,28 @@ The generic keys they add, open to any pack (a pack without them behaves as befo
 | `seismic.lateralForce.topForce.storeyFactor` | Ft = storeyFactor × N × V at the top, N the number of levels (periodFrom, factor, maxShare now optional) |
 | `seismic.siteClasses.*.shape[].c2`, `n2` | A second power term c2 (t0/T)^n2 of a spectral shape branch |
 
+### Group 2 country packs (alpha 9 C24)
+
+| Pack | Extends | What it sets |
+| --- | --- | --- |
+| `korea-kds` | `aci318-asce7-22` | KDS 41 17 00:2019: zones I / II as SS = 2.5 S, S1 = S (S 0.22, 0.14) for 13 towns, site classes S1-S6 with Fa, Fv by S, importance 1.5 / 1.2 / 1.0; the base pack's ASCE 7 spectrum, R, Cd, Ω0 and drift; wind V0 × 1.43 on the base pack's method; KDS 14 20 φ (0.85 tension, 0.70 spirals, 0.55 plain); bars D10-D32; SI |
+| `iran-2800` | `aci318-asce7-22` | Standard 2800 (4th ed.): A 0.35-0.20 by zone for 14 towns, soil types I-IV with B = B1 N (site classes for zones 1-2 and 3-4), I 0.8-1.4, C = A B I / Ru ≥ 0.12 A I, Ru / Ω0 / Cd, T = 0.05 H^0.9 ...; INBC Part 9 φc 0.65, φs 0.85 on the materials; bars Φ8-Φ32; placeholder wind speeds; SI |
+| `peru-e030` | `aci318-asce7-22` | E.030 2018: Z 0.45-0.10 for 14 towns, soil profiles S0-S3 with S by zone, TP, TL, C(T), U 1.5 / 1.3 / 1.0, R0, C/R ≥ 0.11, T = hn/CT, drift 0.007 / 0.010 / 0.005 with 0.75 R; E.060 combinations (1.4D + 1.7L ...) and φ (0.70 tied, 0.85 shear); inch bar names; SI |
+| `chile-nch` | `aci318-asce7-22` | NCh 433 + DS 61: A0 0.20-0.40 g for 14 towns, soil types A-E with S, T0, p, α(T), R* = 1 + T/(0.10 T0 + T/R0), Cmin = A0 S/6g, Cmax by R, drift 0.002 under the design forces, I 0.6-1.2; NCh 3171 combinations (1.4E); DS 60 wall boundary trigger (δu/hw ≥ 0.007); bars Ø8-Ø36; SI |
+| `brazil-nbr` | `aci318-asce7-22` | NBR 15421: ag of 14 towns as SS = 2.5 ag, S1 = ag with Ca, Cv (no 2/3), Cs ≥ 0.01, Cup; NBR 6123: V0, S2 = b Fr (z/10)^p of categories I-V, S3, q = 0.613 Vk² (speedFactors); NBR 8681 combinations; NBR 6118 γc 1.4, γs 1.15, 0.85 fcd over 0.8 x, shear model I; bars Ø5-Ø40; SI |
+| `egypt-ecp` | `bs8110` | ECP 201-2012: ag 0.10-0.30 g (zones 1-5B) for 14 towns, the EN 1998-1 type spectrum (behaviourFactor) with two spectrum types, γI 0.8-1.4, R, λ 0.85; ECP 203 combinations; ECP 203 concrete on the parent's BS 8110 methods (γs 1.15, 0.67 fcu/1.5 over 0.8 c, Ec 4400 √fcu, short columns 0.35 fcu Ac + 0.67 fy As, shear qcu / qmax); bars Ø8-Ø32; SI |
+| `southafrica-sans` | `eurocodes` | SANS 10160: vb,0 and ag of 14 towns, ground types 1-4 (one spectrum), the STR combinations as the strengthSets "sans"; SANS 10100-1 αcc 0.85 on the parent's EN 1992-1-1; SANS 10162-1 not covered (EN 1993-1-1); SI |
+
+The generic keys they add, open to any pack (a pack without them behaves as before):
+
+| Key | What it does |
+| --- | --- |
+| `seismic.siteClasses.*.shape[].d`, `m` | The branch divided by 1 + d (t0/T)^m; a negative power (n, n2, m) is a power of T/t0 and its term is 0 at T = 0 (NCh 433 α) |
+| `seismic.designSpectrum.shapeFactors.ductilityForm` "periodRatio" with `ratioShare`, `ratioPeriods` | kμ = 1 + T / (ratioShare T0 + T/μ), T0 by site class (NCh 433 R*) |
+| `seismic.designSpectrum.shapeFactors.soilFactors` | The soil factor S on Cd by site class and the site's Z, as (Z from, S) steps (E.030 Table 3) |
+| `seismic.designSpectrum.shapeFactors.leastSoilShare` | Cd at least this × Z I S (E.030 C/R ≥ 0.11, NCh 433 Cmin) |
+| `seismic.designSpectrum.shapeFactors.capByDuctility` | (μ, share): Cd at most share × Z I S (NCh 433 Cmax) |
+
 ## Other package kinds
 
 The same `pack.json` and the same registry hold the other packages of the marketplace

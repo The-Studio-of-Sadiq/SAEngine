@@ -41,6 +41,50 @@ here, newest first, with the date, the question, the decision, the reason and wh
 - **No unlicensed software.** ETABS, SAP2000 and STAAD are not used for cross-checks or cited.
   Open-source tools are used instead (2026-10-25).
 
+## 2026-11-05: group 2 country packs (alpha 9 track C24)
+
+Packs `korea-kds`, `iran-2800`, `peru-e030`, `chile-nch` and `brazil-nbr` (extend
+`aci318-asce7-22`), `egypt-ecp` (extends `bs8110`) and `southafrica-sans` (extends
+`eurocodes`). The values were entered from knowledge of the codes (no text on this PC); each
+pack's `VERIFY.md` lists them with their clauses and marks the uncertain ones. Not tested yet
+(owner, 2026-11-05: no test runs this week).
+
+- **SAEngine practice, parents.** Egypt extends `bs8110`: ECP 203 designs on the cube strength
+  with 0.67 fcu/γc as BS 8110 does, and ECP 201's EN 1998-1 type spectrum is a data choice (the
+  `behaviourFactor` method), not a parent. South Africa extends `eurocodes` (SANS 10160 is an
+  EN 1990 / 1991 / 1998 code); SANS 10100-1 (BS 8110 type) is represented by αcc 0.85 on the
+  parent's EN 1992-1-1 methods and SANS 10162-1 (CSA S16 type) is not covered (the parent's
+  EN 1993-1-1 applies). Brazil extends the US pack (NBR 15421 is the ASCE 7 form, NBR 8800 AISC
+  type) with NBR 6118 by the generic partial-factor ultimate and tabulated shear methods.
+- **SAEngine practice, Korea.** KDS's S (zone factor × 2.0) is entered as SS = 2.5 S and
+  S1 = S so the base pack's Fa SS × 2/3 gives KDS's SDS; KDS's 10-minute V0 × 1.43 is the
+  3-second gust of the base pack's ASCE 7 wind method.
+- **SAEngine practice, Iran.** B = B1 N depends on the zone's group: each soil type has a site
+  class for zones 1-2 (I-IV) and one for zones 3-4 (IL-IVL); the project picks the one of its
+  zone. The drift limit is 0.020 for all periods (0.025 below 0.7 s as a Code Value).
+- **SAEngine practice, Chile.** R* is taken at each ordinate's period (NCh 433 takes it at T*:
+  equal at the fundamental period, larger ordinates for the higher modes); NCh 433's own static
+  coefficient (2.75 S A0 (T'/T*)^n / gR) is not built, the static method takes the spectrum at
+  the period; Cmin and Cmax bound every ordinate; Cmax of Table 6.4 (by R) is written by the R0
+  of the systems with that R. DS 60's boundary element trigger (δu/hw ≥ 0.007, no 1.5 factor)
+  replaces ACI 318-19's.
+- **SAEngine practice, Peru.** Buildings are taken as regular (Ia = Ip = 1); Ω0 (not in E.030)
+  takes the ASCE 7 values of the same systems.
+- **SAEngine practice, Brazil.** NBR 15421's category A zones are analysed as category B; the
+  categories are read by SDS and SD1 bands that match ag on class B; Cup by SD1. NBR 6123 is
+  built for class B buildings; the wall coefficients +0.8 / leeward stand for the drag
+  coefficient Ca. Model I shear's 0.9 d lever and fywd ≤ 435 MPa are folded into the stirrup
+  fy cap of 450 MPa.
+- **SAEngine practice, Egypt.** ECP 203's shear with stirrups counts half of qcu, so the
+  tabulated τc is 0.12 √(fcu/γc) for every member (members without stirrups on the safe side).
+  The Type 2 spectrum (longer corner periods) is the default; the wind is the parent's BS 6399-2
+  method with placeholder speeds.
+- **Placeholders.** The towns' wind speeds of Iran, Peru, Chile and Egypt are placeholders (their
+  wind codes are not built); every pack names this in its README.
+- **Generic mechanisms (no existing pack sets them):** a shape branch's divisor `d`, `m` and
+  negative powers; `shapeFactors.ductilityForm` "periodRatio" with `ratioShare`,
+  `ratioPeriods`; `shapeFactors.soilFactors`, `leastSoilShare`, `capByDuctility`.
+
 ## 2026-11-05: Australia and New Zealand second remainder (alpha 9 track C18c)
 
 `australia-as` 0.3 and `newzealand-nzs` 0.3 (VERIFY C18c-1 to C18c-60 and C18c-1 to C18c-29).

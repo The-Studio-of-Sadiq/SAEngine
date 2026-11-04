@@ -1,0 +1,152 @@
+{
+  "$schema": "../../../schemas/seismic.schema.json",
+  "$replace": true,
+  "$sources": [
+    "E.030 2018 (Diseño Sismorresistente): 10-14 (Z, soil profiles S0-S3, S, TP, TL, C), 15-16 (U, systems), 18-22 (R0, Ia, Ip), 26-29 (weight, period, static and modal analysis), 31-32 (drift); see VERIFY.md"
+  ],
+  "source": "E.030 2018: Sa = Z U C S g / R, R = R0 Ia Ip (Ia = Ip = 1: regular buildings), C = 2.5 below TP, 2.5 TP/T to TL, 2.5 TP TL/T² beyond (1 + 7.5 T/TP below 0.2 TP for the modal analysis, 29.2.2), C/R ≥ 0.11 (28.2.1); by the generic shapeFactors spectrum method (Z, U as Z and I, R0 as μ, Sp = 1, kμ = μ, S by soil and Z as its soil factors). Entered from knowledge of the standard, every value to be checked against the printed standard (VERIFY.md).",
+  "defaultSiteClass": "S2",
+  "defaultSystem": "rcSmf",
+  "siteClasses": {
+    "S0": {
+      "description": "Soil profile S0: hard rock (vs above 1500 m/s; TP 0.3 s, TL 3.0 s)",
+      "vs30": [1500, null],
+      "shape": [
+        { "upTo": 0.06, "a": 1.0, "b": 25.0 },
+        { "upTo": 0.3, "a": 2.5 },
+        { "upTo": 3.0, "c": 2.5, "n": 1.0, "t0": 0.3 },
+        { "c": 2.5, "n": 2.0, "t0": 0.94868 }
+      ]
+    },
+    "S1": {
+      "description": "Soil profile S1: rock or very stiff soil (vs 500-1500 m/s; TP 0.4 s, TL 2.5 s)",
+      "vs30": [500, 1500],
+      "shape": [
+        { "upTo": 0.08, "a": 1.0, "b": 18.75 },
+        { "upTo": 0.4, "a": 2.5 },
+        { "upTo": 2.5, "c": 2.5, "n": 1.0, "t0": 0.4 },
+        { "c": 2.5, "n": 2.0, "t0": 1.0 }
+      ]
+    },
+    "S2": {
+      "description": "Soil profile S2: intermediate soil (vs 180-500 m/s; TP 0.6 s, TL 2.0 s)",
+      "vs30": [180, 500],
+      "shape": [
+        { "upTo": 0.12, "a": 1.0, "b": 12.5 },
+        { "upTo": 0.6, "a": 2.5 },
+        { "upTo": 2.0, "c": 2.5, "n": 1.0, "t0": 0.6 },
+        { "c": 2.5, "n": 2.0, "t0": 1.09545 }
+      ]
+    },
+    "S3": {
+      "description": "Soil profile S3: soft soil (vs below 180 m/s; TP 1.0 s, TL 1.6 s)",
+      "vs30": [null, 180],
+      "shape": [
+        { "upTo": 0.2, "a": 1.0, "b": 7.5 },
+        { "upTo": 1.0, "a": 2.5 },
+        { "upTo": 1.6, "c": 2.5, "n": 1.0, "t0": 1.0 },
+        { "c": 2.5, "n": 2.0, "t0": 1.26491 }
+      ]
+    }
+  },
+  "designSpectrum": {
+    "method": "shapeFactors",
+    "staticPlateau": true,
+    "clause": "E.030 2018 28.2.1 (V = Z U C S P / R) and 29.2.1 (Sa = Z U C S g / R)",
+    "shapeFactors": {
+      "performance": [[1.0, 1.0], [20.0, 1.0]],
+      "ductilityPeriod": null,
+      "soilFactors": {
+        "S0": [[0.0, 0.8]],
+        "S1": [[0.0, 1.0]],
+        "S2": [[0.0, 1.6], [0.25, 1.2], [0.35, 1.15], [0.45, 1.05]],
+        "S3": [[0.0, 2.0], [0.25, 1.4], [0.35, 1.2], [0.45, 1.1]]
+      },
+      "leastSoilShare": 0.11,
+      "clauses": {
+        "performance": "E.030 2018 22 (R = R0 Ia Ip as the system's R; no Sp)",
+        "soil": "E.030 2018 13, Table 3 (S by zone and soil profile)",
+        "least": "E.030 2018 28.2.1 (C/R ≥ 0.11)",
+        "shape": "E.030 2018 14 (C), Table 4 (TP, TL), 29.2.2"
+      }
+    },
+    "clauses": {
+      "shape": "E.030 2018 14 (C), Table 4 (TP, TL)",
+      "static": "E.030 2018 28.2.1 (C = 2.5 below TP for the static method)",
+      "design": "E.030 2018 29.2.1 (Sa = Z U C S g / R)"
+    }
+  },
+  "systems": {
+    "rcSmf": { "name": "Concrete moment frames (pórticos)", "R": 8.0, "Omega0": 3.0, "Cd": 6.0, "row": "Table 7 (concreto armado: pórticos)", "heightLimits": { "B": null, "C": null, "D": null }, "frame": "special", "specialWalls": false, "concrete": true, "momentFrame": true, "periodFamily": "concreteMomentFrame", "group": "momentFrame", "dual": false },
+    "rcDualSpecial": { "name": "Concrete dual system (frames and walls)", "R": 7.0, "Omega0": 2.5, "Cd": 5.25, "row": "Table 7 (concreto armado: dual)", "heightLimits": { "B": null, "C": null, "D": null }, "frame": "special", "specialWalls": true, "concrete": true, "momentFrame": false, "periodFamily": null, "group": "dualSpecial", "dual": true },
+    "rcSpecialWallFrame": { "name": "Concrete structural walls (muros estructurales)", "R": 6.0, "Omega0": 2.5, "Cd": 4.5, "row": "Table 7 (concreto armado: de muros estructurales)", "heightLimits": { "B": null, "C": null, "D": null }, "frame": null, "specialWalls": true, "concrete": true, "momentFrame": false, "periodFamily": null, "group": "buildingFrame", "dual": false },
+    "rcLimitedDuctilityWalls": { "name": "Limited ductility walls (EMDL)", "R": 4.0, "Omega0": 2.5, "Cd": 3.0, "row": "Table 7 (concreto armado: muros de ductilidad limitada)", "heightLimits": { "B": null, "C": null, "D": null }, "frame": null, "specialWalls": false, "concrete": true, "momentFrame": false, "periodFamily": null, "group": "bearingWall", "dual": false, "note": "E.030 2018 Table 7: at most 8 storeys (not checked); drift 0.005 (enter it as a Code Value)" },
+    "steelSmf": { "name": "Steel special moment frames (SMF)", "R": 8.0, "Omega0": 3.0, "Cd": 6.0, "row": "Table 7 (acero: pórticos especiales resistentes a momentos)", "heightLimits": { "B": null, "C": null, "D": null }, "frame": null, "specialWalls": false, "concrete": false, "momentFrame": true, "periodFamily": "steelMomentFrame", "group": "momentFrame", "dual": false },
+    "steelImf": { "name": "Steel intermediate moment frames (IMF)", "R": 5.0, "Omega0": 3.0, "Cd": 3.75, "row": "Table 7 (acero: pórticos intermedios)", "heightLimits": { "B": null, "C": null, "D": null }, "frame": null, "specialWalls": false, "concrete": false, "momentFrame": true, "periodFamily": "steelMomentFrame", "group": "momentFrame", "dual": false },
+    "steelOmf": { "name": "Steel ordinary moment frames (OMF)", "R": 4.0, "Omega0": 3.0, "Cd": 3.0, "row": "Table 7 (acero: pórticos ordinarios)", "heightLimits": { "B": null, "C": null, "D": null }, "frame": null, "specialWalls": false, "concrete": false, "momentFrame": true, "periodFamily": "steelMomentFrame", "group": "momentFrame", "dual": false },
+    "steelScbf": { "name": "Steel special concentrically braced frames (SCBF)", "R": 7.0, "Omega0": 2.0, "Cd": 5.25, "row": "Table 7 (acero: pórticos especiales concéntricamente arriostrados)", "heightLimits": { "B": null, "C": null, "D": null }, "frame": null, "specialWalls": false, "concrete": false, "momentFrame": false, "periodFamily": null, "group": "buildingFrame", "dual": false },
+    "steelOcbf": { "name": "Steel ordinary concentrically braced frames (OCBF)", "R": 4.0, "Omega0": 2.0, "Cd": 3.0, "row": "Table 7 (acero: pórticos ordinarios concéntricamente arriostrados)", "heightLimits": { "B": null, "C": null, "D": null }, "frame": null, "specialWalls": false, "concrete": false, "momentFrame": false, "periodFamily": null, "group": "buildingFrame", "dual": false },
+    "steelEbf": { "name": "Steel eccentrically braced frames (EBF)", "R": 8.0, "Omega0": 2.0, "Cd": 6.0, "row": "Table 7 (acero: pórticos excéntricamente arriostrados)", "heightLimits": { "B": null, "C": null, "D": null }, "frame": null, "specialWalls": false, "concrete": false, "momentFrame": false, "periodFamily": "eccentricallyBracedSteelFrame", "group": "buildingFrame", "dual": false },
+    "masonryOrdinaryReinforced": { "name": "Confined or reinforced masonry", "R": 3.0, "Omega0": 2.5, "Cd": 2.25, "row": "Table 7 (albañilería armada o confinada)", "heightLimits": { "B": null, "C": null, "D": null }, "frame": null, "specialWalls": false, "concrete": false, "masonry": true, "momentFrame": false, "periodFamily": null, "group": "bearingWall", "dual": false }
+  },
+  "generatorSystems": {
+    "steelMomentFrame": ["steelOmf", "steelImf", "steelSmf"],
+    "steelBracedFrame": ["steelOcbf", "steelScbf"],
+    "$comment": "SAEngine practice: the New Building generator's steel systems of E.030 2018 Table 7"
+  },
+  "periodCoefficients": {
+    "concreteMomentFrame": { "Ct": 0.028571, "m": 1.0 },
+    "steelMomentFrame": { "Ct": 0.028571, "m": 1.0 },
+    "eccentricallyBracedSteelFrame": { "Ct": 0.022222, "m": 1.0 },
+    "other": { "Ct": 0.016667, "m": 1.0 }
+  },
+  "designCategories": {
+    "occupancyGroups": { "I": "all", "II": "all", "III": "all", "IV": "all" },
+    "bySiteClass": { "all": { "all": ["B", "C", "D", "D"] } }
+  },
+  "requiredDetailing": { "B": "ordinary", "C": "intermediate", "D": "special" },
+  "allowableDrift": { "I": 0.01, "II": 0.01, "III": 0.01, "IV": 0.01 },
+  "allowableDriftLabel": "Steel and timber structures (0.75 R × the elastic displacements of regular buildings)",
+  "driftLimits": [
+    { "id": "masonry", "label": "Masonry", "masonry": true, "limits": { "I": 0.005, "II": 0.005, "III": 0.005, "IV": 0.005 } },
+    { "id": "concrete", "label": "Reinforced concrete", "concrete": true, "limits": { "I": 0.007, "II": 0.007, "III": 0.007, "IV": 0.007 } }
+  ],
+  "driftRedundancyCategories": [],
+  "driftAmplification": "displacementFactor",
+  "dampingEta": 1.0,
+  "systemCombination": { "R": "min", "Cd": "max", "Omega0": "max", "heightLimit": "min" },
+  "separation": { "propertyLineFactor": 1.0, "sameProperty": "srss", "equalFloorLevelsFactor": 1.0 },
+  "liveShare": 0.25,
+  "minimumScale": 0.8,
+  "accidentalEccentricity": 0.05,
+  "orthogonalShare": 0.3,
+  "massParticipation": 0.9,
+  "torsionIrregular": 1.3,
+  "torsionExtreme": 1.5,
+  "torsionAmplificationMax": 1.0,
+  "pgaFactor": 1.0,
+  "verticalFactor": 0.6667,
+  "lateralForce": { "distribution": "heightPower", "clause": "E.030 2018 28.3 (Fi = αi V, αi = Pi hi^k / Σ Pj hj^k, k = 1 for T ≤ 0.5 s, 0.75 + 0.5 T ≤ 2 beyond)" },
+  "clauses": {
+    "scale": "E.030 2018 29.4 (modal base shear at least 80 % of the static one, 90 % irregular)",
+    "torsion": "E.030 2018 28.5, 29.5 (accidental eccentricity 0.05 b)",
+    "orthogonal": "E.030 2018 29.3 (SAEngine practice: 100 % + 30 %)",
+    "drift": "E.030 2018 31-32, Table 11 (0.007 concrete, 0.010 steel and timber, 0.005 masonry; 0.75 R × the elastic displacements)",
+    "sdc": "SAEngine practice: the detailing by zone (zones 3-4 special, 2 intermediate, 1 ordinary)",
+    "modes": "E.030 2018 29.1.2 (90 % of the mass)",
+    "systems": "E.030 2018 18, Table 7 (R0)",
+    "period": "E.030 2018 28.4.1 (T = hn / CT, CT 35, 45, 60)",
+    "weight": "E.030 2018 26 (dead load + 50 % of the live load for categories A and B, 25 % for C, 80 % storage, 25 % roofs)",
+    "elf": "E.030 2018 28.2.1 (V = Z U C S P / R)",
+    "spectrum": "E.030 2018 29.2"
+  },
+  "sources": {
+    "siteClasses": "E.030 2018 12, Table 2 (soil profiles by vs) and Table 4: TP 0.3, 0.4, 0.6, 1.0 s, TL 3.0, 2.5, 2.0, 1.6 s for S0-S3; C as shape branches (the last one 2.5 (√(TP TL)/T)² = 2.5 TP TL/T²); S4 (exceptional conditions) needs a site-specific study and is not offered",
+    "designSpectrum.shapeFactors.soilFactors": "E.030 2018 Table 3: S0 0.80; S1 1.00; S2 1.05 (Z4), 1.15 (Z3), 1.20 (Z2), 1.60 (Z1); S3 1.10, 1.20, 1.40, 2.00",
+    "systems": "E.030 2018 Table 7: R0 (Ia = Ip = 1); Cd = 0.75 R0 (31.1, regular); Omega0: SAEngine practice (E.030 gives no overstrength factor; the ASCE 7 values of the same systems, on the safe side where used)",
+    "periodCoefficients": "E.030 2018 28.4.1: T = hn / CT, CT = 35 (frames only), 45 (concrete frames with walls at lifts and stairs, steel braced frames), 60 (walls, dual, masonry): Ct = 1/CT, m = 1",
+    "designCategories": "SAEngine practice: E.030 has no Seismic Design Category",
+    "minimumScale": "E.030 2018 29.4: 80 % of the static base shear (regular), 90 % (irregular: enter 0.9)",
+    "verticalFactor": "E.030 2018 29.2.3: the vertical spectrum 2/3 of the horizontal (check the clause)"
+  }
+}

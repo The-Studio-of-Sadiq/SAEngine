@@ -1,0 +1,65 @@
+{
+  "schema": "saengine.codePack/1",
+  "id": "chile-nch",
+  "name": "Chile (NCh 433 with DS 61, NCh 430 with DS 60)",
+  "edition": "NCh 433 Of.1996 Mod.2009 + DS 61 (2011)",
+  "country": "CL",
+  "units": "SI",
+  "version": "0.1.0",
+  "extends": "aci318-asce7-22",
+  "covers": [
+    "locations",
+    "zoneCoefficients",
+    "occupancyCategories",
+    "seismic",
+    "combinations",
+    "concrete",
+    "detailing"
+  ],
+  "description": "Chile's seismic and concrete standards (alpha 9 track C24), a pack that extends the US pack aci318-asce7-22. Seismic by NCh 433 Of.1996 Mod.2009 with the decree DS 61 (2011): the effective ground acceleration A0 of the zones 1-3 (0.20, 0.30, 0.40 g), the soil types A-E with S, T0, T', n, p, the importance factor I (0.6, 1.0, 1.2), the spectrum Sa = S A0 α / (R*/I) with α = (1 + 4.5 (T/T0)^p) / (1 + (T/T0)^3) and the period-dependent reduction R* = 1 + T / (0.10 T0 + T/R0), the base shear between Cmin = A0 S / 6g and Cmax by R (Table 6.4), the storey drift at most 0.002 h under the design forces; by the generic shapeFactors spectrum method with its rational shape branch, periodRatio reduction, soil factors, least and capped values. Concrete by NCh 430:2008 (ACI 318-08) with the decree DS 60 (2011): the base pack's ACI 318-19 rules with the DS 60 wall rules (boundary elements with δu/hw at least 0.007). Load combinations by NCh 3171 (1.2D + L + 1.4E, 0.9D + 1.4E). Steel NCh 427 as the base pack's AISC 360-22. Every value is listed in VERIFY.md; the towns' zones, the system values and the Cmax points are to be checked before design.",
+  "sources": [
+    {
+      "id": "NCh433",
+      "title": "NCh 433 Of.1996 Mod.2009 Diseño sísmico de edificios, with Decreto Supremo DS 61 (MINVU, 2011)",
+      "edition": "1996, modified 2009; DS 61 2011",
+      "publisher": "Instituto Nacional de Normalización (INN) / Ministerio de Vivienda y Urbanismo, Chile"
+    },
+    {
+      "id": "NCh430",
+      "title": "NCh 430:2008 Hormigón armado: requisitos de diseño y cálculo, with Decreto Supremo DS 60 (MINVU, 2011)",
+      "edition": "2008; DS 60 2011",
+      "publisher": "Instituto Nacional de Normalización (INN) / Ministerio de Vivienda y Urbanismo, Chile"
+    },
+    {
+      "id": "NCh3171",
+      "title": "NCh 3171:2010 Diseño estructural: disposiciones generales y combinaciones de cargas",
+      "edition": "2010",
+      "publisher": "Instituto Nacional de Normalización (INN), Chile"
+    }
+  ],
+  "clauses": {
+    "locations": ["NCh 433 Figure 4.1 and Table 4.1 (the communes' seismic zones)"],
+    "zoneCoefficients": ["NCh 433 6.2.3.2, Table 6.2 (A0)"],
+    "occupancyCategories": ["NCh 433 4.3, Table 6.1 (I); NCh 3171 (categories)"],
+    "seismic": ["NCh 433 Mod.2009 Chapters 5-6, DS 61 Table 6.3"],
+    "combinations": ["NCh 3171:2010 4.3"],
+    "concrete": ["NCh 204 (bars A630-420H)"],
+    "detailing": ["DS 60 (2011) 21.9.6.2 (walls' boundary elements)"]
+  },
+  "basis": {
+    "general": "NCh 433 Mod.2009 + DS 61 (seismic), NCh 3171 (combinations), NCh 1537 as the base pack's ASCE 7-22 live loads",
+    "concrete": "NCh 430:2008 + DS 60 (the base pack's ACI 318-19 rules with the DS 60 wall rules)",
+    "steel": "NCh 427 (the base pack's AISC 360-22)"
+  },
+  "tableCodes": {
+    "seismic": "NCh 433",
+    "locations": "NCh 433",
+    "zoneCoefficients": "NCh 433",
+    "occupancyCategories": "NCh 433",
+    "combinations": "NCh 3171",
+    "concrete": "NCh 430",
+    "detailing": "NCh 430 + DS 60"
+  },
+  "author": "SAEngine contributors",
+  "licence": "AGPL-3.0-only"
+}

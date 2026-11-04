@@ -1,0 +1,68 @@
+{
+  "$schema": "../../../schemas/combinations.schema.json",
+  "$replace": true,
+  "$sources": [
+    "NCh 3171:2010 4.3 (strength design combinations)",
+    "NCh 433 Mod.2009 (the earthquake E at its design level, × 1.4 in the strength combinations)"
+  ],
+  "source": "NCh 3171:2010: D dead (with SD), L live (Lr with it), W wind, E earthquake of NCh 433 (reduced by R*, hence the factor 1.4; the vertical effect by the pack's verticalFactor). The allowable stress combinations are NCh 3171's (the ASCE 7 form, E × 1.0 for the service-level NCh 433 action: SAEngine practice).",
+  "loadCases": {
+    "D": "Dead (D)",
+    "SD": "Superimposed dead (finishes)",
+    "L": "Live (L)",
+    "Lr": "Roof live",
+    "S": "Snow",
+    "WX": "Wind in X",
+    "WY": "Wind in Y",
+    "EX": "Earthquake in X",
+    "EY": "Earthquake in Y",
+    "F": "Fluids (equipment contents)",
+    "H": "Earth and groundwater pressure (basement walls)",
+    "T": "Temperature"
+  },
+  "strength": [
+    { "id": "1", "name": "1.4D", "factors": { "D": 1.4, "F": 1.4 }, "source": "NCh 3171 4.3 (combination 1)" },
+    { "id": "2", "name": "1.2D + 1.6L + 0.5Lr", "factors": { "D": 1.2, "F": 1.2, "L": 1.6, "Lr": 0.5, "S": 0.5, "H": 1.6 }, "source": "NCh 3171 4.3 (combination 2)" },
+    { "id": "3", "name": "1.2D + 1.6Lr + L", "factors": { "D": 1.2, "F": 1.2, "L": 1.0, "Lr": 1.6, "S": 1.6, "H": 1.6 }, "source": "NCh 3171 4.3 (combination 3)" },
+    { "id": "4W", "name": "1.2D + 1.6W + L + 0.5Lr", "factors": { "D": 1.2, "F": 1.2, "L": 1.0, "Lr": 0.5, "S": 0.5, "W": 1.6, "H": 1.6 }, "source": "NCh 3171 4.3 (combination 4)" },
+    { "id": "5E", "name": "1.2D + 1.4E + L + 0.2S", "factors": { "D": 1.2, "F": 1.2, "L": 1.0, "S": 0.2, "E": 1.4, "H": 1.6 }, "source": "NCh 3171 4.3 (combination 5)" },
+    { "id": "6W", "name": "0.9D + 1.6W", "factors": { "D": 0.9, "W": 1.6, "H": 1.6 }, "source": "NCh 3171 4.3 (combination 6)" },
+    { "id": "7E", "name": "0.9D + 1.4E", "factors": { "D": 0.9, "E": 1.4, "H": 1.6 }, "source": "NCh 3171 4.3 (combination 7)" }
+  ],
+  "service": [
+    { "id": "1", "name": "D + L", "factors": { "D": 1.0, "L": 1.0, "Lr": 1.0 }, "source": "NCh 430 (deflections under the service loads)" },
+    { "id": "2", "name": "D + 0.25L", "factors": { "D": 1.0, "L": 0.25 }, "source": "SAEngine practice: the long-term part (NCh 433 5.5.1 share of the live load)" },
+    { "id": "3", "name": "D + L + W", "factors": { "D": 1.0, "L": 1.0, "W": 1.0 }, "source": "SAEngine practice: drift under wind" }
+  ],
+  "gravity": [
+    { "name": "1.2D + 1.6L", "factors": { "D": 1.2, "L": 1.6 } }
+  ],
+  "temperature": [
+    { "name": "1.2D + L + 1.2T", "factors": { "D": 1.2, "L": 1.0, "Lr": 0.5, "T": 1.2 } },
+    { "name": "1.2D + L - 1.2T", "factors": { "D": 1.2, "L": 1.0, "Lr": 0.5, "T": -1.2 } }
+  ],
+  "allowable": [
+    { "id": "1", "name": "D", "factors": { "D": 1.0, "F": 1.0 }, "source": "NCh 3171 4.2 (combination 1)" },
+    { "id": "2", "name": "D + L", "factors": { "D": 1.0, "H": 1.0, "F": 1.0, "L": 1.0 }, "source": "NCh 3171 4.2 (combination 2)" },
+    { "id": "3", "name": "D + Lr", "factors": { "D": 1.0, "H": 1.0, "F": 1.0, "Lr": 1.0 }, "source": "NCh 3171 4.2 (combination 3)" },
+    { "id": "4", "name": "D + 0.75L + 0.75Lr", "factors": { "D": 1.0, "H": 1.0, "F": 1.0, "L": 0.75, "Lr": 0.75 }, "source": "NCh 3171 4.2 (combination 4)" },
+    { "id": "5W", "name": "D + W", "factors": { "D": 1.0, "H": 1.0, "F": 1.0, "W": 1.0 }, "source": "NCh 3171 4.2 (combination 5)" },
+    { "id": "5E", "name": "D + E", "factors": { "D": 1.0, "H": 1.0, "F": 1.0, "E": 1.0 }, "source": "NCh 3171 4.2 (combination 5, the NCh 433 action at its own level)" },
+    { "id": "7", "name": "0.6D + W", "factors": { "D": 0.6, "W": 1.0, "H": 1.0 }, "source": "NCh 3171 4.2 (combination 7)" },
+    { "id": "8", "name": "0.6D + E", "factors": { "D": 0.6, "E": 1.0, "H": 1.0 }, "source": "NCh 3171 4.2 (combination 8)" }
+  ],
+  "seismicDeadUpper": 1.2,
+  "seismicDeadLower": 0.9,
+  "overstrength": "NCh 433 gives no general overstrength factor: the elements the base pack designs for Ω0 times the earthquake effect take the systems' Omega0 (SAEngine practice, the ASCE 7 values)",
+  "optionalCases": ["F", "H", "T", "S"],
+  "sources": {
+    "strength": "NCh 3171:2010 4.3 (as SAEngine recalls them: check the factors, in particular 1.4 on E, against the printed standard)",
+    "allowable": "NCh 3171:2010 4.2 (uncertain: the ASCE 7 form with E × 1.0)",
+    "seismicDeadUpper": "NCh 3171 4.3: 1.2D + 1.4E + L",
+    "seismicDeadLower": "NCh 3171 4.3: 0.9D + 1.4E",
+    "temperature": "SAEngine practice (the ASCE 7 form)"
+  },
+  "clauses": {
+    "strength": "NCh 3171:2010 4.3"
+  }
+}

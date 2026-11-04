@@ -1,0 +1,13 @@
+{
+  "$schema": "../../../schemas/zoneCoefficients.schema.json",
+  "$replace": true,
+  "$sources": [
+    "SANS 10160-4:2011 5.2 and Figure 1: the peak ground acceleration ag of the seismic hazard zones (10 % in 50 years)"
+  ],
+  "source": "SANS 10160-4: ag = 0.05 g, 0.10 g (including the mining areas) and 0.15 g by the hazard map (zone ids 1-3 in SAEngine); a project enters the site's own ag as Z (Location: Custom)",
+  "zones": {
+    "1": 0.05,
+    "2": 0.1,
+    "3": 0.15
+  }
+}

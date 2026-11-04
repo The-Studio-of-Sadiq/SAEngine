@@ -1,0 +1,25 @@
+{
+  "$schema": "../../../schemas/locations.schema.json",
+  "$replace": true,
+  "$sources": [
+    "NBR 15421:2006 Figure 1 and Table 1 (seismic zones 0-4 and ag); NBR 6123:1988 Figure 1 (isopleths of the basic wind speed V0): SAEngine readings, uncertain (VERIFY.md B1, B2)"
+  ],
+  "source": "NBR 15421: the town's ag (zone 0: 0.025 g taken; to be checked against the map, VERIFY.md B1) entered as SS = 2.5 ag and S1 = ag so that ags0 = Ca ag and ags1 = Cv ag; NBR 6123: V0 of the isopleths (3-second gust at 10 m, open terrain, 50 years; VERIFY.md B2). Elsewhere a custom location: enter SS = 2.5 ag, S1 = ag and V0.",
+  "default": "saopaulo",
+  "locations": {
+    "saopaulo": { "name": "São Paulo", "zone": 0, "zoneLabel": "0", "windSpeed": 40.0, "ss": 0.0625, "s1": 0.025 },
+    "riodejaneiro": { "name": "Rio de Janeiro", "zone": 0, "zoneLabel": "0", "windSpeed": 35.0, "ss": 0.0625, "s1": 0.025 },
+    "brasilia": { "name": "Brasília", "zone": 0, "zoneLabel": "0", "windSpeed": 35.0, "ss": 0.0625, "s1": 0.025 },
+    "belohorizonte": { "name": "Belo Horizonte", "zone": 0, "zoneLabel": "0", "windSpeed": 32.0, "ss": 0.0625, "s1": 0.025 },
+    "curitiba": { "name": "Curitiba", "zone": 0, "zoneLabel": "0", "windSpeed": 42.0, "ss": 0.0625, "s1": 0.025 },
+    "portoalegre": { "name": "Porto Alegre", "zone": 0, "zoneLabel": "0", "windSpeed": 45.0, "ss": 0.0625, "s1": 0.025 },
+    "florianopolis": { "name": "Florianópolis", "zone": 0, "zoneLabel": "0", "windSpeed": 43.0, "ss": 0.0625, "s1": 0.025 },
+    "salvador": { "name": "Salvador", "zone": 0, "zoneLabel": "0", "windSpeed": 30.0, "ss": 0.0625, "s1": 0.025 },
+    "recife": { "name": "Recife", "zone": 0, "zoneLabel": "1", "windSpeed": 30.0, "ss": 0.125, "s1": 0.05 },
+    "fortaleza": { "name": "Fortaleza", "zone": 0, "zoneLabel": "1", "windSpeed": 30.0, "ss": 0.125, "s1": 0.05 },
+    "natal": { "name": "Natal", "zone": 0, "zoneLabel": "2", "windSpeed": 30.0, "ss": 0.25, "s1": 0.1 },
+    "manaus": { "name": "Manaus", "zone": 0, "zoneLabel": "1", "windSpeed": 30.0, "ss": 0.125, "s1": 0.05 },
+    "riobranco": { "name": "Rio Branco", "zone": 0, "zoneLabel": "3", "windSpeed": 30.0, "ss": 0.375, "s1": 0.15 },
+    "cruzeirodosul": { "name": "Cruzeiro do Sul", "zone": 0, "zoneLabel": "4", "windSpeed": 30.0, "ss": 0.375, "s1": 0.15 }
+  }
+}

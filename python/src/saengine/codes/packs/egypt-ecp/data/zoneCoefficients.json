@@ -1,0 +1,16 @@
+{
+  "$schema": "../../../schemas/zoneCoefficients.schema.json",
+  "$replace": true,
+  "$sources": [
+    "ECP 201-2012 8.2, Table 8.1: the design ground acceleration ag of the seismic zones 1, 2, 3, 4, 5A, 5B"
+  ],
+  "source": "ECP 201-2012 Table 8.1: ag = 0.10 g (zone 1), 0.125 g (2), 0.15 g (3), 0.20 g (4), 0.25 g (5A, id 5), 0.30 g (5B, id 6)",
+  "zones": {
+    "1": 0.1,
+    "2": 0.125,
+    "3": 0.15,
+    "4": 0.2,
+    "5": 0.25,
+    "6": 0.3
+  }
+}

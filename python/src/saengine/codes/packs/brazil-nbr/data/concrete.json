@@ -1,0 +1,42 @@
+{
+  "$schema": "../../../schemas/concrete.schema.json",
+  "$sources": [
+    "NBR 7480 (CA-50 and CA-60 bars: Ø5, Ø6.3, Ø8, Ø10, Ø12.5, Ø16, Ø20, Ø25, Ø32, Ø40)",
+    "NBR 6118:2014 8.2.8 (Eci = αE 5600 √fck, Ecs = αi Eci)"
+  ],
+  "barDiameters": {
+    "$replace": true,
+    "all": [5.0, 6.3, 8.0, 10.0, 12.5, 16.0, 20.0, 25.0, 32.0, 40.0],
+    "main": [10.0, 12.5, 16.0, 20.0, 25.0, 32.0],
+    "column": [10.0, 12.5, 16.0, 20.0, 25.0, 32.0],
+    "slab": [6.3, 8.0, 10.0, 12.5],
+    "stirrup": [5.0, 6.3, 8.0, 10.0],
+    "wall": [6.3, 8.0, 10.0, 12.5, 16.0],
+    "boundary": [12.5, 16.0, 20.0, 25.0],
+    "hoop": [6.3, 8.0, 10.0],
+    "lintel": [8.0, 10.0, 12.5, 16.0, 20.0],
+    "tank": [8.0, 10.0, 12.5, 16.0, 20.0],
+    "foundation": [10.0, 12.5, 16.0, 20.0, 25.0]
+  },
+  "barNames": {
+    "$replace": true,
+    "5": "Ø5",
+    "6.3": "Ø6,3",
+    "8": "Ø8",
+    "10": "Ø10",
+    "12.5": "Ø12,5",
+    "16": "Ø16",
+    "20": "Ø20",
+    "25": "Ø25",
+    "32": "Ø32",
+    "40": "Ø40"
+  },
+  "modulus": {
+    "normal": 4760.0
+  },
+  "sources": {
+    "barDiameters": "NBR 7480: the nominal bar diameters (CA-60 wire Ø5, Ø6.3; CA-50 Ø6.3-Ø40); the sets by use are SAEngine practice (NBR 6118 18.4.2.1: column bars at least Ø10; 18.3.3.2: stirrups at least Ø5)",
+    "barNames": "Brazilian practice: Ø + the diameter with the decimal comma",
+    "modulus": "NBR 6118:2014 8.2.8: Ecs = αi Eci, Eci = 5600 √fck (granite αE 1.0), αi = 0.8 + 0.2 fck/80: taken as 0.85 × 5600 √fck = 4760 √fck for the analysis (1.5 % below αi Eci at C25, 3 % at C30, 6 % at C40; SAEngine practice, the stiffer modulus of higher grades not taken)"
+  }
+}

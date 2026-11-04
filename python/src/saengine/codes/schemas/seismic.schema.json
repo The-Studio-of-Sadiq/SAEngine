@@ -2234,6 +2234,17 @@
           "default": 1.0,
           "title": "N2",
           "type": "number"
+        },
+        "d": {
+          "default": 0.0,
+          "description": "d of the divisor 1 + d (t0 / T)^m.",
+          "title": "D",
+          "type": "number"
+        },
+        "m": {
+          "default": 1.0,
+          "title": "M",
+          "type": "number"
         }
       },
       "title": "ShapeBranch",
@@ -2437,6 +2448,95 @@
           "exclusiveMinimum": 0,
           "title": "Nearfaultnone",
           "type": "number"
+        },
+        "soilFactors": {
+          "additionalProperties": {
+            "items": {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            "type": "array"
+          },
+          "description": "S on Cd by site class: (Z from, S) steps; empty: S = 1.",
+          "title": "Soilfactors",
+          "type": "object"
+        },
+        "ductilityForm": {
+          "default": "linear",
+          "description": "linear: kμ by ductilityPeriod (or μ); periodRatio: kμ = 1 + T / (ratioShare T0 + T / μ).",
+          "enum": [
+            "linear",
+            "periodRatio"
+          ],
+          "title": "Ductilityform",
+          "type": "string"
+        },
+        "ratioShare": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "periodRatio: the share of T0.",
+          "title": "Ratioshare"
+        },
+        "ratioPeriods": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "description": "periodRatio: T0 [s] by site class (a class without one: kμ = μ).",
+          "title": "Ratioperiods",
+          "type": "object"
+        },
+        "leastSoilShare": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Cd at least this × Z I S (empty: none).",
+          "title": "Leastsoilshare"
+        },
+        "capByDuctility": {
+          "description": "(μ, share): Cd at most share × Z I S, share linear between, the end values beyond; empty: no cap.",
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              },
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "title": "Capbyductility",
+          "type": "array"
         },
         "clauses": {
           "additionalProperties": {
