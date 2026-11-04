@@ -68,6 +68,8 @@ interface IFemDerivation {
 	readonly ssiText?: string;
 	readonly facesText?: string;
 	readonly isolationText?: string;
+	/** Alpha 9 P6: the damper design (`saengine.fem.dampers`). */
+	readonly dampersText?: string;
 	readonly notes?: readonly string[];
 	readonly summary?: { readonly [key: string]: number } & { readonly wind?: IFemWindSummary };
 	readonly problems?: readonly string[];
@@ -118,6 +120,8 @@ export const SSI_FILE = 'ssi.json';
 export const FACES_FILE = 'faces.json';
 /** The isolation design, beside the model when a column type has a seismic isolator (`saengine.fem.isolation`). */
 export const ISOLATION_FILE = 'isolation.json';
+/** Alpha 9 P6: the damper design, beside the model when a brace type has a damper (`saengine.fem.dampers`). */
+export const DAMPERS_FILE = 'dampers.json';
 
 /** Whether the MEP file `text` has anything the analysis model takes: equipment, openings or shafts. */
 export function mepHasContent(text: string | undefined): boolean {
@@ -259,6 +263,7 @@ export async function deriveAnalysisModel(commandService: ICommandService, fileS
 	await side(SSI_FILE, result.ssiText);
 	await side(FACES_FILE, result.facesText);
 	await side(ISOLATION_FILE, result.isolationText);
+	await side(DAMPERS_FILE, result.dampersText);
 	await fileService.writeFile(resource, VSBuffer.fromString(result.text));
 	if (result.pushoverText) {
 		await fileService.writeFile(joinPath(folder, PUSHOVER_FILE), VSBuffer.fromString(result.pushoverText));

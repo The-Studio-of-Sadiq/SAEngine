@@ -779,6 +779,9 @@ def derive_fem(
     # B37: the isolation design for ``08 FEM/isolation.json`` (saengine.fem.isolation).
     if derivation.isolation is not None:
         result["isolationText"] = json.dumps(derivation.isolation, indent=1, ensure_ascii=False)
+    # Alpha 9 P6: the damper design for ``08 FEM/dampers.json`` (saengine.fem.dampers).
+    if getattr(derivation, "dampers", None) is not None:
+        result["dampersText"] = json.dumps(derivation.dampers, indent=1, ensure_ascii=False)
     return result
 
 

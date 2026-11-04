@@ -604,3 +604,26 @@ length along the bar's centre line (SAEngine practice), with the mandrel diamete
 | P5E10 | nonlinearHistory.drift.limitFactor | 1.0 × the allowable α/ν of Sec 4.4.3.2 | EN 1998-1 Sec 4.4.3.2 | Check |
 | P5E11 | nonlinearHistory.acceptance | EN 1998-3 chord rotation hinges at Significant Damage | none in EN 1998-1 for new buildings | SAEngine practice |
 | P5E12 | nonlinearHistory.procedure.damping | each record's ratio on the first mode, committed stiffness | none | SAEngine practice |
+
+## Alpha 9 P6: base isolation (isolation, EN 1998-1 Section 10, EN 15129)
+
+| # | Key | Value | Clause | Confidence |
+|---|---|---|---|---|
+| P6E1 | isolation.procedure.method | singleLevel at the design seismic action | EN 1998-1 Sec 10.6, 10.9 | Sure |
+| P6E2 | isolation.procedure.displacementFactor | γx = 1.2 on the devices' displacements | EN 1998-1 Sec 10.3(2)P | Sure (recommended value) |
+| P6E3 | isolation.dampingFormula | η = √(10/(5 + ξ)) ≥ 0.55, B = 1/η | EN 1998-1 Eq 3.6 | Sure |
+| P6E4 | d_dc, Teff | M Se(Teff, ξeff) / Keff, Teff = 2π √(M/Keff) | EN 1998-1 Sec 10.9.3 | Sure |
+| P6E5 | isolation.forces reduction | q of the superstructure ≤ 1.5 | EN 1998-1 Sec 10.10(5) | Sure |
+| P6E6 | isolation.distribution.exponent | 0 (f_j = m_j Se: a uniform acceleration), shearExponent 0 | EN 1998-1 Sec 10.9.4 | Check |
+| P6E7 | isolation.torsion | rigidDeck: δi = 1 + (e_tot / r²) yi | EN 1998-1 Sec 10.9.3(6) | Check |
+| P6E8 | isolation.staticLimits | Teff ≤ 3 s and ≥ 3 Tf, plan ≤ 50 m, Kv/Keff ≥ 150, ξeff ≤ 30 % | EN 1998-1 Sec 10.9.3 | Unsure (which conditions; Tv ≤ 0.1 s and the fault distance not checked) |
+| P6E9 | isolation.spectrumAnalysis | ξ ≤ 30 %, 30 % of the orthogonal direction | EN 1998-1 Sec 10.9.5, 4.3.3.5.1 | Check |
+| P6E10 | isolation.history | 3 records (the largest), 7 (the mean), 0.2 to 2 Teff, 90 % | EN 1998-1 Sec 3.2.3.1, 4.3.3.4.3 | Unsure (the period range for isolated buildings) |
+| P6E11 | isolation.drift | 0.010 h (0.005 h / ν, ν = 0.5) | EN 1998-1 Sec 4.4.3.2 | SAEngine practice |
+| P6E12 | isolation.spectrum.importance | 1.0 (γI not applied by the isolation design) | EN 1998-1 Sec 10.6 | Unsure (should take γI of the class) |
+| P6E13 | isolation.restoring | none (not checked) | EN 1998-1 Sec 10.5.3 | Check (the lateral restoring capability rule) |
+| P6E14 | isolation.procedure.minima | the factored wind only | none | SAEngine practice |
+| P6E15 | isolation.propertyModification.aeShare | 1.0 (the plain product) | EN 15129 | Unsure (EN 15129's combination of the λ factors) |
+| P6E16 | isolation.testing | a generic cyclic sequence | EN 15129 Sec 8.2, 9.2 | SAEngine practice (EN 15129's type tests govern) |
+| P6E17 | isolation.overturning.minimumFactor | 1.0 | none | SAEngine practice |
+| P6E18 | dampers | not covered: EN 1998-1 has no procedure for structures with damping systems | — | — |

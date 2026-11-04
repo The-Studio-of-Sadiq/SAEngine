@@ -827,6 +827,9 @@ def work_out_story_response(out_dir: str | Path, project_path: str | Path) -> di
             "histories": histories,
             "columnShortening": shortening,
             "nonlinearHistory": nonlinear,
+            # Alpha 9 P6: the isolation and damper designs beside the model.
+            "isolation": _side_design("isolation", project_path, notes),
+            "dampers": _side_design("dampers", project_path, notes),
             "floorVibration": comfort.get("floorVibration"),
             "windComfort": comfort.get("windComfort"),
             # The tables of the results view (name, columns, rows, notes).
@@ -836,6 +839,23 @@ def work_out_story_response(out_dir: str | Path, project_path: str | Path) -> di
             "notes": notes,
         }
     )
+
+
+def _side_design(kind: str, project_path: str | Path, notes: list[str]) -> dict[str, Any] | None:
+    """Alpha 9 P6: the isolation (:mod:`saengine.fem.isolation`) or damper
+    (:mod:`saengine.fem.dampers`) design beside the analysis model, for the results view; None
+    without it."""
+    try:
+        if kind == "isolation":
+            from saengine.fem import isolation
+
+            return isolation.load(Path(project_path).parent)
+        from saengine.fem import dampers
+
+        return dampers.load(Path(project_path).parent)
+    except Exception as error:  # noqa: BLE001 - the charts show without it
+        notes.append(f"the {kind} design could not be read: {error}")
+        return None
 
 
 def _serviceability(

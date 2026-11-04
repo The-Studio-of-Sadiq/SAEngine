@@ -11192,14 +11192,32 @@ class IsolationStaticLimits(_Row):
     """Where the equivalent static analysis of an isolated building is permitted."""
 
     siteClasses: list[str] = Field(description="Site classes it is permitted on.")
-    maxStoreys: int = Field(gt=0, description="Storeys above the isolation interface, at most.")
-    maxHeight: Positive = Field(description="Height above the isolation interface, at most [m].")
+    maxStoreys: int | None = Field(
+        default=None, gt=0, description="Storeys above the isolation interface, at most."
+    )
+    maxHeight: Positive | None = Field(
+        default=None, description="Height above the isolation interface, at most [m]."
+    )
     maxPeriodM: Positive = Field(description="TM at most [s].")
     periodRatio: Positive = Field(description="TD greater than this × the fixed-base period.")
-    stiffnessRatio: Share = Field(
-        description="Effective stiffness at DD greater than this × that at stiffnessAtShare·DD."
+    stiffnessRatio: Share | None = Field(
+        default=None,
+        description="Effective stiffness at DD greater than this × that at stiffnessAtShare·DD "
+        "(none: no such condition).",
     )
     stiffnessAtShare: Share = Field(description="Share of DD of the stiffness comparison.")
+    # Alpha 9 P6 (the single-level procedure reads them; none: no such condition).
+    maxPlanDimension: Positive | None = Field(
+        default=None, description="Largest plan dimension of the isolated structure, at most [m]."
+    )
+    minVerticalRatio: Positive | None = Field(
+        default=None,
+        description="Vertical stiffness of the isolation system at least this × its effective "
+        "horizontal stiffness.",
+    )
+    maxDamping: Positive | None = Field(
+        default=None, description="Effective damping of the isolation system at most [%]."
+    )
 
 
 class IsolationRestoring(_Row):
@@ -11207,6 +11225,11 @@ class IsolationRestoring(_Row):
 
     forceShare: Positive
     atShare: Share
+    at: Literal["total", "maximum"] = Field(
+        default="total",
+        description="Displacement of the check: the total displacement (DTD, or DTM in the "
+        "single-level procedure) or the maximum displacement DM (alpha 9 P6).",
+    )
 
 
 class IsolationForces(_Row):
@@ -11263,7 +11286,15 @@ class IsolationOverturning(_Row):
 
 
 class IsolationTorsion(_Row):
-    method: Literal["rigidDeck"] = Field(description="Method id of the total displacements.")
+    method: Literal["rigidDeck", "periodRatio"] = Field(
+        description="Method id of the total displacements: the rigid deck turning about the "
+        "isolators' centre of rigidity, or (alpha 9 P6) the closed form with the ratio PT of "
+        "the translational to the torsional period, D (1 + y·12e / (PT² (b² + d²)))."
+    )
+    minimumFactor: Positive | None = Field(
+        default=None,
+        description="The total displacement at least this × the displacement (none: no floor).",
+    )
     note: str = ""
 
 
@@ -11286,6 +11317,75 @@ class IsolationRequirement(_Row):
         description="How SAEngine treats it: computed, from the property bounds, by the "
         "prototype tests, or a manual item for the engineer."
     )
+    computes: Literal["restoring", "restraint", "overturning", "stability"] | None = Field(
+        default=None,
+        description="Alpha 9 P6: which computed check answers a 'computed' item (none: by the "
+        "item's id, as the default pack numbers them).",
+    )
+
+
+class IsolationProcedure(_Row):
+    """Alpha 9 P6: the procedure of the isolation design, by method id.
+
+    - ``twoLevel``: the design and the maximum considered earthquake, each with its
+      displacement, forces from the design one (the form of the default pack);
+    - ``singleLevel``: one earthquake level (the spectrum × ``spectrum.mceFactor``): the
+      displacement with the lower- and upper-bound properties, Vb = k·D of the governing bound,
+      the unreduced force above Vst = Vb (Ws/W)^(1 − shearExponent·β), Vs = Vst / RI, the
+      vertical distribution with k = distributionFactor·β·Tfb (``dampingPeriod``) or the
+      distribution exponent (``fixed``), the base level's (Vb − Vst)/RI, the device
+      displacements × ``displacementFactor``."""
+
+    method: Literal["twoLevel", "singleLevel"]
+    displacementFactor: Positive = Field(
+        default=1.0, description="Factor on the units' displacements for their capacity (γx)."
+    )
+    shearExponent: float = Field(
+        default=0.0,
+        ge=0,
+        description="c of Vst = Vb (Ws/W)^(1 − c·β) (β the effective damping as a fraction).",
+    )
+    distribution: Literal["fixed", "dampingPeriod"] = Field(
+        default="fixed",
+        description="Vertical distribution exponent: the table's distribution exponent, or "
+        "k = distributionFactor·β·Tfb.",
+    )
+    distributionFactor: Positive | None = None
+    baseLevelForce: bool = Field(
+        default=False, description="A force (Vb − Vst)/RI at the level just above the isolators."
+    )
+    activationUpperBound: bool = Field(
+        default=False,
+        description="The activation force: the greater of the upper-bound value and "
+        "forces.activationFactor × the nominal one (else the factor × the upper bound), "
+        "through Vst's formula.",
+    )
+    minima: list[Literal["fixedBase", "wind", "activation"]] = Field(
+        default_factory=lambda: ["fixedBase", "wind", "activation"],
+        description="The lower limits of Vs the pack applies.",
+    )
+    note: str = ""
+
+
+class IsolationPropertyModification(_Row):
+    """Alpha 9 P6: how an isolator type's λ factors combine into its bounds:
+    λmax = (1 + aeShare (λae,max − 1)) λtest,max λspec,max, λmin = (1 − aeShare (1 − λae,min))
+    λtest,min λspec,min, with the optional limits."""
+
+    aeShare: Positive = Field(description="Share of the ageing and environment factors.")
+    maxAtLeast: Positive | None = Field(default=None, description="λmax at least this.")
+    minAtMost: Share | None = Field(default=None, description="λmin at most this.")
+    note: str = ""
+
+
+class IsolationDampingFormula(_Row):
+    """Alpha 9 P6: the damping coefficient by a formula in place of the table: B = 1/η,
+    η = √(reference / (offset + ξ)) not below etaMin (ξ in %)."""
+
+    method: Literal["eta"]
+    reference: Positive = 10.0
+    offset: Positive = 5.0
+    etaMin: Share = 0.55
 
 
 class IsolationTable(TableModel):
@@ -11295,7 +11395,7 @@ class IsolationTable(TableModel):
     dampingCoefficients: list[IsolationDampingPoint] = Field(min_length=2)
     spectrum: IsolationSpectrum
     staticLimits: IsolationStaticLimits
-    restoring: IsolationRestoring
+    restoring: IsolationRestoring | None = None
     forces: IsolationForces
     distribution: IsolationDistribution
     drift: IsolationDrift
@@ -11306,6 +11406,10 @@ class IsolationTable(TableModel):
     testing: IsolationTesting
     requirements: list[IsolationRequirement]
     review: list[str]
+    # Alpha 9 P6: none of them in the default pack (its two-level procedure, its table).
+    procedure: IsolationProcedure | None = None
+    propertyModification: IsolationPropertyModification | None = None
+    dampingFormula: IsolationDampingFormula | None = None
 
 
 # ───────────────────────────────────────── bamboo (B39) ─────────────────────────────────────────
@@ -11715,6 +11819,7 @@ from saengine.codes.capacity_tables import (  # C19
     AllowableStressTable,
     HorizontalCapacityTable,
 )
+from saengine.codes.damper_tables import DampersTable  # P6: structures with damping systems
 from saengine.codes.excavation_tables import ExcavationSupportTable  # P1: staged excavations
 from saengine.codes.limit_state_tables import SteelLimitStateTable
 from saengine.codes.material_method_tables import (
@@ -11820,6 +11925,8 @@ TABLE_MODELS: dict[str, type[TableModel]] = {
     # Alpha 9 C19: allowable stress design of members, the storeys' horizontal capacity.
     "allowableStress": AllowableStressTable,
     "horizontalCapacity": HorizontalCapacityTable,
+    # Alpha 9 P6: structures with supplemental damping systems.
+    "dampers": DampersTable,
 }
 
 

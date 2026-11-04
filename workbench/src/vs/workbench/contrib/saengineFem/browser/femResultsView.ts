@@ -38,7 +38,7 @@ import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
 import { EditorFrame, IEditorFrameStatus } from '../../saengineProject/browser/editorFrame.js';
 import { ChartColor, IChartSeries, renderChart, renderSheet } from './femChart.js';
-import { baseReactionTable, closedPmCurve, defaultChartResult, describeMode, elasticDriftLimit, orderLike, extremes, FEM_COLUMN_INTERACTION_COMMAND, FEM_MEMBER_FORCES_COMMAND, FEM_STORY_RESPONSE_COMMAND, FemAxis2, IFemColumnDiagram, IFemColumnShortening, hingeRowsOf, IFemHingeRow, IFemPushoverAcceptance, IFemPushoverCurve, IFemPushoverTarget, IFemColumnInteraction, IFemMemberForces, IFemNonlinearHingeRow, IFemNonlinearHistory, IFemStoryResponse, IFemStoryResult, IFemTimeHistoryDesign, isEarthquakeResult, MemberComponent, memberEnvelope, memberValues, modalTable, modesToReach, profilePeak, spectrumAt, storeyProfile, StoreyQuantity, storeyQuantityLabel, STOREY_QUANTITIES } from './femChartData.js';
+import { baseReactionTable, closedPmCurve, defaultChartResult, describeMode, elasticDriftLimit, orderLike, extremes, FEM_COLUMN_INTERACTION_COMMAND, FEM_MEMBER_FORCES_COMMAND, FEM_STORY_RESPONSE_COMMAND, FemAxis2, IFemColumnDiagram, IFemColumnShortening, hingeRowsOf, IFemHingeRow, IFemPushoverAcceptance, IFemPushoverCurve, IFemPushoverTarget, IFemColumnInteraction, IFemDamperDesign, IFemDeviceSuite, IFemIsolationDesign, IFemMemberForces, IFemNonlinearHingeRow, IFemNonlinearHistory, IFemStoryResponse, IFemStoryResult, IFemTimeHistoryDesign, isEarthquakeResult, MemberComponent, memberEnvelope, memberValues, modalTable, modesToReach, profilePeak, spectrumAt, storeyProfile, StoreyQuantity, storeyQuantityLabel, STOREY_QUANTITIES } from './femChartData.js';
 import { IFemDesignRequired, IFemSteelRequirement, resultsFolder, runDesignRequired } from './femDesign.js';
 import { appendPlannedChips, FemPlanned } from './femPlannedFeatures.js';
 import { errorSummary, FEM_RESULT_LIST_COMMAND, IFemRunTracker } from './femResultsBar.js';
@@ -867,6 +867,143 @@ export class FemResultsEditor extends EditorPane {
 		if (response.nonlinearHistory) {
 			this.renderNonlinearHistory(response.nonlinearHistory);
 		}
+		if (response.isolation) {
+			this.renderIsolation(response.isolation);
+		}
+		if (response.dampers) {
+			this.renderDampers(response.dampers);
+		}
+	}
+
+	/**
+	 * B37 / alpha 9 P6: the isolation design beside the model: the displacements of the
+	 * isolation system (each property bound where the code pack's procedure takes both), the
+	 * forces below and above it, the checks and each isolator's displacement.
+	 */
+	private renderIsolation(found: IFemIsolationDesign): void {
+		const section = this.section(
+			localize('femResults.isolationHeading', "Seismic Isolation"),
+			localize('femResults.isolationHelp', "The isolation system under the columns of the isolator types (04 Objects, column types), by the code pack in force: its displacement and effective period, the force below the isolators (Vb) and above them (Vs), the checks and each isolator's displacement. The nonlinear time history shows the isolators' hysteresis per record."),
+		);
+		const yes = localize('femResults.yes', "yes"), no = localize('femResults.no', "no"), dash = '-';
+		const mm = (v: number) => this.format('length', v / 1e3);
+		const kn = (v: number) => this.format('force', v * 1e3);
+		const levels: [string, typeof found.design][] = found.procedure === 'singleLevel'
+			? Object.entries(found.bounds ?? { [localize('femResults.isolationLevel', "level")]: found.maximum })
+			: [[localize('femResults.isolationDesignLevel', "design (DD)"), found.design], [localize('femResults.isolationMaximumLevel', "maximum (DM)"), found.maximum]];
+		renderSheet(section, {
+			name: localize('femResults.isolationLevels', "Isolation system"),
+			columns: [
+				localize('femResults.isolationCase', "Case"), localize('femResults.isolationD', "D"), localize('femResults.isolationT', "T [s]"),
+				localize('femResults.isolationBeta', "β [%]"), localize('femResults.isolationB', "B"), localize('femResults.isolationK', "k min / max [kN/m]"),
+			],
+			rows: levels.map(([name, level]) => [name, mm(level.D_mm), level.T.toFixed(2), (100 * level.beta).toFixed(1), level.B.toFixed(2), `${level.kMin_kNm.toFixed(0)} / ${level.kMax_kNm.toFixed(0)}`]),
+			notes: [localize('femResults.isolationTotal', "Total displacement with torsion: {0}{1}.", mm(found.total.DTM_mm), found.total.demand_mm !== undefined && found.total.demand_mm !== found.total.DTM_mm ? localize('femResults.isolationDemand', " (the units' demand {0})", mm(found.total.demand_mm)) : '')],
+		});
+		renderSheet(section, {
+			name: localize('femResults.isolationForces', "Forces below (Vb) and above (Vs) the isolators"),
+			columns: [
+				localize('femResults.directionCol', "Direction"), 'R', 'RI', 'Vb', localize('femResults.isolationVst', "Vst"), 'Vs', localize('femResults.isolationGoverns', "Governs"),
+			],
+			rows: (['X', 'Y'] as const).map(axis => {
+				const f = found.forces[axis];
+				return [axis, f.R.toFixed(2), f.RI.toFixed(2), kn(f.Vb_kN), f.Vst_kN !== undefined ? kn(f.Vst_kN) : dash, kn(f.Vs_kN), f.governs];
+			}),
+		});
+		renderSheet(section, {
+			name: localize('femResults.isolationChecks', "Checks"),
+			columns: [localize('femResults.isolationCheckCol', "Check"), localize('femResults.valueCol', "Value"), localize('femResults.limitCol', "Limit"), localize('femResults.okCol', "OK")],
+			rows: found.checks.map(c => [c.label, c.value ?? dash, c.limit ?? dash, c.ok === null ? dash : c.ok ? yes : no]),
+			notes: [found.staticAnalysis.permitted
+				? localize('femResults.isolationStatic', "The equivalent lateral force procedure is permitted (if the structure above is regular).")
+				: localize('femResults.isolationNoStatic', "The equivalent lateral force procedure is not permitted: use the response spectrum or a time history.")],
+		});
+		renderSheet(section, {
+			name: localize('femResults.isolationUnits', "Isolators"),
+			columns: [
+				localize('femResults.isolationColumn', "Column"), localize('femResults.isolationKind', "Isolator"), localize('femResults.isolationKmax', "k max [kN/m]"),
+				localize('femResults.isolationUnitTotal', "Total displacement"), localize('femResults.isolationCapacity', "Capacity"),
+			],
+			rows: found.units.map(u => [u.column, u.kind, u.kDmax_kNm.toFixed(0), mm(u.DTM_mm), u.capacity_mm === null ? dash : mm(u.capacity_mm)]),
+		});
+		for (const note of found.notes ?? []) {
+			append(section, $('.fem-results-note', undefined, note));
+		}
+	}
+
+	/**
+	 * Alpha 9 P6: the supplemental dampers beside the model: the added effective damping and
+	 * the damped base shear of each direction, and the damper schedule (stroke, velocity, force
+	 * and energy at the code pack's earthquake level, against the devices' capacities).
+	 */
+	private renderDampers(found: IFemDamperDesign): void {
+		const section = this.section(
+			localize('femResults.dampersHeading', "Supplemental Dampers"),
+			localize('femResults.dampersHelp', "The dampers in the braces of the damper types (04 Objects, brace types), by the code pack in force: the effective damping they add, the damped base shear the earthquake cases are scaled to, and each damper's stroke, velocity, force and energy. The nonlinear time history shows the dampers' hysteresis per record."),
+		);
+		if (!found.available) {
+			append(section, $('.fem-results-note', undefined, localize('femResults.noDampers', "No damped design: {0}", found.reason ?? '')));
+			return;
+		}
+		const yes = localize('femResults.yes', "yes"), no = localize('femResults.no', "no"), dash = '-';
+		const kn = (v: number | undefined) => v === undefined ? dash : this.format('force', v * 1e3);
+		const pct = (v: number | undefined) => v === undefined ? dash : (100 * v).toFixed(1);
+		const axes = Object.entries(found.byAxis ?? {}).filter(([, a]) => a.available);
+		renderSheet(section, {
+			name: localize('femResults.dampersDamping', "Effective damping and the damped base shear"),
+			columns: [
+				localize('femResults.directionCol', "Direction"), localize('femResults.dampersT1', "T1 / T1D [s]"), localize('femResults.dampersMu', "μD"),
+				localize('femResults.dampersBetaI', "βI [%]"), localize('femResults.dampersBetaV', "βV [%]"), localize('femResults.dampersBetaH', "βH [%]"),
+				localize('femResults.dampersB', "B"), localize('femResults.dampersVfixed', "V fixed"), localize('femResults.dampersVmin', "V min"), localize('femResults.dampersV', "V design"),
+			],
+			rows: axes.map(([axis, a]) => [
+				axis, `${(a.T1 ?? 0).toFixed(2)} / ${(a.T1D ?? 0).toFixed(2)}`, (a.mu ?? 1).toFixed(2), pct(a.betaI), pct(a.betaV), pct(a.betaH),
+				(a.B1D ?? 1).toFixed(2), kn(a.Vfixed_kN), kn(a.Vmin_kN), kn(a.Vdesign_kN),
+			]),
+		});
+		const mm = (v: number | undefined) => v === undefined ? dash : this.format('length', v / 1e3);
+		const okText = (v: boolean | null | undefined) => v === null || v === undefined ? dash : v ? yes : no;
+		renderSheet(section, {
+			name: localize('femResults.dampersSchedule', "Damper schedule at {0} × the design displacement", found.mceFactor ?? 1),
+			columns: [
+				localize('femResults.dampersBrace', "Brace"), localize('femResults.dampersKind', "Damper"), localize('femResults.directionCol', "Direction"),
+				localize('femResults.dampersStroke', "Stroke"), localize('femResults.dampersVelocity', "Velocity [m/s]"), localize('femResults.dampersForce', "Force"),
+				localize('femResults.dampersEnergy', "Energy per cycle [kJ]"), localize('femResults.dampersStrokeOk', "Stroke OK"), localize('femResults.dampersForceOk', "Force OK"),
+			],
+			rows: found.devices.filter(d => d.strokeMCE_mm !== undefined).map(d => [
+				d.member, d.kind, d.axis ?? dash, mm(d.strokeMCE_mm), (d.velocityMCE_ms ?? 0).toFixed(3), kn(d.forceMCE_kN), (d.energy_kJ ?? 0).toFixed(2), okText(d.strokeOk), okText(d.forceOk),
+			]),
+		});
+		for (const note of found.notes ?? []) {
+			append(section, $('.fem-results-note', undefined, note));
+		}
+	}
+
+	/** Alpha 9 P6: the isolators and dampers of a nonlinear suite, and the hysteresis loops of those that dissipate most. */
+	private renderDevices(section: HTMLElement, key: string, devices: IFemDeviceSuite): void {
+		if (!devices.rows.length) {
+			return;
+		}
+		renderSheet(section, {
+			name: localize('femResults.nlthDevices', "Suite {0}: isolators and dampers ({1} over the records)", key, devices.rule === 'mean' ? localize('femResults.ruleMean', "mean") : localize('femResults.ruleMax', "largest")),
+			columns: [
+				localize('femResults.deviceKind', "Device"), localize('femResults.deviceName', "Column or brace"), localize('femResults.recordCol', "Governing record"),
+				localize('femResults.deviceDisplacement', "Displacement"), localize('femResults.deviceForce', "Force"), localize('femResults.deviceVelocity', "Velocity [m/s]"), localize('femResults.deviceEnergy', "Energy [kJ]"),
+			],
+			rows: devices.rows.map(r => [
+				r.kind === 'isolator' ? localize('femResults.deviceIsolator', "isolator") : localize('femResults.deviceDamper', "damper"),
+				r.name, r.record.replace(/^NTH: /, ''), this.format('length', r.displacement_mm / 1e3), this.format('force', r.force_kN * 1e3), r.velocity_ms.toFixed(3), r.energy_kJ.toFixed(1),
+			]),
+		});
+		const colors: ChartColor[] = ['blue', 'orange', 'green', 'red'];
+		for (const [k, loop] of devices.loops.entries()) {
+			renderChart(this.grid(section), {
+				title: localize('femResults.deviceLoop', "Hysteresis: {0} {1} ({2})", loop.kind === 'isolator' ? localize('femResults.deviceIsolator', "isolator") : localize('femResults.deviceDamper', "damper"), loop.name, loop.record.replace(/^NTH: /, '')),
+				xLabel: withUnit(localize('femResults.deviceDeformation', "Deformation"), this.units.length),
+				yLabel: withUnit(localize('femResults.deviceForceAxis', "Force"), this.units.force),
+				series: [{ name: loop.name, color: colors[k % colors.length], points: loop.u_mm.map((u, i) => [u / 1e3 * this.units.length.scale, loop.F_kN[i] * 1e3 * this.units.force.scale] as [number, number]) }],
+			});
+		}
 	}
 
 	/**
@@ -1012,6 +1149,12 @@ export class FemResultsEditor extends EditorPane {
 				rows: forced.rows.map(r => [r.member, actions[r.action] ?? r.action, `${r.category} (γ = ${r.factor})`, r.suite, r.Fu, r.Fg, r.demand, r.capacity ?? dash, r.ratio ?? dash, r.ok === null ? dash : r.ok ? yes : no]),
 				notes: [forced.clause].filter((c): c is string => !!c),
 			});
+		}
+		// Alpha 9 P6: the isolators and dampers over the records.
+		for (const suite of found.suites ?? []) {
+			if (suite.devices) {
+				this.renderDevices(section, suite.key, suite.devices);
+			}
 		}
 		for (const note of found.notes ?? []) {
 			append(section, $('.fem-results-note', undefined, note));

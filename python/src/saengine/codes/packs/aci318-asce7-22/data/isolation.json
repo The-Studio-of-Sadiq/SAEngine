@@ -1,0 +1,150 @@
+{
+  "$schema": "../../../schemas/isolation.schema.json",
+  "$replace": true,
+  "$sources": [
+    "ASCE 7-22 Chapter 17 (Seismic Design Requirements for Seismically Isolated Structures): Sec 17.2 general requirements and property modification factors, Sec 17.3 ground motion, Sec 17.4 analysis procedure selection, Sec 17.5 equivalent lateral force procedure, Sec 17.6 dynamic procedures, Sec 17.7 design review, Sec 17.8 testing"
+  ],
+  "source": "ASCE 7-22 Chapter 17 (Seismically Isolated Structures)",
+  "sources": {
+    "general": "ASCE 7-22 Sec 17.1-17.2: seismically isolated structures designed to Chapter 17 at the MCER level",
+    "requirements": "ASCE 7-22 Sec 17.2.4 (isolation system), 17.2.5 (structural system), 17.2.6-17.2.7 (elements of structures and nonstructural components)",
+    "propertyModification": "ASCE 7-22 Sec 17.2.8.4, Eqs 17.2-1 and 17.2-2: lambda max and min from the aging and environmental, testing and specification factors (0.75 on the aging and environmental part)",
+    "restoring": "ASCE 7-22 Sec 17.2.4.4: the force at DM at least 0.025 W greater than at 0.5 DM",
+    "restraint": "ASCE 7-22 Sec 17.2.4.5: no displacement restraint below the total maximum displacement DTM",
+    "stability": "ASCE 7-22 Sec 17.2.4.6: each unit stable under the maximum and minimum vertical loads at DTM",
+    "overturning": "ASCE 7-22 Sec 17.2.4.7: factor of safety against global overturning at the isolation interface at least 1.0",
+    "staticLimits": "ASCE 7-22 Sec 17.4.1: where the equivalent lateral force procedure is permitted",
+    "maximumDisplacement": "ASCE 7-22 Sec 17.5.3.1, Eq 17.5-1: DM = g SM1 TM / (4 pi^2 BM) (in the general form Sa(TM) TM^2, equal in the 1/T range)",
+    "maximumPeriod": "ASCE 7-22 Sec 17.5.3.2, Eq 17.5-2: TM = 2 pi sqrt(W / (kM g))",
+    "dampingCoefficient": "ASCE 7-22 Table 17.5-1: BM by the effective damping, linear in between",
+    "totalDisplacement": "ASCE 7-22 Sec 17.5.3.3, Eqs 17.5-3 and 17.5-4: DTM = DM (1 + y 12 e / (PT^2 (b^2 + d^2))), at least 1.15 DM",
+    "forceBelow": "ASCE 7-22 Sec 17.5.4.1, Eq 17.5-5: Vb = kM DM",
+    "forceAbove": "ASCE 7-22 Sec 17.5.4.2, Eqs 17.5-6 and 17.5-7: Vs = Vst / RI, Vst = Vb (Ws/W)^(1 - 2.5 betaM)",
+    "reduction": "ASCE 7-22 Sec 17.5.4.2: RI = 3/8 R (Table 12.2-1), at most 2.0, at least 1.0",
+    "minimumForce": "ASCE 7-22 Sec 17.5.4.3: Vs at least the fixed-base force of Ws at TM, the factored wind and Vst of the force that fully activates the isolation system",
+    "distribution": "ASCE 7-22 Sec 17.5.5, Eqs 17.5-8 to 17.5-11: F1 = (Vb - Vst)/RI at the base level, Fx = Cvx Vs, k = 14 betaM Tfb",
+    "staticDrift": "ASCE 7-22 Sec 17.5.6: Cd = RI, drift at most 0.015 hsx",
+    "dynamic": "ASCE 7-22 Sec 17.6: response spectrum or response history procedure with the upper and lower bound properties",
+    "spectrum": "ASCE 7-22 Sec 17.6.3.3: fundamental mode damping at most betaM, 100 % + 30 %, the MCER spectrum",
+    "history": "ASCE 7-22 Sec 17.3.3 and 17.6.3.4: at least seven pairs of records scaled over 0.75 TM (upper bound) to 1.25 TM (lower bound) to the MCER spectrum; the average response",
+    "dynamicDrift": "ASCE 7-22 Sec 17.6.4.4: 0.015 hsx by response spectrum, 0.020 hsx by response history",
+    "testing": "ASCE 7-22 Sec 17.8: prototype tests (Sec 17.8.2.2 sequence), effective stiffness and damping from the loops",
+    "review": "ASCE 7-22 Sec 17.7: design review by an independent engineering team"
+  },
+  "dampingCoefficients": [
+    { "damping": 2.0, "B": 0.8 },
+    { "damping": 5.0, "B": 1.0 },
+    { "damping": 10.0, "B": 1.2 },
+    { "damping": 20.0, "B": 1.5 },
+    { "damping": 30.0, "B": 1.7 },
+    { "damping": 40.0, "B": 1.9 }
+  ],
+  "spectrum": {
+    "R": 1.0,
+    "importance": 1.0,
+    "mceFactor": 1.5,
+    "mcePeriod": "maximum",
+    "note": "The MCER spectrum is 1.5 times the design spectrum (Sec 11.4.5: SDS = 2/3 SMS, SD1 = 2/3 SM1); SaM is read at the effective period TM."
+  },
+  "staticLimits": {
+    "siteClasses": ["SA", "SB", "SBC", "SC", "SCD", "SD"],
+    "maxStoreys": 4,
+    "maxHeight": 19.8,
+    "maxPeriodM": 3.0,
+    "periodRatio": 3.0,
+    "stiffnessRatio": 0.3333333333,
+    "stiffnessAtShare": 0.2
+  },
+  "restoring": {
+    "forceShare": 0.025,
+    "atShare": 0.5,
+    "at": "maximum"
+  },
+  "forces": {
+    "importance": 1.0,
+    "reductionShare": 0.375,
+    "reductionMax": 2.0,
+    "reductionMin": 1.0,
+    "activationFactor": 1.5,
+    "fixedBaseR": "isolated",
+    "note": "Minimum 1: the Sec 12.8 force of Ws at TM with R = RI (the more conservative reading where the clause does not say which R). Minimum 3: Vst of the activation force, the greater of the upper-bound value and 1.5 times the nominal one."
+  },
+  "distribution": {
+    "exponent": 1.0
+  },
+  "drift": {
+    "static": 0.015,
+    "spectrum": 0.015,
+    "history": 0.020
+  },
+  "spectrumAnalysis": {
+    "maxModalDamping": 30.0,
+    "orthogonalShare": 0.3,
+    "dampedFromShare": 0.8,
+    "note": "dampedFromShare is SAEngine practice: the analysis spectrum takes the isolation damping (÷ BM of the lesser of the effective damping and 30 %) from 0.8 TM up, the 5 % spectrum below."
+  },
+  "history": {
+    "minRecords": 7,
+    "averageFrom": 7,
+    "periodFromShare": 0.75,
+    "periodToShare": 1.25,
+    "spectrumFactor": 1.0,
+    "tolerance": 0.1,
+    "recordDamping": 0.05
+  },
+  "overturning": {
+    "minimumFactor": 1.0
+  },
+  "torsion": {
+    "method": "periodRatio",
+    "minimumFactor": 1.15,
+    "note": "Eq 17.5-3 with PT of Eq 17.5-4 for the isolators' plan positions; the accidental eccentricity 5 % of the plan dimension across the motion (the seismic table's share)."
+  },
+  "testing": {
+    "liveShare": 0.5,
+    "windCycles": 20,
+    "steps": [
+      { "share": 0.25, "of": "DM", "cycles": 3 },
+      { "share": 0.5, "of": "DM", "cycles": 3 },
+      { "share": 0.67, "of": "DM", "cycles": 3 },
+      { "share": 1.0, "of": "DM", "cycles": 3 },
+      { "share": 0.75, "of": "DM", "cycles": 10 },
+      { "share": 1.0, "of": "DTM", "cycles": 1 }
+    ]
+  },
+  "requirements": [
+    { "id": "17.2.4.1", "text": "Environmental conditions: aging, creep, fatigue, operating temperature, moisture, damaging substances (through the property modification factors)", "check": "bounds" },
+    { "id": "17.2.4.2", "text": "Wind forces: the isolated structure resists the design wind loads; a wind-restraint system limits the isolator displacement to the storey drift limit", "check": "manual" },
+    { "id": "17.2.4.3", "text": "Fire resistance of the isolation system as for the columns, walls or other elements in that area", "check": "manual" },
+    { "id": "17.2.4.4", "text": "Lateral restoring force", "check": "computed", "computes": "restoring" },
+    { "id": "17.2.4.5", "text": "No displacement restraint below the total maximum displacement", "check": "computed", "computes": "restraint" },
+    { "id": "17.2.4.6", "text": "Vertical-load stability of each unit at the total maximum displacement", "check": "computed", "computes": "stability" },
+    { "id": "17.2.4.7", "text": "Overturning at the isolation interface", "check": "computed", "computes": "overturning" },
+    { "id": "17.2.4.8", "text": "Inspection and replacement access", "check": "manual" },
+    { "id": "17.2.4.9", "text": "Quality control testing programme", "check": "manual" },
+    { "id": "17.2.5", "text": "Structural system: horizontal distribution, building separations (at least DTM), nonbuilding structures", "check": "manual" },
+    { "id": "17.8", "text": "Prototype and production testing of the isolators", "check": "tests" }
+  ],
+  "review": [
+    "Project-specific design criteria, site-specific spectra and ground motions",
+    "Preliminary design: the isolation system's displacements and lateral force levels",
+    "Prototype testing programme",
+    "Final design of the isolated structure and its supporting analyses",
+    "Isolator production testing programme"
+  ],
+  "procedure": {
+    "method": "singleLevel",
+    "displacementFactor": 1.0,
+    "shearExponent": 2.5,
+    "distribution": "dampingPeriod",
+    "distributionFactor": 14.0,
+    "baseLevelForce": true,
+    "activationUpperBound": true,
+    "minima": ["fixedBase", "wind", "activation"],
+    "note": "ASCE 7-22 Chapter 17 designs at the MCER level only: every displacement and force is found with the lower- and the upper-bound properties and the governing value used."
+  },
+  "propertyModification": {
+    "aeShare": 0.75,
+    "note": "Eqs 17.2-1 and 17.2-2. Sec 17.2.8.4 also gives default limits of lambda max and min for preliminary design without prototype data: not entered (check the printed code and add maxAtLeast / minAtMost if the project relies on them)."
+  }
+}

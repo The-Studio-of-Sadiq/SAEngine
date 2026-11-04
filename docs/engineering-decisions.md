@@ -41,6 +41,64 @@ here, newest first, with the date, the question, the decision, the reason and wh
 - **No unlicensed software.** ETABS, SAP2000 and STAAD are not used for cross-checks or cited.
   Open-source tools are used instead (2026-10-25).
 
+## 2026-11-05: base isolators and supplemental dampers (alpha 9 track P6)
+
+- **What was built.** B37's isolation design now takes its procedure from the pack
+  (`isolation.procedure.method`): `twoLevel` (the default pack's DD/DM form, unchanged) or
+  `singleLevel` (`fem/isolation_single_level.py`): one earthquake level, the displacement with
+  the lower- and the upper-bound properties, Vb = k·D of the governing bound,
+  Vst = Vb (Ws/W)^(1 − c β), Vs = Vst / RI with the pack's minima, k = 14 β Tfb or a fixed
+  exponent, the base level force (Vb − Vst)/RI, γx on the devices' displacements, the total
+  displacement by the rigid deck or (`torsion.method: "periodRatio"`) the closed form with PT
+  and a floor. Isolator kinds: lead-rubber, high-damping rubber, elastomeric, single and triple
+  friction pendulum, flat slider; a sliding unit's curve from μ and R (Qd = μP, Kd = P/R);
+  property modification factors λ combined by the pack (`propertyModification`). The US pack
+  gets ASCE 7-22 Ch 17, the Eurocodes pack EN 1998-1 Section 10 with EN 15129; BNBC keeps its
+  procedure and results.
+- **Dampers** (`fem/dampers.py`, new `dampers` table, not in the default pack): a brace type's
+  `damper` (viscous, viscoelastic, metallic, friction). The pack's method `modalStrength` (the
+  ASCE 7-22 Ch 18 fundamental and residual mode ELF with the effective ductility and the
+  hysteretic damping) or `dampedSpectrum` (generic); the static earthquake cases scaled to the
+  damped base shear (never below the pack's minimum), the response spectrum divided by the
+  damping ratio, the damper schedule (stroke, velocity, force, energy at the pack's earthquake
+  level) against the devices' capacities, a report section, BOQ items. The US pack gets
+  ASCE 7-22 Ch 18; EN 1998-1 has no damped-structure procedure, so the Eurocodes packs model the
+  dampers but take no reduction (the same for the default pack).
+- **Nonlinear time history.** The isolators become bearing elements of their kind in the NLTH
+  model (Bouc-Wen elastomeric bearing, single friction pendulum, flat slider; before P6 the NLTH
+  model kept the fixed bases), the dampers twoNodeLink elements (a new Maxwell `ViscousDamper`
+  material in the solver, Kelvin for viscoelastic, Steel02, elastic-perfectly-plastic). The
+  results give each device's design displacement, force, velocity and energy over a suite, and
+  hysteresis loops.
+- **SAEngine practice (no code gives it):**
+  - The NLTH takes the isolators' nominal properties; the bounds are run by setting the types'
+    bound factors and deriving again. A triple friction pendulum runs as its equivalent single
+    pendulum (the solver has no triple pendulum element yet).
+  - A sliding unit's vertical load P is the type's test vertical load, else the seismic weight
+    per unit.
+  - A damper brace in the linear model keeps 0.1 % of its area for a viscous damper (no static
+    stiffness), K′ for a viscoelastic one, the device's initial stiffness for metallic and
+    friction ones; the brace member is designed for the analysis forces and the device force
+    comes from the schedule.
+  - The damped response spectrum is divided by B1D/B(ξ) from 0.8 T1 up, as the isolation
+    spectrum (0.8 TD) already is.
+  - The fundamental mode of the damper design is φ = h/hr (Ch 18 permits it for the ELF), and
+    the devices are designed at 1.5 × the design-earthquake response for the MCER.
+  - The damped base shear is used even where it is above the fixed-base one (with a note).
+  - Dampers together with isolators: the isolation design sets the earthquake forces.
+  - EN 1998-1: the superstructure drift limit of an isolated building is taken as
+    0.005 h / ν with ν = 0.5 (Sec 4.4.3.2), and the importance factor γI is not applied by the
+    isolation design (to check).
+- **Packs that extend the US pack** (Saudi, Pakistan, Philippines, Indonesia, Myanmar, Canada,
+  Mexico) now inherit ASCE 7-22 Ch 17 and Ch 18 in place of the default pack's isolation table
+  they inherited before; the National Annex packs inherit EN 1998-1 Section 10.
+- **Placeholder removed:** "Viscous Dampers" (fem.dampers). Placement uses the existing tools:
+  isolators go under the columns of isolator types that stand on supports (the isolation
+  plane), dampers in the braces of damper types.
+- **Where:** `fem/isolation.py`, `fem/isolation_single_level.py`, `fem/dampers.py`,
+  `fem/device_response.py`, `codes/damper_tables.py`, `library/objects.py`
+  (`SeismicIsolator`, `SupplementalDamper`), the packs' `VERIFY.md` (P6 sections).
+
 ## 2026-11-05: group 2 country packs (alpha 9 track C24)
 
 Packs `korea-kds`, `iran-2800`, `peru-e030`, `chile-nch` and `brazil-nbr` (extend

@@ -1,0 +1,140 @@
+{
+  "$schema": "../../../schemas/isolation.schema.json",
+  "$replace": true,
+  "$sources": [
+    "EN 1998-1:2004 Section 10 (Base isolation): 10.3 fundamental requirements, 10.4 compliance criteria, 10.5 general design provisions, 10.6 seismic action, 10.7 behaviour factor, 10.8 properties of the isolation system, 10.9 structural analysis (10.9.2 equivalent linear, 10.9.3 simplified linear, 10.9.4 modal simplified, 10.9.5 time history), 10.10 safety verifications at ULS",
+    "EN 15129:2009 Anti-seismic devices: Sections 8 (elastomeric isolators) and 9 (curved surface sliders), the type and factory production tests and the design property variations",
+    "EN 1998-1:2004 Sec 3.2.2.2, Eq 3.6: the damping correction factor eta"
+  ],
+  "source": "EN 1998-1 Section 10 (Base isolation) with EN 15129 (Anti-seismic devices)",
+  "sources": {
+    "general": "EN 1998-1 Sec 10.1-10.3: base isolated buildings; increased reliability of the isolating devices",
+    "requirements": "EN 1998-1 Sec 10.3-10.5 and EN 15129: the requirements of the isolation system and its devices",
+    "propertyModification": "EN 1998-1 Sec 10.8 and EN 15129: the analysis with the upper and lower design properties of the devices (ageing, temperature, production tolerance)",
+    "restraint": "EN 1998-1 Sec 10.3(2), 10.10(2): each device takes gamma_x times its design displacement",
+    "displacementFactor": "EN 1998-1 Sec 10.3(2)P: amplification factor gamma_x on the seismic displacements of each unit (recommended 1.2)",
+    "stability": "EN 1998-1 Sec 10.10(6) and EN 15129: the devices' stability under the vertical load at the design displacement",
+    "overturning": "SAEngine practice: overturning at the isolation interface under the design seismic force, factor of safety at least 1.0 (EN 1998-1 gives no number)",
+    "staticLimits": "EN 1998-1 Sec 10.9.3: where the simplified linear analysis is permitted (plan dimension, substructure rigidity, Teff between 3 Tf and 3 s, vertical stiffness, effective damping)",
+    "maximumDisplacement": "EN 1998-1 Sec 10.9.3(2): d_dc = M Se(Teff, xi_eff) / Keff,min",
+    "maximumPeriod": "EN 1998-1 Sec 10.9.3(2): Teff = 2 pi sqrt(M / Keff)",
+    "dampingCoefficient": "EN 1998-1 Sec 3.2.2.2(3), Eq 3.6: eta = sqrt(10 / (5 + xi)) >= 0.55, B = 1/eta",
+    "totalDisplacement": "EN 1998-1 Sec 10.9.3(6): delta_i = 1 + (e_tot / r^2) y_i, the eccentricity with the accidental 4.3.2(1)",
+    "forceBelow": "EN 1998-1 Sec 10.9.3(5): the shear of the isolation system Keff d_dc",
+    "forceAbove": "EN 1998-1 Sec 10.9.4 and 10.10(5): f_j = m_j Se(Teff, xi_eff) above the interface, reduced by q at most 1.5",
+    "reduction": "EN 1998-1 Sec 10.10(5): the behaviour factor of the superstructure at most 1.5",
+    "minimumForce": "SAEngine practice: the superstructure force at least the factored wind",
+    "distribution": "EN 1998-1 Sec 10.9.4: f_j = m_j Se(Teff, xi_eff) (a uniform acceleration, exponent 0)",
+    "staticDrift": "EN 1998-1 Sec 4.4.3.2 (damage limitation) as SAEngine practice for the superstructure of an isolated building: d_r nu <= 0.005 h with nu = 0.5, so d_r <= 0.010 h",
+    "dynamic": "EN 1998-1 Sec 10.9.5 and 10.9.6: modal analysis with the equivalent linear devices, time history with their nonlinear behaviour",
+    "spectrum": "EN 1998-1 Sec 10.9.5: modal analysis; the effective damping of the isolation system on the isolated modes, 4.3.3.5.1 the 30 % combination",
+    "history": "EN 1998-1 Sec 3.2.3.1 and 4.3.3.4.3: at least 3 records (the largest response), 7 or more (the mean); mean spectrum at least 90 % of the elastic spectrum over the period range",
+    "dynamicDrift": "EN 1998-1 Sec 4.4.3.2 as SAEngine practice (see staticDrift)",
+    "testing": "EN 15129 Sec 8.2 and 9.2: type tests and factory production control tests of the devices (SAEngine lists a generic cyclic sequence; the standard's own test programme governs)",
+    "review": "EN 1998-1 has no design review clause for isolated buildings"
+  },
+  "dampingCoefficients": [
+    { "damping": 0.0, "B": 0.7071 },
+    { "damping": 5.0, "B": 1.0 },
+    { "damping": 10.0, "B": 1.2247 },
+    { "damping": 20.0, "B": 1.5811 },
+    { "damping": 28.06, "B": 1.8182 },
+    { "damping": 50.0, "B": 1.8182 }
+  ],
+  "dampingFormula": {
+    "method": "eta",
+    "reference": 10.0,
+    "offset": 5.0,
+    "etaMin": 0.55
+  },
+  "spectrum": {
+    "R": 1.0,
+    "importance": 1.0,
+    "mceFactor": 1.0,
+    "mcePeriod": "maximum",
+    "note": "The design seismic action (Sec 10.6): the elastic spectrum (the pack's design spectrum with q = 1) at the effective period, divided by B = 1/eta. The importance factor gamma_I of the building's class is not applied by the isolation design (SAEngine takes 1.0: check)."
+  },
+  "staticLimits": {
+    "siteClasses": ["SA", "SB", "SC", "SD", "SE"],
+    "maxPeriodM": 3.0,
+    "periodRatio": 3.0,
+    "stiffnessAtShare": 0.2,
+    "maxPlanDimension": 50.0,
+    "minVerticalRatio": 150.0,
+    "maxDamping": 30.0
+  },
+  "forces": {
+    "importance": 1.0,
+    "reductionShare": 1.0,
+    "reductionMax": 1.5,
+    "reductionMin": 1.0,
+    "activationFactor": 1.0,
+    "fixedBaseR": "isolated",
+    "note": "q of the superstructure = min(q of the system, 1.5) (Sec 10.10(5))."
+  },
+  "distribution": {
+    "exponent": 0.0
+  },
+  "drift": {
+    "static": 0.010,
+    "spectrum": 0.010,
+    "history": 0.010
+  },
+  "spectrumAnalysis": {
+    "maxModalDamping": 30.0,
+    "orthogonalShare": 0.3,
+    "dampedFromShare": 0.8,
+    "note": "dampedFromShare is SAEngine practice: the analysis spectrum takes the isolation damping (÷ B = 1/eta) from 0.8 Teff up, the 5 % spectrum below."
+  },
+  "history": {
+    "minRecords": 3,
+    "averageFrom": 7,
+    "periodFromShare": 0.2,
+    "periodToShare": 2.0,
+    "spectrumFactor": 1.0,
+    "tolerance": 0.1,
+    "recordDamping": 0.05
+  },
+  "overturning": {
+    "minimumFactor": 1.0
+  },
+  "torsion": {
+    "method": "rigidDeck",
+    "note": "Sec 10.9.3(6): delta_i = 1 + (e_tot,y / r_y^2) y_i, r_y^2 the torsional over the translational stiffness of the isolators: the rigid deck turning about their centre of rigidity."
+  },
+  "testing": {
+    "liveShare": 0.3,
+    "windCycles": 20,
+    "steps": [
+      { "share": 0.25, "of": "DM", "cycles": 3 },
+      { "share": 0.5, "of": "DM", "cycles": 3 },
+      { "share": 1.0, "of": "DM", "cycles": 3 },
+      { "share": 1.0, "of": "DTM", "cycles": 1 }
+    ]
+  },
+  "requirements": [
+    { "id": "10.3", "text": "Increased reliability of the isolating devices: gamma_x on their displacements", "check": "computed", "computes": "restraint" },
+    { "id": "10.4", "text": "Compliance: the superstructure essentially elastic (q at most 1.5), the devices within their tested capacity", "check": "manual" },
+    { "id": "10.5.2", "text": "Access to the devices for inspection, maintenance and replacement", "check": "manual" },
+    { "id": "10.5.3", "text": "Control of undesirable movements: torsion minimised, the isolation system's lateral restoring capability", "check": "manual" },
+    { "id": "10.5.5", "text": "Separation from the surrounding ground and structures for the displacements of the isolation system", "check": "manual" },
+    { "id": "10.8", "text": "Upper and lower design properties of the devices (EN 15129)", "check": "bounds" },
+    { "id": "10.10(6)", "text": "Stability of the devices under the vertical load at the design displacement", "check": "computed", "computes": "stability" },
+    { "id": "EN 15129", "text": "Type tests and factory production control of the devices", "check": "tests" }
+  ],
+  "review": [],
+  "procedure": {
+    "method": "singleLevel",
+    "displacementFactor": 1.2,
+    "shearExponent": 0.0,
+    "distribution": "fixed",
+    "baseLevelForce": false,
+    "activationUpperBound": false,
+    "minima": ["wind"],
+    "note": "EN 1998-1 Section 10 designs for the design seismic action (one level): the devices' displacements times gamma_x, the superstructure essentially elastic."
+  },
+  "propertyModification": {
+    "aeShare": 1.0,
+    "note": "The upper and lower design properties as the product of the property modification factors (SAEngine practice; EN 15129 sets the factors per device, check the combination it prescribes)."
+  }
+}

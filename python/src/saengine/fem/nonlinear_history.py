@@ -720,6 +720,10 @@ def evaluate(out_dir: str | Path, project_path: str | Path) -> dict[str, Any] | 
                 "as not conforming and the steel profiles as noncompact (the safe side)."
             )
     forces: dict[str, list[dict[str, Any]]] = {}
+    # P6: the isolators' bearings and the dampers' links of the model.
+    from saengine.fem import device_response
+
+    found_devices = device_response.devices(project)
 
     by_suite: dict[str, list[dict[str, Any]]] = {}
     for case in cases:
@@ -872,6 +876,22 @@ def evaluate(out_dir: str | Path, project_path: str | Path) -> dict[str, Any] | 
                 row["suite"] = key
                 row["record"] = ran[row["record"]]["name"]
                 accepted.append(row)
+        # ── P6: the isolators and dampers over the records (saengine.fem.device_response) ──
+        if found_devices:
+            per_devices = []
+            for c in ran:
+                try:
+                    per_devices.append(
+                        device_response.record_devices(
+                            project, Path(out_dir) / entries[c["id"]]["files"][0], found_devices
+                        )
+                    )
+                except (OSError, KeyError, ValueError, IndexError) as error:
+                    notes.append(f"{c['name']}: the isolators and dampers were not read ({error})")
+                    per_devices.append([])
+            suite["devices"] = device_response.suite_devices(
+                per_devices, [c["name"] for c in ran], design_rule
+            )
         suite["used"] = bool(enough and complete and check_ok is not False)
     failing = [r for r in drift if not r["ok"]]
     if failing:

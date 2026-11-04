@@ -1,0 +1,313 @@
+{
+  "$defs": {
+    "DamperDuctility": {
+      "additionalProperties": false,
+      "description": "The structure's effective ductility and hysteretic damping (``modalStrength``):\nβHD = qH (hystereticBase − βI)(1 − 1/μD), qH = qhFactor·TS/T1 within [qhMin, qhMax], μD at\nmost R/(Ω0·Ie) with ``maximum`` \"strengthRatio\".",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "hystereticBase": {
+          "description": "The constant of βHD (fraction of critical).",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Hystereticbase",
+          "type": "number"
+        },
+        "qhFactor": {
+          "description": "qH = this × TS / T1 ...",
+          "exclusiveMinimum": 0,
+          "title": "Qhfactor",
+          "type": "number"
+        },
+        "qhMin": {
+          "description": "... at least this ...",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Qhmin",
+          "type": "number"
+        },
+        "qhMax": {
+          "description": "... and at most this.",
+          "exclusiveMinimum": 0,
+          "title": "Qhmax",
+          "type": "number"
+        },
+        "maximum": {
+          "default": "strengthRatio",
+          "description": "The largest effective ductility μmax.",
+          "enum": [
+            "strengthRatio",
+            "none"
+          ],
+          "title": "Maximum",
+          "type": "string"
+        },
+        "note": {
+          "default": "",
+          "title": "Note",
+          "type": "string"
+        }
+      },
+      "required": [
+        "hystereticBase",
+        "qhFactor",
+        "qhMin",
+        "qhMax"
+      ],
+      "title": "DamperDuctility",
+      "type": "object"
+    },
+    "IsolationDampingPoint": {
+      "additionalProperties": false,
+      "description": "A row of the damping coefficient table: effective damping [% of critical] -> B.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "damping": {
+          "description": "Effective damping βD or βM [%].",
+          "minimum": 0,
+          "title": "Damping",
+          "type": "number"
+        },
+        "B": {
+          "description": "Damping coefficient BD or BM.",
+          "exclusiveMinimum": 0,
+          "title": "B",
+          "type": "number"
+        }
+      },
+      "required": [
+        "damping",
+        "B"
+      ],
+      "title": "IsolationDampingPoint",
+      "type": "object"
+    },
+    "IsolationRequirement": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "text": {
+          "title": "Text",
+          "type": "string"
+        },
+        "check": {
+          "description": "How SAEngine treats it: computed, from the property bounds, by the prototype tests, or a manual item for the engineer.",
+          "enum": [
+            "computed",
+            "bounds",
+            "tests",
+            "manual"
+          ],
+          "title": "Check",
+          "type": "string"
+        },
+        "computes": {
+          "anyOf": [
+            {
+              "enum": [
+                "restoring",
+                "restraint",
+                "overturning",
+                "stability"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Alpha 9 P6: which computed check answers a 'computed' item (none: by the item's id, as the default pack numbers them).",
+          "title": "Computes"
+        }
+      },
+      "required": [
+        "id",
+        "text",
+        "check"
+      ],
+      "title": "IsolationRequirement",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Structures with supplemental damping systems: the procedure, the damping coefficients,\nthe limits and the requirements of the damping system.",
+  "properties": {
+    "source": {
+      "default": "",
+      "description": "Clause (and page) the table comes from.",
+      "title": "Source",
+      "type": "string"
+    },
+    "sources": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Clause references of single entries: {key: clause}.",
+      "title": "Sources",
+      "type": "object"
+    },
+    "clauses": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Short clause references the results cite, by key, without the code's name (e.g. 'Part 6 Sec 2.5.7.3'); read by saengine.codes.context.cite. A key the pack does not give is not cited.",
+      "title": "Clauses",
+      "type": "object"
+    },
+    "method": {
+      "description": "Method id of the damped equivalent lateral force (module notes).",
+      "enum": [
+        "modalStrength",
+        "dampedSpectrum"
+      ],
+      "title": "Method",
+      "type": "string"
+    },
+    "dampingCoefficients": {
+      "description": "Effective damping [%] -> damping coefficient B.",
+      "items": {
+        "$ref": "#/$defs/IsolationDampingPoint"
+      },
+      "minItems": 2,
+      "title": "Dampingcoefficients",
+      "type": "array"
+    },
+    "inherentMax": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "The inherent damping βI at most [%] (none: as set).",
+      "title": "Inherentmax"
+    },
+    "maxDamping": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "The total effective damping taken at most [%].",
+      "title": "Maxdamping"
+    },
+    "residualPeriodShare": {
+      "default": 0.4,
+      "description": "Residual mode period TR = this × T1.",
+      "exclusiveMinimum": 0,
+      "maximum": 1,
+      "title": "Residualperiodshare",
+      "type": "number"
+    },
+    "minimumShare": {
+      "description": "The damped base shear at least this × the fixed-base base shear.",
+      "exclusiveMinimum": 0,
+      "maximum": 1,
+      "title": "Minimumshare",
+      "type": "number"
+    },
+    "ductility": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/DamperDuctility"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Effective ductility of the structure (modalStrength)."
+    },
+    "mceFactor": {
+      "default": 1.0,
+      "description": "The devices' stroke, velocity and force at this × the design displacement (the maximum considered earthquake).",
+      "exclusiveMinimum": 0,
+      "title": "Mcefactor",
+      "type": "number"
+    },
+    "dampedFromShare": {
+      "default": 0.8,
+      "description": "The response spectrum is divided by the damping ratio from this × T1 up (SAEngine practice, see note).",
+      "exclusiveMinimum": 0,
+      "maximum": 1,
+      "title": "Dampedfromshare",
+      "type": "number"
+    },
+    "requirements": {
+      "items": {
+        "$ref": "#/$defs/IsolationRequirement"
+      },
+      "title": "Requirements",
+      "type": "array"
+    },
+    "review": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Review",
+      "type": "array"
+    },
+    "note": {
+      "default": "",
+      "title": "Note",
+      "type": "string"
+    }
+  },
+  "required": [
+    "method",
+    "dampingCoefficients",
+    "minimumShare"
+  ],
+  "title": "DampersTable",
+  "type": "object",
+  "$id": "saengine.codePack.dampers/1"
+}

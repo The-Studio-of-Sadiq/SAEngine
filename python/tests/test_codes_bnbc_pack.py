@@ -676,7 +676,7 @@ def _pack_value(module: str, name: str):
 #: Tables of other codes' packs the default pack does not cover (BNBC 2020 has no snow).
 NOT_IN_DEFAULT = {
     "snow", "concreteMethods", "geotechnicalMethods", "steelLimitState", "aluminium",
-    "coldFormed", "steelFire", "allowableStress", "horizontalCapacity",
+    "coldFormed", "steelFire", "allowableStress", "horizontalCapacity", "dampers",
 }  # fmt: skip
 
 

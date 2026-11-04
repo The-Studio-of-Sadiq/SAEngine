@@ -373,29 +373,8 @@ registerPlannedFeature({
 	],
 });
 
-// T36: dampers (seismic isolators: B37, saengine.fem.isolation, an option of the column types).
-registerPlannedFeature({
-	id: FemPlanned.dampers,
-	part: 'fem',
-	title: localize('planned.dampers.title', "Viscous Dampers"),
-	summary: localize('planned.dampers.summary', "Adds fluid viscous dampers in braces or between storeys, from the solver's bundled damper catalog, and sizes them for the added damping the building needs."),
-	steps: [
-		localize('planned.dampers.step1', "Place the dampers in the chosen bays."),
-		localize('planned.dampers.step2', "Size them for a target added damping."),
-		localize('planned.dampers.step3', "Check the drifts, and the damper forces and strokes, by time history."),
-	],
-	inputs: [
-		{ label: localize('planned.dampers.target', "Target added damping"), unit: '%' },
-		{ label: localize('planned.dampers.exponent', "Velocity exponent") },
-	],
-	outputs: [
-		localize('planned.dampers.out1', "A damper schedule: coefficient, force and stroke"),
-		localize('planned.dampers.out2', "Drifts with and without the dampers"),
-	],
-	references: [
-		localize('planned.dampers.ref1', "ASCE/SEI 7-16 Ch 18 (structures with damping systems)"),
-	],
-});
+// T36 / alpha 9 P6: seismic isolators (B37, an option of the column types) and supplemental
+// dampers (an option of the brace types) are built: saengine.fem.isolation, saengine.fem.dampers.
 
 // T14: cracked long-term FE deflection of slabs, and crack widths.
 registerPlannedFeature({
