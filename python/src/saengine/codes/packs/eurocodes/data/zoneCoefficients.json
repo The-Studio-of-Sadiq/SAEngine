@@ -1,0 +1,14 @@
+{
+  "$schema": "../../../schemas/zoneCoefficients.schema.json",
+  "$replace": true,
+  "$sources": [
+    "SAEngine practice: bands of the reference peak ground acceleration agR (EN 1998-1 Sec 3.2.1) for the category of the seismic action; agR itself comes from the National Annex's zonation map"
+  ],
+  "source": "SAEngine practice: EN 1998-1 Sec 3.2.1 leaves agR to the National Annex map. The project enters agR (in g) as Z (Location: Custom); the zone is the band nearest to it (1: about 0.02 g, very low; 2: about 0.06 g, low; 3: about 0.10 g; 4: 0.30 g), used only for the category in seismic.designCategories",
+  "zones": {
+    "1": 0.02,
+    "2": 0.06,
+    "3": 0.1,
+    "4": 0.3
+  }
+}

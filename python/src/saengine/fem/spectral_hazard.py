@@ -1,16 +1,17 @@
 """The seismic hazard of a site from mapped spectral values (method ``mappedSpectral``).
 
-A code pack chooses how the design spectrum is found with its ``seismic.hazard.method``
-(:class:`saengine.codes.tables.SeismicHazard`):
+A code pack chooses how the design spectrum is found with its ``seismic.designSpectrum.method``
+(:class:`saengine.codes.tables.DesignSpectrumRule`; C4 adds ``behaviourFactor``,
+:mod:`saengine.fem.spectra`):
 
-- ``zoneFactor`` (the default, and the default pack's): a zone coefficient Z and the site class's
+- ``reducedElastic`` (the default, and the default pack's): a zone coefficient Z and the site class's
   S, TB, TC, TD (:func:`saengine.fem.loads.normalized_spectrum`); nothing here is used;
 - ``mappedSpectral``: the site's design spectral accelerations SDS and SD1 (with S1 and the
   long-period transition TL) from the code authority's hazard maps or tool, entered in Project
   Settings > Site (``site.spectral``), or its multi-period spectrum. This module computes from them
   the two-period design spectrum, the equivalent lateral force coefficient Cs with its bounds,
   the band of the Seismic Design Category table, and the period's upper limit Cu·Ta. Every
-  number comes from the pack's ``hazard`` block.
+  number comes from the pack's ``designSpectrum`` block.
 
 The site's values travel through the program as the derived "Z" (:func:`saengine.library.settings.derived`):
 a :class:`SpectralHazard`, a float equal to SDS (so the code that asks "is there a seismic
@@ -77,9 +78,10 @@ class SpectralHazard(float):
 
 
 def rule(pack: Any = None) -> Any:
-    """The pack's ``seismic.hazard`` block when its method is ``mappedSpectral``, else None."""
+    """The pack's ``seismic.designSpectrum`` block when its method is ``mappedSpectral``, else
+    None."""
     table = pack.table("seismic") if pack is not None else code_context.table("seismic")
-    hazard = getattr(table, "hazard", None)
+    hazard = getattr(table, "designSpectrum", None)
     return hazard if hazard is not None and hazard.method == METHOD else None
 
 

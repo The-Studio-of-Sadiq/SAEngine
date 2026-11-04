@@ -113,7 +113,7 @@ UNITS = "SI (m, N, kg, s, Pa)"
 CASES = ["D", "SD", "L", "Lr", "WX", "WY", "EX", "EY", "F", "H"]
 #: B16: the rain case R on the roof (Site → Rain) and the flood and surge cases FaX, FaY (Site
 #: → Flood and surge, :mod:`saengine.fem.flood`); after the crane cases, only when loaded.
-SPECIAL_CASES = ("R", "FaX", "FaY", "S")  # C1: the roof snow S (Site → Snow, fem.snow)
+SPECIAL_CASES = ("R", "FaX", "FaY", "S")  # C1: the roof snow S (Site → Snow, fem.snow_load)
 
 #: The equation solver of every analysis case. Rigid diaphragms tie each floor's master node to
 #: all of that floor's shell nodes, so a banded solver's band spans the floor: BandGeneral needed
@@ -1832,23 +1832,18 @@ def _derive_fem(
         rain_kpa, helipad = None, None
         b.notes.append(f"rain and helipad loads: not applied ({error})")
     helipad_slabs = set(getattr(getattr(settings.site, "helipad", None), "slabs", None) or [])
-    # C1: the roof snow load S (saengine.fem.snow) of a pack that covers snow.
-    snow_kpa, snow_info = None, None
-    if getattr(settings.site, "snow", None) is not None:
-        from saengine.fem import snow as fsnow
+    # C4, C1: snow on the roof from the ground snow load (saengine.fem.snow_load, the pack's
+    # snow): in the roof live load case Lr (the larger) or in its own case S.
+    from saengine.fem import snow_load
 
-        try:
-            snow_info = fsnow.roof_snow(settings.site.snow, settings.occupancy.category)
-            snow_kpa = snow_info.S if snow_info is not None else None
-        except (fsnow.SnowNotCovered, KeyError) as error:
-            b.notes.append(f"snow: not applied ({error})")
-    if snow_kpa and snow_info is not None:
-        b.notes.append(
-            f"snow S = {snow_kpa:.2f} kN/m² on the roof slabs (pg = {snow_info.pg:g}, Ce = "
-            f"{snow_info.Ce:g}, Ct = {snow_info.Ct:g}, Is = {snow_info.Is:g}, Cs = "
-            f"{snow_info.Cs:.2f}; {code_context.cite('snow', 'roof') or code_context.code_name()})"
-        )
-        b.notes.extend(f"snow: {n}" for n in snow_info.notes)
+    try:
+        snow = snow_load.roof_snow(settings)
+    except LookupError as error:
+        snow = None
+        b.notes.append(f"snow: the ground snow load is not applied ({error})")
+    if snow is not None:
+        b.notes.append(snow_load.describe(snow))
+    snow_kpa = snow["s_kPa"] if snow is not None and snow["case"] == "S" else None
     if rain_kpa:
         b.notes.append(
             f"rain R = {rain_kpa:.2f} kN/m² on the roof slabs (primary drains blocked, water "
@@ -1917,6 +1912,8 @@ def _derive_fem(
         # B16: a helicopter landing area's distributed live load L3 where it is larger.
         if helipad is not None and (element.id in helipad_slabs if helipad_slabs else roof):
             live = max(live, helipad["L3_kPa"])
+        if roof and snow is not None and snow["case"] != "S":  # C4: snow in Lr, the larger
+            live = max(live, snow["s_kPa"])
         pressures = {"D": self_weight, "SD": finish * 1e3, live_case: live * 1e3}
         add_partitions(pressures, partitions * 1e3)
         if roof and rain_kpa:
@@ -2412,10 +2409,14 @@ def _derive_fem(
                 values.get(f"R{case[1]}", values["R"]),  # each direction its own R (B2)
                 settings.seismic.damping,
             )
-            shear = sa * sum(weights)
+            # C4: the pack's base shear correction (λ of EN 1998-1 4.3.3.2.2), 1 without it
+            correction = fl.base_shear_correction(period, len(heights), settings.site.siteClass)
+            shear = sa * sum(weights) * correction
             forces = fl.vertical_distribution(rel_levels, shear, period)
             forces_of[case] = forces
             info[case] = {"period_s": period, "Sa_g": sa, "base_shear_kN": shear / 1e3}
+            if correction != 1.0:
+                info[case]["correction"] = correction
             nodal = out.setdefault(case, {})
             for level, h in enumerate(heights):
                 for node_id, share in level_shares(h).items():
@@ -2555,8 +2556,9 @@ def _derive_fem(
         )
     # ── B16: rain, helipad, gas explosions and air raid shelters (summary and report) ──
     special_loads, special_notes = _special_loads_summary(settings, rain_kpa, helipad)
-    if snow_info is not None:
-        special_loads["snow"] = snow_info.as_dict()
+    if snow is not None:  # C4, C1: the roof snow (and its drift) for the summary
+        special_loads["snow"] = {k: v for k, v in snow.items() if k != "source"}
+
     if special_loads:
         summary["specialLoads"] = special_loads
     b.notes.extend(special_notes)
@@ -4254,6 +4256,13 @@ def _wind_loads(
             )
             no_width[case] = flat
         levels = fl.wind_levels(rel, spans, depths, speed, exposure, importance)
+        if code_context.table("wind").method == "peakVelocityPressure":  # C4
+            from saengine.fem.peak_velocity_pressure import describe
+
+            notes.append(
+                f"{case}: "
+                + describe(rel[-1], spans[-1][1] - spans[-1][0], max(depths), speed, exposure)
+            )
         if rooftop and rooftop.get(case):
             levels[-1] = dataclasses.replace(levels[-1], force=levels[-1].force + rooftop[case])
         moments = (

@@ -1,0 +1,27 @@
+{
+  "$schema": "../../../schemas/liveReduction.schema.json",
+  "$replace": true,
+  "$sources": [
+    "EN 1991-1-1 Sec 6.3.1.2(10) Eq 6.1 (αA) and (11) Eq 6.2 (αn), recommended values"
+  ],
+  "source": "EN 1991-1-1 Sec 6.3.1.2(10)-(11)",
+  "method": "areaAndStoreys",
+  "areaAndStoreys": {
+    "psi0": 0.7,
+    "areaShare": 0.7142857142857143,
+    "referenceArea": 10.0,
+    "categoryMinimum": 0.6,
+    "minimumCategories": ["C1", "C2", "C3", "C4", "C5", "D1", "D2"],
+    "storeysFrom": 3,
+    "combine": "lesser"
+  },
+  "heavyLive": 5.0,
+  "notReduced": ["storageLight", "storageHeavy", "libraryStacks", "grandstand"],
+  "twoFloorsOnly": ["parking", "driveway"],
+  "sources": {
+    "areaAndStoreys": "EN 1991-1-1 Eq 6.1: αA = 5/7 ψ0 + A0/A ≤ 1.0, A0 = 10 m², for categories C and D αA ≥ 0.6 (Note 1, recommended); Eq 6.2: αn = (2 + (n - 2) ψ0)/n for more than two storeys of categories A-D; ψ0 = 0.7 (EN 1990 Table A1.1, A-D). SAEngine uses the lesser of the two on a member (the code leaves their joint use to the National Annex)",
+    "heavyLive": "SAEngine practice: loads above the largest recommended value of categories A-D (5.0 kN/m²) are not reduced",
+    "notReduced": "EN 1991-1-1 Sec 6.3.1.2(10)-(11) reduce categories A-D only: storage (E) and crowds on stands are not reduced (SAEngine keeps C5 unreduced)",
+    "twoFloorsOnly": "Categories F and G are not reduced (Sec 6.3.1.2 applies to A-D)"
+  }
+}

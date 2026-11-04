@@ -2,7 +2,7 @@
 
 Pins the pack's values with their clauses (VERIFY.md in the pack lists them for checking against
 the printed standard), the mapped spectral hazard (:mod:`saengine.fem.spectral_hazard`), the
-roof snow (:mod:`saengine.fem.snow`), and a small generated building that derives its
+roof snow (:mod:`saengine.fem.snow_load`), and a small generated building that derives its
 earthquake and wind loads with the pack.
 """
 
@@ -17,7 +17,7 @@ import pytest
 from saengine.codes import context as code_context
 from saengine.codes import registry
 from saengine.fem import loads as fl
-from saengine.fem import snow as fsnow
+from saengine.fem import snow_load
 from saengine.fem import spectral_hazard as sh
 
 PACK_ID = "aci318-asce7-22"
@@ -133,7 +133,7 @@ def test_seismic_systems_and_limits(pack):
     assert s.allowableDrift == {"I": 0.02, "II": 0.02, "III": 0.015, "IV": 0.01}
     assert s.minimumScale == 1.0
     assert s.pgaFactor * s.verticalFactor == pytest.approx(0.2)
-    assert s.thetaIncludesImportance is True
+    assert s.stability.method == "elasticDrift" and s.designSpectrum.method == "mappedSpectral"
     assert s.siteClasses["SD"].vs30 == (213, 305)
     assert s.dynamicAnalysis is None and s.softStorey is None  # not covered
 
@@ -269,32 +269,45 @@ def test_default_pack_spectrum_is_unchanged():
 # ───────────────────────────────────────── snow (Ch 7) ─────────────────────────────────────────
 
 
-def test_roof_snow(pack):
-    from saengine.library.settings import SnowDrift, SnowSite
+def _snow_settings(angle: float = 0.0, **snow):
+    from types import SimpleNamespace
 
-    site = SnowSite(groundLoad=1.92, terrain="C", roofExposure="partiallyExposed")
-    snow = fsnow.roof_snow(site, "II", pack)
-    # Eq 7.3-1: pf = 0.7 Ce Ct pg; low slope: pm = 20 psf (0.96) where pg > 20 psf
-    assert snow.pf == pytest.approx(0.7 * 1.0 * 1.0 * 1.92)
-    assert snow.Cs == 1.0 and snow.pm == pytest.approx(0.96)
-    assert snow.S == pytest.approx(1.344)
-    # Figure 7.4-1: a warm, non-slippery roof sheds snow from 30 to 70 degrees
-    steep = fsnow.roof_snow(site.model_copy(update={"slope": 50.0}), "II", pack)
-    assert steep.Cs == pytest.approx(0.5) and steep.pm is None
-    # Eq 7.7-1: gamma = 0.426 pg + 2.2 <= 4.7
-    assert fsnow.density(pack.table("snow"), 1.92) == pytest.approx(0.426 * 1.92 + 2.2)
-    stepped = site.model_copy(
-        update={"drift": SnowDrift(upperLength=30.0, stepHeight=1.5, windParameter=0.45)}
+    from saengine.library.settings import SnowSite
+
+    roof = SimpleNamespace(form="flat" if not angle else "gable", angle=angle)
+    return SimpleNamespace(
+        site=SimpleNamespace(snow=SnowSite(**snow)),
+        wind=SimpleNamespace(claddingRoof=roof),
+        occupancy=SimpleNamespace(category="II"),
     )
-    drift = fsnow.roof_snow(stepped, "II", pack).drift
-    assert drift is not None and 0 < drift["hd"] <= 1.5 and drift["pd"] > 0
+
+
+def test_roof_snow(pack):
+    from saengine.library.settings import SnowDrift
+
+    with code_context.using(pack):
+        snow = snow_load.roof_snow(_snow_settings(groundLoad=1.92))
+        # Eq 7.3-1: pf = 0.7 Ce Ct pg (C, partially exposed: Ce 1.0); low slope: pm = 20 psf
+        assert snow["method"] == "slopeFactor" and snow["case"] == "S"
+        assert snow["pf_kPa"] == pytest.approx(0.7 * 1.0 * 1.0 * 1.92)
+        assert snow["mu1"] == 1.0 and snow["pm_kPa"] == pytest.approx(0.96)
+        assert snow["s_kPa"] == pytest.approx(1.344)
+        # Figure 7.4-1: a warm, non-slippery roof sheds snow from 30 to 70 degrees
+        steep = snow_load.roof_snow(_snow_settings(50.0, groundLoad=1.92))
+        assert steep["mu1"] == pytest.approx(0.5) and steep["pm_kPa"] is None
+        # Table 7.3-1 by the exposure id
+        windy = snow_load.roof_snow(_snow_settings(groundLoad=2.0, exposure="D-fullyExposed"))
+        assert windy["Ce"] == 0.8
+        # Eq 7.7-1: gamma = 0.426 pg + 2.2 <= 4.7
+        assert snow_load.density(pack.table("snow"), 1.92) == pytest.approx(0.426 * 1.92 + 2.2)
+        step = SnowDrift(upperLength=30.0, stepHeight=1.5, windParameter=0.45)
+        drift = snow_load.roof_snow(_snow_settings(groundLoad=1.92, drift=step))["drift"]
+        assert 0 < drift["hd"] <= 1.5 and drift["pd"] > 0
 
 
 def test_bnbc_does_not_cover_snow():
-    from saengine.library.settings import SnowSite
-
-    with pytest.raises(fsnow.SnowNotCovered):
-        fsnow.roof_snow(SnowSite(groundLoad=1.0), "II")
+    with pytest.raises(LookupError):
+        snow_load.roof_snow(_snow_settings(groundLoad=1.0))
 
 
 # ──────────────────────────── settings and a generated building ────────────────────────────
@@ -329,7 +342,8 @@ def test_settings_lists_follow_the_pack():
 
     choices = pack_choices(registry.load(PACK_ID))
     assert [c["id"] for c in choices["exposures"]] == ["B", "C", "D"]
-    assert "locations" not in choices  # no towns: any id, the site's values entered
+    assert [c["id"] for c in choices["locations"]] == ["custom"]  # no towns: values entered
+    assert choices["designSpectrum"] == [{"id": "mappedSpectral", "label": "mappedSpectral"}]
     base = default_project_settings("x").model_dump(mode="json", by_alias=True)
     with pytest.raises(ValueError, match="wind.exposure 'A'"):
         ProjectSettings.model_validate({**base, "codePack": PACK_ID})
@@ -392,14 +406,14 @@ def test_snow_case_on_the_roof(tmp_path: Path):
     root = Path(create_building(WIZARD, tmp_path)["root"])
     path = root / SETTINGS
     raw = json.loads(path.read_text(encoding="utf-8"))
-    raw["site"]["snow"] = {"groundLoad": 2.0, "terrain": "C", "roofExposure": "fullyExposed"}
+    raw["site"]["snow"] = {"groundLoad": 2.0, "exposure": "C-fullyExposed"}
     path.write_text(json.dumps(raw, indent="\t"), encoding="utf-8")
     steps = run_all(root, steps=["derive"]).steps
     assert [s.status for s in steps] == ["ok"], [s.message for s in steps]
     derivation = json.loads((root / "08 FEM/model.derivation.json").read_text(encoding="utf-8"))
     snow = derivation["summary"]["specialLoads"]["snow"]
-    assert snow["pf"] == pytest.approx(0.7 * 0.9 * 1.0 * 2.0, abs=1e-4)
-    assert snow["S"] == pytest.approx(max(snow["pf"], 0.96), abs=1e-4)
+    assert snow["pf_kPa"] == pytest.approx(0.7 * 0.9 * 1.0 * 2.0, abs=1e-4)
+    assert snow["s_kPa"] == pytest.approx(max(snow["pf_kPa"], 0.96), abs=1e-4)
     model = json.loads((root / "08 FEM/model.osmodel").read_text(encoding="utf-8"))
     assert "S" in {p["name"] for p in model["load_patterns"]}
-    assert math.isfinite(snow["S"])
+    assert math.isfinite(snow["s_kPa"])

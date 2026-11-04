@@ -24,8 +24,6 @@ from typing import Any
 
 from pydantic import ValidationError
 
-from saengine.codes.registry import DEFAULT_PACK
-
 __all__ = ["NewBuildingError", "create_building", "project_parent", "spec_from_wizard"]
 
 WIZARD_SCHEMA = "saengine.newBuilding/1"
@@ -145,14 +143,18 @@ def spec_from_wizard(spec: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
         if source not in ("assumed", "entered"):
             raise NewBuildingError(f"unknown site class source '{source}'")
         out["siteClassSource"] = source
-    # C1: the design code chosen (a code pack id) and the site values a pack without towns takes.
+    # C4, C1: the design code the wizard chose, and the site values of a pack without towns.
     code = spec.get("designCode")
-    if isinstance(code, str) and code and code != DEFAULT_PACK:
-        out["codePack"] = code
+    if code:
+        out["codePack"] = str(code)
+    for key in ("zoneCoefficient", "windSpeed"):
+        if site.get(key) not in (None, ""):
+            out[key] = float(site[key])
     if site.get("spectral"):
         out["spectral"] = site["spectral"]
-    if site.get("windSpeed"):
-        out["windSpeed"] = site["windSpeed"]
+    exposure = (spec.get("wind") or {}).get("exposure")
+    if exposure:
+        out["windExposure"] = str(exposure)
     occupancy = spec.get("occupancy") or {}
     if occupancy.get("use"):
         out["occupancy"] = occupancy["use"]

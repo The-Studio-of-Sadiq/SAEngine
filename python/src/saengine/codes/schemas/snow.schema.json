@@ -121,6 +121,40 @@
       "title": "SnowDriftRule",
       "type": "object"
     },
+    "SnowExposure": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "description": {
+          "title": "Description",
+          "type": "string"
+        },
+        "Ce": {
+          "description": "Exposure coefficient Ce.",
+          "exclusiveMinimum": 0,
+          "title": "Ce",
+          "type": "number"
+        }
+      },
+      "required": [
+        "description",
+        "Ce"
+      ],
+      "title": "SnowExposure",
+      "type": "object"
+    },
     "SnowMinimum": {
       "additionalProperties": false,
       "description": "The minimum snow load of low-slope roofs (slope below ``slopeMax`` [°]): ``share`` ×\npg (× Is) where pg ≤ ``groundLimit``, else ``value`` (× Is) [kN/m²].",
@@ -191,7 +225,7 @@
     }
   },
   "additionalProperties": false,
-  "description": "Roof snow loads from the ground snow load (:mod:`saengine.fem.snow`): the flat roof load\npf = ``flatFactor``·Ce·Ct·Is·pg, the sloped roof load ps = Cs·pf, the minimum load of\nlow-slope roofs, the density and the drift at roof steps. A pack without it does not\ncover snow (no case S).",
+  "description": "Snow on roofs from the snow load on the ground (:mod:`saengine.fem.snow_load`; C4, C1):\ns = ``factor``·(roof factor)·Ce·Ct·Is·sg on the roof, sg the ground snow load the project\ngives (Site > Snow). The roof factor is a method id (``method``):\n\n- ``shapeCoefficient`` (EN 1991-1-3 5.2(3)a): μ1 by the roof's pitch (``shape``: (angle\n  [°], μ1) points, linear between, the end values outside);\n- ``slopeFactor`` (ASCE 7-22 7.4): Cs by the roof's pitch from the first ``slope`` row\n  whose ``ctMax`` holds Ct (slippery or other roofs), the low-slope minimum ``minimum``\n  governing where larger.\n\nCe by the exposure of the site (and of the roof, in the ids of codes that combine them),\nCt the thermal coefficient, Is by the occupancy (risk) category where the code has one\n(``importance``). ``loadCase``: Lr (with ``withRoofLive`` \"envelope\": the larger of the roof\nlive load and the snow; imposed loads on roofs need not act with snow) or S (its own case,\n\"separate\"; the combinations take it as \"Lr or S\"). ``drift``: the drift at a roof step by\nits method id (reported, not applied); ``density`` the snow's unit weight. A pack without\nit does not cover snow.",
   "properties": {
     "source": {
       "default": "",
@@ -215,43 +249,60 @@
       "title": "Clauses",
       "type": "object"
     },
-    "flatFactor": {
-      "description": "pf = flatFactor·Ce·Ct·Is·pg.",
-      "exclusiveMinimum": 0,
-      "title": "Flatfactor",
-      "type": "number"
+    "method": {
+      "default": "shapeCoefficient",
+      "enum": [
+        "shapeCoefficient",
+        "slopeFactor"
+      ],
+      "title": "Method",
+      "type": "string"
     },
-    "exposure": {
+    "exposures": {
       "additionalProperties": {
-        "additionalProperties": {
-          "exclusiveMinimum": 0,
-          "type": "number"
-        },
-        "type": "object"
+        "$ref": "#/$defs/SnowExposure"
       },
-      "description": "Ce by terrain category, then by roof exposure (fullyExposed, partiallyExposed, sheltered).",
-      "title": "Exposure",
+      "title": "Exposures",
       "type": "object"
+    },
+    "defaultExposure": {
+      "title": "Defaultexposure",
+      "type": "string"
     },
     "thermal": {
-      "additionalProperties": {
-        "exclusiveMinimum": 0,
-        "type": "number"
-      },
-      "description": "Ct by thermal condition.",
+      "default": 1.0,
+      "description": "Ct where the project gives none.",
+      "exclusiveMinimum": 0,
       "title": "Thermal",
-      "type": "object"
+      "type": "number"
     },
-    "importance": {
-      "additionalProperties": {
-        "exclusiveMinimum": 0,
-        "type": "number"
+    "factor": {
+      "default": 1.0,
+      "description": "A code's constant factor on the roof snow (1.0 in EN 1991-1-3; 0.7 of the flat roof snow load in ASCE 7).",
+      "exclusiveMinimum": 0,
+      "title": "Factor",
+      "type": "number"
+    },
+    "shape": {
+      "description": "(roof angle °, μ1) (shapeCoefficient).",
+      "items": {
+        "maxItems": 2,
+        "minItems": 2,
+        "prefixItems": [
+          {
+            "type": "number"
+          },
+          {
+            "type": "number"
+          }
+        ],
+        "type": "array"
       },
-      "description": "Is by occupancy (risk) category; empty: none (1.0, e.g. a code whose ground snow maps are by risk category).",
-      "title": "Importance",
-      "type": "object"
+      "title": "Shape",
+      "type": "array"
     },
     "slope": {
+      "description": "The roof slope factor Cs by Ct (slopeFactor).",
       "items": {
         "$ref": "#/$defs/SnowSlopeRow"
       },
@@ -267,7 +318,49 @@
           "type": "null"
         }
       ],
-      "default": null
+      "default": null,
+      "description": "The minimum snow load of low-slope roofs (slopeFactor)."
+    },
+    "importance": {
+      "additionalProperties": {
+        "exclusiveMinimum": 0,
+        "type": "number"
+      },
+      "description": "Is by occupancy (risk) category; empty: none (1.0).",
+      "title": "Importance",
+      "type": "object"
+    },
+    "loadCase": {
+      "default": "Lr",
+      "enum": [
+        "Lr",
+        "S"
+      ],
+      "title": "Loadcase",
+      "type": "string"
+    },
+    "withRoofLive": {
+      "default": "envelope",
+      "enum": [
+        "envelope",
+        "separate"
+      ],
+      "title": "Withrooflive",
+      "type": "string"
+    },
+    "exceptionalFactor": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Cesl of the exceptional snow load (accidental; reported).",
+      "title": "Exceptionalfactor"
     },
     "density": {
       "anyOf": [
@@ -303,7 +396,7 @@
         }
       ],
       "default": null,
-      "description": "Share of the flat roof snow load in the seismic weight...",
+      "description": "Share of the roof snow in the seismic weight...",
       "title": "Seismicshare"
     },
     "seismicThreshold": {
@@ -317,14 +410,13 @@
         }
       ],
       "default": null,
-      "description": "... where pf is above this [kN/m²].",
+      "description": "... where the flat roof snow is above this [kN/m²].",
       "title": "Seismicthreshold"
     }
   },
   "required": [
-    "flatFactor",
-    "exposure",
-    "thermal"
+    "exposures",
+    "defaultExposure"
   ],
   "title": "SnowTable",
   "type": "object",

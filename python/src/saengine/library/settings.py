@@ -46,7 +46,7 @@ AreaUseId = _choice([*code_data.AREA_USES, "custom"])
 SystemId = _choice(list(code_data.STRUCTURAL_SYSTEMS))
 #: The code pack's site classes (``seismic.siteClasses``).
 SiteClassId = _choice(list(code_data.SITE_CLASSES))
-#: The code pack's wind exposure categories (``wind.exposures``).
+#: C4: the code pack's wind exposures or terrain categories (``wind.exposures``).
 ExposureId = _choice(list(code_data.EXPOSURES))
 
 
@@ -280,7 +280,7 @@ class RainSite(_Model):
 
 
 class SpectralSite(_Model):
-    """C1: the site's mapped spectral values (a pack whose ``seismic.hazard`` method is
+    """C1: the site's mapped spectral values (a pack whose ``seismic.designSpectrum`` method is
     mappedSpectral, :mod:`saengine.fem.spectral_hazard`). Give SDS and SD1; or SMS and SM1
     (the design share of the pack makes SDS, SD1); or the multi-period MCER spectrum. S1 sets
     the lower bound of Cs near faults and the Seismic Design Category E/F; TL the long-period
@@ -360,27 +360,42 @@ class SnowDrift(_Model):
 
 
 class SnowSite(_Model):
-    """C1: the ground snow load and the roof's conditions (:mod:`saengine.fem.snow`)."""
+    """The snow load on the ground and the roof's conditions, for the roof snow of the code
+    pack's ``snow`` table (:mod:`saengine.fem.snow_load`; C4 and C1). The roof's pitch is Wind >
+    Cladding: roof form (flat: 0°)."""
 
-    groundLoad: float = Field(gt=0, title="Ground snow load pg", description="[kN/m²]")
-    terrain: str = Field(
-        default="C",
-        title="Terrain category",
-        description="A key of the pack's snow exposure table (surface roughness).",
+    groundLoad: float | None = Field(
+        default=None,
+        gt=0,
+        title="Ground snow load",
+        description="Snow load on the ground at the site [kN/m²] (sk of EN 1991-1-3, pg of ASCE "
+        "7: the code's snow map or tool). Empty: no snow.",
     )
-    roofExposure: Literal["fullyExposed", "partiallyExposed", "sheltered"] = Field(
-        default="partiallyExposed", title="Roof exposure"
+    exposure: str | None = Field(
+        default=None,
+        title="Snow exposure",
+        description="Exposure of the site and roof (an id of the code pack's snow exposures, "
+        "such as normal or C-partiallyExposed). Empty: the pack's default.",
     )
-    thermal: str = Field(
-        default="heated",
-        title="Thermal condition",
-        description="A key of the pack's thermal factor table.",
+    thermal: float | None = Field(
+        default=None,
+        gt=0,
+        title="Thermal coefficient Ct",
+        description="Overrides the code pack's thermal coefficient (heated glass roofs, cold or "
+        "unheated buildings).",
     )
-    slope: float = Field(default=0.0, ge=0, lt=90, title="Roof slope", description="[°]")
     slippery: bool = Field(
-        default=False, title="Slippery roof", description="An unobstructed slippery surface."
+        default=False,
+        title="Slippery roof",
+        description="An unobstructed slippery roof surface (packs whose slope factor depends on "
+        "it).",
     )
-    drift: SnowDrift | None = Field(default=None, title="Drift at a roof step")
+    drift: SnowDrift | None = Field(
+        default=None,
+        title="Drift at a roof step",
+        description="C1: a roof step for the drift of packs that cover drifts (reported, not "
+        "applied).",
+    )
 
 
 class Helipad(_Model):
@@ -469,7 +484,7 @@ class Site(_Model):
         title="Basic wind speed",
         description="Overrides the location's value [m/s] (the code pack's basic wind speed).",
     )
-    # C1: the mapped spectral values and the snow of packs that use them.
+    # C1: the mapped spectral values of packs whose design spectrum is mappedSpectral.
     spectral: SpectralSite | None = Field(
         default=None,
         exclude_if=lambda value: value is None,
@@ -478,16 +493,10 @@ class Site(_Model):
         "the code (code packs whose seismic hazard is mapped, such as ASCE 7-22 Sec 11.4). A "
         "pack with seismic zones ignores them.",
     )
-    snow: SnowSite | None = Field(
-        default=None,
-        exclude_if=lambda value: value is None,
-        title="Snow",
-        description="Ground snow load and roof conditions: the roof snow load (case S) of code "
-        "packs that cover snow. Empty: no snow.",
-    )
     # B16: flood and surge, rain and the other special loads.
     flood: FloodSite = Field(default_factory=FloodSite, title="Flood and surge")
     rain: RainSite = Field(default_factory=RainSite, title="Rain")
+    snow: SnowSite = Field(default_factory=SnowSite, title="Snow")
     helipad: Helipad | None = Field(default=None, title="Helicopter landing area")
     explosionRooms: list[ExplosionRoom] = Field(
         default_factory=list,
@@ -682,7 +691,8 @@ class CladdingRoof(_Model):
 class Wind(_Model):
     exposure: ExposureId = Field(  # type: ignore[valid-type]
         default="A",
-        description="Exposure category of the code pack (the default pack's 6.2.9.3).",
+        description="Exposure category (6.2.9.3), or the terrain category of the code pack's "
+        "wind table.",
         json_schema_extra=_labels([f"{k}: {v}" for k, v in code_data.EXPOSURES.items()]),
     )
     directionality: float | None = Field(
@@ -2301,6 +2311,14 @@ class LoadCombination(_Model):
         "acting with the wind along X.",
     )
     FaY: float = Field(default=0, title="FaY", description="The same along Y.")
+    # C1: the roof snow S of a pack whose snow is its own case (snow.loadCase "S").
+    S: float = Field(
+        default=0,
+        exclude_if=lambda value: not value,
+        title="S",
+        description="Factor on the roof snow load S (Site → Snow; a pack whose snow is its own "
+        "case). The combination is formed without it while the model has no snow.",
+    )
 
     @model_validator(mode="after")
     def _fluid_factor(self) -> LoadCombination:
@@ -2627,8 +2645,13 @@ def _choices(table: Any) -> dict[str, list[dict[str, str]]]:
     """The lists of :func:`pack_choices` from ``table(name)`` (None: the pack has no such table)."""
     out: dict[str, list[dict[str, str]]] = {}
     locations, zone_table = table("locations"), table("zoneCoefficients")
-    area, seismic, wind = table("areaLoads"), table("seismic"), table("wind")
-    if locations is not None and locations.locations:  # C1: a pack without towns takes any id
+    area, seismic = table("areaLoads"), table("seismic")
+    wind = table("wind")
+    if wind is not None:
+        out["exposures"] = [
+            {"id": k, "label": f"{k}: {v.description}"} for k, v in wind.exposures.items()
+        ]
+    if locations is not None:
         zones = dict(zone_table.zones) if zone_table is not None else {}
         rows = []
         for key, v in locations.locations.items():
@@ -2646,10 +2669,11 @@ def _choices(table: Any) -> dict[str, list[dict[str, str]]]:
         out["siteClasses"] = [
             {"id": k, "label": f"{k}: {v.description}"} for k, v in seismic.siteClasses.items()
         ]
-    if wind is not None:
-        out["exposures"] = [
-            {"id": k, "label": f"{k}: {v.description}"} for k, v in wind.exposures.items()
-        ]
+        # C1: the pack's design spectrum method, so the editors ask for the site values it
+        # takes (mappedSpectral: SDS, SD1 instead of Z).
+        rule = getattr(seismic, "designSpectrum", None)
+        method = rule.method if rule is not None else "reducedElastic"
+        out["designSpectrum"] = [{"id": method, "label": method}]
     return out
 
 

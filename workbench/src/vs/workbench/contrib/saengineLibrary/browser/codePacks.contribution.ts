@@ -117,8 +117,9 @@ registerPlannedFeature({
 	id: PLANNED_CODE_PACK_EUROCODES,
 	part: 'settings',
 	title: localize('codePacks.planned.eurocodes', "Code Pack: Eurocodes with National Annexes"),
-	summary: localize('codePacks.planned.eurocodesSummary', "The Eurocodes EN 1990 to EN 1998 as one base pack, and each country's National Annex as a small pack that extends it: the annex sets only the Nationally Determined Parameters and inherits everything else."),
+	summary: localize('codePacks.planned.eurocodesSummary', "The Eurocodes EN 1990 to EN 1998 as one base pack, and each country's National Annex as a small pack that extends it: the annex sets only the Nationally Determined Parameters and inherits everything else. Covered now: the loads and seismic actions (EN 1990 combinations, EN 1991-1-1, -1-3, -1-4, -1-7 Annex D, EN 1998-1) in the built-in pack Eurocodes (eurocodes), with the recommended values; its material and member design still come from {0} until the EN 1992 to EN 1999 tables exist.", activeCodeName()),
 	steps: [
+		localize('codePacks.planned.eurocodes0', "Covered: choose Eurocodes (recommended values) in Project Settings or the New Building wizard; enter agR as Z and vb,0 as V (Location: Custom) and the terrain category."),
 		localize('codePacks.planned.eurocodes1', "Install the Eurocodes base pack (EN 1990 basis, EN 1991 actions, EN 1992 concrete, EN 1993 steel, EN 1997 geotechnics, EN 1998 seismic)."),
 		localize('codePacks.planned.eurocodes2', "Install the National Annex pack of the country; it names the base pack in `extends`, the same mechanism a {0} office pack uses today.", activeCodeName()),
 		localize('codePacks.planned.eurocodes3', "Choose the National Annex pack as the design code: its Nationally Determined Parameters override the base pack's recommended values, the rest comes from the base."),

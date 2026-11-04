@@ -19,17 +19,11 @@ export interface IPlannedCodePack {
 	/** Region, as the Packages page's meta line shows it. */
 	readonly region: string;
 	/**
-	 * The built-in pack that already covers the code's loads (selectable while its materials
-	 * are planned; they fall back to the default pack until then). The entry stays here until
-	 * the pack covers a material too.
+	 * The built-in pack that already covers part of the planned code (its loads), when there is
+	 * one: the planned entry stays until the materials exist too.
 	 */
-	readonly loadsPack?: string;
-	/** The name of {@link loadsPack} in the selectors. */
-	readonly loadsName?: string;
+	readonly coveredBy?: { readonly packId: string; readonly what: string };
 }
-
-/** The built-in US pack: the loads of ASCE 7-22 (alpha 9, track C1); concrete and steel follow later. */
-export const US_LOADS_PACK_ID = 'aci318-asce7-22';
 
 export const PLANNED_CODE_PACK_US = 'settings.codePackUs';
 export const PLANNED_CODE_PACK_EUROCODES = 'settings.codePackEurocodes';
@@ -37,8 +31,8 @@ export const PLANNED_CODE_PACK_INDIA = 'settings.codePackIndia';
 
 export function plannedCodePacks(): readonly IPlannedCodePack[] {
 	return [
-		{ feature: PLANNED_CODE_PACK_US, name: localize('plannedPack.us', "ACI 318-19 + ASCE 7-22"), region: localize('plannedPack.usRegion', "United States"), loadsPack: US_LOADS_PACK_ID, loadsName: localize('plannedPack.usLoads', "ACI 318-19 + ASCE 7-22 (loads; materials planned)") },
-		{ feature: PLANNED_CODE_PACK_EUROCODES, name: localize('plannedPack.eurocodes', "Eurocodes EN 1990–1998 with National Annexes"), region: localize('plannedPack.eurocodesRegion', "Europe") },
+		{ feature: PLANNED_CODE_PACK_US, name: localize('plannedPack.us', "ACI 318-19 + ASCE 7-22"), region: localize('plannedPack.usRegion', "United States"), coveredBy: { packId: 'aci318-asce7-22', what: localize('plannedPack.usCovered', "The loads (ASCE 7-22: combinations, live loads, seismic from the site's mapped SDS and SD1, wind, snow) are covered by the built-in ACI 318-19 + ASCE 7-22 pack; the materials (ACI 318-19, AISC 360-22 and the others) are planned.") } },
+		{ feature: PLANNED_CODE_PACK_EUROCODES, name: localize('plannedPack.eurocodes', "Eurocodes EN 1990–1998 with National Annexes"), region: localize('plannedPack.eurocodesRegion', "Europe"), coveredBy: { packId: 'eurocodes', what: localize('plannedPack.eurocodesCovered', "Loads and seismic actions (EN 1990, EN 1991, EN 1998-1) are covered by the built-in Eurocodes pack; the materials (EN 1992 to EN 1999) are planned.") } },
 		{ feature: PLANNED_CODE_PACK_INDIA, name: localize('plannedPack.india', "IS 456, 1893, 800, 875, 13920"), region: localize('plannedPack.indiaRegion', "India") },
 	];
 }

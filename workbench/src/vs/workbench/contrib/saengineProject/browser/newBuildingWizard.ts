@@ -49,6 +49,7 @@ import { ISoilLocationRequest, ISoilLocationResult, SOIL_LOCATION_COMMAND } from
 import { ProjectOverviewInput } from './projectOverviewInput.js';
 import { ProjectOpener } from './projectOpener.js';
 import { plannedCodePacks } from '../../saengineLibrary/common/plannedCodePacks.js';
+import { CODES_CHOICES_COMMAND, CODES_LIST_COMMAND, ICodePackInfo, readCodePacks, readPackLists } from '../../saengineLibrary/browser/codePacksModel.js';
 import { CODES_TEMPLATES_COMMAND, DEFAULT_BUILDING_TEMPLATE, IBuildingTemplate, NEW_FROM_TEMPLATE_COMMAND, readBuildingTemplates } from '../../saengineLibrary/common/packageTemplates.js';
 import { sameFolder } from './structuralImportModel.js';
 import { activeCodeName, DEFAULT_CODE_PACK_ID, defaultCodeName } from '../../../services/saengineProject/common/activeCodePack.js';
@@ -116,16 +117,16 @@ interface IChoice<T extends string> {
 }
 
 /**
- * The design code: BNBC 2020, and the code packs planned after it, shown disabled and marked
- * "Planned" (their pages are on the Packages page and under the chips below the selector).
+ * The design code: BNBC 2020, the other design-code packs installed here (the built-in
+ * Eurocodes loads pack, user packs), and the code packs planned after it, shown disabled and
+ * marked "Planned" (their pages are on the Packages page and under the chips below the selector).
  */
-function designCodeChoices(): IChoice<string>[] {
+function designCodeChoices(packs: readonly ICodePackInfo[]): IChoice<string>[] {
+	const installed = packs.filter(p => p.kind === 'designCode' && p.effective && p.id !== DEFAULT_CODE_PACK_ID && p.usable !== false);
 	return [
 		{ value: DEFAULT_CODE_PACK_ID, label: defaultCodeName() },
-		// A planned pack whose loads are built in (C1: ASCE 7-22) is choosable; its materials fall back.
-		...plannedCodePacks().map(pack => pack.loadsPack
-			? { value: pack.loadsPack, label: pack.loadsName ?? pack.name }
-			: { value: pack.feature, label: localize('newBuilding.codePlanned', "{0} (Planned)", pack.name), disabled: true }),
+		...installed.map(pack => ({ value: pack.id, label: pack.name })),
+		...plannedCodePacks().map(pack => ({ value: pack.feature, label: localize('newBuilding.codePlanned', "{0} (Planned)", pack.name), disabled: true })),
 	];
 }
 
@@ -171,6 +172,12 @@ export class NewBuildingWizard extends EditorPane {
 	private plot: IWizardPlot | undefined;
 	/** The building templates installed (Packages page): specifications and full projects. */
 	private templates: IBuildingTemplate[] = [];
+	/** The design-code packs installed (empty without the backend). */
+	private codePacks: ICodePackInfo[] = [];
+	/** The exposures (terrain categories) of the chosen pack other than the default. */
+	private packExposures: { id: string; label: string }[] = [];
+	/** C1: the chosen pack's design spectrum method (`mappedSpectral`: the site's SDS, SD1 instead of Z). */
+	private packSpectrum = '';
 	/** The package of the specification that filled the form last; undefined before any. */
 	private templateApplied: string | undefined;
 
@@ -211,6 +218,7 @@ export class NewBuildingWizard extends EditorPane {
 			append(page, $('p.hint', { role: 'status' }, localize('newBuilding.loading', "Reading the building templates (the engine starts the first time, a few seconds)...")));
 		}
 		await this.loadTemplates();
+		await this.loadCodePacks();
 		if (!this.templateApplied) {
 			const start = this.templates.find(t => t.type === 'spec' && t.package === DEFAULT_BUILDING_TEMPLATE) ?? this.templates.find(t => t.type === 'spec');
 			if (start?.spec) {
@@ -293,6 +301,34 @@ export class NewBuildingWizard extends EditorPane {
 				: undefined;
 		} catch {
 			return undefined; // no soil report, or not one that reads: no plot
+		}
+	}
+
+	/** The design-code packs installed (empty without the backend: the default pack only). */
+	private async loadCodePacks(): Promise<void> {
+		if (!CommandsRegistry.getCommand(CODES_LIST_COMMAND)) {
+			return;
+		}
+		try {
+			this.codePacks = readCodePacks(await this.commandService.executeCommand<unknown>(CODES_LIST_COMMAND, { root: this.projectService.project?.root.fsPath }));
+		} catch {
+			this.codePacks = [];
+		}
+	}
+
+	/** The exposures of the pack ``id`` (its wind table), for a pack other than the default. */
+	private async loadPackExposures(id: string): Promise<void> {
+		this.packExposures = [];
+		this.packSpectrum = '';
+		if (id === DEFAULT_CODE_PACK_ID || !CommandsRegistry.getCommand(CODES_CHOICES_COMMAND)) {
+			return;
+		}
+		try {
+			const lists = readPackLists(await this.commandService.executeCommand<unknown>(CODES_CHOICES_COMMAND, { id, root: this.projectService.project?.root.fsPath }));
+			this.packExposures = lists?.exposures ?? [];
+			this.packSpectrum = lists?.designSpectrum?.[0]?.id ?? '';
+		} catch {
+			this.packExposures = [];
 		}
 	}
 
@@ -550,31 +586,37 @@ export class NewBuildingWizard extends EditorPane {
 
 		// ── site and use ──
 		this.section(form, localize('newBuilding.site', "Site and Use"));
-		// The default pack and the built-in packs of other codes (C1: the ASCE 7-22 loads); the
-		// code packs still planned show once, as planned options of the list (B10-4: no second
-		// set of chips). The pack's words come after its picker (B10-5).
-		const zoneSite = $('.site-zone');
-		const mappedSite = $('.site-mapped');
-		const showSite = () => {
-			const zones = !this.form.designCode || this.form.designCode === DEFAULT_CODE_PACK_ID;
-			zoneSite.style.display = zones ? '' : 'none';
-			mappedSite.style.display = zones ? 'none' : '';
-		};
-		this.select(form, localize('newBuilding.designCode', "Design code"), designCodeChoices(), this.form.designCode || DEFAULT_CODE_PACK_ID, value => {
+		// The installed design-code packs, then the planned ones as disabled options of the list
+		// (B10-4: no second set of chips). The pack's words come after its picker (B10-5).
+		this.select(form, localize('newBuilding.designCode', "Design code"), designCodeChoices(this.codePacks), this.form.designCode || DEFAULT_CODE_PACK_ID, value => {
+			if (value === this.form.designCode) {
+				return;
+			}
 			this.form.designCode = value;
-			showSite();
+			void this.loadPackExposures(value).then(() => this.renderForm());
 		});
-		append(form, zoneSite);
-		append(form, mappedSite);
-		append(zoneSite, $('p.hint.indented', undefined, localize('newBuilding.siteHint', "{0}: the location sets the seismic zone and basic wind speed; the occupancy category the importance factors (Table 6.1.1).", activeCodeName())));
-		this.select(zoneSite, localize('newBuilding.location', "Location"), locationChoices(), this.form.location, value => this.form.location = value);
-		append(mappedSite, $('p.hint.indented', undefined, localize('newBuilding.mappedHint', "The site's values from the code's hazard tool (for ASCE 7-22, the ASCE Hazard Tool): the design spectral accelerations SDS and SD1, S1, the long-period transition TL and the basic wind speed V of the risk category. They can be changed later in Project Settings > Site.")));
-		this.textInput(mappedSite, localize('newBuilding.sds', "SDS [g]"), this.form.sds, value => this.form.sds = value, localize('newBuilding.sdsPlaceholder', "e.g. 1.0"));
-		this.textInput(mappedSite, localize('newBuilding.sd1', "SD1 [g]"), this.form.sd1, value => this.form.sd1 = value, localize('newBuilding.sd1Placeholder', "e.g. 0.6"));
-		this.textInput(mappedSite, localize('newBuilding.s1', "S1 [g]"), this.form.s1, value => this.form.s1 = value, localize('newBuilding.s1Placeholder', "optional"));
-		this.textInput(mappedSite, localize('newBuilding.tl', "TL [s]"), this.form.tl, value => this.form.tl = value, localize('newBuilding.tlPlaceholder', "optional, e.g. 8"));
-		this.textInput(mappedSite, localize('newBuilding.windSpeed', "Basic wind speed V [m/s]"), this.form.windSpeed, value => this.form.windSpeed = value, localize('newBuilding.windSpeedPlaceholder', "e.g. 50"));
-		showSite();
+		if ((this.form.designCode || DEFAULT_CODE_PACK_ID) === DEFAULT_CODE_PACK_ID) {
+			append(form, $('p.hint.indented', undefined, localize('newBuilding.siteHint', "{0}: the location sets the seismic zone and basic wind speed; the occupancy category the importance factors (Table 6.1.1).", activeCodeName())));
+			this.select(form, localize('newBuilding.location', "Location"), locationChoices(), this.form.location, value => this.form.location = value);
+		} else {
+			// C4: a pack without the default pack's towns (the Eurocodes: the National Annex maps).
+			append(form, $('p.hint.indented', undefined, localize('newBuilding.otherPackHint', "This design code has no towns of its own: enter the site's peak ground acceleration and basic wind speed from the national maps (the project's Location is Custom). Check them, and the exposure, in Project Settings.")));
+			if (this.packSpectrum === 'mappedSpectral') {
+				// C1: a pack whose design spectrum comes from the site's mapped values (ASCE 7-22).
+				append(form, $('p.hint.indented', undefined, localize('newBuilding.mappedHint', "This design code takes the seismic hazard from the site's mapped values (for ASCE 7-22, the ASCE Hazard Tool): SDS and SD1, with S1 and the long-period transition TL. They can be changed later in Project Settings > Site.")));
+				this.textInput(form, localize('newBuilding.sds', "SDS (g)"), this.form.sds, value => this.form.sds = value, localize('newBuilding.sdsPlaceholder', "e.g. 1.0"));
+				this.textInput(form, localize('newBuilding.sd1', "SD1 (g)"), this.form.sd1, value => this.form.sd1 = value, localize('newBuilding.sd1Placeholder', "e.g. 0.6"));
+				this.textInput(form, localize('newBuilding.s1', "S1 (g)"), this.form.s1, value => this.form.s1 = value, localize('newBuilding.s1Placeholder', "optional"));
+				this.textInput(form, localize('newBuilding.tl', "TL (s)"), this.form.tl, value => this.form.tl = value, localize('newBuilding.tlPlaceholder', "optional, e.g. 8"));
+			} else {
+				this.textInput(form, localize('newBuilding.zoneCoefficient', "Peak ground acceleration (g)"), this.form.zoneCoefficient, value => this.form.zoneCoefficient = value, localize('newBuilding.zonePlaceholder', "e.g. 0.16 (agR)"));
+			}
+			this.textInput(form, localize('newBuilding.windSpeed', "Basic wind speed (m/s)"), this.form.windSpeed, value => this.form.windSpeed = value, localize('newBuilding.windPlaceholder', "e.g. 27 (vb,0)"));
+			if (this.packExposures.length) {
+				const exposures = this.packExposures.map(e => ({ value: e.id, label: e.label }));
+				this.select(form, localize('newBuilding.exposure', "Exposure"), exposures, this.form.exposure || exposures[Math.min(2, exposures.length - 1)].value, value => this.form.exposure = value);
+			}
+		}
 		this.select(form, localize('newBuilding.siteClass', "Site class"), settingsEnum('Site', 'siteClass'), this.form.siteClass, value => this.form.siteClass = value as SiteClass);
 		append(form, $('p.hint.indented', undefined, localize('newBuilding.siteClassHint', "Assumed until a soil report gives it ({0} Part 6, Table 6.2.13): add boreholes in 01 Soil Report and their class replaces it.", defaultCodeName())));
 		this.select(form, localize('newBuilding.use', "Building use"), settingsEnum('Occupancy', 'use'), this.form.use, value => this.form.use = value);

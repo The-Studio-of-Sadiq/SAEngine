@@ -31,8 +31,8 @@ printed standard.** No text of the standards is reproduced here.
 
 ## Methods it chooses
 
-- `seismic.hazard.method = mappedSpectral` (`saengine.fem.spectral_hazard`): the two-period and
+- `seismic.designSpectrum.method = mappedSpectral` (`saengine.fem.spectral_hazard`; the methods `reducedElastic` and `behaviourFactor` of the other packs share the selector): the two-period and
   multi-period spectra from the site's mapped values, Cs with its bounds, the SDC from the
   bands of SDS and SD1, Cu by SD1.
-- `snow.drift.method = windParameter` (`saengine.fem.snow`).
-- `seismic.thetaIncludesImportance = true` (θ of Eq 12.8-16).
+- `snow.method = slopeFactor`, `snow.loadCase = S` and `snow.drift.method = windParameter` (`saengine.fem.snow_load`, shared with the Eurocodes pack's `shapeCoefficient`).
+- `seismic.stability.method = elasticDrift` (θ of Eq 12.8-16).

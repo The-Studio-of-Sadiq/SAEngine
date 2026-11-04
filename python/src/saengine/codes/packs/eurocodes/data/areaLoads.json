@@ -1,0 +1,69 @@
+{
+  "$schema": "../../../schemas/areaLoads.schema.json",
+  "$replace": true,
+  "$sources": [
+    "EN 1991-1-1:2002 Sec 6.3, Tables 6.1-6.2 (categories A-D), 6.3-6.4 (E), 6.7-6.8 (F, G), 6.9-6.10 (H, I), recommended values",
+    "EN 1991-1-1 Sec 6.3.1.2(8): movable partitions",
+    "EN 1991-1-1 Sec 6.4, Table 6.12 and Annex B: barriers and vehicle barriers"
+  ],
+  "source": "EN 1991-1-1 Sec 6.3, Tables 6.1-6.10 (the recommended values; the National Annex may choose others in the ranges of Table 6.2). The ids are SAEngine's area uses; each row names its category.",
+  "uses": {
+    "residential": { "name": "Category A: rooms of residential buildings and houses", "live": 2.0, "concentrated": 2.0, "category": "A" },
+    "dwelling": { "name": "Category A: floors of dwellings", "live": 2.0, "concentrated": 2.0, "category": "A" },
+    "residentialPublic": { "name": "Category A: bedrooms of hotels and hostels", "live": 2.0, "concentrated": 2.0, "category": "A" },
+    "hospitalWard": { "name": "Category A: wards in hospitals", "live": 2.0, "concentrated": 2.0, "category": "A" },
+    "stairs": { "name": "Category A: stairs", "live": 2.0, "concentrated": 2.0, "category": "A" },
+    "balcony": { "name": "Category A: balconies", "live": 2.5, "concentrated": 2.0, "category": "A" },
+    "office": { "name": "Category B: office areas", "live": 3.0, "concentrated": 4.5, "category": "B" },
+    "classroom": { "name": "Category C1: areas with tables (schools, cafés, restaurants, reception rooms)", "live": 3.0, "concentrated": 4.0, "category": "C1" },
+    "dining": { "name": "Category C1: dining rooms and restaurants", "live": 3.0, "concentrated": 4.0, "category": "C1" },
+    "assemblyFixed": { "name": "Category C2: areas with fixed seats (churches, theatres, cinemas, lecture halls)", "live": 4.0, "concentrated": 4.0, "category": "C2" },
+    "assemblyMovable": { "name": "Category C3: areas without obstacles for moving people (museums, exhibition rooms, access areas of public buildings)", "live": 5.0, "concentrated": 4.0, "category": "C3" },
+    "corridorAbove": { "name": "Category C3: corridors and access areas of public and administration buildings", "live": 5.0, "concentrated": 4.0, "category": "C3" },
+    "officeLobby": { "name": "Category C3: lobbies and access areas", "live": 5.0, "concentrated": 4.0, "category": "C3" },
+    "danceHall": { "name": "Category C4: areas for physical activities (dance halls, gymnastic rooms, stages)", "live": 5.0, "concentrated": 7.0, "category": "C4" },
+    "gymnasium": { "name": "Category C4: gymnastic rooms", "live": 5.0, "concentrated": 7.0, "category": "C4" },
+    "stageFloor": { "name": "Category C4: stages", "live": 5.0, "concentrated": 7.0, "category": "C4" },
+    "grandstand": { "name": "Category C5: areas for large crowds (concert halls, sports halls with stands, terraces)", "live": 5.0, "concentrated": 4.5, "category": "C5" },
+    "retailGround": { "name": "Category D1: areas in general retail shops", "live": 4.0, "concentrated": 4.0, "category": "D1" },
+    "retailUpper": { "name": "Category D1: areas in general retail shops", "live": 4.0, "concentrated": 4.0, "category": "D1" },
+    "wholesale": { "name": "Category D2: areas in department stores", "live": 5.0, "concentrated": 7.0, "category": "D2" },
+    "storageLight": { "name": "Category E1: areas for storage, including access areas", "live": 7.5, "concentrated": 7.0, "reducible": false, "category": "E1" },
+    "storageHeavy": { "name": "Category E1: areas for storage (heavier storage by the actual use)", "live": 7.5, "concentrated": 7.0, "reducible": false, "category": "E1" },
+    "libraryStacks": { "name": "Category E1: library stacks and archives", "live": 7.5, "concentrated": 7.0, "reducible": false, "category": "E1" },
+    "parking": { "name": "Category F: traffic and parking areas for light vehicles (≤ 30 kN gross)", "live": 2.5, "concentrated": 20.0, "patch": 100, "reducible": false, "category": "F" },
+    "driveway": { "name": "Category G: traffic and parking areas for medium vehicles (30-160 kN gross)", "live": 5.0, "concentrated": 90.0, "patch": 200, "reducible": false, "category": "G" },
+    "roof": { "name": "Category H: roofs not accessible except for normal maintenance and repair", "live": 0.4, "concentrated": 1.0, "roof": true, "category": "H" },
+    "roofGarden": { "name": "Category I: roofs accessible with occupancy of categories A-D (taken as C1)", "live": 3.0, "concentrated": 4.0, "category": "I" },
+    "terrace": { "name": "Category I: accessible roofs and terraces (taken as A balconies)", "live": 2.5, "concentrated": 2.0, "category": "I" }
+  },
+  "concentratedPatch": 50,
+  "roofLive": [
+    { "id": "H", "name": "Category H: roofs not accessible except for maintenance", "live": 0.4, "concentrated": 1.0, "slopeMin": 0 }
+  ],
+  "partitions": { "share": 0.4, "minimum": 0.5, "lightMax": 3.0, "loadCase": "L" },
+  "barriers": {
+    "rows": [
+      { "id": "A", "name": "Category A: barriers and partition walls (line load at 1.2 m at most)", "load": 0.5 },
+      { "id": "B-C1", "name": "Categories B and C1", "load": 0.5 },
+      { "id": "C2-C4-D", "name": "Categories C2 to C4 and D", "load": 1.0 },
+      { "id": "C5", "name": "Category C5", "load": 3.0 },
+      { "id": "E", "name": "Category E", "load": 2.0 },
+      { "id": "F", "name": "Vehicle barriers, vehicles up to 2500 kg (F = 0.5 m v²/(δc + δb), m 1500 kg, v 4.5 m/s, δc 100 mm, rigid barrier)", "load": 150, "unit": "kN", "massMax": 2500 }
+    ],
+    "vehicleLength": 1.5,
+    "bumperHeight": 375,
+    "rampShare": 0.5,
+    "rampHeight": 610,
+    "longRampLength": 20,
+    "longRampFactor": 2.0
+  },
+  "sources": {
+    "uses": "EN 1991-1-1 Tables 6.1, 6.2 (A-D), 6.3, 6.4 (E1: qk 7.5, Qk 7.0), 6.7, 6.8 (F: qk 2.5 (1.5-2.5), Qk 20 (10-20); G: qk 5.0, Qk 90 (40-90)), 6.9, 6.10 (H: qk 0.4, Qk 1.0; I by the category of use); recommended (underlined) values",
+    "concentratedPatch": "EN 1991-1-1 Sec 6.3.1.2(4): Qk on a square of 50 mm side (A-D); F on 100 mm squares per wheel, G on 200 mm (Sec 6.3.3.2(4))",
+    "partitions": "EN 1991-1-1 Sec 6.3.1.2(8): movable partitions of self-weight ≤ 1.0 kN/m: 0.5 kN/m², ≤ 2.0 kN/m: 0.8 kN/m², ≤ 3.0 kN/m: 1.2 kN/m² (as 0.4 per kN/m, at least 0.5: 1.0-2.0 kN/m in between get less than the step value); heavier partitions are dead load on their own lines",
+    "roofLive": "EN 1991-1-1 Table 6.10, category H: qk 0.4 kN/m² (0.0-1.0), Qk 1.0 kN (0.9-1.5), recommended; not combined with snow or wind (Sec 3.3.2(1))",
+    "barriers": "EN 1991-1-1 Sec 6.4, Table 6.12 (qk on barriers, recommended values); Annex B (informative): vehicle barriers in car parks, F at 375 mm over 1.5 m, ramps 0.5 F at 610 mm, twice that opposite straight ramps over 20 m"
+  },
+  "clauses": { "partitions": "EN 1991-1-1 Sec 6.3.1.2(8)" }
+}

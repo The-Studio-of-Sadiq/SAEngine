@@ -403,7 +403,9 @@ def design_walls(
 
     try:
         values = derived(settings)
-        drift_factor = float(values["Cd"]) / float(values["seismicImportance"])
+        from saengine.fem.seismic_design import displacement_factor
+
+        drift_factor = displacement_factor(float(values["Cd"]), float(values["seismicImportance"]))
     except (KeyError, TypeError, ValueError, ZeroDivisionError, AttributeError):
         drift_factor = None
     try:

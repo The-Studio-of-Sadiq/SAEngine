@@ -9712,6 +9712,12 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 					title: 'FaY',
 					type: 'number',
 				},
+				S: {
+					default: 0,
+					description: 'Factor on the roof snow load S (Site → Snow; a pack whose snow is its own case). The combination is formed without it while the model has no snow.',
+					title: 'S',
+					type: 'number',
+				},
 			},
 			required: ['name'],
 			title: 'LoadCombination',
@@ -10457,19 +10463,6 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 					description: 'The site\'s design spectral accelerations from the hazard maps or tool of the code (code packs whose seismic hazard is mapped, such as ASCE 7-22 Sec 11.4). A pack with seismic zones ignores them.',
 					title: 'Mapped spectral values',
 				},
-				snow: {
-					anyOf: [
-						{
-							$ref: '#/$defs/SnowSite',
-						},
-						{
-							type: 'null',
-						},
-					],
-					default: null,
-					description: 'Ground snow load and roof conditions: the roof snow load (case S) of code packs that cover snow. Empty: no snow.',
-					title: 'Snow',
-				},
 				flood: {
 					$ref: '#/$defs/FloodSite',
 					title: 'Flood and surge',
@@ -10477,6 +10470,10 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 				rain: {
 					$ref: '#/$defs/RainSite',
 					title: 'Rain',
+				},
+				snow: {
+					$ref: '#/$defs/SnowSite',
+					title: 'Snow',
 				},
 				helipad: {
 					anyOf: [
@@ -10618,43 +10615,52 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 		},
 		SnowSite: {
 			additionalProperties: false,
-			description: 'C1: the ground snow load and the roof\'s conditions (:mod:`saengine.fem.snow`).',
+			description: 'The snow load on the ground and the roof\'s conditions, for the roof snow of the code\npack\'s ``snow`` table (:mod:`saengine.fem.snow_load`; C4 and C1). The roof\'s pitch is Wind >\nCladding: roof form (flat: 0°).',
 			properties: {
 				groundLoad: {
-					description: '[kN/m²]',
-					exclusiveMinimum: 0,
-					title: 'Ground snow load pg',
-					type: 'number',
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Snow load on the ground at the site [kN/m²] (sk of EN 1991-1-3, pg of ASCE 7: the code\'s snow map or tool). Empty: no snow.',
+					title: 'Ground snow load',
 				},
-				terrain: {
-					default: 'C',
-					description: 'A key of the pack\'s snow exposure table (surface roughness).',
-					title: 'Terrain category',
-					type: 'string',
-				},
-				roofExposure: {
-					default: 'partiallyExposed',
-					enum: ['fullyExposed', 'partiallyExposed', 'sheltered'],
-					title: 'Roof exposure',
-					type: 'string',
+				exposure: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Exposure of the site and roof (an id of the code pack\'s snow exposures, such as normal or C-partiallyExposed). Empty: the pack\'s default.',
+					title: 'Snow exposure',
 				},
 				thermal: {
-					default: 'heated',
-					description: 'A key of the pack\'s thermal factor table.',
-					title: 'Thermal condition',
-					type: 'string',
-				},
-				slope: {
-					default: 0.0,
-					description: '[°]',
-					exclusiveMaximum: 90,
-					minimum: 0,
-					title: 'Roof slope',
-					type: 'number',
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Overrides the code pack\'s thermal coefficient (heated glass roofs, cold or unheated buildings).',
+					title: 'Thermal coefficient Ct',
 				},
 				slippery: {
 					default: false,
-					description: 'An unobstructed slippery surface.',
+					description: 'An unobstructed slippery roof surface (packs whose slope factor depends on it).',
 					title: 'Slippery roof',
 					type: 'boolean',
 				},
@@ -10668,16 +10674,16 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 						},
 					],
 					default: null,
+					description: 'C1: a roof step for the drift of packs that cover drifts (reported, not applied).',
 					title: 'Drift at a roof step',
 				},
 			},
-			required: ['groundLoad'],
 			title: 'SnowSite',
 			type: 'object',
 		},
 		SpectralSite: {
 			additionalProperties: false,
-			description: 'C1: the site\'s mapped spectral values (a pack whose ``seismic.hazard`` method is\nmappedSpectral, :mod:`saengine.fem.spectral_hazard`). Give SDS and SD1; or SMS and SM1\n(the design share of the pack makes SDS, SD1); or the multi-period MCER spectrum. S1 sets\nthe lower bound of Cs near faults and the Seismic Design Category E/F; TL the long-period\nbranch.',
+			description: 'C1: the site\'s mapped spectral values (a pack whose ``seismic.designSpectrum`` method is\nmappedSpectral, :mod:`saengine.fem.spectral_hazard`). Give SDS and SD1; or SMS and SM1\n(the design share of the pack makes SDS, SD1); or the multi-period MCER spectrum. S1 sets\nthe lower bound of Cs near faults and the Seismic Design Category E/F; TL the long-period\nbranch.',
 			properties: {
 				sds: {
 					anyOf: [
@@ -11043,7 +11049,7 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 			properties: {
 				exposure: {
 					default: 'A',
-					description: 'Exposure category of the code pack (the default pack\'s 6.2.9.3).',
+					description: 'Exposure category (6.2.9.3), or the terrain category of the code pack\'s wind table.',
 					enum: ['A', 'B', 'C'],
 					enumDescriptions: ['A: Urban, suburban, wooded', 'B: Open terrain, scattered obstructions', 'C: Flat open country, coastal'],
 					title: 'Exposure',
@@ -11443,6 +11449,9 @@ export const DEFAULT_SETTINGS: object = {
 		},
 		rain: {
 			controlledDrainage: false,
+		},
+		snow: {
+			slippery: false,
 		},
 		explosionRooms: [],
 	},

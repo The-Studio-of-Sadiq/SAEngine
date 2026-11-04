@@ -2559,7 +2559,9 @@ def _drifts(
 
         values = derived(settings)
         if values["Cd"] and values["seismicImportance"]:
-            amplify = values["Cd"] / values["seismicImportance"]
+            from saengine.fem.seismic_design import displacement_factor
+
+            amplify = displacement_factor(values["Cd"], values["seismicImportance"])
         try:
             # B2: the row of the drift table for the project's systems and storeys.
             from saengine.fem.seismic_design import settings_drift_limit

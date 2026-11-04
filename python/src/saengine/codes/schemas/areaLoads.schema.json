@@ -78,6 +78,19 @@
           "default": null,
           "description": "The row's notes, for the user.",
           "title": "Note"
+        },
+        "category": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The code's category of use (A, B, C1 ...), where the code groups the uses (the area-and-storeys reduction reads it); empty: none.",
+          "title": "Category"
         }
       },
       "required": [

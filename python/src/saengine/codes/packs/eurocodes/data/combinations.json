@@ -1,0 +1,88 @@
+{
+  "$schema": "../../../schemas/combinations.schema.json",
+  "$replace": true,
+  "$sources": [
+    "EN 1990:2002+A1 Sec 6.4.3.2 (Eqs 6.10, 6.10a, 6.10b), 6.4.3.3 (Eq 6.11b), 6.4.3.4 (Eq 6.12b), 6.5.3 (Eqs 6.14b, 6.15b, 6.16b)",
+    "EN 1990 Annex A1, Table A1.1 (ψ factors) and Table A1.2(B) (partial factors, set B, recommended values)"
+  ],
+  "source": "EN 1990 Sec 6.4.3.2 and Annex A1 Tables A1.1 and A1.2(B), recommended values: γG,sup 1.35, γG,inf 1.00, γQ 1.50, ξ 0.85; ψ of the imposed load L for categories A and B (ψ0 0.7, ψ1 0.5, ψ2 0.3), of Lr as snow below 1000 m (0.5, 0.2, 0), of the wind (0.6, 0.2, 0) and of the temperature (0.6, 0.5, 0). G (D, SD), the fluids F and the earth pressure H take γG.",
+  "loadCases": {
+    "D": "Permanent G (self-weight)",
+    "SD": "Permanent G (finishes and fixed partitions)",
+    "L": "Imposed load Q (floors)",
+    "Lr": "Roof: imposed load (category H) or snow, the larger",
+    "WX": "Wind in X",
+    "WY": "Wind in Y",
+    "EX": "Seismic action in X",
+    "EY": "Seismic action in Y",
+    "F": "Liquids in equipment (with G)",
+    "H": "Earth and groundwater pressure (with G)",
+    "T": "Temperature"
+  },
+  "strengthSet": "6.10",
+  "strengthSetLabels": {
+    "6.10": "EN 1990 Eq 6.10",
+    "6.10ab": "EN 1990 Eqs 6.10a and 6.10b (the less favourable)"
+  },
+  "strengthSets": {
+    "6.10": [
+      { "id": "6.10-G", "name": "1.35G", "factors": { "D": 1.35, "F": 1.35, "H": 1.35 } },
+      { "id": "6.10-Q", "name": "1.35G + 1.5Q + 0.75S", "factors": { "D": 1.35, "F": 1.35, "H": 1.35, "L": 1.5, "Lr": 0.75 } },
+      { "id": "6.10-QW", "name": "1.35G + 1.5Q + 0.75S + 0.9W", "factors": { "D": 1.35, "F": 1.35, "H": 1.35, "L": 1.5, "Lr": 0.75, "W": 0.9 } },
+      { "id": "6.10-S", "name": "1.35G + 1.5S + 1.05Q", "factors": { "D": 1.35, "F": 1.35, "H": 1.35, "Lr": 1.5, "L": 1.05 } },
+      { "id": "6.10-SW", "name": "1.35G + 1.5S + 1.05Q + 0.9W", "factors": { "D": 1.35, "F": 1.35, "H": 1.35, "Lr": 1.5, "L": 1.05, "W": 0.9 } },
+      { "id": "6.10-W", "name": "1.35G + 1.5W + 1.05Q + 0.75S", "factors": { "D": 1.35, "F": 1.35, "H": 1.35, "W": 1.5, "L": 1.05, "Lr": 0.75 } },
+      { "id": "6.10-Wfav", "name": "1.0G + 1.5W", "factors": { "D": 1.0, "W": 1.5, "H": 1.35 } },
+      { "id": "6.12b", "name": "G + E + 0.3Q", "factors": { "D": 1.0, "F": 1.0, "H": 1.0, "E": 1.0, "L": 0.3 } }
+    ],
+    "6.10ab": [
+      { "id": "6.10a-G", "name": "1.35G", "factors": { "D": 1.35, "F": 1.35, "H": 1.35 } },
+      { "id": "6.10a-Q", "name": "1.35G + 1.05Q + 0.75S", "factors": { "D": 1.35, "F": 1.35, "H": 1.35, "L": 1.05, "Lr": 0.75 } },
+      { "id": "6.10a-QW", "name": "1.35G + 1.05Q + 0.75S + 0.9W", "factors": { "D": 1.35, "F": 1.35, "H": 1.35, "L": 1.05, "Lr": 0.75, "W": 0.9 } },
+      { "id": "6.10b-Q", "name": "1.15G + 1.5Q + 0.75S", "factors": { "D": 1.1475, "F": 1.1475, "H": 1.1475, "L": 1.5, "Lr": 0.75 } },
+      { "id": "6.10b-QW", "name": "1.15G + 1.5Q + 0.75S + 0.9W", "factors": { "D": 1.1475, "F": 1.1475, "H": 1.1475, "L": 1.5, "Lr": 0.75, "W": 0.9 } },
+      { "id": "6.10b-S", "name": "1.15G + 1.5S + 1.05Q", "factors": { "D": 1.1475, "F": 1.1475, "H": 1.1475, "Lr": 1.5, "L": 1.05 } },
+      { "id": "6.10b-SW", "name": "1.15G + 1.5S + 1.05Q + 0.9W", "factors": { "D": 1.1475, "F": 1.1475, "H": 1.1475, "Lr": 1.5, "L": 1.05, "W": 0.9 } },
+      { "id": "6.10b-W", "name": "1.15G + 1.5W + 1.05Q + 0.75S", "factors": { "D": 1.1475, "F": 1.1475, "H": 1.1475, "W": 1.5, "L": 1.05, "Lr": 0.75 } },
+      { "id": "6.10b-Wfav", "name": "1.0G + 1.5W", "factors": { "D": 1.0, "W": 1.5, "H": 1.35 } },
+      { "id": "6.12b", "name": "G + E + 0.3Q", "factors": { "D": 1.0, "F": 1.0, "H": 1.0, "E": 1.0, "L": 0.3 } }
+    ]
+  },
+  "strength": [
+    { "id": "6.10-G", "name": "1.35G", "factors": { "D": 1.35, "F": 1.35, "H": 1.35 } }
+  ],
+  "service": [
+    { "id": "6.14b-Q", "name": "Characteristic: G + Q + 0.5S + 0.6W", "factors": { "D": 1.0, "L": 1.0, "Lr": 0.5, "W": 0.6 } },
+    { "id": "6.14b-W", "name": "Characteristic: G + W + 0.7Q + 0.5S", "factors": { "D": 1.0, "W": 1.0, "L": 0.7, "Lr": 0.5 } },
+    { "id": "6.15b-Q", "name": "Frequent: G + 0.5Q", "factors": { "D": 1.0, "L": 0.5 } },
+    { "id": "6.15b-W", "name": "Frequent: G + 0.2W + 0.3Q", "factors": { "D": 1.0, "W": 0.2, "L": 0.3 } },
+    { "id": "6.16b", "name": "Quasi-permanent: G + 0.3Q", "factors": { "D": 1.0, "L": 0.3 } }
+  ],
+  "temperature": [
+    { "name": "1.35G + 0.9T + 1.5Q + 0.75S", "factors": { "D": 1.35, "T": 0.9, "L": 1.5, "Lr": 0.75 } },
+    { "name": "1.35G - 0.9T + 1.5Q + 0.75S", "factors": { "D": 1.35, "T": -0.9, "L": 1.5, "Lr": 0.75 } }
+  ],
+  "gravity": [
+    { "name": "1.35G", "factors": { "D": 1.35 } },
+    { "name": "1.35G + 1.5Q", "factors": { "D": 1.35, "L": 1.5 } }
+  ],
+  "seismicDeadUpper": 1.0,
+  "seismicDeadLower": 1.0,
+  "overstrength": "EN 1998-1 has no overstrength combination; capacity design of the members is by the material codes (EN 1998-1 Sec 5 and 6), not covered by this pack yet.",
+  "pDeltaPreload": { "D": 1.0, "SD": 1.0, "F": 1.0, "L": 0.3 },
+  "sources": {
+    "strengthSets": "EN 1990 Eq 6.10 (set 6.10) or the less favourable of Eqs 6.10a and 6.10b (set 6.10ab), Table A1.2(B): γG,sup 1.35, γG,inf 1.00, γQ 1.50, ξ = 0.85 (0.85 × 1.35 = 1.1475); the accompanying actions at γQ·ψ0 (L 1.05, Lr as snow 0.75, W 0.9, T 0.9)",
+    "strengthSet": "Choose 6.10ab by overriding combinations.strengthSet (Project Settings > Code Values); the National Annex decides which applies",
+    "strength": "Replaced by the set strengthSet chooses",
+    "service": "EN 1990 Eqs 6.14b (characteristic), 6.15b (frequent, ψ1 of the leading action, ψ2 of the others), 6.16b (quasi-permanent, ψ2), Table A1.1",
+    "temperature": "EN 1990 Eq 6.10 with T accompanying (ψ0 = 0.6, Table A1.1)",
+    "seismicDeadUpper": "EN 1990 Eq 6.12b: G + AEd + Σψ2 Q, G at 1.0 (the vertical component Ev is not taken, EN 1998-1 4.3.3.5.2)",
+    "seismicDeadLower": "EN 1990 Eq 6.12b: G at 1.0",
+    "pDeltaPreload": "EN 1998-1 Sec 4.4.2.2(2): Ptot in the seismic design situation, G + ψ2 Q (Eq 6.12b)"
+  },
+  "clauses": {
+    "strength": "EN 1990 Sec 6.4.3.2, Annex A1 Table A1.2(B)",
+    "temperature": "EN 1990 Sec 6.4.3.2",
+    "settlement": "EN 1990 Sec 6.4.3.2 (settlement as a permanent action)"
+  }
+}

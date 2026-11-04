@@ -189,18 +189,23 @@ class BuildingSpec(_Spec):
         default=None, gt=0, description="Floor live load [kN/m²]; none: the code minimum."
     )
     location: LocationId | None = None  # type: ignore[valid-type]
-    # C1: another code pack than the settings' (its id), and the site values it needs.
+    # C4, C1: another code pack than the settings' (the New Building wizard's design code), with
+    # the site values a pack without towns needs (Location: Custom).
     codePack: str | None = Field(
-        default=None,
-        description="Id of the code pack the project follows; none: the settings' own.",
+        default=None, description="Id of the code pack the project follows; none: the settings'."
+    )
+    zoneCoefficient: float | None = Field(
+        default=None, gt=0, lt=1, description="Z (the pack's peak ground acceleration) [g]."
     )
     spectral: SpectralSite | None = Field(
         default=None,
-        description="The site's mapped spectral values (SDS, SD1, S1, TL) for a code pack whose "
-        "seismic hazard is mapped (Project Settings > Site > Mapped spectral values).",
+        description="C1: the site's mapped spectral values (SDS, SD1, S1, TL) for a code pack "
+        "whose design spectrum is mappedSpectral (Project Settings > Site > Mapped spectral "
+        "values).",
     )
-    windSpeed: float | None = Field(
-        default=None, gt=0, description="Basic wind speed V [m/s] (a pack without towns)."
+    windSpeed: float | None = Field(default=None, gt=0, description="Basic wind speed [m/s].")
+    windExposure: str | None = Field(
+        default=None, description="Exposure or terrain category id of the pack's wind table."
     )
     siteClass: Literal["SA", "SB", "SC", "SD", "SE"] | None = None
     siteClassSource: Literal["entered", "assumed"] = Field(
@@ -1254,39 +1259,6 @@ def lateral_column_sizes(
     return out
 
 
-def _pack_patch(
-    s: BuildingSpec, base: Any, patch: dict[str, Any], site: dict[str, Any], notes: list[str]
-) -> None:
-    """C1: the code pack of the spec (``codePack``) into the settings' patch, with the site
-    values it takes: a pack without towns makes the location custom (the spectral values and
-    V entered), and a wind exposure the pack does not list becomes its first one."""
-    if s.codePack is None and s.spectral is None and s.windSpeed is None:
-        return
-    if s.codePack is not None:
-        patch["codePack"] = s.codePack
-    pack_id = s.codePack or base.codePack
-    try:
-        pack = code_context.pack_for({"codePack": pack_id}, strict=True)
-    except Exception as error:  # noqa: BLE001 - reported by the settings' check
-        notes.append(f"Code pack '{pack_id}': {error}")
-        return
-    towns = pack.table("locations").locations if pack.has("locations") else {}
-    if not towns:
-        site["location"] = "custom"
-    if s.spectral is not None:
-        site["spectral"] = s.spectral.model_dump(mode="json", exclude_none=True)
-    if s.windSpeed is not None:
-        site["windSpeed"] = s.windSpeed
-    exposures = list(pack.table("wind").exposures) if pack.has("wind") else []
-    if exposures and base.wind.exposure not in exposures:
-        first = exposures[0]
-        patch["wind"] = {"exposure": first}
-        notes.append(
-            f"Wind exposure {first} ({pack.table('wind').exposures[first].description}) of "
-            f"{pack.edition or pack.name} assumed: CONFIRM it in 02 Project Settings."
-        )
-
-
 @code_context.in_project_pack()
 def settings_patch(
     s: BuildingSpec, settings: Any, notes: list[str]
@@ -1320,7 +1292,6 @@ def settings_patch(
     site: dict[str, Any] = {}
     if s.location is not None:
         site["location"] = s.location
-    _pack_patch(s, base, patch, site, notes)  # C1: another code pack and its site values
     if s.siteClass is not None and s.siteClassSource == "assumed":
         # The settings have no "assumed" source (site.siteClassSource is "soilReport" or
         # "entered"): "soilReport" keeps the assumed class only until 1 Soil Report gives one.
@@ -1336,10 +1307,11 @@ def settings_patch(
         )
     elif s.siteClass is not None:
         site.update(siteClass=s.siteClass, siteClassSource="entered")
+    pack_uses = _code_pack_patch(s, base, patch, site, notes)
     if site:
         patch["site"] = site
     use = AREA_USE_OF[s.occupancy]
-    code_live = code_data.AREA_USES[use].live
+    code_live = (pack_uses[use] if use in pack_uses else code_data.AREA_USES[use]).live
     live = max(s.live or code_live, code_live)
     if s.live is not None and s.live < code_live:
         notes.append(
@@ -1358,6 +1330,52 @@ def settings_patch(
     trial = ProjectSettings.model_validate(_deep_merge(base_json, patch))
     sdc, zone = seismic_design_category(trial)
     return base_json, patch, sdc, zone
+
+
+def _code_pack_patch(
+    s: BuildingSpec, base: ProjectSettings, patch: dict[str, Any], site: dict[str, Any], notes: list
+) -> dict[str, Any]:
+    """C4: the patch of a spec that names a code pack (``codePack``): the pack, its strength
+    combinations, Location Custom with Z and V where the pack has no such town, its exposure;
+    returns the pack's area uses ({} without a pack: the settings' pack decides as before)."""
+    if not s.codePack or s.codePack == base.codePack:
+        if s.zoneCoefficient is not None:
+            site["zoneCoefficient"] = s.zoneCoefficient
+        if s.windSpeed is not None:
+            site["windSpeed"] = s.windSpeed
+        if s.spectral is not None:  # C1: a pack whose design spectrum is mappedSpectral
+            site["spectral"] = s.spectral.model_dump(mode="json", exclude_none=True)
+        return {}
+    from saengine.codes import registry
+    from saengine.library.settings import strength_combinations
+
+    pack = registry.load(s.codePack)
+    patch["codePack"] = s.codePack
+    patch["combinations"] = [
+        c.model_dump(mode="json", exclude_none=True) for c in strength_combinations(pack=pack)
+    ]
+    towns = pack.table("locations").locations if pack.has("locations") else {}
+    if (s.location or base.site.location) not in towns:
+        site["location"] = "custom"
+    if s.zoneCoefficient is not None:
+        site["zoneCoefficient"] = s.zoneCoefficient
+    if s.windSpeed is not None:
+        site["windSpeed"] = s.windSpeed
+    if s.spectral is not None:  # C1: a pack whose design spectrum is mappedSpectral
+        site["spectral"] = s.spectral.model_dump(mode="json", exclude_none=True)
+    exposures = list(pack.table("wind").exposures) if pack.has("wind") else []
+    exposure = s.windExposure or base.wind.exposure
+    if exposures and exposure not in exposures:
+        exposure = "II" if "II" in exposures else exposures[0]
+    if exposures:
+        patch["wind"] = {"exposure": exposure}
+    notes.append(
+        f"Design code: {pack.name} ({pack.id}); location {site.get('location', s.location)}, "
+        f"Z {s.zoneCoefficient if s.zoneCoefficient is not None else '-'}, V "
+        f"{s.windSpeed if s.windSpeed is not None else '-'} m/s, exposure {exposure}: CONFIRM "
+        "them in 02 Project Settings."
+    )
+    return dict(pack.table("areaLoads").uses) if pack.has("areaLoads") else {}
 
 
 def generate_building(spec: BuildingSpec | dict[str, Any], settings: Any = None) -> dict[str, Any]:

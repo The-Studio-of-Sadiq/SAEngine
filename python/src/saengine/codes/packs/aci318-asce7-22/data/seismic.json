@@ -7,7 +7,7 @@
     "ACI 318-19 Sec 18.2.1 (seismic detailing by Seismic Design Category)"
   ],
   "source": "ASCE 7-22 Chapters 11, 12 and 20",
-  "hazard": {
+  "designSpectrum": {
     "method": "mappedSpectral",
     "designShare": 0.6666666667,
     "t0Share": 0.2,
@@ -33,7 +33,7 @@
       "cu": "Sec 12.8.2, Table 12.8-1"
     }
   },
-  "thetaIncludesImportance": true,
+  "stability": {"method": "elasticDrift", "ignoreBelow": 0.1, "thetaCap": 0.25, "clause": "Sec 12.8.7, Eqs 12.8-16 and 12.8-17"},
   "siteClasses": {
     "SA": {"description": "Site class A: hard rock (vs30 above 1524 m/s)", "vs30": [1524, null]},
     "SB": {"description": "Site class B: medium hard rock (vs30 914-1524 m/s)", "vs30": [914, 1524]},
@@ -189,7 +189,7 @@
   "verticalFactor": 0.5,
   "stabilityGravity": {"D": 1.0, "SD": 1.0, "F": 1.0, "L": 1.0},
   "sources": {
-    "hazard": "ASCE 7-22 Sec 11.4: SDS = (2/3) SMS, SD1 = (2/3) SM1 (Eqs 11.4-3, 11.4-4); the two-period spectrum of Sec 11.4.6 (T0 = 0.2 SD1/SDS, TS = SD1/SDS, Sa = SDS(0.4 + 0.6 T/T0) below T0); the multi-period spectrum (Sec 11.4.5.1); SMS, SM1 from the multi-period MCER spectrum by Sec 21.4 (0.9 x the largest Sa from 0.2 to 5 s; the largest T Sa from 1 to 2 s, 1 to 5 s for vs30 at most 442 m/s); SDC bands of Tables 11.6-1 (SDS 0.167, 0.33, 0.50) and 11.6-2 (SD1 0.067, 0.133, 0.20), E/F where S1 >= 0.75 (Sec 11.6); Cs of Sec 12.8.1.1, at least 0.044 SDS Ie and 0.01 (Eq 12.8-5), 0.5 S1/(R/Ie) where S1 >= 0.6 (Eq 12.8-6); Cu of Table 12.8-1",
+    "designSpectrum": "ASCE 7-22 Sec 11.4: SDS = (2/3) SMS, SD1 = (2/3) SM1 (Eqs 11.4-3, 11.4-4); the two-period spectrum of Sec 11.4.6 (T0 = 0.2 SD1/SDS, TS = SD1/SDS, Sa = SDS(0.4 + 0.6 T/T0) below T0); the multi-period spectrum (Sec 11.4.5.1); SMS, SM1 from the multi-period MCER spectrum by Sec 21.4 (0.9 x the largest Sa from 0.2 to 5 s; the largest T Sa from 1 to 2 s, 1 to 5 s for vs30 at most 442 m/s); SDC bands of Tables 11.6-1 (SDS 0.167, 0.33, 0.50) and 11.6-2 (SD1 0.067, 0.133, 0.20), E/F where S1 >= 0.75 (Sec 11.6); Cs of Sec 12.8.1.1, at least 0.044 SDS Ie and 0.01 (Eq 12.8-5), 0.5 S1/(R/Ie) where S1 >= 0.6 (Eq 12.8-6); Cu of Table 12.8-1",
     "siteClasses": "ASCE 7-22 Table 20.2-1, the classes by vs30 (ft/s 5000, 3000, 2100, 1450, 1000, 700, 500 in m/s); ids keep SAEngine's S prefix",
     "systems": "ASCE 7-22 Table 12.2-1: R, Omega0, Cd and the height limits for SDC B-F (NL: empty, NP: 0; 160 ft = 48.8 m, 100 ft = 30.5 m, 35 ft = 10.7 m); the rows SAEngine designs",
     "periodCoefficients": "ASCE 7-22 Table 12.8-2, Ct and x in metres (0.0466, 0.9; 0.0724, 0.8; 0.0731, 0.75; 0.0488, 0.75)",
@@ -214,7 +214,7 @@
     "verticalFactor": "ASCE 7-22 Sec 12.4.2.2: Ev = 0.2 SDS D = 0.5 x a_h D",
     "periodUpperFactor": "ASCE 7-22 Table 12.8-1 (Cu for SD1 >= 0.3); the site's Cu by SD1 replaces it",
     "stabilityGravity": "ASCE 7-22 Sec 12.8.7: Px with no load factor above 1.0",
-    "thetaIncludesImportance": "ASCE 7-22 Eq 12.8-16: theta = Px Delta Ie / (Vx hsx Cd)",
+    "stability": "ASCE 7-22 Eq 12.8-16: theta = Px Delta Ie / (Vx hsx Cd) with Delta = Cd delta_e / Ie, so theta = Px delta_e / (Vx hsx); theta_max = 0.5/(beta Cd) <= 0.25 (Eq 12.8-17, beta = 1); below 0.10 P-Delta need not be considered",
     "dampingCorrection": "ASCE 7-22 Sec 11.4.6: a 5 % damped spectrum, no damping correction in Ch 11-12"
   },
   "clauses": {

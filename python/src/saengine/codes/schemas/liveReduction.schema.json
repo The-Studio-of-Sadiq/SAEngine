@@ -1,5 +1,71 @@
 {
   "$defs": {
+    "AreaAndStoreys": {
+      "additionalProperties": false,
+      "description": "C4: EN 1991-1-1 6.3.1.2(10)-(11): αA = ``areaShare``·ψ0 + A0/A ≤ 1 (at least\n``categoryMinimum`` in the ``minimumCategories``), αn = (2 + (n - 2)·ψ0)/n for columns and\nwalls of n > 2 storeys; the member takes ``combine`` of the two (\"lesser\": the one that\nreduces more, used alone).",
+      "properties": {
+        "psi0": {
+          "description": "ψ0 of the imposed load.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Psi0",
+          "type": "number"
+        },
+        "areaShare": {
+          "description": "5/7 of αA.",
+          "exclusiveMinimum": 0,
+          "title": "Areashare",
+          "type": "number"
+        },
+        "referenceArea": {
+          "description": "A0 [m²].",
+          "exclusiveMinimum": 0,
+          "title": "Referencearea",
+          "type": "number"
+        },
+        "categoryMinimum": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Categoryminimum"
+        },
+        "minimumCategories": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Minimumcategories",
+          "type": "array"
+        },
+        "storeysFrom": {
+          "default": 3,
+          "description": "αn applies from this many storeys.",
+          "minimum": 2,
+          "title": "Storeysfrom",
+          "type": "integer"
+        },
+        "combine": {
+          "const": "lesser",
+          "default": "lesser",
+          "title": "Combine",
+          "type": "string"
+        }
+      },
+      "required": [
+        "psi0",
+        "areaShare",
+        "referenceArea"
+      ],
+      "title": "AreaAndStoreys",
+      "type": "object"
+    },
     "LiveElementFactors": {
       "additionalProperties": false,
       "properties": {
@@ -175,7 +241,7 @@
     }
   },
   "additionalProperties": false,
-  "description": "Reduction of floor live loads by influence area (the default pack's Part 6 Sec 2.3.13).",
+  "description": "Reduction of floor live loads by influence area (the default pack's Part 6 Sec 2.3.13),\nor (C4, ``method`` areaAndStoreys) by the loaded area and the number of storeys.",
   "properties": {
     "source": {
       "default": "",
@@ -199,38 +265,98 @@
       "title": "Clauses",
       "type": "object"
     },
+    "method": {
+      "default": "influenceArea",
+      "enum": [
+        "influenceArea",
+        "areaAndStoreys"
+      ],
+      "title": "Method",
+      "type": "string"
+    },
+    "areaAndStoreys": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/AreaAndStoreys"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
     "influenceMin": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
       "description": "Least KLL AT [m²] that is reduced.",
-      "exclusiveMinimum": 0,
-      "title": "Influencemin",
-      "type": "number"
+      "title": "Influencemin"
     },
     "constant": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
       "description": "a of L = L0 (a + b / √(KLL AT)).",
-      "exclusiveMinimum": 0,
-      "maximum": 1,
-      "title": "Constant",
-      "type": "number"
+      "title": "Constant"
     },
     "coefficient": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
       "description": "b of L = L0 (a + b / √(KLL AT)) [m].",
-      "exclusiveMinimum": 0,
-      "title": "Coefficient",
-      "type": "number"
+      "title": "Coefficient"
     },
     "minOneFloor": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
       "description": "Least L / L0 of members supporting one floor.",
-      "exclusiveMinimum": 0,
-      "maximum": 1,
-      "title": "Minonefloor",
-      "type": "number"
+      "title": "Minonefloor"
     },
     "minFloors": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
       "description": "Least L / L0 of members supporting two or more.",
-      "exclusiveMinimum": 0,
-      "maximum": 1,
-      "title": "Minfloors",
-      "type": "number"
+      "title": "Minfloors"
     },
     "heavyLive": {
       "description": "Live loads above this [kN/m²] are not reduced.",
@@ -239,11 +365,19 @@
       "type": "number"
     },
     "heavyFactor": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
       "description": "L / L0 of heavy loads on members of 2+ floors.",
-      "exclusiveMinimum": 0,
-      "maximum": 1,
-      "title": "Heavyfactor",
-      "type": "number"
+      "title": "Heavyfactor"
     },
     "notReduced": {
       "description": "Area uses never reduced.",
@@ -298,7 +432,15 @@
       "title": "Onewayslabwidth"
     },
     "kll": {
-      "$ref": "#/$defs/LiveElementFactors"
+      "anyOf": [
+        {
+          "$ref": "#/$defs/LiveElementFactors"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
     },
     "roof": {
       "anyOf": [
@@ -314,16 +456,9 @@
     }
   },
   "required": [
-    "influenceMin",
-    "constant",
-    "coefficient",
-    "minOneFloor",
-    "minFloors",
     "heavyLive",
-    "heavyFactor",
     "notReduced",
-    "twoFloorsOnly",
-    "kll"
+    "twoFloorsOnly"
   ],
   "title": "LiveReductionTable",
   "type": "object",

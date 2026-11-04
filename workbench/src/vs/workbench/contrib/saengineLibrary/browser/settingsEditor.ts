@@ -55,10 +55,10 @@ const SETTINGS_SCHEMA_ID = 'saengine.projectSettings/1';
 const PACK_LIST_FIELDS: { readonly [path: string]: string } = {
 	'site.location': 'locations',
 	'site.siteClass': 'siteClasses',
-	'wind.exposure': 'exposures',
 	'seismic.system': 'systems',
 	'seismic.systemY': 'systems',
 	'areaLoads.use': 'areaUses',
+	'wind.exposure': 'exposures',
 };
 
 /** Desktop command telling where the site class and qa come from (`saengine.soil.sources`). */

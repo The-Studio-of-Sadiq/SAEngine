@@ -325,7 +325,7 @@ Where SAEngine finds packs (the same id in a higher place wins):
 2. **your user folder**: `%APPDATA%\SAEngine\code-packs\<id>\` on Windows
    (`~/Library/Application Support/SAEngine/code-packs` on macOS, `~/.config/SAEngine/code-packs`
    elsewhere): available to every project on this computer;
-3. **built-in**: `bnbc2020`, shipped with SAEngine; and `aci318-asce7-22`, the ASCE 7-22 loads
+3. **built-in**: `bnbc2020`, shipped with SAEngine; `eurocodes` (below); and `aci318-asce7-22`, the ASCE 7-22 loads
    (its materials still fall back to `bnbc2020`; the site's SDS, SD1, S1, TL and V are entered
    from the ASCE Hazard Tool; values to check in its `VERIFY.md`).
 
@@ -531,10 +531,48 @@ wizard's design code selector. Each has a page that describes its coverage:
 - **Eurocodes EN 1990–1998 with National Annexes**. There is one base pack with the
   recommended values. Each country's National Annex is a small pack that `extends` the base
   and sets only its Nationally Determined Parameters, in the same way an office pack extends
-  BNBC 2020 today.
+  BNBC 2020 today. **The loads part is built in** (see below); the materials are planned.
 - **Indian Standards**: IS 456, 1893, 800, 875 and 13920.
 
-None of their tables, values or clause text are included yet.
+### Eurocodes (loads and seismic): `eurocodes`
+
+The built-in pack `eurocodes` (Eurocodes, recommended values) covers EN 1990, EN 1991-1-1,
+-1-3, -1-4, -1-7 Annex D and EN 1998-1. Its README
+(`python/src/saengine/codes/packs/eurocodes/README.md`) lists the tables, and `VERIFY.md` lists
+every value with its clause, for checking against the printed codes. It extends BNBC 2020, so
+the member design (concrete, steel, foundations, detailing) still uses BNBC 2020 tables until
+the EN 1992-1999 packs exist. The report's design basis says so.
+
+To use it, choose **Eurocodes (recommended values)** as the design code. The pack has no towns
+(the National Annex maps give agR and vb,0), so set Location to **Custom** and enter agR (in g)
+as Z and vb,0 as V. Then choose the terrain category (0, I, II, III or IV) under Wind and the
+ground snow load sk under Site → Snow.
+
+It chooses generic methods by id, which other packs can use too:
+
+| Key | Values | What it does |
+| --- | --- | --- |
+| `seismic.designSpectrum.method` | `reducedElastic` (default), `behaviourFactor` | The design spectrum with q and the lower bound β |
+| `seismic.spectrumType`, `seismic.spectra` | spectrum id → site parameters | Type 1 or Type 2 |
+| `seismic.lateralForce` | `correction`, `periodTcFactor`, `minStoreys`, `distribution` (`heightPower`, `linear`) | λ, and how the base shear is distributed |
+| `seismic.driftAmplification` | `overImportance` (default), `displacementFactor` | Cd·δe/I, or qd·de |
+| `seismic.stability.method` | `elasticOverImportance` (default), `designDrift` | θ |
+| `wind.method` | `powerLaw` (default), `peakVelocityPressure` | Storey forces from qz, or from qp(z) with cpe, ρ and cscd |
+| `liveReduction.method` | `influenceArea` (default), `areaAndStoreys` | KLL·AT, or αA and αn |
+| `combinations.strengthSet`, `strengthSets` | set id → combinations | EN 1990 6.10 or 6.10a/b |
+| `snow` (table) | | s = factor·μ1·Ce·Ct·sk on the roof, in Lr |
+
+A National Annex pack extends it and gives only what differs:
+
+```json
+{ "schema": "saengine.codePack/1", "id": "ec-xx", "name": "Eurocodes with the XX National Annex",
+  "extends": "eurocodes", "covers": ["combinations", "seismic"] }
+```
+
+For example, `data/combinations.json` can be `{"strengthSet": "6.10ab"}` and
+`data/seismic.json` `{"spectrumType": "2", "designSpectrum": {"lowerBound": 0.1}}`.
+
+The US and Indian packs have none of their tables, values or clause text included yet.
 
 ## Other package kinds
 

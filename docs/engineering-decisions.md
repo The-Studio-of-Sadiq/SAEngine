@@ -180,6 +180,15 @@ against the printed standard). Its behaviour choices:
 - **Materials fall back to BNBC 2020.** Until the ACI 318 and AISC tracks, the pack extends
   `bnbc2020`: concrete, steel, foundations and the other material tables are BNBC 2020's and
   cited as such. Placeholder (not ACI).
+- **One mechanism per shared idea (merged with C4, 2026-11-04).** The design spectrum is one
+  selector, `seismic.designSpectrum.method`: `reducedElastic` (BNBC), `behaviourFactor` (EN
+  1998-1), `mappedSpectral` (ASCE 7). θ is `seismic.stability.method`: `elasticOverImportance`,
+  `designDrift`, `elasticDrift` (ASCE Eq 12.8-16). Snow is one table and one module
+  (`fem/snow_load.py`): `snow.method` `shapeCoefficient` (EN μ1) or `slopeFactor` (ASCE Cs with
+  the low-slope minimum), `snow.loadCase` Lr (enveloped with the roof live load) or S (its own
+  case), and an optional `drift` by method id. The wind exposure list and its check are the
+  pack's `wind.exposures`, and `wind.method` picks the pressure method. A new pack picks among
+  these ids, or adds one.
 - **Snow (case S).** The uniform roof snow (the larger of ps and the low-slope minimum pm) is
   applied to the roof slabs as case S, taking the place of Lr in the combinations ("Lr or S or
   R"). The drift at a roof step is computed and reported for the lower roof's design, not
@@ -197,6 +206,39 @@ against the printed standard). Its behaviour choices:
   (the 7-05 values stay, flagged in VERIFY.md), nonstructural components (Ch 13), ice (Ch 10).
 
 ## 2026-11-04
+
+- **Release plan: alpha 9 completes the features, alpha 10 is speed** (owner). Alpha 9 builds the
+  other code packs (ACI 318-19 + ASCE 7-22, Eurocodes, IS codes, then BS 8110 and BNBC 2006), the
+  features that were planned-feature pages only, and the items earlier set aside as low value.
+  Speed (Design Reinforcement on the Sample Frame now takes minutes, not seconds) moves to alpha 10.
+  Only the BNBC 2020 text is at hand: the other packs list every value with its clause in the pack's
+  `VERIFY.md`, to be checked against the printed codes.
+  The US pack's steel shapes come from SAEngine's own shape list, not the AISC shapes
+  database, whose redistribution terms are not checked (owner).
+- **Eurocodes pack, loads and seismic (alpha 9 track C4).** The built-in pack `eurocodes`
+  (recommended values) covers EN 1990, EN 1991-1-1, -1-3, -1-4, -1-7 Annex D and EN 1998-1; its
+  values are listed with their clauses in `codes/packs/eurocodes/VERIFY.md`. Decisions:
+  - It `extends` BNBC 2020, so the material and member design tables (and the load tables with
+    no Eurocode counterpart here) come from BNBC 2020 until the EN 1992-1999 packs exist. The
+    report's design basis names them (`basis`). SAEngine practice.
+  - The ids of shared lists stay SAEngine's: ground types A-E are the site classes SA-SE (the
+    soil report classifies by the same limits), and the structural systems reuse the ids where
+    the detailing level matches (rcSmf = RC frame DCH, rcImf = DCM, rcOmf = DCL ...). A project
+    can then switch packs and still run. SAEngine practice.
+  - R stands for q, Cd for qd = q (EN 1998-1 4.3.4), and Ω0 for αu/α1. EN 1998-1 has no Ω0, so
+    this is SAEngine practice. Drift is qd·de, without dividing by γI (`seismic.driftAmplification`
+    "displacementFactor"). θ = Ptot·dr/(Vtot·h), at most 0.3.
+  - EN 1998-1 has no Seismic Design Category. SAEngine bands agR (0.02/0.06/0.10/0.30 g) to
+    B (very low), C (low: DCL allowed) and D (DCM at least). SAEngine practice.
+  - ψE = φ·ψ2 with φ = 1.0 (the largest; the code allows 0.5-0.8 for storeys). Loads above
+    5 kN/m² take ψE 0.8 (category E). SAEngine practice, overridable.
+  - The roof's Lr is the larger of the category H imposed load and the snow (EN 1991-1-1
+    3.3.2(1): not together). The combinations take Lr with the snow ψ. SAEngine practice.
+  - Where αA and αn could both apply, the lesser one is used, alone. The code leaves this to the
+    National Annex.
+  - 6.10 is the default set. 6.10a/b is chosen with the override `combinations.strengthSet`
+    "6.10ab". Type 1 is the default spectrum; Type 2 is chosen with `seismic.spectrumType` "2".
+    A National Annex is a pack that extends `eurocodes` and sets only these parameters.
 
 - **Wall piers and the remaining coupling-beam checks of special structural walls.**
   - Question: SAEngine checked special walls' piers as walls only, and diagonally reinforced

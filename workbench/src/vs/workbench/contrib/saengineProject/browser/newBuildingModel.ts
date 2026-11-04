@@ -71,10 +71,13 @@ export interface INewBuildingSpec {
 	 * BNBC 2020 location id of the project settings (`site.location`), and the site class: without
 	 * a soil report it is an assumption (`siteClassSource: 'assumed'`), which the report says.
 	 */
-	readonly site: { readonly location: string; readonly siteClass: SiteClass; readonly siteClassSource: 'assumed'; readonly spectral?: ISpectralValues; readonly windSpeed?: number };
+	readonly site: { readonly location: string; readonly siteClass: SiteClass; readonly siteClassSource: 'assumed'; readonly zoneCoefficient?: number; readonly windSpeed?: number; readonly spectral?: ISpectralValues };
 	/** Project settings `occupancy`: building use and BNBC occupancy category. */
 	readonly occupancy: { readonly use: string; readonly category: OccupancyCategory };
+	/** The code pack id; another than the default takes Z, V and the exposure of its own lists. */
 	readonly designCode: string;
+	/** The wind exposure (terrain category) of a pack other than the default. */
+	readonly wind?: { readonly exposure: string };
 }
 
 /**
@@ -106,14 +109,17 @@ export interface INewBuildingForm {
 	readonly siteClass: SiteClass;
 	readonly use: string;
 	readonly category: OccupancyCategory;
-	/** The code pack id: the default pack, or a pack whose site values are typed below. */
+	/** The design code (code pack id). */
 	readonly designCode: string;
-	/** A pack without towns (ASCE 7-22): the site's SDS, SD1, S1 [g], TL [s] and V [m/s], as typed. */
+	/** A pack other than the default: Z (its peak ground acceleration, g), V [m/s], exposure id. */
+	readonly zoneCoefficient: string;
+	readonly windSpeed: string;
+	readonly exposure: string;
+	/** C1: a pack whose design spectrum is mapped (ASCE 7-22): SDS, SD1, S1 [g] and TL [s], as typed. */
 	readonly sds: string;
 	readonly sd1: string;
 	readonly s1: string;
 	readonly tl: string;
-	readonly windSpeed: string;
 }
 
 /**
@@ -139,11 +145,13 @@ export const BLANK_FORM: INewBuildingForm = {
 	use: '',
 	category: 'II',
 	designCode: DEFAULT_CODE_PACK_ID,
+	zoneCoefficient: '',
+	windSpeed: '',
+	exposure: '',
 	sds: '',
 	sd1: '',
 	s1: '',
 	tl: '',
-	windSpeed: '',
 };
 
 /** A positive number typed in the form, else undefined. */
@@ -152,26 +160,16 @@ function positive(text: string): number | undefined {
 	return text.trim() && Number.isFinite(value) && value > 0 ? value : undefined;
 }
 
-/**
- * The site values the spec carries for a code pack other than the default one (the default
- * pack's towns give them): the mapped spectral values and the basic wind speed.
- */
-export function siteValues(form: INewBuildingForm): { spectral?: ISpectralValues; windSpeed?: number } {
-	if (!form.designCode || form.designCode === DEFAULT_CODE_PACK_ID) {
-		return {};
-	}
+/** C1: the mapped spectral values typed in the form (a pack whose design spectrum is mappedSpectral), else undefined. */
+function spectralValues(form: INewBuildingForm): ISpectralValues | undefined {
 	const spectral: { [key: string]: number } = {};
 	for (const key of ['sds', 'sd1', 's1', 'tl'] as const) {
-		const value = positive(form[key]);
+		const value = positive(form[key] ?? '');
 		if (value !== undefined) {
 			spectral[key] = value;
 		}
 	}
-	const windSpeed = positive(form.windSpeed);
-	return {
-		...(Object.keys(spectral).length ? { spectral } : {}),
-		...(windSpeed !== undefined ? { windSpeed } : {}),
-	};
+	return Object.keys(spectral).length ? spectral : undefined;
 }
 
 type SpecRaw = { readonly [key: string]: unknown };
@@ -433,10 +431,33 @@ export function buildSpec(form: INewBuildingForm, validateName: (name: string) =
 			system: form.system,
 			materials: { concrete: form.concrete, rebar: form.rebar },
 			footing: form.footing,
-			site: { location: form.location, siteClass: form.siteClass, siteClassSource: 'assumed', ...siteValues(form) },
+			site: { location: form.location, siteClass: form.siteClass, siteClassSource: 'assumed' },
 			occupancy: { use: form.use, category: form.category },
-			designCode: form.designCode || DEFAULT_CODE_PACK_ID,
+			...otherPackSite(form),
 		},
+	};
+}
+
+/**
+ * The design code of the spec and, for a pack other than the default, its site values: Z and V
+ * (Location: Custom in the project) and the exposure, where typed.
+ */
+function otherPackSite(form: INewBuildingForm): { designCode: string; site?: INewBuildingSpec['site']; wind?: { exposure: string } } {
+	const code = form.designCode || DEFAULT_CODE_PACK_ID;
+	if (code === DEFAULT_CODE_PACK_ID) {
+		return { designCode: code };
+	}
+	const z = Number(form.zoneCoefficient);
+	const v = Number(form.windSpeed);
+	return {
+		designCode: code,
+		site: {
+			location: 'custom', siteClass: form.siteClass, siteClassSource: 'assumed',
+			...(form.zoneCoefficient.trim() && z > 0 && z < 1 ? { zoneCoefficient: z } : {}),
+			...(form.windSpeed.trim() && v > 0 ? { windSpeed: v } : {}),
+			...(spectralValues(form) ? { spectral: spectralValues(form) } : {}),
+		},
+		...(form.exposure ? { wind: { exposure: form.exposure } } : {}),
 	};
 }
 
