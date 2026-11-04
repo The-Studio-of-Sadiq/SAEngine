@@ -47,6 +47,13 @@ Methods:
 - ``components/list`` ``{}`` -> the setup's optional components the backend runs (EnergyPlus,
   LibreDWG): ``{energyplus, libredwg}``, each ``{state, path?}`` (``installed``, ``elsewhere``,
   ``missing``; ``handlers.installer_components``)
+- ``hazard/offers`` ``{settingsText, soilText?, root?, latitude?, longitude?}`` -> ``{ok,
+  codePack, coordinates, params, providers: [{id, service, host, url, query, problem?}],
+  manualNote}``: the code pack's hazard services and the exact query (no network; alpha 9 C22)
+- ``hazard/lookup`` ``{settingsText, provider, consent, soilText?, root?, latitude?,
+  longitude?}`` -> ``{ok, values, source}`` or ``{ok: false, code, message}``: the site's
+  values from the service (only the coordinates and code parameters are sent; refused
+  without ``consent``; in a worker thread)
 - ``ai/searchCode`` ``{query, projectRoot?, limit?, docs?}`` -> ``{pack, query, found, passages,
   note}``: the code pack's passages (and the manual's) that best match a question, each with
   its clauses, for the AI assistant's code Q&A (``saengine.ai.knowledge``; in a worker thread)
@@ -630,6 +637,31 @@ def create_server() -> JsonRPCServer:
     @_in_worker
     def _installer_components(params: Any) -> dict[str, Any]:
         return handlers.installer_components()
+
+    @server.feature("hazard/offers")
+    def _hazard_offers(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.hazard_offers(
+            args.get("settingsText"),
+            args.get("soilText"),
+            args.get("root"),
+            args.get("latitude"),
+            args.get("longitude"),
+        )
+
+    @server.feature("hazard/lookup")
+    @_in_worker
+    def _hazard_lookup(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.hazard_lookup(
+            args.get("settingsText"),
+            str(args.get("provider") or ""),
+            args.get("consent"),
+            args.get("soilText"),
+            args.get("root"),
+            args.get("latitude"),
+            args.get("longitude"),
+        )
 
     @server.feature("ai/searchCode")
     @_in_worker

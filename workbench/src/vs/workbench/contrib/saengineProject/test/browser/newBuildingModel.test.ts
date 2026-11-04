@@ -214,4 +214,18 @@ suite('SAEngine - New Building wizard model', () => {
 		const form = formFromSpec({ gridsX: [7000], stories: [{ name: 'L1', height: 4000 }, { name: 'L2', height: 3000 }], system: 'shellRoof', footing: 'mat' }, { ...DEFAULT_FORM, name: 'Clinic' });
 		assert.deepStrictEqual([form.name, form.gridX, form.gridY, form.storyCount, form.heights, form.system, form.footing], ['Clinic', '7000', '2×5000', '2', '4000, 3000', 'rcFrame', 'mat']);
 	});
+
+	test('C22: a hazard lookup applied in the wizard goes into the spec with its source; typed values win', () => {
+		const source = { provider: 'usgs-asce7-22', service: 'USGS Seismic Design Web Services (ASCE 7-22)', date: '2026-11-05T08:30:00Z', query: { latitude: '34.0522' }, values: {}, applied: [] };
+		const form = {
+			...BLANK_FORM, name: 'Clinic', gridX: '6000', gridY: '5000', storyCount: '2', groundHeight: '3600', typicalHeight: '3200',
+			designCode: 'aci318-asce7-22', sds: '1.5', sd1: '0.82',
+			hazard: { spectral: { sds: 1.36, sd1: 0.82, sms: 2.04, designSpectrum: [[0, 0.55], [0.2, 1.36]] }, source },
+		};
+		const result = buildSpec(form, () => undefined);
+		assert.ok(result.ok);
+		const site = result.spec.site;
+		assert.deepStrictEqual(site.spectral, { sms: 2.04, designSpectrum: [[0, 0.55], [0.2, 1.36]], sds: 1.5, sd1: 0.82 });
+		assert.strictEqual(site.hazardSource, source);
+	});
 });

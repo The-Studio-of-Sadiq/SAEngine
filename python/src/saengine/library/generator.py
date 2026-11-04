@@ -64,6 +64,7 @@ from saengine.library.floorplan import FloorPlan
 from saengine.library.materials import Category, MaterialDefaults
 from saengine.library.objects import ObjectLibrary
 from saengine.library.settings import (
+    HazardSource,
     LocationId,
     ProjectSettings,
     SpectralSite,
@@ -210,6 +211,11 @@ class BuildingSpec(_Spec):
         description="C1: the site's mapped spectral values (SDS, SD1, S1, TL) for a code pack "
         "whose design spectrum is mappedSpectral (Project Settings > Site > Mapped spectral "
         "values).",
+    )
+    hazardSource: HazardSource | None = Field(
+        default=None,
+        description="Alpha 9 C22: the online lookup the site's values came from (the service, "
+        "date and query), kept in Project Settings > Site.",
     )
     windSpeed: float | None = Field(default=None, gt=0, description="Basic wind speed [m/s].")
     windExposure: str | None = Field(
@@ -1357,6 +1363,8 @@ def _code_pack_patch(
             site["windSpeed"] = s.windSpeed
         if s.spectral is not None:  # C1: a pack whose design spectrum is mappedSpectral
             site["spectral"] = s.spectral.model_dump(mode="json", exclude_none=True)
+        if s.hazardSource is not None:  # C22: where the looked-up values came from
+            site["hazardSource"] = s.hazardSource.model_dump(mode="json")
         return {}
     from saengine.codes import registry
     from saengine.library.settings import strength_combinations
@@ -1386,6 +1394,8 @@ def _code_pack_patch(
         site["windSpeed"] = s.windSpeed
     if s.spectral is not None:  # C1: a pack whose design spectrum is mappedSpectral
         site["spectral"] = s.spectral.model_dump(mode="json", exclude_none=True)
+    if s.hazardSource is not None:  # C22: where the looked-up values came from
+        site["hazardSource"] = s.hazardSource.model_dump(mode="json")
     exposures = list(pack.table("wind").exposures) if pack.has("wind") else []
     exposure = s.windExposure or base.wind.exposure
     if exposures and exposure not in exposures:

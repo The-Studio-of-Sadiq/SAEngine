@@ -75,7 +75,7 @@ export interface INewBuildingSpec {
 	 * BNBC 2020 location id of the project settings (`site.location`), and the site class: without
 	 * a soil report it is an assumption (`siteClassSource: 'assumed'`), which the report says.
 	 */
-	readonly site: { readonly location: string; readonly siteClass: SiteClass; readonly siteClassSource: 'assumed'; readonly zoneCoefficient?: number; readonly windSpeed?: number; readonly spectral?: ISpectralValues };
+	readonly site: { readonly location: string; readonly siteClass: SiteClass; readonly siteClassSource: 'assumed'; readonly zoneCoefficient?: number; readonly windSpeed?: number; readonly spectral?: ISpectralValues; readonly hazardSource?: { readonly [key: string]: unknown } };
 	/** Project settings `occupancy`: building use and BNBC occupancy category. */
 	readonly occupancy: { readonly use: string; readonly category: OccupancyCategory };
 	/** The code pack id; another than the default takes Z, V and the exposure of its own lists. */
@@ -93,6 +93,17 @@ export interface ISpectralValues {
 	readonly sd1?: number;
 	readonly s1?: number;
 	readonly tl?: number;
+	/** C22: further values of an online lookup (SMS, SM1, SS and the multi-period spectra). */
+	readonly [key: string]: number | readonly (readonly number[])[] | undefined;
+}
+
+/**
+ * C22: the site's values looked up online in the wizard: every `site.spectral` value the service
+ * gave (the typed SDS, SD1, S1 and TL take precedence) and the record kept as `site.hazardSource`.
+ */
+export interface IWizardHazard {
+	readonly spectral: { readonly [key: string]: number | readonly (readonly number[])[] | undefined };
+	readonly source: { readonly [key: string]: unknown };
 }
 
 /** The wizard's fields as typed. */
@@ -126,6 +137,8 @@ export interface INewBuildingForm {
 	readonly sd1: string;
 	readonly s1: string;
 	readonly tl: string;
+	/** C22: the values of an online lookup by the site's coordinates, where one was applied. */
+	readonly hazard?: IWizardHazard;
 }
 
 /**
@@ -168,14 +181,20 @@ function positive(text: string): number | undefined {
 
 /** C1: the mapped spectral values typed in the form (a pack whose design spectrum is mappedSpectral), else undefined. */
 function spectralValues(form: INewBuildingForm): ISpectralValues | undefined {
-	const spectral: { [key: string]: number } = {};
+	// C22: a lookup's values first; the four typed in the form take precedence (or clear them).
+	const spectral: { [key: string]: number | readonly (readonly number[])[] } = {};
+	for (const [key, value] of Object.entries(form.hazard?.spectral ?? {})) {
+		if (value !== undefined && !['sds', 'sd1', 's1', 'tl'].includes(key)) {
+			spectral[key] = value;
+		}
+	}
 	for (const key of ['sds', 'sd1', 's1', 'tl'] as const) {
 		const value = positive(form[key] ?? '');
 		if (value !== undefined) {
 			spectral[key] = value;
 		}
 	}
-	return Object.keys(spectral).length ? spectral : undefined;
+	return Object.keys(spectral).length ? spectral as ISpectralValues : undefined;
 }
 
 type SpecRaw = { readonly [key: string]: unknown };
@@ -470,6 +489,7 @@ function otherPackSite(form: INewBuildingForm): { designCode: string; site?: INe
 			...(form.zoneCoefficient.trim() && z > 0 && z < 1 ? { zoneCoefficient: z } : {}),
 			...(form.windSpeed.trim() && v > 0 ? { windSpeed: v } : {}),
 			...(spectralValues(form) ? { spectral: spectralValues(form) } : {}),
+			...(form.hazard ? { hazardSource: form.hazard.source } : {}),
 		},
 		...(form.exposure ? { wind: { exposure: form.exposure } } : {}),
 	};

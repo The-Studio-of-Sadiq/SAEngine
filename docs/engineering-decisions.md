@@ -41,6 +41,34 @@ here, newest first, with the date, the question, the decision, the reason and wh
 - **No unlicensed software.** ETABS, SAP2000 and STAAD are not used for cross-checks or cited.
   Open-source tools are used instead (2026-10-25).
 
+## 2026-11-05: online hazard lookup by site coordinates (alpha 9 track C22)
+
+- **Opt-in and asked every time (owner).** A global setting "Allow online hazard lookups"
+  (`saengine.hazard.allowOnlineLookups`, default off, application scope so a project cannot turn
+  it on) and a confirmation before every request that names the service, its host and every
+  query value. The Python backend refuses to send without that consent.
+- **Only the coordinates and the code parameters leave the machine (owner).** A pack's query
+  templates may use only `{latitude}`, `{longitude}`, `{riskCategory}` and `{siteClass}`; the
+  endpoint must be https and redirects are followed only on the same host (upgraded to https).
+  The request is a plain GET by urllib with a user agent naming SAEngine, no cookies.
+- **The pack names the service (code independence).** The `hazardLookup` table holds each
+  provider as data (endpoint, query, the pack's risk categories and site classes in the service's
+  words, where each value is in the JSON answer and its unit, regions, terms). The engine has no
+  service of its own. Only the US pack names one (USGS Seismic Design Web Services, ASCE 7-22).
+  A pack without a provider shows "Enter values by hand". SAEngine practice: a provider is used
+  only by the pack whose own data file names it (`inheritable: false` by default), so packs that
+  extend the US pack for another country never send their sites to USGS.
+- **SAEngine practice: project overrides cannot change a provider.** The lookup reads the pack
+  without the project's Code Values overrides, so a project file cannot redirect the request.
+- **Values stay the engineer's.** The values are shown before they are applied, go into the
+  existing fields (`site.spectral` etc.) and stay editable. The project keeps the source
+  (`site.hazardSource`: service, date, query, values) so reopening needs no network. The report's
+  design basis names the source and which values were edited since. Offline, a timeout or a failed
+  answer shows a message and changes nothing.
+- **Not covered.** Wind and snow lookups (the ASCE Hazard Tool's API needs a subscription key),
+  Canada (the NRCan seismic hazard calculator has no documented public API), New Zealand and the
+  other packs: values by hand.
+
 ## 2026-11-05: assessment and retrofit of existing buildings (alpha 9 track P4)
 
 - **What was built.** A project marks itself as an existing building with

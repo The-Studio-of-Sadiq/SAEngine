@@ -850,6 +850,10 @@ def _basis(settings: Any, parts: _Parts, model: dict[str, Any], manifest: dict[s
             ["Wind exposure category", settings.wind.exposure],
         ]
         basis["site"] = _mapped_site_rows(basis["site"], values)  # C1: SDS, SD1 for Z
+        # C22: the service, date and query of values looked up by the site's coordinates.
+        from saengine.gis.hazard_lookup import source_rows as _hazard_source_rows
+
+        basis["site"] += _hazard_source_rows(settings)
         basis["site"] += _construction_basis(settings, parts, pack)  # B18
         basis["seismic"] = [
             [

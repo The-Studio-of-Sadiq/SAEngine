@@ -11717,6 +11717,7 @@ from saengine.codes.capacity_tables import (  # C19
 )
 from saengine.codes.excavation_tables import ExcavationSupportTable  # P1: staged excavations
 from saengine.codes.existing_tables import ExistingTable  # P4: existing buildings
+from saengine.codes.hazard_tables import HazardLookupTable  # C22: online hazard lookup
 from saengine.codes.limit_state_tables import SteelLimitStateTable
 from saengine.codes.material_method_tables import (
     AluminiumTable,
@@ -11823,6 +11824,8 @@ TABLE_MODELS: dict[str, type[TableModel]] = {
     "horizontalCapacity": HorizontalCapacityTable,
     # Alpha 9 P4: assessment and retrofit of existing buildings.
     "existing": ExistingTable,
+    # Alpha 9 C22: the hazard services by site coordinates.
+    "hazardLookup": HazardLookupTable,
 }
 
 

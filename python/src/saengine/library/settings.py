@@ -368,6 +368,44 @@ class SpectralSite(_Model):
     )
 
 
+class HazardSource(_Model):
+    """Alpha 9 C22: where the site's hazard values came from when they were looked up online by
+    the site's coordinates (:mod:`saengine.gis.hazard_lookup`): the service, the date, the
+    query sent and the values it gave, kept in the project so that reopening it needs no
+    network. The values applied are in their own fields (``site.spectral`` etc.) and stay
+    editable; the report names this source beside each value that still equals the service's."""
+
+    provider: str = Field(
+        min_length=1, title="Provider", description="The code pack's provider id."
+    )
+    service: str = Field(min_length=1, title="Service", description="The web service's name.")
+    publisher: str = Field(default="", title="Publisher")
+    reference: str = Field(
+        default="", title="Code edition", description="The edition the values are for."
+    )
+    codePack: str = Field(
+        default="", title="Code pack", description="The pack that named the provider."
+    )
+    date: str = Field(
+        min_length=1, title="Date", description="When the values were looked up (UTC, ISO 8601)."
+    )
+    url: str = Field(
+        default="", title="Request", description="The request sent (endpoint and query)."
+    )
+    query: dict[str, str] = Field(
+        default_factory=dict, title="Query", description="The query parameters sent."
+    )
+    values: dict[str, Any] = Field(
+        default_factory=dict,
+        title="Values given",
+        description="Settings field (site.spectral.sds, ...) -> the value the service gave, in "
+        "the field's unit (a spectrum: its (T, Sa) points).",
+    )
+    applied: list[str] = Field(
+        default_factory=list, title="Values applied", description="The fields the values went into."
+    )
+
+
 class SnowDrift(_Model):
     """A roof step: the drift on the lower roof (reported, not applied to the model)."""
 
@@ -536,6 +574,15 @@ class Site(_Model):
         description="The site's design spectral accelerations from the hazard maps or tool of "
         "the code (code packs whose seismic hazard is mapped, such as ASCE 7-22 Sec 11.4). A "
         "pack with seismic zones ignores them.",
+    )
+    # Alpha 9 C22: the online lookup the mapped values came from (none: entered by hand).
+    hazardSource: HazardSource | None = Field(
+        default=None,
+        exclude_if=lambda value: value is None,
+        title="Hazard values looked up",
+        description="Where the hazard values came from when they were looked up online by the "
+        "site's coordinates (Look Up Hazard Values): the service, date and query. Values edited "
+        "afterwards are the engineer's; the report says which ones still equal the service's.",
     )
     # B16: flood and surge, rain and the other special loads.
     flood: FloodSite = Field(default_factory=FloodSite, title="Flood and surge")

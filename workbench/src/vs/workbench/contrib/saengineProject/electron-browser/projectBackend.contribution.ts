@@ -22,6 +22,7 @@ import { ARCHIVE_EXPORT_COMMAND, ARCHIVE_EXTENSION, ARCHIVE_IMPORT_COMMAND, ARCH
 import { ProjectOverviewInput } from '../browser/projectOverviewInput.js';
 import { StartEditorInput } from '../browser/startEditorInput.js';
 import { SHARE_CONNECT_COMMAND, SHARE_DISCONNECT_COMMAND, SHARE_HEARTBEAT_COMMAND, SHARE_JOIN_COMMAND, SHARE_LOCK_COMMAND, SHARE_STATUS_COMMAND, SHARE_SYNC_COMMAND, SHARE_UNLOCK_COMMAND } from '../browser/shareModel.js';
+import { ALLOW_HAZARD_LOOKUP_SETTING, HAZARD_LOOKUP_COMMAND, HAZARD_OFFERS_COMMAND } from '../../saengineLibrary/browser/hazardLookup.js';
 import { VERSIONS_DIFF_COMMAND, VERSIONS_LIST_COMMAND, VERSIONS_MARK_ISSUED_COMMAND, VERSIONS_RESTORE_COMMAND, VERSIONS_SAVE_COMMAND, VERSIONS_STATUS_COMMAND } from '../browser/versionsModel.js';
 
 /*
@@ -56,6 +57,13 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			restricted: true,
 			markdownDescription: localize('saengine.cad.program', "The CAD program DXF drawings open in (the full path of its `.exe`). When empty, the LibreCAD bundled with SAEngine, else an installed LibreCAD, else the program Windows opens DXF files with."),
 		},
+		[ALLOW_HAZARD_LOOKUP_SETTING]: {
+			type: 'boolean',
+			default: false,
+			// The user's own choice: never from a project's .vscode/settings.json.
+			scope: ConfigurationScope.APPLICATION,
+			markdownDescription: localize('saengine.hazard.allowOnlineLookups', "Allow Project Settings > Site and the New Building wizard to look up the site's seismic hazard values online by its coordinates, from the service the project's code pack names (for ASCE 7-22, the USGS Seismic Design Web Services). SAEngine asks before every lookup and shows the request; only the site's latitude and longitude and the code parameters (risk category, site class) are sent. Off: the values are entered by hand."),
+		},
 	},
 });
 
@@ -67,6 +75,10 @@ function bag(value: unknown): Bag {
 
 function str(value: unknown): string | undefined {
 	return typeof value === 'string' && value.trim() ? value : undefined;
+}
+
+function num(value: unknown): number | undefined {
+	return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
 }
 
 /** A refusal of the backend (`{ok: false, message}`) becomes an error the caller shows. */
@@ -257,6 +269,21 @@ CommandsRegistry.registerCommand('saengine.codes.show', async (accessor, raw: un
 CommandsRegistry.registerCommand('saengine.codes.choices', async (accessor, raw: unknown) => {
 	const args = bag(raw);
 	return orThrow(await call(accessor, 'codes/choices', { id: args.id, root: str(args.root) }));
+});
+
+// Alpha 9 C22: the code pack's hazard services and the exact request (no network), and the lookup
+// itself, sent only with the global setting on and the engineer's consent (the backend refuses without it).
+CommandsRegistry.registerCommand(HAZARD_OFFERS_COMMAND, async (accessor, raw: unknown) => {
+	const args = bag(raw);
+	return call(accessor, 'hazard/offers', { settingsText: str(args.settingsText), soilText: str(args.soilText), root: str(args.root), latitude: num(args.latitude), longitude: num(args.longitude) });
+});
+
+CommandsRegistry.registerCommand(HAZARD_LOOKUP_COMMAND, async (accessor, raw: unknown) => {
+	const args = bag(raw);
+	if (accessor.get(IConfigurationService).getValue<boolean>(ALLOW_HAZARD_LOOKUP_SETTING) !== true) {
+		return { ok: false, code: 'disabled', message: localize('hazard.disabled', "Online hazard lookups are turned off (setting \"Allow online hazard lookups\"). Nothing was sent.") };
+	}
+	return call(accessor, 'hazard/lookup', { settingsText: str(args.settingsText), provider: str(args.provider), consent: args.consent === true, soilText: str(args.soilText), root: str(args.root), latitude: num(args.latitude), longitude: num(args.longitude) });
 });
 
 // C7: a new project's settings under another code pack (its town, site class, systems, exposure, area loads and combinations).

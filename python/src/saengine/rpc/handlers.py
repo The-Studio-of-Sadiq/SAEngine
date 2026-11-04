@@ -916,6 +916,49 @@ def workbook_import(
         return {"ok": False, "problems": [str(exc)], "diff": {}, "texts": {}, "changed": []}
 
 
+def _coordinate(value: Any) -> float | None:
+    return float(value) if isinstance(value, int | float) and not isinstance(value, bool) else None
+
+
+def hazard_offers(
+    settings_text: str | None,
+    soil_text: str | None = None,
+    root: str | None = None,
+    latitude: Any = None,
+    longitude: Any = None,
+) -> dict[str, Any]:
+    """Alpha 9 C22: the hazard services of the project's code pack and the exact query each
+    would be sent for the site (no network; ``saengine.gis.hazard_lookup.offers``)."""
+    from saengine.gis.hazard_lookup import offers
+
+    return offers(settings_text, soil_text, root, _coordinate(latitude), _coordinate(longitude))
+
+
+def hazard_lookup(
+    settings_text: str | None,
+    provider: str,
+    consent: Any,
+    soil_text: str | None = None,
+    root: str | None = None,
+    latitude: Any = None,
+    longitude: Any = None,
+) -> dict[str, Any]:
+    """Alpha 9 C22: asks the provider for the site's hazard values (only the coordinates and
+    the code parameters are sent; refused without ``consent`` true). The answer's values and
+    the record to keep (``saengine.gis.hazard_lookup.lookup``); nothing is written."""
+    from saengine.gis.hazard_lookup import lookup
+
+    return lookup(
+        settings_text,
+        provider,
+        consent is True,
+        soil_text,
+        root,
+        _coordinate(latitude),
+        _coordinate(longitude),
+    )
+
+
 def ai_search_code(
     query: str, project_root: str | None = None, limit: int = 8, docs: bool = True
 ) -> dict[str, Any]:

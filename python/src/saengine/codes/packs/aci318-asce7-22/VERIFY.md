@@ -749,3 +749,26 @@ The floor vibration and pile values are the default pack's (see bnbc2020/VERIFY.
 | P4U28 | existing.jacketing | My × 1.0, θy × 1.05, θum × 1.0, VR × 0.9 | EN 1998-3 A.4.2.2 (used for ASCE 41 / ACI 369.1) | SAEngine practice |
 | P4U29 | existing.nonlinear.capacityFactor | κ on the hinges' deformation limits | ASCE 41-17 Sec 6.2.4.1 (as read) | Unsure |
 | P4U30 | existing.tier1 | the checklist topics of the concrete moment frame (C1) and basic checklists | ASCE 41-17 Ch 4 and Ch 17 | Check (topics only, no text copied; section numbers not given) |
+
+## Online hazard lookup (alpha 9 C22) — `hazardLookup.json`
+
+The provider is data; the engine only fills the query and reads the paths. Written from the
+service's public documentation page and secondary descriptions of it; no request was sent while
+building (the tests parse answers constructed in the documented form). Check each item against a
+live answer before release.
+
+| # | Entry | Value | Source | Status |
+|---|---|---|---|---|
+| C22-1 | endpoint | `https://earthquake.usgs.gov/ws/designmaps/asce7-22.json` | USGS Seismic Design Web Services, ASCE 7-22 documentation (the `.html` page now redirects to `/ws/building-codes/asce7-22`) | UNSURE: the JSON endpoint may also have moved; redirects are followed only on the same host and upgraded to https |
+| C22-2 | query | `latitude`, `longitude`, `riskCategory` (I-IV), `siteClass`, `title` | the documentation's example request | OK? |
+| C22-3 | siteClasses | SA→A, SB→B, SBC→BC, SC→C, SCD→CD, SD→D, SDE→DE, SE→E; SF not looked up | ASCE 7-22 Table 20.2-1 classes; the service's list (also `Default`, not mapped) | OK? (check the service's spelling of BC, CD, DE) |
+| C22-4 | status | `request.status` = `success` | the form of the USGS design-maps answers | UNSURE |
+| C22-5 | message | `response`, `message`, `error` (first found) on a failed status | not documented | UNSURE |
+| C22-6 | values | `response.data.sds`, `sd1`, `sms`, `sm1` [g] | the documentation's response fields | OK? |
+| C22-7 | values | `response.data.ss`, `s1` (else `response.data.underlyingData.ss`/`s1`) [g] | secondary descriptions list `ss`, `s1` in `data` | UNSURE (where 7-22 puts them) |
+| C22-8 | values | `response.data.tl` (else `t-sub-l`, `tL`) [s] | ASCE 7-16 answers used `t-sub-l`; 7-22 `tl` | UNSURE |
+| C22-9 | spectra | `response.data.multiPeriodDesignSpectrum` and `multiPeriodMCErSpectrum`, each `{periods [s], ordinates [g]}` | the NEHRP-2020 / ASCE 7-22 documentation | OK? (check the MCEr capitalisation) |
+| C22-10 | regions | boxes of the conterminous US, Alaska (across 180°), Hawaii, Puerto Rico and USVI, Guam and NMI, American Samoa | SAEngine practice: rough boxes so that sites elsewhere are never sent | PRACTICE (boxes overlap parts of Canada and Mexico: the service answers or refuses) |
+| C22-11 | decimals, timeout | 4 decimals (about 10 m), 30 s | SAEngine practice | PRACTICE |
+| C22-12 | terms | USGS information is US public domain; the service page calls the software provisional | usgs.gov copyrights and credits page | Owner to confirm |
+| C22-13 | wind (Ch 26), snow (Ch 7) | not covered | the ASCE Hazard Tool's programmatic access needs a subscription key; no public API | Not covered |

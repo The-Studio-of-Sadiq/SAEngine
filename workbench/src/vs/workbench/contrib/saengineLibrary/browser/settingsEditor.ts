@@ -27,6 +27,7 @@ import { IContextViewService } from '../../../../platform/contextview/browser/co
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IProgressService } from '../../../../platform/progress/common/progress.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { defaultButtonStyles, defaultInputBoxStyles, defaultSelectBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
@@ -47,6 +48,7 @@ import { IReportTemplateInfo, IReportTemplates, REPORT_TEMPLATES_COMMAND_ID } fr
 import './media/codePacks.css';
 import { changePackWarning, chosenPackId, CODES_CHOICES_COMMAND, CODES_LIST_COMMAND, coverageLabel, DEFAULT_CODE_PACK, ICodePackInfo, ICodePackOption, packOptionBlock, packOptions, readCodePacks, readPackLists } from './codePacksModel.js';
 import { CODE_OVERRIDES_KEY, codeOverrides, CODES_VALUES_COMMAND, codeValueUnit, filterCodeValues, formatCodeValue, ICodeValueRow, ICodeValues, parseCodeValue, readCodeValues, setCodeOverride } from './codeValuesModel.js';
+import { applyHazardValues, HAZARD_OFFERS_COMMAND, hazardOffers, hazardSourceSummary, IHazardOffers, lookUpHazardValues } from './hazardLookup.js';
 import { clone, IDocumentFrameActions, IShapeError, isObject, JsonDocumentEditor } from './jsonDocumentEditor.js';
 import { LibraryEditorInput } from './libraryEditorInput.js';
 import { humanize, JsonObject, JsonValue, SchemaForm, titleCase } from './schemaForm.js';
@@ -454,10 +456,11 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 		@IDialogService private readonly dialogService: IDialogService,
 		@IContextViewService private readonly contextViewService: IContextViewService,
 		@IHoverService private readonly hoverService: IHoverService,
-		@IConfigurationService configurationService: IConfigurationService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ITextFileService private readonly textFiles: ITextFileService,
 		@ISaenginePartStatusService private readonly partStatus: ISaenginePartStatusService,
 		@ILocaleService private readonly localeService: ILocaleService,
+		@IProgressService private readonly progressService: IProgressService,
 	) {
 		super(SettingsEditor.ID, group, telemetryService, themeService, storageService, commands, editorService, textModels, project);
 		this.trackDeveloperMode(configurationService);
@@ -488,6 +491,10 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 			}
 			if (id === CODES_LIST_COMMAND) {
 				void this.refreshPacks();
+			}
+			if (id === HAZARD_OFFERS_COMMAND) {
+				this.hazardOffersFor = undefined; // C22: ask again now that the backend answers
+				void this.refreshHazardOffers();
 			}
 			if (id === REPORT_TEMPLATES_COMMAND_ID) {
 				void this.refreshReportTemplates();
@@ -966,6 +973,10 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 		if (path === 'site.siteClass' && this.siteClassFromSoil) {
 			return 'hidden';
 		}
+		// C22: the lookup's record is shown as the Hazard values row (renderHazardSource), not edited.
+		if (path === 'site.hazardSource' || path.startsWith('site.hazardSource.')) {
+			return 'hidden';
+		}
 		if (path === 'project.language' && !this.languageShown()) {
 			return 'hidden';
 		}
@@ -1414,7 +1425,88 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 		if (section.id === 'drawings') {
 			this.renderTitleBlockSource(this.sourceRow(form, undefined, localize('settings.titleBlockRow', "Project number and engineer")));
 		}
+		if (section.keys.includes('site')) {
+			this.renderHazardSource(this.sourceRow(form, fieldTitle('Site', 'spectral'), localize('settings.hazardRow', "Hazard values")));
+		}
 		this.renderSources();
+	}
+
+	/** C22: the code pack's online hazard services (`saengine.hazard.offers`, no network), by pack. */
+	private hazardOffers: IHazardOffers | undefined;
+	private hazardOffersFor: string | undefined;
+
+	private async refreshHazardOffers(): Promise<void> {
+		const document = this.document;
+		const key = chosenPackId(document);
+		if (!document || key === this.hazardOffersFor || !CommandsRegistry.getCommand(HAZARD_OFFERS_COMMAND)) {
+			return;
+		}
+		this.hazardOffersFor = key;
+		const offers = await hazardOffers(this.commands, { settingsText: JSON.stringify(document), soilText: this.soilReference.value?.object.textEditorModel.getValue(), root: this.project.project?.root.fsPath });
+		if (this.document !== document || this.hazardOffersFor !== key) {
+			return;
+		}
+		this.hazardOffers = offers;
+		if (this.section?.keys.includes('site')) {
+			this.renderPage();
+		}
+	}
+
+	/**
+	 * C22, Site: where the hazard values come from (typed by hand, or the online lookup's service,
+	 * date and query, and the values edited since), with Look Up Hazard Values... where the code
+	 * pack names a service, else "enter values by hand"; and Restore when values were edited since.
+	 */
+	private renderHazardSource(cell: HTMLElement): void {
+		const document = this.document;
+		if (!document) {
+			return;
+		}
+		if (this.hazardOffersFor !== chosenPackId(document)) {
+			void this.refreshHazardOffers();
+		}
+		const summary = hazardSourceSummary(document);
+		const offers = this.hazardOffersFor === chosenPackId(document) ? this.hazardOffers : undefined;
+		const words = summary
+			? (summary.edited.length ? localize('settings.hazardEdited', "{0}; edited since: {1}", summary.line, summary.edited.join(', ')) : summary.line)
+			: offers && !offers.providers.length
+				? localize('settings.hazardByHand', "entered by hand: {0} names no online hazard service", offers.codeName)
+				: localize('settings.hazardTyped', "entered by hand");
+		append(cell, $('span.settings-source-value', undefined, words));
+		if (offers?.providers.length) {
+			const button = this.pageDisposables.add(new Button(append(cell, $('span.settings-source-action')), { ...defaultButtonStyles, secondary: true }));
+			button.label = localize('settings.hazardLookUp', "Look Up Hazard Values...");
+			button.setTitle(localize('settings.hazardLookUpHint', "Asks {0} for the site's values by the site's coordinates (01 Soil Report > Site). Asks first; only the coordinates and the code parameters are sent.", offers.providers.map(p => p.service).join(', ')));
+			this.pageDisposables.add(button.onDidClick(() => void this.lookUpHazard()));
+		}
+		const restore = summary?.restore;
+		if (restore) {
+			const button = this.pageDisposables.add(new Button(append(cell, $('span.settings-source-action')), { ...defaultButtonStyles, secondary: true }));
+			button.label = localize('settings.hazardRestore', "Restore Looked-Up Values");
+			button.setTitle(localize('settings.hazardRestoreHint', "Puts the values the service gave back into their fields (kept in the project: no network)."));
+			this.pageDisposables.add(button.onDidClick(() => {
+				if (this.document === document) {
+					applyHazardValues(document, restore);
+					this.changed(true);
+				}
+			}));
+		}
+	}
+
+	/** C22: the lookup (setting, consent, progress, the values shown), then the values applied. */
+	private async lookUpHazard(): Promise<void> {
+		const document = this.document;
+		if (!document) {
+			return;
+		}
+		const applied = await lookUpHazardValues(
+			{ commands: this.commands, dialogs: this.dialogService, configuration: this.configurationService, progress: this.progressService },
+			{ settingsText: JSON.stringify(document), soilText: this.soilReference.value?.object.textEditorModel.getValue(), root: this.project.project?.root.fsPath },
+		);
+		if (applied && this.document === document) {
+			applyHazardValues(document, applied);
+			this.changed(true);
+		}
 	}
 
 	/**

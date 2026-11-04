@@ -10312,6 +10312,78 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 			title: 'FrpWrap',
 			type: 'object',
 		},
+		HazardSource: {
+			additionalProperties: false,
+			description: 'Alpha 9 C22: where the site\'s hazard values came from when they were looked up online by\nthe site\'s coordinates (:mod:`saengine.gis.hazard_lookup`): the service, the date, the\nquery sent and the values it gave, kept in the project so that reopening it needs no\nnetwork. The values applied are in their own fields (``site.spectral`` etc.) and stay\neditable; the report names this source beside each value that still equals the service\'s.',
+			properties: {
+				provider: {
+					description: 'The code pack\'s provider id.',
+					minLength: 1,
+					title: 'Provider',
+					type: 'string',
+				},
+				service: {
+					description: 'The web service\'s name.',
+					minLength: 1,
+					title: 'Service',
+					type: 'string',
+				},
+				publisher: {
+					default: '',
+					title: 'Publisher',
+					type: 'string',
+				},
+				reference: {
+					default: '',
+					description: 'The edition the values are for.',
+					title: 'Code edition',
+					type: 'string',
+				},
+				codePack: {
+					default: '',
+					description: 'The pack that named the provider.',
+					title: 'Code pack',
+					type: 'string',
+				},
+				date: {
+					description: 'When the values were looked up (UTC, ISO 8601).',
+					minLength: 1,
+					title: 'Date',
+					type: 'string',
+				},
+				url: {
+					default: '',
+					description: 'The request sent (endpoint and query).',
+					title: 'Request',
+					type: 'string',
+				},
+				query: {
+					additionalProperties: {
+						type: 'string',
+					},
+					description: 'The query parameters sent.',
+					title: 'Query',
+					type: 'object',
+				},
+				values: {
+					additionalProperties: true,
+					description: 'Settings field (site.spectral.sds, ...) -> the value the service gave, in the field\'s unit (a spectrum: its (T, Sa) points).',
+					title: 'Values given',
+					type: 'object',
+				},
+				applied: {
+					description: 'The fields the values went into.',
+					items: {
+						type: 'string',
+					},
+					title: 'Values applied',
+					type: 'array',
+				},
+			},
+			required: ['provider', 'service', 'date'],
+			title: 'HazardSource',
+			type: 'object',
+		},
 		Helipad: {
 			additionalProperties: false,
 			description: 'A helicopter landing or touch-down area.',
@@ -11437,6 +11509,19 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 					default: null,
 					description: 'The site\'s design spectral accelerations from the hazard maps or tool of the code (code packs whose seismic hazard is mapped, such as ASCE 7-22 Sec 11.4). A pack with seismic zones ignores them.',
 					title: 'Mapped spectral values',
+				},
+				hazardSource: {
+					anyOf: [
+						{
+							$ref: '#/$defs/HazardSource',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Where the hazard values came from when they were looked up online by the site\'s coordinates (Look Up Hazard Values): the service, date and query. Values edited afterwards are the engineer\'s; the report says which ones still equal the service\'s.',
+					title: 'Hazard values looked up',
 				},
 				flood: {
 					$ref: '#/$defs/FloodSite',

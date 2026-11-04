@@ -97,7 +97,7 @@ registerPlannedFeature({
 	summary: localize('codePacks.planned.usSummaryMaterials', "A design-code pack for projects designed to the US codes. Covered now, in the built-in pack aci318-asce7-22 (chosen in Project Settings or the New Building wizard): the loads of ASCE 7-22, structural concrete (ACI 318-19), structural steel (AISC 360-22, LRFD or ASD, and AISC 341-22), timber (NDS 2018, ASD or LRFD) and masonry (TMS 402-22 allowable stress and strength design); a steel moment or braced frame building can be generated. Planned: the geotechnical tables and the steel fire design (AISC 360-22 Appendix 4), which fall back to {0} or are not covered until then.", activeCodeName()),
 	steps: [
 		localize('codePacks.planned.us1Loads', "Choose ACI 318-19 + ASCE 7-22 as the project's design code in Project Settings or in the New Building wizard (built in: no install)."),
-		localize('codePacks.planned.us2Loads', "Enter the site's SDS, SD1, S1 and TL and the basic wind speed V from the ASCE Hazard Tool (Project Settings > Site); a snow load where the site has one."),
+		localize('codePacks.planned.us2Lookup', "Enter the site's SDS, SD1, S1 and TL and the basic wind speed V from the ASCE Hazard Tool (Project Settings > Site), or look the seismic values up online by the site's coordinates from the USGS Seismic Design Web Services (opt-in: Look Up Hazard Values... in Project Settings > Site or the New Building wizard); a snow load where the site has one."),
 		localize('codePacks.planned.us3', "Loads, combinations and design checks read their factors and limits from the pack instead of {0}.", activeCodeName()),
 		localize('codePacks.planned.us4', "Reports cite the pack's sections; checks the pack does not cover stay marked as not covered."),
 	],
