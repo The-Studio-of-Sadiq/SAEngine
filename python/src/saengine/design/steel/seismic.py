@@ -94,6 +94,13 @@ def cite(table: Any, key: str) -> str:
     return table.sources.get(key, "").split(" (", 1)[0]
 
 
+def ref(table: Any, key: str, default: str) -> str:
+    """Alpha 9 C3b: a short reference a note names (``key`` of the table's sources, e.g. an
+    equation of the specification), else the default pack's ``default``."""
+    found = getattr(table, "sources", {}).get(key) if table is not None else None
+    return str(found) if found else default
+
+
 def _check(
     name: str,
     demand: float,
@@ -393,7 +400,8 @@ def compactness_checks(
                     limit,
                     "",
                     clause,
-                    f"λ = {el.ratio:.1f} ≤ λp = {limit:.1f} of Table 6.10.1 case {el.case}"
+                    f"λ = {el.ratio:.1f} ≤ λp = {limit:.1f} of "
+                    f"{ref(t, 'widthThicknessTable', 'Table 6.10.1')} case {el.case}"
                     + (
                         "; the moment ratio exceeds the relaxed ratio (note [b])" if relaxed else ""
                     ),
@@ -473,7 +481,13 @@ def beam_bracing_checks(
     if rules.beamBracing is None:
         return []
     key = "smfBeamBracing" if frame == "smf" else "imfBeamBracing"
-    limit = rules.beamBracing * shape.ry * e / fy
+    if getattr(rules, "beamBracingExpected", False):
+        # Alpha 9 C3b: by the expected yield stress Ry Fy.
+        limit = rules.beamBracing * shape.ry * e / (ry_ratio * fy)
+        how = f"Lb ≤ {rules.beamBracing:g} ry E / (Ry Fy) = {limit:.0f} mm (Ry = {ry_ratio:g})"
+    else:
+        limit = rules.beamBracing * shape.ry * e / fy
+        how = f"Lb ≤ {rules.beamBracing:g} ry E / Fy = {limit:.0f} mm"
     checks = [
         _check(
             "lateral bracing of the beam",
@@ -481,7 +495,7 @@ def beam_bracing_checks(
             limit,
             "mm",
             cite(t, key),
-            f"Lb ≤ {rules.beamBracing:g} ry E / Fy = {limit:.0f} mm, both flanges braced",
+            f"{how}, both flanges braced",
         )
     ]
     ho = shape.dims.get("ho") or shape.dims.get("d", 0.0)
@@ -496,7 +510,8 @@ def beam_bracing_checks(
                 "kN",
                 cite(t, key),
                 f"each brace next to a hinge needs Pu = {rules.braceStrength:g} Ry Z Fy / ho = "
-                f"{pu / 1e3:.1f} kN and the stiffness of Eq 6.10.292 (Cd = 1)",
+                f"{pu / 1e3:.1f} kN and the stiffness of "
+                f"{ref(t, 'braceStiffness', 'Eq 6.10.292')} (Cd = 1)",
                 flag=True,
             )
         )
@@ -584,6 +599,8 @@ class BeamHinge:
     vu: float = 0.0
     m_expected: float = 0.0  # hinge factor × Ry Mp
     m_face: float = 0.0  # projected to the column face
+    fu: float = 0.0  # alpha 9 C3b: for Cpr (0: the fixed hinge factor)
+    factor: float = 0.0  # alpha 9 C3b: the hinge factor used (hingeFactor or Cpr)
 
     def __post_init__(self) -> None:
         self.mp = self.fy * self.zx
@@ -593,11 +610,31 @@ def connection_shear(beam: BeamHinge, frame: str, table: Any | None = None) -> B
     """Eq 6.10.298 / 6.10.301: E = 2 (hinge factor × Ry Mp) / Lh, the required shear Vu = the
     gravity shear + E (in place); the expected moment and its projection to the column face."""
     rules = _table(table).frames[frame]
-    beam.m_expected = rules.hingeFactor * beam.ry * beam.mp
+    beam.factor = hinge_factor(rules, beam.fy, beam.fu)
+    beam.m_expected = beam.factor * beam.ry * beam.mp
     beam.ev = 2 * beam.m_expected / beam.lh if beam.lh > 0 else math.inf
     beam.vu = beam.vg + beam.ev
     beam.m_face = beam.m_expected + beam.vu * beam.sh
     return beam
+
+
+def hinge_factor(rules: Any, fy: float, fu: float) -> float:
+    """The factor on Ry Mp of the expected moment at a hinge: the frame's ``hingeFactor``, or
+    (alpha 9 C3b, ``hingeFactorMethod`` "cpr") Cpr = (Fy + Fu) / (2 Fy) at most ``cprMax``
+    when Fu is known."""
+    if getattr(rules, "hingeFactorMethod", "fixed") == "cpr" and fu > 0 and fy > 0:
+        cpr = (fy + fu) / (2 * fy)
+        cap = getattr(rules, "cprMax", None)
+        return min(cpr, float(cap)) if cap else cpr
+    return float(rules.hingeFactor)
+
+
+def _factor_text(beam: BeamHinge, rules: Any) -> str:
+    """How a note writes the hinge factor: the number, or "Cpr = x" (alpha 9 C3b)."""
+    factor = beam.factor or float(rules.hingeFactor)
+    if getattr(rules, "hingeFactorMethod", "fixed") == "cpr" and beam.fu > 0:
+        return f"Cpr = {factor:.3g}"
+    return f"{factor:g}"
 
 
 def connection_checks(
@@ -617,7 +654,7 @@ def connection_checks(
             phi_vn / 1e3,
             "kN",
             clause,
-            f"Vu = gravity {beam.vg / 1e3:.1f} kN + 2 ({rules.hingeFactor:g} Ry Mp) / Lh = "
+            f"Vu = gravity {beam.vg / 1e3:.1f} kN + 2 ({_factor_text(beam, rules)} Ry Mp) / Lh = "
             f"{beam.ev / 1e3:.1f} kN, Ry = {beam.ry:g}, Lh = {beam.lh:.0f} mm; against the "
             "beam web (the connection's own shear checks follow its type)",
         )
@@ -1299,6 +1336,7 @@ def apply(
                 max(clear - 2 * sh, 1.0),
                 sh,
                 vg,
+                fu=float(getattr(steel, "fu", 0.0) or 0.0),
             ),
             frame,
             t,
@@ -1332,7 +1370,11 @@ def apply(
                 moment = (
                     hinge.m_face
                     if frame != "omf"
-                    else ((rules.connectionMoment or rules.hingeFactor) * hinge.ry * hinge.mp)
+                    else (
+                        (rules.connectionMoment or hinge_factor(rules, hinge.fy, hinge.fu))
+                        * hinge.ry
+                        * hinge.mp
+                    )
                 )
                 plate = mats.get(connection.plateMaterial) if connection.plateMaterial else None
                 col = mats.get(connection.columnMaterial) if connection.columnMaterial else None

@@ -1,4 +1,5 @@
-"""Roof ponding of steel roof framing (Part 6 Sec 10.16 of the code pack's ``steel`` table).
+"""Roof ponding of steel roof framing (the code pack's ``steel.ponding``: the default pack's
+BNBC 2020 Part 6 Sec 10.16; the notes' references from ``ponding.clauses``, alpha 9 C3b).
 
 Two methods, both from the pack's ``ponding`` data:
 
@@ -45,6 +46,22 @@ def _table() -> Any:
     return data
 
 
+#: The default pack's references of the check notes (BNBC 2020 Part 6 Sec 10.16); a pack gives
+#: its own in ``ponding.clauses`` (alpha 9 C3b).
+_REFERENCES = {
+    "simplified": "Sec 10.16.1 Eq 6.10.272",
+    "deck": "Sec 10.16.1 Eq 6.10.273",
+    "primary": "Sec 10.16.2, Figure 6.10.1",
+    "secondary": "Sec 10.16.2, Figure 6.10.2",
+    "stress": "Eq 6.10.275",
+}
+
+
+def _ref(key: str) -> str:
+    """The pack's reference of note ``key`` (the default pack's numbers when it gives none)."""
+    return str((getattr(_table(), "clauses", None) or {}).get(key, _REFERENCES[key]))
+
+
 def flexibility(span_other: float, span: float, inertia: float) -> float:
     """C = coefficient × span_other × span⁴ / inertia (Cp: Ls, Lp, Ip; Cs: S, Ls, Is)."""
     return _table().coefficient * span_other * span**4 / inertia
@@ -75,7 +92,7 @@ def simplified(
             "capacity": data.limit,
             "utilisation": round(total / data.limit, 3),
             "ok": total <= data.limit,
-            "note": f"Sec 10.16.1 Eq 6.10.272: Cp = {cp:.4f}, Cs = {cs:.4f}",
+            "note": f"{_ref('simplified')}: Cp = {cp:.4f}, Cs = {cs:.4f}",
         }
     ]
     if id_ is not None:
@@ -87,7 +104,7 @@ def simplified(
                 "capacity": round(id_, 1),
                 "utilisation": round(need / id_, 3) if id_ > 0 else 99.0,
                 "ok": id_ >= need,
-                "note": f"Sec 10.16.1 Eq 6.10.273: Id >= {data.deck:g} S⁴",
+                "note": f"{_ref('deck')}: Id >= {data.deck:g} S⁴",
             }
         )
     return {"method": "simplified", "Cp": cp, "Cs": cs, "checks": checks,
@@ -143,7 +160,7 @@ def improved(
                 "capacity": round(cp_max, 4),
                 "utilisation": round(cp / cp_max, 3) if cp_max > 0 else 99.0,
                 "ok": cp < cp_max,
-                "note": f"Sec 10.16.2, Figure 6.10.1 at Up = {up:.2f}, Cs = {cs:.3f}",
+                "note": f"{_ref('primary')} at Up = {up:.2f}, Cs = {cs:.3f}",
             }
         )
     cs_max = _limit(data.secondaryCurves, us, 0.0 if up is None else cp)
@@ -154,8 +171,7 @@ def improved(
             "capacity": round(cs_max, 4),
             "utilisation": round(cs / cs_max, 3) if cs_max > 0 else 99.0,
             "ok": cs < cs_max,
-            "note": f"Sec 10.16.2, Figure 6.10.2 at Us = {us:.2f}, Cp = "
-            f"{0.0 if up is None else cp:.3f}",
+            "note": f"{_ref('secondary')} at Us = {us:.2f}, Cp = {0.0 if up is None else cp:.3f}",
         }
     )
     return {"method": "improved", "checks": checks, "ok": all(c["ok"] for c in checks)}
@@ -193,7 +209,7 @@ def check_ponding(
                 "capacity": data.stressLimit * fy,
                 "utilisation": round(fo_secondary / (data.stressLimit * fy), 3),
                 "ok": False,
-                "note": "Eq 6.10.275: fo above 0.8 Fy, the stress index is negative",
+                "note": f"{_ref('stress')}: fo above 0.8 Fy, the stress index is negative",
             }
         )
     return second

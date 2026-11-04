@@ -2842,6 +2842,12 @@ class SteelBracing(_Group):
     beamNodal: SteelBracingRow
     torsionalMoment: Positive = Field(description="Mbr = this × Mr L / (n Cb Lb).")
     torsionalStiffness: Positive = Field(description="βT = this × L Mr² / (n E Iy Cb²) / φ.")
+    # Alpha 9 C3b: the form of the torsional brace moment (AISC 360-16+: Mbr = 0.02 Mr).
+    torsionalMomentForm: Literal["spanRatio", "share"] = Field(
+        default="spanRatio",
+        description="Mbr of a nodal torsional brace: ``spanRatio`` (this × Mr L / (n Cb Lb)) "
+        "or ``share`` (torsionalMoment × Mr).",
+    )
     distortional: Positive = Field(description="βsec = this × E / ho × (...).")
     slenderness: Positive = Field(description="L/r limit of stability bracing.")
 
@@ -2867,6 +2873,11 @@ class SteelPonding(_Group):
     )
     secondaryCurves: list[PondingCurve] = Field(
         description="Limiting Cs by Us, one curve per Cp (the secondary-system figure)."
+    )
+    clauses: dict[str, str] = Field(
+        default_factory=dict,
+        description="Alpha 9 C3b: the references of the check notes (``simplified``, ``deck``, "
+        "``primary``, ``secondary``, ``stress``); a missing key: the default pack's numbers.",
     )
 
 
@@ -2913,6 +2924,21 @@ class SteelBuiltUp(_Group):
     tiePlateEnd: Positive = Field(description="End tie plate length >= this × line distance.")
     tiePlateIntermediate: Positive = Field(description="Intermediate: >= this × the distance.")
     tiePlateThickness: Share = Field(description="Tie plate t >= this × the line distance.")
+    # Alpha 9 C3b: AISC 360-16+ Sec E6.1 (b): welded / pretensioned connectors by Ki.
+    method: Literal["alpha", "ki"] = Field(
+        default="alpha",
+        description="Welded or pretensioned connectors: ``alpha`` ((KL/r)m with α = h / 2rib "
+        "and ``welded``) or ``ki`` ((KL/r)o up to a/ri = ``kiLimit``, above it √((KL/r)o² + "
+        "(Ki a/ri)²) with Ki by the components, ``ki``).",
+    )
+    kiLimit: Positive | None = Field(
+        default=None, description="``ki``: a/ri up to which (KL/r)m = (KL/r)o."
+    )
+    ki: dict[str, Positive] = Field(
+        default_factory=dict,
+        description="``ki``: Ki by the components: ``angles`` (back-to-back), ``channels`` "
+        "(back-to-back), ``other``.",
+    )
 
 
 class SteelBars(_Group):
@@ -2945,6 +2971,16 @@ class SteelTensionField(_Group):
     stiffenerArea: Positive = Field(description="Ast >= Fy/Fyst [this Ds h tw (1-Cv) Vr/Vc ...")
     stiffenerWeb: Positive = Field(description="... - this tw²].")
     Ds: dict[str, Positive] = Field(description="Ds by stiffener kind (pair, angle, plate).")
+    # Alpha 9 C3b: AISC 360-16+ Sec G2.3: the stiffeners of tension field panels by inertia.
+    stiffenerMethod: Literal["area", "inertia"] = Field(
+        default="area",
+        description="Stiffeners of panels with tension field action: ``area`` (Ast of "
+        "``stiffenerArea``, ``stiffenerWeb``, ``Ds``) or ``inertia`` (Ist >= Ist2 + (Ist1 - "
+        "Ist2) ρw, Ist2 = b tw³ j, Ist1 = h⁴ ρst^b / a (Fyw/E)^c of ``stiffenerInertia``).",
+    )
+    stiffenerInertia: tuple[Positive, Positive, Positive] | None = Field(
+        default=None, description="``inertia``: Ist1 = h⁴ ρst^b / a (Fyw/E)^c: [a, b, c]."
+    )
 
 
 class SteelMembers(_Group):
@@ -8177,6 +8213,17 @@ class SteelSeismicFrame(_Group):
         default=None, gt=0, description="E at most this × the frame's available strength."
     )
     beamBracing: float | None = Field(default=None, gt=0, description="Lb ≤ this × ry E / Fy.")
+    # Alpha 9 C3b (AISC 341-16+ Sec D1.2): the beam bracing limit by the expected yield stress.
+    beamBracingExpected: bool = Field(
+        default=False, description="Lb ≤ beamBracing × ry E / (Ry Fy) (else E / Fy)."
+    )
+    # Alpha 9 C3b (AISC 341-16+ Sec E3.6d with AISC 358 Sec 2.4.3): the expected moment by Cpr.
+    hingeFactorMethod: Literal["fixed", "cpr"] = Field(
+        default="fixed",
+        description="The expected moment: ``fixed`` (hingeFactor × Ry Mp) or ``cpr`` (Cpr Ry Mp, "
+        "Cpr = (Fy + Fu) / (2 Fy) at most ``cprMax``).",
+    )
+    cprMax: float | None = Field(default=None, gt=0, description="``cpr``: Cpr at most this.")
     braceStrength: float | None = Field(
         default=None, gt=0, description="Brace next to a hinge: Pu = this × Mu / ho."
     )

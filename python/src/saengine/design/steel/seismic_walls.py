@@ -332,7 +332,8 @@ def design_plate_walls(
             own_notes.append("no beam found along the wall's top or bottom: Ab taken as rigid")
         clause = cite(t, "spswWeb")
         alpha_note = (
-            f"α = {math.degrees(alpha):.1f}° (Eq 6.10.308: tw {tw:g}, L {length:.0f}, h "
+            f"α = {math.degrees(alpha):.1f}° ({S.ref(t, 'spswAngle', 'Eq 6.10.308')}: tw "
+            f"{tw:g}, L {length:.0f}, h "
             f"{height:.0f}, Ab {ab:.0f}, Ac {ac:.0f}, Ic {ic / 1e6:.0f}e6)"
         )
         if composite:
