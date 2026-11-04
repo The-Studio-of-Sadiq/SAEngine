@@ -2822,6 +2822,9 @@ class SteelConnectionData(_Group):
         description="Alpha 9 C3: the clause references the connection notes are written with "
         "(the default pack's) -> this pack's references; empty: the notes as written.",
     )
+    #: Alpha 9 C6: bolts, bearing, welds and block tearing by design resistances with γM2
+    #: (saengine.design.steel.joint_resistances); None: the nominal strengths with φ.
+    resistances: SteelJointResistances | None = None
 
 
 class SteelBracingRow(_Group):
@@ -3027,6 +3030,15 @@ class SteelMemberMethods(_Group):
     teeFlangeSlender: Positive = Field(
         default=0.7, description="Slender tee flange: Mn = this E Sxc / (bf/2tf)²."
     )
+    # Alpha 9 C6: the member resistances by partial factors (saengine.design.steel.
+    # buckling_curves) in place of the nominal strengths with φ.
+    resistance: Literal["nominalStrength", "bucklingCurves"] = Field(
+        default="nominalStrength",
+        description="Member resistances: ``nominalStrength`` (φ Rn, the methods above) or "
+        "``bucklingCurves`` (cross-section classes, R / γM, buckling curves and interaction "
+        "factors, the values of ``partialFactors``).",
+    )
+    partialFactors: SteelPartialFactors | None = None
 
 
 class SteelTable(TableModel):
@@ -5225,6 +5237,10 @@ class TimberTable(TableModel):
     bolts: TimberBolts
     connectors: TimberConnectors
     clauses: dict[str, str] = Field(default_factory=dict)
+    #: Alpha 9 C6: the design method of timber members by id: ``permissibleStress`` (the
+    #: groups above) or ``partialFactors`` (limit state design with ``limitState``).
+    method: Literal["permissibleStress", "partialFactors"] = "permissibleStress"
+    limitState: TimberLimitState | None = None
 
 
 # ───────────────────────────────────────── masonry ─────────────────────────────────────────
@@ -5747,9 +5763,10 @@ class MasonryTable(TableModel):
     the dimension rules, the reinforcement details and the values of the strength design and
     the earthquake provisions."""
 
-    method: Literal["allowableStress", "strength"] = Field(
+    method: Literal["allowableStress", "strength", "partialFactors"] = Field(
         description="The masonry design method: 'allowableStress' (working stress, linear "
-        "stress-strain) or 'strength' (strength design of reinforced walls)."
+        "stress-strain), 'strength' (strength design of reinforced walls) or 'partialFactors' "
+        "(alpha 9 C6: fk, γM and the capacity reduction Φ, ``partialFactors``)."
     )
     mortars: dict[str, MasonryMortar] = Field(min_length=1, description="Mortar grades by id.")
     quality: MasonryQuality
@@ -5774,6 +5791,7 @@ class MasonryTable(TableModel):
     highWind: MasonryHighWind | None = None
     anchorBolts: MasonryAnchorBolts | None = None
     confined: MasonryConfined | None = None
+    partialFactors: MasonryPartialFactors | None = None  # alpha 9 C6
 
     @model_validator(mode="after")
     def _known_mortars(self) -> MasonryTable:
@@ -6580,6 +6598,8 @@ class StabilityNotional(_Row):
         description="Design by first-order analysis: Ni = this × (Δ/L) × Yi ..."
     )
     firstOrderMinimum: Positive = Field(description="... and at least this × Yi.")
+    #: Alpha 9 C6: the global sway imperfection φ0 αh αm in place of ``secondOrder``.
+    swayImperfection: SwayImperfection | None = None
 
 
 class StabilityLimits(_Row):
@@ -7736,6 +7756,9 @@ class CompositeTable(TableModel):
     column: CompositeColumnRules
     beam: CompositeBeamRules
     connections: CompositeConnections
+    #: Alpha 9 C6: partial factors, connectors by PRd, Ecm, the least degree of connection,
+    #: columns by χ (None: φ and the nominal strengths).
+    partialFactors: CompositePartialFactors | None = None
 
 
 # ─────────────────────── slab, wall, stair and composite methods (B33) ───────────────────────
@@ -8468,6 +8491,9 @@ class SteelSeismicTable(TableModel):
     restrained: SteelSeismicRestrained | None = None
     plateWalls: SteelSeismicPlateWalls | None = None
     compositeSeismic: SteelSeismicComposite | None = None
+    #: Alpha 9 C6: capacity design of dissipative frames by Ω and γov (None: the provisions
+    #: above).
+    dissipative: SteelDissipative | None = None
 
 
 # ─────────────────────────── nonlinear time history analysis (B36) ───────────────────────────
@@ -9039,10 +9065,34 @@ class SnowTable(TableModel):
 
 
 # Alpha 9 C5: the partial-factor concrete and geotechnical methods (their own module).
+# Alpha 9 C6: the partial-factor steel, composite, timber, masonry and aluminium groups.
+from saengine.codes.material_method_tables import (  # noqa: E402
+    AluminiumTable,
+    CompositePartialFactors,
+    MasonryPartialFactors,
+    SteelDissipative,
+    SteelJointResistances,
+    SteelPartialFactors,
+    SwayImperfection,
+    TimberLimitState,
+)
 from saengine.codes.method_tables import (
     ConcreteMethodsTable,
     GeotechnicalMethodsTable,
 )
+
+for _model in (
+    SteelMemberMethods,
+    SteelConnectionData,
+    SteelTable,
+    StabilityNotional,
+    SteelStabilityTable,
+    SteelSeismicTable,
+    CompositeTable,
+    TimberTable,
+    MasonryTable,
+):
+    _model.model_rebuild()
 
 #: Table name -> model.
 TABLE_MODELS: dict[str, type[TableModel]] = {
@@ -9100,6 +9150,8 @@ TABLE_MODELS: dict[str, type[TableModel]] = {
     # Alpha 9 C5.
     "concreteMethods": ConcreteMethodsTable,
     "geotechnicalMethods": GeotechnicalMethodsTable,
+    # Alpha 9 C6.
+    "aluminium": AluminiumTable,
 }
 
 

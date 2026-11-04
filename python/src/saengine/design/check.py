@@ -544,6 +544,10 @@ def _design_run(
         and getattr(stability_settings, "directAnalysisNotional", "allCombinations")
         != "gravityOnly"
     )
+    if stability_method == "secondOrder":  # alpha 9 C6: a pack's sway imperfection
+        from saengine.fem.notional_loads import every_combination
+
+        every = every or every_combination()
     by_notional = notional_combinations(formed, present, every)
     if by_notional is not None:
         pre_notes.append(
@@ -1274,7 +1278,30 @@ def _design_run(
     # B35: the steel seismic provisions (saengine.design.steel.seismic): member, joint and
     # connection checks on the steel entries, the project's own checks with the seismic ones.
     steel_seismic_found = None
-    if steel_members:
+    from saengine.design.steel import seismic_dissipative
+
+    if steel_members and seismic_dissipative.active():
+        # Alpha 9 C6: the pack's capacity design of dissipative steel frames (by Ω and γov)
+        # in place of the moment and braced frame provisions below.
+        try:
+            found_dissipative = seismic_dissipative.apply(
+                project,
+                building,
+                types,
+                steel_members,
+                combinations,
+                seismic_detailing.earthquake_indices(extra, len(combinations)),
+                resolved,
+            )
+        except (ValueError, KeyError, AttributeError, TypeError) as error:
+            found_dissipative = None
+            notes.append(f"the steel capacity design could not be checked: {error}")
+        if found_dissipative is not None:
+            notes += found_dissipative["notes"]
+            if scope is not None:
+                scope["steelDissipative"] = found_dissipative
+                scope["checks"] = scope.get("checks", []) + found_dissipative["checks"]
+    elif steel_members:
         try:
             steel_seismic_found = steel_seismic.apply(
                 project,
@@ -1903,6 +1930,10 @@ def _assemble(
             method += seismic_braced.method_lines(braced_found)
         if braced_found.get("composite"):
             method += seismic_composite.method_lines()
+        if ((scope or {}).get("steelDissipative") or {}).get("applies"):  # alpha 9 C6
+            from saengine.design.steel import seismic_dissipative
+
+            method += seismic_dissipative.method_lines()
     if walls_found.get("plateWalls"):  # B38
         from saengine.design.steel import seismic_walls
 

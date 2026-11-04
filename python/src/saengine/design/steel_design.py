@@ -245,7 +245,36 @@ def connection_results(
 ) -> list[dict[str, Any]]:
     """The checks of the type's connection, splice and base plate, the end connection first
     (each with ``end`` and a ``description``). Raises ``ValueError`` or ``TypeError`` when one
-    cannot be checked."""
+    cannot be checked. Alpha 9 C6: the welds and bearing of a pack's partial-factor joints
+    take fu of the weaker part and the bolts' fub (:mod:`saengine.design.steel.
+    joint_resistances`)."""
+    from saengine.design.steel import joint_resistances as jr
+
+    connection = getattr(object_type, "connection", None)
+    fus = [getattr(getattr(material, "steel", None), "fu", None)]
+    plate_id = getattr(connection, "plateMaterial", None) if connection is not None else None
+    if plate_id and mats.get(plate_id) is not None:
+        fus.append(getattr(getattr(mats[plate_id], "steel", None), "fu", None))
+    known = [float(f) for f in fus if f]
+    with (
+        jr.parent(min(known) if known else None),
+        jr.bolts_of(getattr(connection, "boltGrade", None)),
+    ):
+        return _connection_results(
+            object_type, material, mats, stations, kind, pieces, project, seismic
+        )
+
+
+def _connection_results(
+    object_type: Any,
+    material: Any,
+    mats: dict[str, Any],
+    stations: list[Any],
+    kind: str,
+    pieces: list[Any] | None,
+    project: dict[str, Any] | None,
+    seismic: Any,
+) -> list[dict[str, Any]]:
     from saengine.design import steel_connections as sc
     from saengine.design.steel_proposal import SteelMaterial
     from saengine.library.steel_sections import section_of_profile

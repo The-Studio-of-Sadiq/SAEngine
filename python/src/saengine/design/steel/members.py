@@ -121,6 +121,10 @@ def _methods() -> Any:
 def _method() -> list[str]:
     """``METHOD``: the method text of the design report, with the clauses of the code pack in
     force (read as a module attribute)."""
+    from saengine.design.steel import buckling_curves
+
+    if buckling_curves.active():  # alpha 9 C6
+        return buckling_curves.method_lines()
     first = (
         f"Steel members: LRFD to {clause('steelMembers', 'code')}; the load combinations are the "
         "project's factored ones."
@@ -2032,6 +2036,13 @@ def check_member(
     note, flag, clause}``, forces in kN and kN·m), on the design basis of ``options.basis``
     (alpha 9 C3: the stations are then those of that basis' combinations)."""
     options = SteelOptions.of(options)
+    from saengine.design.steel import buckling_curves
+
+    if buckling_curves.active():  # alpha 9 C6: the pack's partial-factor member method
+        try:
+            return buckling_curves.check_member(shape, steel, stations, lengths, kind, options)
+        except ValueError as error:
+            raise SteelDesignError(str(error)) from error
     with steel_basis.using(options.basis):
         return _check_member(shape, steel, stations, lengths, kind, options)
 
@@ -2756,18 +2767,34 @@ def _design_steel_member(
         )
     stations = member_stations(pieces, combinations, turned)
     checks = check_member(shape, steel, stations, lengths, kind, options)
-    if kind == "brace":
+    from saengine.design.steel import buckling_curves
+
+    # Alpha 9 C6: the partial-factor method has no brace slenderness limit, no stability
+    # bracing rules of its own and no torsion checks (said in the notes).
+    by_curves = buckling_curves.active()
+    if kind == "brace" and not by_curves:
         slender = brace_slenderness_check(shape, lengths)
         if slender is not None:
             checks.append(slender)
-    bracing = bracing_requirements(shape, stations, lengths, kind)
+    bracing = [] if by_curves else bracing_requirements(shape, stations, lengths, kind)
     extra = _b31_notes(shape, stations, checks, options)
+    if by_curves:
+        from saengine.design.steel.torsion import has_torsion
+
+        extra = [n for n in extra if not n.startswith("torsion")]
+        if any(has_torsion(st.T) for st in stations):
+            extra.append("torsion: not checked by the code pack's member method")
     for note in (*shape.notes, *steel.notes):
         for c in checks:
             if c["name"].startswith(("Tension", "Compression")):
                 c["note"] = f"{c['note']}; {note}" if c["note"] else note
     strength = [c for c in checks if not c["flag"]]
-    elements = cl.compression_elements(shape, steel.fy, steel.e)
+    if by_curves:
+        section_label, element_notes = buckling_curves.section_summary(shape, steel.fy)
+    else:
+        elements = cl.compression_elements(shape, steel.fy, steel.e)
+        section_label = cl.section_class(elements)
+        element_notes = [el.describe() for el in elements]
     return {
         "id": member_id,
         "kind": kind,
@@ -2780,8 +2807,8 @@ def _design_steel_member(
             "family": shape.family,
             "label": shape.label,
             "area": round(shape.area, 1),
-            "class": cl.section_class(elements),
-            "elements": [el.describe() for el in elements],
+            "class": section_label,
+            "elements": element_notes,
             "massPerMetre": _mass_per_metre(object_type.profile, material),
             "notes": [
                 *shape.notes,
