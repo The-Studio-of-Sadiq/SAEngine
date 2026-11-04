@@ -34,8 +34,6 @@ export const FemPlanned = {
 	/** T15: automatic tendon layout and time-step long-term losses of PT slabs. */
 	tendonLayout: 'fem.tendonLayout',
 	tendonLongTermLosses: 'fem.tendonLongTermLosses',
-	/** T26: floor vibration from walking. */
-	floorVibration: 'fem.floorVibration',
 	/** Timber wood-screw joints and steel side plates (nails, bolts, rings and dowels: B6). */
 	timberConnections: 'fem.timberConnections',
 	/** T27: base plate thickness, end-plate moment connections (anchors in concrete and moment-base rod tension: built in B26). */

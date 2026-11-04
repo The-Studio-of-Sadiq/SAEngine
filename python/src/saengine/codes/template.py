@@ -173,6 +173,20 @@ TABLE_HELP: dict[str, str] = {
     "steelFire": "Steel members in the standard fire (alpha 9 C12): the retention factors of "
     "strength and stiffness, the critical temperature, the heating of protected and unprotected "
     "sections and the load ratio in fire. A pack without it checks no steel member in fire.",
+    "floorVibration": "Floors under walking (alpha 9 P7): the method of steel and of concrete "
+    "floors (peak acceleration or response factor), the natural frequency from the floor's "
+    "deflection, damping by fit-out and the acceptance limits of each use. A pack without it "
+    "does not check floor vibration.",
+    "windComfort": "Wind-induced motion of tall buildings (alpha 9 P7): the response method, "
+    "the comfort wind's return period and its speed ratio, damping, and the peak acceleration "
+    "limits or curves by occupancy. A pack without it does not check occupant comfort.",
+    "nonBuilding": "Non-building structures (alpha 9 P7): R, overstrength and deflection "
+    "amplification by type, the weight share below which a supported structure is a component, "
+    "the rigid period and the least seismic coefficient. A pack without it does not design "
+    "non-building structures.",
+    "embeddedWalls": "Embedded excavation walls (alpha 9 P7): the factor on the passive "
+    "resistance or the partial factor set, the embedment increase, the least surcharge and the "
+    "overdig. A pack without it does not design embedded walls.",
     "snow": "Snow on roofs from the ground snow load: the exposure coefficients Ce, the thermal "
     "coefficient Ct, the roof shape coefficient mu1 by pitch and the load case the roof snow "
     "goes into. A pack without it does not cover snow.",

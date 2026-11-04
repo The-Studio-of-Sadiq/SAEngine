@@ -194,6 +194,7 @@ the ACI 318-19 numbering as recalled; each must be checked with the values.
 | # | Value | Clause | Description | Status |
 |---|---|---|---|---|
 | C7 | εcu 0.003, Es 200 000 MPa | 22.2.2.1, 20.2.2.2 | | OK? |
+| C7a | bar names #3–#11 for the soft-metric No. 10, 13, 16, 19, 22, 25, 29, 32, 36 (`barNames`) | ASTM A615/A615M Table 1 | Printed in US customary display units (C13); the pack's suggested units `USCustomary` in pack.json | OK? |
 | C8 | f'c ≥ 21 MPa; lightweight ≤ 35 MPa in special frames and walls | Table 19.2.1.1 | | OK? |
 | C9 | lightweight concrete up to 1840 kg/m³ | 2.3 | Definition (was 1850 in the BNBC table) | UNSURE (1840 vs 1850) |
 | C10 | seismic bars: Grades 280, 420, 550; largest 550 | 20.2.2.4-20.2.2.5, 18.2.6 | Grade 690 for special walls not offered | UNSURE (Grade 280 permission) |
@@ -648,3 +649,15 @@ be applied through `bbs.length_display`.
 | BA5 | barSchedule.standards.aci315.stockLength | 18288 mm (60 ft) | US mill practice | Longest stock bar | Check |
 | BA6 | barSchedule.standards.aci315.sizeLabel | No. {d} | ASTM A615M / A706M soft-metric designations | Size label | Sure |
 | BA7 | barSchedule.standards.aci315 bar mass | d²/162 kg/m of the designation | SAEngine practice | Mass (ASTM nominal masses differ: No. 10 0.560 kg/m) | Practice (kept so that BOQ = BBS) |
+
+## Alpha 9 P7: floor vibration, wind comfort, non-building structures
+
+The floor vibration and pile values are the default pack's (see bnbc2020/VERIFY.md, FV and LP rows).
+
+| # | Path | Value | Source | Sure? |
+|---|---|---|---|---|
+| P7U1 | windComfort.referencePeriod, referenceToFifty | 700 years, V_700/V_50 = 1.265 (√1.6) | ASCE 7-10 Commentary C26.5.1 | Check |
+| P7U2 | windComfort response | along-wind, Commentary C26.11 | ASCE 7-22 | Check |
+| P7U3 | nonBuilding.types.signBillboard | R 3, Ω0 1.75, Cd 3 | ASCE 7-22 Table 15.4-2 | Check |
+| P7U4 | nonBuilding other types | as bnbc2020 NB4-NB13 | ASCE 7-22 Tables 15.4-1/-2 | Check (unchanged since 7-05?) |
+| P7U5 | nonBuilding.minimumCoefficient | 0.044 SDS Ie ≥ 0.03 | ASCE 7-22 Eq 15.4-1 | Sure |

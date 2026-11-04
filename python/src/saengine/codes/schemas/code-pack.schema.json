@@ -337,6 +337,23 @@
       "title": "Tablecodes",
       "type": "object"
     },
+    "units": {
+      "anyOf": [
+        {
+          "enum": [
+            "SI",
+            "USCustomary"
+          ],
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "The display units a new project with this pack starts in (Project Settings › Units); a project keeps its own choice when the pack changes. Default SI.",
+      "title": "Units"
+    },
     "author": {
       "anyOf": [
         {

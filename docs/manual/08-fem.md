@@ -121,6 +121,16 @@ and the vertical component, and checks the storey drift. The Properties panel sh
 **Seismic Design (Response Spectrum)**, e.g. *EX scaled × 1.99 to 85 % of the static base shear*,
 the Seismic Design Category, and *Largest drift 0.20 % (allowed 2.00 %)*.
 
+**Floor vibration and wind comfort** (alpha 9): after a run with the dead, superimposed dead and
+live load cases and a modal case, the results' *Summary* tables add *Floor vibration* (per slab
+analysed as shells: the panel's deflection Δ under the vibrating weight, fn = 0.18 √(g/Δ), and
+the walking peak acceleration of AISC Design Guide 11 for floors on steel beams or the response
+factor of CCIP-016 / SCI P354 for concrete floors, against the limit of the slab's use) and
+*Wind comfort* (the along-wind peak acceleration of the top floor in X and Y under the 10-year
+wind, from the modal mass and shape, against 15 / 18 / 25 milli-g for residences, hotels and
+offices). The design report has a section for each. The methods and limits are the code pack's
+(*SAEngine practice where BNBC 2020 is silent* in the default pack).
+
 ## Running the analysis
 
 - **Run Analysis** (toolbar ▷) runs every case; **Run Selected Cases...** (in **...**) only some.

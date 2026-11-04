@@ -38,6 +38,7 @@ import { IEditorService } from '../../../services/editor/common/editorService.js
 import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
 import { ILocaleService } from '../../../services/localization/common/locale.js';
 import { DEFAULT_CODE_TABLES, DEFAULT_SETTINGS, REDUCED_LIVE, SETTINGS_SCHEMA, SETTLEMENT_COMBINATIONS, TEMPLATES, THERMAL_COMBINATIONS } from '../../../services/saengineProject/common/projectLibraries.generated.js';
+import { setActiveDisplayUnits } from '../../../services/saengineProject/common/displayUnits.js';
 import { IPartSectionPane, sectionOption } from '../../../services/saengineProject/common/partSections.js';
 import { IPartCheckItem, ISaenginePartStatusService } from '../../../services/saengineProject/common/partStatus.js';
 import { ISaengineProjectService, partById, PROJECT_TYPES, ProjectType } from '../../../services/saengineProject/common/saengineProject.js';
@@ -1125,6 +1126,12 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 		this.sourcesScheduler.schedule();
 		if (path === 'site.siteClassSource') {
 			this.changed(true); // the entered site class field shows or hides
+			return;
+		}
+		if (path.startsWith('units.')) {
+			// C13: every field shows its value in the units just chosen (the stored values stay SI).
+			setActiveDisplayUnits(this.document?.units);
+			this.changed(true);
 			return;
 		}
 		const match = /^areaLoads\.(?<index>\d+)\.use$/.exec(path);

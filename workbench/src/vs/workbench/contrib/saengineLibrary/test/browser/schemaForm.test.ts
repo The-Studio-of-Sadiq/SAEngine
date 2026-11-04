@@ -8,6 +8,7 @@ import { mainWindow } from '../../../../../base/browser/window.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { DEFAULT_MATERIALS, MATERIALS_SCHEMA, TEMPLATES } from '../../../../services/saengineProject/common/projectLibraries.generated.js';
+import { setActiveDisplayUnits } from '../../../../services/saengineProject/common/displayUnits.js';
 import { JsonObject, SchemaForm } from '../../browser/schemaForm.js';
 
 suite('SAEngine - SchemaForm', () => {
@@ -35,7 +36,7 @@ suite('SAEngine - SchemaForm', () => {
 			input.value = text;
 			input.dispatchEvent(new Event('input'));
 		};
-		return { changes, type, labels: () => [...container.querySelectorAll('.form-group-title')].map(e => e.textContent) };
+		return { changes, type, container, labels: () => [...container.querySelectorAll('.form-group-title')].map(e => e.textContent) };
 	}
 
 	function concrete(): JsonObject {
@@ -59,6 +60,23 @@ suite('SAEngine - SchemaForm', () => {
 			id: item.id,
 			changes,
 		}, { fc: 30, nu: 0.2, id: 'C24.1', changes: ['concrete.fc'] });
+	});
+
+	test('C13: a field with a unit shows and reads the display units and stores SI', () => {
+		setActiveDisplayUnits({ system: 'USCustomary' });
+		try {
+			const item = concrete();
+			const { type, container } = setup(item);
+			const row = [...container.querySelectorAll('.form-field')].find(r => r.querySelector('.form-label')?.textContent === 'Compressive strength f\'c');
+			assert.strictEqual(row?.querySelector('.form-unit')?.textContent, 'ksi');
+			assert.strictEqual(row?.querySelector('input')?.value, '3.4954'); // 24.1 MPa
+			type('Compressive strength f\'c', '4');
+			assert.ok(Math.abs(((item.concrete as JsonObject).fc as number) - 27.579029172672) < 1e-9);
+			type('Compressive strength f\'c', '30 MPa'); // a unit of its own
+			assert.strictEqual((item.concrete as JsonObject).fc, 30);
+		} finally {
+			setActiveDisplayUnits(undefined);
+		}
 	});
 
 	test('clearing an optional field removes it; a required one keeps its value', () => {

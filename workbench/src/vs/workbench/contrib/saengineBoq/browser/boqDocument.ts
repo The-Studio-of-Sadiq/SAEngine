@@ -3,6 +3,7 @@
  *  Licensed under the AGPL-3.0-only license. See LICENSE in the repository root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { activeDisplayUnits, displayUnit, IDisplayUnits, isConverted, toDisplay } from '../../../services/saengineProject/common/displayUnits.js';
 import { localize } from '../../../../nls.js';
 import { csvText } from '../../../../platform/saengine/common/csv.js';
 import { boqSourceStamp, recordedStamp } from '../../../services/saengineProject/common/partSources.js';
@@ -254,8 +255,19 @@ const IMPERIAL: { readonly [unit: string]: { readonly unit: string; readonly fac
 	m: { unit: 'rft', factor: 3.28084 },
 };
 
-/** `quantity` in `unit`, or in feet (cft, sft, rft) when `imperial`; other units are unchanged. */
-export function displayQuantity(quantity: number, unit: string, imperial: boolean): { readonly quantity: number; readonly unit: string } {
+/** The bill's metric unit codes as SI unit texts (displayUnits.ts), for US customary display units (C13). */
+const SI_UNIT_TEXTS: { readonly [unit: string]: string } = { m3: 'm³', m2: 'm²', m: 'm', kg: 'kg' };
+
+/**
+ * `quantity` in `unit`, or in feet (cft, sft, rft) when `imperial`; in US customary display
+ * units (C13) m³ in ft³ (or yd³), m² in ft², m in ft and kg in lb; other units (cft, bags,
+ * litres, numbers) are unchanged.
+ */
+export function displayQuantity(quantity: number, unit: string, imperial: boolean, units: IDisplayUnits = activeDisplayUnits()): { readonly quantity: number; readonly unit: string } {
+	const si = SI_UNIT_TEXTS[unit];
+	if (si && isConverted(si, units)) {
+		return { quantity: toDisplay(quantity, si, units), unit: displayUnit(si, units) };
+	}
 	const to = imperial ? IMPERIAL[unit] : undefined;
 	return to ? { quantity: quantity * to.factor, unit: to.unit } : { quantity, unit };
 }
@@ -300,9 +312,12 @@ export function quantityText(quantity: number, unit: string, imperial = false): 
 export function toCsv(document: IBoqDocument): string {
 	const rows: (string | number | undefined)[][] = [['Row', 'Code', 'Group', 'Description', 'Element', 'Story', 'Detail', 'Item Quantity', 'Element Quantity', 'Unit', 'Rate', 'Amount']];
 	for (const item of document.items) {
-		rows.push(['item', item.code, item.group, item.description, '', '', '', item.quantity, '', item.unit, '', '']);
+		// C13: in the display units (as stored in SI)
+		const shown = (quantity: number) => displayQuantity(quantity, item.unit, false);
+		const unit = shown(item.quantity).unit;
+		rows.push(['item', item.code, item.group, item.description, '', '', '', shown(item.quantity).quantity, '', unit, '', '']);
 		for (const entry of item.breakdown ?? []) {
-			rows.push(['element', item.code, item.group, item.description, entry.element, entry.story, entry.detail, '', entry.quantity, item.unit, '', '']);
+			rows.push(['element', item.code, item.group, item.description, entry.element, entry.story, entry.detail, '', shown(entry.quantity).quantity, unit, '', '']);
 		}
 	}
 	return csvText(rows);

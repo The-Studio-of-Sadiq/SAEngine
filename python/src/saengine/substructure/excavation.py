@@ -34,8 +34,9 @@ groups) does not cover those checks, and the report says so. What is checked:
 - footings founded in fill and the waterproofing of below-grade walls and floors (notes);
 - the general notes of the drawings (:func:`construction_notes`).
 
-The design of embedded walls and their supports (sheet, contiguous and secant pile walls,
-struts and anchors) is not here: the pack's rules give no method for it.
+An excavation's embedded wall (``wall``) is designed by the pack's ``embeddedWalls`` method in
+:mod:`saengine.substructure.embedded_wall` (alpha 9 P7: embedment, moment, prop force); its
+checks join the excavation's. The wall sections, walers, struts and anchors are not designed.
 
 Units: mm and levels in mm (project datum) inside; kPa, kN/m³; depths of the soil in m.
 """
@@ -731,6 +732,12 @@ def design_excavations(ctx: Any) -> tuple[list[dict[str, Any]], list[str]]:
         soil = soil_column(profiles, x, y, water)
         checks, needs = excavation_checks(excavation, ctx.ground_level, soil, own)
         ground = excavation.groundLevel if excavation.groundLevel is not None else ctx.ground_level
+        # Alpha 9 P7: its embedded wall by the pack's method (saengine.substructure.embedded_wall).
+        from saengine.substructure.embedded_wall import wall_checks
+
+        wall, wall_notes = wall_checks(excavation, ground, soil)
+        checks += wall
+        needs += wall_notes
         counted = [c for c in checks if not c["flag"]]
         results.append(
             {

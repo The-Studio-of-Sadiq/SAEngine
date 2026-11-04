@@ -46,7 +46,7 @@ import {
 	checkMep, DISCIPLINES, disciplineLabel, EMPTY_CONTEXT, EQUIPMENT_KINDS, EQUIPMENT_PRESETS, equipmentArea, equipmentKindLabel, equipmentPressure, findHost, formatUtilisation, guessDiscipline, hostKindLabel, hostStory, IClash, IEquipment, IEquipmentPreset,
 	IIfcModel, IImportIfcRequest, IMep, IMepContext, IMepContextTexts, IMepProblem, IMepReport, IMepRequest, IOpening, IShaft, MEP_IFC_FOLDER, MEP_IMPORT_IFC_COMMAND, MEP_REPORT_COMMAND, MEP_SUGGEST_SLEEVES_COMMAND, MEP_SUMMARY_FILE, mepSummary, mepSummaryFile,
 	allEquipment, equipmentOwnerLabel, IEquipmentLoad, newEquipment, newShaft, newSleeve, OPENING_KINDS, OPENING_SHAPES, openingKindLabel, openingPoint, openingShapeLabel, parseMep, plinthWeight, Point, polygonArea, readIfcImport, readMepContext, readMepReport, readSleeveSuggestions, serializeMep, shaftOnStory, sleeveForClash,
-	idError, isOpenClash, isPartlyChecked, IStory, nextId, storyAt, storyElements, storyLoads, utilisationBand,
+	idError, isOpenClash, isPartlyChecked, IStory, NON_BUILDING_TYPES, nextId, storyAt, storyElements, storyLoads, utilisationBand,
 } from './mepDocument.js';
 import { MepEditorInput } from './mepEditorInput.js';
 import { IPlanClash, IPlanView, MepSelection, renderPlan } from './mepPlan.js';
@@ -180,6 +180,7 @@ const F = {
 	height: { key: 'height', label: localize('mep.f.height', "Height"), unit: MM, kind: 'number', min: 1, width: 72 },
 	operatingWeight: { key: 'operatingWeight', label: localize('mep.f.operating', "Operating weight"), unit: KN, kind: 'number', min: 0.001, required: true, title: localize('mep.f.operatingTitle', "Weight in operation with its contents (water, oil, refrigerant), from the supplier"), width: 84 },
 	emptyWeight: { key: 'emptyWeight', label: localize('mep.f.empty', "Empty weight"), unit: KN, kind: 'number', min: 0.001, title: localize('mep.f.emptyTitle', "Weight without its contents; empty for the operating weight"), width: 76 },
+	period: { key: 'period', label: localize('mep.f.period', "Own period"), unit: localize('mep.unit.s', "s"), kind: 'number', min: 0.001, title: localize('mep.f.periodTitle', "Fundamental period of the non-building structure itself; empty for the plateau of the design spectrum (on the safe side)") },
 	plinth: { key: 'height', label: localize('mep.f.plinth', "Plinth height"), unit: MM, kind: 'number', min: 1, title: localize('mep.f.plinthTitle', "A concrete plinth under the equipment; empty for none") },
 	diameter: { key: 'diameter', label: localize('mep.f.diameter', "Diameter"), unit: MM, kind: 'number', min: 1, required: true, width: 72 },
 	openingWidth: { key: 'width', label: localize('mep.f.openingWidth', "Width"), unit: MM, kind: 'number', min: 1, required: true, title: localize('mep.f.openingWidthTitle', "Along a beam or wall; along x in a slab"), width: 72 },
@@ -3074,6 +3075,19 @@ export class MepEditor extends EditorPane implements IPartSectionPane {
 			}
 			this.changed(true);
 		}, path('vibrating'), localize('mep.f.vibrating', "Vibrating")), undefined, localize('mep.f.vibratingTitle', "Rotating or reciprocating machinery (chillers, pumps, generators): the backend reports it for the floor's vibration and the mountings"));
+		// Alpha 9 P7: a tank on legs, a tower or a rack is a non-building structure (R, Ω0, Cd of its type).
+		this.propertyRow(panel, localize('mep.f.nonBuilding', "Non-building structure"), this.selectInput(NON_BUILDING_TYPES.map(t => ({ value: t.id, label: t.label })), typeof e.nonBuilding === 'string' ? e.nonBuilding : '', value => {
+			if (value) {
+				e.nonBuilding = value;
+			} else {
+				delete e.nonBuilding;
+				delete e.period;
+			}
+			this.changed(true);
+		}, path('nonBuilding'), localize('mep.f.nonBuilding', "Non-building structure"), true), undefined, localize('mep.f.nonBuildingTitle', "Its type in the code pack's non-building structure table; empty for a nonstructural component only"));
+		if (e.nonBuilding) {
+			this.fieldRow(panel, F.period, e.period, value => this.setField(e, 'period', value), path('period'));
+		}
 		const pressure = equipmentPressure(e);
 		appendPropertyRow(panel, localize('mep.f.footprint', "Footprint"), localize('mep.m2Value', "{0} m²", formatNumber(equipmentArea(e), 2)));
 		if (pressure !== undefined) {

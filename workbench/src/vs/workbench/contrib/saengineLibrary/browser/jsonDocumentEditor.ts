@@ -28,6 +28,7 @@ import { DEFAULT_EDITOR_ASSOCIATION, IEditorOpenContext } from '../../../common/
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { DEVELOPER_MODE_SETTING } from '../../../services/saengineProject/common/developerMode.js';
+import { onDidChangeDisplayUnits } from '../../../services/saengineProject/common/displayUnits.js';
 import { recordedStamp, upstreamCurrent, upstreamPart } from '../../../services/saengineProject/common/partSources.js';
 import { REPORT_PART_CHECKS_COMMAND } from '../../../services/saengineProject/common/partStatus.js';
 import { ISaengineProjectService, partById } from '../../../services/saengineProject/common/saengineProject.js';
@@ -143,6 +144,12 @@ export abstract class JsonDocumentEditor extends EditorPane {
 		protected readonly projectService: ISaengineProjectService,
 	) {
 		super(id, group, telemetryService, themeService, storageService);
+		// C13: the forms show their numbers in the project's display units: again when they change.
+		this._register(onDidChangeDisplayUnits(() => {
+			if (this.document) {
+				this.render();
+			}
+		}));
 	}
 
 	protected createEditor(parent: HTMLElement): void {

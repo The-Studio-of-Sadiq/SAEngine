@@ -540,7 +540,9 @@ def work_out_story_response(out_dir: str | Path, project_path: str | Path) -> di
     "driftLimit", "spectrumDesign" (:func:`_spectrum_scale`), "pushover": [{"key", "label",
     "displacement", "shear"}], "histories": [{"key", "label", "node", "time", "displacement":
     [[ux, uy]]}], "serviceability" (:func:`_serviceability`), "irregularity" (storey rows and findings of
-    :func:`saengine.fem.irregularity.assess`), "notes"}``. Result keys are those of
+    :func:`saengine.fem.irregularity.assess`), "floorVibration" and "windComfort" (P7:
+    :mod:`saengine.fem.floor_vibration`, :mod:`saengine.fem.wind_comfort`), "serviceSheets"
+    (their tables), "notes"}``. Result keys are those of
     :func:`saengine.fem.display.result_list`."""
     from opensees_studio.services.results import (
         PushoverResults,
@@ -787,6 +789,23 @@ def work_out_story_response(out_dir: str | Path, project_path: str | Path) -> di
                 nonlinear = nonlinear_history.evaluate(out_dir, project_path)
             except Exception as error:  # noqa: BLE001 - the charts show without it
                 notes.append(f"the nonlinear time history design could not be worked out: {error}")
+    # Alpha 9 P7: floor vibration from walking and the wind comfort of the top floor, by the
+    # code pack's methods (saengine.fem.floor_vibration, saengine.fem.wind_comfort).
+    comfort: dict[str, Any] = {}
+    if project.get("meta", {}).get("author") == "SAEngine":
+        from saengine.fem import floor_vibration, wind_comfort
+
+        runs = {
+            "floorVibration": lambda: floor_vibration.evaluate(
+                project, project_path, {code: v[1] for code, v in static.items()}
+            ),
+            "windComfort": lambda: wind_comfort.evaluate(project, project_path, loaded, level_rows),
+        }
+        for key, run in runs.items():
+            try:
+                comfort[key] = run()
+            except Exception as error:  # noqa: BLE001 - the charts show without it
+                notes.append(f"{key}: could not be worked out ({error})")
     return _finite(
         {
             "levels": level_rows,
@@ -803,6 +822,12 @@ def work_out_story_response(out_dir: str | Path, project_path: str | Path) -> di
             "histories": histories,
             "columnShortening": shortening,
             "nonlinearHistory": nonlinear,
+            "floorVibration": comfort.get("floorVibration"),
+            "windComfort": comfort.get("windComfort"),
+            # The tables of the results view (name, columns, rows, notes).
+            "serviceSheets": [
+                found["sheet"] for found in comfort.values() if found and found.get("sheet")
+            ],
             "notes": notes,
         }
     )

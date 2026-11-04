@@ -208,6 +208,11 @@ class PackManifest(BaseModel):
         "or 'table.key' (e.g. {'concrete': 'ACI 318-19', 'designClauses.steelMembers': "
         "'AISC 360-22'}); a table or key without an entry is named after the pack's edition.",
     )
+    units: Literal["SI", "USCustomary"] | None = Field(
+        default=None,
+        description="The display units a new project with this pack starts in (Project "
+        "Settings › Units); a project keeps its own choice when the pack changes. Default SI.",
+    )
     author: str | None = None
     licence: str | None = Field(default=None, description="SPDX id of the pack's licence.")
     hooks: str | None = Field(

@@ -9063,6 +9063,162 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 			title: 'CraneRunway',
 			type: 'object',
 		},
+		DisplayUnits: {
+			additionalProperties: false,
+			description: 'How the project shows its numbers (alpha 9, C13). Every value is stored and computed\nin SI; switching the system changes only what the editors, the report, the drawings, the\nbar bending schedule, the BOQ and the CSV files print, never a stored value.',
+			properties: {
+				system: {
+					default: 'SI',
+					description: 'SI (mm, m, kN, MPa, kN/m²) or US customary (in, ft, kip, ksi, psf). A new project takes the code pack\'s suggestion (the US pack: US customary).',
+					enum: ['SI', 'USCustomary'],
+					enumDescriptions: ['SI', 'US customary'],
+					title: 'Unit system',
+					type: 'string',
+				},
+				length: {
+					anyOf: [
+						{
+							enum: ['ft', 'in'],
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'US customary only; empty: ft.',
+					title: 'Lengths and levels',
+				},
+				dimension: {
+					anyOf: [
+						{
+							enum: ['ft', 'in'],
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'US customary only; empty: in.',
+					title: 'Member sizes and spacings',
+				},
+				force: {
+					anyOf: [
+						{
+							enum: ['kip', 'lbf'],
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'US customary only; empty: kip.',
+					title: 'Forces',
+				},
+				stress: {
+					anyOf: [
+						{
+							enum: ['ksi', 'psi'],
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'US customary only; empty: ksi.',
+					title: 'Stresses',
+				},
+				pressure: {
+					anyOf: [
+						{
+							enum: ['psf', 'ksf'],
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'US customary only; empty: psf.',
+					title: 'Area loads and pressures',
+				},
+				moment: {
+					anyOf: [
+						{
+							enum: ['kip·ft', 'kip·in'],
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'US customary only; empty: kip·ft.',
+					title: 'Moments',
+				},
+				lineLoad: {
+					anyOf: [
+						{
+							enum: ['kip/ft', 'plf'],
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'US customary only; empty: kip/ft.',
+					title: 'Line loads',
+				},
+				unitWeight: {
+					anyOf: [
+						{
+							enum: ['pcf', 'kcf'],
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'US customary only; empty: pcf.',
+					title: 'Unit weights',
+				},
+				volume: {
+					anyOf: [
+						{
+							enum: ['ft³', 'yd³'],
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'US customary only; empty: ft³.',
+					title: 'Volumes',
+				},
+				velocity: {
+					anyOf: [
+						{
+							enum: ['mph', 'ft/s'],
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'US customary only; empty: mph.',
+					title: 'Speeds',
+				},
+			},
+			title: 'DisplayUnits',
+			type: 'object',
+		},
 		DraftingStandard: {
 			additionalProperties: false,
 			description: 'The office\'s drafting standard: layer names, colours and lineweights, the text font, the\ndimension arrows, the sheet number prefixes and the office lines of the title block. Saved\nas a file (Drawings, Office standard) it carries over to the office\'s other projects.',
@@ -11635,6 +11791,11 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 			$ref: '#/$defs/Report',
 			description: 'The printed design report (11 Exports).',
 			title: 'Design report',
+		},
+		units: {
+			$ref: '#/$defs/DisplayUnits',
+			description: 'The units the project is shown in; values are stored in SI.',
+			title: 'Units',
 		},
 		codeOverrides: {
 			additionalProperties: true,
@@ -23231,9 +23392,102 @@ export const SUBSTRUCTURE_SCHEMA: IJSONSchema = {
 			title: 'EarthPressure',
 			type: 'object',
 		},
+		EmbeddedWall: {
+			additionalProperties: false,
+			description: 'Alpha 9 P7: the embedded wall round an excavation (sheet, contiguous or secant piles,\na diaphragm wall), designed per metre run by the code pack\'s ``embeddedWalls`` method\n(:mod:`saengine.substructure.embedded_wall`): its embedment, bending moment and prop force.\nThe wall sections, walers, struts and anchors are designed separately.',
+			properties: {
+				kind: {
+					default: 'cantilever',
+					description: 'Cantilevered from the ground, or propped (strut or anchor) near the top.',
+					enum: ['cantilever', 'propped'],
+					enumDescriptions: ['Cantilever', 'Propped'],
+					title: 'Kind',
+					type: 'string',
+				},
+				earthSupport: {
+					default: 'free',
+					description: 'A propped wall: free earth support (the toe may rotate) or fixed earth support (Blum\'s equivalent beam, a longer wall).',
+					enum: ['free', 'fixed'],
+					enumDescriptions: ['Free earth support', 'Fixed earth support'],
+					title: 'Earth support',
+					type: 'string',
+				},
+				propLevel: {
+					anyOf: [
+						{
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Level of the strut or anchor of a propped wall [mm, project datum].',
+					title: 'Prop level',
+				},
+				toeLevel: {
+					anyOf: [
+						{
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Toe of the wall as built [mm, project datum]; empty: the required toe is reported.',
+					title: 'Toe level',
+				},
+				surcharge: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'On the retained ground [kPa]; empty: the largest load beside the excavation, at least the code pack\'s least surcharge.',
+					title: 'Surcharge',
+				},
+				momentCapacity: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Design bending resistance of the wall per metre run [kN·m/m] (the sheet pile\'s, or the piles\' over their spacing); empty: the moment is reported only.',
+					title: 'Moment capacity',
+				},
+				propSpacing: {
+					anyOf: [
+						{
+							description: '[mm]',
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Spacing of the struts or anchors along the wall [mm]; empty: per metre.',
+					title: 'Prop spacing',
+				},
+			},
+			title: 'EmbeddedWall',
+			type: 'object',
+		},
 		Excavation: {
 			additionalProperties: false,
-			description: 'An excavation for the foundations or a basement: its depth, how its sides are kept, the\nloads and buildings beside it and the ground water at its base. The checks are the\ncode pack\'s rules of excavation work; the design of an embedded wall and its supports is a\nseparate (planned) feature.',
+			description: 'An excavation for the foundations or a basement: its depth, how its sides are kept, the\nloads and buildings beside it and the ground water at its base. The checks are the\ncode pack\'s rules of excavation work and, with ``wall``, the design of its embedded wall\n(alpha 9 P7); the walers, struts and anchors are designed separately.',
 			properties: {
 				id: {
 					maxLength: 64,
@@ -23410,6 +23664,19 @@ export const SUBSTRUCTURE_SCHEMA: IJSONSchema = {
 					},
 					title: 'Adjoining structures',
 					type: 'array',
+				},
+				wall: {
+					anyOf: [
+						{
+							$ref: '#/$defs/EmbeddedWall',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'The embedded wall of its sides, designed by the code pack\'s method.',
+					title: 'Embedded wall',
 				},
 				note: {
 					anyOf: [
@@ -27242,6 +27509,33 @@ export const MEP_SCHEMA: IJSONSchema = {
 					default: null,
 					description: 'On vibration isolators: the nominal air gap to its bumper restraints or snubbers [mm] (a larger gap than the code pack\'s limit doubles the design force).',
 					title: 'Isolator clearance',
+				},
+				nonBuilding: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Its type in the code pack\'s non-building structure table (e.g. elevatedTankBraced, trussedTower, steelStorageRack): a tank on legs, a tower or rack designed with R, Ω0 and Cd of its type; empty: a component only.',
+					title: 'Non-building structure',
+				},
+				period: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Fundamental period of the non-building structure itself [s]; empty: the plateau of the design spectrum (on the safe side).',
+					title: 'Own period',
 				},
 			},
 			required: ['id', 'story', 'x', 'y', 'length', 'width', 'operatingWeight'],

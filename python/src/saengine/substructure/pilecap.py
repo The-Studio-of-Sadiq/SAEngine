@@ -1381,7 +1381,9 @@ def _pile_cap_method() -> list[str]:
             "section and a lateral load test, unbraced piles designed as columns; load tests "
             "interpreted by the pack's criteria, a compression test giving the factor of safety "
             "with a test and capping the allowable load; negative skin friction to the neutral "
-            "point and swelling uplift in expansive soil. Lateral soil failure (Broms) is planned."
+            "point and swelling uplift in expansive soil. Lateral soil failure by Broms and the "
+            "pile on nonlinear p-y springs (head deflection, shaft moment) by the pack's "
+            "methods (SAEngine practice where the code gives none)."
         ),
     ]
 
@@ -1477,6 +1479,30 @@ def _pile_rules_checks(
     )
     checks += found
     notes += found_notes
+    # Alpha 9 P7: soil failure (Broms) and the pile on p-y springs, by the pack's methods.
+    from saengine.substructure import pile_lateral_soil
+
+    square = is_square(kind, getattr(pile_type, "shape", None))
+    dia = float(spec.pile_diameter)
+    found, found_notes, soil_detail = pile_lateral_soil.soil_checks(
+        profile,
+        lateral["head"],
+        dia,
+        float(pile_type.length),
+        section["ec"] * (dia**4 / 12 if square else math.pi * dia**4 / 64),
+        lateral["fixity"],
+        pile_lateral_soil.bending_capacity(
+            dia, section["fc"], section["fy"], section.get("reinforcement"), square
+        ),
+        lateral["service"],
+        lateral["strength"],
+        n,
+        min(ratios[0][0], ratios[1][0]),
+        getattr(pile_type, "lateralDeflection", None),
+    )
+    checks += found
+    notes += found_notes
+    detail.update(soil_detail)
     detail["groupRatio"] = [round(ratios[0][0], 3), round(ratios[1][0], 3)]
     stiffness = lateral["stiffness"]
     if stiffness is not None:

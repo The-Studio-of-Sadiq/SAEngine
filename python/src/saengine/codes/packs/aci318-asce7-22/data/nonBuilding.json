@@ -1,0 +1,17 @@
+{
+  "$schema": "../../../schemas/nonBuilding.schema.json",
+  "$sources": [
+    "ASCE/SEI 7-22 Chapter 15: Sec 15.3.1 (supported structures below 25 percent), 15.4.1(2) (least Cs), 15.4.2 (rigid structures), Tables 15.4-1 and 15.4-2 (values transcribed from knowledge of the standard; see VERIFY.md)"
+  ],
+  "source": "ASCE/SEI 7-22 Chapter 15: seismic design requirements for non-building structures (Tables 15.4-1, 15.4-2)",
+  "types": {
+    "signBillboard": { "label": "Sign or billboard", "R": 3.0, "omega0": 1.75, "Cd": 3.0 }
+  },
+  "clauses": {
+    "required": "Chapter 15: non-building structures",
+    "supported": "Sec 15.3.1: supported non-building structures below 25 % of the combined weight designed as components (Chapter 13); otherwise with their interaction (15.3.2)",
+    "types": "Tables 15.4-1 and 15.4-2 (R, Ω0, Cd)",
+    "minimum": "Sec 15.4.1(2), Eq 15.4-1: Cs ≥ 0.044 SDS Ie ≥ 0.03",
+    "rigid": "Sec 15.4.2, Eq 15.4-5: T < 0.06 s, V = 0.30 SDS W Ie"
+  }
+}

@@ -37,6 +37,7 @@ import { EditorPane } from '../../../browser/parts/editor/editorPane.js';
 import { IEditorOpenContext } from '../../../common/editor.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
+import { feetInches, isConverted, parseList } from '../../../services/saengineProject/common/displayUnits.js';
 import { ISaengineModelSelectionService, ModelSelection } from '../../../services/saengineProject/common/modelSelection.js';
 import { newFloorPlan } from '../../../services/saengineProject/common/partSources.js';
 import { PROJECT_PARTS } from '../../../services/saengineProject/common/saengineProject.js';
@@ -132,10 +133,18 @@ const GROUP_LABEL: { readonly [group in IMemberRef['group']]: string } = {
 
 const FILL_TOOL: { readonly [kind in FillKind]: PlacementTool } = { columns: 'column', beams: 'beam', walls: 'wall', slabs: 'slab' };
 
-/** "150, -200", "150 -200" or "@150,-200" (AutoCAD's relative form) as a displacement in mm. */
+/**
+ * "150, -200", "150 -200" or "@150,-200" (AutoCAD's relative form) as a displacement in mm; in
+ * US customary display units typed in feet and inches (C13: `5'-0", 0`).
+ */
 function parseDisplacement(text: string): CadPoint | undefined {
-	const parts = text.trim().replace(/^@/, '').split(/[\s,;]+/).filter(Boolean).map(Number);
-	return parts.length === 2 && parts.every(Number.isFinite) ? [parts[0], parts[1]] : undefined;
+	const parts = parseList(text);
+	return parts && parts.length === 2 ? [parts[0], parts[1]] : undefined;
+}
+
+/** C13: a hint or notice about typed lengths in the display units: `si` as it is in SI, `us` in US customary units. */
+function inUnits(si: string, us: string): string {
+	return isConverted('mm') ? us : si;
 }
 
 /**
@@ -1140,7 +1149,7 @@ export class FloorPlanEditor extends EditorPane {
 		}
 		const box = this.typedControls.add(new InputBox(append(this.typedGroup, $('.floor-plan-typed')), this.contextViewService, {
 			inputBoxStyles: defaultInputBoxStyles,
-			placeholder: tool === 'move' ? localize('floorPlan.displacementHint', "Δx, Δy in mm, e.g. 150, 0") : localize('floorPlan.angleHint', "Angle in degrees"),
+			placeholder: tool === 'move' ? inUnits(localize('floorPlan.displacementHint', "Δx, Δy in mm, e.g. 150, 0"), localize('floorPlan.displacementHintUs', "Δx, Δy in feet and inches, e.g. 5'-0\", 0")) : localize('floorPlan.angleHint', "Angle in degrees"),
 			ariaLabel: tool === 'move' ? localize('floorPlan.displacementAria', "Displacement of {0} in millimetres", picked.id) : localize('floorPlan.angleAria', "Angle of {0} in degrees", picked.id),
 		}));
 		if (tool === 'rotate') {
@@ -1152,7 +1161,7 @@ export class FloorPlanEditor extends EditorPane {
 				if (delta) {
 					this.moveBy(delta);
 				} else {
-					this.setNotice(localize('floorPlan.badDisplacement', "Type the displacement as two numbers in mm, e.g. 150, -200."));
+					this.setNotice(inUnits(localize('floorPlan.badDisplacement', "Type the displacement as two numbers in mm, e.g. 150, -200."), localize('floorPlan.badDisplacementUs', "Type the displacement as two lengths in feet and inches, e.g. 5'-0\", -2'-6\".")));
 				}
 			} else {
 				this.rotateTo(Number(box.value));
@@ -1180,14 +1189,14 @@ export class FloorPlanEditor extends EditorPane {
 	private renderLengthEntry(): void {
 		const box = this.lengthBox = this.typedControls.add(new InputBox(append(this.typedGroup, $('.floor-plan-typed')), this.contextViewService, {
 			inputBoxStyles: defaultInputBoxStyles,
-			placeholder: localize('floorPlan.lengthHint', "Length in mm, or Δx, Δy"),
+			placeholder: inUnits(localize('floorPlan.lengthHint', "Length in mm, or Δx, Δy"), localize('floorPlan.lengthHintUs', "Length in feet and inches, or Δx, Δy")),
 			ariaLabel: localize('floorPlan.lengthAria', "Length of the {0} from its start in millimetres, or the offset of its end", this.tool),
 		}));
 		const apply = () => {
 			const start = this.chainStart;
 			const end = start && typedEnd(start.point, box.value, this.hoverSnap?.point ?? this.hover);
 			if (!start || !end) {
-				this.setNotice(localize('floorPlan.badLength', "Type a length in mm (along the cursor's direction, held to an axis within 5°) or Δx, Δy, e.g. 1500 or 1500, 0."));
+				this.setNotice(inUnits(localize('floorPlan.badLength', "Type a length in mm (along the cursor's direction, held to an axis within 5°) or Δx, Δy, e.g. 1500 or 1500, 0."), localize('floorPlan.badLengthUs', "Type a length in feet and inches (along the cursor's direction, held to an axis within 5°) or Δx, Δy, e.g. 15'-0\" or 15', 0.")));
 				return;
 			}
 			box.value = '';
@@ -2312,7 +2321,9 @@ export class FloorPlanEditor extends EditorPane {
 				? localize('floorPlan.snapLength', "{0}: {1} mm at {2}°", this.snapLabel(snap), Math.round(Math.hypot(dx, dy)), Math.round(Math.atan2(dy, dx) * 180 / Math.PI))
 				: this.snapLabel(snap));
 		} else if (this.hover) {
-			parts.push(localize('floorPlan.cursor', "x {0}, y {1} mm", Math.round(this.hover[0]), Math.round(this.hover[1])));
+			parts.push(isConverted('mm')
+				? localize('floorPlan.cursorUs', "x {0}, y {1}", feetInches(this.hover[0]), feetInches(this.hover[1]))
+				: localize('floorPlan.cursor', "x {0}, y {1} mm", Math.round(this.hover[0]), Math.round(this.hover[1])));
 		}
 		const noTypes = !!this.placementTool && this.typeIds.length === 0;
 		const story = (this.input as FloorPlanEditorInput | undefined)?.story;

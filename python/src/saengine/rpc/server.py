@@ -781,6 +781,7 @@ def create_server() -> JsonRPCServer:
             args.get("ratesText"),
             args.get("carbonText"),
             args.get("title") or "",
+            args.get("settingsText"),
         )
 
     @_in_design_worker

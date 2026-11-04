@@ -28,6 +28,7 @@ from ezdxf.document import Drawing
 from ezdxf.enums import TextEntityAlignment
 
 from saengine import i18n
+from saengine.units import Units, convert_levels, convert_text, units_from_json
 
 # ─────────────────────────────────── paper ───────────────────────────────────
 
@@ -203,6 +204,9 @@ class TitleInfo:
     disclaimer: str = ""  # printed above the status (the office standard)
     # the language of the sheets' labels (Project Settings › Project › Language, saengine.i18n)
     language: str = "en"
+    # C13: the display units (saengine.units.units_json; "" for SI): dimensions in feet and
+    # inches, the quantities in the sheets' text and the bar names in US customary units
+    units: str = ""
 
     @classmethod
     def from_dict(cls, data: dict[str, Any] | None) -> TitleInfo:
@@ -234,10 +238,17 @@ class TitleInfo:
 # ─────────────────────────────────── the document ───────────────────────────────────
 
 
-def new_document(scale: float) -> Drawing:
+def _length_factor(units: Units | None) -> float:
+    """DIMLFAC of the display units: 1 (mm) in SI, 1/25.4 (the architectural feet and inches
+    unit measures inches) in US customary units."""
+    return 1.0 if units is None or units.si else 1 / 25.4
+
+
+def new_document(scale: float, units: Units | None = None) -> Drawing:
     """A DXF (R2013, mm) with SAEngine's layers, linetypes, text style and the dimension style of
     a sheet of base scale ``1:scale``; nothing else (no table entries that refer to fonts or
-    files a CAD program might not have)."""
+    files a CAD program might not have). In US customary ``units`` the dimensions read in feet
+    and inches to 1/8" (DIMLUNIT 4, architectural); the drawing itself stays in mm."""
     doc = ezdxf.new("R2013", setup=False, units=ezdxf.units.MM)
     doc.header["$LTSCALE"] = scale
     doc.header["$PSLTSCALE"] = 0
@@ -284,6 +295,9 @@ def new_document(scale: float) -> Drawing:
         "dimtmove": 2,
         "dimtix": 0,
     }
+    if units is not None and not units.si:
+        # architectural units in inches (from the mm drawn), to 1/8", zero feet shown
+        attribs.update({"dimlunit": 4, "dimlfac": _length_factor(units), "dimdec": 3, "dimzin": 0})
     for key, value in attribs.items():
         style.dxf.set(key, value)
     style.set_arrows(blk=ezdxf.ARROWS.architectural_tick)
@@ -520,7 +534,8 @@ class Sheet:
         self.info = info
         self.scale_text = scale_text or f"1:{scale:g}"
         self.width, self.height = paper_size(self.size)
-        self.doc = new_document(self.scale)
+        self.units = units_from_json(info.units)
+        self.doc = new_document(self.scale, self.units)
         # the office's drafting standard (saengine.drawings.sheets.standards): its font and
         # arrows now, its layer names when the sheet is written
         self.standard = standard
@@ -563,7 +578,7 @@ class Sheet:
         name = f"{self.dimstyle}-{view_scale:g}"
         if name not in self.doc.dimstyles:
             style = self.doc.dimstyles.duplicate_entry(self.dimstyle, name)
-            style.dxf.dimlfac = view_scale / self.scale
+            style.dxf.dimlfac = view_scale / self.scale * _length_factor(self.units)
         return name
 
     # ── drawing in paper coordinates ──
@@ -590,6 +605,8 @@ class Sheet:
         (LibreCAD and every plotter render them alike). Returns the index of its reserved
         rectangle (``labels.taken``). In a Bangla set the labels the catalogue knows are
         translated and numbers get Bengali digits (:func:`saengine.i18n.translate`)."""
+        if not self.units.si:
+            text = convert_levels(convert_text(text, self.units), self.units)
         if self.language != "en":
             text = i18n.translate(text, self.language)
         lines = text.split("\n")
@@ -1126,7 +1143,7 @@ class View:
         base = (p1[0] + normal[0] * self.real(offset), p1[1] + normal[1] * self.real(offset))
         mid = ((p1[0] + p2[0]) / 2, (p1[1] + p2[1]) / 2)
         length = abs((p2[0] - p1[0]) * math.cos(rad) + (p2[1] - p1[1]) * math.sin(rad))
-        label = (text or "<>").replace("<>", f"{length:.0f}")
+        label = (text or "<>").replace("<>", self.sheet.units.length_text(length))
         extra: dict[str, Any] = {}
         if along is not None and angle == 0 and abs(along - mid[0]) > 1e-6:
             mid = (along, mid[1])

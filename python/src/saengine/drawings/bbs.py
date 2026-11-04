@@ -70,6 +70,8 @@ import operator
 import re
 import textwrap
 from collections.abc import Callable, Iterable, Iterator, Mapping
+from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass, field
 from functools import cache
 from typing import Any
@@ -151,13 +153,56 @@ def shape_key_on() -> bool:
     return bool(_table().shapeKey)
 
 
+#: C13: the display units the schedule is printed in (:func:`in_units`); None: SI.
+_DISPLAY: ContextVar[Any] = ContextVar("bbs_display_units", default=None)
+
+
+@contextmanager
+def in_units(units: Any) -> Iterator[None]:
+    """The schedule's tables and CSV in the display ``units`` (:class:`saengine.units.Units`,
+    C13) while it is in force; SI for None."""
+    token = _DISPLAY.set(units if units is not None and not units.si else None)
+    try:
+        yield
+    finally:
+        _DISPLAY.reset(token)
+
+
 def length_display() -> tuple[str, Callable[[float], str]]:
     """How the schedule shows lengths and dimensions given in mm: (unit label, format).
 
-    Alpha 9 C14 / C13 seam: the schedule keeps every length in mm; the project's display units
-    (C13, US customary feet and inches) are to be applied here, in this one function, when they
-    are merged. Until then the schedule prints mm under every standard."""
+    Alpha 9 C14 / C13 seam: the schedule keeps every length in mm; in US customary display
+    units (C13, :func:`in_units`) it prints them in feet and inches to 1/8", else in mm."""
+    if _DISPLAY.get() is not None:
+        from saengine.units import feet_inches
+
+        return "ft-in", feet_inches
     return "mm", lambda mm: f"{mm:.0f}"
+
+
+def _shown(value: float, si_unit: str) -> str:
+    """A total length [m] or mass [kg] of the schedule, two decimals, in the display units."""
+    units = _DISPLAY.get()
+    return f"{value if units is None else units.convert(value, si_unit)[0]:.2f}"
+
+
+def _heading(text: str) -> str:
+    """A heading with an SI unit ("Mass (kg)", "Total\nlength (m)") in the display units, and a
+    bar size by the pack's name ("Ø16" -> "#5"); as it is in SI."""
+    units = _DISPLAY.get()
+    if units is None:
+        return text
+    from saengine.units import convert_text, csv_heading
+
+    return "\n".join(csv_heading(convert_text(line, units), units) for line in text.split("\n"))
+
+
+def _size(label: str, dia: float) -> str:
+    """The standard's size label of ``dia`` ("Ø{d}"); the pack's bar name in US units."""
+    units = _DISPLAY.get()
+    if units is not None and f"{dia:g}" in units.bar_names:
+        return units.bar_names[f"{dia:g}"]
+    return label.replace("{d}", f"{dia:g}")
 
 
 # ─────────────────────────────────── formulas ───────────────────────────────────
@@ -766,7 +811,9 @@ def columns_of(std: Any) -> tuple[tuple[str, str], ...]:
     """The standard's columns as (key, title), the title's ``{len}`` the length unit
     (:func:`length_display`); keys the schedule has no cell for are left out."""
     unit, _ = length_display()
-    return tuple((c.key, c.title.replace("{len}", unit)) for c in std.columns if c.key in CELL_KEYS)
+    return tuple(
+        (c.key, _heading(c.title.replace("{len}", unit))) for c in std.columns if c.key in CELL_KEYS
+    )
 
 
 def _cells(row: BbsRow) -> dict[str, str]:
@@ -781,15 +828,16 @@ def _cells(row: BbsRow) -> dict[str, str]:
     return {
         "member": row.member,
         "mark": row.mark,
-        "size": row.size,
+        # C13: the pack's bar name in US units ("B420 #5" for "B420 No. 16")
+        "size": f"{row.material} {_size(row.size_format, row.dia)}".strip(),
         "shape": row.shape,
         **{k: dim(k) for k in LETTERS},
         "members": str(row.members),
         "per_member": str(row.per_member),
         "total_count": str(row.total_count),
         "cutting_length": fmt(row.cutting_length),
-        "total_length": f"{row.total_length:.2f}",
-        "mass": f"{row.mass:.2f}",
+        "total_length": _shown(row.total_length, "m"),
+        "mass": _shown(row.mass, "kg"),
         "remarks": row.remarks,
     }
 
@@ -798,10 +846,16 @@ def _kind_label(kind: str) -> str:
     return kind.replace("_", " ").capitalize() + "s" if kind else "Other"
 
 
-def schedule_csv(schedule: BarSchedule) -> str:
+def schedule_csv(schedule: BarSchedule, units: Any = None) -> str:
     """The schedule as CSV for Excel: one row per bar mark, then the totals per bar size and per
     element type. Write it with ``encoding="utf-8-sig"`` (Excel reads the Ø then) and
-    ``newline=""``."""
+    ``newline=""``. ``units`` (:class:`saengine.units.Units`, C13): the display units of the
+    cells and headings; SI when None."""
+    with in_units(units):
+        return _schedule_csv(schedule)
+
+
+def _schedule_csv(schedule: BarSchedule) -> str:
     std = schedule.std
     columns = columns_of(std)
     keys = [key for key, _ in columns]
@@ -824,20 +878,24 @@ def schedule_csv(schedule: BarSchedule) -> str:
         writer.writerow([cells[key] for key in keys])
     writer.writerow([])
     writer.writerow(
-        line("Totals per bar size", size="Size", total_length="Total length (m)", mass="Mass (kg)")
-    )
+        line("Totals per bar size", size="Size", total_length=_heading("Total length (m)"),
+             mass=_heading("Mass (kg)"))
+    )  # fmt: skip
     for dia, mass in schedule.by_diameter.items():
         length = sum(r.total_length for r in schedule.rows if r.dia == dia)
-        size = label.replace("{d}", f"{dia:g}")
-        writer.writerow(line("", size=size, total_length=f"{length:.2f}", mass=f"{mass:.2f}"))
-    writer.writerow(line("Total", mass=f"{schedule.total:.2f}"))
+        size = _size(label, dia)
+        writer.writerow(
+            line("", size=size, total_length=_shown(length, "m"), mass=_shown(mass, "kg"))
+        )
+    writer.writerow(line("Total", mass=_shown(schedule.total, "kg")))
     writer.writerow([])
-    writer.writerow(line("Totals per element type", size="Size", mass="Mass (kg)"))
+    writer.writerow(line("Totals per element type", size="Size", mass=_heading("Mass (kg)")))
     for kind, sizes in schedule.by_kind.items():
         for dia, mass in sizes.items():
-            size = label.replace("{d}", f"{dia:g}")
-            writer.writerow(line(_kind_label(kind), size=size, mass=f"{mass:.2f}"))
-        writer.writerow(line(f"{_kind_label(kind)} total", mass=f"{sum(sizes.values()):.2f}"))
+            size = _size(label, dia)
+            writer.writerow(line(_kind_label(kind), size=size, mass=_shown(mass, "kg")))
+        total = _shown(sum(sizes.values()), "kg")
+        writer.writerow(line(f"{_kind_label(kind)} total", mass=total))
     return out.getvalue()
 
 
@@ -858,7 +916,14 @@ def _widths(columns: list[dict[str, Any]], rows: list[list[str]]) -> None:
                 )
 
 
-def sheet_table(schedule: BarSchedule) -> dict[str, Any]:
+def sheet_table(schedule: BarSchedule, units: Any = None) -> dict[str, Any]:
+    """The schedule as table data for the BBS drawing sheets, in the display ``units``
+    (:class:`saengine.units.Units`, C13; SI when None): see :func:`_sheet_table`."""
+    with in_units(units):
+        return _sheet_table(schedule)
+
+
+def _sheet_table(schedule: BarSchedule) -> dict[str, Any]:
     """The schedule as table data for the BBS drawing sheets.
 
     Returns ``{"title", "columns", "rows", "groups", "totals", "notes"}``: ``columns`` are
@@ -898,18 +963,23 @@ def sheet_table(schedule: BarSchedule) -> dict[str, Any]:
     total_cols: list[dict[str, Any]] = [{"key": "kind", "title": "Element\ntype", "align": "left"}]
     label = std.sizeLabel
     total_cols += [
-        {"key": f"d{d:g}", "title": f"{label.replace('{d}', f'{d:g}')}\n(kg)", "align": "right"}
+        {"key": f"d{d:g}", "title": _heading(f"{_size(label, d)}\n(kg)"), "align": "right"}
         for d in sizes
     ]
-    total_cols.append({"key": "total", "title": "Total\n(kg)", "align": "right"})
+    total_cols.append({"key": "total", "title": _heading("Total\n(kg)"), "align": "right"})
+    shown = _DISPLAY.get()
+
+    def kg(value: float) -> str:
+        return f"{value if shown is None else shown.convert(value, 'kg')[0]:.1f}"
+
     total_rows = []
     for kind, masses in schedule.by_kind.items():
         total_rows.append(
-            [_kind_label(kind), *[f"{masses.get(d, 0.0):.1f}" if d in masses else "" for d in sizes],
-             f"{sum(masses.values()):.1f}"]
+            [_kind_label(kind), *[kg(masses.get(d, 0.0)) if d in masses else "" for d in sizes],
+             kg(sum(masses.values()))]
         )  # fmt: skip
     by_dia = schedule.by_diameter
-    total_rows.append(["Total", *[f"{by_dia[d]:.1f}" for d in sizes], f"{schedule.total:.1f}"])
+    total_rows.append(["Total", *[kg(by_dia[d]) for d in sizes], kg(schedule.total)])
     _widths(total_cols, total_rows)
     lengths: dict[str, float] = {}
     for r in schedule.rows:

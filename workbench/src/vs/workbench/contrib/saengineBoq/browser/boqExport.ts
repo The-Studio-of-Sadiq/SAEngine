@@ -3,6 +3,7 @@
  *  Licensed under the AGPL-3.0-only license. See LICENSE in the repository root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { activeDisplayUnits } from '../../../services/saengineProject/common/displayUnits.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { basename, joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -113,7 +114,10 @@ export async function exportBoqXlsx(boqText: string, project: ISaengineProject, 
 			readBoqFile(project, BOQ_RATES_FILE, services.fileService),
 			readBoqFile(project, BOQ_CARBON_FILE, services.fileService),
 		]);
-		const result = await services.commandService.executeCommand<IBoqXlsxResult>(BOQ_WRITE_XLSX_COMMAND, target, { boqText, ratesText, carbonText, title: project.name });
+		// C13: the bill sheet in the project's display units (the costing keeps its rates' units)
+		const units = activeDisplayUnits();
+		const settingsText = units.system === 'SI' ? undefined : JSON.stringify({ units: { system: units.system, ...units.choices } });
+		const result = await services.commandService.executeCommand<IBoqXlsxResult>(BOQ_WRITE_XLSX_COMMAND, target, { boqText, ratesText, carbonText, title: project.name, ...(settingsText ? { settingsText } : {}) });
 		const problems = result?.problems?.length ? result.problems.join(' ') : result?.error;
 		if (problems || !result?.path) {
 			services.notificationService.error(localize('boq.exportXlsxFailed', "The bill of quantities could not be exported: {0}", problems ?? localize('boq.noAnswer', "no answer from the engine")));
