@@ -626,6 +626,8 @@ async function summaryTables(commandService: ICommandService, model: URI, units:
 		storeyTable(response, { length: v => v * u.length.scale, force: v => v * u.force.scale, moment: v => v * u.moment.scale }),
 		baseReactionTable(response, { force: v => v * u.force.scale, moment: v => v * u.moment.scale }),
 		...(response.modal ? [modalTable(response.modal)] : []),
+		// Alpha 9 P7: floor vibration and wind comfort, as the backend lays them out.
+		...(response.serviceSheets ?? []),
 	];
 	return {
 		caseId: -1,

@@ -76,8 +76,27 @@ export interface IEquipment {
 	/** Spread over its footprint (default) or on its four feet. */
 	loadAs?: LoadAs;
 	plinth?: IPlinth;
+	/** Alpha 9 P7: its type in the code pack's non-building structure table. */
+	nonBuilding?: string;
+	/** Fundamental period of the non-building structure itself [s]. */
+	period?: number;
 	[key: string]: unknown;
 }
+
+/** Alpha 9 P7: the non-building structure types of the default code pack's `nonBuilding` table (a pack may add others; the backend reports an unknown one). */
+export const NON_BUILDING_TYPES: readonly { readonly id: string; readonly label: string }[] = [
+	{ id: 'elevatedTankBraced', label: localize('mep.nb.elevatedTankBraced', "Elevated tank on braced legs") },
+	{ id: 'elevatedTankUnbraced', label: localize('mep.nb.elevatedTankUnbraced', "Elevated tank on unbraced legs") },
+	{ id: 'horizontalVessel', label: localize('mep.nb.horizontalVessel', "Horizontal saddle-supported vessel") },
+	{ id: 'trussedTower', label: localize('mep.nb.trussedTower', "Trussed tower, guyed stack") },
+	{ id: 'cantileverColumn', label: localize('mep.nb.cantileverColumn', "Cantilevered column-type structure") },
+	{ id: 'signBillboard', label: localize('mep.nb.signBillboard', "Sign or billboard") },
+	{ id: 'telecomTrussSteel', label: localize('mep.nb.telecomTrussSteel', "Telecommunication tower, steel truss") },
+	{ id: 'telecomPoleSteel', label: localize('mep.nb.telecomPoleSteel', "Telecommunication tower, steel pole") },
+	{ id: 'coolingTower', label: localize('mep.nb.coolingTower', "Cooling tower") },
+	{ id: 'steelStorageRack', label: localize('mep.nb.steelStorageRack', "Steel storage rack") },
+	{ id: 'otherSelfSupporting', label: localize('mep.nb.otherSelfSupporting', "Other self-supporting structure") },
+];
 
 export interface IOpeningPosition {
 	/** Beam: from the beam's start end to the centre [mm]. */

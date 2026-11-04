@@ -1489,8 +1489,6 @@ export class FemResultsBar extends Disposable {
 			appendPropertyHeading(container, localize('femResults.curveHeading', "Capacity Curve"));
 			this.renderCurve(container, entry.frames ?? []);
 			this.appendPlanned(container, [FemPlanned.fibreWalls]);
-		} else if (entry.kind === 'modal') {
-			this.appendPlanned(container, [FemPlanned.floorVibration]);
 		} else if (entry.kind === 'history') {
 			this.appendPlanned(container, [FemPlanned.recordScaling]);
 		} else if (entry.kind === 'static' && entry.frames?.length) {
@@ -1715,10 +1713,6 @@ export class FemResultsBar extends Disposable {
 		// A steel member's class, lengths, Cb and governing clause, then its connections.
 		const steel = steelSection(element);
 		this.renderDetailing(container, steel);
-		// B32: composite beams are designed; their floor vibration is still planned.
-		if (steel.length && element.kind === 'beam' && element.checks.some(c => c.name.startsWith('Composite: '))) {
-			this.appendPlanned(container, [FemPlanned.floorVibration]);
-		}
 		// A timber member's section, stresses and end joint, then the joints still planned (screws).
 		const timber = timberSection(element);
 		this.renderDetailing(container, timber);

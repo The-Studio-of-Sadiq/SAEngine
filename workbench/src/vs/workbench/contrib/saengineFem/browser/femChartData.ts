@@ -316,6 +316,8 @@ export interface IFemStoryResponse {
 	readonly columnShortening?: IFemColumnShortening | null;
 	/** B36: the nonlinear time history design, for the nonlinear time history model. */
 	readonly nonlinearHistory?: IFemNonlinearHistory | null;
+	/** Alpha 9 P7: the floor vibration and wind comfort tables (`fem/floor_vibration.py`, `fem/wind_comfort.py`). */
+	readonly serviceSheets?: readonly IFemSheet[];
 	readonly notes: readonly string[];
 }
 

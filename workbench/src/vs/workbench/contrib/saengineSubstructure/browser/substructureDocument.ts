@@ -367,6 +367,20 @@ export interface IExcavation {
 	piling?: boolean;
 	loads?: IExcavationLoad[];
 	adjoining?: IAdjoiningStructure[];
+	/** Alpha 9 P7: its embedded wall, designed by the code pack's method. */
+	wall?: IEmbeddedWall;
+	[key: string]: unknown;
+}
+
+/** The embedded wall of an excavation (mm, project datum; kPa; kN·m/m). */
+export interface IEmbeddedWall {
+	kind?: 'cantilever' | 'propped';
+	earthSupport?: 'free' | 'fixed';
+	propLevel?: number;
+	toeLevel?: number;
+	surcharge?: number;
+	momentCapacity?: number;
+	propSpacing?: number;
 	[key: string]: unknown;
 }
 
