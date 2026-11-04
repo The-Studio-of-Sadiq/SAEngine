@@ -1,0 +1,72 @@
+{
+  "schema": "saengine.codePack/1",
+  "id": "turkey-tbdy",
+  "name": "Turkey (TBDY 2018, TS 500, TS 498)",
+  "edition": "TBDY 2018",
+  "country": "TR",
+  "units": "SI",
+  "version": "0.1.0",
+  "extends": "aci318-asce7-22",
+  "covers": [
+    "locations",
+    "occupancyCategories",
+    "combinations",
+    "seismic",
+    "concreteMethods",
+    "concrete",
+    "pushover"
+  ],
+  "description": "The Turkish codes (alpha 9 track C21), a pack that extends the US pack aci318-asce7-22. Seismic: TBDY 2018 (the design earthquake DD-2 from the site's SS and S1, entered from the AFAD hazard map or a city's example values; the local site classes ZA-ZF with FS and F1 of Tablo 2.1 and 2.2; the horizontal elastic spectrum with TA, TB, TL = 6 s; BKS 1-3 with I = 1.5, 1.2, 1.0; DTS 1-4 by SDS (SAEngine's categories D, C, B); R and D by system of Tablo 4.1 with Ra(T) = D + (R/I - D) T/TB below TB; the equivalent lateral load with ΔFN = 0.0075 N Vt, Vt ≥ 0.04 I SDS W, TpA = Ct HN^(3/4); the modal analysis with γE = 0.80; the drift λ δ/h ≤ 0.008 κ or 0.016 κ; the building height classes BYS 1-8 and, for BYS 1 tall buildings, the performance-based design requirement reported with the procedures (the Pushover analysis with the DD-2 and DD-1 hazard levels, the Nonlinear time history analysis with 11 records)). Loads: TS 500 / TBDY 4.4.4 combinations. Concrete: TS 500:2000 limit state design (γmc 1.5, γms 1.15, fcd, fctd, k1, the shear Vcr / Vc, punching, minimum steel) and TBDY 2018 Bolum 7 ductile detailing (strong column 1.2, confinement, joints); bars Ø8-Ø32 (TS 708). Steel: the base pack's AISC 360-22 and AISC 341-22 (the Turkish steel regulation of 2016 follows AISC 360). Not covered (the base pack's, named so in the report): TS 498 live loads and wind (the wind speed is a placeholder), the TBDY strain limits of Bolum 5, the second order limit of TBDY 4.9.2, the other TS 500 areas. Every value is listed in VERIFY.md; the cities' SS and S1 are example readings to be replaced by the site's AFAD values.",
+  "sources": [
+    {
+      "id": "TBDY2018",
+      "title": "Turkiye Bina Deprem Yonetmeligi (Turkish Building Earthquake Code)",
+      "edition": "2018",
+      "publisher": "AFAD, Republic of Turkiye"
+    },
+    {
+      "id": "TS500",
+      "title": "TS 500 Betonarme yapilarin tasarim ve yapim kurallari (Requirements for design and construction of reinforced concrete structures)",
+      "edition": "2000",
+      "publisher": "Turk Standardlari Enstitusu"
+    },
+    {
+      "id": "TS498",
+      "title": "TS 498 Yapi elemanlarinin boyutlandirilmasinda alinacak yuklerin hesap degerleri (Design loads for buildings)",
+      "edition": "1997",
+      "publisher": "Turk Standardlari Enstitusu"
+    },
+    {
+      "id": "TS708",
+      "title": "TS 708 Celik - Beton icin donati celigi (Steel for the reinforcement of concrete)",
+      "edition": "2016",
+      "publisher": "Turk Standardlari Enstitusu"
+    }
+  ],
+  "clauses": {
+    "locations": ["TBDY 2018 2.2-2.3 (SS, S1 from the AFAD hazard map: example values)"],
+    "occupancyCategories": ["TBDY 2018 Tablo 3.1"],
+    "combinations": ["TS 500:2000 6.2.6", "TBDY 2018 4.4.4"],
+    "seismic": ["TBDY 2018 Bolum 2-4, 13"],
+    "concreteMethods": ["TS 500:2000", "TBDY 2018 Bolum 7"],
+    "concrete": ["TS 708:2016", "TS 500:2000 3.3"],
+    "pushover": ["TBDY 2018 3.4 (DD-2, DD-1 performance levels)"]
+  },
+  "basis": {
+    "general": "TBDY 2018, TS 500:2000 6.2.6 (combinations); the live loads and wind of the base pack (ASCE 7-22) until TS 498 is covered",
+    "concrete": "TS 500:2000 (limit state) and TBDY 2018 Bolum 7 (ductile detailing); the other concrete methods from ACI 318-19 (base pack)",
+    "steel": "AISC 360-22 and AISC 341-22 (base pack; the Turkish steel regulation of 2016 follows AISC 360)",
+    "method": "Limit state design (TS 500)"
+  },
+  "tableCodes": {
+    "seismic": "TBDY 2018",
+    "locations": "TBDY 2018",
+    "occupancyCategories": "TBDY 2018",
+    "combinations": "TS 500:2000",
+    "concreteMethods": "TS 500:2000",
+    "concrete": "TS 500:2000",
+    "pushover": "TBDY 2018"
+  },
+  "author": "SAEngine contributors",
+  "licence": "AGPL-3.0-only"
+}

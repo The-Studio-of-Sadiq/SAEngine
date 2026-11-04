@@ -1,0 +1,14 @@
+{
+  "$schema": "../../../schemas/zoneCoefficients.schema.json",
+  "$replace": true,
+  "$sources": [
+    "NBC 105:2020 4.1.4, Table 4-5 and Figure 4-2: the seismic zoning factor Z of the municipalities (0.25-0.40)"
+  ],
+  "source": "NBC 105:2020: Z of each municipality from 0.25 to 0.40 (Table 4-5). The zone ids are 100 Z (25, 30, 35, 40); a project enters another Z (Location: Custom) where the table gives an intermediate value.",
+  "zones": {
+    "25": 0.25,
+    "30": 0.3,
+    "35": 0.35,
+    "40": 0.4
+  }
+}

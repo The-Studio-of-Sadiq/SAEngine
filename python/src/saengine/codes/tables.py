@@ -523,6 +523,10 @@ class ShapeBranch(BaseModel):
     n: float = 1.0
     t0: float = Field(default=1.0, gt=0)
     most: float | None = Field(default=None, gt=0)
+    # Alpha 9 C21 (NBC 105:2020 4.1.2 type: α [K + (1 - K)(Tc/T)^p](Tc/T)^q): a second power
+    # term + c2 (t0 / T)^n2 (0: none).
+    c2: float = Field(default=0.0, description="c2 of the second term c2 (t0 / T)^n2.")
+    n2: float = 1.0
 
 
 class SiteClass(_Row):
@@ -662,7 +666,89 @@ class DriftLimit(_Row):
         description="Interior walls, partitions, ceilings and exterior walls designed to "
         "accommodate the storey drift.",
     )
+    # Alpha 9 C21 (TBDY 2018 4.9.1.3: κ = 1 concrete, 0.5 steel): the system is a concrete one.
+    concrete: bool | None = Field(
+        default=None, description="The system is a concrete one (its systems row's concrete)."
+    )
     limits: dict[str, float] = Field(description="Δa/hsx by occupancy category.")
+
+
+class DriftServiceRatio(BaseModel):
+    """Alpha 9 C21: a drift limit checked as λ δ / h ≤ the limit (TBDY 2018 4.9.1.3: λ the
+    ratio of the elastic spectral accelerations of the more frequent earthquake to the design
+    earthquake's): the allowable drift of the table (or its row) divided by ``value``, a
+    project's Code Value (the site's own ratio)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    value: float = Field(gt=0, le=1, description="λ (the drift limits are divided by it).")
+    label: str = Field(default="λ", description="The factor's symbol in the code.")
+    clause: str = ""
+
+
+class PerformanceObjective(BaseModel):
+    """Alpha 9 C21: one performance objective of a performance-based design: the hazard level,
+    the performance level the building must meet there and the analysis that shows it."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    hazard: str = Field(description="The hazard level as the code names it (DD-1 ...).")
+    level: str = Field(description="The performance level (collapse prevention ...).")
+    procedure: Literal["linear", "strength", "pushover", "nonlinearHistory"] = Field(
+        default="strength",
+        description="linear (an elastic response spectrum analysis), strength (the strength-"
+        "based design), pushover (the Pushover analysis) or nonlinearHistory (the Nonlinear "
+        "time history analysis).",
+    )
+    label: str = ""
+
+
+class HeightClass(BaseModel):
+    """Alpha 9 C21: a building height class: the building is of this class when its height
+    above the base exceeds ``above`` [m] of its column (the first class, in order, it
+    exceeds)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    id: str
+    label: str = ""
+    above: dict[str, Annotated[float, Field(ge=0)]] = Field(
+        description="Least height [m] (exclusive) by column of ``columns`` ('all': any)."
+    )
+
+
+class PerformanceRule(BaseModel):
+    """Alpha 9 C21: buildings that need a performance-based design: of the height ``classes``
+    or in the design ``categories`` (either holding)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    classes: list[str] = Field(default_factory=list)
+    categories: list[str] = Field(default_factory=list)
+    label: str = Field(default="", description="What the rule is (tall buildings ...).")
+    objectives: list[PerformanceObjective] = Field(min_length=1)
+    clause: str = ""
+
+
+class PerformanceBasedRules(BaseModel):
+    """Alpha 9 C21: when the code requires performance-based design (TBDY 2018 3.3, 3.4 and
+    Chapter 13 type, :mod:`saengine.fem.performance_requirements`): the building's height class
+    by its height and design category, and the rules that ask for the performance objectives;
+    reported in the analysis notes with the procedures (the Pushover and the Nonlinear time
+    history analyses) that carry them out. Empty: not covered."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    columns: dict[str, str] = Field(
+        default_factory=dict,
+        description="Design category -> column of the height classes (empty: 'all').",
+    )
+    heightClasses: list[HeightClass] = Field(
+        default_factory=list, description="In order, the tallest first."
+    )
+    heightLabel: str = Field(default="height class", description="The classes' name.")
+    rules: list[PerformanceRule] = Field(default_factory=list)
+    clause: str = ""
 
 
 class DampingCorrection(BaseModel):
@@ -1323,6 +1409,20 @@ class ShapeFactorsRule(BaseModel):
     clauses: dict[str, str] = Field(default_factory=dict)
 
 
+class ShortPeriodReduction(BaseModel):
+    """Alpha 9 C21: a reduction of the two-period spectrum of ``mappedSpectral`` that grows with
+    the period up to TS (TBDY 2018 4.3, Eq 4.1 type, method ``overstrengthRamp``): Ra(T) = D +
+    (R/I - D) T / TS for T ≤ TS, R/I beyond, D the system's overstrength (its ``Omega0``); the
+    design spectrum Sa(T) / Ra(T) and the equivalent static coefficient Sa(T) / Ra(T) of the
+    full spectrum (with its ramp below T0), within ``csLimits``. Where the caller gives no
+    overstrength (elastic spectra) Ra = R/I."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    method: Literal["overstrengthRamp"] = "overstrengthRamp"
+    clause: str = ""
+
+
 class DesignSpectrumRule(BaseModel):
     """The design spectrum: a method id the pack picks (C4, C1). Empty: ``reducedElastic``.
 
@@ -1423,6 +1523,8 @@ class DesignSpectrumRule(BaseModel):
     multiPeriod: MultiPeriodRule | None = None
     # Alpha 9 C23: Fa and Fv by site class (empty: SDS, SD1 or SMS, SM1 must be given).
     siteCoefficients: SiteCoefficients | None = None
+    # Alpha 9 C21: Ra(T) = D + (R/I - D) T/TS below TS (TBDY 2018 Eq 4.1); empty: R/I.
+    shortPeriodReduction: ShortPeriodReduction | None = None
     # Alpha 9 C16: Ca, Cv of the ubc97 method.
     ubc97: Ubc97Rule | None = None
     # Alpha 9 C17: S(T) and the base shear from the uniform hazard spectrum (NBCC 2020 type).
@@ -1451,13 +1553,20 @@ class DesignSpectrumRule(BaseModel):
 
 
 class TopForce(BaseModel):
-    """Alpha 9 C10: the concentrated top force Ft of the equivalent static method."""
+    """Alpha 9 C10: the concentrated top force Ft of the equivalent static method: factor × T ×
+    V when T > periodFrom; alpha 9 C21 (TBDY 2018 4.7.2.2, ΔFN = 0.0075 N Vt): with
+    ``storeyFactor`` storeyFactor × N × V whatever the period, N the number of levels."""
 
     model_config = ConfigDict(extra="forbid")
 
-    periodFrom: float = Field(gt=0, description="Ft = 0 while T <= this [s].")
-    factor: float = Field(gt=0, description="Ft = factor × T × V.")
-    maxShare: float = Field(gt=0, lt=1, description="Ft at most this × V.")
+    periodFrom: float | None = Field(default=None, gt=0, description="Ft = 0 while T <= this [s].")
+    factor: float | None = Field(default=None, gt=0, description="Ft = factor × T × V.")
+    maxShare: float | None = Field(
+        default=None, gt=0, lt=1, description="Ft at most this × V (empty: no cap)."
+    )
+    storeyFactor: float | None = Field(
+        default=None, gt=0, description="Ft = storeyFactor × N × V (N levels), in place of T."
+    )
 
 
 class LateralForceRule(BaseModel):
@@ -1529,6 +1638,10 @@ class SeismicTable(TableModel):
         description="Seismic Design Categories where the drift limit of systems of moment "
         "frames only is divided by the redundancy factor ρ.",
     )
+    # Alpha 9 C21: λ of λ δ/h ≤ limit (TBDY 2018 4.9.1.3); empty: none.
+    driftServiceRatio: DriftServiceRatio | None = None
+    # Alpha 9 C21: when performance-based design is required (TBDY 2018 3.3-3.4, Ch 13).
+    performanceBased: PerformanceBasedRules | None = None
     siteSpecificStudy: SiteSpecificStudy = Field(default_factory=SiteSpecificStudy)
     dampingEta: float = 1.0
     dampingCorrection: DampingCorrection = Field(default_factory=DampingCorrection)

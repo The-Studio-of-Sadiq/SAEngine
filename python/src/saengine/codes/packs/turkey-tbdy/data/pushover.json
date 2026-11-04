@@ -1,0 +1,19 @@
+{
+  "$schema": "../../../schemas/pushover.schema.json",
+  "$sources": [
+    "TBDY 2018 3.4 and Bolum 5 (performance objectives by hazard level), with the base pack's ASCE 41-17 target displacement and hinges (SAEngine practice)"
+  ],
+  "targetDisplacement": {
+    "coefficients": {
+      "siteFactors": { "ZA": 130, "ZB": 130, "ZC": 90, "ZD": 60, "ZE": 60, "ZF": 60 }
+    },
+    "hazards": [
+      { "id": "DD-2", "label": "DD-2 (10 % in 50 years, the design earthquake): controlled damage (KH)", "spectrumScale": 1.0, "level": "LS" },
+      { "id": "DD-1", "label": "DD-1 (2 % in 50 years): collapse prevention (GO)", "spectrumScale": 1.5, "level": "CP" }
+    ]
+  },
+  "sources": {
+    "targetDisplacement.hazards": "TBDY 2018 3.4, Tablo 3.4a-b: the performance levels limited damage (SH), controlled damage (KH) and collapse prevention (GO) under DD-3, DD-2 and DD-1, checked with the base pack's ASCE 41-17 hinge levels IO, LS and CP (SAEngine practice: TBDY 5.8 gives its own strain limits, not built). The DD-1 spectrum scale 1.5 is SAEngine practice and must be replaced by the site's SDS(DD-1)/SDS(DD-2) (a project's Code Value); a DD-3 limited damage (IO) level can be added the same way with the site's DD-3 ratio.",
+    "targetDisplacement.coefficients.siteFactors": "ASCE 41-17 Table 7-3 a of the nearest ASCE site class (ZA, ZB as A/B 130; ZC as C 90; ZD, ZE, ZF 60): SAEngine practice"
+  }
+}

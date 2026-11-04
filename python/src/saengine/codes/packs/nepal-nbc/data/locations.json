@@ -1,0 +1,25 @@
+{
+  "$schema": "../../../schemas/locations.schema.json",
+  "$replace": true,
+  "$sources": [
+    "NBC 105:2020 Table 4-5 (Z of the municipalities); NBC 104 / IS 875 (Part 3) basic wind speed (VERIFY.md N1, N9)"
+  ],
+  "source": "NBC 105:2020 Table 4-5: the zone is 100 Z of the municipality (SAEngine readings, uncertain: check each against the printed table, VERIFY.md N1); the basic wind speed Vb = 47 m/s for the whole country (check, VERIFY.md N9; the wind method is the parent's IS 875 (Part 3):2015). Elsewhere a custom location: enter Z and Vb.",
+  "default": "kathmandu",
+  "locations": {
+    "kathmandu": { "name": "Kathmandu", "zone": 35, "windSpeed": 47.0 },
+    "lalitpur": { "name": "Lalitpur", "zone": 35, "windSpeed": 47.0 },
+    "bhaktapur": { "name": "Bhaktapur", "zone": 35, "windSpeed": 47.0 },
+    "pokhara": { "name": "Pokhara", "zone": 30, "windSpeed": 47.0 },
+    "bharatpur": { "name": "Bharatpur (Chitwan)", "zone": 30, "windSpeed": 47.0 },
+    "hetauda": { "name": "Hetauda", "zone": 35, "windSpeed": 47.0 },
+    "biratnagar": { "name": "Biratnagar", "zone": 30, "windSpeed": 47.0 },
+    "dharan": { "name": "Dharan", "zone": 35, "windSpeed": 47.0 },
+    "birgunj": { "name": "Birgunj", "zone": 30, "windSpeed": 47.0 },
+    "janakpur": { "name": "Janakpur", "zone": 30, "windSpeed": 47.0 },
+    "butwal": { "name": "Butwal", "zone": 30, "windSpeed": 47.0 },
+    "nepalgunj": { "name": "Nepalgunj", "zone": 30, "windSpeed": 47.0 },
+    "birendranagar": { "name": "Birendranagar (Surkhet)", "zone": 40, "windSpeed": 47.0 },
+    "dhangadhi": { "name": "Dhangadhi", "zone": 40, "windSpeed": 47.0 }
+  }
+}

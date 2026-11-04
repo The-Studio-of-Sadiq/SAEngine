@@ -2434,6 +2434,8 @@ def _derive_fem(
                 settings.seismic.damping,
                 static=True,
                 system=direction_system,
+                # Alpha 9 C21: D of a pack's Ra(T) (TBDY 2018 Eq 4.1); unused otherwise.
+                overstrength=values.get(f"omega{case[1]}", values.get("omega")),
             )
             # C7: the pack's least base shear V / W of the zone (IS 1893 Table 7), where given.
             from saengine.fem.seismic_design import zone_of
@@ -2635,6 +2637,13 @@ def _derive_fem(
         height_note = height_limit_note(settings, sdc, hn)
         if height_note:
             b.notes.append(height_note)
+        # Alpha 9 C21: the pack's performance-based design requirement (TBDY 2018 3.4, Ch 13).
+        from saengine.fem.performance_requirements import notes as performance_notes
+
+        performance = performance_notes(hn, sdc)
+        if performance:
+            b.notes.extend(performance)
+            summary["performanceBased"] = performance
     if heights and values["windSpeed"]:
         from saengine.fem.loads import wind_overrides
 
@@ -3095,6 +3104,8 @@ def _derive_fem(
                                     values["seismicImportance"],
                                     r_of[which],
                                     settings.seismic.damping,
+                                    # Alpha 9 C21: D of a pack's Ra(T); unused otherwise.
+                                    overstrength=values.get(f"omega{which}", values.get("omega")),
                                 ),
                                 6,
                             )

@@ -479,6 +479,28 @@ def ordinate_coefficient(
     return out
 
 
+def reduction(
+    period: float,
+    hazard: SpectralHazard,
+    importance: float,
+    r: float,
+    overstrength: float | None,
+    pack: Any = None,
+) -> float:
+    """Alpha 9 C21: the reduction of the design spectrum Ra(T) by the pack's
+    ``shortPeriodReduction`` (TBDY 2018 Eq 4.1): D + (R/I - D) T/TS for T ≤ TS, R/I beyond, D
+    the system's ``overstrength``; R/I without the block, without D or for an elastic spectrum
+    (R/I at most 1)."""
+    ratio = r / importance
+    h = rule(pack)
+    ramp = getattr(h, "shortPeriodReduction", None) if h is not None else None
+    ts = hazard.ts
+    if ramp is None or overstrength is None or ratio <= 1.0 or ts <= 0 or period >= ts:
+        return ratio
+    d = float(overstrength)
+    return d + (ratio - d) * max(float(period), 0.0) / ts
+
+
 def response_coefficient(
     period: float,
     hazard: SpectralHazard,
@@ -486,21 +508,32 @@ def response_coefficient(
     r: float,
     pack: Any = None,
     system: Any = None,
+    overstrength: float | None = None,
 ) -> float:
     """The equivalent lateral force coefficient Cs = SDS/(R/Ie), at most SD1/(T R/Ie) up to TL
     and SD1·TL/(T² R/Ie) beyond, at least the pack's ``csLimits``. Alpha 9 C17: with the
-    pack's ``ordinates`` and the site's spectrum, :func:`ordinate_coefficient` instead."""
+    pack's ``ordinates`` and the site's spectrum, :func:`ordinate_coefficient` instead. Alpha 9
+    C21: with the pack's ``shortPeriodReduction``, Sa(T) / Ra(T) of the full spectrum (D the
+    ``overstrength``, else the ``system`` row's Ω0), within the same bounds."""
     h = rule(pack)
     if h is not None and h.ordinates is not None and hazard.spectrum:
         return ordinate_coefficient(period, hazard, importance, r, system, pack)["value"]
     ratio = r / importance
     sds, sd1 = float(hazard), hazard.sd1
-    cs = sds / ratio
-    if period > 0:
-        if hazard.tl is None or period <= hazard.tl:
-            cs = min(cs, sd1 / (period * ratio))
-        else:
-            cs = min(cs, sd1 * hazard.tl / (period**2 * ratio))
+    ramp = getattr(h, "shortPeriodReduction", None) if h is not None else None
+    if overstrength is None and system is not None:
+        overstrength = getattr(system, "Omega0", None)
+    if ramp is not None and overstrength is not None:  # Alpha 9 C21: SaR = Sae / Ra
+        cs = spectral_acceleration(period, hazard, pack) / reduction(
+            period, hazard, importance, r, overstrength, pack
+        )
+    else:
+        cs = sds / ratio
+        if period > 0:
+            if hazard.tl is None or period <= hazard.tl:
+                cs = min(cs, sd1 / (period * ratio))
+            else:
+                cs = min(cs, sd1 * hazard.tl / (period**2 * ratio))
     if hazard.nearFloor is not None:  # Alpha 9 C16 (ubc97): V >= 0.8 Z Nv I W / R
         cs = max(cs, hazard.nearFloor / ratio)
     limits = h.csLimits if h is not None else None
