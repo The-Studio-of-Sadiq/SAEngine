@@ -1,0 +1,28 @@
+{
+  "$schema": "../../../schemas/compositeConcrete.schema.json",
+  "$sources": [
+    "ACI 318-19 Sec 16.4 (horizontal shear of composite concrete flexural members), 9.6.3.4 (least ties)"
+  ],
+  "source": "ACI 318-19 Sec 16.4 (the same numbers as the extended pack's)",
+  "sources": {
+    "roughenedLimit": "ACI 318-19 Table 16.4.4.2(c): no ties, intentionally roughened, clean: Vnh <= 0.55 bv d",
+    "tiedSmoothLimit": "ACI 318-19 Table 16.4.4.2(b): minimum ties, not roughened, clean: Vnh <= 0.55 bv d",
+    "roughenedTied": "ACI 318-19 Table 16.4.4.2(a): ties and a surface roughened to about 6 mm: Vnh = λ (1.8 + 0.6 ρv fy) bv d <= 3.5 bv d; above φ 3.5 bv d shear friction by 22.9 (16.4.4.5)",
+    "minTies": "ACI 318-19 16.4.6.1 with 9.6.3.4: Av,min = 0.062 √f'c bw s / fyt, at least 0.35 bw s / fyt",
+    "tieSpacing": "ACI 318-19 16.4.7.2: ties at most four times the least dimension of the supported element and 600 mm apart",
+    "tension": "ACI 318-19 16.4.4.4 (tension across the contact surface: shear by contact only with the minimum ties)"
+  },
+  "clauses": {
+    "scope": "16.4.1",
+    "vertical": "16.4.3",
+    "horizontal": "16.4.4, Table 16.4.4.2",
+    "roughened": "Table 16.4.4.2(c)",
+    "tiedSmooth": "Table 16.4.4.2(b)",
+    "roughenedTied": "Table 16.4.4.2(a)",
+    "shearFriction": "16.4.4.5, 22.9",
+    "forceChange": "16.4.5",
+    "tension": "16.4.4.4",
+    "ties": "16.4.6.1, 16.4.7.2",
+    "anchorage": "16.4.7.3"
+  }
+}

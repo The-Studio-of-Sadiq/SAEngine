@@ -1,0 +1,36 @@
+{
+  "$schema": "../../../schemas/factors.schema.json",
+  "$replace": true,
+  "$sources": [
+    "ACI 318-19 Sec 21.2 (strength reduction factors)"
+  ],
+  "source": "ACI 318-19 Sec 21.2.1, Table 21.2.1 and Table 21.2.2",
+  "phi": {
+    "tension": 0.9,
+    "compressionTied": 0.65,
+    "compressionSpiral": 0.75,
+    "shear": 0.75,
+    "punching": 0.75,
+    "shearSeismic": 0.6,
+    "diagonalCoupling": 0.85,
+    "joint": 0.85,
+    "strutAndTie": 0.75,
+    "stiffnessReduction": 0.75,
+    "bearing": 0.65,
+    "plain": 0.6
+  },
+  "sources": {
+    "tension": "ACI 318-19 Table 21.2.1(a), Table 21.2.2: tension-controlled sections, εt >= εty + 0.003",
+    "compressionTied": "ACI 318-19 Table 21.2.2: compression-controlled, other (tied) members",
+    "compressionSpiral": "ACI 318-19 Table 21.2.2: compression-controlled, spirals per 25.7.3",
+    "shear": "ACI 318-19 Table 21.2.1(b), (c): shear and torsion",
+    "punching": "ACI 318-19 Table 21.2.1(b): two-way shear",
+    "shearSeismic": "ACI 318-19 Sec 21.2.4.1: members whose nominal shear strength is less than the shear at their nominal flexural strength (special walls, IMF)",
+    "diagonalCoupling": "ACI 318-19 Sec 21.2.4.4: diagonally reinforced coupling beams",
+    "joint": "ACI 318-19 Sec 21.2.4.3: joints of special moment frames",
+    "stiffnessReduction": "ACI 318-19 Sec 6.6.4.5.2, Eq 6.6.4.5.2: the 0.75 of the critical buckling load (moment magnifier)",
+    "bearing": "ACI 318-19 Table 21.2.1(d): bearing",
+    "strutAndTie": "ACI 318-19 Table 21.2.1(g): strut-and-tie models (struts, ties, nodal zones, bearing areas)",
+    "plain": "ACI 318-19 Table 21.2.1(k) and Sec 14.5.1.1: structural plain concrete (flexure, compression, shear, bearing)"
+  }
+}

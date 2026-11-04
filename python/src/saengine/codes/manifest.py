@@ -200,6 +200,14 @@ class PackManifest(BaseModel):
         description="The code the design follows, as the report states it (loads and general, "
         "concrete, steel, design method).",
     )
+    # C2: a pack that bundles several codes (ASCE 7 loads with ACI 318 concrete) names the code
+    # of each table's clause references; without an entry, the pack's edition (or name).
+    tableCodes: dict[str, str] = Field(
+        default_factory=dict,
+        description="How results name the code of a table's clause references, by table name "
+        "or 'table.key' (e.g. {'concrete': 'ACI 318-19', 'designClauses.steelMembers': "
+        "'AISC 360-22'}); a table or key without an entry is named after the pack's edition.",
+    )
     author: str | None = None
     licence: str | None = Field(default=None, description="SPDX id of the pack's licence.")
     hooks: str | None = Field(
@@ -221,6 +229,19 @@ class PackManifest(BaseModel):
         default=None,
         description="Card image of the package: a small .png, .jpg or .webp in its folder.",
     )
+
+    def table_code(self, table: str, key: str = "", sub: str = "") -> str:
+        """How results name the code of clause ``key`` (of a grouped table: entry ``sub`` of
+        group ``key``) of ``table``: ``tableCodes`` of 'table.key.sub', 'table.key', else of the
+        table, else the edition (else the name)."""
+        codes = self.tableCodes
+        return (
+            (codes.get(f"{table}.{key}.{sub}") if key and sub else None)
+            or (codes.get(f"{table}.{key}") if key else None)
+            or codes.get(table)
+            or self.edition
+            or self.name
+        )
 
     def content_globs(self) -> tuple[str, ...]:
         """``contents``, else the kind's default files."""

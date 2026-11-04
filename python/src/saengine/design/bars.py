@@ -216,9 +216,17 @@ def strip_capacity(area: float, d: float, fc: float, fy: float, es: float | None
     return layer_capacity(area, d, fc, fy, es).phi_mn
 
 
-def slab_max_area(d: float, fc: float, fy: float, eps_t: float = EPS_T_SLAB) -> float:
+def slab_strain_min() -> float:
+    """C2: the least net tensile strain of a nonprestressed slab, the pack's ``concrete.
+    slabStrainMin`` (default pack: 0.004, ``EPS_T_SLAB``)."""
+    return float(code_context.table("concrete").slabStrainMin)
+
+
+def slab_max_area(d: float, fc: float, fy: float, eps_t: float | None = None) -> float:
     """The most bars per metre [mm²/m] a slab may have at ``d``: those that put the neutral
-    axis at εt = 0.004 (ACI 7.3.3.1, 8.3.3.1)."""
+    axis at the pack's least εt (:func:`slab_strain_min`; ACI 7.3.3.1, 8.3.3.1)."""
+    if eps_t is None:
+        eps_t = slab_strain_min()
     c = rc_value("EPS_CU") * d / (rc_value("EPS_CU") + eps_t)
     return 0.85 * fc * 1000 * beta1(fc) * c / fy
 
@@ -234,7 +242,9 @@ def slab_flexure_need(
         return FlexureNeed(0.0, 0.0)
     top = slab_max_area(d, fc, fy)
     if strip_capacity(top, d, fc, fy, es) < mu:
-        return FlexureNeed(mu, top, 0.0, True, "even at εt = 0.004 the slab is too thin")
+        return FlexureNeed(
+            mu, top, 0.0, True, f"even at εt = {slab_strain_min():g} the slab is too thin"
+        )
     area = singly_area(mu, 1000.0, d, fc, fy)
     if area is not None and area <= top and strip_capacity(area, d, fc, fy, es) >= mu * 0.9999:
         return FlexureNeed(mu, area)

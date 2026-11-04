@@ -4,7 +4,7 @@
   "name": "ACI 318-19 + ASCE 7-22",
   "edition": "ASCE 7-22",
   "country": "US",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "extends": "bnbc2020",
   "covers": [
     "locations",
@@ -14,9 +14,19 @@
     "combinations",
     "seismic",
     "wind",
-    "snow"
+    "snow",
+    "materials",
+    "factors",
+    "concrete",
+    "detailing",
+    "designClauses",
+    "citations",
+    "slabMethods",
+    "wallMethods",
+    "compositeConcrete",
+    "foundations"
   ],
-  "description": "The US pack, loads first: ASCE/SEI 7-22 load combinations (Sec 2.3, 2.4), live loads and their reduction (Ch 4), the seismic design of buildings from the site's mapped spectral values (Ch 11-12: risk categories, site classes, the two-period and multi-period spectra, Seismic Design Categories, R, Cd and Omega0, the equivalent lateral force method with its Cs bounds and Cu, modal scaling, drift limits, irregularities, diaphragm forces, P-Delta), wind (Ch 26-30: the ASCE 7-22 terrain constants; the pressure coefficients the editions share) and roof snow (Ch 7). Concrete, steel and the other materials are not in this version: they fall back to the pack it extends (BNBC 2020, whose concrete chapter follows ACI 318), and the report names every table that falls back. Every value has its clause in VERIFY.md, to be checked against the printed standards.",
+  "description": "The US pack: ASCE/SEI 7-22 loads (combinations Sec 2.3-2.4, live loads and reduction Ch 4, seismic Ch 11-12 from the site's mapped spectral values, wind Ch 26-30, roof snow Ch 7) and ACI 318-19 structural concrete: strength reduction by strain (21.2), one-way shear with the size effect (22.5), two-way shear (22.6, with prestress 22.6.5.5), deflection with the 2019 effective inertia (24.2.3.5), crack control (24.3), shrinkage steel 0.0018 (24.4), development with the grade factor, the 2019 hooked and headed bar lengths (25.4), laps (25.5), columns (10), walls (11) and special walls (18.10: boundary elements by 1.5 du/hw, the amplified design shear, wall piers, coupling beams), special moment frame members and joints (18.6-18.8), slabs (8: direct design and equivalent frame), composite members (16.4), strut-and-tie (23). Steel (AISC 360-22), masonry, timber and the geotechnical tables fall back to the pack it extends (BNBC 2020), and the report names them. Every value has its clause in VERIFY.md, to be checked against the printed standards.",
   "sources": [
     {
       "id": "ASCE7",
@@ -32,22 +42,112 @@
     }
   ],
   "clauses": {
-    "locations": ["ASCE 7-22 Sec 11.4.2, 26.5.1, 7.2: site values from the ASCE Hazard Tool"],
-    "occupancyCategories": ["ASCE 7-22 Table 1.5-1, Table 1.5-2"],
-    "areaLoads": ["ASCE 7-22 Table 4.3-1, Sec 4.3.2"],
-    "liveReduction": ["ASCE 7-22 Sec 4.7, Table 4.7-1, Sec 4.8.2"],
-    "combinations": ["ASCE 7-22 Sec 2.3, 2.4, 12.4"],
-    "seismic": ["ASCE 7-22 Chapters 11 and 12"],
-    "wind": ["ASCE 7-22 Chapters 26-30"],
-    "snow": ["ASCE 7-22 Chapter 7"],
-    "flood": ["ASCE 7-22 Chapter 5, Sec 8.2"],
-    "transfer": ["ASCE 7-22 Sec 12.10.1.1 (diaphragm forces)"]
+    "locations": [
+      "ASCE 7-22 Sec 11.4.2, 26.5.1, 7.2: site values from the ASCE Hazard Tool"
+    ],
+    "occupancyCategories": [
+      "ASCE 7-22 Table 1.5-1, Table 1.5-2"
+    ],
+    "areaLoads": [
+      "ASCE 7-22 Table 4.3-1, Sec 4.3.2"
+    ],
+    "liveReduction": [
+      "ASCE 7-22 Sec 4.7, Table 4.7-1, Sec 4.8.2"
+    ],
+    "combinations": [
+      "ASCE 7-22 Sec 2.3, 2.4, 12.4"
+    ],
+    "seismic": [
+      "ASCE 7-22 Chapters 11 and 12"
+    ],
+    "wind": [
+      "ASCE 7-22 Chapters 26-30"
+    ],
+    "snow": [
+      "ASCE 7-22 Chapter 7"
+    ],
+    "flood": [
+      "ASCE 7-22 Chapter 5, Sec 8.2"
+    ],
+    "transfer": [
+      "ASCE 7-22 Sec 12.10.1.1 (diaphragm forces)"
+    ],
+    "materials": [
+      "ACI 318-19 Sec 18.2.5-18.2.6, 19.2, 20.2.2, 22.2.2"
+    ],
+    "factors": [
+      "ACI 318-19 Sec 21.2"
+    ],
+    "concrete": [
+      "ACI 318-19 Chapters 6-11, 19-24"
+    ],
+    "detailing": [
+      "ACI 318-19 Chapters 18, 24.3 and 25"
+    ],
+    "designClauses": [
+      "ACI 318-19 and ASCE 7-22: the clause references of the concrete member design checks"
+    ],
+    "citations": [
+      "ACI 318-19: the concrete clause references of the report, worksheets and drawings"
+    ],
+    "slabMethods": [
+      "ACI 318-19 Sec 8.10-8.11"
+    ],
+    "wallMethods": [
+      "ACI 318-19 Sec 11.8"
+    ],
+    "compositeConcrete": [
+      "ACI 318-19 Sec 16.4"
+    ],
+    "foundations": [
+      "ACI 318-19 Chapter 23 (strut-and-tie); geotechnical values: BNBC 2020 Part 6 Chapter 3"
+    ]
   },
   "basis": {
     "general": "ASCE 7-22",
-    "concrete": "BNBC 2020 Part 6 Chapter 6 (ACI 318-19 not yet in the pack)",
+    "concrete": "ACI 318-19",
     "steel": "BNBC 2020 Part 6 Chapter 10 (AISC 360-22 not yet in the pack)",
     "method": "Strength design (LRFD)"
+  },
+  "tableCodes": {
+    "materials": "ACI 318-19",
+    "factors": "ACI 318-19",
+    "concrete": "ACI 318-19",
+    "detailing": "ACI 318-19",
+    "citations": "ACI 318-19",
+    "slabMethods": "ACI 318-19",
+    "wallMethods": "ACI 318-19",
+    "compositeConcrete": "ACI 318-19",
+    "foundations": "ACI 318-19",
+    "designClauses": "ACI 318-19",
+    "designClauses.check.windCases": "ASCE 7-22",
+    "designClauses.check.accidentalTorsion": "ASCE 7-22",
+    "designClauses.check.omega": "ASCE 7-22",
+    "designClauses.seismicRules.sdc": "ASCE 7-22",
+    "designClauses.seismicRules.systems": "ASCE 7-22",
+    "designClauses.seismicRules.discontinuous": "ASCE 7-22",
+    "designClauses.seismicRules.irregularForces": "ASCE 7-22",
+    "designClauses.seismicRules.collectors": "ASCE 7-22",
+    "designClauses.seismicRules.omega": "ASCE 7-22",
+    "designClauses.seismicRules.vertical": "ASCE 7-22",
+    "designClauses.overstrength": "ASCE 7-22",
+    "designClauses.takedown": "ASCE 7-22",
+    "designClauses.wallForces": "ASCE 7-22",
+    "designClauses.stairs.liveTable": "ASCE 7-22",
+    "designClauses.lintels.combinations": "ASCE 7-22",
+    "designClauses.check.fireRatings": "BNBC 2020",
+    "designClauses.lintels.wind": "BNBC 2020",
+    "designClauses.slab.twoWay": "BNBC 2020",
+    "designClauses.slab.twoWayMethod": "BNBC 2020",
+    "designClauses.slab.rectangular": "BNBC 2020",
+    "designClauses.slab.supports": "BNBC 2020",
+    "designClauses.slab.scope": "BNBC 2020",
+    "designClauses.slab.aspect": "BNBC 2020",
+    "designClauses.slab.stiffness": "BNBC 2020",
+    "designClauses.stairs.twoRiserTread": "BNBC 2020",
+    "designClauses.stairs.spans": "BNBC 2020",
+    "designClauses.lintels.support": "TMS 402-22",
+    "designClauses.lintelsText": "TMS 402-22"
   },
   "author": "SAEngine contributors",
   "licence": "AGPL-3.0-only"

@@ -331,6 +331,18 @@ def psi_t(top: bool) -> float:
     return bar_rules().development.psiTop if top else 1.0
 
 
+def psi_g(fy: float) -> float:
+    """C2: the grade factor ψg of ld (the pack's ``development.psiG``: the factor of the first
+    step whose fy reaches ``fy``, the last one's above); 1.0 when the pack gives none."""
+    steps = getattr(bar_rules().development, "psiG", None)
+    if not steps:
+        return 1.0
+    for limit, factor in steps:
+        if fy <= limit + 1e-9:
+            return float(factor)
+    return float(steps[-1][1])
+
+
 def ktr(atr: float, s: float, n: int) -> float:
     """Transverse reinforcement index Ktr = 40 Atr / (s n) [mm] (Eq. 6.8.2, p 1077)."""
     return bar_rules().development.ktr * atr / (s * n)
@@ -362,24 +374,28 @@ def development_tension(
     pt = psi_t(top)
     te = min(pt * psi_e, dev.psiTEMax)  # 8.2.3.4(b): ψt ψe need not exceed 1.7
     root = sqrt_fc(fc)
+    # C2: the grade factor ψg of the packs that give one (shown only then).
+    pg = psi_g(fy)
+    g_name, g_value = (" ψg", f"·{pg:g}") if getattr(dev, "psiG", None) else ("", "")
     if method == "general":
         if cb is None:
             raise ValueError("the general form needs cb")
         confinement = min((cb + k_tr) / db, dev.confinementMax)
         ps = psi_s(db)
         g = dev.general
-        raw = fy * te * ps / (g * lam * root * confinement) * db
+        raw = fy * te * ps * pg / (g * lam * root * confinement) * db
         formula = (
-            f"fy ψt ψe ψs / ({g:g} λ √f'c (cb + Ktr)/db) db = {fy:g}·{te:g}·{ps:g} / ({g:g}·"
-            f"{lam:g}·{root:.2f}·{confinement:.2f})·{db:g}"
+            f"fy ψt ψe ψs{g_name} / ({g:g} λ √f'c (cb + Ktr)/db) db = {fy:g}·{te:g}·{ps:g}"
+            f"{g_value} / ({g:g}·{lam:g}·{root:.2f}·{confinement:.2f})·{db:g}"
         )
         clause = _cite("barDevelopmentGeneral")
     else:
         small, large = dev.simplifiedGood if spacing_ok else dev.simplifiedOther
         k = small if db <= dev.smallBarMax else large
-        raw = fy * te / (k * lam * root) * db
+        raw = fy * te * pg / (k * lam * root) * db
         formula = (
-            f"fy ψt ψe / ({k:g} λ √f'c) db = {fy:g}·{te:g} / ({k:g}·{lam:g}·{root:.2f})·{db:g}"
+            f"fy ψt ψe{g_name} / ({k:g} λ √f'c) db = {fy:g}·{te:g}{g_value} / ({k:g}·{lam:g}·"
+            f"{root:.2f})·{db:g}"
         )
         clause = _cite("barDevelopmentSimplified")
         if not spacing_ok and db <= dev.smallBarMax:
@@ -436,6 +452,11 @@ def hook_development(
     from saengine.design.ductile_joints import hooked_development
 
     dev = bar_rules().development
+    if getattr(dev, "hookMethod", "linear") == "powerDiameter":
+        return _power_development(
+            dev.hook, "hook", db, fy, fc, lam, psi_e, cover, confined, excess,
+            _cite("barDevelopmentHooked"),
+        )  # fmt: skip
     factor = (dev.hookCover if cover else 1.0) * (dev.hookConfined if confined else 1.0) * excess
     fc_used = min(fc, dev.sqrtFcMax**2)
     value = hooked_development(db, fy, fc_used, lam, psi_e, factor)
@@ -444,6 +465,74 @@ def hook_development(
         f"0.24 ψe fy db / (λ √f'c) × {factor:.2f}, at least max(8 db, 150 mm)",
         _cite("barDevelopmentHooked"),
     )
+
+
+def psi_c(fc: float) -> float:
+    """C2: the concrete strength factor ψc of hooked and headed bars (the pack's ``development.
+    hook``): f'c / psiCDivisor + psiCBase below psiCFcMax, else 1.0; 1.0 without the values."""
+    hook = getattr(bar_rules().development, "hook", None)
+    if hook is None or fc >= hook.psiCFcMax:
+        return 1.0
+    return min(fc / hook.psiCDivisor + hook.psiCBase, 1.0)
+
+
+def _power_development(
+    rules: Any,
+    kind: str,
+    db: float,
+    fy: float,
+    fc: float,
+    lam: float,
+    psi_e: float,
+    cover: bool,
+    confined: bool,
+    excess: float,
+    clause: str,
+) -> Rule:
+    """C2: ldh (``kind`` "hook") or ldt ("headed") = fy ψe ψr ψo ψc db^n / (k λ √f'c) ×
+    As,req/As,prov, at least max(minDb db, min): ψr (ψp of headed bars) 1.0 with the confining
+    ties (``confined``) else the pack's, ψo 1.0 with the side cover inside the core (``cover``)
+    else the pack's (see :class:`saengine.codes.tables.HookDevelopment`)."""
+    psi_r = 1.0 if confined else (rules.psiR if kind == "hook" else rules.psiP)
+    psi_o = 1.0 if cover else rules.psiO
+    pc = psi_c(fc)
+    root = sqrt_fc(fc)
+    raw = fy * psi_e * psi_r * psi_o * pc * db**rules.exponent / (rules.coefficient * lam * root)
+    least = max(rules.minDb * db, rules.min)
+    r_name = "ψr" if kind == "hook" else "ψp"
+    formula = (
+        f"fy ψe {r_name} ψo ψc db^{rules.exponent:g} / ({rules.coefficient:g} λ √f'c) = "
+        f"{fy:g}·{psi_e:g}·{psi_r:g}·{psi_o:g}·{pc:.3f}·{db:g}^{rules.exponent:g} / "
+        f"({rules.coefficient:g}·{lam:g}·{root:.2f})"
+    )
+    if excess != 1.0:
+        formula += f" × As,req/As,prov {excess:.2f}"
+    formula += f", at least max({rules.minDb:g} db, {rules.min:g} mm)"
+    return Rule(max(raw * excess, least), formula, clause)
+
+
+def headed_development(
+    db: float,
+    fy: float,
+    fc: float,
+    *,
+    lam: float = 1.0,
+    psi_e: float = 1.0,
+    cover: bool = False,
+    confined: bool = False,
+    excess: float = 1.0,
+) -> Rule:
+    """C2: ldt [mm] of a headed deformed bar in tension (the pack's ``development.headed``, e.g.
+    ACI 318-19 25.4.4.2); :class:`NotCovered` when the pack gives no headed bar rule."""
+    rules = getattr(bar_rules().development, "headed", None)
+    if rules is None:
+        from saengine.codes import context as code_context
+
+        raise NotCovered(f"headed bars are not covered by the code pack {code_context.code_name()}")
+    return _power_development(
+        rules, "headed", db, fy, fc, lam, psi_e, cover, confined, excess,
+        _cite("barDevelopmentHeaded"),
+    )  # fmt: skip
 
 
 def hook_development_seismic(db: float, fy: float, fc: float, lam: float = 1.0) -> Rule:
