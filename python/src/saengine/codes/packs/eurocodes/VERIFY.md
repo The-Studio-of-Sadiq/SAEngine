@@ -627,3 +627,23 @@ length along the bar's centre line (SAEngine practice), with the mandrel diamete
 | P6E16 | isolation.testing | a generic cyclic sequence | EN 15129 Sec 8.2, 9.2 | SAEngine practice (EN 15129's type tests govern) |
 | P6E17 | isolation.overturning.minimumFactor | 1.0 | none | SAEngine practice |
 | P6E18 | dampers | not covered: EN 1998-1 has no procedure for structures with damping systems | — | — |
+
+## Alpha 9 P4: assessment and retrofit of existing buildings (existing)
+
+| # | Key | Value | Clause | Confidence |
+|---|---|---|---|---|
+| P4E1 | existing.knowledge[].confidenceFactor | CF 1.35 (KL1), 1.20 (KL2), 1.00 (KL3) | EN 1998-3 Table 3.1 (recommended) | Sure |
+| P4E2 | existing.knowledge[KL1].procedures | lateral force or modal response spectrum only | EN 1998-3 Table 3.1 | Sure |
+| P4E3 | existing.strengths | analysis: mean; ductile capacities: mean/CF; brittle: mean/CF/γM (γc 1.5, γs 1.15) | EN 1998-3 Sec 3.5, Table 4.3, EN 1992-1-1 Table 2.1N | Check (γM of the persistent situation) |
+| P4E4 | existing.linear.hazards | SD 475 years (scale 1.0), NC 2475 years (1.73), DL 225 years (0.78) | EN 1998-3 Sec 2.1 Notes; EN 1998-1 Sec 2.1(4) Note, k = 3 | SAEngine practice for the scales |
+| P4E5 | existing.linear.liveShare | ψ2 = 0.3 | EN 1990 Table A1.1 (category B) | Check (by use) |
+| P4E6 | existing.linear.chordRotation | γel 1.5, 0.016, 0.3^ν, ωmin 0.01, 0.225, 0.35, 25^(αρsx fyw/fc), 1.25^(100ρd), walls × 0.58; SD 3/4 θum, NC θum, DL θy | EN 1998-3 Eq A.1, A.3.2.2-A.3.2.4 | Sure |
+| P4E7 | existing.linear.yieldRotation | θy = φy LV/3 + 0.0013 (1 + 1.5 h/LV) + 0.13 φy db fy/√fc (the av z term left out) | EN 1998-3 Eq A.10a | Check |
+| P4E8 | existing.linear.yieldRotation.curvature | φy = 2.1 εy/h | Priestley's rectangular-section value | SAEngine practice |
+| P4E9 | chord rotation demand | θ = (M/My) θy, My at first yield (or 1.8 fc/Ec) with the analysis strengths, LV = L/2 | EN 1998-3 A.3.2.4 (secant stiffness to yield) | SAEngine practice (LV) |
+| P4E10 | existing.shear (cyclicDegradation) | 1/γel [(h - x)/(2LV) min(N, 0.55 Ac fc) + (1 - 0.05 min(5, μpl)) (0.16 max(0.5, 100ρtot)(1 - 0.16 min(5, LV/h)) √fc Ac + Vw)], γel 1.15 | EN 1998-3 Eq A.12 | Sure |
+| P4E11 | existing.jacketing | My × 1.0, θy × 1.05, θum × 1.0, VR × 0.9 | EN 1998-3 A.4.2.2 | Check |
+| P4E12 | existing.frp.shear | full wraps εfe = 0.004 ≤ 0.5 εfu; Vf = 0.9 d Ef εfe 2 n tf (wf/sf), θ = 45° | EN 1998-3 A.4.4.2 | Unsure (the effective stress of A.4.4.2 is simplified) |
+| P4E13 | existing.frp.confinement.rotationFactor | θum's confinement exponent + α ρf ff,e/fc, α = 1.0, ff,e = Ef × 0.5 εfu | EN 1998-3 A.4.4.3 | Unsure |
+| P4E14 | existing.frp.environment | 1.0 (EN 1998-3 gives none) | none | SAEngine practice |
+| P4E15 | existing.nonlinear | θum with fc and fy over CF (× CF^-0.225 × 0.3^(ν (CF - 1))), shear by Eq A.12 at the target | EN 1998-3 Sec 3.5, A.3.2.2, A.3.3.1 | Check |

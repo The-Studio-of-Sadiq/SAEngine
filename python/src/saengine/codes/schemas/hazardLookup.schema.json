@@ -1,0 +1,339 @@
+{
+  "$defs": {
+    "HazardProvider": {
+      "additionalProperties": false,
+      "description": "A public web service of hazard values by coordinates.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "id": {
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
+        "kind": {
+          "default": "seismic",
+          "enum": [
+            "seismic",
+            "wind",
+            "snow",
+            "multi"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "service": {
+          "description": "The service's name, as the consent shows.",
+          "minLength": 1,
+          "title": "Service",
+          "type": "string"
+        },
+        "publisher": {
+          "default": "",
+          "description": "Who runs the service.",
+          "title": "Publisher",
+          "type": "string"
+        },
+        "reference": {
+          "default": "",
+          "description": "The code edition the values are for (ASCE 7-22, ...).",
+          "title": "Reference",
+          "type": "string"
+        },
+        "endpoint": {
+          "description": "The https URL the query is sent to.",
+          "title": "Endpoint",
+          "type": "string"
+        },
+        "query": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Query parameter -> its value, a template of PLACEHOLDERS ({latitude}, {longitude}, {riskCategory}, {siteClass}) and fixed text.",
+          "title": "Query",
+          "type": "object"
+        },
+        "format": {
+          "const": "json",
+          "default": "json",
+          "description": "The answer's format.",
+          "title": "Format",
+          "type": "string"
+        },
+        "status": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Dotted path -> the value an answer with values has there (else refused).",
+          "title": "Status",
+          "type": "object"
+        },
+        "message": {
+          "description": "Dotted paths of the service's error message.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Message",
+          "type": "array"
+        },
+        "riskCategories": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "The project's occupancy (risk) category -> the service's value.",
+          "title": "Riskcategories",
+          "type": "object"
+        },
+        "siteClasses": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "The pack's site class id -> the service's value; a class not listed is not looked up (it needs a site-specific study, say).",
+          "title": "Siteclasses",
+          "type": "object"
+        },
+        "values": {
+          "items": {
+            "$ref": "#/$defs/HazardValue"
+          },
+          "minItems": 1,
+          "title": "Values",
+          "type": "array"
+        },
+        "regions": {
+          "description": "Where the service gives values; empty: anywhere.",
+          "items": {
+            "$ref": "#/$defs/HazardRegion"
+          },
+          "title": "Regions",
+          "type": "array"
+        },
+        "decimals": {
+          "default": 4,
+          "description": "Decimals of the coordinates sent (4: about 10 m).",
+          "maximum": 8,
+          "minimum": 0,
+          "title": "Decimals",
+          "type": "integer"
+        },
+        "timeout": {
+          "default": 30.0,
+          "description": "Seconds before giving up.",
+          "exclusiveMinimum": 0,
+          "maximum": 120,
+          "title": "Timeout",
+          "type": "number"
+        },
+        "documentation": {
+          "default": "",
+          "description": "The service's public documentation.",
+          "title": "Documentation",
+          "type": "string"
+        },
+        "terms": {
+          "default": "",
+          "description": "The service's terms of use (a URL or note).",
+          "title": "Terms",
+          "type": "string"
+        },
+        "inheritable": {
+          "default": false,
+          "description": "False: only the pack whose own data file names the provider uses it (a pack that extends it, for another country, does not send its sites there).",
+          "title": "Inheritable",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "id",
+        "service",
+        "endpoint",
+        "query",
+        "values"
+      ],
+      "title": "HazardProvider",
+      "type": "object"
+    },
+    "HazardRegion": {
+      "additionalProperties": false,
+      "description": "A latitude/longitude box the service gives values for (a site outside every box of a\nprovider that has boxes is not sent).",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "name": {
+          "default": "",
+          "title": "Name",
+          "type": "string"
+        },
+        "south": {
+          "maximum": 90,
+          "minimum": -90,
+          "title": "South",
+          "type": "number"
+        },
+        "north": {
+          "maximum": 90,
+          "minimum": -90,
+          "title": "North",
+          "type": "number"
+        },
+        "west": {
+          "maximum": 180,
+          "minimum": -180,
+          "title": "West",
+          "type": "number"
+        },
+        "east": {
+          "description": "East edge; below west: the box crosses 180°.",
+          "maximum": 180,
+          "minimum": -180,
+          "title": "East",
+          "type": "number"
+        }
+      },
+      "required": [
+        "south",
+        "north",
+        "west",
+        "east"
+      ],
+      "title": "HazardRegion",
+      "type": "object"
+    },
+    "HazardValue": {
+      "additionalProperties": false,
+      "description": "One value of the answer: where it is (dotted paths into the JSON answer, the first one\nfound is taken) and the factor to the unit of its settings field (:data:`TARGETS`). A\nspectrum (designSpectrum, mcerSpectrum) is two arrays: ``periods`` [s] and ``ordinates``.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "target": {
+          "description": "The settings field it fills (one of TARGETS).",
+          "title": "Target",
+          "type": "string"
+        },
+        "label": {
+          "default": "",
+          "description": "How the results name it (SDS, SD1, ...).",
+          "title": "Label",
+          "type": "string"
+        },
+        "path": {
+          "description": "Dotted paths of a single value; the first found.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Path",
+          "type": "array"
+        },
+        "periods": {
+          "description": "Spectrum: periods' paths.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Periods",
+          "type": "array"
+        },
+        "ordinates": {
+          "description": "Spectrum: ordinates' paths.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Ordinates",
+          "type": "array"
+        },
+        "unit": {
+          "description": "The service's unit of the value, as its documentation says.",
+          "title": "Unit",
+          "type": "string"
+        },
+        "scale": {
+          "default": 1.0,
+          "description": "Factor from the service's unit to the settings field's.",
+          "exclusiveMinimum": 0,
+          "title": "Scale",
+          "type": "number"
+        }
+      },
+      "required": [
+        "target",
+        "unit"
+      ],
+      "title": "HazardValue",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "The pack's hazard services by site coordinates (see the module notes).",
+  "properties": {
+    "source": {
+      "default": "",
+      "description": "Clause (and page) the table comes from.",
+      "title": "Source",
+      "type": "string"
+    },
+    "sources": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Clause references of single entries: {key: clause}.",
+      "title": "Sources",
+      "type": "object"
+    },
+    "clauses": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Short clause references the results cite, by key, without the code's name (e.g. 'Part 6 Sec 2.5.7.3'); read by saengine.codes.context.cite. A key the pack does not give is not cited.",
+      "title": "Clauses",
+      "type": "object"
+    },
+    "providers": {
+      "items": {
+        "$ref": "#/$defs/HazardProvider"
+      },
+      "title": "Providers",
+      "type": "array"
+    },
+    "manualNote": {
+      "default": "",
+      "description": "What the engineer does where no provider covers the site (the code's maps or tool by hand).",
+      "title": "Manualnote",
+      "type": "string"
+    }
+  },
+  "title": "HazardLookupTable",
+  "type": "object",
+  "$id": "saengine.codePack.hazardLookup/1"
+}

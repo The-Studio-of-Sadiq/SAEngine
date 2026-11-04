@@ -130,3 +130,17 @@ a method: every value below except ES2 and ES16 is SAEngine practice.
 |---|---|---|---|---|
 | P2B1 | combinations.creepShrinkage | 1.2D + 1.2CS + 1.6L + 0.5Lr | Part 6 Sec 2.7.3.1 combination 2, 1.2(D + F + T), T including creep and shrinkage (Sec 2.1 notation, part 1 p. 525) | Sure |
 | P2B2 | concreteTime (no ageing, no analysis) | χ = 0.8 generic for the forces' relaxation; superposition for the shortening (B25 unchanged) | SAEngine practice | Practice |
+
+## Alpha 9 P4: assessment and retrofit of existing buildings (existing)
+
+BNBC 2020 asks for the structural analysis of an existing building (Part 10 Sec 1.3.2, gazette p.
+5003) and names seismic strengthening and retrofitting (Part 7 Sec 5.10.3-5.10.4, gazette pp.
+4506-4507) without a method or values. Every value of `existing.json` is SAEngine practice on the
+ASCE 41-17 basis: the same values as the aci318-asce7-22 pack's P4U1-P4U30 (see its VERIFY.md).
+
+| # | Key | Value | Clause | Confidence |
+|---|---|---|---|---|
+| P4B1 | existing.sources.requirement | the existing building investigated and analysed by professionals; it supports the Part 6 loads | BNBC 2020 Part 10 Sec 1.3.1-1.3.2 (gazette p. 5003) | Sure |
+| P4B2 | existing.sources.liveLoads | detail engineering assessment of factory buildings: 3 kN/m² manufacturing, 6 kN/m² storage; retrofit design with Part 6 loads | BNBC 2020 Part 10 Sec 1.3.2.3 | Sure (cited, not applied: the area loads are the project's) |
+| P4B3 | existing.linear.hazards | DBE (scale 1.0) at LS, MCE (1.5 × DBE) at CP | BNBC 2020 Part 6 Sec 2.5.2.1 (gazette p. 3186: the design basis earthquake is 2/3 of the MCE) | Sure for the 1.5; SAEngine practice for the levels |
+| P4B4 | all other values | as the US pack's P4U1-P4U30 | ASCE 41-17, ACI 440.2R-17, EN 1998-3 A.4.2.2 | SAEngine practice |

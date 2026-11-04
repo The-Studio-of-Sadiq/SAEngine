@@ -693,6 +693,9 @@ export type EngineMethod =
 	| 'saengine/cancelJobs'
 	| 'fem/seismicDesign' | 'fem/secondOrder'
 	| 'fem/storyResponse' | 'fem/memberForces' | 'fem/columnInteraction' | 'fem/exportXlsx'
+	// Alpha 9 P4: `fem/existingAssessment` `{outDir, projectPath}` -> the assessment of an existing
+	// building of a run with its retrofit's before and after comparison.
+	| 'fem/existingAssessment'
 	| 'fem/tableIndex' | 'fem/table' | 'fem/exportTables' | 'fem/exportProgress' | 'fem/exportCancel'
 	| 'soil/location' | 'soil/plotCheck' | 'soil/gisExport' | 'soil/gisImport' | 'soil/qgisProgram'
 	| 'drawings/generate' | 'drawings/list' | 'drawings/progress' | 'drawings/issue' | 'drawings/dwg'
@@ -755,6 +758,10 @@ export type ProjectPlatformMethod =
 	// `{id, root?}` (the Project Settings lists under the pack), `codes/values` `{settingsText, root?,
 	// table?}` (Project Settings > Code Values: the pack with the project's overrides).
 	| 'codes/list' | 'codes/show' | 'codes/choices' | 'codes/settingsForPack' | 'codes/values' | 'codes/new' | 'codes/install' | 'codes/validate' | 'codes/trust' | 'codes/remove' | 'codes/templates' | 'codes/checkTemplate' | 'codes/codedGeometry'
+	// Alpha 9 C22, the site's hazard values by its coordinates (`saengine.gis.hazard_lookup`): `hazard/offers`
+	// `{settingsText, soilText?, root?, latitude?, longitude?}` -> the pack's services and the exact request (no
+	// network); `hazard/lookup` `{..., provider, consent}` -> `{ok, values, source}` (sent only with `consent`).
+	| 'hazard/offers' | 'hazard/lookup'
 	// A DWG drawing as DXF (`saengine.library.dwg`, GNU LibreDWG's dwg2dxf as a separate program):
 	// `cad/convertDwg` `{path, cache?}` -> `{ok, dxf, warnings, cached}` or `{ok: false, code, message}`.
 	| 'cad/convertDwg'

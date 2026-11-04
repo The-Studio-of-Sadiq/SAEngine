@@ -617,9 +617,14 @@ def variables(
 def _slenderness(hinge: Hinge, fy: float, e: float, rule: Any) -> float:
     """0 for a compact section, 1 for a noncompact one, linear between (the more severe of the
     flange and the web); 1 when the profile is not an I shape (not covered: the safe end)."""
+    return profile_slenderness(getattr(hinge.object_type, "profile", None), fy, e, rule)
+
+
+def profile_slenderness(profile: Any, fy: float, e: float, rule: Any) -> float:
+    """The slenderness variable of a steel ``profile`` (see :func:`_slenderness`); shared with
+    the linear assessment of existing buildings."""
     from saengine.library.objects import IShapeProfile
 
-    profile = getattr(hinge.object_type, "profile", None)
     if not isinstance(profile, IShapeProfile) or fy <= 0:
         return 1.0
     root = math.sqrt(e / fy)
@@ -749,23 +754,55 @@ def chord_rotation_capacity(hinge: Hinge, rule: Any, values: dict[str, Any]) -> 
         y0, z0, y1, z1 = sec.core
         bo, ho = y1 - y0, z1 - z0  # the formula is symmetric in them
         spaces = sum(x * x for x in _bar_spaces(sec))
-        alpha = (1 - s / (2 * bo)) * (1 - s / (2 * ho)) * (1 - spaces / (6 * ho * bo))
+        alpha = confinement_effectiveness(bo, ho, s, spaces)
         rho_sx = legs * leg / (b * s)
         confinement = max(0.0, alpha) * rho_sx * fyw / fc
+    theta = theta_um_formula(
+        rule,
+        nu,
+        omega,
+        omega_c,
+        fc,
+        lv / h,
+        confinement,
+        hinge.component in ("rcWall", "rcWallShear"),
+    )
+    values["LV"] = lv
+    values["nu"] = nu
+    values["confinement"] = confinement
+    return theta
+
+
+def confinement_effectiveness(bo: float, ho: float, s: float, spaces: float) -> float:
+    """α = (1 - s/2bo)·(1 - s/2ho)·(1 - Σbi²/6hobo) of the confinement term of θum (``spaces``:
+    Σbi², the squared distances of the bars held around the core)."""
+    return (1 - s / (2 * bo)) * (1 - s / (2 * ho)) * (1 - spaces / (6 * ho * bo))
+
+
+def theta_um_formula(
+    rule: Any,
+    nu: float,
+    omega: float,
+    omega_c: float,
+    fc: float,
+    span_ratio: float,
+    confinement: float,
+    wall: bool,
+) -> float:
+    """θum of :class:`saengine.codes.tables.ChordRotationCapacity` from its terms (fc in MPa,
+    ``span_ratio`` LV/h, ``confinement`` α·ρsx·fyw/fc); shared with the linear assessment of
+    existing buildings (:mod:`saengine.fem.existing_building`)."""
     theta = (
         1
         / rule.gammaEl
         * rule.k
         * rule.axialBase ** max(nu, 0.0)
         * (max(rule.omegaMin, omega_c) / max(rule.omegaMin, omega) * fc) ** rule.omegaExponent
-        * (lv / h) ** rule.spanExponent
+        * span_ratio**rule.spanExponent
         * rule.confinementBase**confinement
     )
-    if hinge.component in ("rcWall", "rcWallShear"):
+    if wall:
         theta *= rule.wallFactor
-    values["LV"] = lv
-    values["nu"] = nu
-    values["confinement"] = confinement
     return theta
 
 
@@ -995,6 +1032,10 @@ def library_beside(project_path: Any) -> dict[str, Any] | None:
         objects = ObjectLibrary.model_validate_json(text)
     except (OSError, ValueError):
         return None
+    # Alpha 9 P4: an existing building's model has its own types (corroded, jacketed members).
+    from saengine.fem import existing_building
+
+    objects = existing_building.state_objects(root, objects)
     return {o.id: o for o in objects.objects}
 
 

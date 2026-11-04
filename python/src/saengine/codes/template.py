@@ -197,6 +197,19 @@ TABLE_HELP: dict[str, str] = {
     "the modular ratio and lever arm, the bars' allowable stresses by grade, the allowable "
     "shear with alpha and the shear reinforcement, and the steel's allowable tension, shear, "
     "compression and bending. A pack without it checks no member by allowable stresses.",
+    "hazardLookup": "Online hazard lookup by site coordinates (alpha 9 C22): the public web "
+    "services that give the site's seismic (or wind, snow) values for its latitude and "
+    "longitude: the https endpoint, the query (only the coordinates, the risk category and the "
+    "site class may be sent), the pack's risk categories and site classes as the service names "
+    "them, where each value is in the JSON answer and its unit, the regions it covers and its "
+    "terms of use. Opt-in and asked before every call. A pack without it shows 'Enter values "
+    "by hand'.",
+    "existing": "Existing buildings (alpha 9 P4): the knowledge levels with their knowledge "
+    "factor and confidence factor, the as-built strengths from tests (lower bound, expected, "
+    "mean) and which one each check takes, the linear procedure (m-factors with C1·C2, or chord "
+    "rotations) and its hazard levels, the pushover hinges' changes, the shear strength of "
+    "existing members, the monolithic factors of concrete jackets, externally bonded FRP and a "
+    "screening checklist. A pack without it does not assess existing buildings.",
     "horizontalCapacity": "The required horizontal capacity of storeys (alpha 9 C19): the "
     "storey drift at which a pushover gives Qu, Ds by material, member rank and the share of "
     "walls or braces, Fs and Fe from the stiffness and eccentricity ratios, the member rank "

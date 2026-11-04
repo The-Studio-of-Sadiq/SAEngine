@@ -850,6 +850,10 @@ def _basis(settings: Any, parts: _Parts, model: dict[str, Any], manifest: dict[s
             ["Wind exposure category", settings.wind.exposure],
         ]
         basis["site"] = _mapped_site_rows(basis["site"], values)  # C1: SDS, SD1 for Z
+        # C22: the service, date and query of values looked up by the site's coordinates.
+        from saengine.gis.hazard_lookup import source_rows as _hazard_source_rows
+
+        basis["site"] += _hazard_source_rows(settings)
         basis["site"] += _construction_basis(settings, parts, pack)  # B18
         basis["seismic"] = [
             [
@@ -1797,7 +1801,115 @@ def _results(
     out["columnShortening"] = _column_shortening(model_path, results_dir, warnings)
     # B36: the nonlinear time histories: suites, storey drift, member acceptance.
     out["nonlinearHistory"] = _nonlinear_history(model_path.parent, warnings)
+    # Alpha 9 P4: the assessment of an existing building and its retrofit, before and after.
+    existing = _existing(model_path, results_dir, warnings)
+    if existing:  # a new building's report data stays as it was
+        out["existing"] = existing
     return out
+
+
+def _existing(model_path: Path, results_dir: Path, warnings: list[str]) -> dict[str, Any]:
+    """Alpha 9 P4: the assessment of an existing building of the run (:func:`saengine.fem.
+    existing_building.assessment`) as report rows; empty for a new building."""
+    from saengine.fem import existing_building
+
+    try:
+        found = existing_building.assessment(results_dir, model_path)
+    except Exception as error:  # noqa: BLE001 - the report goes on without it
+        warnings.append(f"The assessment of the existing building could not be worked out: {error}")
+        return {}
+    if not found.get("available"):
+        reason = str(found.get("reason", ""))
+        return (
+            {} if "not an existing building" in reason else {"available": False, "reason": reason}
+        )
+
+    def ratio(check: dict[str, Any] | None) -> str:
+        if not check:
+            return "-"
+        value = check.get("ratio")
+        return "∞" if value is None else fmt(value, 2)
+
+    state = found["state"]
+    know = found["knowledge"]
+    rows, fails = [], []
+    for r in found["rows"]:
+        if not r.get("covered"):
+            rows.append(
+                [
+                    r["member"],
+                    r["component"],
+                    ", ".join(r.get("measures") or []),
+                    "not covered",
+                    "",
+                    "",
+                    "",
+                    "",
+                ]
+            )
+            fails.append(False)
+            continue
+        before, after = r.get("asBuilt"), r.get("retrofitted")
+        here = r.get(state) or {}
+        rows.append(
+            [
+                r["member"],
+                r["component"],
+                ", ".join(r.get("measures") or []) or "-",
+                ratio(before),
+                str((before or {}).get("level") or "-"),
+                ratio(after),
+                str((after or {}).get("level") or "-"),
+                str(here.get("action") or ""),
+            ]
+        )
+        fails.append((here.get("ratio") or 0.0) > 1 + 1e-9 or here.get("ratio") is None)
+    strengths = [
+        [
+            s["material"],
+            s["kind"],
+            fmt(s["specified"], 1),
+            str(s["tests"]),
+            fmt(s["mean"], 1) if s.get("mean") is not None else "-",
+            fmt(s["cov"], 3) if s.get("cov") is not None else "-",
+            fmt(s["lowerBound"], 1),
+            fmt(s["expected"], 1),
+        ]
+        for s in found.get("strengths", [])
+    ]
+    hazards = [
+        [
+            h["label"],
+            h["level"],
+            fmt(h["scale"], 2),
+            str(h["failed"]),
+            fmt(h["worst"], 2) if h.get("worst") is not None else "-",
+            "OK" if h["ok"] else "FAIL",
+        ]
+        for h in found.get("hazards", [])
+    ]
+    checklist = [
+        [c["group"], c["label"], {"C": "C", "NC": "NC", "NA": "N/A", "U": "U"}[c["answer"]]]
+        for c in found.get("checklist", [])
+    ]
+    label = "as built" if state == "asBuilt" else "retrofitted"
+    return {
+        "available": True,
+        "text": (
+            f"Assessment of the existing building ({found['basis']}), the model {label}, "
+            f"{found['procedure']} procedure: knowledge level {know['label']} (κ = "
+            f"{fmt(know['kappa'], 2)}, CF = {fmt(know['cf'], 2)}{', ' + know['clause'] if know.get('clause') else ''}). "
+            f"{found['failed']} of {found['checked']} members exceed a ratio of 1"
+            + (f"; the building reaches {found['level']}" if found.get("level") else "")
+            + "."
+        ),
+        "strengths": strengths,
+        "hazards": hazards,
+        "members": rows,
+        "memberFails": fails,
+        "checklist": checklist,
+        "notes": [str(n) for n in found.get("notes", []) if n],
+    }
 
 
 def _nonlinear_history(folder: Path, warnings: list[str]) -> dict[str, Any]:

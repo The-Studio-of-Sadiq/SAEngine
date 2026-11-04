@@ -47,6 +47,13 @@ Methods:
 - ``components/list`` ``{}`` -> the setup's optional components the backend runs (EnergyPlus,
   LibreDWG): ``{energyplus, libredwg}``, each ``{state, path?}`` (``installed``, ``elsewhere``,
   ``missing``; ``handlers.installer_components``)
+- ``hazard/offers`` ``{settingsText, soilText?, root?, latitude?, longitude?}`` -> ``{ok,
+  codePack, coordinates, params, providers: [{id, service, host, url, query, problem?}],
+  manualNote}``: the code pack's hazard services and the exact query (no network; alpha 9 C22)
+- ``hazard/lookup`` ``{settingsText, provider, consent, soilText?, root?, latitude?,
+  longitude?}`` -> ``{ok, values, source}`` or ``{ok: false, code, message}``: the site's
+  values from the service (only the coordinates and code parameters are sent; refused
+  without ``consent``; in a worker thread)
 - ``ai/searchCode`` ``{query, projectRoot?, limit?, docs?}`` -> ``{pack, query, found, passages,
   note}``: the code pack's passages (and the manual's) that best match a question, each with
   its clauses, for the AI assistant's code Q&A (``saengine.ai.knowledge``; in a worker thread)
@@ -139,6 +146,9 @@ Methods:
 - ``fem/storyResponse`` ``{outDir, projectPath}`` -> storey displacements, drifts, forces,
   shears and overturning per case and combination, modal participation, the design spectrum,
   base reactions, pushover and time-history curves (``saengine.fem.story_response``; worker)
+- ``fem/existingAssessment`` ``{outDir, projectPath}`` -> the assessment of an existing
+  building of a run and its retrofit's before and after comparison
+  (``saengine.fem.existing_building``; worker)
 - ``fem/memberForces`` ``{outDir, projectPath, member}`` -> a member's section forces and
   deflection along it per case and combination (``saengine.fem.member_detail``; worker)
 - ``fem/columnInteraction`` ``{outDir, projectPath, member?}`` -> the columns' P-M interaction
@@ -628,6 +638,31 @@ def create_server() -> JsonRPCServer:
     def _installer_components(params: Any) -> dict[str, Any]:
         return handlers.installer_components()
 
+    @server.feature("hazard/offers")
+    def _hazard_offers(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.hazard_offers(
+            args.get("settingsText"),
+            args.get("soilText"),
+            args.get("root"),
+            args.get("latitude"),
+            args.get("longitude"),
+        )
+
+    @server.feature("hazard/lookup")
+    @_in_worker
+    def _hazard_lookup(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.hazard_lookup(
+            args.get("settingsText"),
+            str(args.get("provider") or ""),
+            args.get("consent"),
+            args.get("soilText"),
+            args.get("root"),
+            args.get("latitude"),
+            args.get("longitude"),
+        )
+
     @server.feature("ai/searchCode")
     @_in_worker
     def _ai_search_code(params: Any) -> dict[str, Any]:
@@ -1026,6 +1061,12 @@ def create_server() -> JsonRPCServer:
     def _story_response(params: Any) -> dict[str, Any]:
         args = _plain(params)
         return handlers.story_response(args["outDir"], args["projectPath"])
+
+    @server.feature("fem/existingAssessment")
+    @_in_worker
+    def _existing_assessment(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.existing_assessment(args["outDir"], args["projectPath"])
 
     @server.feature("fem/memberForces")
     @_in_worker

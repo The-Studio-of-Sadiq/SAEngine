@@ -1,0 +1,327 @@
+{
+  "$schema": "../../../schemas/steelLimitState.schema.json",
+  "$sources": [
+    "SP 16.13330.2017 Sections 4-9, Tables 1, 3, 7, B.5"
+  ],
+  "source": "SP 16.13330.2017 limit state design of steel members: Ry = Ryn / γm (γm 1.025, Table 3) of C245, C255, C345, C390 by thickness (Table B.5), γc 1.0 (Table 1: the 0.9 of columns of public buildings and the 0.75-0.95 of other members are project overrides, U), the stability coefficient φ of the curves a, b, c by λ̄ = λ √(Ry/E) (7.1.3, Table 7: α, β; as Perry constants a2 = 1 - α, a3 = π β on λn = λ̄/π), the plastic bending factor cx (1.05 taken, U), shear Rs = 0.58 Ry, tension on the net section Ru/γu (γu 1.3), the section and member checks in their linear forms (9.1, 9.2; conservative); lateral-torsional buckling by the parent method's χLT in place of φb of Appendix Ж (U); the width-thickness limits as SAEngine's classes (U); connections and the seismic steel rules from the parent pack (named so)",
+  "partialFactors": {
+    "gammaM0": 1.025,
+    "gammaM1": 1.025,
+    "gammaMb": 1.25,
+    "gammaMf": 1.25,
+    "gammaMfService": 1.1,
+    "gammaMw": 1.25,
+    "gammaMwField": 1.25
+  },
+  "designStrength": {
+    "245": [
+      [
+        20,
+        245
+      ],
+      [
+        30,
+        235
+      ]
+    ],
+    "255": [
+      [
+        3.9,
+        255
+      ],
+      [
+        20,
+        245
+      ],
+      [
+        40,
+        235
+      ]
+    ],
+    "345": [
+      [
+        10,
+        345
+      ],
+      [
+        20,
+        325
+      ],
+      [
+        40,
+        305
+      ],
+      [
+        60,
+        285
+      ]
+    ],
+    "390": [
+      [
+        50,
+        390
+      ]
+    ]
+  },
+  "classification": {
+    "method": "epsilonLimits",
+    "referenceFy": 235,
+    "outstandRolled": {
+      "plastic": 9.0,
+      "compact": 13.0,
+      "semiCompact": 14.8
+    },
+    "outstandWelded": {
+      "plastic": 9.0,
+      "compact": 13.0,
+      "semiCompact": 14.8
+    },
+    "internalFlange": {
+      "plastic": 30.0,
+      "compact": 40.0,
+      "semiCompact": 45.0
+    },
+    "internalAxial": 40.0,
+    "web": {
+      "plastic": 65.0,
+      "compact": 91.0,
+      "semiCompact": 94.8
+    },
+    "webAxial": 45.0,
+    "webAxialFactors": [
+      0.97,
+      1.27,
+      1.76
+    ],
+    "channelWeb": {
+      "plastic": 65.0,
+      "compact": 91.0,
+      "semiCompact": 94.8
+    },
+    "angleBending": {
+      "plastic": 9.0,
+      "compact": 13.0,
+      "semiCompact": 14.8
+    },
+    "angleAxial": [
+      15.0,
+      30.0
+    ],
+    "teeStem": {
+      "plastic": 9.0,
+      "compact": 13.0,
+      "semiCompact": 18.0
+    },
+    "circularBending": {
+      "plastic": 50.0,
+      "compact": 90.0,
+      "semiCompact": 100.0,
+      "squared": true
+    },
+    "circularAxial": 100.0
+  },
+  "compression": {
+    "method": "bucklingCurves",
+    "alpha": {
+      "a": 0.21,
+      "b": 0.34,
+      "c": 0.49,
+      "d": 0.76
+    },
+    "perry": {
+      "a": {
+        "a1": 0.0001,
+        "a2": 0.97,
+        "a3": 0.188496,
+        "plateau": 0.127324
+      },
+      "b": {
+        "a1": 0.0001,
+        "a2": 0.96,
+        "a3": 0.282743,
+        "plateau": 0.127324
+      },
+      "c": {
+        "a1": 0.0001,
+        "a2": 0.96,
+        "a3": 0.439823,
+        "plateau": 0.127324
+      }
+    },
+    "rolledI": [
+      [
+        1.25,
+        40,
+        "b",
+        "c"
+      ],
+      [
+        0.0,
+        40,
+        "b",
+        "c"
+      ],
+      [
+        0.0,
+        80,
+        "b",
+        "c"
+      ],
+      [
+        0.0,
+        100000,
+        "c",
+        "c"
+      ]
+    ],
+    "weldedI": [
+      [
+        40,
+        "b",
+        "c"
+      ],
+      [
+        80,
+        "b",
+        "c"
+      ],
+      [
+        100000,
+        "c",
+        "c"
+      ]
+    ],
+    "families": {
+      "channel": {
+        "major": "c",
+        "minor": "c"
+      },
+      "tee": {
+        "major": "c",
+        "minor": "c"
+      },
+      "angle": {
+        "major": "c",
+        "minor": "c"
+      },
+      "rhs": {
+        "major": "a",
+        "minor": "a"
+      },
+      "chs": {
+        "major": "a",
+        "minor": "a"
+      },
+      "bar": {
+        "major": "b",
+        "minor": "b"
+      },
+      "round": {
+        "major": "a",
+        "minor": "a"
+      }
+    },
+    "angleConstants": {
+      "minorAxis": [
+        0.0,
+        1.0,
+        0.0
+      ]
+    },
+    "angleCondition": "minorAxis",
+    "angleCurve": "c"
+  },
+  "tension": {
+    "method": "yieldRupture",
+    "ruptureShare": 0.788462,
+    "angleAlpha": [
+      [
+        1000,
+        0.591346
+      ]
+    ],
+    "angleBolts": 2
+  },
+  "flexure": {
+    "method": "elasticCriticalMoment",
+    "elasticCap": 1.05,
+    "elasticCapCantilever": 1.05,
+    "alphaLT": {
+      "rolled": 0.34,
+      "welded": 0.49
+    },
+    "ltbPlateau": 0.4,
+    "ltbBase": 0.2,
+    "highShare": 0.5
+  },
+  "shear": {
+    "method": "postCritical",
+    "bucklingLimit": 70.0,
+    "poisson": 0.3,
+    "kvUnstiffened": 5.34,
+    "kvStiffened": [
+      4.0,
+      5.34
+    ],
+    "lambdaLimits": [
+      0.8,
+      1.2
+    ],
+    "lambdaSlope": 0.59
+  },
+  "interaction": {
+    "method": "sectionMember",
+    "plastic": false,
+    "alphaMinor": 1.0,
+    "alphaMajor": 1.0,
+    "flangeShare": 0.5,
+    "majorReduction": 0.5,
+    "minorShare": 1.0,
+    "kCap": 0.0,
+    "ltbFactor": 0.0,
+    "ltbOffset": 0.25,
+    "cmMin": 0.4,
+    "tensionPsi": 0.0
+  },
+  "slenderness": {
+    "compression": 150.0,
+    "tension": 300.0
+  },
+  "shearModulus": 78000.0,
+  "welded": false,
+  "nominalHollowWall": true,
+  "clauses": {
+    "code": "SP 16.13330.2017 Sections 7-9",
+    "designStrength": "6.?, Table B.5 (Ryn by thickness), Table 3 (γm)",
+    "partialFactors": "4.3.?, Table 3 (γm 1.025)",
+    "classification": "7.3, 8.5 (U)",
+    "slenderness": "10.4, Tables 32, 33",
+    "tensionYield": "7.1.1",
+    "tensionRupture": "7.1.1 (Ru / γu)",
+    "tensionAngle": "7.1.1",
+    "compression": "7.1.3, Table 7",
+    "compressionAngle": "7.1.3",
+    "flexure": "8.2.1, 8.2.3",
+    "lateralTorsional": "8.4 (χLT of the parent method in place of φb, U)",
+    "shear": "8.2.1",
+    "shearBuckling": "8.5",
+    "section": "9.1.1",
+    "sectionPlastic": "9.1.1",
+    "sectionLinear": "9.1.1",
+    "memberCompression": "9.2.2",
+    "memberTension": "9.1.1"
+  },
+  "sources": {
+    "partialFactors": "SP 16.13330.2017 Table 3: γm 1.025 of the steels to GOST 27772 (C245-C390); γmb, γmw are not SP values and not used by the members",
+    "designStrength": "SP 16.13330.2017 Table B.5 (U): Ryn [MPa] of C245 (to 20 mm 245, to 30 235), C255 (to 3.9 255, to 20 245, to 40 235), C345 (to 10 345, to 20 325, to 40 305, to 60 285), C390 (to 50 390), divided by γm (Ry 240, 335, 315, 300, 380 ...)",
+    "compression.perry": "SP 16.13330.2017 7.1.3: φ = 0.5 (δ - √(δ² - 39.48 λ̄²)) / λ̄², δ = 9.87 (1 - α + β λ̄) + λ̄², Table 7: a α 0.03 β 0.06, b 0.04 0.09, c 0.04 0.14 (U); in the Perry form on λn = λ̄/π: a2 = 1 - α, a3 = π β; φ = 1 to λ̄ 0.4 (λn 0.127, U); the cap φ <= 7.6/λ̄² (λ̄ above about 4.5) is not applied (U)",
+    "compression.families": "SP 16.13330.2017 Table 7 (U): hollow and round sections a, rolled and welded I sections b (major) and c (minor), channels, tees and angles c",
+    "tension.ruptureShare": "SP 16.13330.2017 7.1.1: N/(An Ru/γu) <= 1, γu 1.3 (1.025/1.3 in the method's An fu / γm1)",
+    "flexure.elasticCap": "SP 16.13330.2017 8.2.3: cx of Table E.1 (1.07-1.12 for I sections), 1.05 taken (U)",
+    "flexure.alphaLT": "Not SP values: χLT of the curves b (rolled) and c (welded) in place of φb of 8.4.1 and Appendix Ж (SAEngine practice, U)",
+    "shear": "SP 16.13330.2017 8.2.1: Rs = 0.58 Ry (fy/√3 of the method); web buckling 8.5.1-8.5.3 by the generic post-critical form (U)",
+    "slenderness": "SP 16.13330.2017 Tables 32, 33: compression 150 (180 - 60 α at α 0.5, U), tension 300 (U)",
+    "shearModulus": "SP 16.13330.2017 Table Г.10: G = 78 000 MPa",
+    "classification": "SP 16.13330.2017 8.5.18 (beam flange outstand 0.5 √(E/Ry) = 14.8 ε), 7.3.2 (column webs up to 2.3 √(E/Ry)) and 8.5.1 (beam webs 3.2 √(E/Ry) = 94.8 ε) as SAEngine's semi-compact limits; the plastic and compact ones the generic EN-type (U)"
+  }
+}

@@ -629,6 +629,96 @@
       "title": "CompressionTestRules",
       "type": "object"
     },
+    "DesignResistanceRule": {
+      "additionalProperties": false,
+      "description": "Alpha 9 C25 (SP 22.13330.2016 5.6.7 type, :func:`saengine.soil.bearing.design_resistance`):\nthe design resistance of the founding soil, the mean pressure under the footing at most\nR = γc1 γc2 / k (Mγ kz b γ + Mq d q' + Mc c) with q' the effective overburden at the base\n(d γ'), Mγ, Mq, Mc by φ (``factors``: (φ [°], Mγ, Mq, Mc) rows, linear between), γc1 by the\nsoil's behaviour (``conditionFactors``), γc2 for the structure, k by how the strength was\nfound, kz = 1 below ``kzWidth``, else z0/b + kzOffset. In place of qa = (qu - σ'v)/FS of the\nfounding layer (the deeper layers keep the parent's check); net of the total overburden\nlike every qa.",
+      "properties": {
+        "method": {
+          "const": "frictionAngleFactors",
+          "title": "Method",
+          "type": "string"
+        },
+        "factors": {
+          "description": "(φ [°], Mγ, Mq, Mc) rows.",
+          "items": {
+            "maxItems": 4,
+            "minItems": 4,
+            "prefixItems": [
+              {
+                "minimum": 0,
+                "type": "number"
+              },
+              {
+                "minimum": 0,
+                "type": "number"
+              },
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              },
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "minItems": 2,
+          "title": "Factors",
+          "type": "array"
+        },
+        "conditionFactors": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "description": "γc1 by the founding layer's behaviour (granular, cohesive).",
+          "title": "Conditionfactors",
+          "type": "object"
+        },
+        "structureFactor": {
+          "description": "γc2.",
+          "exclusiveMinimum": 0,
+          "title": "Structurefactor",
+          "type": "number"
+        },
+        "reliability": {
+          "description": "k (1.1: strength from tables or correlations).",
+          "exclusiveMinimum": 0,
+          "title": "Reliability",
+          "type": "number"
+        },
+        "kzWidth": {
+          "description": "kz = 1 for b below this [m].",
+          "exclusiveMinimum": 0,
+          "title": "Kzwidth",
+          "type": "number"
+        },
+        "kzDepth": {
+          "description": "z0 [m] of kz = z0/b + kzOffset.",
+          "exclusiveMinimum": 0,
+          "title": "Kzdepth",
+          "type": "number"
+        },
+        "kzOffset": {
+          "minimum": 0,
+          "title": "Kzoffset",
+          "type": "number"
+        }
+      },
+      "required": [
+        "method",
+        "factors",
+        "conditionFactors",
+        "structureFactor",
+        "reliability",
+        "kzWidth",
+        "kzDepth",
+        "kzOffset"
+      ],
+      "title": "DesignResistanceRule",
+      "type": "object"
+    },
     "DrilledShaft": {
       "additionalProperties": false,
       "description": "Unit values of drilled shafts (bored piles of more than ``minDiameter``).",
@@ -3191,6 +3281,18 @@
           ],
           "default": null,
           "description": "The settlement of footings by the layer-wise summation with the empirical factor ψs (method ``layerwiseSummation``); empty: SAEngine's methods."
+        },
+        "designResistance": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DesignResistanceRule"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "R = γc1 γc2 / k (Mγ kz b γ + Mq d γ' + Mc c) of the soil report's founding layer in place of the bearing capacity over FS (method ``frictionAngleFactors``); empty: the bearing capacity equation."
         }
       },
       "required": [

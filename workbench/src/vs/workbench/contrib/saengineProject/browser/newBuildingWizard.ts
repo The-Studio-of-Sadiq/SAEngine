@@ -22,7 +22,9 @@ import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { IProgressService } from '../../../../platform/progress/common/progress.js';
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -52,6 +54,7 @@ import { plannedCodePacks } from '../../saengineLibrary/common/plannedCodePacks.
 import { CODES_CHOICES_COMMAND, CODES_LIST_COMMAND, ICodePackInfo, readCodePacks, readPackLists } from '../../saengineLibrary/browser/codePacksModel.js';
 import { CODES_TEMPLATES_COMMAND, DEFAULT_BUILDING_TEMPLATE, IBuildingTemplate, NEW_FROM_TEMPLATE_COMMAND, readBuildingTemplates } from '../../saengineLibrary/common/packageTemplates.js';
 import { sameFolder } from './structuralImportModel.js';
+import { lookUpHazardValues } from '../../saengineLibrary/browser/hazardLookup.js';
 import { activeCodeName, DEFAULT_CODE_PACK_ID, defaultCodeName } from '../../../services/saengineProject/common/activeCodePack.js';
 
 const SVG = 'http://www.w3.org/2000/svg';
@@ -181,6 +184,9 @@ export class NewBuildingWizard extends EditorPane {
 	private packSiteClasses: { id: string; label: string }[] = [];
 	/** C1: the chosen pack's design spectrum method (`mappedSpectral`: the site's SDS, SD1 instead of Z). */
 	private packSpectrum = '';
+	/** C22: the site's coordinates typed for the hazard lookup (without an open project's site point). */
+	private hazardLatitude = '';
+	private hazardLongitude = '';
 	/** The package of the specification that filled the form last; undefined before any. */
 	private templateApplied: string | undefined;
 
@@ -197,6 +203,9 @@ export class NewBuildingWizard extends EditorPane {
 		@IFileService private readonly fileService: IFileService,
 		@ISaengineProjectService private readonly projectService: ISaengineProjectService,
 		@IWorkspaceContextService private readonly workspaceService: IWorkspaceContextService,
+		@IDialogService private readonly wizardDialogs: IDialogService,
+		@IConfigurationService private readonly wizardConfiguration: IConfigurationService,
+		@IProgressService private readonly wizardProgress: IProgressService,
 	) {
 		super(NewBuildingWizard.ID, group, telemetryService, themeService, wizardStorage);
 		this.opener = instantiationService.createInstance(ProjectOpener);
@@ -609,6 +618,7 @@ export class NewBuildingWizard extends EditorPane {
 				return;
 			}
 			this.form.designCode = value;
+			this.form.hazard = undefined; // C22: another code's values are not this one's
 			void this.loadPackExposures(value).then(() => this.renderForm());
 		});
 		if ((this.form.designCode || DEFAULT_CODE_PACK_ID) === DEFAULT_CODE_PACK_ID) {
@@ -632,6 +642,7 @@ export class NewBuildingWizard extends EditorPane {
 				this.textInput(form, localize('newBuilding.sd1', "SD1 (g)"), this.form.sd1, value => this.form.sd1 = value, localize('newBuilding.sd1Placeholder', "e.g. 0.6"));
 				this.textInput(form, localize('newBuilding.s1', "S1 (g)"), this.form.s1, value => this.form.s1 = value, localize('newBuilding.s1Placeholder', "optional"));
 				this.textInput(form, localize('newBuilding.tl', "TL (s)"), this.form.tl, value => this.form.tl = value, localize('newBuilding.tlPlaceholder', "optional, e.g. 8"));
+				this.renderHazardLookup(form);
 			} else {
 				this.textInput(form, localize('newBuilding.zoneCoefficient', "Peak ground acceleration (g)"), this.form.zoneCoefficient, value => this.form.zoneCoefficient = value, localize('newBuilding.zonePlaceholder', "e.g. 0.16 (agR)"));
 			}
@@ -737,6 +748,72 @@ export class NewBuildingWizard extends EditorPane {
 		if (hint) {
 			append(parent, $('p.hint', undefined, hint));
 		}
+	}
+
+	/**
+	 * C22: Look Up Hazard Values... under the mapped values: by the open project's site point (its
+	 * soil report's plot), else by the latitude and longitude typed here (used for the lookup only).
+	 * The values fill the fields above, stay editable, and the project keeps the source.
+	 */
+	private renderHazardLookup(form: HTMLElement): void {
+		const site = (this.plot?.site ?? {}) as { readonly lat?: unknown; readonly lon?: unknown };
+		const plotAt = typeof site.lat === 'number' && typeof site.lon === 'number' ? { latitude: site.lat, longitude: site.lon } : undefined;
+		if (!plotAt) {
+			this.textInput(form, localize('newBuilding.latitude', "Site latitude (°)"), this.hazardLatitude, value => this.hazardLatitude = value, localize('newBuilding.latitudePlaceholder', "for the lookup, e.g. 34.0522"));
+			this.textInput(form, localize('newBuilding.longitude', "Site longitude (°)"), this.hazardLongitude, value => this.hazardLongitude = value, localize('newBuilding.longitudePlaceholder', "for the lookup, e.g. -118.2437"));
+		}
+		const control = this.row(form, '');
+		const button = this.pageDisposables.add(new Button(control, { ...defaultButtonStyles, secondary: true }));
+		button.label = localize('newBuilding.hazardLookUp', "Look Up Hazard Values...");
+		button.setTitle(localize('newBuilding.hazardLookUpHint', "Asks the code's hazard service for the site's values by its coordinates (where the code pack names one, and the setting Allow online hazard lookups is on). Asks first; only the coordinates and the code parameters are sent."));
+		this.pageDisposables.add(button.onDidClick(() => void this.lookUpHazard(plotAt)));
+		const source = this.form.hazard?.source;
+		if (source) {
+			append(form, $('p.hint.indented', undefined, localize('newBuilding.hazardFrom', "From {0}, looked up {1}. The project keeps the source; the report names it.", String(source.service ?? ''), String(source.date ?? ''))));
+		}
+	}
+
+	/** C22: the lookup, then its values into the form (SDS, SD1, S1, TL; the rest kept for the project). */
+	private async lookUpHazard(plotAt: { readonly latitude: number; readonly longitude: number } | undefined): Promise<void> {
+		const typed = (text: string) => {
+			const value = Number(text.trim().replace(',', '.'));
+			return text.trim() && Number.isFinite(value) ? value : undefined;
+		};
+		const at = plotAt ?? { latitude: typed(this.hazardLatitude), longitude: typed(this.hazardLongitude) };
+		if (at.latitude === undefined || at.longitude === undefined || Math.abs(at.latitude) > 90 || Math.abs(at.longitude) > 180) {
+			await this.wizardDialogs.info(localize('newBuilding.hazardNoSite', "Enter the site's latitude and longitude"), localize('newBuilding.hazardNoSiteDetail', "The lookup asks for the site's values by its coordinates (decimal degrees, south and west negative)."));
+			return;
+		}
+		const settings = {
+			codePack: this.form.designCode || DEFAULT_CODE_PACK_ID,
+			occupancy: { category: this.form.category },
+			site: { location: 'custom', siteClass: this.form.siteClass, siteClassSource: 'entered' },
+		};
+		const applied = await lookUpHazardValues(
+			{ commands: this.commandService, dialogs: this.wizardDialogs, configuration: this.wizardConfiguration, progress: this.wizardProgress },
+			{ settingsText: JSON.stringify(settings), latitude: at.latitude, longitude: at.longitude },
+		);
+		if (!applied) {
+			return;
+		}
+		const spectral: { [key: string]: number | readonly (readonly number[])[] } = {};
+		for (const value of applied.values) {
+			const key = value.target.startsWith('site.spectral.') ? value.target.slice('site.spectral.'.length) : undefined;
+			if (key) {
+				spectral[key] = value.value;
+			}
+			if (value.target === 'site.windSpeed' && typeof value.value === 'number') {
+				this.form.windSpeed = String(value.value);
+			}
+		}
+		for (const key of ['sds', 'sd1', 's1', 'tl'] as const) {
+			const value = spectral[key];
+			if (typeof value === 'number') {
+				this.form[key] = String(value);
+			}
+		}
+		this.form.hazard = { spectral, source: applied.source };
+		this.renderForm();
 	}
 
 	private row(parent: HTMLElement, label: string): HTMLElement {

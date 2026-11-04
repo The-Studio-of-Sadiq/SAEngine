@@ -40,6 +40,7 @@ import { EditorFrame, IEditorFrameStatus } from '../../saengineProject/browser/e
 import { ChartColor, IChartSeries, renderChart, renderSheet } from './femChart.js';
 import { baseReactionTable, closedPmCurve, defaultChartResult, describeMode, elasticDriftLimit, orderLike, extremes, FEM_COLUMN_INTERACTION_COMMAND, FEM_MEMBER_FORCES_COMMAND, FEM_STORY_RESPONSE_COMMAND, FemAxis2, IFemColumnDiagram, IFemColumnShortening, hingeRowsOf, IFemHingeRow, IFemPushoverAcceptance, IFemPushoverCurve, IFemPushoverTarget, IFemColumnInteraction, IFemDamperDesign, IFemDeviceSuite, IFemIsolationDesign, IFemMemberForces, IFemNonlinearHingeRow, IFemNonlinearHistory, IFemStoryResponse, IFemStoryResult, IFemTimeHistoryDesign, isEarthquakeResult, MemberComponent, memberEnvelope, memberValues, modalTable, modesToReach, profilePeak, spectrumAt, storeyProfile, StoreyQuantity, storeyQuantityLabel, STOREY_QUANTITIES } from './femChartData.js';
 import { IFemDesignRequired, IFemSteelRequirement, resultsFolder, runDesignRequired } from './femDesign.js';
+import { assessmentHelp, assessmentTitle, checklistSheet, FEM_EXISTING_ASSESSMENT_COMMAND, hasExistingAssessment, hazardSheet, IFemExistingAssessment, memberSheet, strengthSheet } from './femExisting.js';
 import { appendPlannedChips, FemPlanned } from './femPlannedFeatures.js';
 import { errorSummary, FEM_RESULT_LIST_COMMAND, IFemRunTracker } from './femResultsBar.js';
 import { formatNumber } from '../../../services/saengineProject/common/formatting.js';
@@ -230,6 +231,10 @@ export class FemResultsEditor extends EditorPane {
 	private interactionProblem: string | undefined;
 	private required: readonly IFemSteelRequirement[] | undefined;
 	private requiredState: 'idle' | 'loading' | 'failed' = 'idle';
+	/** Alpha 9 P4: the existing building's assessment of the run (none for a new building). */
+	private existing: IFemExistingAssessment | undefined;
+	private existingState: 'idle' | 'loading' | 'failed' = 'idle';
+	private existingProblem: string | undefined;
 	private problem: string | undefined;
 	private loading = false;
 	/** The 3D view's result list: its order, and whether the model changed after the run. */
@@ -433,6 +438,8 @@ export class FemResultsEditor extends EditorPane {
 					return;
 				}
 				this.response = input.state.response = response;
+				this.existing = undefined;
+				this.existingState = 'idle';
 			} else {
 				const member = await this.commandService.executeCommand<IFemMemberForces>(FEM_MEMBER_FORCES_COMMAND, input.model, input.page.member);
 				if (request !== this.request) {
@@ -457,6 +464,9 @@ export class FemResultsEditor extends EditorPane {
 		}
 		this.loading = false;
 		this.render();
+		if (input.page.kind === 'charts' && this.response) {
+			void this.loadExisting();
+		}
 		// What the backend has already worked out for this run is shown at once; working it out
 		// takes minutes, so that waits for the engineer's click.
 		if (input.page.kind === 'member' && this.member) {
@@ -518,6 +528,67 @@ export class FemResultsEditor extends EditorPane {
 			this.interactionProblem = errorSummary(error);
 		}
 		this.render();
+	}
+
+	/**
+	 * Alpha 9 P4: the existing building's assessment of the run, worked out after the charts
+	 * show (the linear procedure forms every member's demands, seconds to a minute); a new
+	 * building answers at once with none.
+	 */
+	private async loadExisting(): Promise<void> {
+		const input = this.typed;
+		if (!input || input.page.kind !== 'charts' || this.existingState === 'loading') {
+			return;
+		}
+		const request = this.request;
+		this.existingState = 'loading';
+		try {
+			const found = await this.commandService.executeCommand<IFemExistingAssessment>(FEM_EXISTING_ASSESSMENT_COMMAND, input.model);
+			if (request !== this.request) {
+				return;
+			}
+			this.existing = found;
+			this.existingState = 'idle';
+		} catch (error) {
+			if (request !== this.request) {
+				return;
+			}
+			this.existingState = 'failed';
+			this.existingProblem = errorSummary(error);
+		}
+		this.render();
+	}
+
+	/** Alpha 9 P4: the existing building's assessment and its retrofit's before and after. */
+	private renderExisting(): void {
+		if (this.existingState === 'failed') {
+			const section = this.section(localize('femResults.existingHeading', "Existing Building"));
+			append(section, $('.fem-results-note', undefined, localize('femResults.existingFailed', "The assessment could not be worked out: {0}", this.existingProblem ?? '')));
+			return;
+		}
+		const found = this.existing;
+		if (!hasExistingAssessment(found)) {
+			return;
+		}
+		if (!found.available) {
+			const section = this.section(localize('femResults.existingHeading', "Existing Building"));
+			append(section, $('.fem-results-note', undefined, localize('femResults.existingNone', "No assessment: {0}", found.reason ?? '')));
+			return;
+		}
+		const section = this.section(assessmentTitle(found), assessmentHelp(found));
+		if (found.strengths?.length) {
+			renderSheet(section, strengthSheet(found));
+		}
+		if (found.hazards?.length) {
+			renderSheet(section, hazardSheet(found));
+		}
+		const members = memberSheet(found);
+		renderSheet(section, { ...members, notes: [...(members.notes ?? []), ...(found.notes ?? [])] });
+		if (found.checklist?.length) {
+			renderSheet(section, checklistSheet(found));
+		}
+		// What stays planned: masonry buildings.
+		this.renderStore.add(appendPlannedChips(section, undefined, [FemPlanned.existingMasonry], this.commandService));
 	}
 
 	private async loadRequired(): Promise<void> {
@@ -873,6 +944,7 @@ export class FemResultsEditor extends EditorPane {
 		if (response.dampers) {
 			this.renderDampers(response.dampers);
 		}
+		this.renderExisting();
 	}
 
 	/**

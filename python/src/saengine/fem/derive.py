@@ -764,7 +764,16 @@ def derive_fem(
         architecture = read_architecture(Path(model_dir).parent)
     root = code_context.project_root() or code_context.find_project_root(model_dir)
     with code_context.using(code_context.pack_for(settings, root)):
-        return _derive_fem(
+        # Alpha 9 P4: an existing building is analysed as built or as retrofitted, its
+        # materials at the as-built strengths (nothing changes without analysis.existingBuilding).
+        state_notes: list[str] = []
+        if settings.analysis.existingBuilding is not None:
+            from saengine.fem import existing_building
+
+            state = existing_building.model_state(building, objects, materials, settings)
+            building, objects, materials = state.building, state.objects, state.materials
+            state_notes = state.notes
+        derivation = _derive_fem(
             building,
             objects,
             materials,
@@ -778,6 +787,8 @@ def derive_fem(
             member_loads,
             architecture or None,
         )
+        derivation.notes += state_notes
+        return derivation
 
 
 def read_architecture(project_root: str | Path) -> Any:
@@ -2475,7 +2486,9 @@ def _derive_fem(
                 )
                 sa = least
             # C4: the pack's base shear correction (λ of EN 1998-1 4.3.3.2.2), 1 without it
-            correction = fl.base_shear_correction(period, len(heights), settings.site.siteClass)
+            correction = fl.base_shear_correction(
+                period, len(heights), settings.site.siteClass, levels=rel_levels
+            )  # Alpha 9 C25: the levels for a pack's linear-mode share (SP 14 ηk)
             shear = sa * sum(weights) * correction
             # Alpha 9 C20b: the site class for a top force by TC (GB 50011 Table 5.2.1 type).
             forces = fl.vertical_distribution(rel_levels, shear, period, settings.site.siteClass)

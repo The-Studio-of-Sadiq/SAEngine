@@ -1,0 +1,542 @@
+{
+  "$schema": "../../../schemas/concreteMethods.schema.json",
+  "$sources": [
+    "SP 63.13330.2018 (with amendments) Sections 6, 8 and 10"
+  ],
+  "source": "SP 63.13330.2018: the design strengths Rb and Rbt of the classes B15-B60 (Table 6.8, γb 1.3 and γbt 1.5 on Rbn, Rbtn) with γb1 0.9 for the long-term loads (6.1.12), Eb (Table 6.11), Rs of A240 / A400 / A500C (Tables 6.13, 6.14), the rectangular block Rb over x = 0.8 × the neutral axis depth with εb2 0.0035, the limit ξR = 0.8 / (1 + Rs / (Es εb2)) (8.1.6); the nonlinear deformation model's two- and three-linear diagrams (6.1.20-6.1.22, 8.1.20-8.1.30: concreteMethods.ultimate.stressBlock 'bilinear' / 'trilinear', a project override); beam shear by the inclined section Qb + Qsw (8.1.31-8.1.34, the 2018 form), punching F <= Rbt u h0 (8.1.46), cracks acrc = φ1 φ2 φ3 ψs σs/Es ls (8.2.15), cover (10.3.1-10.3.2), anchorage l0,an = Rs As / (Rbond us) with Rbond = 2.5 Rbt (10.3.24), laps (10.3.29-10.3.31), the least steel (10.3.6). Clause numbers and the tables from memory: VERIFY.md marks them.",
+  "ultimate": {
+    "method": "partialFactors",
+    "stressBlock": "rectangular",
+    "gammaC": 1.3,
+    "gammaS": 1.15,
+    "alphaCC": 0.9,
+    "alphaCT": 0.9,
+    "steelE": 200000.0,
+    "strengthClasses": [
+      [
+        11.0,
+        15
+      ],
+      [
+        15.0,
+        20
+      ],
+      [
+        18.5,
+        25
+      ],
+      [
+        22.0,
+        30
+      ],
+      [
+        25.5,
+        35
+      ],
+      [
+        29.0,
+        40
+      ],
+      [
+        32.0,
+        45
+      ],
+      [
+        36.0,
+        50
+      ],
+      [
+        39.5,
+        55
+      ],
+      [
+        43.0,
+        60
+      ]
+    ],
+    "cubePrefix": "B",
+    "designStrengths": [
+      [
+        11.0,
+        8.5,
+        0.75,
+        24000.0
+      ],
+      [
+        15.0,
+        11.5,
+        0.9,
+        27500.0
+      ],
+      [
+        18.5,
+        14.5,
+        1.05,
+        30000.0
+      ],
+      [
+        22.0,
+        17.0,
+        1.15,
+        32500.0
+      ],
+      [
+        25.5,
+        19.5,
+        1.3,
+        34500.0
+      ],
+      [
+        29.0,
+        22.0,
+        1.4,
+        36000.0
+      ],
+      [
+        32.0,
+        25.0,
+        1.5,
+        37000.0
+      ],
+      [
+        36.0,
+        27.5,
+        1.6,
+        38000.0
+      ],
+      [
+        39.5,
+        30.0,
+        1.7,
+        39000.0
+      ],
+      [
+        43.0,
+        33.0,
+        1.8,
+        39500.0
+      ]
+    ],
+    "relations": {
+      "highFrom": 50.0,
+      "fcmIncrement": 0.0,
+      "fctmCoefficient": 0.2197,
+      "fctmExponent": 0.672,
+      "fctmHighCoefficient": 1.0,
+      "fctmHighDivisor": 10.0,
+      "fctkShares": [
+        1.0,
+        1.3
+      ],
+      "ecmCoefficient": 23180.0,
+      "ecmDivisor": 10.0,
+      "ecmExponent": 0.3655,
+      "epsC2": {
+        "base": 2.0,
+        "highBase": 2.0,
+        "highCoefficient": 0.0,
+        "divisor": 10.0
+      },
+      "epsCu2": {
+        "base": 3.5,
+        "highBase": 3.5,
+        "highCoefficient": 0.0,
+        "divisor": 10.0
+      },
+      "n": {
+        "base": 2.0,
+        "highBase": 2.0,
+        "highCoefficient": 0.0,
+        "divisor": 10.0
+      },
+      "epsC3": {
+        "base": 1.5,
+        "highBase": 1.5,
+        "highCoefficient": 0.0,
+        "divisor": 10.0
+      },
+      "epsCu3": {
+        "base": 3.5,
+        "highBase": 3.5,
+        "highCoefficient": 0.0,
+        "divisor": 10.0
+      },
+      "eta": {
+        "base": 1.0,
+        "highBase": 1.0,
+        "highCoefficient": 0.0,
+        "divisor": 10.0
+      },
+      "lambda": {
+        "base": 0.8,
+        "highBase": 0.8,
+        "highCoefficient": 0.0,
+        "divisor": 10.0
+      }
+    },
+    "eccentricityDivisor": 30.0,
+    "eccentricityMin": 10.0,
+    "eccentricityLengthDivisor": 600.0,
+    "pureCompressionStrain": "epsC2",
+    "designYields": [
+      [
+        240,
+        210
+      ],
+      [
+        400,
+        350
+      ],
+      [
+        500,
+        435
+      ]
+    ]
+  },
+  "shear": {
+    "method": "tabulatedStress",
+    "grades": [
+      11.0,
+      15.0,
+      18.5,
+      22.0,
+      25.5,
+      29.0,
+      32.0,
+      36.0,
+      39.5,
+      43.0
+    ],
+    "steelRatios": [
+      0.15,
+      3.0
+    ],
+    "tauC": [
+      [
+        0.3375,
+        0.405,
+        0.4725,
+        0.5175,
+        0.585,
+        0.63,
+        0.675,
+        0.72,
+        0.765,
+        0.81
+      ],
+      [
+        0.3375,
+        0.405,
+        0.4725,
+        0.5175,
+        0.585,
+        0.63,
+        0.675,
+        0.72,
+        0.765,
+        0.81
+      ]
+    ],
+    "maxStress": [
+      2.295,
+      3.105,
+      3.915,
+      4.59,
+      5.265,
+      5.94,
+      6.75,
+      7.425,
+      8.1,
+      8.91
+    ],
+    "minStirrupStress": 0.2363,
+    "fyMax": 500.0,
+    "spacing": [
+      0.5,
+      300.0
+    ],
+    "enhancement": 1.0,
+    "stirrupYieldShare": 0.8,
+    "stirrupYieldMax": 300.0,
+    "inclinedSection": {
+      "method": "qbQsw",
+      "concreteFactor": 1.5,
+      "concreteRange": [
+        0.5,
+        2.5
+      ],
+      "stirrupFactor": 0.75,
+      "stirrupSpan": 2.0,
+      "spanRange": [
+        1.0,
+        3.0
+      ],
+      "stirrupMin": 0.25,
+      "strutFactor": 0.3
+    }
+  },
+  "punching": {
+    "method": "rootStress",
+    "strength": "tensile",
+    "perimeterDistance": 0.5,
+    "coefficient": 1.0,
+    "ratioBase": 1.0,
+    "ratioFactor": 0.001,
+    "reinforcedMax": 2.0,
+    "concreteShare": 1.0
+  },
+  "cracking": {
+    "method": "effectiveTensionRatio",
+    "width": {
+      "dry": 0.3,
+      "humid": 0.3,
+      "outdoor": 0.3,
+      "ground": 0.3
+    },
+    "memberFactor": 0.7,
+    "coverFactor": 0.001,
+    "barFactor": 0.5,
+    "coverRange": [
+      10,
+      100
+    ],
+    "areaShare": 0.5,
+    "rhoTeMin": 0.0125,
+    "psi": [
+      1.0,
+      1e-06,
+      1.0,
+      1.0
+    ],
+    "leverArm": 0.87,
+    "liveShare": 0.35
+  },
+  "deflection": {
+    "method": "longTermStiffness",
+    "psiFactor": 1.15,
+    "offset": 0.2,
+    "ratioFactor": 6.0,
+    "flangeFactor": 3.5,
+    "theta": [
+      2.0,
+      1.6
+    ],
+    "limits": [
+      [
+        1000,
+        120
+      ],
+      [
+        3000,
+        150
+      ],
+      [
+        6000,
+        200
+      ],
+      [
+        24000,
+        250
+      ],
+      [
+        null,
+        300
+      ]
+    ],
+    "cantileverFactor": 2.0,
+    "areaShare": 0.5,
+    "rhoTeMin": 0.0125,
+    "psi": [
+      1.0,
+      1e-06,
+      1.0,
+      1.0
+    ],
+    "leverArm": 0.87,
+    "liveShare": 0.35
+  },
+  "cover": {
+    "method": "exposureCondition",
+    "conditions": {
+      "dry": {
+        "cover": 20,
+        "beamCover": 20,
+        "waterCement": 0.6,
+        "grade": 11.0
+      },
+      "humid": {
+        "cover": 25,
+        "beamCover": 25,
+        "waterCement": 0.55,
+        "grade": 15.0
+      },
+      "outdoor": {
+        "cover": 30,
+        "beamCover": 30,
+        "waterCement": 0.5,
+        "grade": 18.5
+      },
+      "ground": {
+        "cover": 40,
+        "beamCover": 40,
+        "waterCement": 0.5,
+        "grade": 18.5
+      }
+    },
+    "columnCover": 20,
+    "footingCover": 40,
+    "smallBarReduction": [
+      0,
+      0
+    ],
+    "gradeReduction": [
+      5,
+      100.0
+    ],
+    "gradeReductionConditions": []
+  },
+  "anchorage": {
+    "method": "bondStressTable",
+    "grades": [
+      11.0,
+      15.0,
+      18.5,
+      22.0,
+      25.5,
+      29.0,
+      32.0,
+      36.0,
+      39.5,
+      43.0
+    ],
+    "bond": [
+      1.875,
+      2.25,
+      2.625,
+      2.875,
+      3.25,
+      3.5,
+      3.75,
+      4.0,
+      4.25,
+      4.5
+    ],
+    "deformedFactor": 1.0,
+    "compressionFactor": 1.333333,
+    "lapTension": 20.0,
+    "lapCompression": 20.0,
+    "lapDirectTension": 1.2,
+    "lapLargeBar": 40,
+    "minLength": 200,
+    "largeBarFactor": [
+      32,
+      1.111111
+    ],
+    "lapFactors": [
+      [
+        1.0,
+        1.2
+      ]
+    ],
+    "lapMinLength": 250,
+    "columnLapShare": 1.0
+  },
+  "exposureClasses": {
+    "dry": {
+      "name": "Closed rooms of normal and low humidity"
+    },
+    "humid": {
+      "name": "Closed rooms of high humidity"
+    },
+    "outdoor": {
+      "name": "Open air (no extra protection)"
+    },
+    "ground": {
+      "name": "In the ground with a blinding layer (foundations)"
+    }
+  },
+  "defaultExposure": "dry",
+  "memberLimits": {
+    "beamMin": 0.4,
+    "beamMinRatio": 0.001,
+    "beamMax": 0.04,
+    "sideFaceDepth": 700,
+    "sideFaceShare": 0.001,
+    "sideFaceSpacing": 400,
+    "sideFaceEach": true,
+    "slabMin": [
+      0.001,
+      0.001
+    ],
+    "plainFy": 240,
+    "slabBarShare": 0.125,
+    "slabSpacing": [
+      1.5,
+      200
+    ],
+    "slabDistributionSpacing": [
+      3.0,
+      350
+    ],
+    "columnRho": [
+      0.005,
+      0.04
+    ],
+    "columnBars": [
+      4,
+      6
+    ],
+    "columnBarDia": 12,
+    "tieDiaShare": 0.25,
+    "tieDiaMin": 6,
+    "tiePitch": [
+      15,
+      500
+    ],
+    "neutralAxisStrain": 0.0
+  },
+  "clauses": {
+    "designStrength": "6.1.11, 6.1.12, 6.2.7, Tables 6.8, 6.13, 6.14",
+    "ultimate": "8.1.6-8.1.14, 8.1.20-8.1.30",
+    "neutralAxis": "8.1.6",
+    "minimumEccentricity": "8.1.7",
+    "axial": "8.1.16",
+    "shear": "8.1.31-8.1.34",
+    "shearMinimum": "8.1.33, 10.3.13",
+    "shearSpacing": "10.3.13",
+    "punching": "8.1.46-8.1.52",
+    "deflection": "8.2.21-8.2.31; SP 20.13330.2016 Appendix E",
+    "calculatedDeflection": "8.2.21-8.2.31",
+    "cracking": "8.2.6, 8.2.15",
+    "cover": "10.3.1-10.3.2",
+    "durability": "SP 28.13330 (not covered)",
+    "anchorage": "10.3.24-10.3.25",
+    "laps": "10.3.29-10.3.31",
+    "beamSteel": "10.3.6",
+    "sideFace": "10.3.?",
+    "slabSteel": "10.3.6, 10.3.8",
+    "columnSteel": "10.3.6, 10.3.?",
+    "columnLinks": "10.3.14"
+  },
+  "sources": {
+    "ultimate.designStrengths": "SP 63.13330.2018 Table 6.7 (Rbn, Rbtn), Table 6.8 (Rb: 8.5 ... 33.0, Rbt: 0.75 ... 1.80 MPa for B15-B60) and Table 6.11 (Eb 24.0 ... 39.5 GPa); the project's concrete takes Rbn",
+    "ultimate.alphaCC": "SP 63.13330.2018 6.1.12: γb1 0.9 for the long-term loads (1.0 for the short-term: on the safe side, P), on Rb and Rbt",
+    "ultimate.gammaC": "SP 63.13330.2018 6.1.11: γb 1.3, γbt 1.5 (in the tabulated values)",
+    "ultimate.relations": "Rbtn = 0.2197 Rbn^0.672 (SAEngine's fit of Table 6.7, within 0.02 MPa) as fctk,0.05 for the cracks; εb0 0.002, εb2 0.0035, εb1,red 0.0015 (6.1.20, 6.1.22); the block's λ 0.8 and η 1.0 (8.1.6 ξR form)",
+    "ultimate.designYields": "SP 63.13330.2018 Table 6.14: Rs 210 (A240), 350 (A400), 435 (A500C) MPa; Rsc of A500 400 MPa: the axial capacity's min(fyd, Es εb0) = 400 MPa gives it; in bending Rsc = Rs (U)",
+    "ultimate.eccentricityMin": "SP 63.13330.2018 8.1.7: ea >= max(l/600, h/30, 10 mm)",
+    "shear.inclinedSection": "SP 63.13330.2018 8.1.33-8.1.34 (2018 form): Q <= Qb + Qsw, Qb = 1.5 Rbt b h0²/c within 0.5-2.5 Rbt b h0, Qsw = 0.75 qsw c0, c0 <= 2 h0, c from h0 to 3 h0, the links counted where qsw >= 0.25 Rbt b (else Rbt b = 4 qsw); 8.1.32: Q <= 0.3 Rb b h0; Q at the support face (on the safe side, P)",
+    "shear.tauC": "0.5 × 0.9 Rbt (Qb,min = 0.5 Rbt b h0 with γb1) for the columns' and other tabulated rows (P)",
+    "shear.maxStress": "0.3 × 0.9 Rb (8.1.32 with γb1)",
+    "shear.stirrupYieldShare": "SP 63.13330.2018 Table 6.15: Rsw = 0.8 Rs, at most 300 MPa (A240 170: 168 here, U)",
+    "shear.minStirrupStress": "SP 63.13330.2018 8.1.33: qsw >= 0.25 Rbt b, at Rbt of B25 with γb1 (0.236 MPa; SAEngine practice, one value)",
+    "shear.spacing": "SP 63.13330.2018 10.3.13: sw <= 0.5 h0 and 300 mm",
+    "punching": "SP 63.13330.2018 8.1.46: F <= Rbt u h0 with u at h0/2 from the loaded area; 8.1.48: with links F <= Fb + Fsw <= 2 Fb (Fsw = 0.8 qsw u: the method's steel term is the full Vu - Vc, U)",
+    "cracking": "SP 63.13330.2018 8.2.15: acrc = φ1 φ2 φ3 ψs σs/Es ls, φ1 1.4 (long-term), φ2 0.5 (ribbed bars), φ3 1.0 (bending): αcr 0.7; ψs = 1 (allowed by 8.2.15, on the safe side); ls = 0.5 Abt/As ds with Abt = 0.5 b h (P), at most 40 ds (ρ >= 0.0125; the 10 ds and 100-400 mm bounds not applied, U); 8.2.6: acrc,ult 0.3 mm long-term (0.4 short-term not checked); the long-term share 0.35 L (U)",
+    "deflection": "SP 63.13330.2018 8.2.21-8.2.31 by the curvature of the cracked section: approximated by the long-term stiffness B = Bs/θ of the generic method (the same cracked-section form, θ 2.0 for creep; P, U); SP 20.13330.2016 Table E.1 limits l/120 (l <= 1 m), l/150 (3 m), l/200 (6 m), l/250 (24 m), l/300 (36 m), the steps taken at the stricter end (on the safe side)",
+    "cover": "SP 63.13330.2018 10.3.2, Table 10.1: 20 mm (closed rooms, normal humidity), 25 (high humidity), 30 (open air), 40 (ground with a blinding layer; 70 without: footingCover 40, U); at least the bar diameter; w/c and least grades are SAEngine practice (SP 28.13330 durability not covered, P)",
+    "anchorage": "SP 63.13330.2018 10.3.24: l0,an = Rs As/(Rbond us) = Rs ds/(4 Rbond), Rbond = η1 η2 Rbt, η1 2.5 (ribbed), η2 1.0 (ds <= 32), 0.9 (36, 40: ×1.111); 10.3.25: lan = α l0,an As,cal/As,ef (α 1.0 tension, 0.75 compression, As,cal/As,ef 1) >= 15 ds, 200 mm (the 15 ds not applied, U)",
+    "laps": "SP 63.13330.2018 10.3.30: ll = α l0,an, α 1.2 (tension), 0.9 (compression: as the anchorage's 0.75, U), >= 20 ds, 250 mm",
+    "memberLimits": "SP 63.13330.2018 10.3.6: μs >= 0.1 % in bending (on b h: on the safe side of b h0); columns 0.1 % (λ <= 17) to 0.25 % (λ >= 87) per face: 0.5 % in total taken (P); at most 4 % (SAEngine practice, P); 10.3.? side bars above 700 mm at most 400 mm apart (U); column bars >= 12 mm, ties >= 0.25 d and 6 mm at most 15 d and 500 mm (10.3.14); slab bars at most 200 mm (h <= 150) (U)"
+  }
+}

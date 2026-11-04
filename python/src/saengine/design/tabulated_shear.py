@@ -21,6 +21,11 @@ A pack that picks these methods (and designs with partial factors,
   long side of the column).
 - Walls (in-plane): τcw by the aspect ratio of the pack's ``walls`` group, τv <= shearMaxShare
   fck, the horizontal bars Vus = fyd Ah d / Sv with d = depthShare × Lw.
+- Alpha 9 C25, the pack's ``shear.inclinedSection`` (SP 63.13330.2018 8.1.31-8.1.34 type): beams
+  by the inclined section, Q <= Qb + Qsw at the projection c that gives the least
+  (:func:`inclined_resistance`), the strut Q <= φb1 fcd b h0; the links at fyd × the pack's
+  ``stirrupYieldShare`` within ``stirrupYieldMax`` (Rsw). Columns keep τc b d + Vus with the
+  pack's τc (on the safe side of the inclined section).
 
 Units: mm, MPa, N, N·mm.
 """
@@ -140,13 +145,58 @@ def stirrup_yield(fy: float, r: Any | None = None) -> float:
     from saengine.design import design_strength
 
     r = r or rules()
-    return design_strength.fyd(min(fy, r.fyMax))
+    value = design_strength.fyd(min(fy, r.fyMax))
+    share = getattr(r, "stirrupYieldShare", None)
+    if share is not None:  # Alpha 9 C25: Rsw = 0.8 Rs (SP 63 Table 6.15 type)
+        value *= float(share)
+    most = getattr(r, "stirrupYieldMax", None)
+    if most is not None:
+        value = min(value, float(most))
+    return value
 
 
 def least_stirrups(b: float, spacing: float, fy: float, r: Any | None = None) -> float:
     """The least Asv [mm²] at spacing ``spacing``."""
     r = r or rules()
     return r.minStirrupStress * b * spacing / stirrup_yield(fy, r)
+
+
+@dataclass(frozen=True)
+class InclinedResistance:
+    """Alpha 9 C25: Qb + Qsw [N] of the inclined section at its governing projection c [mm]."""
+
+    total: float
+    qb: float
+    qsw: float
+    c: float
+    reduced: bool  # qsw below stirrupMin fctd b: fctd b taken as qsw / stirrupMin
+
+
+def inclined_resistance(
+    b: float, d: float, fctd: float, qsw: float, rule: Any, steps: int = 80
+) -> InclinedResistance:
+    """Qb + Qsw [N] of a beam ``b`` wide [mm], h0 = ``d``, at the design tensile strength
+    ``fctd`` [MPa] and the links' qsw = fyd,w Asw / sw [N/mm], at the projection c of the
+    inclined section (``rule.spanRange`` × h0, ``steps`` steps) that gives the least: Qb =
+    φb2 fctd b h0² / c within concreteRange × fctd b h0, Qsw = φsw qsw min(c, stirrupSpan h0);
+    links below stirrupMin fctd b count with fctd b = qsw / stirrupMin."""
+    strength = fctd * b
+    reduced = 0 < qsw < rule.stirrupMin * strength
+    if reduced:
+        strength = qsw / rule.stirrupMin
+    lo, hi = rule.concreteRange
+    first, last = rule.spanRange
+    best: InclinedResistance | None = None
+    for k in range(steps + 1):
+        c = (first + (last - first) * k / steps) * d
+        qb = min(
+            max(rule.concreteFactor * strength * d * d / c, lo * strength * d), hi * strength * d
+        )
+        qs = rule.stirrupFactor * qsw * min(c, rule.stirrupSpan * d)
+        if best is None or qb + qs < best.total:
+            best = InclinedResistance(qb + qs, qb, qs, c, reduced)
+    assert best is not None
+    return best
 
 
 def beam_shear(section: Any, stirrup_dia: float | None, legs: int, spacing: float | None) -> Any:
@@ -167,6 +217,8 @@ def beam_shear(section: Any, stirrup_dia: float | None, legs: int, spacing: floa
         for top in (True, False)
     ]
     rho = min(a for a in faces if a > 0) / (b * d)
+    if getattr(r, "inclinedSection", None) is not None:  # Alpha 9 C25: Qb + Qsw
+        return _inclined_beam_shear(section, stirrup_dia, legs, spacing, b, d, rho, r)
     pt = 100 * rho
     tc = tau_c(section.fc, pt, r, d)
     tmax = tau_c_max(section.fc, r)
@@ -206,6 +258,70 @@ def beam_shear(section: Any, stirrup_dia: float | None, legs: int, spacing: floa
         vc,
         notes=tuple(notes),
         threshold=0.5 * vc,
+    )
+
+
+def _inclined_beam_shear(
+    section: Any,
+    stirrup_dia: float | None,
+    legs: int,
+    spacing: float | None,
+    b: float,
+    d: float,
+    rho: float,
+    r: Any,
+) -> Any:
+    """Alpha 9 C25: :func:`beam_shear` by the inclined section (the pack's ``inclinedSection``)."""
+    from saengine.design import design_strength
+    from saengine.design.rc import Shear, bar_area
+
+    rule = r.inclinedSection
+    fctd = design_strength.fctd(section.fc)
+    fyd = stirrup_yield(section.fy, r)
+    av = legs * bar_area(stirrup_dia) if stirrup_dia and spacing else 0.0
+    av_min = least_stirrups(b, spacing, section.fy, r) if av else 0.0
+    qsw = fyd * av / spacing if av else 0.0
+    found = inclined_resistance(b, d, fctd, qsw, rule)
+    strut = rule.strutFactor * design_strength.fcd(section.fc, shear=True) * b * d
+    limited = found.total > strut
+    resistance = min(found.total, strut)
+    with_min = av > 0 and av >= av_min
+    least = rule.concreteRange[0] * fctd * b * d
+    notes = [
+        (
+            f"Q <= Qb + Qsw = {found.qb / 1e3:.1f} + {found.qsw / 1e3:.1f} kN at the inclined "
+            f"section's projection c = {found.c:.0f} mm (the least from {rule.spanRange[0]:g} to "
+            f"{rule.spanRange[1]:g} h0): Qb = {rule.concreteFactor:g} fctd b h0²/c within "
+            f"{rule.concreteRange[0]:g}-{rule.concreteRange[1]:g} fctd b h0 (fctd = {fctd:.2f} "
+            f"MPa), Qsw = {rule.stirrupFactor:g} qsw c0, c0 <= {rule.stirrupSpan:g} h0, qsw = "
+            f"{qsw:.1f} N/mm (fyd,w = {fyd:.0f} MPa); Q taken at the support face (on the safe "
+            f"side){_paren('shear')}"
+        )
+    ]
+    if found.reduced:
+        notes.append(
+            f"qsw below {rule.stirrupMin:g} fctd b: fctd b taken as qsw / {rule.stirrupMin:g} in Qb"
+        )
+    if limited:
+        notes.append(f"limited to the strut {rule.strutFactor:g} fcd b h0 = {strut / 1e3:.1f} kN")
+    if stirrup_dia is None or not spacing:
+        notes.append("no stirrups")
+    elif not with_min:
+        notes.append(f"Asv = {av:.0f} mm² below the least {av_min:.0f} mm²{_paren('shearMinimum')}")
+    return Shear(
+        resistance,
+        found.qb,
+        min(found.qsw, max(strut - found.qb, 0.0)),
+        limited,
+        d,
+        av,
+        av_min,
+        rho,
+        1.0,
+        with_min,
+        least,
+        notes=tuple(notes),
+        threshold=least,
     )
 
 
@@ -329,8 +445,26 @@ def required_stirrups(vu: float, b: float, d: float, fck: float, fy: float, pt: 
     """Asv / sv [mm²/mm] for Vu [N] (the larger of the shear's and the least)."""
     r = rules()
     fyd = stirrup_yield(fy, r)
+    least = r.minStirrupStress * b / fyd
+    rule = getattr(r, "inclinedSection", None)
+    if rule is not None:  # Alpha 9 C25: the least qsw with Qb + Qsw >= Vu (bisection)
+        from saengine.design import design_strength
+
+        fctd = design_strength.fctd(fck)
+        if inclined_resistance(b, d, fctd, 0.0, rule).total >= vu:
+            return least
+        low, high = 0.0, max(vu / (rule.stirrupFactor * rule.stirrupSpan * d), 1e-6)
+        while inclined_resistance(b, d, fctd, high, rule).total < vu and high < 1e7:
+            high *= 2.0
+        for _ in range(50):
+            mid = 0.5 * (low + high)
+            if inclined_resistance(b, d, fctd, mid, rule).total >= vu:
+                high = mid
+            else:
+                low = mid
+        return max(high / fyd, least)
     need = max(vu - tau_c(fck, pt, r, d) * b * d, 0.0) / (fyd * d)
-    return max(need, r.minStirrupStress * b / fyd)
+    return max(need, least)
 
 
 # ─────────────────────────────── torsion ───────────────────────────────
@@ -737,7 +871,18 @@ def method_lines(code: str) -> list[str]:
         f"{float(rel.lam.base) / 2:.3g} xu)"
         if u.stressBlock == "rectangular"
         else "the parabola-rectangle diagram (0.002, 0.0035)"
+        if u.stressBlock == "parabolaRectangle"
+        # Alpha 9 C25: the diagrams of the nonlinear deformation model.
+        else design_strength.block_text(u)
     )
+    inclined = getattr(r, "inclinedSection", None)
+    if inclined is not None and u.stressBlock == "rectangular":
+        # Alpha 9 C25 (SP 63 8.1.8 type): the block's depth x = ξ h0 at most ξR of εcu3, fyd/Es.
+        block = (
+            f"the rectangular block {float(rel.eta.base):g} × {u.alphaCC:g} Rb over x = "
+            f"{float(rel.lam.base):g} × the neutral axis depth, εcu3 at the extreme fibre "
+            "(ξR = λ / (1 + fyd / (Es εcu3)))"
+        )
     e_text = (
         "emin = "
         + (f"l/{u.eccentricityLengthDivisor:g} + " if u.eccentricityLengthDivisor else "")
@@ -757,6 +902,27 @@ def method_lines(code: str) -> list[str]:
         if col is None or col.biaxial.method == "loadContour"
         else f"biaxial bending by the interaction surface at Pu{_paren('biaxial')}"
     )
+    beams = (
+        "Beams: sagging and hogging moments about the strong axis; shear τv = Vu/(b d) "
+        f"against τc of the pack's table by pt and the grade, Vus = fyd Asv d / sv, τv <= "
+        f"τc,max{_paren('shear')}; least stirrups Asv/(b sv) >= {r.minStirrupStress:g}/fyd "
+        f"where τv > τc/2{_paren('shearMinimum')}; least and largest steel, side face steel, "
+        f"cover by the exposure condition and the development and lap lengths by the design "
+        f"bond stress{_paren('beamSteel')}."
+    )
+    if inclined is not None:  # Alpha 9 C25: the inclined section (SP 63 8.1.31-8.1.34 type)
+        beams = (
+            "Beams: sagging and hogging moments about the strong axis; shear by the inclined "
+            f"section, Q <= Qb + Qsw at the least of the projections c = {inclined.spanRange[0]:g}"
+            f"-{inclined.spanRange[1]:g} h0, Qb = {inclined.concreteFactor:g} fctd b h0²/c within "
+            f"{inclined.concreteRange[0]:g}-{inclined.concreteRange[1]:g} fctd b h0, Qsw = "
+            f"{inclined.stirrupFactor:g} qsw c0 (c0 <= {inclined.stirrupSpan:g} h0, the links at "
+            f"Rsw), the strut Q <= {inclined.strutFactor:g} fcd b h0{_paren('shear')}; least "
+            f"links qsw >= {r.minStirrupStress:g} b where Q > {inclined.concreteRange[0]:g} fctd "
+            f"b h0{_paren('shearMinimum')}; least and largest steel, side face steel, cover by "
+            f"the exposure condition and the anchorage and lap lengths by the design bond "
+            f"stress{_paren('beamSteel')}."
+        )
     torsion = (
         [
             (
@@ -785,6 +951,14 @@ def method_lines(code: str) -> list[str]:
         f"slender columns (lex/D above the limit) with the additional moments Pu D/{divisor} "
         f"(lex/D)² reduced by k = (Puz - Pu)/(Puz - Pb){_paren('slenderness')}"
     )
+    if col is None and inclined is not None:
+        # Alpha 9 C25: a pack without the columns group: the moment magnification of the
+        # parent pack and the interaction surface (what the design run does).
+        slender = (
+            "slender columns by the parent pack's moment magnification on the critical load "
+            "(its method, stated so)"
+        )
+        biaxial = "biaxial bending by the interaction surface at Pu"
     if col is not None and col.slenderness.method == "endMomentMagnifier":
         s = col.slenderness
         slender = (
@@ -820,14 +994,7 @@ def method_lines(code: str) -> list[str]:
                 f"elastic-perfectly plastic at fy / γs; the neutral axis of beams at most xu,max"
                 f"{_paren('ultimate')}."
             ),
-            (
-                "Beams: sagging and hogging moments about the strong axis; shear τv = Vu/(b d) "
-                f"against τc of the pack's table by pt and the grade, Vus = fyd Asv d / sv, τv <= "
-                f"τc,max{_paren('shear')}; least stirrups Asv/(b sv) >= {r.minStirrupStress:g}/fyd "
-                f"where τv > τc/2{_paren('shearMinimum')}; least and largest steel, side face steel, "
-                f"cover by the exposure condition and the development and lap lengths by the design "
-                f"bond stress{_paren('beamSteel')}."
-            ),
+            beams,
             *torsion,
             deflection,
             (

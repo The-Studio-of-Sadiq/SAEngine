@@ -745,3 +745,61 @@ The floor vibration and pile values are the default pack's (see bnbc2020/VERIFY.
 | P6U24 | dampers.ductility | βHD = qH (0.64 − βI)(1 − 1/μD), qH = 0.67 TS/T1 in [0.5, 1.0], DY = g/(4π²)(Ω0 Cd/R) Γ1 Cs T1², μmax = R/(Ω0 Ie) | ASCE 7-22 Sec 18.7.4 | Unsure (the formulas as recalled; the short-period μmax not applied) |
 | P6U25 | dampers.mceFactor | devices at 1.5 × the design response | ASCE 7-22 Sec 18.2.2 | SAEngine practice |
 | P6U26 | dampers.dampedFromShare, isolation.spectrumAnalysis.dampedFromShare | 0.8 T1 / 0.8 TM | none | SAEngine practice |
+
+## Alpha 9 P4: assessment and retrofit of existing buildings (existing)
+
+| # | Key | Value | Clause | Confidence |
+|---|---|---|---|---|
+| P4U1 | existing.knowledge[].capacityFactor | κ = 0.75 (minimum), 0.9 (usual), 1.0 (comprehensive) | ASCE 41-17 Table 6-1 | Unsure (the values come from the track brief; check them and whether usual is 1.0 in the 2017 edition) |
+| P4U2 | existing.knowledge[minimum].procedures | linear procedures only | ASCE 41-17 Table 6-1 | Check |
+| P4U3 | existing.strengths.expectedFactors | 1.5 concrete, 1.25 bars, 1.1 structural steel | ASCE 41-17 Table 10-1 (concrete, bars), Table 9-3 (steel) | Sure for 1.5 / 1.25; Unsure for steel 1.1 (it varies by grade) |
+| P4U4 | existing.strengths.lowerBoundSigma | lower bound = mean - 1 σ | ASCE 41-17 Sec 10.2.2.4.2 (as read) | Check |
+| P4U5 | existing.strengths.covLimit | more tests above a COV of 14 % | ASCE 41-17 Sec 10.2.2.4.2 (concrete) | Unsure |
+| P4U6 | existing.strengths.minTests | 3 tests per material (a note below it) | ASCE 41-17 Sec 10.2.2.4.2 (usual testing) | Unsure (the counts per floor and element type are not checked) |
+| P4U7 | existing.strengths.deformation / force | expected strengths for deformation-controlled, lower bound for force-controlled | ASCE 41-17 Sec 7.5.1.3, 7.5.2.2 | Sure |
+| P4U8 | existing.linear.gravityUpper, gravityLower, liveShare | QG = 1.1(QD + 0.25 QL), 0.9 QD | ASCE 41-17 Eqs 7-1, 7-2 | Sure |
+| P4U9 | existing.linear.c1c2 | T ≤ 0.3 s: 1.1 / 1.4 / 1.8; 0.3-1.0 s: 1.0 / 1.1 / 1.2; > 1.0 s: 1.0 (mmax < 2, 2-6, ≥ 6) | ASCE 41-17 Table 7-3 | Check |
+| P4U10 | existing.linear.massFactor | Cm = 1.0 | ASCE 41-17 Table 7-4 (upper bound) | SAEngine practice |
+| P4U11 | existing.linear.forceDivisor | J = 1.0 | ASCE 41-17 Sec 7.5.2.1.2 (J = 1 always permitted) | Check |
+| P4U12 | existing.linear.hazards | BSE-1N LS (scale 1.0), BSE-2N CP (scale 1.5) | ASCE 41-17 Sec 2.4.1 | Sure (BSE-1E / BSE-2E site values: a project override) |
+| P4U13 | existing.linear.mFactors.rcBeam | condition i C: 3/6/7, 2/3/4, 2/3/4, 2/2/3; NC: 2/3/4, 1.25/2/3, 2/3/3, 1.25/2/2; condition ii: 1.25/1.5/1.75 (IO/LS/CP primary) | ASCE 41-17 Table 10-13 (FEMA 356 Table 6-13 values) | Check (table number and the 2017 values) |
+| P4U14 | existing.linear.mFactors.rcColumn | conforming: 2/3/4, 2/2.4/3.2, 1.25/2/2.4, 1.25/1.25/1.5 at P/Agf'c 0.1/0.4, V/(bd√f'c) 3/6 | FEMA 356 Table 6-14 (ASCE 41-06 type) | Unsure (ASCE 41-17 changed the column m-factors) |
+| P4U15 | existing.linear.mFactors.rcColumn (nonconforming rows) | 2/2/3, 2/2/2.5, 1.25/1.5/2, 1.25/1.25/1.5 | FEMA 356 Table 6-14 | Unsure (from memory) |
+| P4U16 | existing.linear.mFactors.rcColumn (shear-controlled) | m = 1 (force-controlled) | none | SAEngine practice |
+| P4U17 | existing.linear.mFactors.steelBeam | compact 2/6/8, noncompact 1/2/3 | ASCE 41-17 Table 9-4 (FEMA 356 Table 5-5) | Check |
+| P4U18 | existing.linear.mFactors.steelColumn | P/PCL < 0.2 as beams; 0.2-0.5: LS 9(1 - 5/3 P/PCL), CP 12(1 - 5/3 P/PCL), IO 1.25; > 0.5 force-controlled | ASCE 41-17 Table 9-4 | Check |
+| P4U19 | steel Mpce | Z·Fye × min(1, 1.18 (1 - P/Pye)) for columns | ASCE 41-17 Eq 9-? (FEMA 356 Eq 5-4) | Unsure (equation number) |
+| P4U20 | existing.shear (columnDuctility) | beams 0.17 λ √f'c bw d + Av fyt d/s; columns k λ [Av fyt d/s + 0.5 √f'c/(M/Vd) √(1 + N/(0.5 √f'c Ag)) 0.8 Ag], M/Vd 2-4, k 1.0 (μ ≤ 2) to 0.7 (μ ≥ 6) | ACI 318-19 22.5.5.1; ASCE 41-17 Eq 10-3 | Check |
+| P4U21 | linear ductility for k | μ = max(1, MUD/(κ MCE)) | none | SAEngine practice |
+| P4U22 | existing.frp.environment | carbon 0.95/0.85/0.85, glass 0.75/0.65/0.50, aramid 0.85/0.75/0.70 (interior/exterior/aggressive) | ACI 440.2R-17 Table 9.4 | Sure |
+| P4U23 | existing.frp.confinement | ψf 0.95, κε 0.55, f'cc = f'c + 3.3 κa fl, fl/f'c ≥ 0.08, εccu ≤ 0.01, εc' 0.002 | ACI 440.2R-17 Sec 12.1 (Eqs 12.1a-12.1e) | Sure |
+| P4U24 | existing.frp.shear | ψf 0.95 (wrap) / 0.85; εfe 0.004 ≤ 0.75 εfu; Le = 23,300/(n tf Ef)^0.58; k1 = (f'c/27)^(2/3); κv = k1 k2 Le/(11,900 εfu) ≤ 0.75; Vs + Vf ≤ 0.66 √f'c bw d | ACI 440.2R-17 Sec 11.3, 11.4 (SI) | Check (the SI constants) |
+| P4U25 | existing.frp.flexure | ψf 0.85, εfd = 0.41 √(f'c/(n Ef tf)) ≤ 0.9 εfu | ACI 440.2R-17 Eq 10.1.1, Sec 10.2.10 | Sure |
+| P4U26 | FRP flexure: ψf on the FRP force, initial substrate strain 0 | | ACI 440.2R-17 Sec 10.2.10 applies ψf to the moment | SAEngine practice |
+| P4U27 | FRP confinement wrap makes the member "conforming" in the m and hinge tables | | ACI 369.1-17 (as read) | SAEngine practice |
+| P4U28 | existing.jacketing | My × 1.0, θy × 1.05, θum × 1.0, VR × 0.9 | EN 1998-3 A.4.2.2 (used for ASCE 41 / ACI 369.1) | SAEngine practice |
+| P4U29 | existing.nonlinear.capacityFactor | κ on the hinges' deformation limits | ASCE 41-17 Sec 6.2.4.1 (as read) | Unsure |
+| P4U30 | existing.tier1 | the checklist topics of the concrete moment frame (C1) and basic checklists | ASCE 41-17 Ch 4 and Ch 17 | Check (topics only, no text copied; section numbers not given) |
+
+## Online hazard lookup (alpha 9 C22) — `hazardLookup.json`
+
+The provider is data; the engine only fills the query and reads the paths. Written from the
+service's public documentation page and secondary descriptions of it; no request was sent while
+building (the tests parse answers constructed in the documented form). Check each item against a
+live answer before release.
+
+| # | Entry | Value | Source | Status |
+|---|---|---|---|---|
+| C22-1 | endpoint | `https://earthquake.usgs.gov/ws/designmaps/asce7-22.json` | USGS Seismic Design Web Services, ASCE 7-22 documentation (the `.html` page now redirects to `/ws/building-codes/asce7-22`) | UNSURE: the JSON endpoint may also have moved; redirects are followed only on the same host and upgraded to https |
+| C22-2 | query | `latitude`, `longitude`, `riskCategory` (I-IV), `siteClass`, `title` | the documentation's example request | OK? |
+| C22-3 | siteClasses | SA→A, SB→B, SBC→BC, SC→C, SCD→CD, SD→D, SDE→DE, SE→E; SF not looked up | ASCE 7-22 Table 20.2-1 classes; the service's list (also `Default`, not mapped) | OK? (check the service's spelling of BC, CD, DE) |
+| C22-4 | status | `request.status` = `success` | the form of the USGS design-maps answers | UNSURE |
+| C22-5 | message | `response`, `message`, `error` (first found) on a failed status | not documented | UNSURE |
+| C22-6 | values | `response.data.sds`, `sd1`, `sms`, `sm1` [g] | the documentation's response fields | OK? |
+| C22-7 | values | `response.data.ss`, `s1` (else `response.data.underlyingData.ss`/`s1`) [g] | secondary descriptions list `ss`, `s1` in `data` | UNSURE (where 7-22 puts them) |
+| C22-8 | values | `response.data.tl` (else `t-sub-l`, `tL`) [s] | ASCE 7-16 answers used `t-sub-l`; 7-22 `tl` | UNSURE |
+| C22-9 | spectra | `response.data.multiPeriodDesignSpectrum` and `multiPeriodMCErSpectrum`, each `{periods [s], ordinates [g]}` | the NEHRP-2020 / ASCE 7-22 documentation | OK? (check the MCEr capitalisation) |
+| C22-10 | regions | boxes of the conterminous US, Alaska (across 180°), Hawaii, Puerto Rico and USVI, Guam and NMI, American Samoa | SAEngine practice: rough boxes so that sites elsewhere are never sent | PRACTICE (boxes overlap parts of Canada and Mexico: the service answers or refuses) |
+| C22-11 | decimals, timeout | 4 decimals (about 10 m), 30 s | SAEngine practice | PRACTICE |
+| C22-12 | terms | USGS information is US public domain; the service page calls the software provisional | usgs.gov copyrights and credits page | Owner to confirm |
+| C22-13 | wind (Ch 26), snow (Ch 7) | not covered | the ASCE Hazard Tool's programmatic access needs a subscription key; no public API | Not covered |

@@ -1391,6 +1391,20 @@
           "default": null,
           "description": "(building height H [m], G) points, linear between, the end values outside; empty: the table's gust.",
           "title": "Gustbyheight"
+        },
+        "pulsationZeta": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "ζ at the height zg (wind.pulsation); empty: none.",
+          "title": "Pulsationzeta"
         }
       },
       "required": [
@@ -4469,6 +4483,57 @@
       ],
       "title": "WindDesignCasesRow",
       "type": "object"
+    },
+    "WindPulsation": {
+      "additionalProperties": false,
+      "description": "Alpha 9 C25 (SP 20.13330.2016 11.1.8-11.1.11 type): the mean pressure plus its\npulsation, G(z) = 1 + ζ(ze) ν in place of the table's gust: ζ of the exposure\n(``pulsationZeta``), ν the spatial correlation of the windward face by ρ = its width b and\nχ = the building height h (``rho``, ``chi``, ``values``: a row per ρ, bilinear between, the\nend values outside). The dynamic factor ξ of flexible buildings (f1 < flim) is not\napplied (ξ = 1).",
+      "properties": {
+        "rho": {
+          "description": "ρ [m] of the rows.",
+          "items": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "minItems": 2,
+          "title": "Rho",
+          "type": "array"
+        },
+        "chi": {
+          "description": "χ [m] of the columns.",
+          "items": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "minItems": 2,
+          "title": "Chi",
+          "type": "array"
+        },
+        "values": {
+          "description": "ν, a row per ρ, a value per χ.",
+          "items": {
+            "items": {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            "type": "array"
+          },
+          "title": "Values",
+          "type": "array"
+        },
+        "clause": {
+          "default": "",
+          "title": "Clause",
+          "type": "string"
+        }
+      },
+      "required": [
+        "rho",
+        "chi",
+        "values"
+      ],
+      "title": "WindPulsation",
+      "type": "object"
     }
   },
   "additionalProperties": false,
@@ -4867,6 +4932,28 @@
       ],
       "default": null,
       "description": "Least storey force as a share of the dead weight; None: none."
+    },
+    "referenceHeight": {
+      "default": "level",
+      "description": "level: qz at each level's height; proportions: at ze by h and the windward width b (powerLaw).",
+      "enum": [
+        "level",
+        "proportions"
+      ],
+      "title": "Referenceheight",
+      "type": "string"
+    },
+    "pulsation": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/WindPulsation"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "G(z) = 1 + ζ(ze) ν in place of gust (powerLaw, the exposures' pulsationZeta); empty: gust."
     }
   },
   "required": [
