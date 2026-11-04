@@ -761,7 +761,16 @@ def derive_fem(
         architecture = read_architecture(Path(model_dir).parent)
     root = code_context.project_root() or code_context.find_project_root(model_dir)
     with code_context.using(code_context.pack_for(settings, root)):
-        return _derive_fem(
+        # Alpha 9 P4: an existing building is analysed as built or as retrofitted, its
+        # materials at the as-built strengths (nothing changes without analysis.existingBuilding).
+        state_notes: list[str] = []
+        if settings.analysis.existingBuilding is not None:
+            from saengine.fem import existing_building
+
+            state = existing_building.model_state(building, objects, materials, settings)
+            building, objects, materials = state.building, state.objects, state.materials
+            state_notes = state.notes
+        derivation = _derive_fem(
             building,
             objects,
             materials,
@@ -775,6 +784,8 @@ def derive_fem(
             member_loads,
             architecture or None,
         )
+        derivation.notes += state_notes
+        return derivation
 
 
 def read_architecture(project_root: str | Path) -> Any:

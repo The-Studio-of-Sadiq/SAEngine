@@ -79,7 +79,7 @@ first. SAEngine practice (not a code value) is marked **P**.
 | 48 | A = 0.1, 0.2, 0.4 g at 7, 8, 9 points | SP 14 5.5 | |
 | 49 | 6 points: 0.05 g (SP 14 asks no calculation below 7); 10 points: 0.8 g (beyond SP 14) | - | P |
 | 50 | Soil categories I, II, III, IV; the site's intensity one point less on I, one more on III (IV: a site-specific study, III assumed) | SP 14 Table 1 | U (IV) |
-| 51 | The one-point shift as the factor 0.5 / 1 / 2 on the spectrum (A doubles per point) | - | P |
+| 51 | The one-point shift as the soil factor S 0.5 / 1 / 2 on the design spectrum (A doubles per point; `shapeFactors.soilFactors`) | - | P |
 | 52 | Sik = K0 K1 S0ik, S0ik = Qk A β(Ti) Kψ ηik | SP 14 5.5 Eqs 1, 2 | |
 | 53 | β = 1 + 15T (T <= 0.1 s), 2.5 (to 0.4 s, I-II; to 0.8 s, III-IV), 2.5 (Tc/T)^0.5 beyond; β at least 0.8 | SP 14 5.6 | U |
 | 54 | K0: 0.8 (I reduced), 1.0 (II normal), 1.2 (III increased), 1.5 (IV essential) | SP 14 Table 3 | U |

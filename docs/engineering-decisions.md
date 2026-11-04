@@ -56,8 +56,8 @@ week (owner, 2026-11-05): the tests are written, not run.
   live load is all short-term (its long-term share at 0.8 not split).
 - **SAEngine practice, earthquake.** The map of the OSR-2015 set by the occupancy category: A for
   I-II, B for III, C for IV (the client's choice in SP 14 4.3); 6 points take A = 0.05 g and 10
-  points 0.8 g (outside SP 14). The soil category's one-point shift is a factor 0.5 / 1 / 2 on β
-  (A doubles per point); category IV takes III with the site-specific study warning. R = 1/K1
+  points 0.8 g (outside SP 14). The soil category's one-point shift is the soil factor S 0.5 / 1 /
+  2 on the design spectrum (C24's `soilFactors`; A doubles per point); category IV takes III with the site-specific study warning. R = 1/K1
   with Kψ 1 and Cd = R; Ω0 1; the storey drift limits 2 % / 1.5 % / 1 % (SP 14 gives none); the
   SP 14 Section 6 detailing as SAEngine's intermediate level at 8 and 9 points; the accidental
   eccentricity 0.1; orthogonal 100 % + 30 %; no scaling of the modal results to the static ones.
@@ -80,6 +80,97 @@ week (owner, 2026-11-05): the tests are written, not run.
   `concreteMethods.ultimate.designStrengths`, `cubePrefix`, `stressBlock` "bilinear" /
   "trilinear", `concreteMethods.shear.inclinedSection` with `stirrupYieldShare` /
   `stirrupYieldMax`, `foundations.shallow.designResistance` (method `frictionAngleFactors`).
+
+## 2026-11-05: assessment and retrofit of existing buildings (alpha 9 track P4)
+
+- **What was built.** A project marks itself as an existing building with
+  `analysis.existingBuilding` (Project Settings, Analysis model, Existing building): the knowledge
+  level (κ, CF, overridable), the material tests (cores, tensile tests; rebound and pulse velocity
+  only with a calibration to cores), the members' condition (bar area lost to corrosion, weak
+  concrete), the procedure (linear or the pushover's hinges), the model state (as built or
+  retrofitted), the retrofit measures (RC jackets, FRP wraps and laminates, added members) and the
+  screening checklist answers. The pack's new `existing` table gives every value and picks the
+  methods by id (`linear.method` `mFactor` / `chordRotation`, `shear.method` `columnDuctility` /
+  `cyclicDegradation`, `frp.method` `aci440` / `en1998`). The US pack has ASCE 41-17 / ACI
+  440.2R-17, the Eurocodes pack EN 1998-3; nothing changes for a project without
+  `existingBuilding` (bnbc2020 results are unchanged).
+- **BNBC basis.** BNBC 2020 asks for the structural analysis of an existing building (Part 10 Sec
+  1.3.2) and names strengthening and retrofitting (Part 7 Sec 5.10.3-5.10.4) without a method:
+  the bnbc2020 pack's `existing` table is SAEngine practice on the ASCE 41 basis, and the
+  results say so.
+- **SAEngine practice (no code gives it):**
+  - The analysis model of an existing building takes the materials at the pack's analysis
+    strengths (ASCE 41: expected; EN 1998-3: mean), the corroded members' bars with their lost
+    area (diameters × √(1 - loss)), and, retrofitted, the jacketed members enlarged with the
+    jacket's bars and ties (their own object types `<type>.eb-<tags>`). In the pushover's fibre
+    sections the old bars of a jacketed member lie with the jacket's at its cover; the member
+    checks place them where they are. As built, the added members are left out of the model;
+    they are designed as new members, not assessed.
+  - Linear procedure: the run's seismic forces (the design forces with R and I) are made the
+    hazard's unreduced forces by × R/I × the hazard's spectrum scale (× C1·C2·Cm for
+    deformation-controlled actions); demands from G± ± E per direction; columns' two-way
+    flexure combined linearly (exponent 1); the displacement ductility of the column shear's k
+    is the flexural demand over κ·MCE; a column whose shear strength is below the shear at its
+    flexural strength takes m = 1. The section strength is the strain compatibility of the
+    pack's stress block with the strengths of the use (no φ, no partial factors other than the
+    pack's brittle divisors).
+  - EN 1998-3 linear: the chord rotation demand is (M/My)·θy with My and θy of the analysis
+    strengths, LV = L/2, φy = 2.1 εy/h; θum with the deformation strengths (mean/CF).
+  - Before and after: each run keeps its assessment per model state (`08 FEM/existing-<state>.
+    json`); the other state's ratio is its own run's when it has been run, else this run's
+    demands with the other state's capacities (shown as such).
+  - Jackets of every pack take the EN 1998-3 A.4.2.2 monolithic factors; an FRP confinement wrap
+    with fl/f'c at least the pack's minimum makes the member conforming in the m and hinge
+    tables; the FRP force of a flexural laminate is reduced by ψf and the substrate's initial
+    strain is taken as 0.
+- **Not built (placeholders kept or added):** masonry buildings (planned page "Assessment of
+  Existing Masonry Buildings"), steel members' minor-axis bending and shear, walls in the linear
+  procedure (they are assessed by the nonlinear procedure's fibre walls), base isolation as a
+  retrofit (B37's isolators are designed as for a new building; P6 later).
+
+## 2026-11-05: group 2 country packs (alpha 9 track C24)
+
+Packs `korea-kds`, `iran-2800`, `peru-e030`, `chile-nch` and `brazil-nbr` (extend
+`aci318-asce7-22`), `egypt-ecp` (extends `bs8110`) and `southafrica-sans` (extends
+`eurocodes`). The values were entered from knowledge of the codes (no text on this PC); each
+pack's `VERIFY.md` lists them with their clauses and marks the uncertain ones. Not tested yet
+(owner, 2026-11-05: no test runs this week).
+
+- **SAEngine practice, parents.** Egypt extends `bs8110`: ECP 203 designs on the cube strength
+  with 0.67 fcu/γc as BS 8110 does, and ECP 201's EN 1998-1 type spectrum is a data choice (the
+  `behaviourFactor` method), not a parent. South Africa extends `eurocodes` (SANS 10160 is an
+  EN 1990 / 1991 / 1998 code); SANS 10100-1 (BS 8110 type) is represented by αcc 0.85 on the
+  parent's EN 1992-1-1 methods and SANS 10162-1 (CSA S16 type) is not covered (the parent's
+  EN 1993-1-1 applies). Brazil extends the US pack (NBR 15421 is the ASCE 7 form, NBR 8800 AISC
+  type) with NBR 6118 by the generic partial-factor ultimate and tabulated shear methods.
+- **SAEngine practice, Korea.** KDS's S (zone factor × 2.0) is entered as SS = 2.5 S and
+  S1 = S so the base pack's Fa SS × 2/3 gives KDS's SDS; KDS's 10-minute V0 × 1.43 is the
+  3-second gust of the base pack's ASCE 7 wind method.
+- **SAEngine practice, Iran.** B = B1 N depends on the zone's group: each soil type has a site
+  class for zones 1-2 (I-IV) and one for zones 3-4 (IL-IVL); the project picks the one of its
+  zone. The drift limit is 0.020 for all periods (0.025 below 0.7 s as a Code Value).
+- **SAEngine practice, Chile.** R* is taken at each ordinate's period (NCh 433 takes it at T*:
+  equal at the fundamental period, larger ordinates for the higher modes); NCh 433's own static
+  coefficient (2.75 S A0 (T'/T*)^n / gR) is not built, the static method takes the spectrum at
+  the period; Cmin and Cmax bound every ordinate; Cmax of Table 6.4 (by R) is written by the R0
+  of the systems with that R. DS 60's boundary element trigger (δu/hw ≥ 0.007, no 1.5 factor)
+  replaces ACI 318-19's.
+- **SAEngine practice, Peru.** Buildings are taken as regular (Ia = Ip = 1); Ω0 (not in E.030)
+  takes the ASCE 7 values of the same systems.
+- **SAEngine practice, Brazil.** NBR 15421's category A zones are analysed as category B; the
+  categories are read by SDS and SD1 bands that match ag on class B; Cup by SD1. NBR 6123 is
+  built for class B buildings; the wall coefficients +0.8 / leeward stand for the drag
+  coefficient Ca. Model I shear's 0.9 d lever and fywd ≤ 435 MPa are folded into the stirrup
+  fy cap of 450 MPa.
+- **SAEngine practice, Egypt.** ECP 203's shear with stirrups counts half of qcu, so the
+  tabulated τc is 0.12 √(fcu/γc) for every member (members without stirrups on the safe side).
+  The Type 2 spectrum (longer corner periods) is the default; the wind is the parent's BS 6399-2
+  method with placeholder speeds.
+- **Placeholders.** The towns' wind speeds of Iran, Peru, Chile and Egypt are placeholders (their
+  wind codes are not built); every pack names this in its README.
+- **Generic mechanisms (no existing pack sets them):** a shape branch's divisor `d`, `m` and
+  negative powers; `shapeFactors.ductilityForm` "periodRatio" with `ratioShare`,
+  `ratioPeriods`; `shapeFactors.soilFactors`, `leastSoilShare`, `capByDuctility`.
 
 ## 2026-11-05: Australia and New Zealand second remainder (alpha 9 track C18c)
 

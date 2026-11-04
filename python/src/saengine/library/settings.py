@@ -1692,6 +1692,206 @@ class MassSource(_Model):
     )
 
 
+class MaterialTest(_Model):
+    """P4: tests of one material of the existing building (03 Materials)."""
+
+    material: Id = Field(description="The material tested (an id of 03 Materials).")
+    kind: Literal["core", "rebound", "upv", "tensile"] = Field(
+        description="Concrete cores, rebound hammer, ultrasonic pulse velocity (concrete); "
+        "tensile tests of bar or steel samples.",
+        json_schema_extra=_labels(
+            ["Concrete cores", "Rebound hammer", "Ultrasonic pulse velocity", "Tensile tests"]
+        ),
+    )
+    values: list[Annotated[float, Field(gt=0)]] = Field(
+        min_length=1,
+        title="Results",
+        description="The strength of each test [MPa]: core strengths (corrected to standard "
+        "cylinders), the rebound or pulse velocity estimates, the bars' or steel's yield "
+        "strength.",
+    )
+    calibration: float | None = Field(
+        default=None,
+        gt=0,
+        description="Rebound and pulse velocity: the factor that turns their estimates into "
+        "core strengths (from cores taken beside them). Empty: they are shown, not used.",
+    )
+    location: str = Field(default="", description="Storey or members tested (for the report).")
+
+
+class MemberCondition(_Model):
+    """P4: the condition of members found on site: corrosion of the bars and weak concrete."""
+
+    members: list[Id] = Field(
+        min_length=1,
+        description="Members (ids of 06 BIM) or object types (ids of 04 Objects) it applies to.",
+    )
+    barLoss: float = Field(
+        default=0.0,
+        ge=0,
+        lt=0.9,
+        title="Bar area lost",
+        description="Share of the bars' area lost to corrosion (0.1 = 10 %), longitudinal and "
+        "transverse.",
+    )
+    concreteFactor: float = Field(
+        default=1.0,
+        gt=0,
+        le=1,
+        title="Concrete strength factor",
+        description="Share of the concrete strength left where it is deteriorated (1: sound).",
+    )
+    note: str = ""
+
+
+class RcJacket(_Model):
+    """P4: a reinforced concrete jacket on all four sides of a beam or column."""
+
+    kind: Literal["rcJacket"] = "rcJacket"
+    id: Id
+    members: list[Id] = Field(min_length=1, description="Members jacketed (ids of 06 BIM).")
+    thickness: float = Field(gt=0, description="Jacket thickness on each face [mm].")
+    concrete: Id | None = Field(
+        default=None, description="The jacket's concrete (03 Materials); empty: the member's."
+    )
+    rebar: Id | None = Field(
+        default=None, description="The jacket's bars (03 Materials); empty: the member's."
+    )
+    bars: int = Field(default=8, ge=4, description="Added longitudinal bars (around).")
+    barDia: float = Field(default=16, gt=0, title="Bar diameter", description="[mm]")
+    tieDia: float = Field(default=10, gt=0, title="Tie diameter", description="[mm]")
+    tieSpacing: float = Field(default=100, gt=0, title="Tie spacing", description="[mm]")
+    cover: float = Field(default=40, gt=0, description="Clear cover to the jacket's ties [mm].")
+
+
+class FrpWrap(_Model):
+    """P4: externally bonded fibre-reinforced polymer on beams or columns."""
+
+    kind: Literal["frp"] = "frp"
+    id: Id
+    members: list[Id] = Field(min_length=1, description="Members strengthened (ids of 06 BIM).")
+    purpose: Literal["confinement", "shear", "flexure"] = Field(
+        description="Confinement: a column wrapped all round (axial strength, ductility, "
+        "shear). Shear: wraps or strips across the member. Flexure: a laminate on the tension "
+        "face along the member.",
+        json_schema_extra=_labels(["Confinement (wrap)", "Shear", "Flexure (laminate)"]),
+    )
+    fibre: Literal["carbon", "glass", "aramid"] = "carbon"
+    exposure: Literal["interior", "exterior", "aggressive"] = "interior"
+    plies: int = Field(default=1, ge=1, le=10)
+    thickness: float = Field(gt=0, description="Thickness of one ply [mm].")
+    modulus: float = Field(gt=0, title="Tensile modulus Ef", description="[MPa]")
+    ruptureStrain: float = Field(
+        gt=0, lt=0.1, title="Rupture strain εfu*", description="The manufacturer's [-]."
+    )
+    scheme: Literal["fullWrap", "uWrap", "twoSides"] = Field(
+        default="fullWrap",
+        description="Shear: wrapped all round, a U on three sides, or on the two sides.",
+        json_schema_extra=_labels(["Full wrap", "U-wrap", "Two sides"]),
+    )
+    width: float | None = Field(
+        default=None, gt=0, description="Strips: their width [mm]; empty: continuous."
+    )
+    spacing: float | None = Field(
+        default=None, gt=0, description="Strips: their spacing [mm]; empty: continuous."
+    )
+    face: Literal["bottom", "top"] = Field(
+        default="bottom", description="Flexure: the face the laminate is on."
+    )
+    laminateWidth: float | None = Field(
+        default=None, gt=0, description="Flexure: the laminate's width [mm]; empty: the member's."
+    )
+    cornerRadius: float = Field(
+        default=25,
+        gt=0,
+        title="Corner radius",
+        description="Confinement of rectangular columns: the rounded corners' radius [mm].",
+    )
+
+
+class AddedMembers(_Model):
+    """P4: members added by the retrofit (new walls, braces or columns of 06 BIM): left out of
+    the as-built model and designed like any new member by the code pack's methods."""
+
+    kind: Literal["added"] = "added"
+    id: Id
+    members: list[Id] = Field(min_length=1, description="The added members (ids of 06 BIM).")
+    note: str = ""
+
+
+RetrofitMeasure = Annotated[RcJacket | FrpWrap | AddedMembers, Field(discriminator="kind")]
+
+
+class ChecklistAnswer(_Model):
+    """P4: the engineer's answer to one statement of the code pack's screening checklist."""
+
+    item: str = Field(min_length=1, description="The statement's id (the results list them).")
+    answer: Literal["C", "NC", "NA", "U"] = Field(
+        description="Compliant, non-compliant, not applicable, unknown.",
+        json_schema_extra=_labels(["Compliant", "Non-compliant", "Not applicable", "Unknown"]),
+    )
+    note: str = ""
+
+
+class ExistingBuilding(_Model):
+    """P4: the assessment of an existing building and its retrofit (fem/existing_building.py,
+    by the code pack's ``existing`` table): the knowledge level, the as-built strengths from
+    tests, the members' condition, the procedure and the retrofit measures."""
+
+    knowledgeLevel: str | None = Field(
+        default=None,
+        description="An id of the code pack's knowledge levels (ASCE 41: minimum, usual, "
+        "comprehensive; EN 1998-3: KL1-KL3). Empty: the pack's default.",
+    )
+    knowledgeFactor: float | None = Field(
+        default=None, gt=0, le=1, title="Knowledge factor κ", description="Empty: the level's."
+    )
+    confidenceFactor: float | None = Field(
+        default=None, ge=1, title="Confidence factor CF", description="Empty: the level's."
+    )
+    tests: list[MaterialTest] = Field(
+        default_factory=list,
+        title="Material tests",
+        description="Cores, rebound and pulse velocity estimates, tensile tests: the as-built "
+        "strengths. A material without tests takes its strength from the drawings (03 "
+        "Materials) with the pack's factors.",
+    )
+    conditions: list[MemberCondition] = Field(
+        default_factory=list, description="Corrosion and deterioration found on site."
+    )
+    procedure: Literal["linear", "nonlinear"] = Field(
+        default="linear",
+        description="Linear: the members' demands from the linear analysis with the code "
+        "pack's m-factors or chord rotations. Nonlinear: the pushover's hinges (Analysis "
+        "model, Pushover).",
+        json_schema_extra=_labels(["Linear", "Nonlinear (pushover)"]),
+    )
+    state: Literal["asBuilt", "retrofitted"] = Field(
+        default="asBuilt",
+        title="Model",
+        description="As built: the analysis model without the retrofit. Retrofitted: with the "
+        "jackets and the added members. Run both for the before and after comparison.",
+        json_schema_extra=_labels(["As built", "Retrofitted"]),
+    )
+    c1c2: float | None = Field(
+        default=None,
+        gt=0,
+        title="C1·C2",
+        description="Linear procedure: the modification factor of the pseudo-seismic force. "
+        "Empty: from the code pack's table by the period and the largest m.",
+    )
+    retrofit: list[RetrofitMeasure] = Field(
+        default_factory=list,
+        description="Concrete jackets, FRP wraps and laminates, added walls and braces.",
+    )
+    checklist: list[ChecklistAnswer] = Field(
+        default_factory=list,
+        title="Tier 1 checklist",
+        description="The answers to the code pack's screening statements (the results list "
+        "them with their ids); a statement not answered is shown as unknown.",
+    )
+
+
 #: Former ids of ``Analysis.patternLive`` and the ids they are read as.
 FORMER_PATTERN_LIVE = {"bnbc": "adjacent", "bnbcAlternateFloors": "adjacentAlternateFloors"}
 
@@ -2149,6 +2349,15 @@ class Analysis(_Model):
         "the frames and walls as fibre elements that crack and yield, the records scaled to "
         "the code pack's real design spectrum (08 FEM/nonlinear-history.osmodel); the results "
         "check the storey drifts and the members' deformations by the code pack's rules.",
+    )
+    existingBuilding: ExistingBuilding | None = Field(
+        default=None,
+        exclude_if=lambda value: value is None,
+        title="Existing building",
+        description="Assessment of an existing building and its retrofit (P4): the "
+        "knowledge level, the as-built strengths from tests, the members' condition and the "
+        "retrofit measures; the results check every member by the code pack's assessment "
+        "rules (its existing table). Empty: a new building.",
     )
     thermal: Thermal = Field(default_factory=Thermal, title="Temperature")
     settlement: Settlement = Field(default_factory=Settlement, title="Support settlement")
@@ -2932,6 +3141,15 @@ def _choices(table: Any) -> dict[str, list[dict[str, str]]]:
         rule = getattr(seismic, "designSpectrum", None)
         method = rule.method if rule is not None else "reducedElastic"
         out["designSpectrum"] = [{"id": method, "label": method}]
+    # Alpha 9 P4: the knowledge levels of the pack's assessment of existing buildings.
+    try:
+        existing = table("existing")
+    except Exception:  # noqa: BLE001 - a broken table leaves the other lists as they are
+        existing = None
+    if existing is not None:
+        out["knowledgeLevels"] = [
+            {"id": k.id, "label": k.label or k.id} for k in existing.knowledge
+        ]
     return out
 
 

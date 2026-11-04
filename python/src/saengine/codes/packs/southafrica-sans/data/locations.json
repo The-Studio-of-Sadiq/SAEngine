@@ -1,0 +1,25 @@
+{
+  "$schema": "../../../schemas/locations.schema.json",
+  "$replace": true,
+  "$sources": [
+    "SANS 10160-3:2011 Figure 1 (fundamental basic wind speed vb,0) and SANS 10160-4:2011 Figure 1 (ag): SAEngine readings, uncertain (VERIFY.md Z1, Z2)"
+  ],
+  "source": "SANS 10160: the town's fundamental basic wind speed vb,0 (10-minute mean at 10 m, the parent's EN 1991-1-4 method) and seismic zone (ag); to be checked against the maps (VERIFY.md Z1, Z2). Elsewhere a custom location: enter ag as Z and vb,0 as V.",
+  "default": "johannesburg",
+  "locations": {
+    "johannesburg": { "name": "Johannesburg", "zone": 2, "windSpeed": 36.0 },
+    "pretoria": { "name": "Pretoria (Tshwane)", "zone": 2, "windSpeed": 36.0 },
+    "capetown": { "name": "Cape Town", "zone": 2, "windSpeed": 36.0 },
+    "durban": { "name": "Durban (eThekwini)", "zone": 1, "windSpeed": 36.0 },
+    "portelizabeth": { "name": "Gqeberha (Port Elizabeth)", "zone": 1, "windSpeed": 40.0 },
+    "eastlondon": { "name": "East London", "zone": 1, "windSpeed": 40.0 },
+    "bloemfontein": { "name": "Bloemfontein", "zone": 1, "windSpeed": 40.0 },
+    "kimberley": { "name": "Kimberley", "zone": 1, "windSpeed": 40.0 },
+    "welkom": { "name": "Welkom", "zone": 2, "windSpeed": 40.0 },
+    "klerksdorp": { "name": "Klerksdorp", "zone": 2, "windSpeed": 36.0 },
+    "polokwane": { "name": "Polokwane", "zone": 1, "windSpeed": 36.0 },
+    "mbombela": { "name": "Mbombela (Nelspruit)", "zone": 1, "windSpeed": 36.0 },
+    "pietermaritzburg": { "name": "Pietermaritzburg", "zone": 1, "windSpeed": 36.0 },
+    "ceres": { "name": "Ceres", "zone": 3, "windSpeed": 40.0 }
+  }
+}

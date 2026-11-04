@@ -151,14 +151,19 @@ def test_dynamic_factor_by_soil_category(ru):
     from saengine.fem import loads as fl
 
     # SP 14 5.6: β = 1 + 15 T to 0.1 s, 2.5 to 0.4 s (I-II) / 0.8 s (III-IV), 2.5 (Tc/T)^0.5,
-    # at least 0.8; category I one point less (× 0.5), III one more (× 2).
+    # at least 0.8.
     assert fl.normalized_spectrum(0.05, "II") == pytest.approx(1.75)
     assert fl.normalized_spectrum(0.3, "II") == pytest.approx(2.5)
     assert fl.normalized_spectrum(1.6, "II") == pytest.approx(2.5 * (0.4 / 1.6) ** 0.5)
     assert fl.normalized_spectrum(6.0, "II") == pytest.approx(0.8)
-    assert fl.normalized_spectrum(0.6, "III") == pytest.approx(2 * 2.5)
-    assert fl.normalized_spectrum(1.6, "III") == pytest.approx(2 * 2.5 * (0.8 / 1.6) ** 0.5)
-    assert fl.normalized_spectrum(0.3, "I") == pytest.approx(0.5 * 2.5)
+    assert fl.normalized_spectrum(0.6, "III") == pytest.approx(2.5)
+    assert fl.normalized_spectrum(1.6, "III") == pytest.approx(2.5 * (0.8 / 1.6) ** 0.5)
+    assert fl.normalized_spectrum(0.3, "I") == pytest.approx(2.5)
+    # Table 1: category I one point less (S 0.5), III one more (S 2) on the design spectrum
+    # (the soil factors of alpha 9 C24).
+    ii = fl.design_acceleration(0.3, "II", 0.2, 1.0, 1 / 0.35)
+    assert fl.design_acceleration(0.3, "I", 0.2, 1.0, 1 / 0.35) == pytest.approx(0.5 * ii)
+    assert fl.design_acceleration(0.3, "III", 0.2, 1.0, 1 / 0.35) == pytest.approx(2 * ii)
 
 
 def test_design_load_k0_k1_and_a(ru):

@@ -139,6 +139,9 @@ Methods:
 - ``fem/storyResponse`` ``{outDir, projectPath}`` -> storey displacements, drifts, forces,
   shears and overturning per case and combination, modal participation, the design spectrum,
   base reactions, pushover and time-history curves (``saengine.fem.story_response``; worker)
+- ``fem/existingAssessment`` ``{outDir, projectPath}`` -> the assessment of an existing
+  building of a run and its retrofit's before and after comparison
+  (``saengine.fem.existing_building``; worker)
 - ``fem/memberForces`` ``{outDir, projectPath, member}`` -> a member's section forces and
   deflection along it per case and combination (``saengine.fem.member_detail``; worker)
 - ``fem/columnInteraction`` ``{outDir, projectPath, member?}`` -> the columns' P-M interaction
@@ -1026,6 +1029,12 @@ def create_server() -> JsonRPCServer:
     def _story_response(params: Any) -> dict[str, Any]:
         args = _plain(params)
         return handlers.story_response(args["outDir"], args["projectPath"])
+
+    @server.feature("fem/existingAssessment")
+    @_in_worker
+    def _existing_assessment(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.existing_assessment(args["outDir"], args["projectPath"])
 
     @server.feature("fem/memberForces")
     @_in_worker

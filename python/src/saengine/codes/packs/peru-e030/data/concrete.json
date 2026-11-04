@@ -1,0 +1,21 @@
+{
+  "$schema": "../../../schemas/concrete.schema.json",
+  "$sources": [
+    "NTP 341.031 (ASTM A615 grade 60 bars sold in Peru by their inch size)"
+  ],
+  "barNames": {
+    "$replace": true,
+    "10": "3/8\"",
+    "13": "1/2\"",
+    "16": "5/8\"",
+    "19": "3/4\"",
+    "22": "7/8\"",
+    "25": "1\"",
+    "29": "1 1/8\"",
+    "32": "1 1/4\"",
+    "36": "1 3/8\""
+  },
+  "sources": {
+    "barNames": "NTP 341.031: the bars named by their inch size (the base pack's soft-metric diameters 10-36 mm; 6 mm, 8 mm and 12 mm bars, also sold in Peru, are not in the sets: add them in Code Values)"
+  }
+}

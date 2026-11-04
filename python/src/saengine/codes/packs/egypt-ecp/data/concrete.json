@@ -1,0 +1,36 @@
+{
+  "$schema": "../../../schemas/concrete.schema.json",
+  "$sources": [
+    "ES 262 (high tensile deformed bars rolled in Egypt: Ø10-Ø32; mild steel Ø8; SAEngine's selection)"
+  ],
+  "barDiameters": {
+    "$replace": true,
+    "all": [8.0, 10.0, 12.0, 16.0, 18.0, 22.0, 25.0, 28.0, 32.0],
+    "main": [12.0, 16.0, 18.0, 22.0, 25.0, 28.0, 32.0],
+    "column": [12.0, 16.0, 18.0, 22.0, 25.0, 28.0, 32.0],
+    "slab": [8.0, 10.0, 12.0, 16.0],
+    "stirrup": [8.0, 10.0, 12.0],
+    "wall": [10.0, 12.0, 16.0],
+    "boundary": [16.0, 18.0, 22.0, 25.0],
+    "hoop": [8.0, 10.0, 12.0],
+    "lintel": [10.0, 12.0, 16.0, 18.0, 22.0],
+    "tank": [10.0, 12.0, 16.0, 18.0, 22.0],
+    "foundation": [12.0, 16.0, 18.0, 22.0, 25.0]
+  },
+  "barNames": {
+    "$replace": true,
+    "8": "Ø8",
+    "10": "Ø10",
+    "12": "Ø12",
+    "16": "Ø16",
+    "18": "Ø18",
+    "22": "Ø22",
+    "25": "Ø25",
+    "28": "Ø28",
+    "32": "Ø32"
+  },
+  "sources": {
+    "barDiameters": "SAEngine practice: the bars rolled in Egypt (ES 262); the sets by use are SAEngine's",
+    "barNames": "Egyptian practice: Ø + the diameter"
+  }
+}

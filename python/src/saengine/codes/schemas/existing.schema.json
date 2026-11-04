@@ -1,0 +1,1828 @@
+{
+  "$defs": {
+    "C1C2Band": {
+      "additionalProperties": false,
+      "description": "C1·C2 of the linear procedure for periods up to ``periodTo``: ``values`` [[m from, C1·C2],\n...] by the largest m-factor of the members, in rising order.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "periodTo": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "[s]; empty: any longer period.",
+          "title": "Periodto"
+        },
+        "values": {
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "minItems": 1,
+          "title": "Values",
+          "type": "array"
+        }
+      },
+      "required": [
+        "values"
+      ],
+      "title": "C1C2Band",
+      "type": "object"
+    },
+    "ChordRotationCapacity": {
+      "additionalProperties": false,
+      "description": "Model ``chordRotationCapacity``: the ultimate chord rotation of an RC member by an\nempirical formula θum = (1/γel)·k·c^ν·[max(ωmin, ω')/max(ωmin, ω)·fc]^e1·(LV/h)^e2·\nbase^(α·ρsx·fyw/fc)·diag^(100·ρd) (fc in MPa), × ``wallFactor`` for walls; the levels are\n``yieldLevel`` (θ ≤ θy, the chord rotation at the first yield of the bars) and shares of\nθum.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "gammaEl": {
+          "exclusiveMinimum": 0,
+          "title": "Gammael",
+          "type": "number"
+        },
+        "k": {
+          "exclusiveMinimum": 0,
+          "title": "K",
+          "type": "number"
+        },
+        "axialBase": {
+          "exclusiveMinimum": 0,
+          "title": "Axialbase",
+          "type": "number"
+        },
+        "omegaMin": {
+          "exclusiveMinimum": 0,
+          "title": "Omegamin",
+          "type": "number"
+        },
+        "omegaExponent": {
+          "title": "Omegaexponent",
+          "type": "number"
+        },
+        "spanExponent": {
+          "title": "Spanexponent",
+          "type": "number"
+        },
+        "confinementBase": {
+          "exclusiveMinimum": 0,
+          "title": "Confinementbase",
+          "type": "number"
+        },
+        "diagonalBase": {
+          "exclusiveMinimum": 0,
+          "title": "Diagonalbase",
+          "type": "number"
+        },
+        "wallFactor": {
+          "default": 1.0,
+          "exclusiveMinimum": 0,
+          "title": "Wallfactor",
+          "type": "number"
+        },
+        "yieldLevel": {
+          "description": "The level met while θ ≤ θy.",
+          "title": "Yieldlevel",
+          "type": "string"
+        },
+        "shares": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "description": "Other levels: their limit as a share of θum.",
+          "title": "Shares",
+          "type": "object"
+        }
+      },
+      "required": [
+        "gammaEl",
+        "k",
+        "axialBase",
+        "omegaMin",
+        "omegaExponent",
+        "spanExponent",
+        "confinementBase",
+        "diagonalBase",
+        "yieldLevel",
+        "shares"
+      ],
+      "title": "ChordRotationCapacity",
+      "type": "object"
+    },
+    "FrpConfinement": {
+      "additionalProperties": false,
+      "description": "FRP wraps confining a column. aci440: fl = 2·Ef·n·tf·εfe/D, f'cc = f'c + ψf·k·κa·fl,\nεccu = εc'·(a + b·κb·(fl/f'c)·(εfe/εc')^e) ≤ strainCap, εfe = κε·εfu; en1998: the term\nα·ρf·ff,e/fc added to the confinement exponent of θum, ff,e = Ef·κε·εfu.",
+      "properties": {
+        "strainShare": {
+          "description": "κε: εfe = κε·εfu.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Strainshare",
+          "type": "number"
+        },
+        "psi": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "aci440: ψf of the confinement.",
+          "title": "Psi"
+        },
+        "strength": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "aci440: k of f'cc.",
+          "title": "Strength"
+        },
+        "minRatio": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "aci440: fl/f'c below this: no confinement counted.",
+          "title": "Minratio"
+        },
+        "strainBase": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "aci440: a of εccu.",
+          "title": "Strainbase"
+        },
+        "strainCoefficient": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "aci440: b of εccu.",
+          "title": "Straincoefficient"
+        },
+        "strainExponent": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "aci440: e of εccu.",
+          "title": "Strainexponent"
+        },
+        "strainCap": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "aci440: largest εccu.",
+          "title": "Straincap"
+        },
+        "peakStrain": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "aci440: εc' of unconfined concrete.",
+          "title": "Peakstrain"
+        },
+        "rotationFactor": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "en1998: α of the term in the exponent of θum.",
+          "title": "Rotationfactor"
+        }
+      },
+      "required": [
+        "strainShare"
+      ],
+      "title": "FrpConfinement",
+      "type": "object"
+    },
+    "FrpFlexure": {
+      "additionalProperties": false,
+      "description": "FRP flexural strengthening: the laminate's strain at most the debonding strain\nεfd = k·√(f'c/(n·Ef·tf)) ≤ share·εfu, its force times ψf.",
+      "properties": {
+        "psi": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Psi",
+          "type": "number"
+        },
+        "debonding": {
+          "exclusiveMinimum": 0,
+          "title": "Debonding",
+          "type": "number"
+        },
+        "debondingShare": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Debondingshare",
+          "type": "number"
+        }
+      },
+      "required": [
+        "psi",
+        "debonding",
+        "debondingShare"
+      ],
+      "title": "FrpFlexure",
+      "type": "object"
+    },
+    "FrpRules": {
+      "additionalProperties": false,
+      "description": "Externally bonded FRP (MPa, mm).",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "method": {
+          "enum": [
+            "aci440",
+            "en1998"
+          ],
+          "title": "Method",
+          "type": "string"
+        },
+        "environment": {
+          "additionalProperties": {
+            "additionalProperties": {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            "type": "object"
+          },
+          "description": "CE by fibre (carbon, glass, aramid) and exposure (interior, exterior, aggressive): εfu = CE·εfu*.",
+          "title": "Environment",
+          "type": "object"
+        },
+        "confinement": {
+          "$ref": "#/$defs/FrpConfinement"
+        },
+        "shear": {
+          "$ref": "#/$defs/FrpShear"
+        },
+        "flexure": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/FrpFlexure"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Empty: not covered."
+        },
+        "note": {
+          "default": "",
+          "title": "Note",
+          "type": "string"
+        }
+      },
+      "required": [
+        "method",
+        "environment",
+        "confinement",
+        "shear"
+      ],
+      "title": "FrpRules",
+      "type": "object"
+    },
+    "FrpShear": {
+      "additionalProperties": false,
+      "description": "FRP shear strengthening: Vf = ψf·Afv·ffe·dfv/sf (aci440) or 0.9·d·ffe·2·n·tf·wf/sf\n(en1998), ffe = εfe·Ef.",
+      "properties": {
+        "psiFull": {
+          "description": "ψf of full wraps.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Psifull",
+          "type": "number"
+        },
+        "psiPartial": {
+          "description": "ψf of U-wraps and two sides.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Psipartial",
+          "type": "number"
+        },
+        "strainFull": {
+          "description": "εfe of full wraps (at most strainShare·εfu).",
+          "exclusiveMinimum": 0,
+          "title": "Strainfull",
+          "type": "number"
+        },
+        "strainShare": {
+          "description": "εfe ≤ this × εfu.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Strainshare",
+          "type": "number"
+        },
+        "bondLength": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "aci440: Le = this/(n·tf·Ef)^bondExponent [mm].",
+          "title": "Bondlength"
+        },
+        "bondExponent": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Bondexponent"
+        },
+        "bondStrength": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "aci440: k1 = (f'c/this)^⅔.",
+          "title": "Bondstrength"
+        },
+        "bondStrain": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "aci440: κv = k1·k2·Le/(this·εfu).",
+          "title": "Bondstrain"
+        },
+        "limitShare": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Vs + Vf ≤ this·√f'c·b·d (empty: no limit).",
+          "title": "Limitshare"
+        }
+      },
+      "required": [
+        "psiFull",
+        "psiPartial",
+        "strainFull",
+        "strainShare"
+      ],
+      "title": "FrpShear",
+      "type": "object"
+    },
+    "HazardLevel": {
+      "additionalProperties": false,
+      "description": "P3: one hazard level the target displacement is found for, with the performance level\nthe hinges must meet there.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "id": {
+          "description": "Short id (BSE-1N, SD ...).",
+          "title": "Id",
+          "type": "string"
+        },
+        "label": {
+          "default": "",
+          "description": "What the level is (shown with the results).",
+          "title": "Label",
+          "type": "string"
+        },
+        "spectrumScale": {
+          "default": 1.0,
+          "description": "Factor on the spectrum the target is read from.",
+          "exclusiveMinimum": 0,
+          "title": "Spectrumscale",
+          "type": "number"
+        },
+        "level": {
+          "description": "The performance level (an id of hinges.levels) checked.",
+          "title": "Level",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "level"
+      ],
+      "title": "HazardLevel",
+      "type": "object"
+    },
+    "HingeAssignment": {
+      "additionalProperties": false,
+      "description": "Values the hinge variables are worked out with (SI: MPa, mm).",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "stressUnitPerMPa": {
+          "default": 1.0,
+          "description": "The unit √fc of the shear stress variables is in, per MPa (145.04: psi).",
+          "exclusiveMinimum": 0,
+          "title": "Stressunitpermpa",
+          "type": "number"
+        },
+        "concreteShear": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Vc = this·√fc·b·d of the shear control [√MPa].",
+          "title": "Concreteshear"
+        },
+        "conformingSpacing": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Conforming hoops: spacing at most this × d.",
+          "title": "Conformingspacing"
+        },
+        "conformingShear": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Conforming hoops: their shear strength at least this × the shear.",
+          "title": "Conformingshear"
+        },
+        "closeSpacing": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Stirrups 'close': spacing at most this × d.",
+          "title": "Closespacing"
+        },
+        "stressBlock": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "α1 of the balanced ratio.",
+          "title": "Stressblock"
+        },
+        "ultimateStrain": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "εcu of the balanced ratio.",
+          "title": "Ultimatestrain"
+        },
+        "beta1": {
+          "description": "β1 by fc [MPa], interpolated, held beyond the ends.",
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              },
+              {
+                "exclusiveMinimum": 0,
+                "maximum": 1,
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "title": "Beta1",
+          "type": "array"
+        },
+        "wallShearAspect": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Walls with hw/lw at most this are controlled by shear (component rcWallShear); empty: by flexure.",
+          "title": "Wallshearaspect"
+        },
+        "steelYieldDivisor": {
+          "description": "θy = Z·Fy·L/(divisor·E·I).",
+          "exclusiveMinimum": 0,
+          "title": "Steelyielddivisor",
+          "type": "number"
+        },
+        "compactFlange": {
+          "description": "Compact flange: bf/2tf ≤ this·√(E/Fy).",
+          "exclusiveMinimum": 0,
+          "title": "Compactflange",
+          "type": "number"
+        },
+        "noncompactFlange": {
+          "exclusiveMinimum": 0,
+          "title": "Noncompactflange",
+          "type": "number"
+        },
+        "compactWeb": {
+          "description": "Compact web: h/tw ≤ this·√(E/Fy).",
+          "exclusiveMinimum": 0,
+          "title": "Compactweb",
+          "type": "number"
+        },
+        "noncompactWeb": {
+          "exclusiveMinimum": 0,
+          "title": "Noncompactweb",
+          "type": "number"
+        },
+        "effectiveLength": {
+          "default": 1.0,
+          "description": "K of braces and columns.",
+          "exclusiveMinimum": 0,
+          "title": "Effectivelength",
+          "type": "number"
+        }
+      },
+      "required": [
+        "steelYieldDivisor",
+        "compactFlange",
+        "noncompactFlange",
+        "compactWeb",
+        "noncompactWeb"
+      ],
+      "title": "HingeAssignment",
+      "type": "object"
+    },
+    "HingeRow": {
+      "additionalProperties": false,
+      "description": "One row of a hinge table: where it applies (``match``: a categorical variable's value,\nor a numeric variable's range), the grid point it gives (``at``: numeric variables;\nbetween the rows of a group the values are interpolated linearly, beyond them the end row\nholds) and the modelling parameters and limits there.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "match": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "maxItems": 2,
+                "minItems": 2,
+                "prefixItems": [
+                  {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                ],
+                "type": "array"
+              }
+            ]
+          },
+          "title": "Match",
+          "type": "object"
+        },
+        "at": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "title": "At",
+          "type": "object"
+        },
+        "a": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Deformation where the strength starts to drop.",
+          "title": "A"
+        },
+        "b": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Deformation where the residual strength is lost.",
+          "title": "B"
+        },
+        "c": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Residual strength (share of the yield strength).",
+          "title": "C"
+        },
+        "limits": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "description": "Deformation limit per performance level id.",
+          "title": "Limits",
+          "type": "object"
+        }
+      },
+      "required": [
+        "limits"
+      ],
+      "title": "HingeRow",
+      "type": "object"
+    },
+    "Jacketing": {
+      "additionalProperties": false,
+      "description": "Concrete jackets taken as monolithic members: the jacketed member's values times these.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "strengthFactor": {
+          "description": "On the flexural strength.",
+          "exclusiveMinimum": 0,
+          "title": "Strengthfactor",
+          "type": "number"
+        },
+        "yieldFactor": {
+          "description": "On the yield chord rotation θy.",
+          "exclusiveMinimum": 0,
+          "title": "Yieldfactor",
+          "type": "number"
+        },
+        "ultimateFactor": {
+          "description": "On the ultimate chord rotation θum.",
+          "exclusiveMinimum": 0,
+          "title": "Ultimatefactor",
+          "type": "number"
+        },
+        "shearFactor": {
+          "description": "On the shear strength.",
+          "exclusiveMinimum": 0,
+          "title": "Shearfactor",
+          "type": "number"
+        },
+        "note": {
+          "default": "",
+          "title": "Note",
+          "type": "string"
+        }
+      },
+      "required": [
+        "strengthFactor",
+        "yieldFactor",
+        "ultimateFactor",
+        "shearFactor"
+      ],
+      "title": "Jacketing",
+      "type": "object"
+    },
+    "KnowledgeLevel": {
+      "additionalProperties": false,
+      "description": "One knowledge level: how much is known of the building as built.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "id": {
+          "description": "Short id (minimum, usual, KL1 ...).",
+          "title": "Id",
+          "type": "string"
+        },
+        "label": {
+          "default": "",
+          "description": "Shown in the settings and the results.",
+          "title": "Label",
+          "type": "string"
+        },
+        "capacityFactor": {
+          "default": 1.0,
+          "description": "Knowledge factor κ on the component capacities (1: none).",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Capacityfactor",
+          "type": "number"
+        },
+        "confidenceFactor": {
+          "default": 1.0,
+          "description": "Confidence factor CF the strengths are divided by.",
+          "minimum": 1.0,
+          "title": "Confidencefactor",
+          "type": "number"
+        },
+        "procedures": {
+          "description": "The procedures this level permits.",
+          "items": {
+            "enum": [
+              "linear",
+              "nonlinear"
+            ],
+            "type": "string"
+          },
+          "title": "Procedures",
+          "type": "array"
+        },
+        "note": {
+          "default": "",
+          "title": "Note",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "KnowledgeLevel",
+      "type": "object"
+    },
+    "LinearAssessment": {
+      "additionalProperties": false,
+      "description": "The linear procedure of the assessment.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "method": {
+          "enum": [
+            "mFactor",
+            "chordRotation"
+          ],
+          "title": "Method",
+          "type": "string"
+        },
+        "levels": {
+          "items": {
+            "$ref": "#/$defs/PerformanceLevel"
+          },
+          "minItems": 1,
+          "title": "Levels",
+          "type": "array"
+        },
+        "hazards": {
+          "description": "Hazard levels checked, the first the main one; spectrumScale: the hazard's spectrum over the design spectrum of the analysis.",
+          "items": {
+            "$ref": "#/$defs/HazardLevel"
+          },
+          "minItems": 1,
+          "title": "Hazards",
+          "type": "array"
+        },
+        "c1c2": {
+          "description": "mFactor: C1·C2 by period and largest m (empty: 1).",
+          "items": {
+            "$ref": "#/$defs/C1C2Band"
+          },
+          "title": "C1C2",
+          "type": "array"
+        },
+        "massFactor": {
+          "default": 1.0,
+          "description": "Cm on the seismic forces.",
+          "exclusiveMinimum": 0,
+          "title": "Massfactor",
+          "type": "number"
+        },
+        "gravityUpper": {
+          "description": "QG = this × (QD + liveShare·QL).",
+          "exclusiveMinimum": 0,
+          "title": "Gravityupper",
+          "type": "number"
+        },
+        "gravityLower": {
+          "description": "QG = this × QD.",
+          "exclusiveMinimum": 0,
+          "title": "Gravitylower",
+          "type": "number"
+        },
+        "liveShare": {
+          "description": "Share of the live load in QG.",
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Liveshare",
+          "type": "number"
+        },
+        "forceDivisor": {
+          "default": 1.0,
+          "description": "J of the force-controlled demands QUF = QG ± QE/(C1·C2·J).",
+          "exclusiveMinimum": 0,
+          "title": "Forcedivisor",
+          "type": "number"
+        },
+        "biaxialExponent": {
+          "default": 1.0,
+          "description": "Columns in two-way bending: (DCRx^α + DCRy^α)^(1/α) with this α.",
+          "exclusiveMinimum": 0,
+          "title": "Biaxialexponent",
+          "type": "number"
+        },
+        "variables": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/HingeAssignment"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "mFactor: the values the table variables are worked out with."
+        },
+        "mFactors": {
+          "additionalProperties": {
+            "$ref": "#/$defs/MFactorComponent"
+          },
+          "description": "mFactor: by component (rcBeam, rcColumn, steelBeam, steelColumn).",
+          "title": "Mfactors",
+          "type": "object"
+        },
+        "chordRotation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ChordRotationCapacity"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "chordRotation: θum of the members."
+        },
+        "yieldRotation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/YieldRotation"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "chordRotation: θy of the members."
+        },
+        "note": {
+          "default": "",
+          "title": "Note",
+          "type": "string"
+        }
+      },
+      "required": [
+        "method",
+        "levels",
+        "hazards",
+        "gravityUpper",
+        "gravityLower",
+        "liveShare"
+      ],
+      "title": "LinearAssessment",
+      "type": "object"
+    },
+    "MFactorComponent": {
+      "additionalProperties": false,
+      "description": "The m-factors of one kind of component: rows as the pushover hinge tables'\n(:class:`saengine.codes.tables.HingeRow`), ``limits`` the m per performance level.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "variables": {
+          "description": "Numeric variables.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Variables",
+          "type": "array"
+        },
+        "rows": {
+          "items": {
+            "$ref": "#/$defs/HingeRow"
+          },
+          "minItems": 1,
+          "title": "Rows",
+          "type": "array"
+        },
+        "note": {
+          "default": "",
+          "title": "Note",
+          "type": "string"
+        }
+      },
+      "required": [
+        "rows"
+      ],
+      "title": "MFactorComponent",
+      "type": "object"
+    },
+    "NonlinearAssessment": {
+      "additionalProperties": false,
+      "description": "What the assessment changes in the pushover hinges (``pushover.hinges``).",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "capacityFactor": {
+          "description": "κ multiplies the hinges' deformation limits.",
+          "title": "Capacityfactor",
+          "type": "boolean"
+        },
+        "confidenceFactor": {
+          "description": "θum with the strengths divided by CF (chordRotationCapacity hinges).",
+          "title": "Confidencefactor",
+          "type": "boolean"
+        },
+        "shearCheck": {
+          "default": false,
+          "description": "Check the hinges' shear against the pack's shear method.",
+          "title": "Shearcheck",
+          "type": "boolean"
+        },
+        "note": {
+          "default": "",
+          "title": "Note",
+          "type": "string"
+        }
+      },
+      "required": [
+        "capacityFactor",
+        "confidenceFactor"
+      ],
+      "title": "NonlinearAssessment",
+      "type": "object"
+    },
+    "PerformanceLevel": {
+      "additionalProperties": false,
+      "description": "A structural performance level of the hinges, in rising order of damage.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "label": {
+          "default": "",
+          "title": "Label",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "PerformanceLevel",
+      "type": "object"
+    },
+    "ShearCapacity": {
+      "additionalProperties": false,
+      "description": "The shear strength of existing members (MPa, N, mm).",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "method": {
+          "enum": [
+            "columnDuctility",
+            "cyclicDegradation"
+          ],
+          "title": "Method",
+          "type": "string"
+        },
+        "beamConcrete": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Beamconcrete"
+        },
+        "columnConcrete": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Columnconcrete"
+        },
+        "columnAxial": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Columnaxial"
+        },
+        "columnArea": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Columnarea"
+        },
+        "shearSpan": {
+          "anyOf": [
+            {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                },
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The range M/Vd is taken within.",
+          "title": "Shearspan"
+        },
+        "ductility": {
+          "description": "k by the displacement ductility demand [[μ, k], ...], linear between.",
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              },
+              {
+                "exclusiveMinimum": 0,
+                "maximum": 1,
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "title": "Ductility",
+          "type": "array"
+        },
+        "lightweight": {
+          "default": 1.0,
+          "description": "λ.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Lightweight",
+          "type": "number"
+        },
+        "gammaEl": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Gammael"
+        },
+        "axialShare": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Axialshare"
+        },
+        "degradation": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Degradation"
+        },
+        "ductilityCap": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Ductilitycap"
+        },
+        "rhoFactor": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Rhofactor"
+        },
+        "rhoMin": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Rhomin"
+        },
+        "spanFactor": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Spanfactor"
+        },
+        "spanCap": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Spancap"
+        },
+        "note": {
+          "default": "",
+          "title": "Note",
+          "type": "string"
+        }
+      },
+      "required": [
+        "method"
+      ],
+      "title": "ShearCapacity",
+      "type": "object"
+    },
+    "StrengthUse": {
+      "additionalProperties": false,
+      "description": "Which strength of the materials a use takes.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "value": {
+          "description": "expected: the mean of the tests (else the specified × the expected factor); lowerBound: mean - k·σ (else the specified × the lower-bound factor); mean: the mean of the tests (else the specified).",
+          "enum": [
+            "expected",
+            "lowerBound",
+            "mean"
+          ],
+          "title": "Value",
+          "type": "string"
+        },
+        "divideByConfidence": {
+          "default": false,
+          "description": "Divide by the knowledge level's confidence factor CF.",
+          "title": "Dividebyconfidence",
+          "type": "boolean"
+        },
+        "concreteDivisor": {
+          "default": 1.0,
+          "description": "A further divisor on the concrete strength (γc of brittle).",
+          "exclusiveMinimum": 0,
+          "title": "Concretedivisor",
+          "type": "number"
+        },
+        "steelDivisor": {
+          "default": 1.0,
+          "description": "A further divisor on the steel strength (γs of brittle).",
+          "exclusiveMinimum": 0,
+          "title": "Steeldivisor",
+          "type": "number"
+        }
+      },
+      "required": [
+        "value"
+      ],
+      "title": "StrengthUse",
+      "type": "object"
+    },
+    "Strengths": {
+      "additionalProperties": false,
+      "description": "The as-built strengths from the tests or the drawings.",
+      "properties": {
+        "analysis": {
+          "$ref": "#/$defs/StrengthUse",
+          "description": "The analysis model's materials."
+        },
+        "deformation": {
+          "$ref": "#/$defs/StrengthUse",
+          "description": "The capacities of deformation-controlled (ductile) actions."
+        },
+        "force": {
+          "$ref": "#/$defs/StrengthUse",
+          "description": "The capacities of force-controlled (brittle) actions."
+        },
+        "lowerBoundSigma": {
+          "description": "The lower bound from tests: mean - this × the standard deviation.",
+          "minimum": 0,
+          "title": "Lowerboundsigma",
+          "type": "number"
+        },
+        "expectedFactors": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "description": "Expected over lower-bound strength without tests, by material kind (concrete, rebar, steel).",
+          "title": "Expectedfactors",
+          "type": "object"
+        },
+        "lowerBoundFactors": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "description": "Lower-bound over specified strength without tests, by kind (empty: 1).",
+          "title": "Lowerboundfactors",
+          "type": "object"
+        },
+        "covLimit": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "A coefficient of variation of the tests above this asks for more tests.",
+          "title": "Covlimit"
+        },
+        "minTests": {
+          "default": 1,
+          "description": "Fewer tests of a material: a note.",
+          "minimum": 1,
+          "title": "Mintests",
+          "type": "integer"
+        },
+        "calibrated": {
+          "description": "Test kinds that count as they are; the others (rebound, ultrasonic pulse velocity) count only with a calibration factor to cores.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Calibrated",
+          "type": "array"
+        }
+      },
+      "required": [
+        "analysis",
+        "deformation",
+        "force",
+        "lowerBoundSigma",
+        "expectedFactors"
+      ],
+      "title": "Strengths",
+      "type": "object"
+    },
+    "Tier1Item": {
+      "additionalProperties": false,
+      "description": "One statement of the screening checklist.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "group": {
+          "default": "",
+          "description": "Building system, foundation, ...",
+          "title": "Group",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "label"
+      ],
+      "title": "Tier1Item",
+      "type": "object"
+    },
+    "YieldRotation": {
+      "additionalProperties": false,
+      "description": "θy = φy·LV/3 + a·(1 + b·h/LV) + c·φy·db·fy/√fc (MPa), φy = ``curvature``·(fy/Es)/h.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "curvature": {
+          "description": "φy·h/εy of a rectangular section.",
+          "exclusiveMinimum": 0,
+          "title": "Curvature",
+          "type": "number"
+        },
+        "shear": {
+          "description": "a: the shear deformation term.",
+          "minimum": 0,
+          "title": "Shear",
+          "type": "number"
+        },
+        "shearDepth": {
+          "description": "b: its dependence on h/LV.",
+          "minimum": 0,
+          "title": "Sheardepth",
+          "type": "number"
+        },
+        "slip": {
+          "description": "c: the bar slip term.",
+          "minimum": 0,
+          "title": "Slip",
+          "type": "number"
+        }
+      },
+      "required": [
+        "curvature",
+        "shear",
+        "shearDepth",
+        "slip"
+      ],
+      "title": "YieldRotation",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "The assessment and retrofit of existing buildings (:mod:`saengine.fem.existing_building`).",
+  "properties": {
+    "source": {
+      "default": "",
+      "description": "Clause (and page) the table comes from.",
+      "title": "Source",
+      "type": "string"
+    },
+    "sources": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Clause references of single entries: {key: clause}.",
+      "title": "Sources",
+      "type": "object"
+    },
+    "clauses": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Short clause references the results cite, by key, without the code's name (e.g. 'Part 6 Sec 2.5.7.3'); read by saengine.codes.context.cite. A key the pack does not give is not cited.",
+      "title": "Clauses",
+      "type": "object"
+    },
+    "knowledge": {
+      "items": {
+        "$ref": "#/$defs/KnowledgeLevel"
+      },
+      "minItems": 1,
+      "title": "Knowledge",
+      "type": "array"
+    },
+    "defaultKnowledge": {
+      "description": "The level of a project that chooses none.",
+      "title": "Defaultknowledge",
+      "type": "string"
+    },
+    "strengths": {
+      "$ref": "#/$defs/Strengths"
+    },
+    "linear": {
+      "$ref": "#/$defs/LinearAssessment"
+    },
+    "nonlinear": {
+      "$ref": "#/$defs/NonlinearAssessment"
+    },
+    "shear": {
+      "$ref": "#/$defs/ShearCapacity"
+    },
+    "jacketing": {
+      "$ref": "#/$defs/Jacketing"
+    },
+    "frp": {
+      "$ref": "#/$defs/FrpRules"
+    },
+    "tier1": {
+      "items": {
+        "$ref": "#/$defs/Tier1Item"
+      },
+      "title": "Tier1",
+      "type": "array"
+    },
+    "basis": {
+      "default": "",
+      "description": "How the results name the basis (e.g. 'SAEngine practice, ASCE 41 basis').",
+      "title": "Basis",
+      "type": "string"
+    },
+    "note": {
+      "default": "",
+      "title": "Note",
+      "type": "string"
+    }
+  },
+  "required": [
+    "knowledge",
+    "defaultKnowledge",
+    "strengths",
+    "linear",
+    "nonlinear",
+    "shear",
+    "jacketing",
+    "frp"
+  ],
+  "title": "ExistingTable",
+  "type": "object",
+  "$id": "saengine.codePack.existing/1"
+}

@@ -1,0 +1,65 @@
+{
+  "schema": "saengine.codePack/1",
+  "id": "peru-e030",
+  "name": "Peru (Reglamento Nacional de Edificaciones: E.030, E.060)",
+  "edition": "E.030 2018",
+  "country": "PE",
+  "units": "SI",
+  "version": "0.1.0",
+  "extends": "aci318-asce7-22",
+  "covers": [
+    "locations",
+    "zoneCoefficients",
+    "occupancyCategories",
+    "seismic",
+    "combinations",
+    "concrete",
+    "factors"
+  ],
+  "description": "Peru's National Building Regulations (alpha 9 track C24), a pack that extends the US pack aci318-asce7-22. Seismic by E.030 2018 (Diseño Sismorresistente): the zone factor Z (0.45, 0.35, 0.25, 0.10 for zones 4-1), the soil profiles S0-S3 with the soil factor S by zone and soil (Table 3) and the periods TP and TL (Table 4), the use factor U (1.5, 1.3, 1.0), the amplification C = 2.5 below TP, 2.5 TP/T to TL, 2.5 TP TL/T² beyond (1 + 7.5 T/TP below 0.2 TP for the modal analysis), Sa = Z U C S / R with R = R0 Ia Ip (regular buildings, Ia = Ip = 1), C/R at least 0.11, T = hn / CT (35, 45, 60), the drift limits by material (concrete 0.007, steel 0.010, masonry 0.005) with 0.75 R times the elastic displacements, by the generic shapeFactors spectrum method with its soil factors. Concrete by E.060 (ACI 318 with the Peruvian load combinations 1.4D + 1.7L, 1.25(D + L) ± E, 0.9D ± E and strength reduction factors 0.70 tied columns, 0.85 shear) on the base pack's ACI 318-19 rules, the bars named in inches as sold in Peru; steel E.090 as the base pack's AISC 360-22; live loads E.020 as the base pack's ASCE 7-22 values; the towns' wind speeds the E.020 least 75 km/h. Every value is listed in VERIFY.md; the towns' zones and the system values are to be checked before design.",
+  "sources": [
+    {
+      "id": "E030",
+      "title": "Norma Técnica E.030 Diseño Sismorresistente (Reglamento Nacional de Edificaciones)",
+      "edition": "2018 (DS 003-2016-VIVIENDA, modified 2018)",
+      "publisher": "Ministerio de Vivienda, Construcción y Saneamiento, Perú"
+    },
+    {
+      "id": "E060",
+      "title": "Norma Técnica E.060 Concreto Armado (Reglamento Nacional de Edificaciones)",
+      "edition": "2009",
+      "publisher": "Ministerio de Vivienda, Construcción y Saneamiento, Perú"
+    },
+    {
+      "id": "E020",
+      "title": "Norma Técnica E.020 Cargas (Reglamento Nacional de Edificaciones)",
+      "edition": "2006",
+      "publisher": "Ministerio de Vivienda, Construcción y Saneamiento, Perú"
+    }
+  ],
+  "clauses": {
+    "locations": ["E.030 2018 Anexo I (zones by district); E.020 12.3 (least wind speed 75 km/h)"],
+    "zoneCoefficients": ["E.030 2018 10, Table 1 (Z)"],
+    "occupancyCategories": ["E.030 2018 15, Table 5 (U)"],
+    "seismic": ["E.030 2018 Chapters 2-5"],
+    "combinations": ["E.060 9.2"],
+    "concrete": ["NTP 341.031 (bars 3/8\"-1 3/8\")"],
+    "factors": ["E.060 9.3"]
+  },
+  "basis": {
+    "general": "E.030 2018 (seismic), E.020 as the base pack's ASCE 7-22 live loads",
+    "concrete": "E.060 2009 (the base pack's ACI 318-19 rules with the E.060 factors and combinations)",
+    "steel": "E.090 (the base pack's AISC 360-22)"
+  },
+  "tableCodes": {
+    "seismic": "E.030 2018",
+    "locations": "E.030 2018",
+    "zoneCoefficients": "E.030 2018",
+    "occupancyCategories": "E.030 2018",
+    "combinations": "E.060",
+    "concrete": "E.060",
+    "factors": "E.060"
+  },
+  "author": "SAEngine contributors",
+  "licence": "AGPL-3.0-only"
+}

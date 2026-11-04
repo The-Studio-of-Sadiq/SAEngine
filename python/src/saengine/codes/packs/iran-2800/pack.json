@@ -1,0 +1,68 @@
+{
+  "schema": "saengine.codePack/1",
+  "id": "iran-2800",
+  "name": "Iran (Standard 2800, 4th edition, and the National Building Regulations)",
+  "edition": "Standard 2800 (4th ed.)",
+  "country": "IR",
+  "units": "SI",
+  "version": "0.1.0",
+  "extends": "aci318-asce7-22",
+  "covers": [
+    "locations",
+    "zoneCoefficients",
+    "occupancyCategories",
+    "seismic",
+    "concrete",
+    "concreteMethods"
+  ],
+  "description": "Iran's seismic standard and building regulations (alpha 9 track C24), a pack that extends the US pack aci318-asce7-22. Seismic by Standard 2800 (4th edition): the design base acceleration A of the zone (0.35 very high, 0.30 high, 0.25 moderate, 0.20 low), the soil types I-IV with the reflection factor B = B1 N (B1 by T0, Ts, S0, S; N rising from Ts to 4 s, 1.7 in the very high and high zones, 1.4 in the moderate and low ones: two site classes per soil type), the importance factor I = 0.8-1.4, C = A B I / Ru at least 0.12 A I, the behaviour factor Ru, Ω0 and Cd of the systems, T = 0.05 H^0.9 (RC moment frames), 0.08 H^0.75 (steel moment frames), 0.05 H^0.75 (others), the drift limit with Cd times the design displacements, by the generic shapeFactors spectrum method. Concrete by INBC Part 9 (the material resistance factors φc = 0.65 and φs = 0.85 on fc and fy, the block α1 φc fc over β1 c, as the Canadian method of the pack canada-nbcc); the shear, detailing and the rest of the concrete rules and the steel design (INBC Part 10, AISC 360 type) are the base pack's ACI 318-19 and AISC 360-22. Loads (INBC Part 6) are the base pack's ASCE 7-22 combinations and live loads; the towns' wind speeds are placeholders. Every value is listed in VERIFY.md; the towns' zones, the soil parameters and the system factors are uncertain and must be checked before design.",
+  "sources": [
+    {
+      "id": "STD2800",
+      "title": "Iranian Code of Practice for Seismic Resistant Design of Buildings (Standard No. 2800)",
+      "edition": "4th edition (2014)",
+      "publisher": "Building and Housing Research Center (Road, Housing and Urban Development Research Center), Iran"
+    },
+    {
+      "id": "INBC9",
+      "title": "Iranian National Building Regulations, Part 9: Design and Construction of Reinforced Concrete Buildings",
+      "edition": "as in force",
+      "publisher": "Ministry of Roads and Urban Development, Iran"
+    },
+    {
+      "id": "INBC6",
+      "title": "Iranian National Building Regulations, Part 6: Loads on Buildings",
+      "edition": "as in force",
+      "publisher": "Ministry of Roads and Urban Development, Iran"
+    },
+    {
+      "id": "INBC10",
+      "title": "Iranian National Building Regulations, Part 10: Design and Construction of Steel Buildings",
+      "edition": "as in force",
+      "publisher": "Ministry of Roads and Urban Development, Iran"
+    }
+  ],
+  "clauses": {
+    "locations": ["Standard 2800 Appendix 1 (the towns' seismic zones)"],
+    "zoneCoefficients": ["Standard 2800 2-2, Table 2-1 (A by zone)"],
+    "occupancyCategories": ["Standard 2800 1-6, Table 3-1 (importance groups and I)"],
+    "seismic": ["Standard 2800 Chapters 2-3"],
+    "concrete": ["INBC Part 9 (bars Φ8-Φ32: SAEngine practice)"],
+    "concreteMethods": ["INBC Part 9 (material resistance factors φc, φs; the stress block)"]
+  },
+  "basis": {
+    "general": "Standard 2800 (4th ed.) seismic; INBC Part 6 as the base pack's ASCE 7-22 combinations and live loads",
+    "concrete": "INBC Part 9 (material resistance factors on the base pack's ACI 318-19 rules)",
+    "steel": "INBC Part 10 (the base pack's AISC 360-22)"
+  },
+  "tableCodes": {
+    "seismic": "Standard 2800",
+    "locations": "Standard 2800",
+    "zoneCoefficients": "Standard 2800",
+    "occupancyCategories": "Standard 2800",
+    "concrete": "INBC Part 9",
+    "concreteMethods": "INBC Part 9"
+  },
+  "author": "SAEngine contributors",
+  "licence": "AGPL-3.0-only"
+}

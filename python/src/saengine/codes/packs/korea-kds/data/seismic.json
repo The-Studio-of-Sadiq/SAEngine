@@ -1,0 +1,65 @@
+{
+  "$schema": "../../../schemas/seismic.schema.json",
+  "$sources": [
+    "KDS 41 17 00:2019 4.2.1 (site classes S1-S6, Fa and Fv by S, SDS = 2.5 S Fa × 2/3, SD1 = S Fv × 2/3), 4.2.2 (design spectrum), 6.2 (R, Cd, Ω0); the rest of the seismic rules as the base pack (ASCE 7-22, the same numbers: see VERIFY.md)"
+  ],
+  "source": "KDS 41 17 00:2019 (the ASCE 7 form with the Korean site classes) on the base pack's seismic rules",
+  "defaultSiteClass": "S4",
+  "siteClasses": {
+    "$replace": true,
+    "S1": { "description": "Site class S1: rock (soil over rock less than 1 m)" },
+    "S2": { "description": "Site class S2: shallow stiff soil (depth to bedrock up to 20 m, soil vs at least 260 m/s)" },
+    "S3": { "description": "Site class S3: shallow soft soil (depth to bedrock up to 20 m, soil vs below 260 m/s)" },
+    "S4": { "description": "Site class S4: deep stiff soil (depth to bedrock over 20 m, soil vs at least 180 m/s)" },
+    "S5": { "description": "Site class S5: deep soft soil (depth to bedrock over 20 m, soil vs below 180 m/s)" },
+    "S6": { "description": "Site class S6: soils needing a site-specific study" }
+  },
+  "designSpectrum": {
+    "multiPeriod": null,
+    "siteCoefficients": {
+      "fa": {
+        "points": [0.25, 0.5, 0.75],
+        "classes": {
+          "S1": [1.12, 1.12, 1.12],
+          "S2": [1.4, 1.4, 1.3],
+          "S3": [1.7, 1.5, 1.3],
+          "S4": [1.6, 1.4, 1.2],
+          "S5": [1.8, 1.3, 1.3]
+        }
+      },
+      "fv": {
+        "points": [0.1, 0.2, 0.3],
+        "classes": {
+          "S1": [0.84, 0.84, 0.84],
+          "S2": [1.5, 1.4, 1.3],
+          "S3": [1.7, 1.6, 1.5],
+          "S4": [2.2, 2.0, 1.8],
+          "S5": [3.0, 2.7, 2.4]
+        }
+      },
+      "clause": "KDS 41 17 00 4.2.1.3, Tables 4.2-3 and 4.2-4 (Fa, Fv at S = 0.1, 0.2, 0.3; the Fa points are SS = 2.5 S)"
+    },
+    "clauses": {
+      "spectrum": "KDS 41 17 00 4.2.2, Figure 4.2-1",
+      "design": "KDS 41 17 00 4.2.1.3 (SDS = 2.5 S Fa × 2/3, SD1 = S Fv × 2/3)",
+      "sdc": "KDS 41 17 00 6.1.3, Tables 6.1-1 and 6.1-2",
+      "cs": "KDS 41 17 00 7.2.1",
+      "coefficients": "KDS 41 17 00 4.2.1.3, Tables 4.2-3 and 4.2-4"
+    }
+  },
+  "siteSpecificStudy": {
+    "classes": ["S6"],
+    "assumedClass": "S5",
+    "clause": "KDS 41 17 00 4.2.1.2",
+    "warning": "Site class {classes}: {code} {clause} requires a site-specific study. Until one is made, the design spectrum and the category use site class {assumed}: an assumption, not a value of the code."
+  },
+  "clauses": {
+    "systems": "KDS 41 17 00 6.2, Table 6.2-1",
+    "drift": "KDS 41 17 00 7.2.6, Table 7.2-1"
+  },
+  "sources": {
+    "siteClasses": "KDS 41 17 00:2019 Table 4.2-1: S1-S6 by the depth to bedrock and the soil's average shear wave speed (as SAEngine reads it; VERIFY.md K4); S6 needs a site-specific study (assumed S5 meanwhile, SAEngine practice)",
+    "defaultSiteClass": "SAEngine practice: S4 where the site class is not known (check KDS 41 17 00 4.2.1.2)",
+    "designSpectrum.siteCoefficients": "KDS 41 17 00 Tables 4.2-3 and 4.2-4 (uncertain, VERIFY.md K5, K6): Fa, Fv by S at 0.1, 0.2, 0.3 (linear between, the end values beyond)"
+  }
+}

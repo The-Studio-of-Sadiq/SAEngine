@@ -19,9 +19,8 @@ export const FemPlanned = {
 	stagedConstructionLoads: 'fem.stagedConstructionLoads',
 	/** T21 / B20 / P3: what stays planned of the pushover: walls with openings. */
 	fibreWalls: 'fem.fibreWalls',
-	/** T22: existing RC buildings. */
-	existingAssessment: 'fem.existingAssessment',
-	retrofit: 'fem.retrofit',
+	/** T22 / P4: what stays planned of existing buildings: masonry buildings (RC and steel are built). */
+	existingMasonry: 'fem.existingMasonry',
 	/** T35 / B36 / P5: what stays planned of the time histories: searching open record databases and time-domain wavelet matching (scaling, frequency-domain matching and the NLTH design are built). */
 	recordSearch: 'fem.recordSearch',
 	/** T36: dampers (seismic isolators are built: B37). */

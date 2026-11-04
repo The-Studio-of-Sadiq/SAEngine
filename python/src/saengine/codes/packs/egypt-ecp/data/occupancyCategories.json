@@ -1,0 +1,17 @@
+{
+  "$schema": "../../../schemas/occupancyCategories.schema.json",
+  "$replace": true,
+  "$sources": [
+    "ECP 201-2012 Table 8.9 (importance classes and the importance factor γI)"
+  ],
+  "source": "ECP 201-2012 Table 8.9: γI = 0.8 (minor buildings), 1.0 (ordinary buildings), 1.2 (buildings of large occupancy: schools, assembly halls), 1.4 (buildings vital after an earthquake: hospitals, fire and police stations, power plants). SAEngine's categories I-IV take them in order. The wind importance stays 1.0 (the parent's BS 6399-2 Sp).",
+  "categories": {
+    "I": { "description": "Minor buildings of low occupancy (agricultural, temporary) (γI = 0.8)", "seismicImportance": 0.8, "windImportance": 1.0 },
+    "II": { "description": "Ordinary buildings (dwellings, offices, shops) (γI = 1.0)", "seismicImportance": 1.0, "windImportance": 1.0 },
+    "III": { "description": "Buildings whose collapse affects many people (schools, assembly halls, cultural buildings) (γI = 1.2)", "seismicImportance": 1.2, "windImportance": 1.0 },
+    "IV": { "description": "Buildings vital after an earthquake (hospitals, fire and police stations, power plants, communication centres) (γI = 1.4)", "seismicImportance": 1.4, "windImportance": 1.0 }
+  },
+  "sources": {
+    "categories": "ECP 201-2012 Table 8.9 (check the uses of each class)"
+  }
+}

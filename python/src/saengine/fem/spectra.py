@@ -112,13 +112,24 @@ def shape_factor(period: float, branches: list[Any], static: bool = False) -> fl
             break
     value = chosen.a + chosen.b * t
     if chosen.c:
-        value += chosen.c * (chosen.t0 / t) ** chosen.n if t > 0 else math.inf
+        value += _power_term(chosen.c, chosen.t0, t, chosen.n)
     c2 = getattr(chosen, "c2", 0.0)
     if c2:  # Alpha 9 C21: the second power term (NBC 105:2020 type)
-        value += c2 * (chosen.t0 / t) ** chosen.n2 if t > 0 else math.inf
+        value += _power_term(c2, chosen.t0, t, chosen.n2)
+    d = getattr(chosen, "d", 0.0)
+    if d:  # Alpha 9 C24: the divisor 1 + d (t0 / T)^m (NCh 433 Eq 6-10 type)
+        value /= 1.0 + _power_term(d, chosen.t0, t, getattr(chosen, "m", 1.0))
     if chosen.most is not None:
         value = min(value, chosen.most)
     return value
+
+
+def _power_term(c: float, t0: float, t: float, n: float) -> float:
+    """c (t0 / T)^n of a shape branch; at T = 0 infinite, or (alpha 9 C24) 0 for a negative
+    power n (a power of T / t0)."""
+    if t > 0:
+        return c * (t0 / t) ** n
+    return 0.0 if n < 0 else math.inf
 
 
 def _along(points: list[Any], x: float) -> float:
@@ -138,12 +149,20 @@ def performance_factor(mu: float, rule: Any) -> float:
 
 
 def ductility_factor(period: float, mu: float, site_class: str, rule: Any) -> float:
-    """kμ: μ without the pack's ``ductilityPeriod`` (AS 1170.4); else (NZS 1170.5 5.2.1.1)
+    """kμ: alpha 9 C24, with the pack's ``ductilityForm`` "periodRatio" (NCh 433 Eq 6-11 type)
+    1 + T / (ratioShare T0 + T / μ), T0 the site class's ``ratioPeriods`` (μ without one);
+    else μ without the pack's ``ductilityPeriod`` (AS 1170.4); else (NZS 1170.5 5.2.1.1)
     μ for T >= ductilityPeriod, (μ - 1) T / ductilityPeriod + 1 below; for the
     ``softClasses`` μ for T >= ``softPeriod`` or μ below ``softDuctility``, else
     (μ - softDuctility) T / softPeriod + softDuctility. T taken at least
     ``ductilityMinPeriod``."""
     mu = float(mu)
+    if getattr(rule, "ductilityForm", "linear") == "periodRatio":  # Alpha 9 C24 (NCh 433 R*)
+        t0 = rule.ratioPeriods.get(site_class)
+        if t0 is None or rule.ratioShare is None:
+            return mu
+        t = max(float(period), 0.0)
+        return 1.0 + t / (float(rule.ratioShare) * float(t0) + t / mu)
     if rule.ductilityPeriod is None:
         return mu
     t = max(float(period), float(rule.ductilityMinPeriod))
@@ -186,30 +205,57 @@ def shape_factor_acceleration(
 ) -> float:
     """Cd(T) = (Z I) Ch(T) N(T, D) Sp / kμ [g] (``shape`` = Ch(T)), at least
     max(``leastZShare`` Z + ``leastOffset``, ``leastFloor``) × I (AS 1170.4 6.2, NZS 1170.5
-    5.2.1.1)."""
+    5.2.1.1). Alpha 9 C24: × the soil factor S of the site class and Z (``soilFactors``, 1
+    without), at most the ``capByDuctility`` share of μ × Z I S, at least ``leastSoilShare``
+    × Z I S (E.030 2018, NCh 433 type)."""
     if mu <= 0:
         raise ValueError("the structural ductility factor μ must be positive")
     sp = performance_factor(mu, rule)
     k_mu = ductility_factor(period, mu, site_class, rule)
     cd = hazard_product(z, importance, rule) * shape * near_fault_factor(period, rule) * sp / k_mu
+    soil = soil_factor(site_class, z, rule)
+    if soil != 1.0:
+        cd *= soil
+    caps = getattr(rule, "capByDuctility", None)
+    if caps:
+        cd = min(cd, _along(list(caps), float(mu)) * float(z) * float(importance) * soil)
     least = 0.0
     if rule.leastZShare is not None:
         least = rule.leastZShare * float(z) + float(rule.leastOffset or 0.0)
     if rule.leastFloor is not None:
         least = max(least, float(rule.leastFloor))
+    if getattr(rule, "leastSoilShare", None) is not None:
+        least = max(least, float(rule.leastSoilShare) * float(z) * soil)
     return max(cd, least * float(importance)) if least > 0 else cd
+
+
+def soil_factor(site_class: str, z: float, rule: Any) -> float:
+    """Alpha 9 C24: S of the site class at the site's Z by the pack's ``soilFactors`` (Z from,
+    S) steps: the last step at or below Z, the first below them all; 1 without steps."""
+    steps = (getattr(rule, "soilFactors", None) or {}).get(site_class)
+    if not steps:
+        return 1.0
+    ordered = sorted((float(a), float(b)) for a, b in steps)
+    found = ordered[0][1]
+    for z_from, value in ordered:
+        if float(z) >= z_from - 1e-12:
+            found = value
+    return found
 
 
 def shape_factor_terms(
     period: float, site_class: str, z: float, importance: float, mu: float, rule: Any
 ) -> dict[str, float]:
     """The terms of :func:`shape_factor_acceleration`, for the notes and the report."""
-    return {
+    terms = {
         "ZI": hazard_product(z, importance, rule),
         "Sp": performance_factor(mu, rule),
         "kmu": ductility_factor(period, mu, site_class, rule),
         "N": near_fault_factor(period, rule),
     }
+    if getattr(rule, "soilFactors", None):  # Alpha 9 C24
+        terms["S"] = soil_factor(site_class, z, rule)
+    return terms
 
 
 # ───────── alpha 9 C20: the seismic influence coefficient (method influenceCoefficient) ─────────

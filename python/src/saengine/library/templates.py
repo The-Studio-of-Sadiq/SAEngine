@@ -447,6 +447,22 @@ TEMPLATES: dict[str, dict[str, Any]] = {
     "Analysis": Analysis().model_dump(mode="json"),
     "Pushover": {"directions": ["X", "Y"]},
     "NonlinearHistory": {"fibreWalls": True},
+    # P4: the existing building, its tests, conditions and retrofit measures.
+    "ExistingBuilding": {"procedure": "linear", "state": "asBuilt"},
+    "MaterialTest": {"material": _CONCRETE, "kind": "core", "values": [20.0, 22.0, 18.0]},
+    "MemberCondition": {"members": ["C-A1"], "barLoss": 0.1},
+    "RcJacket": {"kind": "rcJacket", "id": "J1", "members": ["C-A1"], "thickness": 100},
+    "FrpWrap": {
+        "kind": "frp",
+        "id": "F1",
+        "members": ["C-A1"],
+        "purpose": "confinement",
+        "thickness": 0.165,
+        "modulus": 230000,
+        "ruptureStrain": 0.015,
+    },
+    "AddedMembers": {"kind": "added", "id": "A1", "members": ["W-A1-A2"]},
+    "ChecklistAnswer": {"item": "loadPath", "answer": "C"},
     "Solid": {"id": "MASS", "name": "Mass concrete", "kind": "solid", "material": _CONCRETE},
     "Block": {
         "id": "K1",

@@ -197,6 +197,12 @@ TABLE_HELP: dict[str, str] = {
     "the modular ratio and lever arm, the bars' allowable stresses by grade, the allowable "
     "shear with alpha and the shear reinforcement, and the steel's allowable tension, shear, "
     "compression and bending. A pack without it checks no member by allowable stresses.",
+    "existing": "Existing buildings (alpha 9 P4): the knowledge levels with their knowledge "
+    "factor and confidence factor, the as-built strengths from tests (lower bound, expected, "
+    "mean) and which one each check takes, the linear procedure (m-factors with C1·C2, or chord "
+    "rotations) and its hazard levels, the pushover hinges' changes, the shear strength of "
+    "existing members, the monolithic factors of concrete jackets, externally bonded FRP and a "
+    "screening checklist. A pack without it does not assess existing buildings.",
     "horizontalCapacity": "The required horizontal capacity of storeys (alpha 9 C19): the "
     "storey drift at which a pushover gives Qu, Ds by material, member rank and the share of "
     "walls or braces, Fs and Fe from the stiffness and eccentricity ratios, the member rank "

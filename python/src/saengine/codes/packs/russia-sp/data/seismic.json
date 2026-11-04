@@ -9,7 +9,7 @@
   "siteClasses": {
     "$replace": true,
     "I": {
-      "description": "Category I: rock, frozen rock and coarse soils (the site one point below the map: Ch = 0.5 β(T), β of categories I-II)",
+      "description": "Category I: rock, frozen rock and coarse soils (the site one point below the map: S 0.5; β(T) of categories I-II)",
       "S": 0.5,
       "TB": 0.1,
       "TC": 0.4,
@@ -17,26 +17,26 @@
       "shape": [
         {
           "upTo": 0.1,
-          "a": 0.5,
-          "b": 7.5
+          "a": 1.0,
+          "b": 15.0
         },
         {
           "upTo": 0.4,
-          "a": 1.25
+          "a": 2.5
         },
         {
           "upTo": 3.90625,
-          "c": 1.25,
+          "c": 2.5,
           "t0": 0.4,
           "n": 0.5
         },
         {
-          "a": 0.4
+          "a": 0.8
         }
       ]
     },
     "II": {
-      "description": "Category II: weathered rock, dense and medium sands, clays of IL <= 0.5 (the map's intensity: Ch = β(T) of categories I-II)",
+      "description": "Category II: weathered rock, dense and medium sands, clays of IL <= 0.5 (the map's intensity: S 1; β(T) of categories I-II)",
       "S": 1.0,
       "TB": 0.1,
       "TC": 0.4,
@@ -63,7 +63,7 @@
       ]
     },
     "III": {
-      "description": "Category III: loose sands, clays of IL > 0.5 (the site one point above the map: Ch = 2 β(T), β of categories III-IV)",
+      "description": "Category III: loose sands, clays of IL > 0.5 (the site one point above the map: S 2; β(T) of categories III-IV)",
       "S": 2.0,
       "TB": 0.1,
       "TC": 0.8,
@@ -71,21 +71,21 @@
       "shape": [
         {
           "upTo": 0.1,
-          "a": 2.0,
-          "b": 30.0
+          "a": 1.0,
+          "b": 15.0
         },
         {
           "upTo": 0.8,
-          "a": 5.0
+          "a": 2.5
         },
         {
           "upTo": 7.8125,
-          "c": 5.0,
+          "c": 2.5,
           "t0": 0.8,
           "n": 0.5
         },
         {
-          "a": 1.6
+          "a": 0.8
         }
       ]
     },
@@ -98,21 +98,21 @@
       "shape": [
         {
           "upTo": 0.1,
-          "a": 2.0,
-          "b": 30.0
+          "a": 1.0,
+          "b": 15.0
         },
         {
           "upTo": 0.8,
-          "a": 5.0
+          "a": 2.5
         },
         {
           "upTo": 7.8125,
-          "c": 5.0,
+          "c": 2.5,
           "t0": 0.8,
           "n": 0.5
         },
         {
-          "a": 1.6
+          "a": 0.8
         }
       ]
     }
@@ -365,8 +365,35 @@
           1.0
         ]
       ],
+      "soilFactors": {
+        "I": [
+          [
+            0.0,
+            0.5
+          ]
+        ],
+        "II": [
+          [
+            0.0,
+            1.0
+          ]
+        ],
+        "III": [
+          [
+            0.0,
+            2.0
+          ]
+        ],
+        "IV": [
+          [
+            0.0,
+            2.0
+          ]
+        ]
+      },
       "clauses": {
-        "performance": "5.5 (no Sp: 1.0)"
+        "performance": "5.5 (no Sp: 1.0)",
+        "soilFactors": "Table 1"
       }
     },
     "clauses": {
@@ -419,7 +446,7 @@
     "importance": "Table 3 (K0)"
   },
   "sources": {
-    "siteClasses": "SP 14.13330.2018 Table 1 (soil categories I-III, IV special, U) and 5.6: β = 1 + 15 T (T <= 0.1 s), 2.5 (to 0.4 s for I-II, 0.8 s for III-IV), 2.5 (Tc/T)^0.5 beyond, at least 0.8 (U); the one-point intensity shift of Table 1 as the factor 0.5 / 1 / 2 on β (A doubles per point: SAEngine's form, P)",
+    "siteClasses": "SP 14.13330.2018 Table 1 (soil categories I-III, IV special, U) and 5.6: β = 1 + 15 T (T <= 0.1 s), 2.5 (to 0.4 s for I-II, 0.8 s for III-IV), 2.5 (Tc/T)^0.5 beyond, at least 0.8 (U); the one-point intensity shift of Table 1 as the soil factor S 0.5 / 1 / 2 on the design spectrum (designSpectrum.shapeFactors.soilFactors; A doubles per point: SAEngine's form, P)",
     "systems": "SP 14.13330.2018 Table 5: K1 0.35 RC frame, 0.3 with diaphragms, 0.25 monolithic walls, 0.25 steel frame, 0.22 braced (U); Table 4: Kψ 1.0 for buildings (1.5 for towers and masts: not covered, U); Table 8 heights [m] at 7, 8, 9 points (U; above them SP 14 asks for scientific support, not a ban)",
     "liveShare": "SP 14.13330.2018 Table 2: short-term loads at 0.5 of their design value (γf 1.3): 0.65 (the long-term share at 0.8 not split, U)",
     "accidentalEccentricity": "SP 14.13330.2018 5.? (U): the accidental eccentricity 0.1 of the plan dimension taken",

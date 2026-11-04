@@ -1,0 +1,43 @@
+{
+  "$schema": "../../../schemas/seismic.schema.json",
+  "$sources": [
+    "SANS 10160-4:2011: 5.2 (ag), 5.3 and Table 1 (ground types 1-4 with S, TB, TC, TD), 6 (the design spectrum of EN 1998-1 form); the parent's EN 1998-1 behaviour factors and rules otherwise (VERIFY.md)"
+  ],
+  "$remove": ["spectrumTypeGuidance"],
+  "source": "SANS 10160-4:2011 on the parent's EN 1998-1 method (behaviourFactor: Sd(T) with ag γI, S, TB, TC, TD, the behaviour factor q, β = 0.2): one spectrum for the country with the ground types 1-4",
+  "spectrumType": "SANS",
+  "spectra": {
+    "$replace": true,
+    "SANS": {
+      "1": { "description": "Ground type 1: rock or rock-like formation (SANS 10160-4)", "S": 1.0, "TB": 0.15, "TC": 0.4, "TD": 2.0 },
+      "2": { "description": "Ground type 2: deposits of very dense sand, gravel or very stiff clay (SANS 10160-4)", "S": 1.35, "TB": 0.15, "TC": 0.5, "TD": 2.0 },
+      "3": { "description": "Ground type 3: deep deposits of dense or medium-dense sand, gravel or stiff clay (SANS 10160-4)", "S": 1.5, "TB": 0.15, "TC": 0.6, "TD": 2.0 },
+      "4": { "description": "Ground type 4: loose-to-medium cohesionless soil or soft-to-firm cohesive soil (SANS 10160-4)", "S": 1.8, "TB": 0.15, "TC": 0.6, "TD": 2.0 }
+    }
+  },
+  "siteClasses": {
+    "$replace": true,
+    "1": { "description": "Ground type 1: rock or rock-like formation (SANS 10160-4)", "S": 1.0, "TB": 0.15, "TC": 0.4, "TD": 2.0 },
+    "2": { "description": "Ground type 2: deposits of very dense sand, gravel or very stiff clay (SANS 10160-4)", "S": 1.35, "TB": 0.15, "TC": 0.5, "TD": 2.0 },
+    "3": { "description": "Ground type 3: deep deposits of dense or medium-dense sand, gravel or stiff clay (SANS 10160-4)", "S": 1.5, "TB": 0.15, "TC": 0.6, "TD": 2.0 },
+    "4": { "description": "Ground type 4: loose-to-medium cohesionless soil or soft-to-firm cohesive soil (SANS 10160-4)", "S": 1.8, "TB": 0.15, "TC": 0.6, "TD": 2.0 }
+  },
+  "defaultSiteClass": "2",
+  "designCategories": {
+    "$replace": true,
+    "occupancyGroups": { "I": "all", "II": "all", "III": "all", "IV": "all" },
+    "bySiteClass": { "all": { "all": ["B", "C", "D"] } }
+  },
+  "siteSpecificStudy": {
+    "$replace": true,
+    "classes": [],
+    "clause": "SANS 10160-4 5.3"
+  },
+  "clauses": {
+    "sdc": "SAEngine practice: the category of the seismic action by the hazard zone (ag 0.05, 0.10, 0.15 g)"
+  },
+  "sources": {
+    "spectra": "SANS 10160-4 Table 1 (as SAEngine recalls it, uncertain: VERIFY.md Z4): S 1.0, 1.35, 1.5, 1.8; TB 0.15; TC 0.4, 0.5, 0.6, 0.6; TD 2.0 s",
+    "designCategories": "SAEngine practice: zone 1 (0.05 g) B, zone 2 (0.10 g) C, zone 3 (0.15 g) D; the detailing the parent asks for in each"
+  }
+}

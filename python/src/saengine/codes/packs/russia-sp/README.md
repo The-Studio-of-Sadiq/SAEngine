@@ -29,8 +29,9 @@ drift under wind) is its service combinations with the normative values.
 
 - Earthquake `designSpectrum.method: "shapeFactors"` (`fem/spectra.py`, alpha 9 C18): Z = A,
   the importance = K0, R = 1/(K1 Kψ), Ch(T) = the soil category's β(T) branches (1 + 15T, 2.5,
-  2.5 (Tc/T)^0.5, at least 0.8) times 0.5 / 1 / 2 for the one-point shift of categories I / II /
-  III (IV takes III with the site-specific study warning).
+  2.5 (Tc/T)^0.5, at least 0.8), the one-point shift of categories I / II / III as the soil
+  factor S 0.5 / 1 / 2 (`shapeFactors.soilFactors`, alpha 9 C24; IV takes III with the
+  site-specific study warning).
 - Alpha 9 C25 `seismic.hazardMaps` with `locations.*.mapZones` (`library/settings.py`
   `derived`): the town's zone on the map of the occupancy category (A for I-II, B for III, C for
   IV; a project overrides `seismic.hazardMaps.byOccupancy.III` or `.default`).

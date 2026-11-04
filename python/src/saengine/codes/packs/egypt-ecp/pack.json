@@ -1,0 +1,59 @@
+{
+  "schema": "saengine.codePack/1",
+  "id": "egypt-ecp",
+  "name": "Egyptian Codes (ECP 201 loads and seismic, ECP 203 concrete)",
+  "edition": "ECP 201-2012 / ECP 203-2018",
+  "country": "EG",
+  "units": "SI",
+  "version": "0.1.0",
+  "extends": "bs8110",
+  "covers": [
+    "locations",
+    "zoneCoefficients",
+    "occupancyCategories",
+    "seismic",
+    "combinations",
+    "concrete",
+    "concreteMethods"
+  ],
+  "description": "The Egyptian Code of Practice (alpha 9 track C24), a pack that extends the legacy British Standards pack bs8110: ECP 203 designs concrete on the cube strength fcu with the block 0.67 fcu/γc and γc 1.5, as BS 8110 does, so the concrete methods are the parent's with ECP 203's values (γs 1.15, the block over 0.8 c, c ≤ 2/3 cb, Ec = 4400 √fcu, emin 0.05 t ≥ 20 mm, short columns 0.35 fcu Ac + 0.67 fy As, the shear qcu = 0.24 √(fcu/γc) of which half is counted with stirrups, qmax = 0.7 √(fcu/γc) ≤ 4 MPa). The seismic form of ECP 201-2012 is EN 1998-1's, built here by the generic behaviourFactor spectrum method with ECP 201's values (the zones 1, 2, 3, 4, 5A, 5B with ag 0.10-0.30 g, the soil classes A-D of the two spectrum types, γI 0.8-1.4, R of the systems, the lower bound 0.2 ag γI, λ = 0.85, the drift limits). Load combinations of ECP 203 (1.4D + 1.6L, 0.8(1.4D + 1.6L + 1.6W), 0.9D + 1.3W, 1.12D + αL + E, 0.9D + E). Wind: the parent's BS 6399-2 method with placeholder speeds (ECP 201's wind method is not set). Steel ECP 205 not covered (the parent's BS 5950-1). Every value is listed in VERIFY.md; the towns' zones, the spectrum types and the R values are uncertain and must be checked before design.",
+  "sources": [
+    {
+      "id": "ECP201",
+      "title": "Egyptian Code for Calculating Loads and Forces in Structural Work and Masonry (ECP 201)",
+      "edition": "2012",
+      "publisher": "Housing and Building National Research Center (HBRC), Egypt"
+    },
+    {
+      "id": "ECP203",
+      "title": "Egyptian Code for Design and Construction of Concrete Structures (ECP 203)",
+      "edition": "2018",
+      "publisher": "Housing and Building National Research Center (HBRC), Egypt"
+    }
+  ],
+  "clauses": {
+    "locations": ["ECP 201-2012 8.2, Figure 8.1 and Table 8.1 (seismic zones of the towns)"],
+    "zoneCoefficients": ["ECP 201-2012 Table 8.1 (ag by zone)"],
+    "occupancyCategories": ["ECP 201-2012 Table 8.9 (importance factor γI)"],
+    "seismic": ["ECP 201-2012 Chapter 8"],
+    "combinations": ["ECP 203 3.2.1 (load combinations)"],
+    "concrete": ["ES 262 (bars: SAEngine's selection)"],
+    "concreteMethods": ["ECP 203 Chapter 4 (strength design: 4.2 flexure and axial, 4.2.2 shear)"]
+  },
+  "basis": {
+    "general": "ECP 201-2012 (seismic, combinations of ECP 203); wind and loads otherwise the parent's BS 6399",
+    "concrete": "ECP 203-2018 (the parent's BS 8110 limit state methods with ECP 203's values)",
+    "steel": "Not covered (the parent's BS 5950-1:2000; ECP 205 not set)"
+  },
+  "tableCodes": {
+    "seismic": "ECP 201-2012",
+    "locations": "ECP 201-2012",
+    "zoneCoefficients": "ECP 201-2012",
+    "occupancyCategories": "ECP 201-2012",
+    "combinations": "ECP 203",
+    "concrete": "ECP 203",
+    "concreteMethods": "ECP 203"
+  },
+  "author": "SAEngine contributors",
+  "licence": "AGPL-3.0-only"
+}

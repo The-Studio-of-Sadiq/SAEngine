@@ -543,6 +543,11 @@ class ShapeBranch(BaseModel):
     # term + c2 (t0 / T)^n2 (0: none).
     c2: float = Field(default=0.0, description="c2 of the second term c2 (t0 / T)^n2.")
     n2: float = 1.0
+    # Alpha 9 C24 (NCh 433 Eq 6-10 type: α = (1 + 4.5 (T/T0)^p) / (1 + (T/T0)^3)): the branch
+    # divided by 1 + d (t0 / T)^m (0: no divisor). A negative power (n, n2, m) is a power of
+    # T / t0: its term is 0 at T = 0.
+    d: float = Field(default=0.0, description="d of the divisor 1 + d (t0 / T)^m.")
+    m: float = 1.0
 
 
 class SiteClass(_Row):
@@ -1468,6 +1473,35 @@ class ShapeFactorsRule(BaseModel):
     )
     nearFaultFull: float = Field(default=2.0, ge=0, description="N = Nmax up to D [km].")
     nearFaultNone: Positive = Field(default=20.0, description="N = 1 from D [km].")
+    # Alpha 9 C24 (E.030 2018 Table 3, NCh 433 Table 6.3 type): the soil factor S on Cd by site
+    # class and the site's Z; (Z from, S) steps, S of the last step at or below Z (the first
+    # below them all). A class without steps (or an empty table): S = 1.
+    soilFactors: dict[str, list[tuple[float, Positive]]] = Field(
+        default_factory=dict,
+        description="S on Cd by site class: (Z from, S) steps; empty: S = 1.",
+    )
+    # Alpha 9 C24 (NCh 433 Eq 6-11 type): kμ = 1 + T / (ratioShare T0 + T / μ), T0 of the site
+    # class (``ratioPeriods``), in place of the linear form ("linear": the forms above).
+    ductilityForm: Literal["linear", "periodRatio"] = Field(
+        default="linear",
+        description="linear: kμ by ductilityPeriod (or μ); periodRatio: kμ = 1 + T / "
+        "(ratioShare T0 + T / μ).",
+    )
+    ratioShare: Positive | None = Field(default=None, description="periodRatio: the share of T0.")
+    ratioPeriods: dict[str, Positive] = Field(
+        default_factory=dict,
+        description="periodRatio: T0 [s] by site class (a class without one: kμ = μ).",
+    )
+    # Alpha 9 C24 (E.030 2018 28.2.1 C/R ≥ 0.11, NCh 433 6.2.3.1.1 Cmin = A0 S / 6g): the least
+    # Cd as a share of Z I S, and the cap by μ (NCh 433 Table 6.4 Cmax).
+    leastSoilShare: Positive | None = Field(
+        default=None, description="Cd at least this × Z I S (empty: none)."
+    )
+    capByDuctility: list[tuple[Positive, Positive]] = Field(
+        default_factory=list,
+        description="(μ, share): Cd at most share × Z I S, share linear between, the end values "
+        "beyond; empty: no cap.",
+    )
     clauses: dict[str, str] = Field(default_factory=dict)
 
 
@@ -11812,6 +11846,7 @@ from saengine.codes.capacity_tables import (  # C19
     HorizontalCapacityTable,
 )
 from saengine.codes.excavation_tables import ExcavationSupportTable  # P1: staged excavations
+from saengine.codes.existing_tables import ExistingTable  # P4: existing buildings
 from saengine.codes.limit_state_tables import SteelLimitStateTable
 from saengine.codes.material_method_tables import (
     AluminiumTable,
@@ -11916,6 +11951,8 @@ TABLE_MODELS: dict[str, type[TableModel]] = {
     # Alpha 9 C19: allowable stress design of members, the storeys' horizontal capacity.
     "allowableStress": AllowableStressTable,
     "horizontalCapacity": HorizontalCapacityTable,
+    # Alpha 9 P4: assessment and retrofit of existing buildings.
+    "existing": ExistingTable,
 }
 
 
