@@ -922,6 +922,7 @@ def drift_amplification(
     # 4.4.2.2, dr = qd·de) with its cap; else θ = Px·δe/(I·Vx·h), θmax = 0.5/Cd ≤ 0.25.
     rule = getattr(code_context.table("seismic"), "stability", None)
     design_drift = rule is not None and rule.method == "designDrift"
+    elastic_drift = rule is not None and rule.method == "elasticDrift"  # C1: ASCE 7 Eq 12.8-16
     cap = rule.thetaCap if rule is not None else 0.25
     theta_max = (cap if design_drift else min(0.5 / cd, cap)) if cd else None
     from opensees_studio.services.result_store import load_manifest, load_results
@@ -984,6 +985,8 @@ def drift_amplification(
                 row["Px"], row["Vx"] = px, vx
                 if vx > 0 and design_drift and cd:  # θ = Px·qd·de/(Vx·h)
                     row["theta"] = px * cd * row["centreOfMassDrift"] / vx
+                elif vx > 0 and elastic_drift:  # C1: θ = Px δxe / (Vx hsx), Ie cancelled
+                    row["theta"] = px * row["centreOfMassDrift"] / vx
                 elif vx > 0:  # θ = Px δxe / (I Vx hsx), δxe / hsx the drift ratio
                     row["theta"] = px * row["centreOfMassDrift"] / (importance * vx)
             storeys.append(row)

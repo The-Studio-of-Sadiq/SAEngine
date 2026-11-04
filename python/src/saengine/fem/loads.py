@@ -53,12 +53,24 @@ def damping_correction(damping: float | None = None) -> float:
 
 
 def normalized_spectrum(
-    period: float, site_class: str, damping: float | None = None, static: bool = False
+    period: float,
+    site_class: str,
+    damping: float | None = None,
+    hazard: Any = None,
+    static: bool = False,
 ) -> float:
     """Normalized acceleration response spectrum Cs(T) for the site class, with the damping
     correction η of the viscous damping ratio ``damping`` (None: the code's reference, 5 %).
+
+    C1: a pack whose design spectrum is ``mappedSpectral`` (``seismic.designSpectrum.method``)
+    gives the site's design spectral acceleration Sa(T) [g] instead, from
+    ``hazard`` (the derived "Z", :class:`saengine.fem.spectral_hazard.SpectralHazard`).
     C7, the pack's ``seismic.designSpectrum``: beyond TD constant (``longPeriod``); with
     ``static`` (the equivalent static method) and ``staticPlateau`` the plateau below TB."""
+    from saengine.fem import spectral_hazard as sh
+
+    if sh.uses_mapped():
+        return damping_correction(damping) * sh.spectral_acceleration(period, _mapped(hazard))
     seismic = code_context.table("seismic")
     rule = getattr(seismic, "designSpectrum", None)
     site = seismic.siteClasses[site_class]
@@ -88,9 +100,10 @@ def design_acceleration(
     ``static``: see :func:`normalized_spectrum`); C7: the factor is the pack's
     ``designSpectrum.factor`` where it gives one (IS 1893: Z/2).
 
-    C4: a pack whose ``seismic.designSpectrum.method`` is ``behaviourFactor`` gets the design
-    spectrum with the behaviour factor (R standing for q, ag = Z·I, the lower bound β·ag; the
-    damping is in q there, so ``damping`` is not used): :mod:`saengine.fem.spectra`."""
+    The pack's ``seismic.designSpectrum.method`` picks the design spectrum: ``behaviourFactor``
+    (C4: R standing for q, ag = Z·I, the lower bound β·ag; the damping is in q there, so
+    ``damping`` is not used, :mod:`saengine.fem.spectra`); ``mappedSpectral`` (C1: ``z`` the
+    site's :class:`~saengine.fem.spectral_hazard.SpectralHazard`, Sa(T)·I/R)."""
     seismic = code_context.table("seismic")
     rule = getattr(seismic, "designSpectrum", None)
     if rule is not None and rule.method == "behaviourFactor":
@@ -108,8 +121,16 @@ def design_acceleration(
             rule.plateau,
             rule.lowerBound,
         )
+    if rule is not None and rule.method == "mappedSpectral":
+        return importance / r * normalized_spectrum(period, site_class, damping, z)
     factor = rule.factor if rule is not None and rule.factor is not None else 2 / 3
-    return factor * z * importance / r * normalized_spectrum(period, site_class, damping, static)
+    return (
+        factor
+        * z
+        * importance
+        / r
+        * normalized_spectrum(period, site_class, damping, static=static)
+    )
 
 
 def minimum_base_share(zone: int | None) -> float:
@@ -119,6 +140,53 @@ def minimum_base_share(zone: int | None) -> float:
     if rule is None or not rule.minimumShare or zone is None:
         return 0.0
     return float(rule.minimumShare.get(int(zone), 0.0))
+
+
+def _mapped(hazard: Any) -> Any:
+    """``hazard`` when it is the site's mapped values; ValueError otherwise (a mapped spectrum
+    cannot be drawn without them)."""
+    from saengine.fem.spectral_hazard import SpectralHazard
+
+    if not isinstance(hazard, SpectralHazard):
+        raise ValueError(  # noqa: TRY004 - the callers report a ValueError of the inputs
+            "the code pack's spectrum comes from the site's mapped spectral values (SDS, SD1): "
+            "enter them in Project Settings > Site > Mapped spectral values"
+        )
+    return hazard
+
+
+def elf_coefficient(
+    period: float,
+    site_class: str,
+    z: float,
+    importance: float,
+    r: float,
+    damping: float | None = None,
+    static: bool = True,
+) -> float:
+    """The equivalent static force coefficient V/W at ``period`` before the pack's base shear
+    correction (:func:`base_shear_correction`): the design spectral acceleration
+    (:func:`design_acceleration`); C1: with the design spectrum ``mappedSpectral`` the pack's
+    Cs = SDS/(R/I) with its upper and lower bounds
+    (:func:`saengine.fem.spectral_hazard.response_coefficient`)."""
+    from saengine.fem import spectral_hazard as sh
+
+    if sh.uses_mapped():
+        return sh.response_coefficient(period, _mapped(z), importance, r)
+    return design_acceleration(period, site_class, z, importance, r, damping, static=static)
+
+
+def period_upper_factor(z: Any = None) -> float | None:
+    """The factor on the approximate period Ta that caps a period from the structure's
+    properties: Cu of the site's SD1 where the design spectrum gives ``periodUpper`` (C1), else
+    the pack's ``periodUpperFactor`` (None: no cap given)."""
+    from saengine.fem import spectral_hazard as sh
+
+    cu = sh.period_upper_factor(z)
+    if cu is not None:
+        return cu
+    upper = getattr(code_context.table("seismic"), "periodUpperFactor", None)
+    return None if upper is None else float(upper)
 
 
 def base_shear_correction(period: float, storeys: int, site_class: str) -> float:
@@ -293,13 +361,17 @@ def exposure_coefficient(height: float, exposure: str) -> float:
     """Velocity pressure exposure coefficient Kz at ``height`` metres (Table 6.2.11); C7: with
     the pack's ``wind.method`` "speedFactors" the terrain and height factor on the pressure,
     k2²."""
-    if code_context.table("wind").method == "speedFactors":
+    table = code_context.table("wind")
+    if table.method == "speedFactors":
         from saengine.fem import wind_speed_factors
 
         return wind_speed_factors.height_factor(height, exposure) ** 2
-    profile = code_context.table("wind").exposures[exposure]
+    profile = table.exposures[exposure]
     alpha, zg = profile.alpha, profile.zg
-    return 2.01 * (max(height, 4.57) / zg) ** (2 / alpha)
+    # C1: the power law's constants from the pack where it gives them (else Table 6.2.11's).
+    factor = table.kzFactor if table.kzFactor is not None else 2.01
+    least = table.kzMinHeight if table.kzMinHeight is not None else 4.57
+    return factor * (max(height, least) / zg) ** (2 / alpha)
 
 
 def velocity_pressure(height: float, speed: float, exposure: str, importance: float) -> float:

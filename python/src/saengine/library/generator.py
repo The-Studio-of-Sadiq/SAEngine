@@ -66,6 +66,7 @@ from saengine.library.objects import ObjectLibrary
 from saengine.library.settings import (
     LocationId,
     ProjectSettings,
+    SpectralSite,
     default_project_settings,
     partition_case,
     seismic_weight_rule,
@@ -188,13 +189,19 @@ class BuildingSpec(_Spec):
         default=None, gt=0, description="Floor live load [kN/m²]; none: the code minimum."
     )
     location: LocationId | None = None  # type: ignore[valid-type]
-    # C4: another code pack than the settings' (the New Building wizard's design code), with
+    # C4, C1: another code pack than the settings' (the New Building wizard's design code), with
     # the site values a pack without towns needs (Location: Custom).
     codePack: str | None = Field(
         default=None, description="Id of the code pack the project follows; none: the settings'."
     )
     zoneCoefficient: float | None = Field(
         default=None, gt=0, lt=1, description="Z (the pack's peak ground acceleration) [g]."
+    )
+    spectral: SpectralSite | None = Field(
+        default=None,
+        description="C1: the site's mapped spectral values (SDS, SD1, S1, TL) for a code pack "
+        "whose design spectrum is mappedSpectral (Project Settings > Site > Mapped spectral "
+        "values).",
     )
     windSpeed: float | None = Field(default=None, gt=0, description="Basic wind speed [m/s].")
     windExposure: str | None = Field(
@@ -613,7 +620,7 @@ def stiffness_estimate(
     tops = list(itertools.accumulate(heights[1:]))
     rel = [t / 1000 for t in tops]
     ta = fl.approximate_period(rel[-1], settings.seismic.system, (xs[-1] - xs[0]) / 1000)
-    upper = code_context.table("seismic").periodUpperFactor
+    upper = fl.period_upper_factor(values["Z"])  # C1: Cu by SD1 where the pack gives it
     shape = fl.vertical_distribution(list(zip(rel, weights, strict=True)), 1.0, ta)
     lx_m, ly_m = (xs[-1] - xs[0]) / 1000, (ys[-1] - ys[0]) / 1000
     wind: dict[str, list[float]] = {}
@@ -624,7 +631,7 @@ def stiffness_estimate(
     seismic_v = 0.0
     limit = cd = None
     if values["Z"]:
-        sa = fl.design_acceleration(
+        sa = fl.elf_coefficient(
             ta, settings.site.siteClass, values["Z"], values["seismicImportance"], values["R"]
         )
         seismic_v = sa * sum(weights)
@@ -787,7 +794,7 @@ def lateral_column_sizes(
     if seismic and values["Z"]:
         weights = parts.get("seismicLevels", parts["levels"])[1:]
         period = fl.approximate_period(base[-1] / 1000, settings.seismic.system, lx_m)
-        sa = fl.design_acceleration(
+        sa = fl.elf_coefficient(
             period, settings.site.siteClass, values["Z"], values["seismicImportance"], values["R"]
         )
         v = sa * sum(weights)
@@ -1340,6 +1347,8 @@ def _code_pack_patch(
             site["zoneCoefficient"] = s.zoneCoefficient
         if s.windSpeed is not None:
             site["windSpeed"] = s.windSpeed
+        if s.spectral is not None:  # C1: a pack whose design spectrum is mappedSpectral
+            site["spectral"] = s.spectral.model_dump(mode="json", exclude_none=True)
         return {}
     from saengine.codes import registry
     from saengine.library.settings import strength_combinations
@@ -1367,6 +1376,8 @@ def _code_pack_patch(
         site["zoneCoefficient"] = s.zoneCoefficient
     if s.windSpeed is not None:
         site["windSpeed"] = s.windSpeed
+    if s.spectral is not None:  # C1: a pack whose design spectrum is mappedSpectral
+        site["spectral"] = s.spectral.model_dump(mode="json", exclude_none=True)
     exposures = list(pack.table("wind").exposures) if pack.has("wind") else []
     exposure = s.windExposure or base.wind.exposure
     if exposures and exposure not in exposures:

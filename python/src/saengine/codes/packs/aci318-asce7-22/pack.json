@@ -1,0 +1,54 @@
+{
+  "schema": "saengine.codePack/1",
+  "id": "aci318-asce7-22",
+  "name": "ACI 318-19 + ASCE 7-22",
+  "edition": "ASCE 7-22",
+  "country": "US",
+  "version": "0.1.0",
+  "extends": "bnbc2020",
+  "covers": [
+    "locations",
+    "occupancyCategories",
+    "areaLoads",
+    "liveReduction",
+    "combinations",
+    "seismic",
+    "wind",
+    "snow"
+  ],
+  "description": "The US pack, loads first: ASCE/SEI 7-22 load combinations (Sec 2.3, 2.4), live loads and their reduction (Ch 4), the seismic design of buildings from the site's mapped spectral values (Ch 11-12: risk categories, site classes, the two-period and multi-period spectra, Seismic Design Categories, R, Cd and Omega0, the equivalent lateral force method with its Cs bounds and Cu, modal scaling, drift limits, irregularities, diaphragm forces, P-Delta), wind (Ch 26-30: the ASCE 7-22 terrain constants; the pressure coefficients the editions share) and roof snow (Ch 7). Concrete, steel and the other materials are not in this version: they fall back to the pack it extends (BNBC 2020, whose concrete chapter follows ACI 318), and the report names every table that falls back. Every value has its clause in VERIFY.md, to be checked against the printed standards.",
+  "sources": [
+    {
+      "id": "ASCE7",
+      "title": "Minimum Design Loads and Associated Criteria for Buildings and Other Structures (ASCE/SEI 7-22)",
+      "edition": "2022",
+      "publisher": "American Society of Civil Engineers"
+    },
+    {
+      "id": "ACI318",
+      "title": "Building Code Requirements for Structural Concrete (ACI 318-19)",
+      "edition": "2019",
+      "publisher": "American Concrete Institute"
+    }
+  ],
+  "clauses": {
+    "locations": ["ASCE 7-22 Sec 11.4.2, 26.5.1, 7.2: site values from the ASCE Hazard Tool"],
+    "occupancyCategories": ["ASCE 7-22 Table 1.5-1, Table 1.5-2"],
+    "areaLoads": ["ASCE 7-22 Table 4.3-1, Sec 4.3.2"],
+    "liveReduction": ["ASCE 7-22 Sec 4.7, Table 4.7-1, Sec 4.8.2"],
+    "combinations": ["ASCE 7-22 Sec 2.3, 2.4, 12.4"],
+    "seismic": ["ASCE 7-22 Chapters 11 and 12"],
+    "wind": ["ASCE 7-22 Chapters 26-30"],
+    "snow": ["ASCE 7-22 Chapter 7"],
+    "flood": ["ASCE 7-22 Chapter 5, Sec 8.2"],
+    "transfer": ["ASCE 7-22 Sec 12.10.1.1 (diaphragm forces)"]
+  },
+  "basis": {
+    "general": "ASCE 7-22",
+    "concrete": "BNBC 2020 Part 6 Chapter 6 (ACI 318-19 not yet in the pack)",
+    "steel": "BNBC 2020 Part 6 Chapter 10 (AISC 360-22 not yet in the pack)",
+    "method": "Strength design (LRFD)"
+  },
+  "author": "SAEngine contributors",
+  "licence": "AGPL-3.0-only"
+}

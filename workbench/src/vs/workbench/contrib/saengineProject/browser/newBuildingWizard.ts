@@ -179,6 +179,8 @@ export class NewBuildingWizard extends EditorPane {
 	/** C7: the towns and site classes of the chosen pack other than the default (empty: none). */
 	private packTowns: { id: string; label: string }[] = [];
 	private packSiteClasses: { id: string; label: string }[] = [];
+	/** C1: the chosen pack's design spectrum method (`mappedSpectral`: the site's SDS, SD1 instead of Z). */
+	private packSpectrum = '';
 	/** The package of the specification that filled the form last; undefined before any. */
 	private templateApplied: string | undefined;
 
@@ -322,6 +324,7 @@ export class NewBuildingWizard extends EditorPane {
 		this.packExposures = [];
 		this.packTowns = [];
 		this.packSiteClasses = [];
+		this.packSpectrum = '';
 		if (id === DEFAULT_CODE_PACK_ID || !CommandsRegistry.getCommand(CODES_CHOICES_COMMAND)) {
 			this.form.packTowns = false;
 			return;
@@ -331,6 +334,7 @@ export class NewBuildingWizard extends EditorPane {
 			this.packExposures = lists?.exposures ?? [];
 			this.packTowns = (lists?.locations ?? []).filter(l => l.id !== 'custom');
 			this.packSiteClasses = lists?.siteClasses ?? [];
+			this.packSpectrum = lists?.designSpectrum?.[0]?.id ?? '';
 		} catch {
 			this.packExposures = [];
 		}
@@ -621,7 +625,16 @@ export class NewBuildingWizard extends EditorPane {
 		} else {
 			// C4: a pack without the default pack's towns (the Eurocodes: the National Annex maps).
 			append(form, $('p.hint.indented', undefined, localize('newBuilding.otherPackHint', "This design code has no towns of its own: enter the site's peak ground acceleration and basic wind speed from the national maps (the project's Location is Custom). Check them, and the exposure, in Project Settings.")));
-			this.textInput(form, localize('newBuilding.zoneCoefficient', "Peak ground acceleration (g)"), this.form.zoneCoefficient, value => this.form.zoneCoefficient = value, localize('newBuilding.zonePlaceholder', "e.g. 0.16 (agR)"));
+			if (this.packSpectrum === 'mappedSpectral') {
+				// C1: a pack whose design spectrum comes from the site's mapped values (ASCE 7-22).
+				append(form, $('p.hint.indented', undefined, localize('newBuilding.mappedHint', "This design code takes the seismic hazard from the site's mapped values (for ASCE 7-22, the ASCE Hazard Tool): SDS and SD1, with S1 and the long-period transition TL. They can be changed later in Project Settings > Site.")));
+				this.textInput(form, localize('newBuilding.sds', "SDS (g)"), this.form.sds, value => this.form.sds = value, localize('newBuilding.sdsPlaceholder', "e.g. 1.0"));
+				this.textInput(form, localize('newBuilding.sd1', "SD1 (g)"), this.form.sd1, value => this.form.sd1 = value, localize('newBuilding.sd1Placeholder', "e.g. 0.6"));
+				this.textInput(form, localize('newBuilding.s1', "S1 (g)"), this.form.s1, value => this.form.s1 = value, localize('newBuilding.s1Placeholder', "optional"));
+				this.textInput(form, localize('newBuilding.tl', "TL (s)"), this.form.tl, value => this.form.tl = value, localize('newBuilding.tlPlaceholder', "optional, e.g. 8"));
+			} else {
+				this.textInput(form, localize('newBuilding.zoneCoefficient', "Peak ground acceleration (g)"), this.form.zoneCoefficient, value => this.form.zoneCoefficient = value, localize('newBuilding.zonePlaceholder', "e.g. 0.16 (agR)"));
+			}
 			this.textInput(form, localize('newBuilding.windSpeed', "Basic wind speed (m/s)"), this.form.windSpeed, value => this.form.windSpeed = value, localize('newBuilding.windPlaceholder', "e.g. 27 (vb,0)"));
 			if (this.packExposures.length) {
 				const exposures = this.packExposures.map(e => ({ value: e.id, label: e.label }));

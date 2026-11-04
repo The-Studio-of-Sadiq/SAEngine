@@ -843,6 +843,7 @@ def _basis(settings: Any, parts: _Parts, model: dict[str, Any], manifest: dict[s
             ["Basic wind speed V", f"{fmt(values['windSpeed'], 1)} m/s"],
             ["Wind exposure category", settings.wind.exposure],
         ]
+        basis["site"] = _mapped_site_rows(basis["site"], values)  # C1: SDS, SD1 for Z
         basis["site"] += _construction_basis(settings, parts, pack)  # B18
         basis["seismic"] = [
             [
@@ -1141,6 +1142,8 @@ def _model_summary(
                 if values.get(key) is not None:
                     text = fmt(values[key], digits)
                     summary["derived"].append([label, f"{text} {unit}".strip()])
+            if values.get("spectral"):  # C1: the site's mapped values (Sa_g is then Cs)
+                summary["derived"].append(["Mapped spectral values", str(values["spectral"])])
             summary["derived"] += _derivation_rows(values, root)
 
     run_rows, run_warnings = [], []
@@ -3492,6 +3495,20 @@ def _seismic_basis_extra(
         if warning not in parts.warnings:
             parts.warnings.append(warning)
     return rows
+
+
+def _mapped_site_rows(rows: list[list[str]], values: dict[str, Any]) -> list[list[str]]:
+    """C1: a pack whose seismic hazard is the site's mapped values: those values in place of
+    the zone and Z rows (the category band is not a zone)."""
+    from saengine.fem.spectral_hazard import SpectralHazard, describe
+
+    hazard = values.get("Z")
+    if not isinstance(hazard, SpectralHazard):
+        return rows
+    out = [r for r in rows if r[0] not in ("Seismic zone", "Seismic zone coefficient Z")]
+    at = next((i for i, r in enumerate(out) if r[0] == "Basic wind speed V"), len(out))
+    out.insert(at, ["Mapped spectral values", describe(hazard)])
+    return out
 
 
 def _site_class_text(parts: _Parts) -> str:

@@ -21,6 +21,54 @@
       "title": "AdjacentRatio",
       "type": "object"
     },
+    "CsLimits": {
+      "additionalProperties": false,
+      "description": "Bounds of the seismic response coefficient Cs of the equivalent lateral force method:\nCs ≥ max(``sdsFactor``·SDS·Ie, ``floor``) and, where S1 ≥ ``nearFaultS1``,\nCs ≥ ``nearFaultFactor``·S1 / (R/Ie).",
+      "properties": {
+        "sdsFactor": {
+          "minimum": 0,
+          "title": "Sdsfactor",
+          "type": "number"
+        },
+        "floor": {
+          "minimum": 0,
+          "title": "Floor",
+          "type": "number"
+        },
+        "nearFaultS1": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Nearfaults1"
+        },
+        "nearFaultFactor": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Nearfaultfactor"
+        }
+      },
+      "required": [
+        "sdsFactor",
+        "floor"
+      ],
+      "title": "CsLimits",
+      "type": "object"
+    },
     "DampingCorrection": {
       "additionalProperties": false,
       "description": "The spectrum's damping correction η(ξ). ``squareRoot``: η = √(numerator / (offset +\n100ξ)), at least ``minimum``; ``none``: η = dampingEta.",
@@ -100,13 +148,14 @@
     },
     "DesignSpectrumRule": {
       "additionalProperties": false,
-      "description": "C4: the design spectrum. ``reducedElastic``: Sa = pgaFactor·Z·I/R·Cs(T) (the default\npack's). ``behaviourFactor`` (EN 1998-1 3.2.2.5): ag = Z·I, Sd = ag·S·[2/3 + T/TB·(2.5/q -\n2/3)] up to TB, ag·S·2.5/q to TC, ·TC/T to TD, ·TC·TD/T² beyond, at least ``lowerBound``·ag\nfrom TC (:mod:`saengine.fem.spectra`); R stands for q.",
+      "description": "The design spectrum: a method id the pack picks (C4, C1). Empty: ``reducedElastic``.\n\n- ``reducedElastic`` (the default pack's): Sa = pgaFactor·Z·I/R·Cs(T), Cs the elastic shape\n  of the site class (S, TB, TC, TD; :func:`saengine.fem.loads.design_acceleration`).\n- ``behaviourFactor`` (EN 1998-1 3.2.2.5): ag = Z·I, Sd = ag·S·[2/3 + T/TB·(2.5/q - 2/3)] up\n  to TB, ag·S·2.5/q to TC, ·TC/T to TD, ·TC·TD/T² beyond, at least ``lowerBound``·ag from TC\n  (:mod:`saengine.fem.spectra`); R stands for q.\n- ``mappedSpectral`` (ASCE 7-22 Ch 11-12, :mod:`saengine.fem.spectral_hazard`): the site's\n  SDS and SD1 (and S1, TL) entered from the code's hazard tool (Site > Mapped spectral\n  values) instead of a zone: a two-period spectrum (T0 = ``t0Share``·TS, TS = SD1/SDS;\n  ``rampStart``·SDS at T = 0 up to SDS at T0, SDS to TS, SD1/T to TL, SD1·TL/T² beyond) or\n  the site's multi-period design spectrum, × I/R; the equivalent lateral force coefficient\n  Cs = SDS/(R/Ie) ≤ SD1/(T R/Ie) (SD1 TL/(T² R/Ie) beyond TL) within ``csLimits``; the\n  Seismic Design Category read by the band of SDS and SD1 (``sdsBands``, ``sd1Bands``, the\n  more severe; the band after the last where S1 ≥ ``s1Extreme``) as zone packs read it by\n  zone; the period's upper limit Cu·Ta from ``periodUpper`` by SD1. The fields after\n  ``lowerBound`` are this method's.",
       "properties": {
         "method": {
           "default": "reducedElastic",
           "enum": [
             "reducedElastic",
-            "behaviourFactor"
+            "behaviourFactor",
+            "mappedSpectral"
           ],
           "title": "Method",
           "type": "string"
@@ -161,6 +210,132 @@
           "description": "reducedElastic: the equivalent static method takes the plateau below TB (no rising branch); the dynamic analysis the full shape.",
           "title": "Staticplateau",
           "type": "boolean"
+        },
+        "designShare": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "SDS = share × SMS, SD1 = share × SM1 (mapped values).",
+          "title": "Designshare"
+        },
+        "t0Share": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "T0 = share × TS.",
+          "title": "T0Share"
+        },
+        "rampStart": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Sa at T = 0 as a share of SDS (the ramp to T0).",
+          "title": "Rampstart"
+        },
+        "sdsBands": {
+          "description": "SDS [g] at which each band from the second starts.",
+          "items": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "title": "Sdsbands",
+          "type": "array"
+        },
+        "sd1Bands": {
+          "description": "SD1 [g] at which each band from the second starts.",
+          "items": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "title": "Sd1Bands",
+          "type": "array"
+        },
+        "s1Extreme": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "S1 [g] from which the band after the last one applies.",
+          "title": "S1Extreme"
+        },
+        "csLimits": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CsLimits"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "periodUpper": {
+          "description": "(SD1 [g], Cu) points: T ≤ Cu·Ta, Cu linear between, held beyond.",
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              },
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "title": "Periodupper",
+          "type": "array"
+        },
+        "multiPeriod": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MultiPeriodRule"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "clauses": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Clauses",
+          "type": "object"
         }
       },
       "title": "DesignSpectrumRule",
@@ -637,6 +812,88 @@
       "title": "LateralForceRule",
       "type": "object"
     },
+    "MultiPeriodRule": {
+      "additionalProperties": false,
+      "description": "SMS and SM1 from a multi-period MCER spectrum (Sa [g] by T [s]): SMS = ``smsShare`` ×\nthe largest Sa from ``smsPeriods[0]`` to ``smsPeriods[1]``, at least Sa at the first;\nSM1 = the largest T·Sa from ``sm1Periods[0]`` to ``sm1Periods[1]`` (``sm1PeriodsSoft`` for\nthe ``softClasses``); SDS, SD1 = ``designShare`` × them. Used when the project gives the\nMCER spectrum and not SDS and SD1.",
+      "properties": {
+        "smsShare": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Smsshare",
+          "type": "number"
+        },
+        "smsPeriods": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Smsperiods",
+          "type": "array"
+        },
+        "sm1Periods": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Sm1Periods",
+          "type": "array"
+        },
+        "sm1PeriodsSoft": {
+          "anyOf": [
+            {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                },
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sm1Periodssoft"
+        },
+        "softClasses": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Softclasses",
+          "type": "array"
+        }
+      },
+      "required": [
+        "smsShare",
+        "smsPeriods",
+        "sm1Periods"
+      ],
+      "title": "MultiPeriodRule",
+      "type": "object"
+    },
     "PeriodCoefficient": {
       "additionalProperties": false,
       "properties": {
@@ -728,33 +985,70 @@
           "type": "string"
         },
         "S": {
+          "default": 1.0,
           "description": "Soil factor.",
           "exclusiveMinimum": 0,
           "title": "S",
           "type": "number"
         },
         "TB": {
+          "default": 0.0,
           "minimum": 0,
           "title": "Tb",
           "type": "number"
         },
         "TC": {
+          "default": 0.0,
           "minimum": 0,
           "title": "Tc",
           "type": "number"
         },
         "TD": {
+          "default": 0.0,
           "minimum": 0,
           "title": "Td",
           "type": "number"
+        },
+        "vs30": {
+          "anyOf": [
+            {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              ],
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "(lower, upper) average shear wave speed of the top 30 m [m/s] of the class, where the code defines the class by it; empty: by the description.",
+          "title": "Vs30"
         }
       },
       "required": [
-        "description",
-        "S",
-        "TB",
-        "TC",
-        "TD"
+        "description"
       ],
       "title": "SiteClass",
       "type": "object"
@@ -838,12 +1132,13 @@
     },
     "StabilityRule": {
       "additionalProperties": false,
-      "description": "C4: θ. ``elasticOverImportance`` (the default pack's): θ = Px δe/(I Vx h), θmax = 0.5/Cd\n≤ ``thetaCap``; ``designDrift`` (EN 1998-1 4.4.2.2): θ = Ptot dr/(Vtot h) with dr = Cd·de\n(Cd standing for qd), θmax = ``thetaCap``. Below ``ignoreBelow`` second order effects need\nnot be taken into account; up to ``amplifyUpTo`` they may be by 1/(1 - θ).",
+      "description": "θ, a method id (C4, C1). ``elasticOverImportance`` (the default pack's): θ = Px δe/(I Vx\nh), θmax = 0.5/Cd ≤ ``thetaCap``; ``elasticDrift`` (ASCE 7-22 Eq 12.8-16, θ = Px Δ Ie/(Vx\nhsx Cd) with Δ = Cd δe/Ie): θ = Px δe/(Vx h), θmax = 0.5/Cd ≤ ``thetaCap``; ``designDrift``\n(EN 1998-1 4.4.2.2): θ = Ptot dr/(Vtot h) with dr = Cd·de (Cd standing for qd), θmax =\n``thetaCap``. Below ``ignoreBelow`` second order effects need not be taken into account; up\nto ``amplifyUpTo`` they may be by 1/(1 - θ).",
       "properties": {
         "method": {
           "default": "elasticOverImportance",
           "enum": [
             "elasticOverImportance",
+            "elasticDrift",
             "designDrift"
           ],
           "title": "Method",

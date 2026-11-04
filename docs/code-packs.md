@@ -325,7 +325,10 @@ Where SAEngine finds packs (the same id in a higher place wins):
 2. **your user folder**: `%APPDATA%\SAEngine\code-packs\<id>\` on Windows
    (`~/Library/Application Support/SAEngine/code-packs` on macOS, `~/.config/SAEngine/code-packs`
    elsewhere): available to every project on this computer;
-3. **built-in**: `bnbc2020`, and the loads packs `eurocodes` and `is-codes`, shipped with SAEngine.
+3. **built-in**: `bnbc2020`, shipped with SAEngine; `eurocodes` (below); `aci318-asce7-22`, the ASCE 7-22 loads
+   (its materials still fall back to `bnbc2020`; the site's SDS, SD1, S1, TL and V are entered
+   from the ASCE Hazard Tool; values to check in its `VERIFY.md`); and `is-codes`, the Indian
+   Standards loads (below).
 
 To use a pack, choose it in **02 Project Settings → Design code**, or in **New Project →
 Design code**, which lists the packs installed on this computer. A project without a choice

@@ -455,10 +455,17 @@ class CombinationsTable(TableModel):
 
 class SiteClass(_Row):
     description: str
-    S: float = Field(gt=0, description="Soil factor.")
-    TB: float = Field(ge=0)
-    TC: float = Field(ge=0)
-    TD: float = Field(ge=0)
+    # The spectrum's shape by site class (zoneFactor hazard). A pack whose spectrum comes from
+    # the site's mapped values (``designSpectrum.method`` mappedSpectral) leaves them at their defaults.
+    S: float = Field(default=1.0, gt=0, description="Soil factor.")
+    TB: float = Field(default=0.0, ge=0)
+    TC: float = Field(default=0.0, ge=0)
+    TD: float = Field(default=0.0, ge=0)
+    vs30: tuple[float | None, float | None] | None = Field(
+        default=None,
+        description="(lower, upper) average shear wave speed of the top 30 m [m/s] of the "
+        "class, where the code defines the class by it; empty: by the description.",
+    )
 
 
 class StructuralSystem(_Row):
@@ -738,15 +745,60 @@ class TimeHistoryRules(BaseModel):
     clauses: dict[str, str] = Field(default_factory=dict)
 
 
-class DesignSpectrumRule(BaseModel):
-    """C4: the design spectrum. ``reducedElastic``: Sa = pgaFactor·Z·I/R·Cs(T) (the default
-    pack's). ``behaviourFactor`` (EN 1998-1 3.2.2.5): ag = Z·I, Sd = ag·S·[2/3 + T/TB·(2.5/q -
-    2/3)] up to TB, ag·S·2.5/q to TC, ·TC/T to TD, ·TC·TD/T² beyond, at least ``lowerBound``·ag
-    from TC (:mod:`saengine.fem.spectra`); R stands for q."""
+# ── C1: the seismic hazard of the site from mapped spectral values (saengine.fem.spectral_hazard) ──
+
+
+class CsLimits(BaseModel):
+    """Bounds of the seismic response coefficient Cs of the equivalent lateral force method:
+    Cs ≥ max(``sdsFactor``·SDS·Ie, ``floor``) and, where S1 ≥ ``nearFaultS1``,
+    Cs ≥ ``nearFaultFactor``·S1 / (R/Ie)."""
 
     model_config = ConfigDict(extra="forbid")
 
-    method: Literal["reducedElastic", "behaviourFactor"] = "reducedElastic"
+    sdsFactor: float = Field(ge=0)
+    floor: float = Field(ge=0)
+    nearFaultS1: float | None = Field(default=None, gt=0)
+    nearFaultFactor: float | None = Field(default=None, gt=0)
+
+
+class MultiPeriodRule(BaseModel):
+    """SMS and SM1 from a multi-period MCER spectrum (Sa [g] by T [s]): SMS = ``smsShare`` ×
+    the largest Sa from ``smsPeriods[0]`` to ``smsPeriods[1]``, at least Sa at the first;
+    SM1 = the largest T·Sa from ``sm1Periods[0]`` to ``sm1Periods[1]`` (``sm1PeriodsSoft`` for
+    the ``softClasses``); SDS, SD1 = ``designShare`` × them. Used when the project gives the
+    MCER spectrum and not SDS and SD1."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    smsShare: Share
+    smsPeriods: tuple[Positive, Positive]
+    sm1Periods: tuple[Positive, Positive]
+    sm1PeriodsSoft: tuple[Positive, Positive] | None = None
+    softClasses: list[str] = Field(default_factory=list)
+
+
+class DesignSpectrumRule(BaseModel):
+    """The design spectrum: a method id the pack picks (C4, C1). Empty: ``reducedElastic``.
+
+    - ``reducedElastic`` (the default pack's): Sa = pgaFactor·Z·I/R·Cs(T), Cs the elastic shape
+      of the site class (S, TB, TC, TD; :func:`saengine.fem.loads.design_acceleration`).
+    - ``behaviourFactor`` (EN 1998-1 3.2.2.5): ag = Z·I, Sd = ag·S·[2/3 + T/TB·(2.5/q - 2/3)] up
+      to TB, ag·S·2.5/q to TC, ·TC/T to TD, ·TC·TD/T² beyond, at least ``lowerBound``·ag from TC
+      (:mod:`saengine.fem.spectra`); R stands for q.
+    - ``mappedSpectral`` (ASCE 7-22 Ch 11-12, :mod:`saengine.fem.spectral_hazard`): the site's
+      SDS and SD1 (and S1, TL) entered from the code's hazard tool (Site > Mapped spectral
+      values) instead of a zone: a two-period spectrum (T0 = ``t0Share``·TS, TS = SD1/SDS;
+      ``rampStart``·SDS at T = 0 up to SDS at T0, SDS to TS, SD1/T to TL, SD1·TL/T² beyond) or
+      the site's multi-period design spectrum, × I/R; the equivalent lateral force coefficient
+      Cs = SDS/(R/Ie) ≤ SD1/(T R/Ie) (SD1 TL/(T² R/Ie) beyond TL) within ``csLimits``; the
+      Seismic Design Category read by the band of SDS and SD1 (``sdsBands``, ``sd1Bands``, the
+      more severe; the band after the last where S1 ≥ ``s1Extreme``) as zone packs read it by
+      zone; the period's upper limit Cu·Ta from ``periodUpper`` by SD1. The fields after
+      ``lowerBound`` are this method's."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    method: Literal["reducedElastic", "behaviourFactor", "mappedSpectral"] = "reducedElastic"
     plateau: float = Field(default=2.5, gt=0, description="Spectral amplification of the plateau.")
     lowerBound: float = Field(default=0.0, ge=0, lt=1, description="β: least Sd / ag.")
     clause: str = ""
@@ -767,6 +819,30 @@ class DesignSpectrumRule(BaseModel):
         description="reducedElastic: the equivalent static method takes the plateau below TB "
         "(no rising branch); the dynamic analysis the full shape.",
     )
+    # ── mappedSpectral (C1) ──
+    designShare: Share | None = Field(
+        default=None, description="SDS = share × SMS, SD1 = share × SM1 (mapped values)."
+    )
+    t0Share: Share | None = Field(default=None, description="T0 = share × TS.")
+    rampStart: Share | None = Field(
+        default=None, description="Sa at T = 0 as a share of SDS (the ramp to T0)."
+    )
+    sdsBands: list[Positive] = Field(
+        default_factory=list, description="SDS [g] at which each band from the second starts."
+    )
+    sd1Bands: list[Positive] = Field(
+        default_factory=list, description="SD1 [g] at which each band from the second starts."
+    )
+    s1Extreme: Positive | None = Field(
+        default=None, description="S1 [g] from which the band after the last one applies."
+    )
+    csLimits: CsLimits | None = None
+    periodUpper: list[tuple[Positive, Positive]] = Field(
+        default_factory=list,
+        description="(SD1 [g], Cu) points: T ≤ Cu·Ta, Cu linear between, held beyond.",
+    )
+    multiPeriod: MultiPeriodRule | None = None
+    clauses: dict[str, str] = Field(default_factory=dict)
 
 
 class LateralForceRule(BaseModel):
@@ -790,14 +866,18 @@ class LateralForceRule(BaseModel):
 
 
 class StabilityRule(BaseModel):
-    """C4: θ. ``elasticOverImportance`` (the default pack's): θ = Px δe/(I Vx h), θmax = 0.5/Cd
-    ≤ ``thetaCap``; ``designDrift`` (EN 1998-1 4.4.2.2): θ = Ptot dr/(Vtot h) with dr = Cd·de
-    (Cd standing for qd), θmax = ``thetaCap``. Below ``ignoreBelow`` second order effects need
-    not be taken into account; up to ``amplifyUpTo`` they may be by 1/(1 - θ)."""
+    """θ, a method id (C4, C1). ``elasticOverImportance`` (the default pack's): θ = Px δe/(I Vx
+    h), θmax = 0.5/Cd ≤ ``thetaCap``; ``elasticDrift`` (ASCE 7-22 Eq 12.8-16, θ = Px Δ Ie/(Vx
+    hsx Cd) with Δ = Cd δe/Ie): θ = Px δe/(Vx h), θmax = 0.5/Cd ≤ ``thetaCap``; ``designDrift``
+    (EN 1998-1 4.4.2.2): θ = Ptot dr/(Vtot h) with dr = Cd·de (Cd standing for qd), θmax =
+    ``thetaCap``. Below ``ignoreBelow`` second order effects need not be taken into account; up
+    to ``amplifyUpTo`` they may be by 1/(1 - θ)."""
 
     model_config = ConfigDict(extra="forbid")
 
-    method: Literal["elasticOverImportance", "designDrift"] = "elasticOverImportance"
+    method: Literal["elasticOverImportance", "elasticDrift", "designDrift"] = (
+        "elasticOverImportance"
+    )
     ignoreBelow: float = Field(default=0.10, gt=0, lt=1)
     amplifyUpTo: float | None = Field(default=None, gt=0, lt=1)
     thetaCap: float = Field(default=0.25, gt=0, lt=1)
@@ -1452,6 +1532,12 @@ class WindTable(TableModel):
         description="(most positive, most negative) cpi where it cannot be worked out; reported.",
     )
     exposures: dict[str, Exposure]
+    # C1: the constants of Kz = kzFactor·(max(z, kzMinHeight)/zg)^(2/α); empty: 2.01 and 4.57 m
+    # (the default pack's Table 6.2.11).
+    kzFactor: float | None = Field(default=None, gt=0, description="Factor of the Kz power law.")
+    kzMinHeight: float | None = Field(
+        default=None, gt=0, description="Kz below this height [m] is the one at it."
+    )
     directionality: float = Field(description="Kd for buildings.")
     topographic: float = Field(description="Kzt (flat terrain).")
     gust: float = Field(description="G of a rigid building.")
@@ -8599,34 +8685,129 @@ class SnowExposure(_Row):
     Ce: Positive = Field(description="Exposure coefficient Ce.")
 
 
-class SnowTable(TableModel):
-    """Snow on roofs from the snow load on the ground (``saengine.fem.snow_load``): s = factor·
-    μ1·Ce·Ct·sk on the roof (EN 1991-1-3 5.2(3)a, the persistent and transient situation), μ1 by the
-    roof's pitch (``shape``: (angle [°], μ1) points, linear between, the last value beyond), Ce
-    by the exposure of the site, Ct the thermal coefficient. The project gives sk (Site >
-    Snow). ``loadCase``: the load case the roof snow goes into; with ``withRoofLive``
-    "envelope" the roof takes the larger of the roof live load and the snow (imposed loads on
-    roofs need not act with snow). A pack without it does not cover snow."""
+class SnowSlopeRow(BaseModel):
+    """The roof slope factor Cs of roofs whose thermal factor is at most ``ctMax``: 1 up to
+    ``slipperyStart`` [°] (unobstructed slippery roofs) or ``otherStart`` (other roofs), then
+    linear to 0 at ``end``."""
 
+    model_config = ConfigDict(extra="forbid")
+
+    ctMax: Positive
+    slipperyStart: float = Field(ge=0)
+    otherStart: float = Field(ge=0)
+    end: Positive
+
+
+class SnowMinimum(BaseModel):
+    """The minimum snow load of low-slope roofs (slope below ``slopeMax`` [°]): ``share`` ×
+    pg (× Is) where pg ≤ ``groundLimit``, else ``value`` (× Is) [kN/m²]."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    slopeMax: Positive
+    share: Positive
+    groundLimit: Positive
+    value: Positive
+
+
+class SnowDensity(BaseModel):
+    """Snow density γ = ``factor``·pg + ``constant`` ≤ ``maximum`` [kN/m³], pg in kN/m²."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    factor: float = Field(ge=0)
+    constant: float = Field(ge=0)
+    maximum: Positive
+
+
+class SnowDriftRule(BaseModel):
+    """The drift at a roof step (method id, :func:`saengine.fem.snow.drift`).
+
+    ``windParameter``: hd = coefficient·(pg^a · lu^b · W2^c / γ)^power in the units of the
+    method's equation (``units`` imperial: ft, psf, pcf); the windward drift is
+    ``windwardShare`` × that of the lower roof's length; the drift's width w = ``widthFactor``
+    hd, where hd > hc: hd = hc and w = widthFactor·hd²/hc ≤ ``widthMax``·hc. ``minLength``:
+    lu taken at least this [m]; ``windParameter``: W2 when the project gives none."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    method: Literal["windParameter"] = "windParameter"
+    units: Literal["imperial", "si"] = "imperial"
+    coefficient: Positive
+    groundExponent: Positive
+    lengthExponent: Positive
+    windExponent: Positive
+    power: Positive
+    windwardShare: Share
+    widthFactor: Positive
+    widthMax: Positive
+    minLength: float = Field(default=0.0, ge=0)
+    windParameter: Positive | None = None
+
+
+class SnowTable(TableModel):
+    """Snow on roofs from the snow load on the ground (:mod:`saengine.fem.snow_load`; C4, C1):
+    s = ``factor``·(roof factor)·Ce·Ct·Is·sg on the roof, sg the ground snow load the project
+    gives (Site > Snow). The roof factor is a method id (``method``):
+
+    - ``shapeCoefficient`` (EN 1991-1-3 5.2(3)a): μ1 by the roof's pitch (``shape``: (angle
+      [°], μ1) points, linear between, the end values outside);
+    - ``slopeFactor`` (ASCE 7-22 7.4): Cs by the roof's pitch from the first ``slope`` row
+      whose ``ctMax`` holds Ct (slippery or other roofs), the low-slope minimum ``minimum``
+      governing where larger.
+
+    Ce by the exposure of the site (and of the roof, in the ids of codes that combine them),
+    Ct the thermal coefficient, Is by the occupancy (risk) category where the code has one
+    (``importance``). ``loadCase``: Lr (with ``withRoofLive`` "envelope": the larger of the roof
+    live load and the snow; imposed loads on roofs need not act with snow) or S (its own case,
+    "separate"; the combinations take it as "Lr or S"). ``drift``: the drift at a roof step by
+    its method id (reported, not applied); ``density`` the snow's unit weight. A pack without
+    it does not cover snow."""
+
+    method: Literal["shapeCoefficient", "slopeFactor"] = "shapeCoefficient"
     exposures: dict[str, SnowExposure]
     defaultExposure: str
     thermal: Positive = Field(default=1.0, description="Ct where the project gives none.")
     factor: Positive = Field(
         default=1.0,
         description="A code's constant factor on the roof snow (1.0 in EN 1991-1-3; 0.7 of the "
-        "flat roof snow load in codes that give one).",
+        "flat roof snow load in ASCE 7).",
     )
-    shape: list[tuple[float, float]] = Field(min_length=1, description="(roof angle °, μ1).")
-    loadCase: Literal["Lr"] = "Lr"
-    withRoofLive: Literal["envelope"] = "envelope"
+    shape: list[tuple[float, float]] = Field(
+        default_factory=list, description="(roof angle °, μ1) (shapeCoefficient)."
+    )
+    slope: list[SnowSlopeRow] = Field(
+        default_factory=list, description="The roof slope factor Cs by Ct (slopeFactor)."
+    )
+    minimum: SnowMinimum | None = Field(
+        default=None, description="The minimum snow load of low-slope roofs (slopeFactor)."
+    )
+    importance: dict[str, Positive] = Field(
+        default_factory=dict,
+        description="Is by occupancy (risk) category; empty: none (1.0).",
+    )
+    loadCase: Literal["Lr", "S"] = "Lr"
+    withRoofLive: Literal["envelope", "separate"] = "envelope"
     exceptionalFactor: Positive | None = Field(
         default=None, description="Cesl of the exceptional snow load (accidental; reported)."
+    )
+    density: SnowDensity | None = None
+    drift: SnowDriftRule | None = None
+    seismicShare: Share | None = Field(
+        default=None, description="Share of the roof snow in the seismic weight..."
+    )
+    seismicThreshold: Positive | None = Field(
+        default=None, description="... where the flat roof snow is above this [kN/m²]."
     )
 
     @model_validator(mode="after")
     def _exposure(self) -> SnowTable:
         if self.defaultExposure not in self.exposures:
             raise ValueError(f"defaultExposure '{self.defaultExposure}' is not an exposure")
+        if self.method == "shapeCoefficient" and not self.shape:
+            raise ValueError("shapeCoefficient: the method needs its shape points")
+        if self.method == "slopeFactor" and not self.slope:
+            raise ValueError("slopeFactor: the method needs its slope rows")
         return self
 
 

@@ -94,10 +94,10 @@ registerPlannedFeature({
 	id: PLANNED_CODE_PACK_US,
 	part: 'settings',
 	title: localize('codePacks.planned.us', "Code Pack: ACI 318-19 + ASCE 7-22 (US)"),
-	summary: localize('codePacks.planned.usSummary', "A design-code pack for projects designed to the US codes: concrete design to ACI 318-19 with the loads and load combinations of ASCE 7-22, installed from the Packages page and chosen in Project Settings like {0}.", activeCodeName()),
+	summary: localize('codePacks.planned.usSummaryLoads', "A design-code pack for projects designed to the US codes. Covered now: the loads of ASCE 7-22 (built-in pack aci318-asce7-22: load combinations, live loads and their reduction, seismic design from the site's mapped SDS and SD1, wind, roof snow), chosen in Project Settings or the New Building wizard. Planned: concrete design to ACI 318-19 and the other materials, which fall back to {0} until then.", activeCodeName()),
 	steps: [
-		localize('codePacks.planned.us1', "Install the pack from the Packages page (a data package, signed and listed in the official index)."),
-		localize('codePacks.planned.us2', "Choose it as the project's design code in Project Settings or in the New Building wizard."),
+		localize('codePacks.planned.us1Loads', "Choose ACI 318-19 + ASCE 7-22 as the project's design code in Project Settings or in the New Building wizard (built in: no install)."),
+		localize('codePacks.planned.us2Loads', "Enter the site's SDS, SD1, S1 and TL and the basic wind speed V from the ASCE Hazard Tool (Project Settings > Site); a snow load where the site has one."),
 		localize('codePacks.planned.us3', "Loads, combinations and design checks read their factors and limits from the pack instead of {0}.", activeCodeName()),
 		localize('codePacks.planned.us4', "Reports cite the pack's sections; checks the pack does not cover stay marked as not covered."),
 	],
@@ -107,7 +107,7 @@ registerPlannedFeature({
 		{ label: localize('codePacks.planned.usSite', "Site class"), example: 'D' },
 	],
 	outputs: [
-		localize('codePacks.planned.usOut1', "Coverage: concrete members (beams, columns, slabs, walls, footings), seismic detailing, wind, seismic and gravity loads, load combinations"),
+		localize('codePacks.planned.usOut1Loads', "Covered: wind, seismic, snow and gravity loads, load combinations (ASCE 7-22). Planned: concrete members (beams, columns, slabs, walls, footings) and seismic detailing (ACI 318-19), steel and the other materials"),
 		localize('codePacks.planned.usOut2', "The same reports and drawings as {0}, citing ACI 318-19 and ASCE 7-22", activeCodeName()),
 	],
 	references: ['ACI 318-19 Building Code Requirements for Structural Concrete', 'ASCE/SEI 7-22 Minimum Design Loads and Associated Criteria for Buildings and Other Structures'],

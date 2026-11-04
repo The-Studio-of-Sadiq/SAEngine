@@ -3414,6 +3414,34 @@
       "title": "Exposures",
       "type": "object"
     },
+    "kzFactor": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Factor of the Kz power law.",
+      "title": "Kzfactor"
+    },
+    "kzMinHeight": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Kz below this height [m] is the one at it.",
+      "title": "Kzminheight"
+    },
     "directionality": {
       "description": "Kd for buildings.",
       "title": "Directionality",
