@@ -204,7 +204,8 @@
           "enum": [
             "reducedElastic",
             "behaviourFactor",
-            "mappedSpectral"
+            "mappedSpectral",
+            "ductilityOverstrength"
           ],
           "title": "Method",
           "type": "string"
@@ -433,6 +434,28 @@
           ],
           "default": null
         },
+        "ordinates": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SpectrumOrdinates"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "ductility": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DuctilityOverstrength"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "clauses": {
           "additionalProperties": {
             "type": "string"
@@ -603,6 +626,81 @@
       "title": "DriftLimit",
       "type": "object"
     },
+    "DuctilityOverstrength": {
+      "additionalProperties": false,
+      "description": "Alpha 9 C17: the reduction of the method ``ductilityOverstrength`` (NTC-Sismo CDMX\ntype, :mod:`saengine.fem.ductility_spectrum`): the design ordinate a / (Q' R) × I, Q the\nsystem's R. Without k: Q' = 1 + (Q - 1) T / Ta below Ta, Q beyond, R = 1; with k:\nQ' = 1 + (Q - 1) √(β / k) T / Ta below Ta, 1 + (Q - 1) √(β / k) to Tb,\n1 + (Q - 1) √(β p / k) beyond, and R = k1 R0 + k2 with R0 of ``overstrength`` by Q (the\nlast point at or below Q) and k2 = ``k2Coefficient`` [1 - (T / Ta)^½] >= 0. Q' ×\n``regularityFactor`` (at least 1).",
+      "properties": {
+        "sites": {
+          "additionalProperties": {
+            "$ref": "#/$defs/SiteSpectrum"
+          },
+          "description": "By site class id.",
+          "minProperties": 1,
+          "title": "Sites",
+          "type": "object"
+        },
+        "beta": {
+          "default": 1.0,
+          "description": "Damping factor β (1: 5 %).",
+          "exclusiveMinimum": 0,
+          "title": "Beta",
+          "type": "number"
+        },
+        "overstrength": {
+          "description": "(Q, R0) points of the site-specific form.",
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              },
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "title": "Overstrength",
+          "type": "array"
+        },
+        "redundancy": {
+          "default": 1.0,
+          "description": "k1 of R = k1 R0 + k2.",
+          "exclusiveMinimum": 0,
+          "title": "Redundancy",
+          "type": "number"
+        },
+        "k2Coefficient": {
+          "default": 0.5,
+          "minimum": 0,
+          "title": "K2Coefficient",
+          "type": "number"
+        },
+        "regularityFactor": {
+          "default": 1.0,
+          "description": "On Q' (regular 1; the code's factor when irregular).",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Regularityfactor",
+          "type": "number"
+        },
+        "clauses": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Clauses",
+          "type": "object"
+        }
+      },
+      "required": [
+        "sites"
+      ],
+      "title": "DuctilityOverstrength",
+      "type": "object"
+    },
     "DynamicAnalysis": {
       "additionalProperties": false,
       "description": "When the equivalent static method is not enough. ``regularHeights`` and\n``irregularHeights``: height [m] above which dynamic analysis is required, by seismic zone\n(\"1\"..\"4\"); ``recommendedIrregular``: zones where it is recommended for an irregular building\nbelow that height. The static procedure also needs T below ``periodTcFactor`` × TC and\n``periodMax`` and no vertical irregularity (``verticalIrregularity``).",
@@ -718,6 +816,51 @@
         "gammaHigh"
       ],
       "title": "FoundationCapacityRule",
+      "type": "object"
+    },
+    "HigherModeTable": {
+      "additionalProperties": false,
+      "description": "Alpha 9 C17: the higher mode factor Mv of one group of systems by the spectral ratio\n(the pack's ``higherModePeriods``) and the period, bilinear between the points, the end\nvalues outside.",
+      "properties": {
+        "ratios": {
+          "description": "Spectral ratios of the rows.",
+          "items": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "minItems": 1,
+          "title": "Ratios",
+          "type": "array"
+        },
+        "periods": {
+          "description": "Periods [s] of the columns.",
+          "items": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "minItems": 1,
+          "title": "Periods",
+          "type": "array"
+        },
+        "values": {
+          "description": "Mv, a row per ratio, a column per period.",
+          "items": {
+            "items": {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            "type": "array"
+          },
+          "title": "Values",
+          "type": "array"
+        }
+      },
+      "required": [
+        "ratios",
+        "periods",
+        "values"
+      ],
+      "title": "HigherModeTable",
       "type": "object"
     },
     "Irregularities": {
@@ -1466,6 +1609,64 @@
       "title": "SiteSpecificStudy",
       "type": "object"
     },
+    "SiteSpectrum": {
+      "additionalProperties": false,
+      "description": "Alpha 9 C17: the elastic spectrum of one site class (zone) of the method\n``ductilityOverstrength``: a = a0 + (c - a0) T / Ta below Ta, c to Tb, beyond it\nc (Tb / T)^r; with ``k`` (the site-specific form) c p (Tb / T)² with\np = k + (1 - k)(Tb / T)². In g and s.",
+      "properties": {
+        "a0": {
+          "exclusiveMinimum": 0,
+          "title": "A0",
+          "type": "number"
+        },
+        "c": {
+          "exclusiveMinimum": 0,
+          "title": "C",
+          "type": "number"
+        },
+        "ta": {
+          "exclusiveMinimum": 0,
+          "title": "Ta",
+          "type": "number"
+        },
+        "tb": {
+          "exclusiveMinimum": 0,
+          "title": "Tb",
+          "type": "number"
+        },
+        "r": {
+          "default": 2.0,
+          "exclusiveMinimum": 0,
+          "title": "R",
+          "type": "number"
+        },
+        "k": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "K"
+        },
+        "label": {
+          "default": "",
+          "title": "Label",
+          "type": "string"
+        }
+      },
+      "required": [
+        "a0",
+        "c",
+        "ta",
+        "tb"
+      ],
+      "title": "SiteSpectrum",
+      "type": "object"
+    },
     "SoftStoreyDesign": {
       "additionalProperties": false,
       "description": "Design of a soft storey without the overstrength factor. ``forceFactors``: the soft\nstorey's columns and beams take ``frameFactor`` × the earthquake forces, its structural walls\n``wallFactor`` ×; ``types``: the irregularity types that make a storey soft.",
@@ -1504,6 +1705,134 @@
         "wallFactor"
       ],
       "title": "SoftStoreyDesign",
+      "type": "object"
+    },
+    "SpectrumOrdinates": {
+      "additionalProperties": false,
+      "description": "Alpha 9 C17: the design spectrum and the equivalent static base shear from the site's\n(or its town's) uniform hazard spectrum, an option of ``mappedSpectral`` (NBCC 2020\n4.1.8.4 and 4.1.8.11 type, :mod:`saengine.fem.spectral_hazard`): S(T) the spectrum's\nordinates, linear between them, held beyond the last; at and below the first of\n``shortPeriods`` the largest ordinate of those periods. SDS and SD1 of the bands stand for\nS at ``bandPeriods``. V/W = S(T) Mv I / R, at least S(least period of the system's group)\nMv I / R and, for systems with Rd at least ``capFromRd``, at most the largest\nshare × S(period) of ``capShares`` × I / R; Mv from ``higherMode`` by the system's group,\nthe ratio S(``higherModePeriods[0]``) / S(``higherModePeriods[1]``) and T (1 without a\ntable of the group).",
+      "properties": {
+        "shortPeriods": {
+          "description": "[s]",
+          "items": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "minItems": 1,
+          "title": "Shortperiods",
+          "type": "array"
+        },
+        "bandPeriods": {
+          "default": [
+            0.2,
+            1.0
+          ],
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Bandperiods",
+          "type": "array"
+        },
+        "referenceClass": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Site class of the towns' spectra (empty: any class).",
+          "title": "Referenceclass"
+        },
+        "minimumPeriod": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "description": "Least period [s] of the base shear by higher mode group ('default' for the rest); empty: no least value.",
+          "title": "Minimumperiod",
+          "type": "object"
+        },
+        "capShares": {
+          "description": "(period [s], share): the cap's candidates.",
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              },
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "title": "Capshares",
+          "type": "array"
+        },
+        "capFromRd": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The cap applies to systems with Rd at least this.",
+          "title": "Capfromrd"
+        },
+        "higherModePeriods": {
+          "default": [
+            0.2,
+            5.0
+          ],
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Highermodeperiods",
+          "type": "array"
+        },
+        "higherMode": {
+          "additionalProperties": {
+            "$ref": "#/$defs/HigherModeTable"
+          },
+          "title": "Highermode",
+          "type": "object"
+        },
+        "clauses": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Clauses",
+          "type": "object"
+        }
+      },
+      "title": "SpectrumOrdinates",
       "type": "object"
     },
     "SpectrumTypeGuidance": {
@@ -1765,6 +2094,47 @@
           "default": null,
           "description": "Group of the code's system table (bearingWall, dualSpecial...).",
           "title": "Group"
+        },
+        "Rd": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Ductility-related factor.",
+          "title": "Rd"
+        },
+        "Ro": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Overstrength-related factor.",
+          "title": "Ro"
+        },
+        "higherModeGroup": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Group of the higher mode factor table (Mv) and least period.",
+          "title": "Highermodegroup"
         },
         "dual": {
           "default": false,

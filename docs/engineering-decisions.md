@@ -41,6 +41,42 @@ here, newest first, with the date, the question, the decision, the reason and wh
 - **No unlicensed software.** ETABS, SAP2000 and STAAD are not used for cross-checks or cited.
   Open-source tools are used instead (2026-10-25).
 
+## 2026-11-04: Canada and Mexico City packs (alpha 9 track C17)
+
+- **What was built.** `canada-nbcc` (NBCC 2020 Part 4, CSA A23.3-19, CSA S16-19) and
+  `mexico-ntc` (NTC-CDMX 2017 with the CFE wind manual), both extending `aci318-asce7-22`, each
+  with README and `VERIFY.md` (89 and 42 entries). No code text was available: every value is
+  from knowledge of the codes and listed for checking.
+- **Generic mechanisms (any pack may use them; the existing packs do not set them, so their
+  results are unchanged):** `seismic.designSpectrum.ordinates` under `mappedSpectral` (S(T) from
+  the site's uniform hazard spectrum with a short-period plateau, V/W = S(T) Mv I/R with a least
+  period by system group, an upper cap for Rd above a value and a higher mode table), the
+  design spectrum method `ductilityOverstrength` (zone or site spectra a0, c, Ta, Tb, r or k; a
+  / (Q' R)), `concreteMethods.shear` method `compressionField` (β and θ, φc and φs on each
+  term), `steel.memberMethods.columnCurve` `powerCurve` and `lateralTorsional`
+  `criticalMoment`, the towns' `spectrum`, `groundSnow`, `rainLoad` and `pressureFactor`,
+  `snow.rainShare`, per-exposure `kzFactor` and `kzMinHeight` of the wind power law, and the
+  systems' `Rd`, `Ro`, `higherModeGroup`.
+- **SAEngine practice, Canada.** The towns' Sa(T) are the 2015 edition's site class C values as
+  remembered, for four cities only, to be replaced with the 2020 values; other towns and site
+  classes take the site's values from the NRCan calculator (the program says so). The higher
+  mode factor Mv is not entered (Mv = 1, J = 1): the table must be entered before walls with
+  long periods are designed. NBCC's importance categories are SAEngine's ids I-IV; the ranges of
+  IE S(0.2) of the height limits are SAEngine's category letters B / C / D, High and
+  Post-disaster one range up (on the safe side). Ω0 = Ro, Cd = Rd Ro. CSA A23.3 concrete runs on
+  the partial-factor path (γc = 1/φc, γs = 1/φs, α1 and β1 by band, Pr,max with α1 of 60 MPa,
+  c/d of grade 400); beams' shear by the simplified method (the design run has no Mf at the
+  shear's station), columns', walls' shear, torsion, punching and Clause 21 detailing stay the
+  parent's ACI 318-19. CSA O86 timber does not fit the timber engine in this version (the
+  parent's NDS applies). The program's Cb stands for S16's ω2 (at most 2.5).
+- **SAEngine practice, Mexico.** The 2004 zone spectra (Tabla 3.1) with Q' and no R are the
+  default (the 2017 site-specific form with k and R applies where the project enters a site's
+  SASID values); the regularity factor is a project value (1 regular). The accidental
+  combinations take Wm in place of Wa (on the safe side) and the seismic weight 0.7 Wm. Z = 1.0
+  marks the city as seismic; the zones are the site classes. Only Mexico City is a town; the
+  barometric G of the CFE pressure is the town's pressure factor (the speed × √G). Group A's
+  wind importance 1.21 is an SAEngine estimate.
+
 ## 2026-11-04: thin country packs (alpha 9 track C23)
 
 - **What was built.** Four built-in packs that set only what their country changes:

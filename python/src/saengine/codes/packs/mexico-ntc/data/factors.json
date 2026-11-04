@@ -1,0 +1,25 @@
+{
+  "$schema": "../../../schemas/factors.schema.json",
+  "$sources": [
+    "NTC-Concreto 2017 Sec 3.7 (factores de resistencia FR)"
+  ],
+  "source": "NTC-Concreto 2017 Sec 3.7: FR 0.9 flexure, 0.75 shear and torsion, 0.65 (0.75 confined by a spiral) flexocompression with compression failure, 0.7 bearing; the strain transition between them in the parent's ACI 318-19 form",
+  "phi": {
+    "tension": 0.9,
+    "compressionTied": 0.65,
+    "compressionSpiral": 0.75,
+    "shear": 0.75,
+    "punching": 0.75,
+    "bearing": 0.7
+  },
+  "sources": {
+    "$replace": true,
+    "tension": "NTC-Concreto 2017 Sec 3.7: FR = 0.9 (flexure)",
+    "compressionTied": "NTC-Concreto 2017 Sec 3.7: FR = 0.65 (flexocompression, compression failure, not confined)",
+    "compressionSpiral": "NTC-Concreto 2017 Sec 3.7: FR = 0.75 (confined by a spiral)",
+    "shear": "NTC-Concreto 2017 Sec 3.7: FR = 0.75 (shear and torsion)",
+    "punching": "NTC-Concreto 2017 Sec 3.7: FR = 0.75 (shear)",
+    "bearing": "NTC-Concreto 2017 Sec 3.7: FR = 0.7 (bearing)",
+    "other": "The seismic, joint, strut-and-tie and plain concrete factors are the parent's ACI 318-19 values"
+  }
+}

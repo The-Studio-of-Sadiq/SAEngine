@@ -2736,6 +2736,9 @@ def _choices(table: Any) -> dict[str, list[dict[str, str]]]:
             hazard = f"zone {v.zone}, Z {z:.2f}, " if z is not None else f"zone {v.zone}, "
             if v.ss is not None and v.s1 is not None:  # Alpha 9 C23: the town's mapped values
                 hazard = f"zone {v.zone}, SS {v.ss:g}, S1 {v.s1:g}, "
+            if v.spectrum:  # Alpha 9 C17: the town's uniform hazard spectrum
+                short = min(v.spectrum, key=lambda p: abs(p[0] - 0.2))
+                hazard = f"Sa({short[0]:g}) {short[1]:g}, "
             rows.append({"id": key, "label": f"{v.name} ({hazard}V {v.windSpeed:g} m/s)"})
         out["locations"] = [*rows, {"id": "custom", "label": "Custom (enter Z and V)"}]
     if area is not None:
@@ -3019,9 +3022,19 @@ def derived(settings: ProjectSettings) -> dict[str, Any]:
     # Alpha 9 C15: a pack's altitude factor on the mapped speed (vb,0 = vb,map × calt).
     altitude_rule = getattr(pack.table("wind"), "altitude", None) if pack.has("wind") else None
     extra: dict[str, Any] = {}
+    # Alpha 9 C17: the town's factor on the velocity pressure (CFE MDOC-Viento: the barometric
+    # G of its altitude), on the town's speed only (a project's own V is its design speed).
+    pressure = getattr(location, "pressureFactor", None) if location else None
+    if pressure is not None and speed and not settings.site.windSpeed:
+        extra = {"windSpeedMap": speed, "windPressureFactor": pressure}
+        speed = speed * pressure**0.5
     if altitude_rule is not None and speed:
         calt = 1.0 + altitude_rule.factor * float(settings.site.altitude or 0.0)
-        extra = {"windSpeedMap": speed, "windAltitudeFactor": calt}
+        extra = {
+            "windSpeedMap": extra.get("windSpeedMap", speed),
+            **extra,
+            "windAltitudeFactor": calt,
+        }
         speed = speed * calt
     return {
         "zone": zone,
@@ -3364,6 +3377,18 @@ def _mapped_problems(settings: ProjectSettings, pack: CodePack) -> list[tuple[st
     if sh.site_hazard(spectral, settings.site.siteClass, pack) is not None:
         return []
     edition = pack.edition or pack.name
+    if getattr(sh.rule(pack), "ordinates", None) is not None:  # Alpha 9 C17
+        return [
+            (
+                "site.spectral",
+                (
+                    f"{edition} takes the seismic hazard from the site's uniform hazard spectrum: "
+                    "enter its Sa(T) points (Site > Mapped spectral values > design spectrum) "
+                    "from the code authority's hazard tool; without them the earthquake cases "
+                    "stay empty"
+                ),
+            )
+        ]
     return [
         (
             "site.spectral",

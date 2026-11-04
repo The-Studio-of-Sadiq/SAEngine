@@ -1,0 +1,10 @@
+{
+  "$schema": "../../../schemas/materials.schema.json",
+  "$sources": [
+    "CSA A23.3-19 10.1.3 (the maximum usable strain at the extreme concrete compression fibre)"
+  ],
+  "concreteStrain": 0.0035,
+  "sources": {
+    "concreteStrain": "CSA A23.3-19 10.1.3: 0.0035 (the other limits of this table, the seismic rebar grades among them, are the parent's ACI 318-19 values: CSA 400W is not listed separately, see VERIFY.md)"
+  }
+}

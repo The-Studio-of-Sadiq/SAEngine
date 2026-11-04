@@ -1335,6 +1335,34 @@
           "default": null,
           "description": "z_min of z̄ [m]; with peakVelocityPressure the least height zmin of the logarithmic profile.",
           "title": "Zmin"
+        },
+        "kzFactor": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Factor of Kz.",
+          "title": "Kzfactor"
+        },
+        "kzMinHeight": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Kz below this [m].",
+          "title": "Kzminheight"
         }
       },
       "required": [

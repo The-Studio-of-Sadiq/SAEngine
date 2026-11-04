@@ -1,0 +1,12 @@
+{
+  "$schema": "../../../schemas/designClauses.schema.json",
+  "$sources": [
+    "NTC-Acero 2017 Secs 5.2 and 6.3 (the steel member checks of the pack's own methods); the other clause references are the parent's"
+  ],
+  "clauses": {
+    "steelMembers": {
+      "compressionFlexural": "Sec 5.2 (compresión)",
+      "flexureLtb": "Sec 6.3 (pandeo lateral por flexotorsión)"
+    }
+  }
+}

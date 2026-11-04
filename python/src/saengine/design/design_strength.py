@@ -241,6 +241,34 @@ def method_lines(code: str) -> list[str]:
     )
     shear = cite("concreteMethods", "shear")
     members = cite("concreteMethods", "beamSteel")
+    from saengine.design import compression_field_shear
+
+    if compression_field_shear.rules() is not None:
+        # Alpha 9 C17: the compression field method (CSA A23.3 type): its own beam line; the
+        # columns' shear is the parent pack's (saengine.design.column_shear).
+        minimum = cite("concreteMethods", "minimumEccentricity")
+        return [
+            (
+                f"Limit state design to {code} with material resistance factors: the concrete "
+                f"at φc = 1/γc = {1 / r.gammaC:.2f} and the bars at φs = 1/γs = "
+                f"{1 / r.gammaS:.2f} ({cite('concreteMethods', 'designStrength')})."
+            ),
+            (
+                f"Flexure and axial force by strain compatibility with {block} (concreteproperties), "
+                f"the bars elastic-perfectly plastic at φs fy ({cite('concreteMethods', 'ultimate')})."
+            ),
+            (
+                "Beams: sagging and hogging moments about the strong axis; "
+                f"{compression_field_shear.method_line()}."
+            ),
+            (
+                "Columns: axial force with biaxial bending from the interaction surface on the "
+                "factored strengths, the axial force at most the pack's Pr,max"
+                + (f" ({minimum})" if minimum else "")
+                + "; shear, slenderness, punching, torsion, deflection and the seismic detailing "
+                "by the parent pack's methods (stated in their lines)."
+            ),
+        ]
     lines = [
         (
             f"Limit state design to {code} with partial factors on the materials: fcd = αcc fck / γc "

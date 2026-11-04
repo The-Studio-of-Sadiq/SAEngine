@@ -72,6 +72,76 @@
           "default": null,
           "description": "Long-period transition period TL [s].",
           "title": "Tl"
+        },
+        "spectrum": {
+          "anyOf": [
+            {
+              "items": {
+                "maxItems": 2,
+                "minItems": 2,
+                "prefixItems": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  }
+                ],
+                "type": "array"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "(T [s], Sa [g]) of the town's 5 % damped uniform hazard spectrum, for the reference site class of the pack's designSpectrum.ordinates.",
+          "title": "Spectrum"
+        },
+        "groundSnow": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Ground snow load Ss [kN/m²] of the town.",
+          "title": "Groundsnow"
+        },
+        "rainLoad": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Associated rain load Sr [kN/m²] of the town.",
+          "title": "Rainload"
+        },
+        "pressureFactor": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Factor on the velocity pressure of the town's wind speed (the speed is taken × √factor); empty: 1.",
+          "title": "Pressurefactor"
         }
       },
       "required": [

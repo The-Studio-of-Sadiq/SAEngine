@@ -950,12 +950,56 @@ class TieCorbelRules(_Group):
     bearing: Positive
 
 
+class CompressionFieldGeneral(_Group):
+    """The general variant's constants: β = g1 / (1 + g2 εx) × g3 / (g4 + sze), θ = t1 + t2 εx
+    [°], sze = c1 dv / (c2 + ag) at least c3 dv without the least links, else
+    ``stirrupSpacingParameter`` [mm]."""
+
+    beta: tuple[Positive, Positive, Positive, Positive]
+    theta: tuple[Positive, Positive]
+    crackSpacing: tuple[Positive, Positive, Positive]
+    stirrupSpacingParameter: Positive
+
+
+class CompressionFieldShearRules(_Group):
+    """Alpha 9 C17: shear by the compression field method with β and θ (method
+    ``compressionField``, CSA A23.3-19 11.3 type, :mod:`saengine.design.compression_field_shear`):
+    material resistance factors on each term, dv = max(a d, b h)."""
+
+    method: Literal["compressionField"]
+    variant: Literal["simplified", "general"] = "simplified"
+    phiC: Share = Field(description="φc on the concrete term.")
+    phiS: Share = Field(description="φs on the links.")
+    depthShares: tuple[Share, Share] = Field(description="dv = max(a d, b h).")
+    rootMax: Positive = Field(description="√f'c at most [MPa].")
+    betaWithStirrups: Positive = Field(description="β with at least Av,min (simplified).")
+    betaNoStirrups: tuple[Positive, Positive] = Field(
+        description="β = a / (b + dv) without Av,min (simplified)."
+    )
+    thetaDeg: Positive = Field(description="θ [°] (simplified).")
+    general: CompressionFieldGeneral
+    strainLimits: tuple[float, Positive] = Field(description="εx within (least, largest).")
+    aggregate: Positive = Field(description="ag [mm] of sze where the project gives none.")
+    vrMaxShare: Share = Field(description="Vr at most share φc f'c bw dv.")
+    minCoefficient: Positive = Field(description="Av,min = c √f'c bw s / fy.")
+    fyMax: Positive = Field(description="fy of the links at most [MPa].")
+    simplifiedFyMax: Positive = Field(
+        description="The simplified variant holds for fy of the bars up to this [MPa]."
+    )
+    spacing: tuple[Share, Positive] = Field(description="s <= min(share dv, mm).")
+    closeSpacing: tuple[Share, Positive] = Field(
+        description="s <= min(share dv, mm) where Vf > closeShare λ φc f'c bw dv."
+    )
+    closeShare: Share
+
+
 class ConcreteMethodsTable(TableModel):
     """Partial-factor design of reinforced concrete and its detailing (see the module notes)."""
 
     ultimate: UltimateRules | None = None
-    # C8: a group is one method of those its id names (C5's or C8's).
-    shear: StrutShearRules | TabulatedShearRules | None = None
+    # C8: a group is one method of those its id names (C5's or C8's); alpha 9 C17 the
+    # compression field method.
+    shear: StrutShearRules | TabulatedShearRules | CompressionFieldShearRules | None = None
     torsion: StrutTorsionRules | EquivalentTorsionRules | None = None
     punching: PunchingRules | RootStressPunchingRules | None = None
     serviceStress: ServiceStressRules | None = None

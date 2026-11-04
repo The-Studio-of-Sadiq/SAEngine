@@ -1,0 +1,33 @@
+{
+  "$schema": "../../../schemas/occupancyCategories.schema.json",
+  "$replace": true,
+  "$sources": [
+    "NBCC 2020 Table 4.1.2.1 (importance categories), Table 4.1.8.5 (IE), Table 4.1.7.3 (IW, ULS)"
+  ],
+  "source": "NBCC 2020 Table 4.1.2.1: the importance categories Low, Normal, High and Post-disaster (SAEngine ids I to IV); IE of Table 4.1.8.5 and IW (ULS) of Table 4.1.7.3; IS (ULS) is the snow table's importance",
+  "categories": {
+    "I": {
+      "description": "Low importance: low direct or indirect hazard to human life (low human-occupancy buildings, minor storage)",
+      "seismicImportance": 0.8,
+      "windImportance": 0.8
+    },
+    "II": {
+      "description": "Normal importance: all buildings not in Low, High or Post-disaster",
+      "seismicImportance": 1.0,
+      "windImportance": 1.0
+    },
+    "III": {
+      "description": "High importance: likely used as post-disaster shelters (elementary, middle and secondary schools, community centres) and buildings with toxic, explosive or hazardous substances",
+      "seismicImportance": 1.3,
+      "windImportance": 1.15
+    },
+    "IV": {
+      "description": "Post-disaster: essential to provide services after a disaster (hospitals, fire, police and rescue stations, communication and power facilities)",
+      "seismicImportance": 1.5,
+      "windImportance": 1.25
+    }
+  },
+  "sources": {
+    "categories": "NBCC 2020 Table 4.1.2.1; IE 0.8, 1.0, 1.3, 1.5 (Table 4.1.8.5); IW (ULS) 0.8, 1.0, 1.15, 1.25 (Table 4.1.7.3). The SLS importance factors (IW 0.75, IS 0.9, ...) are not used by the program (the SLS combinations take the service wind as a share of W)"
+  }
+}

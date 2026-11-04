@@ -1,0 +1,156 @@
+{
+  "$schema": "../../../schemas/seismic.schema.json",
+  "$replace": true,
+  "$sources": [
+    "NTC-Sismo (Normas Técnicas Complementarias para Diseño por Sismo): Sec 1.4 zoning, Sec 3 spectra (Tabla 3.1 of the zone parameters, the 2004 edition's form), Sec 4 reduction Q' and Sec 5 the factor Q, Sec 6 regularity, Sec 8 static method (8.1 forces, 8.5 eccentricity), Sec 9 dynamic analysis, Sec 1.8 drifts; the 2017 edition's site-specific spectra (SASID: k, β) and overstrength R"
+  ],
+  "source": "NTC-Sismo (see the sources of each entry; the 2004 zone spectra with the 2017 site-specific form available)",
+  "generatorSystems": {
+    "steelMomentFrame": ["steelOmf", "steelImf", "steelSmf"],
+    "steelBracedFrame": ["steelOcbf", "steelScbf"],
+    "$comment": "SAEngine practice: the New Building generator's steel systems, least ductile first (Q = 2, 3, 4)"
+  },
+  "designSpectrum": {
+    "method": "ductilityOverstrength",
+    "ductility": {
+      "sites": {
+        "I": {"a0": 0.04, "c": 0.16, "ta": 0.2, "tb": 1.35, "r": 1.0, "label": "Zona I (lomas)"},
+        "II": {"a0": 0.08, "c": 0.32, "ta": 0.2, "tb": 1.35, "r": 1.33, "label": "Zona II (transición)"},
+        "IIIa": {"a0": 0.1, "c": 0.4, "ta": 0.53, "tb": 1.8, "r": 2.0, "label": "Zona IIIa (lacustre)"},
+        "IIIb": {"a0": 0.11, "c": 0.45, "ta": 0.85, "tb": 3.0, "r": 2.0, "label": "Zona IIIb (lacustre)"},
+        "IIIc": {"a0": 0.1, "c": 0.4, "ta": 1.25, "tb": 4.2, "r": 2.0, "label": "Zona IIIc (lacustre)"},
+        "IIId": {"a0": 0.1, "c": 0.3, "ta": 0.85, "tb": 4.2, "r": 2.0, "label": "Zona IIId (lacustre)"}
+      },
+      "beta": 1.0,
+      "overstrength": [[1.0, 1.0], [2.0, 1.75], [3.0, 2.0]],
+      "redundancy": 1.0,
+      "k2Coefficient": 0.5,
+      "regularityFactor": 1.0,
+      "clauses": {
+        "spectrum": "Sec 3, Tabla 3.1",
+        "reduction": "Sec 4 (Q')",
+        "regularity": "Sec 6.4",
+        "overstrength": "Sec 3.5 (2017: R = k1 R0 + k2)"
+      }
+    },
+    "clauses": {
+      "spectrum": "Sec 3",
+      "design": "Secs 3-4",
+      "cs": "Sec 8.1"
+    }
+  },
+  "stability": {"method": "designDrift", "ignoreBelow": 0.08, "thetaCap": 0.3, "clause": "Sec 8.6 (efectos de segundo orden)"},
+  "siteClasses": {
+    "I": {"description": "Zona I, lomas: firm ground (rock or very compact soil)", "S": 0.04},
+    "II": {"description": "Zona II, transición: firm ground under shallow clay layers", "S": 0.08},
+    "IIIa": {"description": "Zona IIIa, lacustre: soft clay (the lake zone, sub-zone a)", "S": 0.1},
+    "IIIb": {"description": "Zona IIIb, lacustre: soft clay (sub-zone b)", "S": 0.11},
+    "IIIc": {"description": "Zona IIIc, lacustre: soft clay (sub-zone c)", "S": 0.1},
+    "IIId": {"description": "Zona IIId, lacustre: soft clay (sub-zone d)", "S": 0.1}
+  },
+  "systems": {
+    "rcSmf": {"name": "Concreto: marcos dúctiles (Q = 4)", "R": 4.0, "Omega0": 2.0, "Cd": 4.0, "row": "Sec 5.1", "heightLimits": {}, "frame": "special", "concrete": true, "momentFrame": true, "periodFamily": "concreteMomentFrame", "group": "momentFrame"},
+    "rcImf": {"name": "Concreto: marcos (Q = 3)", "R": 3.0, "Omega0": 2.0, "Cd": 3.0, "row": "Sec 5.2", "heightLimits": {}, "frame": "intermediate", "concrete": true, "momentFrame": true, "periodFamily": "concreteMomentFrame", "group": "momentFrame"},
+    "rcOmf": {"name": "Concreto: marcos (Q = 2)", "R": 2.0, "Omega0": 1.75, "Cd": 2.0, "row": "Sec 5.3", "heightLimits": {}, "frame": "ordinary", "concrete": true, "momentFrame": true, "periodFamily": "concreteMomentFrame", "group": "momentFrame"},
+    "rcSpecialBearingWall": {"name": "Concreto: muros (Q = 3)", "R": 3.0, "Omega0": 2.0, "Cd": 3.0, "row": "Sec 5.2", "heightLimits": {}, "specialWalls": true, "concrete": true, "group": "bearingWall"},
+    "rcOrdinaryBearingWall": {"name": "Concreto: muros (Q = 2)", "R": 2.0, "Omega0": 1.75, "Cd": 2.0, "row": "Sec 5.3", "heightLimits": {}, "concrete": true, "group": "bearingWall"},
+    "rcSpecialWallFrame": {"name": "Concreto: muros con marcos de gravedad (Q = 3)", "R": 3.0, "Omega0": 2.0, "Cd": 3.0, "row": "Sec 5.2", "heightLimits": {}, "specialWalls": true, "concrete": true, "group": "buildingFrame"},
+    "rcOrdinaryWallFrame": {"name": "Concreto: muros con marcos de gravedad (Q = 2)", "R": 2.0, "Omega0": 1.75, "Cd": 2.0, "row": "Sec 5.3", "heightLimits": {}, "concrete": true, "group": "buildingFrame"},
+    "rcDualSpecial": {"name": "Concreto: sistema dual de marcos dúctiles y muros (Q = 3)", "R": 3.0, "Omega0": 2.0, "Cd": 3.0, "row": "Sec 5.2", "heightLimits": {}, "frame": "special", "specialWalls": true, "concrete": true, "group": "dualSpecial", "dual": true, "note": "Q = 4 where the frames take at least half the storey shear (Sec 5.1(b)): SAEngine takes 3, on the safe side."},
+    "steelSmf": {"name": "Acero: marcos dúctiles (Q = 4)", "R": 4.0, "Omega0": 2.0, "Cd": 4.0, "row": "Sec 5.1", "heightLimits": {}, "concrete": false, "momentFrame": true, "periodFamily": "steelMomentFrame", "group": "momentFrame"},
+    "steelImf": {"name": "Acero: marcos (Q = 3)", "R": 3.0, "Omega0": 2.0, "Cd": 3.0, "row": "Sec 5.2", "heightLimits": {}, "concrete": false, "momentFrame": true, "periodFamily": "steelMomentFrame", "group": "momentFrame"},
+    "steelOmf": {"name": "Acero: marcos (Q = 2)", "R": 2.0, "Omega0": 1.75, "Cd": 2.0, "row": "Sec 5.3", "heightLimits": {}, "concrete": false, "momentFrame": true, "periodFamily": "steelMomentFrame", "group": "momentFrame"},
+    "steelScbf": {"name": "Acero: marcos contraventeados (Q = 3)", "R": 3.0, "Omega0": 2.0, "Cd": 3.0, "row": "Sec 5.2", "heightLimits": {}, "concrete": false, "group": "buildingFrame"},
+    "steelOcbf": {"name": "Acero: marcos contraventeados (Q = 2)", "R": 2.0, "Omega0": 1.75, "Cd": 2.0, "row": "Sec 5.3", "heightLimits": {}, "concrete": false, "group": "buildingFrame"},
+    "steelEbf": {"name": "Acero: marcos con contraventeo excéntrico (Q = 4)", "R": 4.0, "Omega0": 2.0, "Cd": 4.0, "row": "Sec 5.1", "heightLimits": {}, "concrete": false, "periodFamily": "eccentricallyBracedSteelFrame", "group": "buildingFrame"},
+    "masonryOrdinaryReinforced": {"name": "Mampostería confinada o reforzada (Q = 2)", "R": 2.0, "Omega0": 1.75, "Cd": 2.0, "row": "Sec 5.3", "heightLimits": {}, "concrete": false, "masonry": true, "group": "bearingWall"},
+    "masonryOrdinaryPlain": {"name": "Mampostería de piezas huecas (Q = 1.5)", "R": 1.5, "Omega0": 1.5, "Cd": 1.5, "row": "Sec 5.4", "heightLimits": {}, "concrete": false, "masonry": true, "group": "bearingWall"},
+    "steelNotDetailed": {"name": "Otros sistemas (Q = 1)", "R": 1.0, "Omega0": 1.0, "Cd": 1.0, "row": "Sec 5.5", "heightLimits": {}, "concrete": false, "group": "steelNotDetailed"}
+  },
+  "periodCoefficients": {
+    "concreteMomentFrame": {"Ct": 0.0466, "m": 0.9},
+    "steelMomentFrame": {"Ct": 0.0724, "m": 0.8},
+    "eccentricallyBracedSteelFrame": {"Ct": 0.0731, "m": 0.75},
+    "other": {"Ct": 0.0488, "m": 0.75}
+  },
+  "designCategories": {
+    "occupancyGroups": {"I": "B", "II": "B", "III": "A", "IV": "A"},
+    "bySiteClass": {
+      "I": {"B": ["B"], "A": ["C"]},
+      "II": {"B": ["C"], "A": ["D"]},
+      "IIIa": {"B": ["D"], "A": ["D"]},
+      "IIIb": {"B": ["D"], "A": ["D"]},
+      "IIIc": {"B": ["D"], "A": ["D"]},
+      "IIId": {"B": ["D"], "A": ["D"]}
+    }
+  },
+  "requiredDetailing": {"B": "ordinary", "C": "ordinary", "D": "ordinary"},
+  "allowableDrift": {"I": 0.006, "II": 0.006, "III": 0.006, "IV": 0.006},
+  "allowableDriftLabel": "Non-structural elements attached to the structure",
+  "driftLimits": [
+    {"id": "separated", "label": "Non-structural elements separated from the structure (or able to take the drift)", "driftTolerantFinishes": true, "limits": {"I": 0.012, "II": 0.012, "III": 0.012, "IV": 0.012}}
+  ],
+  "driftRedundancyCategories": [],
+  "dampingEta": 1.0,
+  "dampingCorrection": {"method": "none", "referenceDamping": 0.05},
+  "systemCombination": {"R": "min", "Cd": "max", "Omega0": "max", "heightLimit": "min"},
+  "separation": {"propertyLineFactor": 1.0, "sameProperty": "sum", "equalFloorLevelsFactor": 1.0},
+  "diaphragmDeflection": {"limit": null},
+  "irregularities": null,
+  "dynamicAnalysis": null,
+  "softStorey": null,
+  "diaphragmConnections": null,
+  "timeHistory": null,
+  "lateralForce": {"distribution": "linear", "clause": "Sec 8.1"},
+  "designEccentricity": {"method": "amplifiedStatic", "staticAmplification": 1.5},
+  "liveShare": 0.7,
+  "partitionWeight": "full",
+  "periodUpperFactor": 1.4,
+  "minimumScale": 0.8,
+  "accidentalEccentricity": 0.1,
+  "orthogonalShare": 0.3,
+  "massParticipation": 0.9,
+  "torsionIrregular": 1.2,
+  "torsionExtreme": 1.4,
+  "torsionAmplificationMax": 1.0,
+  "pgaFactor": 1.0,
+  "verticalFactor": 0.0,
+  "stabilityGravity": {"D": 1.1, "SD": 1.1, "F": 1.1, "L": 1.1},
+  "driftAmplification": "displacementFactor",
+  "defaultSiteClass": "II",
+  "defaultSystem": "rcImf",
+  "sources": {
+    "designSpectrum": "NTC-Sismo Sec 3 (2004 edition, Tabla 3.1): a = a0 + (c - a0) T / Ta below Ta, c to Tb, c (Tb / T)^r beyond, by zone (I: c 0.16, a0 0.04, Ta 0.2, Tb 1.35, r 1; II: 0.32, 0.08, 0.2, 1.35, 1.33; IIIa: 0.40, 0.10, 0.53, 1.8, 2; IIIb: 0.45, 0.11, 0.85, 3.0, 2; IIIc: 0.40, 0.10, 1.25, 4.2, 2; IIId: 0.30, 0.10, 0.85, 4.2, 2); Sec 4: a / Q' with Q' = Q for T >= Ta, 1 + (T / Ta)(Q - 1) below; Q' × the regularity factor (Sec 6.4: 0.9, 0.8 or 0.7 for an irregular, very irregular or strongly irregular structure; 1 here, set it under Code Values); the 2017 site-specific form (k, β, R = k1 R0 + k2) applies where a site class is given k (enter the SASID values under Code Values)",
+    "siteClasses": "NTC-Sismo Sec 1.4 and Fig 1.1: zones I, II and III (IIIa-IIId); S = a0 of the zone for the peak ground acceleration (pgaFactor 1, Z 1)",
+    "systems": "NTC-Sismo Sec 5: Q = 4 (5.1), 3 (5.2), 2 (5.3), 1.5 (5.4), 1 (5.5) by the system and its detailing (R holds Q); Cd = Q (the displacements of the reduced forces × Q, Sec 1.8); Ω0 = the 2017 R0 (2.0 for Q >= 3, 1.75 for Q = 2: SAEngine reading, VERIFY.md); no height limits (the static method is limited to 30 m, Sec 2.2: not checked)",
+    "periodCoefficients": "NTC-Sismo gives no approximate period formula (the static method may take T from the Rayleigh quotient, Sec 8.2): the ASCE 7-22 Table 12.8-2 values as SAEngine practice; a period from the analysis at most 1.4 Ta",
+    "designCategories": "SAEngine's category letters for the zones (I: B, II: C, III: D; Group A one up): NTC-Sismo has no design categories, the letters only drive SAEngine's generator and orthogonal effects",
+    "allowableDrift": "NTC-Sismo 2004 Sec 1.8: 0.006 with non-structural elements attached, 0.012 separated (the 2017 limits by system of Tabla 4.2.1 are not entered)",
+    "driftAmplification": "NTC-Sismo Sec 1.8: the drifts of the reduced forces × Q",
+    "lateralForce": "NTC-Sismo Sec 8.1: Fi = Wi hi (Σ W / Σ W h) a / Q' (the modified distribution of Sec 8.2 for T > Tb is not applied)",
+    "designEccentricity": "NTC-Sismo Sec 8.5: e = 1.5 es + 0.1 b and es - 0.1 b",
+    "liveShare": "NTC-Criterios Sec 6.1: the instantaneous live load Wa in the seismic weight, taken as 0.7 Wm (SAEngine practice; Tabla 6.1.1 gives Wa about 0.5-0.7 Wm by use)",
+    "minimumScale": "NTC-Sismo Sec 9.3: the dynamic base shear at least 0.8 a W / Q'",
+    "orthogonalShare": "NTC-Sismo Sec 8.7 / 9.4: 100 % in one direction + 30 % in the other",
+    "stability": "NTC-Sismo Sec 8.6: second-order effects where the drift exceeds 0.08 V / W (θ = P Δ / (V h) >= 0.08)",
+    "verticalFactor": "Not covered (0)",
+    "irregularities": "NTC-Sismo Sec 6 regularity conditions: not checked by this version (set the regularity factor)",
+    "torsionAmplificationMax": "NTC-Sismo has no amplification of the accidental torsion (it is in the 1.5 es): 1.0"
+  },
+  "clauses": {
+    "scale": "Sec 9.3",
+    "torsion": "Sec 8.5",
+    "orthogonal": "Sec 8.7",
+    "combinations": "Sec 3.4",
+    "drift": "Sec 1.8",
+    "systems": "Sec 5",
+    "damping": "Sec 3",
+    "displacement": "Sec 1.8",
+    "period": "Sec 8.2",
+    "weight": "Sec 6.1",
+    "pDelta": "Sec 8.6",
+    "stability": "Sec 8.6",
+    "elf": "Sec 8.1",
+    "spectrum": "Sec 3"
+  }
+}

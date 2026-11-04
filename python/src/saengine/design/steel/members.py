@@ -291,10 +291,23 @@ def tension_rupture(
 # ──────────────────────────────────── compression ────────────────────────────────────
 
 
-def _fcr(fe: float, fy: float, q: float = 1.0) -> float:
-    """Eqs 6.10.17-18 (Q = 1) and 6.10.37-38."""
+def _fcr(fe: float, fy: float, q: float = 1.0, family: str | None = None) -> float:
+    """Eqs 6.10.17-18 (Q = 1) and 6.10.37-38. Alpha 9 C17: the pack's ``powerCurve`` column
+    curve (CSA S16-19 13.3.1 type), Fcr = Q Fy (1 + λ^2n)^(-1/n), λ = √(Q Fy / Fe), n of the
+    section ``family``."""
     if fe <= 0:
         return 0.0
+    methods = _methods()
+    if methods.columnCurve == "powerCurve":
+        exponents = methods.curveExponent
+        n = exponents.get(family or "") or exponents.get("default")
+        if n is None:
+            raise SteelDesignError(
+                "the code pack's column curve powerCurve gives no exponent n "
+                f"(steel.memberMethods.curveExponent) for {family or 'this section'}"
+            )
+        lam = math.sqrt(q * fy / fe)
+        return q * fy * (1 + lam ** (2 * n)) ** (-1 / n)
     if fe >= 0.44 * q * fy:
         return q * 0.658 ** (q * fy / fe) * fy
     return 0.877 * fe
@@ -468,7 +481,7 @@ def compression(
         if mode.startswith(("torsional", "flexural-torsional")):
             clause = _s("compressionTorsional")
         if shape.family == "tee" and not slender and _methods().teeCompression == "twoStress":
-            fcry = _fcr(_euler(e, kly, shape.ry), fy)
+            fcry = _fcr(_euler(e, kly, shape.ry), fy, family=shape.family)
             fcrz = _shear_modulus() * shape.j / (shape.area * shape.ro2)
             h = shape.big_h
             fcr_t = (
@@ -476,7 +489,7 @@ def compression(
                 / (2 * h)
                 * (1 - math.sqrt(max(0.0, 1 - 4 * fcry * fcrz * h / (fcry + fcrz) ** 2)))
             )
-            fcr_x = _fcr(_euler(e, klx, shape.rx), fy)
+            fcr_x = _fcr(_euler(e, klx, shape.rx), fy, family=shape.family)
             fcr = min(fcr_t, fcr_x)
             note = f"Fcry = {fcry:.1f}, Fcrz = {fcrz:.1f} MPa, H = {h:.3f}"
             state = "flexural-torsional buckling (Eq 6.10.21)" if fcr_t <= fcr_x else mode
@@ -491,7 +504,7 @@ def compression(
 
     if slender and _methods().compressionSlender == "effectiveWidth":
         # Alpha 9 C3: Pn = Fcr Ae, Fcr of the member's buckling mode at Q = 1.
-        fcr = _fcr(fe, fy)
+        fcr = _fcr(fe, fy, family=shape.family)
         ae, widths = _effective_area(shape, steel, fcr, slender)
         note = (
             f"KL/r = {kl_r:.1f}, Fe = {fe:.1f} MPa, Fcr = {fcr:.1f} MPa ({mode}); slender "
@@ -512,7 +525,7 @@ def compression(
         if shape.family in ("I", "channel") and cl.by_name(slender, "web"):
             web = cl.by_name(slender, "web")
             assert web is not None
-            f = _fcr(fe, fy)  # Fcr at Q = 1 (p 3850)
+            f = _fcr(fe, fy, family=shape.family)  # Fcr at Q = 1 (p 3850)
             if f > 0 and web.ratio >= 1.49 * math.sqrt(e / f):
                 be = _effective_width(d["tw"], web.ratio, e, f, 0.34)
                 qa = (shape.area - (d["h"] - be) * d["tw"]) / shape.area
@@ -521,7 +534,7 @@ def compression(
             t = d["t"]
             q = 1.0
             for _ in range(50):
-                fcr = _fcr(fe, fy, q)
+                fcr = _fcr(fe, fy, q, shape.family)
                 f = fcr / q  # Pn / Aeff
                 removed = 0.0
                 for flat in (d["b"], d["h"]):
@@ -543,7 +556,7 @@ def compression(
                 )
             qa = 0.038 * e / (fy * ratio) + 2 / 3
     q = qs * qa
-    fcr = _fcr(fe, fy, q)
+    fcr = _fcr(fe, fy, q, shape.family)
     note = f"KL/r = {kl_r:.1f}, Fe = {fe:.1f} MPa, Fcr = {fcr:.1f} MPa ({mode})"
     if q < 1:
         note += f"; slender elements: Q = Qs Qa = {qs:.3f} × {qa:.3f} = {q:.3f}"
@@ -591,8 +604,34 @@ def _i_major(shape: ShapeProperties, steel: Steel, lb: float, cb: float) -> Capa
             * math.sqrt(1 + math.sqrt(1 + 6.76 * (0.7 * fy / e / jc) ** 2))
         )
         candidates.append((mp, "yielding", _c("flexureYield", "Sec 10.6.2.1, Eq 6.10.56")))
-        notes.append(f"Lb = {lb:.0f} mm, Lp = {lp:.0f} mm, Lr = {lr:.0f} mm, Cb = {cb:.2f}")
-        if lb > lp:
+        methods = _methods()
+        if methods.lateralTorsional == "criticalMoment" and lb > 0:
+            # Alpha 9 C17 (CSA S16-19 13.6 type): the elastic critical moment Mu and the
+            # inelastic curve on Mp (My for a noncompact flange).
+            omega2 = min(cb, methods.omega2Max)
+            g = _shear_modulus()
+            mu = (
+                omega2
+                * math.pi
+                / lb
+                * math.sqrt(
+                    e * shape.iy * g * shape.j + (math.pi * e / lb) ** 2 * shape.iy * shape.cw
+                )
+            )
+            base = mp if flange.cls == cl.COMPACT else fy * sx
+            a, b, share = methods.ltbCurve
+            mn = min(a * base * (1 - b * base / mu), base) if mu > share * base else mu
+            notes.append(f"Lb = {lb:.0f} mm, ω2 = {omega2:.2f}, Mu = {mu / 1e6:.1f} kN·m")
+            candidates.append(
+                (
+                    min(mn, mp),
+                    "lateral-torsional buckling",
+                    _c("flexureLtb", "Sec 10.6.2.2, Eqs 6.10.57-63"),
+                )
+            )
+        else:
+            notes.append(f"Lb = {lb:.0f} mm, Lp = {lp:.0f} mm, Lr = {lr:.0f} mm, Cb = {cb:.2f}")
+        if lb > lp and methods.lateralTorsional != "criticalMoment":
             if lb <= lr:
                 mn = cb * (mp - (mp - 0.7 * fy * sx) * (lb - lp) / (lr - lp))
             else:
