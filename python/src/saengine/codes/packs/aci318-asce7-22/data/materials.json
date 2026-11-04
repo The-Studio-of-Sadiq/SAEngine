@@ -1,0 +1,37 @@
+{
+  "$schema": "../../../schemas/materials.schema.json",
+  "$replace": true,
+  "$sources": [
+    "ACI 318-19 Sec 18.2.5-18.2.6, 19.2.1, 20.2.2, 22.2.2; AISC 360-22 (steel G, until the steel track)"
+  ],
+  "source": "ACI 318-19 Chapters 18-22 (SI values of ACI 318M-19)",
+  "concreteStrain": 0.003,
+  "steelE": 200000.0,
+  "steelShearModulus": 77200.0,
+  "seismicFcMin": 21.0,
+  "lightweightFcMax": 35.0,
+  "lightweightDensity": 1840.0,
+  "seismicRebarFy": [
+    280.0,
+    420.0,
+    550.0
+  ],
+  "seismicRebarFyMax": 550.0,
+  "gradeTolerance": 0.02,
+  "fyActualMargin": 125.0,
+  "fyRetestMargin": 20.0,
+  "fuFyMin": 1.25,
+  "sources": {
+    "concreteStrain": "ACI 318-19 22.2.2.1",
+    "steelE": "ACI 318-19 20.2.2.2",
+    "steelShearModulus": "AISC 360-22 Sec B3.3 notation (G = 77 200 MPa)",
+    "seismicFcMin": "ACI 318-19 Table 19.2.1.1: special moment frames, special walls, at least 21 MPa",
+    "lightweightFcMax": "ACI 318-19 Table 19.2.1.1: lightweight concrete in special frames and walls at most 35 MPa (unless tests show otherwise)",
+    "lightweightDensity": "ACI 318-19 Sec 2.3 (lightweight concrete: equilibrium density 1440-1840 kg/m³)",
+    "seismicRebarFy": "ACI 318-19 20.2.2.4-20.2.2.5, Table 20.2.2.4(a), 18.2.6: ASTM A706 Grades 420 and 550 in special moment frames and special walls (Grade 280 A615 permitted where it meets 20.2.2.5(b)); Grade 690 only for special walls' flexure, not offered here",
+    "gradeTolerance": "SAEngine choice (Grade 420 entered as 415 MPa)",
+    "fyActualMargin": "ACI 318-19 20.2.2.5(b)(i) and ASTM A706: actual yield at most 125 MPa above the specified",
+    "fyRetestMargin": "ACI 318-08 21.1.5.2(a) retest margin, kept: ACI 318-19 relies on ASTM A706 (SAEngine practice)",
+    "fuFyMin": "ACI 318-19 20.2.2.5(b)(ii) and ASTM A706: actual tensile / actual yield at least 1.25"
+  }
+}

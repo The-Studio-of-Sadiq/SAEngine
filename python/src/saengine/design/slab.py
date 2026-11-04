@@ -1883,6 +1883,18 @@ def _min_reinforcement_check(
     )
 
 
+def _one_way_item(key: str, letter: str) -> str:
+    """C2: the clause of one condition of the one-way coefficients, the pack's ``designClauses.
+    slab.<key>`` ("oneWaySpans", "oneWayLive", "oneWayEqual") where it gives one (codes list
+    the conditions in different orders), else the one-way clause and the default pack's
+    ``letter``."""
+    from saengine.design import clauses
+
+    if clauses.text("slab", key):
+        return short_clause("slab", key)
+    return f"{short_clause('slab', 'oneWay')} {letter}"
+
+
 def spacing_clause(kind: str) -> str:
     """The clause text of a slab's largest bar spacing: ``kind`` "twoWay" min(2h, 450 mm),
     "oneWay" min(3h, 450 mm) along the span; the code pack's (``designClauses.slab.spacingTwoWay``,
@@ -2598,11 +2610,11 @@ def one_way_span(
     limits = True
     if not any(continuous):
         limits = False
-        notes.append(f"a single span: {short_clause('slab', 'oneWay')} (a) needs two or more spans")
+        notes.append(f"a single span: {_one_way_item('oneWaySpans', '(a)')} needs two or more spans")
     if dead > 0 and live > float(table["liveToDeadMax"]) * dead:
         limits = False
         notes.append(
-            f"live load {live:g} > 3 x dead load {dead:g} ({short_clause('slab', 'oneWay')} (d))"
+            f"live load {live:g} > 3 x dead load {dead:g} ({_one_way_item('oneWayLive', '(d)')})"
         )
     others: dict[str, float] = {}
     cantilevers: dict[str, float] = {}
@@ -2628,7 +2640,7 @@ def one_way_span(
             limits = False
             notes.append(
                 f"spans {ln:.0f} and {other_ln:.0f} mm at {side.name} differ by more than 20 % "
-                f"({short_clause('slab', 'oneWay')} (b))"
+                f"({_one_way_item('oneWayEqual', '(b)')})"
             )
     end_span = sum(continuous) == 1
     ends: list[OneWayEnd] = []

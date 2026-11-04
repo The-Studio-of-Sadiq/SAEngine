@@ -81,9 +81,19 @@ def _joints(name: str) -> float:
     return float(code_context.table("detailing").joints[name])
 
 
-def _gamma(key: int | str) -> float:
-    """The pack's joint shear coefficient γ for ``key`` (4, 3, "opposite" or "other")."""
-    return float(code_context.table("detailing").joints.gamma[str(key)])
+def _gamma(key: int | str, continuous: bool = True) -> float:
+    """The pack's joint shear coefficient γ for ``key`` (4, 3, "opposite" or "other"); C2: of a
+    joint whose column does not continue above (``continuous`` False) the pack's "<key>Top"
+    where it gives one."""
+    gamma = code_context.table("detailing").joints.gamma
+    if not continuous and f"{key}Top" in gamma:
+        return float(gamma[f"{key}Top"])
+    return float(gamma[str(key)])
+
+
+def _top_gamma() -> bool:
+    """C2: whether the pack gives the joint shear coefficients of columns that end at the joint."""
+    return any(k.endswith("Top") for k in code_context.table("detailing").joints.gamma)
 
 
 def _phi_joint() -> float:
@@ -523,7 +533,11 @@ def strong_column_checks(
 
 
 def joint_confinement(
-    joint: FrameJoint, beams: dict[str, RcSection], profile: Any, rotation: float
+    joint: FrameJoint,
+    beams: dict[str, RcSection],
+    profile: Any,
+    rotation: float,
+    continuous: bool = True,
 ) -> tuple[float, int, bool]:
     """(γ, the faces confined, whether the half transverse reinforcement of Sec 8.3.7.2(b) may
     be used): a face is confined when a beam frames into it covering at least three quarters of
@@ -532,7 +546,8 @@ def joint_confinement(
     of the column width (here: the face's width), allow half of the 8.3.5.4(a) hoops within the
     depth of the shallowest member and their spacing up to 150 mm. The default pack's BNBC (like ACI 318-08)
     counts the width only; ACI 318-19 Table 18.8.4.1 also asks for the beam depth and
-    distinguishes columns continuing above: not applied."""
+    distinguishes columns continuing above: C2, a pack that gives the "<key>Top" coefficients
+    has them used where the column ends at the joint (``continuous`` False)."""
     ex, ey = column_axes(rotation)
     faces: dict[tuple[int, int], bool] = {}
     for beam in joint.beams:
@@ -550,11 +565,11 @@ def joint_confinement(
     count = len(confined)
     opposite = {(0, 1), (0, -1)} <= confined or {(1, 1), (1, -1)} <= confined
     if count == 4:
-        gamma = _gamma(4)
+        gamma = _gamma(4, continuous)
     elif count == 3 or opposite:
-        gamma = _gamma(3)
+        gamma = _gamma(3, continuous)
     else:
-        gamma = _gamma("other")
+        gamma = _gamma("other", continuous)
     return gamma, count, count == 4
 
 
@@ -601,7 +616,12 @@ def joint_checks(
       (8.3.7.1(c), 8.3.7.4(a)).
     """
     directions, notes = _directions(joint, beams, below.rotation)
-    gamma, faces, _ = joint_confinement(joint, beams, profile, below.rotation)
+    continuous = above is not None
+    gamma, faces, _ = joint_confinement(joint, beams, profile, below.rotation, continuous)
+    kinds = {
+        _gamma(4, continuous): "all four faces",
+        _gamma(3, continuous): "three or two opposite faces",
+    }
     fc = below.section.fc
     rows: list[dict[str, Any]] = []
     lever = (joint.height_below + joint.height_above) / 2 if above else joint.height_below / 2
@@ -628,7 +648,7 @@ def joint_checks(
                 best = (vj, tension, vcol, sense)
         vj, tension, vcol, _ = best
         capacity = phi * gamma * math.sqrt(fc) * aj
-        kind = {1.7: "all four faces", 1.2: "three or two opposite faces"}.get(gamma, "others")
+        kind = kinds.get(gamma, "others")
         rows.append(
             _check(
                 f"Joint shear, {joint.id} {d.name}",
@@ -676,7 +696,7 @@ def joint_checks(
                         f"Beam bar anchorage, {joint.id} {beam.id}", need, core, "mm", None, note
                     )
                 )
-    if above is None:
+    if above is None and not _top_gamma():
         notes.append(
             f"{joint.id}: the column ends at this joint; "
             f"{short_clause('ductileJoints', 'jointShear')} gives no lower joint "
@@ -1069,21 +1089,42 @@ def column_dowel_checks(
     hooks near the bottom of the foundation, free ends towards the column's centre. The hooked
     development (Sec 8.2.6, ``fc`` of the foundation) against the depth available above the
     bottom mesh: thickness - cover - 2 mesh bars."""
-    need = hooked_development(db, fy, fc, lam)
     available = footing_thickness - cover - 2 * mesh_dia
-    return [
-        _check(
-            f"Column bars into foundation, {column_id}",
-            need,
-            available,
-            "mm",
-            None,
+    rule = _pack_hook_rule(db, fy, fc, lam)
+    if rule is not None:
+        # C2: a pack whose hooks follow another method (ACI 318-19 25.4.3.1).
+        need = rule.value
+        how = (
+            f"ldh = {rule.formula} = {need:.0f} mm for db = {db:g} mm ({rule.clause}); "
+            f"available t - cover - 2 mesh bars = {available:.0f} mm; 90° hooks at the bottom, "
+            f"turned towards the column's centre ({clause('ductileJoints', 'dowels')})"
+        )
+    else:
+        need = hooked_development(db, fy, fc, lam)
+        how = (
             f"ldh = max(0.24 fy db / (λ √f'c), 8 db, 150) = {need:.0f} mm for db = {db:g} mm "
             f"({_section()} Sec 8.2.6.1, 8.2.6.2); available t - cover - 2 mesh bars = "
             f"{available:.0f} mm; 90° hooks at the bottom, turned towards the column's centre "
-            "(Sec 8.3.11.2(a), (b))",
+            "(Sec 8.3.11.2(a), (b))"
         )
+    return [
+        _check(f"Column bars into foundation, {column_id}", need, available, "mm", None, how)
     ]
+
+
+def _pack_hook_rule(db: float, fy: float, fc: float, lam: float) -> Any:
+    """C2: the hooked development of the pack in force when its ``hookMethod`` is not the
+    default pack's linear one (:func:`saengine.drawings.detailing.hook_development`); None
+    otherwise."""
+    from saengine.drawings import detailing
+
+    try:
+        dev = detailing.bar_rules().development
+    except detailing.NotCovered:
+        return None
+    if getattr(dev, "hookMethod", "linear") == "linear":
+        return None
+    return detailing.hook_development(db, fy, fc, lam=lam)
 
 
 def column_near_footing_edge(
