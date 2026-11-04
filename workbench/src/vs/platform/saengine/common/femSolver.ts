@@ -693,6 +693,9 @@ export type EngineMethod =
 	| 'saengine/cancelJobs'
 	| 'fem/seismicDesign' | 'fem/secondOrder'
 	| 'fem/storyResponse' | 'fem/memberForces' | 'fem/columnInteraction' | 'fem/exportXlsx'
+	// Alpha 9 P4: `fem/existingAssessment` `{outDir, projectPath}` -> the assessment of an existing
+	// building of a run with its retrofit's before and after comparison.
+	| 'fem/existingAssessment'
 	| 'fem/tableIndex' | 'fem/table' | 'fem/exportTables' | 'fem/exportProgress' | 'fem/exportCancel'
 	| 'soil/location' | 'soil/plotCheck' | 'soil/gisExport' | 'soil/gisImport' | 'soil/qgisProgram'
 	| 'drawings/generate' | 'drawings/list' | 'drawings/progress' | 'drawings/issue' | 'drawings/dwg'

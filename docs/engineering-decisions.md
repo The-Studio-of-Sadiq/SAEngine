@@ -41,6 +41,53 @@ here, newest first, with the date, the question, the decision, the reason and wh
 - **No unlicensed software.** ETABS, SAP2000 and STAAD are not used for cross-checks or cited.
   Open-source tools are used instead (2026-10-25).
 
+## 2026-11-05: assessment and retrofit of existing buildings (alpha 9 track P4)
+
+- **What was built.** A project marks itself as an existing building with
+  `analysis.existingBuilding` (Project Settings, Analysis model, Existing building): the knowledge
+  level (κ, CF, overridable), the material tests (cores, tensile tests; rebound and pulse velocity
+  only with a calibration to cores), the members' condition (bar area lost to corrosion, weak
+  concrete), the procedure (linear or the pushover's hinges), the model state (as built or
+  retrofitted), the retrofit measures (RC jackets, FRP wraps and laminates, added members) and the
+  screening checklist answers. The pack's new `existing` table gives every value and picks the
+  methods by id (`linear.method` `mFactor` / `chordRotation`, `shear.method` `columnDuctility` /
+  `cyclicDegradation`, `frp.method` `aci440` / `en1998`). The US pack has ASCE 41-17 / ACI
+  440.2R-17, the Eurocodes pack EN 1998-3; nothing changes for a project without
+  `existingBuilding` (bnbc2020 results are unchanged).
+- **BNBC basis.** BNBC 2020 asks for the structural analysis of an existing building (Part 10 Sec
+  1.3.2) and names strengthening and retrofitting (Part 7 Sec 5.10.3-5.10.4) without a method:
+  the bnbc2020 pack's `existing` table is SAEngine practice on the ASCE 41 basis, and the
+  results say so.
+- **SAEngine practice (no code gives it):**
+  - The analysis model of an existing building takes the materials at the pack's analysis
+    strengths (ASCE 41: expected; EN 1998-3: mean), the corroded members' bars with their lost
+    area (diameters × √(1 - loss)), and, retrofitted, the jacketed members enlarged with the
+    jacket's bars and ties (their own object types `<type>.eb-<tags>`). In the pushover's fibre
+    sections the old bars of a jacketed member lie with the jacket's at its cover; the member
+    checks place them where they are. As built, the added members are left out of the model;
+    they are designed as new members, not assessed.
+  - Linear procedure: the run's seismic forces (the design forces with R and I) are made the
+    hazard's unreduced forces by × R/I × the hazard's spectrum scale (× C1·C2·Cm for
+    deformation-controlled actions); demands from G± ± E per direction; columns' two-way
+    flexure combined linearly (exponent 1); the displacement ductility of the column shear's k
+    is the flexural demand over κ·MCE; a column whose shear strength is below the shear at its
+    flexural strength takes m = 1. The section strength is the strain compatibility of the
+    pack's stress block with the strengths of the use (no φ, no partial factors other than the
+    pack's brittle divisors).
+  - EN 1998-3 linear: the chord rotation demand is (M/My)·θy with My and θy of the analysis
+    strengths, LV = L/2, φy = 2.1 εy/h; θum with the deformation strengths (mean/CF).
+  - Before and after: each run keeps its assessment per model state (`08 FEM/existing-<state>.
+    json`); the other state's ratio is its own run's when it has been run, else this run's
+    demands with the other state's capacities (shown as such).
+  - Jackets of every pack take the EN 1998-3 A.4.2.2 monolithic factors; an FRP confinement wrap
+    with fl/f'c at least the pack's minimum makes the member conforming in the m and hinge
+    tables; the FRP force of a flexural laminate is reduced by ψf and the substrate's initial
+    strain is taken as 0.
+- **Not built (placeholders kept or added):** masonry buildings (planned page "Assessment of
+  Existing Masonry Buildings"), steel members' minor-axis bending and shear, walls in the linear
+  procedure (they are assessed by the nonlinear procedure's fibre walls), base isolation as a
+  retrofit (B37's isolators are designed as for a new building; P6 later).
+
 ## 2026-11-05: Australia and New Zealand second remainder (alpha 9 track C18c)
 
 `australia-as` 0.3 and `newzealand-nzs` 0.3 (VERIFY C18c-1 to C18c-60 and C18c-1 to C18c-29).

@@ -8164,6 +8164,45 @@ export const DEFAULT_OBJECTS: object = {
 
 export const SETTINGS_SCHEMA: IJSONSchema = {
 	$defs: {
+		AddedMembers: {
+			additionalProperties: false,
+			description: 'P4: members added by the retrofit (new walls, braces or columns of 06 BIM): left out of\nthe as-built model and designed like any new member by the code pack\'s methods.',
+			properties: {
+				kind: {
+					const: 'added',
+					default: 'added',
+					title: 'Kind',
+					type: 'string',
+				},
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				members: {
+					description: 'The added members (ids of 06 BIM).',
+					items: {
+						maxLength: 64,
+						minLength: 1,
+						pattern: '^[A-Za-z0-9._-]+$',
+						type: 'string',
+					},
+					minItems: 1,
+					title: 'Members',
+					type: 'array',
+				},
+				note: {
+					default: '',
+					title: 'Note',
+					type: 'string',
+				},
+			},
+			required: ['id', 'members'],
+			title: 'AddedMembers',
+			type: 'object',
+		},
 		AdjacentStructure: {
 			additionalProperties: false,
 			properties: {
@@ -8631,6 +8670,19 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 					description: 'Nonlinear time history analyses: the time histories above run through the frames and walls as fibre elements that crack and yield, the records scaled to the code pack\'s real design spectrum (08 FEM/nonlinear-history.osmodel); the results check the storey drifts and the members\' deformations by the code pack\'s rules.',
 					title: 'Nonlinear time history',
 				},
+				existingBuilding: {
+					anyOf: [
+						{
+							$ref: '#/$defs/ExistingBuilding',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Assessment of an existing building and its retrofit (P4): the knowledge level, the as-built strengths from tests, the members\' condition and the retrofit measures; the results check every member by the code pack\'s assessment rules (its existing table). Empty: a new building.',
+					title: 'Existing building',
+				},
 				thermal: {
 					$ref: '#/$defs/Thermal',
 					title: 'Temperature',
@@ -8757,6 +8809,33 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 			},
 			required: ['level', 'day'],
 			title: 'CastDay',
+			type: 'object',
+		},
+		ChecklistAnswer: {
+			additionalProperties: false,
+			description: 'P4: the engineer\'s answer to one statement of the code pack\'s screening checklist.',
+			properties: {
+				item: {
+					description: 'The statement\'s id (the results list them).',
+					minLength: 1,
+					title: 'Item',
+					type: 'string',
+				},
+				answer: {
+					description: 'Compliant, non-compliant, not applicable, unknown.',
+					enum: ['C', 'NC', 'NA', 'U'],
+					enumDescriptions: ['Compliant', 'Non-compliant', 'Not applicable', 'Unknown'],
+					title: 'Answer',
+					type: 'string',
+				},
+				note: {
+					default: '',
+					title: 'Note',
+					type: 'string',
+				},
+			},
+			required: ['item', 'answer'],
+			title: 'ChecklistAnswer',
 			type: 'object',
 		},
 		CladdingRoof: {
@@ -9626,6 +9705,128 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 			title: 'Drawings',
 			type: 'object',
 		},
+		ExistingBuilding: {
+			additionalProperties: false,
+			description: 'P4: the assessment of an existing building and its retrofit (fem/existing_building.py,\nby the code pack\'s ``existing`` table): the knowledge level, the as-built strengths from\ntests, the members\' condition, the procedure and the retrofit measures.',
+			properties: {
+				knowledgeLevel: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'An id of the code pack\'s knowledge levels (ASCE 41: minimum, usual, comprehensive; EN 1998-3: KL1-KL3). Empty: the pack\'s default.',
+					title: 'Knowledge level',
+				},
+				knowledgeFactor: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							maximum: 1,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Empty: the level\'s.',
+					title: 'Knowledge factor κ',
+				},
+				confidenceFactor: {
+					anyOf: [
+						{
+							minimum: 1,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Empty: the level\'s.',
+					title: 'Confidence factor CF',
+				},
+				tests: {
+					description: 'Cores, rebound and pulse velocity estimates, tensile tests: the as-built strengths. A material without tests takes its strength from the drawings (03 Materials) with the pack\'s factors.',
+					items: {
+						$ref: '#/$defs/MaterialTest',
+					},
+					title: 'Material tests',
+					type: 'array',
+				},
+				conditions: {
+					description: 'Corrosion and deterioration found on site.',
+					items: {
+						$ref: '#/$defs/MemberCondition',
+					},
+					title: 'Conditions',
+					type: 'array',
+				},
+				procedure: {
+					default: 'linear',
+					description: 'Linear: the members\' demands from the linear analysis with the code pack\'s m-factors or chord rotations. Nonlinear: the pushover\'s hinges (Analysis model, Pushover).',
+					enum: ['linear', 'nonlinear'],
+					enumDescriptions: ['Linear', 'Nonlinear (pushover)'],
+					title: 'Procedure',
+					type: 'string',
+				},
+				state: {
+					default: 'asBuilt',
+					description: 'As built: the analysis model without the retrofit. Retrofitted: with the jackets and the added members. Run both for the before and after comparison.',
+					enum: ['asBuilt', 'retrofitted'],
+					enumDescriptions: ['As built', 'Retrofitted'],
+					title: 'Model',
+					type: 'string',
+				},
+				c1c2: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Linear procedure: the modification factor of the pseudo-seismic force. Empty: from the code pack\'s table by the period and the largest m.',
+					title: 'C1·C2',
+				},
+				retrofit: {
+					description: 'Concrete jackets, FRP wraps and laminates, added walls and braces.',
+					items: {
+						oneOf: [
+							{
+								$ref: '#/$defs/RcJacket',
+							},
+							{
+								$ref: '#/$defs/FrpWrap',
+							},
+							{
+								$ref: '#/$defs/AddedMembers',
+							},
+						],
+					},
+					title: 'Retrofit',
+					type: 'array',
+				},
+				checklist: {
+					description: 'The answers to the code pack\'s screening statements (the results list them with their ids); a statement not answered is shown as unknown.',
+					items: {
+						$ref: '#/$defs/ChecklistAnswer',
+					},
+					title: 'Tier 1 checklist',
+					type: 'array',
+				},
+			},
+			title: 'ExistingBuilding',
+			type: 'object',
+		},
 		ExplosionRoom: {
 			additionalProperties: false,
 			description: 'A room where a gas explosion is to be designed for (internal overpressure).',
@@ -9968,6 +10169,149 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 			title: 'Foundation',
 			type: 'object',
 		},
+		FrpWrap: {
+			additionalProperties: false,
+			description: 'P4: externally bonded fibre-reinforced polymer on beams or columns.',
+			properties: {
+				kind: {
+					const: 'frp',
+					default: 'frp',
+					title: 'Kind',
+					type: 'string',
+				},
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				members: {
+					description: 'Members strengthened (ids of 06 BIM).',
+					items: {
+						maxLength: 64,
+						minLength: 1,
+						pattern: '^[A-Za-z0-9._-]+$',
+						type: 'string',
+					},
+					minItems: 1,
+					title: 'Members',
+					type: 'array',
+				},
+				purpose: {
+					description: 'Confinement: a column wrapped all round (axial strength, ductility, shear). Shear: wraps or strips across the member. Flexure: a laminate on the tension face along the member.',
+					enum: ['confinement', 'shear', 'flexure'],
+					enumDescriptions: ['Confinement (wrap)', 'Shear', 'Flexure (laminate)'],
+					title: 'Purpose',
+					type: 'string',
+				},
+				fibre: {
+					default: 'carbon',
+					enum: ['carbon', 'glass', 'aramid'],
+					title: 'Fibre',
+					type: 'string',
+				},
+				exposure: {
+					default: 'interior',
+					enum: ['interior', 'exterior', 'aggressive'],
+					title: 'Exposure',
+					type: 'string',
+				},
+				plies: {
+					default: 1,
+					maximum: 10,
+					minimum: 1,
+					title: 'Plies',
+					type: 'integer',
+				},
+				thickness: {
+					description: 'Thickness of one ply [mm].',
+					exclusiveMinimum: 0,
+					title: 'Thickness',
+					type: 'number',
+				},
+				modulus: {
+					description: '[MPa]',
+					exclusiveMinimum: 0,
+					title: 'Tensile modulus Ef',
+					type: 'number',
+				},
+				ruptureStrain: {
+					description: 'The manufacturer\'s [-].',
+					exclusiveMaximum: 0.1,
+					exclusiveMinimum: 0,
+					title: 'Rupture strain εfu*',
+					type: 'number',
+				},
+				scheme: {
+					default: 'fullWrap',
+					description: 'Shear: wrapped all round, a U on three sides, or on the two sides.',
+					enum: ['fullWrap', 'uWrap', 'twoSides'],
+					enumDescriptions: ['Full wrap', 'U-wrap', 'Two sides'],
+					title: 'Scheme',
+					type: 'string',
+				},
+				width: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Strips: their width [mm]; empty: continuous.',
+					title: 'Width',
+				},
+				spacing: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Strips: their spacing [mm]; empty: continuous.',
+					title: 'Spacing',
+				},
+				face: {
+					default: 'bottom',
+					description: 'Flexure: the face the laminate is on.',
+					enum: ['bottom', 'top'],
+					title: 'Face',
+					type: 'string',
+				},
+				laminateWidth: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Flexure: the laminate\'s width [mm]; empty: the member\'s.',
+					title: 'Laminate width',
+				},
+				cornerRadius: {
+					default: 25,
+					description: 'Confinement of rectangular columns: the rounded corners\' radius [mm].',
+					exclusiveMinimum: 0,
+					title: 'Corner radius',
+					type: 'number',
+				},
+			},
+			required: ['id', 'members', 'purpose', 'thickness', 'modulus', 'ruptureStrain'],
+			title: 'FrpWrap',
+			type: 'object',
+		},
 		Helipad: {
 			additionalProperties: false,
 			description: 'A helicopter landing or touch-down area.',
@@ -10189,6 +10533,102 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 				},
 			},
 			title: 'MassSource',
+			type: 'object',
+		},
+		MaterialTest: {
+			additionalProperties: false,
+			description: 'P4: tests of one material of the existing building (03 Materials).',
+			properties: {
+				material: {
+					description: 'The material tested (an id of 03 Materials).',
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Material',
+					type: 'string',
+				},
+				kind: {
+					description: 'Concrete cores, rebound hammer, ultrasonic pulse velocity (concrete); tensile tests of bar or steel samples.',
+					enum: ['core', 'rebound', 'upv', 'tensile'],
+					enumDescriptions: ['Concrete cores', 'Rebound hammer', 'Ultrasonic pulse velocity', 'Tensile tests'],
+					title: 'Kind',
+					type: 'string',
+				},
+				values: {
+					description: 'The strength of each test [MPa]: core strengths (corrected to standard cylinders), the rebound or pulse velocity estimates, the bars\' or steel\'s yield strength.',
+					items: {
+						exclusiveMinimum: 0,
+						type: 'number',
+					},
+					minItems: 1,
+					title: 'Results',
+					type: 'array',
+				},
+				calibration: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Rebound and pulse velocity: the factor that turns their estimates into core strengths (from cores taken beside them). Empty: they are shown, not used.',
+					title: 'Calibration',
+				},
+				location: {
+					default: '',
+					description: 'Storey or members tested (for the report).',
+					title: 'Location',
+					type: 'string',
+				},
+			},
+			required: ['material', 'kind', 'values'],
+			title: 'MaterialTest',
+			type: 'object',
+		},
+		MemberCondition: {
+			additionalProperties: false,
+			description: 'P4: the condition of members found on site: corrosion of the bars and weak concrete.',
+			properties: {
+				members: {
+					description: 'Members (ids of 06 BIM) or object types (ids of 04 Objects) it applies to.',
+					items: {
+						maxLength: 64,
+						minLength: 1,
+						pattern: '^[A-Za-z0-9._-]+$',
+						type: 'string',
+					},
+					minItems: 1,
+					title: 'Members',
+					type: 'array',
+				},
+				barLoss: {
+					default: 0.0,
+					description: 'Share of the bars\' area lost to corrosion (0.1 = 10 %), longitudinal and transverse.',
+					exclusiveMaximum: 0.9,
+					minimum: 0,
+					title: 'Bar area lost',
+					type: 'number',
+				},
+				concreteFactor: {
+					default: 1.0,
+					description: 'Share of the concrete strength left where it is deteriorated (1: sound).',
+					exclusiveMinimum: 0,
+					maximum: 1,
+					title: 'Concrete strength factor',
+					type: 'number',
+				},
+				note: {
+					default: '',
+					title: 'Note',
+					type: 'string',
+				},
+			},
+			required: ['members'],
+			title: 'MemberCondition',
 			type: 'object',
 		},
 		NonlinearHistory: {
@@ -10514,6 +10954,113 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 				},
 			},
 			title: 'RainSite',
+			type: 'object',
+		},
+		RcJacket: {
+			additionalProperties: false,
+			description: 'P4: a reinforced concrete jacket on all four sides of a beam or column.',
+			properties: {
+				kind: {
+					const: 'rcJacket',
+					default: 'rcJacket',
+					title: 'Kind',
+					type: 'string',
+				},
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				members: {
+					description: 'Members jacketed (ids of 06 BIM).',
+					items: {
+						maxLength: 64,
+						minLength: 1,
+						pattern: '^[A-Za-z0-9._-]+$',
+						type: 'string',
+					},
+					minItems: 1,
+					title: 'Members',
+					type: 'array',
+				},
+				thickness: {
+					description: 'Jacket thickness on each face [mm].',
+					exclusiveMinimum: 0,
+					title: 'Thickness',
+					type: 'number',
+				},
+				concrete: {
+					anyOf: [
+						{
+							maxLength: 64,
+							minLength: 1,
+							pattern: '^[A-Za-z0-9._-]+$',
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'The jacket\'s concrete (03 Materials); empty: the member\'s.',
+					title: 'Concrete',
+				},
+				rebar: {
+					anyOf: [
+						{
+							maxLength: 64,
+							minLength: 1,
+							pattern: '^[A-Za-z0-9._-]+$',
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'The jacket\'s bars (03 Materials); empty: the member\'s.',
+					title: 'Rebar',
+				},
+				bars: {
+					default: 8,
+					description: 'Added longitudinal bars (around).',
+					minimum: 4,
+					title: 'Bars',
+					type: 'integer',
+				},
+				barDia: {
+					default: 16,
+					description: '[mm]',
+					exclusiveMinimum: 0,
+					title: 'Bar diameter',
+					type: 'number',
+				},
+				tieDia: {
+					default: 10,
+					description: '[mm]',
+					exclusiveMinimum: 0,
+					title: 'Tie diameter',
+					type: 'number',
+				},
+				tieSpacing: {
+					default: 100,
+					description: '[mm]',
+					exclusiveMinimum: 0,
+					title: 'Tie spacing',
+					type: 'number',
+				},
+				cover: {
+					default: 40,
+					description: 'Clear cover to the jacket\'s ties [mm].',
+					exclusiveMinimum: 0,
+					title: 'Cover',
+					type: 'number',
+				},
+			},
+			required: ['id', 'members', 'thickness'],
+			title: 'RcJacket',
 			type: 'object',
 		},
 		Report: {
@@ -14171,6 +14718,9 @@ export const DEFAULT_CODE_TABLES: IDefaultCodeTables = {
 			S2: 'SE',
 		},
 		zoneColumns: {},
+		byHeight: {},
+		simpleStatic: {},
+		dynamicRequired: [],
 	},
 	requiredDetailing: {
 		D: 'special',
@@ -19169,6 +19719,43 @@ export const TEMPLATES: { readonly [defName: string]: object } = {
 	},
 	NonlinearHistory: {
 		fibreWalls: true,
+	},
+	ExistingBuilding: {
+		procedure: 'linear',
+		state: 'asBuilt',
+	},
+	MaterialTest: {
+		material: 'C24.1',
+		kind: 'core',
+		values: [20.0, 22.0, 18.0],
+	},
+	MemberCondition: {
+		members: ['C-A1'],
+		barLoss: 0.1,
+	},
+	RcJacket: {
+		kind: 'rcJacket',
+		id: 'J1',
+		members: ['C-A1'],
+		thickness: 100,
+	},
+	FrpWrap: {
+		kind: 'frp',
+		id: 'F1',
+		members: ['C-A1'],
+		purpose: 'confinement',
+		thickness: 0.165,
+		modulus: 230000,
+		ruptureStrain: 0.015,
+	},
+	AddedMembers: {
+		kind: 'added',
+		id: 'A1',
+		members: ['W-A1-A2'],
+	},
+	ChecklistAnswer: {
+		item: 'loadPath',
+		answer: 'C',
 	},
 	Solid: {
 		id: 'MASS',

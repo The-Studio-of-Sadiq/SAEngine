@@ -1,0 +1,221 @@
+{
+  "$schema": "../../../schemas/existing.schema.json",
+  "$sources": [
+    "BNBC 2020 Part 10 Sec 1.3.1-1.3.2 (gazette p. 5003): existing buildings investigated and evaluated by competent professionals; a structural analysis of the existing building; the existing building with the addition supports the minimum loads of Part 6",
+    "BNBC 2020 Part 7 Sec 5.10.3-5.10.4 (gazette pp. 4506-4507): seismic strengthening and retrofitting named (larger columns and walls, more walls, connections, removing weaknesses, avoiding brittle failure), without a method",
+    "SAEngine practice for every method and value below, on the basis of ASCE/SEI 41-17, ACI 440.2R-17 and EN 1998-3:2005 A.4.2.2 (see VERIFY.md of the aci318-asce7-22 pack)"
+  ],
+  "source": "SAEngine practice, ASCE 41 basis (BNBC 2020 gives no assessment method: Part 10 Sec 1.3.2, Part 7 Sec 5.10.4)",
+  "sources": {
+    "requirement": "BNBC 2020 Part 10 Sec 1.3.2.1-1.3.2.2 (gazette p. 5003)",
+    "liveLoads": "BNBC 2020 Part 10 Sec 1.3.2.3 (gazette p. 5003): the detail engineering assessment of factory buildings takes 3 kN/m² on manufacturing floors and 6 kN/m² on stacking and storage areas; a retrofit design takes the loads of Part 6",
+    "strengthening": "BNBC 2020 Part 7 Sec 5.10.3 (gazette p. 4506)",
+    "hazards": "BNBC 2020 Part 6 Sec 2.5.2.1 (gazette p. 3186): the design basis earthquake is 2/3 of the maximum considered earthquake",
+    "knowledge": "SAEngine practice (ASCE 41-17 Sec 6.2.4 basis)",
+    "strengths": "SAEngine practice (ASCE 41-17 Sec 10.2.2 and Table 10-1 basis)",
+    "linear": "SAEngine practice (ASCE 41-17 Sec 7.4.1, 7.5.2 and the m-factor tables of Ch 10 basis)",
+    "shear": "SAEngine practice (ACI 318-19 22.5 for beams, ASCE 41-17 Eq 10-3 for columns)",
+    "jacketing": "SAEngine practice (EN 1998-3:2005 A.4.2.2 monolithic factors)",
+    "frp": "SAEngine practice (ACI 440.2R-17 Ch 9, 10, 11, 12)",
+    "tier1": "SAEngine practice (the ASCE 41-17 Tier 1 checklist topics)"
+  },
+  "basis": "SAEngine practice, ASCE 41 basis (BNBC 2020 Part 10 Sec 1.3.2 asks for the analysis, without a method)",
+  "knowledge": [
+    {"id": "minimum", "label": "Minimum (drawings or a limited survey)", "capacityFactor": 0.75, "procedures": ["linear"], "note": "Linear procedures only (SAEngine practice, ASCE 41 basis)."},
+    {"id": "usual", "label": "Usual (drawings and the usual tests)", "capacityFactor": 0.9},
+    {"id": "comprehensive", "label": "Comprehensive (full drawings and comprehensive tests)", "capacityFactor": 1.0}
+  ],
+  "defaultKnowledge": "minimum",
+  "strengths": {
+    "analysis": {"value": "expected"},
+    "deformation": {"value": "expected"},
+    "force": {"value": "lowerBound"},
+    "lowerBoundSigma": 1.0,
+    "expectedFactors": {"concrete": 1.5, "rebar": 1.25, "steel": 1.1},
+    "lowerBoundFactors": {"concrete": 1.0, "rebar": 1.0, "steel": 1.0},
+    "covLimit": 0.14,
+    "minTests": 3,
+    "calibrated": ["core", "tensile"]
+  },
+  "linear": {
+    "method": "mFactor",
+    "levels": [
+      {"id": "IO", "label": "Immediate Occupancy"},
+      {"id": "LS", "label": "Life Safety"},
+      {"id": "CP", "label": "Collapse Prevention"}
+    ],
+    "hazards": [
+      {"id": "DBE", "label": "The design earthquake of Part 6 (BNBC's 2/3 of the maximum considered)", "spectrumScale": 1.0, "level": "LS"},
+      {"id": "MCE", "label": "The maximum considered earthquake (1.5 × the design earthquake)", "spectrumScale": 1.5, "level": "CP"}
+    ],
+    "c1c2": [
+      {"periodTo": 0.3, "values": [[0, 1.1], [2, 1.4], [6, 1.8]]},
+      {"periodTo": 1.0, "values": [[0, 1.0], [2, 1.1], [6, 1.2]]},
+      {"values": [[0, 1.0]]}
+    ],
+    "massFactor": 1.0,
+    "gravityUpper": 1.1,
+    "gravityLower": 0.9,
+    "liveShare": 0.25,
+    "forceDivisor": 1.0,
+    "biaxialExponent": 1.0,
+    "variables": {
+      "stressUnitPerMPa": 145.038,
+      "concreteShear": 0.17,
+      "conformingSpacing": 0.333333,
+      "conformingShear": 0.75,
+      "closeSpacing": 0.5,
+      "stressBlock": 0.85,
+      "ultimateStrain": 0.003,
+      "beta1": [[28, 0.85], [55, 0.65]],
+      "steelYieldDivisor": 6,
+      "compactFlange": 0.305,
+      "noncompactFlange": 0.38,
+      "compactWeb": 2.45,
+      "noncompactWeb": 3.76,
+      "effectiveLength": 1.0
+    },
+    "mFactors": {
+      "rcBeam": {
+        "variables": ["rhoBalance", "shearStress"],
+        "rows": [
+          {"match": {"control": "flexure", "conforming": "C"}, "at": {"rhoBalance": 0.0, "shearStress": 3}, "limits": {"IO": 3, "LS": 6, "CP": 7}},
+          {"match": {"control": "flexure", "conforming": "C"}, "at": {"rhoBalance": 0.0, "shearStress": 6}, "limits": {"IO": 2, "LS": 3, "CP": 4}},
+          {"match": {"control": "flexure", "conforming": "C"}, "at": {"rhoBalance": 0.5, "shearStress": 3}, "limits": {"IO": 2, "LS": 3, "CP": 4}},
+          {"match": {"control": "flexure", "conforming": "C"}, "at": {"rhoBalance": 0.5, "shearStress": 6}, "limits": {"IO": 2, "LS": 2, "CP": 3}},
+          {"match": {"control": "flexure", "conforming": "NC"}, "at": {"rhoBalance": 0.0, "shearStress": 3}, "limits": {"IO": 2, "LS": 3, "CP": 4}},
+          {"match": {"control": "flexure", "conforming": "NC"}, "at": {"rhoBalance": 0.0, "shearStress": 6}, "limits": {"IO": 1.25, "LS": 2, "CP": 3}},
+          {"match": {"control": "flexure", "conforming": "NC"}, "at": {"rhoBalance": 0.5, "shearStress": 3}, "limits": {"IO": 2, "LS": 3, "CP": 3}},
+          {"match": {"control": "flexure", "conforming": "NC"}, "at": {"rhoBalance": 0.5, "shearStress": 6}, "limits": {"IO": 1.25, "LS": 2, "CP": 2}},
+          {"match": {"control": "shear", "spacing": "close"}, "limits": {"IO": 1.25, "LS": 1.5, "CP": 1.75}},
+          {"match": {"control": "shear", "spacing": "wide"}, "limits": {"IO": 1.25, "LS": 1.5, "CP": 1.75}}
+        ],
+        "note": "Primary members; beams controlled by inadequate development or embedment are not covered (the bars are taken as developed)."
+      },
+      "rcColumn": {
+        "variables": ["axialLoadRatio", "shearStress"],
+        "rows": [
+          {"match": {"control": "flexure", "conforming": "C"}, "at": {"axialLoadRatio": 0.1, "shearStress": 3}, "limits": {"IO": 2, "LS": 3, "CP": 4}},
+          {"match": {"control": "flexure", "conforming": "C"}, "at": {"axialLoadRatio": 0.1, "shearStress": 6}, "limits": {"IO": 2, "LS": 2.4, "CP": 3.2}},
+          {"match": {"control": "flexure", "conforming": "C"}, "at": {"axialLoadRatio": 0.4, "shearStress": 3}, "limits": {"IO": 1.25, "LS": 2, "CP": 2.4}},
+          {"match": {"control": "flexure", "conforming": "C"}, "at": {"axialLoadRatio": 0.4, "shearStress": 6}, "limits": {"IO": 1.25, "LS": 1.25, "CP": 1.5}},
+          {"match": {"control": "flexure", "conforming": "NC"}, "at": {"axialLoadRatio": 0.1, "shearStress": 3}, "limits": {"IO": 2, "LS": 2, "CP": 3}},
+          {"match": {"control": "flexure", "conforming": "NC"}, "at": {"axialLoadRatio": 0.1, "shearStress": 6}, "limits": {"IO": 2, "LS": 2, "CP": 2.5}},
+          {"match": {"control": "flexure", "conforming": "NC"}, "at": {"axialLoadRatio": 0.4, "shearStress": 3}, "limits": {"IO": 1.25, "LS": 1.5, "CP": 2}},
+          {"match": {"control": "flexure", "conforming": "NC"}, "at": {"axialLoadRatio": 0.4, "shearStress": 6}, "limits": {"IO": 1.25, "LS": 1.25, "CP": 1.5}},
+          {"match": {"control": "shear"}, "limits": {"IO": 1.0, "LS": 1.0, "CP": 1.0}}
+        ],
+        "note": "Primary members; a column whose shear strength is below the shear at its flexural strength is taken as force-controlled (m = 1, SAEngine practice)."
+      },
+      "steelBeam": {
+        "variables": ["slenderness"],
+        "rows": [
+          {"at": {"slenderness": 0.0}, "limits": {"IO": 2, "LS": 6, "CP": 8}},
+          {"at": {"slenderness": 1.0}, "limits": {"IO": 1, "LS": 2, "CP": 3}}
+        ]
+      },
+      "steelColumn": {
+        "variables": ["slenderness", "axialRatio"],
+        "rows": [
+          {"match": {"axialRatio": [null, 0.2]}, "at": {"slenderness": 0.0}, "limits": {"IO": 2, "LS": 6, "CP": 8}},
+          {"match": {"axialRatio": [null, 0.2]}, "at": {"slenderness": 1.0}, "limits": {"IO": 1, "LS": 2, "CP": 3}},
+          {"match": {"axialRatio": [0.2, 0.5]}, "at": {"slenderness": 0.0, "axialRatio": 0.2}, "limits": {"IO": 1.25, "LS": 6, "CP": 8}},
+          {"match": {"axialRatio": [0.2, 0.5]}, "at": {"slenderness": 0.0, "axialRatio": 0.5}, "limits": {"IO": 1.25, "LS": 1.5, "CP": 2}},
+          {"match": {"axialRatio": [0.2, 0.5]}, "at": {"slenderness": 1.0, "axialRatio": 0.2}, "limits": {"IO": 1, "LS": 1.2, "CP": 1.2}},
+          {"match": {"axialRatio": [0.2, 0.5]}, "at": {"slenderness": 1.0, "axialRatio": 0.5}, "limits": {"IO": 1, "LS": 1.2, "CP": 1.2}},
+          {"match": {"axialRatio": [0.5, null]}, "limits": {"IO": 1, "LS": 1, "CP": 1}}
+        ],
+        "note": "P/PCL above 0.5: force-controlled (m = 1)."
+      }
+    },
+    "note": "The seismic forces of the analysis (the design forces, reduced by R and multiplied by I) are made the unreduced forces of the hazard: × R/I × the hazard's spectrum scale × C1·C2·Cm for deformation-controlled actions, × R/I × the scale × Cm/J for force-controlled ones. Members are primary. SAEngine practice on the ASCE 41 basis: BNBC 2020 gives no assessment procedure."
+  },
+  "nonlinear": {
+    "capacityFactor": true,
+    "confidenceFactor": false,
+    "shearCheck": false,
+    "note": "The pushover hinges of the pushover table, their deformation limits times κ (SAEngine practice, ASCE 41 basis)."
+  },
+  "shear": {
+    "method": "columnDuctility",
+    "beamConcrete": 0.17,
+    "columnConcrete": 0.5,
+    "columnAxial": 0.5,
+    "columnArea": 0.8,
+    "shearSpan": [2.0, 4.0],
+    "ductility": [[2.0, 1.0], [6.0, 0.7]],
+    "lightweight": 1.0,
+    "note": "The displacement ductility demand of a linear procedure is taken as the flexural demand over κ·MCE (at least 1, SAEngine practice)."
+  },
+  "jacketing": {
+    "strengthFactor": 1.0,
+    "yieldFactor": 1.05,
+    "ultimateFactor": 1.0,
+    "shearFactor": 0.9,
+    "note": "A concrete jacket with its bars anchored and the old surface roughened acts with the old member as one (monolithic) member (SAEngine practice on the EN 1998-3 A.4.2.2 factors)."
+  },
+  "frp": {
+    "method": "aci440",
+    "environment": {
+      "carbon": {"interior": 0.95, "exterior": 0.85, "aggressive": 0.85},
+      "glass": {"interior": 0.75, "exterior": 0.65, "aggressive": 0.5},
+      "aramid": {"interior": 0.85, "exterior": 0.75, "aggressive": 0.7}
+    },
+    "confinement": {
+      "psi": 0.95,
+      "strainShare": 0.55,
+      "strength": 3.3,
+      "minRatio": 0.08,
+      "strainBase": 1.5,
+      "strainCoefficient": 12.0,
+      "strainExponent": 0.45,
+      "strainCap": 0.01,
+      "peakStrain": 0.002
+    },
+    "shear": {
+      "psiFull": 0.95,
+      "psiPartial": 0.85,
+      "strainFull": 0.004,
+      "strainShare": 0.75,
+      "bondLength": 23300,
+      "bondExponent": 0.58,
+      "bondStrength": 27,
+      "bondStrain": 11900,
+      "limitShare": 0.66
+    },
+    "flexure": {"psi": 0.85, "debonding": 0.41, "debondingShare": 0.9},
+    "note": "SAEngine practice on ACI 440.2R-17: the initial strain of the substrate is taken as 0 and the FRP force of flexural strengthening is reduced by ψf."
+  },
+  "tier1": [
+    {"id": "loadPath", "label": "A complete load path for the seismic forces to the foundation", "group": "Building system"},
+    {"id": "adjacentBuildings", "label": "Clear distance to adjacent buildings against pounding", "group": "Building system"},
+    {"id": "mezzanines", "label": "Interior mezzanines braced or anchored to the main structure", "group": "Building system"},
+    {"id": "weakStory", "label": "No storey weaker in strength than the storey above", "group": "Building system"},
+    {"id": "softStory", "label": "No storey much softer than the storey above (soft storey)", "group": "Building system"},
+    {"id": "verticalIrregularities", "label": "The vertical elements continuous to the foundation", "group": "Building system"},
+    {"id": "geometry", "label": "No large change of the plan dimension from storey to storey", "group": "Building system"},
+    {"id": "mass", "label": "No large change of the effective mass from storey to storey", "group": "Building system"},
+    {"id": "torsion", "label": "The centres of mass and of rigidity close together", "group": "Building system"},
+    {"id": "deterioration", "label": "No visible deterioration of concrete or corrosion of bars", "group": "Building system"},
+    {"id": "columnShearStress", "label": "Quick check: average shear stress in the columns within the limit", "group": "Moment frames"},
+    {"id": "axialStress", "label": "Quick check: axial stress of the columns from overturning within the limit", "group": "Moment frames"},
+    {"id": "flatSlabFrames", "label": "No flat slab frames in the seismic force-resisting system", "group": "Moment frames"},
+    {"id": "captiveColumns", "label": "No columns restrained by infill walls or spandrels (short columns)", "group": "Moment frames"},
+    {"id": "noShearFailures", "label": "The columns' and beams' shear strength above the shear at their flexural strength", "group": "Moment frames"},
+    {"id": "strongColumnWeakBeam", "label": "The columns at each joint stronger than the beams", "group": "Moment frames"},
+    {"id": "beamBars", "label": "At least two continuous top and bottom beam bars", "group": "Moment frames"},
+    {"id": "columnBarSplices", "label": "Column bar laps long enough and enclosed by ties", "group": "Moment frames"},
+    {"id": "beamBarSplices", "label": "Beam bar laps away from the joints and the hinge regions", "group": "Moment frames"},
+    {"id": "columnTieSpacing", "label": "Close column ties over the column ends", "group": "Moment frames"},
+    {"id": "stirrupSpacing", "label": "Close beam stirrups over the beam ends", "group": "Moment frames"},
+    {"id": "jointReinforcement", "label": "Ties through the beam-column joints", "group": "Moment frames"},
+    {"id": "deflectionCompatibility", "label": "Gravity columns able to follow the storey drift", "group": "Moment frames"},
+    {"id": "diaphragmContinuity", "label": "Diaphragms continuous, without split levels or expansion joints", "group": "Diaphragms"},
+    {"id": "openingsAtWalls", "label": "No large diaphragm openings next to the walls or frames", "group": "Diaphragms"},
+    {"id": "columnAnchorage", "label": "Columns anchored to the foundation for their tension", "group": "Foundation"},
+    {"id": "liquefaction", "label": "No liquefiable soils under the foundation", "group": "Site and foundation"},
+    {"id": "slopeFailure", "label": "No slope failure or ground movement at the site", "group": "Site and foundation"},
+    {"id": "overturning", "label": "The foundation's width against overturning", "group": "Site and foundation"}
+  ],
+  "note": "BNBC 2020 asks for the structural analysis of an existing building (Part 10 Sec 1.3.2) and names strengthening and retrofitting (Part 7 Sec 5.10.3-5.10.4) without a method or values: every method and value of this table is SAEngine practice on the basis of ASCE/SEI 41-17 (knowledge factor, strengths, m-factors), ACI 440.2R-17 (FRP) and EN 1998-3 A.4.2.2 (jackets)."
+}

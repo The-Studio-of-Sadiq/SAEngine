@@ -60,6 +60,8 @@ const PACK_LIST_FIELDS: { readonly [path: string]: string } = {
 	'seismic.systemY': 'systems',
 	'areaLoads.use': 'areaUses',
 	'wind.exposure': 'exposures',
+	// Alpha 9 P4: the code pack's knowledge levels of an existing building.
+	'analysis.existingBuilding.knowledgeLevel': 'knowledgeLevels',
 };
 
 /** Desktop command telling where the site class and qa come from (`saengine.soil.sources`). */

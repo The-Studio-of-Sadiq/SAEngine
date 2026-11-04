@@ -676,6 +676,12 @@ CommandsRegistry.registerCommand('saengine.fem.storyResponse', async (accessor, 
 	return accessor.get(IFemSolverService).engine(python, 'fem/storyResponse', { outDir: resultsFolder(model).fsPath, projectPath: model.fsPath });
 });
 
+/** Alpha 9 P4: the assessment of an existing building of a run (femResultsView.ts). Internal. */
+CommandsRegistry.registerCommand('saengine.fem.existingAssessment', async (accessor, model: URI) => {
+	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
+	return accessor.get(IFemSolverService).engine(python, 'fem/existingAssessment', { outDir: resultsFolder(model).fsPath, projectPath: model.fsPath });
+});
+
 CommandsRegistry.registerCommand('saengine.fem.memberForces', async (accessor, model: URI, member: string) => {
 	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
 	return accessor.get(IFemSolverService).engine(python, 'fem/memberForces', { outDir: resultsFolder(model).fsPath, projectPath: model.fsPath, member });

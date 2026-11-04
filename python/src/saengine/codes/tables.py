@@ -11512,6 +11512,7 @@ from saengine.codes.capacity_tables import (  # C19
     HorizontalCapacityTable,
 )
 from saengine.codes.excavation_tables import ExcavationSupportTable  # P1: staged excavations
+from saengine.codes.existing_tables import ExistingTable  # P4: existing buildings
 from saengine.codes.limit_state_tables import SteelLimitStateTable
 from saengine.codes.material_method_tables import (
     AluminiumTable,
@@ -11616,6 +11617,8 @@ TABLE_MODELS: dict[str, type[TableModel]] = {
     # Alpha 9 C19: allowable stress design of members, the storeys' horizontal capacity.
     "allowableStress": AllowableStressTable,
     "horizontalCapacity": HorizontalCapacityTable,
+    # Alpha 9 P4: assessment and retrofit of existing buildings.
+    "existing": ExistingTable,
 }
 
 

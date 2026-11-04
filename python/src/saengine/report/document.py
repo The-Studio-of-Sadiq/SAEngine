@@ -896,6 +896,78 @@ def _pushover_blocks(pushovers: list[dict[str, Any]]) -> list[Block]:
     return out
 
 
+def _existing_blocks(found: dict[str, Any]) -> list[Block]:
+    """Alpha 9 P4: the assessment of an existing building and its retrofit, before and after."""
+    if not found:
+        return []
+    out: list[Block] = [h(2, "Assessment of the existing building and its retrofit")]
+    if not found.get("available"):
+        return [*out, p(f"No assessment: {found.get('reason', '')}.")]
+    out.append(p(str(found.get("text", ""))))
+    if found.get("strengths"):
+        out.append(
+            table(
+                [
+                    "Material",
+                    "Kind",
+                    "Specified",
+                    "Tests",
+                    "Mean",
+                    "COV",
+                    "Lower bound",
+                    "Expected",
+                ],
+                found["strengths"],
+                ["1fr"] + ["auto"] * 7,
+                "llrrrrrr",
+            )
+        )
+    if found.get("hazards"):
+        out.append(
+            table(
+                [
+                    "Hazard level",
+                    "Level",
+                    "Spectrum scale",
+                    "Members exceeding",
+                    "Largest",
+                    "Result",
+                ],
+                found["hazards"],
+                ["1fr"] + ["auto"] * 5,
+                "llrrrc",
+            )
+        )
+    if found.get("members"):
+        out.append(
+            table(
+                [
+                    "Member",
+                    "Component",
+                    "Retrofit",
+                    "As built",
+                    "Level",
+                    "Retrofitted",
+                    "Level",
+                    "Governs",
+                ],
+                found["members"],
+                ["1fr"] + ["auto"] * 7,
+                "lllrlrll",
+                bad=found.get("memberFails"),
+            )
+        )
+    if found.get("checklist"):
+        out.append(
+            table(
+                ["Group", "Statement", "Answer"], found["checklist"], ["auto", "1fr", "auto"], "llc"
+            )
+        )
+    if found.get("notes"):
+        out.append(bullets([str(n) for n in found["notes"]], 8.5))
+    return out
+
+
 def _shape_ratio_blocks(found: dict[str, Any] | None) -> list[Block]:
     """Alpha 9 C19: the stiffness and eccentricity ratios of the primary design."""
     if not found or not found.get("rows"):
@@ -1385,6 +1457,7 @@ def _results(data: dict[str, Any], ctx: Context) -> dict[str, Any]:
     out += _pushover_blocks(results.get("pushover") or [])
     out += _nonlinear_history_blocks(results.get("nonlinearHistory") or {})
     out += _column_shortening_blocks(results.get("columnShortening") or {})
+    out += _existing_blocks(results.get("existing") or {})  # Alpha 9 P4
     rsd = results["seismicDesign"]
     if rsd.get("available"):
         out += [

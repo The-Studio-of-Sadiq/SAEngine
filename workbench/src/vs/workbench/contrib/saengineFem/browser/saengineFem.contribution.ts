@@ -293,57 +293,27 @@ registerPlannedFeature({
 	],
 });
 
-// T22: assessment and retrofit of existing RC buildings.
+// T22 / P4: the assessment and retrofit of existing RC and steel buildings are built
+// (fem/existing_building.py, the code pack's existing table: knowledge factors, as-built
+// strengths from tests, condition, linear and nonlinear procedures, jackets, FRP, added walls
+// and braces, before and after). Still planned: masonry buildings.
 registerPlannedFeature({
-	id: FemPlanned.existingAssessment,
+	id: FemPlanned.existingMasonry,
 	part: 'fem',
-	title: localize('planned.assessment.title', "Assessment of Existing Buildings"),
-	summary: localize('planned.assessment.summary', "Checks an existing RC building as built: the strengths from tests, the bars found on site, a knowledge factor for how much is known, and the member checks against the chosen performance objective."),
+	title: localize('planned.existingMasonry.title', "Assessment of Existing Masonry Buildings"),
+	summary: localize('planned.existingMasonry.summary', "Assesses an existing unreinforced or confined masonry building: the piers' rocking, sliding and diagonal tension strengths from the tested masonry, the in-plane and out-of-plane checks, and strengthening by jackets, FRP and ties. Built today: existing reinforced concrete and steel buildings (Project Settings, Analysis model, Existing building)."),
 	steps: [
-		localize('planned.assessment.step1', "Enter the as-built strengths from cores and rebound tests, and the bars found by scanning or from drawings."),
-		localize('planned.assessment.step2', "Choose the knowledge level from the data collected."),
-		localize('planned.assessment.step3', "Analyse with the expected strengths, linearly or by pushover."),
-		localize('planned.assessment.step4', "List the deficient members and the building's overall rating."),
-	],
-	inputs: [
-		{ label: localize('planned.assessment.fc', "Core strength"), unit: localize('planned.unit.mpa', "MPa") },
-		{ label: localize('planned.assessment.fy', "Bar yield strength"), unit: localize('planned.unit.mpa', "MPa") },
-		{ label: localize('planned.assessment.level', "Knowledge level"), example: localize('planned.assessment.levelExample', "Usual") },
-		{ label: localize('planned.assessment.target', "Performance objective"), example: localize('planned.assessment.targetExample', "Life Safety") },
+		localize('planned.existingMasonry.step1', "Enter the masonry's tested strengths (in-place shear, prisms) and the knowledge level."),
+		localize('planned.existingMasonry.step2', "Find each pier's strength by its governing mode from the run's forces."),
+		localize('planned.existingMasonry.step3', "Check the walls out of plane and the diaphragms' ties."),
 	],
 	outputs: [
-		localize('planned.assessment.out1', "Deficient members coloured in the 3D view"),
-		localize('planned.assessment.out2', "An assessment report"),
+		localize('planned.existingMasonry.out1', "Pier strengths and their governing modes"),
+		localize('planned.existingMasonry.out2', "Strengthening and the re-assessment"),
 	],
 	references: [
-		localize('planned.assessment.ref1', "{0} Part 6 Chapter 6, and Chapter 8 Sec 8.3 (pp. 1088-1122), for new members", defaultCodeName()),
-		localize('planned.assessment.ref2', "ASCE/SEI 41-17 Ch 3, 6 and 10 (evaluation, data collection and knowledge factor, concrete)"),
-	],
-});
-registerPlannedFeature({
-	id: FemPlanned.retrofit,
-	part: 'fem',
-	title: localize('planned.retrofit.title', "Retrofit of Existing Buildings"),
-	summary: localize('planned.retrofit.summary', "Strengthens the deficient members of an assessed building by RC or steel jacketing, FRP wraps and strips, or added shear walls and braces, then assesses the building again with them."),
-	steps: [
-		localize('planned.retrofit.step1', "Pick the deficient members from the assessment."),
-		localize('planned.retrofit.step2', "Apply a scheme to each: jacket, FRP, or add walls or braces to the model."),
-		localize('planned.retrofit.step3', "Design the strengthening, then run the assessment again."),
-		localize('planned.retrofit.step4', "Issue the retrofit report and details."),
-	],
-	inputs: [
-		{ label: localize('planned.retrofit.scheme', "Scheme"), example: localize('planned.retrofit.schemeExample', "RC jacket, FRP wrap, added wall") },
-		{ label: localize('planned.retrofit.frp', "FRP system"), example: localize('planned.retrofit.frpExample', "Carbon sheet") },
-	],
-	outputs: [
-		localize('planned.retrofit.out1', "Strengthened members and their checks"),
-		localize('planned.retrofit.out2', "Re-assessment against the objective"),
-		localize('planned.retrofit.out3', "A retrofit report and jacketing details"),
-	],
-	references: [
-		localize('planned.retrofit.ref1', "ACI 440.2R-17 (externally bonded FRP)"),
-		localize('planned.retrofit.ref2', "ACI 369.1-17 (seismic evaluation and retrofit of concrete buildings)"),
-		localize('planned.retrofit.ref3', "ASCE/SEI 41-17 (retrofit measures)"),
+		localize('planned.existingMasonry.ref1', "ASCE/SEI 41-17 Ch 11 (masonry)"),
+		localize('planned.existingMasonry.ref2', "EN 1998-3:2005 Annex C (masonry buildings)"),
 	],
 });
 

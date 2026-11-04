@@ -2471,6 +2471,14 @@ def story_response(out_dir: str, project_path: str) -> dict[str, Any]:
     return compute(out_dir, project_path)
 
 
+def existing_assessment(out_dir: str, project_path: str) -> dict[str, Any]:
+    """Alpha 9 P4: the assessment of an existing building of a run, with the before and after
+    comparison of its retrofit (``saengine.fem.existing_building.assessment``)."""
+    from saengine.fem.existing_building import assessment
+
+    return assessment(out_dir, project_path)
+
+
 def member_forces(out_dir: str, project_path: str, member: str) -> dict[str, Any]:
     """A member's section forces and deflection along it for every static case and load
     combination (the member detail window; ``saengine.fem.member_detail``)."""
