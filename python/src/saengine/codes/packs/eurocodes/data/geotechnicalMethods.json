@@ -5,6 +5,7 @@
   ],
   "source": "EN 1997-1 (recommended values; the design approach is a National choice, see VERIFY.md)",
   "designApproach": "DA1",
+  "parentMethods": [],
   "actions": {
     "A1": { "permanentUnfavourable": 1.35, "permanentFavourable": 1.0, "variableUnfavourable": 1.5 },
     "A2": { "permanentUnfavourable": 1.0, "permanentFavourable": 1.0, "variableUnfavourable": 1.3 }

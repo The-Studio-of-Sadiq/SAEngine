@@ -3536,8 +3536,13 @@ def _pack_torsion(
     from saengine.design import limit_state_rows
 
     held = framing.end_held(element, 0) and framing.end_held(element, 1)
-    kind, why = torsion_design.torsion_kind(
+    kind, _parent_why = torsion_design.torsion_kind(
         held, framing.carries_cantilever(element, section.width)
+    )
+    why = (
+        "framed at both ends: compatibility torsion"
+        if kind == "compatibility"
+        else "an end free or a cantilever carried: equilibrium torsion"
     )
     found: list[tuple[float, float, float, str, str]] = []
     for piece in pieces:

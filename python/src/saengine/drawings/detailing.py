@@ -937,6 +937,14 @@ class _Ctx:
         minimum: bool = True,
         cb: float | None = None,
     ) -> float:
+        if _bond_stress():
+            # Alpha 9 C5b: the pack's anchorage method (lbd = α1 α2 lb,rqd, top bars in poor
+            # bond, cd the cover to the bar or half the clear spacing; bar_rules).
+            from saengine.design import bar_rules
+
+            cd = None if cb is None else max(cb - db / 2, 0.0)
+            found = bar_rules.anchorage_length(db, fc, fy, good_bond=not top, cd=cd)
+            return up(found["lbd"], self.step) if minimum else found["lbd"]
         return development_tension(db, fy, fc, top=top, minimum=minimum, **self._form(db, cb)).value
 
     def lap(
@@ -948,14 +956,36 @@ class _Ctx:
         factor: float = 1.0,
         cb: float | None = None,
     ) -> float:
+        if _bond_stress():
+            # Alpha 9 C5b: the pack's laps (l0 = α1 α2 α6 lb,rqd, all bars lapped at one
+            # section: α6 of 100 %, on the safe side; bar_rules).
+            from saengine.design import bar_rules
+
+            cd = None if cb is None else max(cb - db / 2, 0.0)
+            found = bar_rules.lap_length(db, fc, fy, 1.0, good_bond=not top, cd=cd)
+            return up(found["l0"] * factor, self.step)
         rule = lap_tension(db, fy, fc, cls="B", top=top, factor=factor, **self._form(db, cb))
         return up(rule.value, self.step)
 
     @property
     def method_text(self) -> str:
+        if _bond_stress():  # Alpha 9 C5b
+            from saengine.codes import context as code_context
+
+            return "lbd = α1 α2 lb,rqd and l0 = α1 α2 α6 lb,rqd from fbd ({})".format(
+                code_context.cite("concreteMethods", "anchorage")
+            )
         if self.options.get("method") == "general":
             return "the general form of 8.2.3.3 (Eq. 6.8.1, Ktr = 0)"
         return "the simplified form of 8.2.3.2"
+
+
+def _bond_stress() -> bool:
+    """Alpha 9 C5b: True when the pack in force gives anchorage and laps by the design bond
+    stress (:mod:`saengine.design.method_selection`, area ``anchorage``)."""
+    from saengine.design import method_selection
+
+    return method_selection.uses("anchorage", "bondStress")
 
 
 def _cb(cover_to_bar: float, db: float, spacing: float | None) -> float:
@@ -3755,6 +3785,19 @@ def detailing_model(
     settings = (
         ProjectSettings.model_validate_json(data["settings"]) if data.get("settings") else None
     )
+    from saengine.codes import context as code_context
+
+    if code_context.in_force() is None and settings is not None:
+        # Alpha 9 C5b: under the project's code pack (its anchorage and laps, its bar rules).
+        with code_context.using(code_context.pack_for(settings, root)):
+            return detailing_model(
+                project_root,
+                texts=data,
+                design_report=design_report,
+                required=required,
+                options=options,
+                previous=previous,
+            )
     substructure = None
     if data.get("substructure"):
         from saengine.substructure.handover import authoritative_substructure

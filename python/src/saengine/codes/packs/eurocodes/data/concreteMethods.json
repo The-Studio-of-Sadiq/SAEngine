@@ -229,6 +229,7 @@
     "XA3": { "name": "Chemical attack: highly aggressive", "fckMin": 35 }
   },
   "defaultExposure": "XC1",
+  "parentMethods": [],
   "seismic": {
     "method": "curvatureDuctility",
     "frameClasses": { "special": "DCH", "intermediate": "DCM" },

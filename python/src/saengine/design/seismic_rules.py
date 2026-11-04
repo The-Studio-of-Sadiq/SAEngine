@@ -93,7 +93,9 @@ def system_row(system: str) -> SystemRow | None:
         float(entry.R),
         float(entry.Omega0),
         float(entry.Cd),
-        tuple(None if limits[c] is None else float(limits[c]) for c in "BCD"),  # type: ignore[arg-type]
+        # A pack whose systems give no height limits (EN 1998-1 has none) leaves them open
+        # (alpha 9 C5b: the scope failed with a KeyError under such a pack).
+        tuple(None if limits.get(c) is None else float(limits[c]) for c in "BCD"),  # type: ignore[arg-type]
         frame,
         specialWalls=bool(entry.specialWalls),
         concrete=bool(entry.concrete),

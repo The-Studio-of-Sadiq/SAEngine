@@ -505,6 +505,34 @@ def apply(
 # ─────────────────────────────── Design Reinforcement ───────────────────────────────
 
 
+def _continuous_bars(reinforcement: dict[str, Any], c: Any, notes: list[str]) -> dict[str, Any]:
+    """DCH beams: the top and bottom groups of at least ``beamContinuousBars`` bars of
+    ``beamContinuousDia``: a smaller bar is raised to the least bar size at or above it (the
+    count kept)."""
+    from saengine.design.bars import diameters
+
+    sizes = sorted(d for d in diameters("main") if d >= c.beamContinuousDia - 1e-9)
+    if not sizes:
+        return reinforcement
+    groups = []
+    raised = []
+    for g in reinforcement.get("longitudinal") or []:
+        g = dict(g)
+        if g.get("position") in ("top", "bottom") and float(g["dia"]) < c.beamContinuousDia - 1e-9:
+            raised.append(f"{g['position']} Ø{g['dia']:g} → Ø{sizes[0]:g}")
+            g["dia"] = sizes[0]
+        groups.append(g)
+    if raised:
+        notes.append(
+            f"bars along the beam (DCH): at least {c.beamContinuousBars} of Ø{c.beamContinuousDia:g} "
+            f"top and bottom: {', '.join(raised)}"
+            + code_context.cited("concreteMethods", "seismicBeams", sep=" (")
+            + (")" if code_context.cite("concreteMethods", "seismicBeams") else "")
+        )
+        return {**reinforcement, "longitudinal": groups}
+    return reinforcement
+
+
 def propose_transverse(
     kind: str,
     section: Any,
@@ -521,12 +549,25 @@ def propose_transverse(
     from saengine.design.bars import round_down
 
     ductility = contexts[0]["ductility"]
+    if cd.rules() is None:  # not under the pack the checks ran with: nothing to add
+        return reinforcement, {"zones": None, "sectionTooSmall": [], "notes": []}
     c = cd.class_rules(ductility)
     s = strut_shear.rules()
     u = design_strength.rules()
+    notes: list[str] = []
+    if kind == "beam" and c.beamContinuousBars and c.beamContinuousDia:
+        reinforcement = _continuous_bars(reinforcement, c, notes)
     t = dict(reinforcement["transverse"])
     legs = int(t.get("legs", 2) or 2)
-    dbl = min((x.dia for x in section.bars), default=0.0)
+    # The least longitudinal bar as proposed (the DCH beams' bars may have been raised above).
+    dbl = min(
+        (
+            float(g["dia"])
+            for g in reinforcement.get("longitudinal") or []
+            if g.get("position") in ("top", "bottom", "perimeter")
+        ),
+        default=min((x.dia for x in section.bars), default=0.0),
+    )
     b, h = section.width, section.depth
     cover = float(reinforcement.get("cover") or 40.0)
     try:
@@ -545,7 +586,6 @@ def propose_transverse(
             lengths.append(c.beamCritical * h)
         elif ctx.get("clearHeight"):
             lengths.append(cd.column_critical_length(max(b, h), ctx["clearHeight"], ductility))
-    notes: list[str] = []
     chosen = None
     for dia in sorted(
         d_ for d_ in stirrup_diameters if d_ >= max(float(t["dia"]), c.hoopMinDia) - 1e-9

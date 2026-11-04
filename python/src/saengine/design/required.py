@@ -1475,6 +1475,24 @@ def design_required(
     options: dict[str, Any] | None = None,
     gathered: Gathered | None = None,
 ) -> dict[str, Any]:
+    """:func:`_design_required` under the project's code pack (alpha 9 C5b: the required steel
+    takes the pack's methods, as the checks; it ran under the default pack before)."""
+    from saengine.codes import context as code_context
+
+    gathered = gathered or gather(out_dir, project_path)
+    pack = code_context.in_force()
+    if pack is None:
+        pack = code_context.pack_for(gathered.settings, gathered.root)
+    with code_context.using(pack):
+        return _design_required(out_dir, project_path, options, gathered)
+
+
+def _design_required(
+    out_dir: str | Path,
+    project_path: str | Path,
+    options: dict[str, Any] | None = None,
+    gathered: Gathered | None = None,
+) -> dict[str, Any]:
     """The reinforcement required by every element :func:`saengine.design.design_report`
     designs, and by the foundations of 9 Substructure: ``{"code", "elements": [rows],
     "summary", "notes", "combinations"}`` (rows: see the module notes). ``summary``: ``{"rows",

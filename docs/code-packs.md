@@ -541,9 +541,10 @@ wizard's design code selector. Each has a page that describes its coverage:
 The built-in pack `eurocodes` (Eurocodes, recommended values) covers EN 1990, EN 1991-1-1,
 -1-3, -1-4, -1-7 Annex D and EN 1998-1. Its README
 (`python/src/saengine/codes/packs/eurocodes/README.md`) lists the tables, and `VERIFY.md` lists
-every value with its clause, for checking against the printed codes. It extends BNBC 2020, so
-the member design (concrete, steel, foundations, detailing) still uses BNBC 2020 tables until
-the EN 1992-1999 packs exist. The report's design basis says so.
+every value with its clause, for checking against the printed codes. It extends BNBC 2020.
+Concrete members, slabs, stairs, walls, joints, spread footings and piles design by its EN
+1992-1-1, EN 1998-1 and EN 1997-1 methods (below); steel, timber, masonry, deep beams and the
+other areas still use the BNBC 2020 tables and methods. The report's design method says which.
 
 To use it, choose **Eurocodes (recommended values)** as the design code. The pack has no towns
 (the National Annex maps give agR and vb,0), so set Location to **Custom** and enter agR (in g)
@@ -562,6 +563,34 @@ It chooses generic methods by id, which other packs can use too:
 | `wind.method` | `powerLaw` (default), `peakVelocityPressure` | Storey forces from qz, or from qp(z) with cpe, ρ and cscd |
 | `liveReduction.method` | `influenceArea` (default), `areaAndStoreys` | KLL·AT, or αA and αn |
 | `combinations.strengthSet`, `strengthSets` | set id → combinations | EN 1990 6.10 or 6.10a/b |
+
+#### Concrete and foundation methods (method selection)
+
+The concrete and foundation design asks `saengine.design.method_selection` which method the
+pack in force picks for each area, by id, from the pack's method tables `concreteMethods` and
+`geotechnicalMethods` (`<area>.method`, or the group's presence). No id (a pack without the
+group, such as BNBC 2020) is the default: the strength design with φ, unchanged. Any pack can
+pick these ids; another code's method gets its own id and module beside them.
+
+| Area | Ids | Where it is used |
+| --- | --- | --- |
+| `ultimate` | `partialFactors` | Sections with fcd, fyd, φ = 1 (`rc`, slabs and stairs strips, walls' and flanges' integration, lintels, footing strips); Design Reinforcement's sizing (`bars`) |
+| `shear` | `variableStrut` | Beams, columns, walls' in-plane shear, slab and footing strips (VRd,c), the proposal's links |
+| `torsion` | `thinWalledVariableStrut` | Beam torsion rows and the torsion the proposal adds |
+| `deflection` | `spanDepthK` | Beam span/depth rows (the calculated deflection follows where a span exceeds it) |
+| `cracking`, `serviceStress` | `directWidth`, `stressLimits` | Beam crack widths and stress limits (they replace the bar-spacing crack control) |
+| `slenderness` | `nominalCurvature` | Column slenderness: λlim and the nominal curvature MEd |
+| `punching` | `controlPerimeter` | Flat slabs (shells and frame methods) |
+| `memberSteel` | (the group) | Least and largest steel and spacings of beams, columns, slabs, stairs and walls, in the checks and the proposal |
+| `anchorage` | `bondStress` | Anchorage and lap lengths of the detailing and the bar schedule |
+| `seismic` | `curvatureDuctility` | DCM/DCH members, joints, capacity-design shear, ductile walls; the parent's special-frame detailing does not run |
+| `bearing`, `sliding` | `effectiveArea`, `interfaceFriction` | Spread footings by the design approach (the allowable-pressure rows are then reported only) |
+| `piles` | `correlationFactors` | Pile caps' piles: Rc,k with ξ, Rc,d by the resistance sets |
+
+A project can set any area back to the default method with the override
+`concreteMethods.parentMethods` (or `geotechnicalMethods.parentMethods`), a list of area
+names, e.g. `"concreteMethods.parentMethods": ["torsion", "seismic"]`. The design approach is
+the override `geotechnicalMethods.designApproach` (DA1, DA2, DA3).
 
 ### Indian Standards (loads and seismic): `is-codes`
 
