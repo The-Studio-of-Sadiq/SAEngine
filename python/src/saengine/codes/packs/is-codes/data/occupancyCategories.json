@@ -1,0 +1,37 @@
+{
+  "$schema": "../../../schemas/occupancyCategories.schema.json",
+  "$replace": true,
+  "$sources": [
+    "IS 1893 (Part 1):2016 Table 8",
+    "IS 875 (Part 3):2015 Table 1"
+  ],
+  "source": "IS 1893 (Part 1):2016 Table 8 importance factor I; IS 875 (Part 3):2015 Table 1 risk coefficient k1 by mean probable design life (the windImportance is the class's marker: the k1 of the category comes from wind.speedFactors.riskCoefficients at the town's Vb). The categories I-IV are SAEngine's slots for the code's classes.",
+  "categories": {
+    "I": {
+      "description": "Low hazard to life and property on failure (wind: 25-year class); seismic: all other buildings",
+      "seismicImportance": 1.0,
+      "windImportance": 0.9
+    },
+    "II": {
+      "description": "All other buildings (seismic I = 1.0; wind: general buildings, 50-year class)",
+      "seismicImportance": 1.0,
+      "windImportance": 1.0
+    },
+    "III": {
+      "description": "Business continuity structures; residential or commercial buildings with more than 200 persons (I = 1.2)",
+      "seismicImportance": 1.2,
+      "windImportance": 1.0
+    },
+    "IV": {
+      "description": "Critical and lifeline structures: hospitals, schools, emergency buildings, power stations (I = 1.5; wind: important buildings, 100-year class)",
+      "seismicImportance": 1.5,
+      "windImportance": 1.07
+    }
+  },
+  "sources": {
+    "categories.I": "IS 875 (Part 3):2015 Table 1 (25-year class); IS 1893 (Part 1):2016 Table 8 (iii)",
+    "categories.II": "IS 875 (Part 3):2015 Table 1 (50-year class, k1 = 1.0); IS 1893 (Part 1):2016 Table 8 (iii)",
+    "categories.III": "IS 1893 (Part 1):2016 Table 8 (ii) and its note on buildings with more than 200 persons",
+    "categories.IV": "IS 1893 (Part 1):2016 Table 8 (i); IS 875 (Part 3):2015 Table 1 (100-year class)"
+  }
+}

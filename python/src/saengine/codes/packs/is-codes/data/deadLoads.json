@@ -1,0 +1,53 @@
+{
+  "$schema": "../../../schemas/deadLoads.schema.json",
+  "$replace": true,
+  "$sources": [
+    "IS 875 (Part 1):1987 Table 1"
+  ],
+  "source": "IS 875 (Part 1):1987 Table 1: unit weights of building materials [kN/m³]",
+  "masonry": {
+    "burntClayBrick": 18.85
+  },
+  "plaster": {
+    "cement": 20.4
+  },
+  "wallTypes": [
+    {
+      "id": "BW230",
+      "name": "230 mm brick wall, 12 mm plaster both faces",
+      "thickness": 230,
+      "masonry": "burntClayBrick",
+      "plaster": 12,
+      "plasterFaces": 2
+    },
+    {
+      "id": "BW115",
+      "name": "115 mm brick wall, 12 mm plaster both faces",
+      "thickness": 115,
+      "masonry": "burntClayBrick",
+      "plaster": 12,
+      "plasterFaces": 2
+    },
+    {
+      "id": "BW250",
+      "name": "250 mm brick wall, 12.5 mm plaster both faces",
+      "thickness": 250,
+      "masonry": "burntClayBrick",
+      "plaster": 12.5,
+      "plasterFaces": 2
+    },
+    {
+      "id": "BW125",
+      "name": "125 mm brick wall, 12.5 mm plaster both faces",
+      "thickness": 125,
+      "masonry": "burntClayBrick",
+      "plaster": 12.5,
+      "plasterFaces": 2
+    }
+  ],
+  "sources": {
+    "masonry.burntClayBrick": "IS 875 (Part 1):1987 Table 1: brick masonry, common burnt clay bricks, 1920 kg/m³ (18.85 kN/m³)",
+    "plaster.cement": "IS 875 (Part 1):1987 Table 1: cement mortar, 2080 kg/m³ (20.4 kN/m³), taken for cement plaster",
+    "wallTypes": "SAEngine choice: the 230 mm (9 in) and 115 mm (4½ in) walls of Indian practice with 12 mm plaster; the 250 and 125 mm walls kept under the ids the app's wall lists use"
+  }
+}

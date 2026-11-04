@@ -749,7 +749,7 @@ export type ProjectPlatformMethod =
 	// `codes/validate` `{path, root?}`, `codes/trust` `{id, trusted, root?}`, `codes/choices`
 	// `{id, root?}` (the Project Settings lists under the pack), `codes/values` `{settingsText, root?,
 	// table?}` (Project Settings > Code Values: the pack with the project's overrides).
-	| 'codes/list' | 'codes/show' | 'codes/choices' | 'codes/values' | 'codes/new' | 'codes/install' | 'codes/validate' | 'codes/trust' | 'codes/remove' | 'codes/templates' | 'codes/checkTemplate' | 'codes/codedGeometry'
+	| 'codes/list' | 'codes/show' | 'codes/choices' | 'codes/settingsForPack' | 'codes/values' | 'codes/new' | 'codes/install' | 'codes/validate' | 'codes/trust' | 'codes/remove' | 'codes/templates' | 'codes/checkTemplate' | 'codes/codedGeometry'
 	// A DWG drawing as DXF (`saengine.library.dwg`, GNU LibreDWG's dwg2dxf as a separate program):
 	// `cad/convertDwg` `{path, cache?}` -> `{ok, dxf, warnings, cached}` or `{ok: false, code, message}`.
 	| 'cad/convertDwg'

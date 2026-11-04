@@ -176,6 +176,9 @@ export class NewBuildingWizard extends EditorPane {
 	private codePacks: ICodePackInfo[] = [];
 	/** The exposures (terrain categories) of the chosen pack other than the default. */
 	private packExposures: { id: string; label: string }[] = [];
+	/** C7: the towns and site classes of the chosen pack other than the default (empty: none). */
+	private packTowns: { id: string; label: string }[] = [];
+	private packSiteClasses: { id: string; label: string }[] = [];
 	/** C1: the chosen pack's design spectrum method (`mappedSpectral`: the site's SDS, SD1 instead of Z). */
 	private packSpectrum = '';
 	/** The package of the specification that filled the form last; undefined before any. */
@@ -319,16 +322,29 @@ export class NewBuildingWizard extends EditorPane {
 	/** The exposures of the pack ``id`` (its wind table), for a pack other than the default. */
 	private async loadPackExposures(id: string): Promise<void> {
 		this.packExposures = [];
+		this.packTowns = [];
+		this.packSiteClasses = [];
 		this.packSpectrum = '';
 		if (id === DEFAULT_CODE_PACK_ID || !CommandsRegistry.getCommand(CODES_CHOICES_COMMAND)) {
+			this.form.packTowns = false;
 			return;
 		}
 		try {
 			const lists = readPackLists(await this.commandService.executeCommand<unknown>(CODES_CHOICES_COMMAND, { id, root: this.projectService.project?.root.fsPath }));
 			this.packExposures = lists?.exposures ?? [];
+			this.packTowns = (lists?.locations ?? []).filter(l => l.id !== 'custom');
+			this.packSiteClasses = lists?.siteClasses ?? [];
 			this.packSpectrum = lists?.designSpectrum?.[0]?.id ?? '';
 		} catch {
 			this.packExposures = [];
+		}
+		// C7: a pack with towns of its own is chosen from them; its site class from its classes.
+		this.form.packTowns = this.packTowns.length > 0;
+		if (this.packTowns.length && !this.packTowns.some(t => t.id === this.form.location)) {
+			this.form.location = this.packTowns[0].id;
+		}
+		if (this.packSiteClasses.length && !this.packSiteClasses.some(c => c.id === this.form.siteClass)) {
+			this.form.siteClass = this.packSiteClasses[0].id;
 		}
 	}
 
@@ -598,6 +614,14 @@ export class NewBuildingWizard extends EditorPane {
 		if ((this.form.designCode || DEFAULT_CODE_PACK_ID) === DEFAULT_CODE_PACK_ID) {
 			append(form, $('p.hint.indented', undefined, localize('newBuilding.siteHint', "{0}: the location sets the seismic zone and basic wind speed; the occupancy category the importance factors (Table 6.1.1).", activeCodeName())));
 			this.select(form, localize('newBuilding.location', "Location"), locationChoices(), this.form.location, value => this.form.location = value);
+		} else if (this.packTowns.length) {
+			// C7: a pack with towns of its own (Indian Standards): the town sets the zone and wind speed.
+			append(form, $('p.hint.indented', undefined, localize('newBuilding.packTownsHint', "The location sets the seismic zone and basic wind speed of this design code. Check them, and the exposure, in Project Settings.")));
+			this.select(form, localize('newBuilding.location', "Location"), this.packTowns.map(t => ({ value: t.id, label: t.label })), this.form.location, value => this.form.location = value);
+			if (this.packExposures.length) {
+				const exposures = this.packExposures.map(e => ({ value: e.id, label: e.label }));
+				this.select(form, localize('newBuilding.exposure', "Exposure"), exposures, this.form.exposure || exposures[Math.min(1, exposures.length - 1)].value, value => this.form.exposure = value);
+			}
 		} else {
 			// C4: a pack without the default pack's towns (the Eurocodes: the National Annex maps).
 			append(form, $('p.hint.indented', undefined, localize('newBuilding.otherPackHint', "This design code has no towns of its own: enter the site's peak ground acceleration and basic wind speed from the national maps (the project's Location is Custom). Check them, and the exposure, in Project Settings.")));
@@ -617,7 +641,8 @@ export class NewBuildingWizard extends EditorPane {
 				this.select(form, localize('newBuilding.exposure', "Exposure"), exposures, this.form.exposure || exposures[Math.min(2, exposures.length - 1)].value, value => this.form.exposure = value);
 			}
 		}
-		this.select(form, localize('newBuilding.siteClass', "Site class"), settingsEnum('Site', 'siteClass'), this.form.siteClass, value => this.form.siteClass = value as SiteClass);
+		const siteClasses = this.packSiteClasses.length ? this.packSiteClasses.map(c => ({ value: c.id, label: c.label })) : settingsEnum('Site', 'siteClass');
+		this.select(form, localize('newBuilding.siteClass', "Site class"), siteClasses, this.form.siteClass, value => this.form.siteClass = value as SiteClass);
 		append(form, $('p.hint.indented', undefined, localize('newBuilding.siteClassHint', "Assumed until a soil report gives it ({0} Part 6, Table 6.2.13): add boreholes in 01 Soil Report and their class replaces it.", defaultCodeName())));
 		this.select(form, localize('newBuilding.use', "Building use"), settingsEnum('Occupancy', 'use'), this.form.use, value => this.form.use = value);
 		this.select(form, localize('newBuilding.category', "Occupancy category"), settingsEnum('Occupancy', 'category'), this.form.category, value => this.form.category = value as OccupancyCategory);

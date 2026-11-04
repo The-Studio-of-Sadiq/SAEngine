@@ -235,6 +235,19 @@
       "title": "Locations",
       "type": "object"
     },
+    "default": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "C7: the town a new project under this pack starts with; empty: the first of ``locations``.",
+      "title": "Default"
+    },
     "towns": {
       "anyOf": [
         {

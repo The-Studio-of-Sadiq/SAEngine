@@ -180,6 +180,37 @@
           "title": "Clause",
           "type": "string"
         },
+        "factor": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "reducedElastic: Sa = factor·Z·I/R·Cs (IS 1893: Z/2); empty: 2/3.",
+          "title": "Factor"
+        },
+        "longPeriod": {
+          "default": "inverseSquare",
+          "description": "reducedElastic: beyond TD the normalized spectrum falls as TC·TD/T² or stays at its value at TD.",
+          "enum": [
+            "inverseSquare",
+            "constant"
+          ],
+          "title": "Longperiod",
+          "type": "string"
+        },
+        "staticPlateau": {
+          "default": false,
+          "description": "reducedElastic: the equivalent static method takes the plateau below TB (no rising branch); the dynamic analysis the full shape.",
+          "title": "Staticplateau",
+          "type": "boolean"
+        },
         "designShare": {
           "anyOf": [
             {
@@ -756,10 +787,21 @@
           "default": "heightPower",
           "enum": [
             "heightPower",
-            "linear"
+            "linear",
+            "heightSquared"
           ],
           "title": "Distribution",
           "type": "string"
+        },
+        "minimumShare": {
+          "additionalProperties": {
+            "exclusiveMaximum": 1,
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "description": "C7: least base shear V / W by seismic zone (IS 1893 Table 7); empty: none.",
+          "title": "Minimumshare",
+          "type": "object"
         },
         "clause": {
           "default": "",
@@ -877,6 +919,12 @@
           "exclusiveMinimum": 0,
           "title": "M",
           "type": "number"
+        },
+        "planDimension": {
+          "default": false,
+          "description": "C7: T = Ct·h^m / √d, d the base plan dimension along the shaking [m] (False: T = Ct·h^m).",
+          "title": "Plandimension",
+          "type": "boolean"
         }
       },
       "required": [
@@ -1732,7 +1780,7 @@
     "periodUpperFactor": {
       "anyOf": [
         {
-          "exclusiveMinimum": 1,
+          "minimum": 1,
           "type": "number"
         },
         {
@@ -1852,7 +1900,8 @@
         {
           "enum": [
             "overImportance",
-            "displacementFactor"
+            "displacementFactor",
+            "designForces"
           ],
           "type": "string"
         },
@@ -1861,8 +1910,34 @@
         }
       ],
       "default": null,
-      "description": "Design displacements from the elastic ones: overImportance (Cd·δe/I) or displacementFactor (qd·de, Cd standing for qd, the importance already in de). Empty: overImportance.",
+      "description": "Design displacements from the elastic ones: overImportance (Cd·δe/I) or displacementFactor (qd·de, Cd standing for qd, the importance already in de); designForces (C7, IS 1893 7.11): the drift checked as computed from the design forces, the separation with Cd·de (Cd standing for R). Empty: overImportance.",
       "title": "Driftamplification"
+    },
+    "defaultSiteClass": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "C7: the site class of a new project under this pack.",
+      "title": "Defaultsiteclass"
+    },
+    "defaultSystem": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "C7: the structural system of a new project under this pack.",
+      "title": "Defaultsystem"
     },
     "stability": {
       "anyOf": [

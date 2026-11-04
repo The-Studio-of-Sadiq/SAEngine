@@ -24,6 +24,8 @@ from typing import Any
 
 from pydantic import ValidationError
 
+from saengine.codes.registry import DEFAULT_PACK
+
 __all__ = ["NewBuildingError", "create_building", "project_parent", "spec_from_wizard"]
 
 WIZARD_SCHEMA = "saengine.newBuilding/1"
@@ -134,7 +136,7 @@ def spec_from_wizard(spec: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
         out["location"] = site["location"]
     site_class = site.get("siteClass")
     if site_class is not None:
-        if site_class not in SITE_CLASSES:
+        if site_class not in SITE_CLASSES and spec.get("designCode") in (None, "", DEFAULT_PACK):
             raise NewBuildingError(
                 f"site class '{site_class}' is not one of {', '.join(SITE_CLASSES)}"
             )

@@ -325,9 +325,10 @@ Where SAEngine finds packs (the same id in a higher place wins):
 2. **your user folder**: `%APPDATA%\SAEngine\code-packs\<id>\` on Windows
    (`~/Library/Application Support/SAEngine/code-packs` on macOS, `~/.config/SAEngine/code-packs`
    elsewhere): available to every project on this computer;
-3. **built-in**: `bnbc2020`, shipped with SAEngine; `eurocodes` (below); and `aci318-asce7-22`, the ASCE 7-22 loads
+3. **built-in**: `bnbc2020`, shipped with SAEngine; `eurocodes` (below); `aci318-asce7-22`, the ASCE 7-22 loads
    (its materials still fall back to `bnbc2020`; the site's SDS, SD1, S1, TL and V are entered
-   from the ASCE Hazard Tool; values to check in its `VERIFY.md`).
+   from the ASCE Hazard Tool; values to check in its `VERIFY.md`); and `is-codes`, the Indian
+   Standards loads (below).
 
 To use a pack, choose it in **02 Project Settings → Design code**, or in **New Project →
 Design code**, which lists the packs installed on this computer. A project without a choice
@@ -532,7 +533,8 @@ wizard's design code selector. Each has a page that describes its coverage:
   recommended values. Each country's National Annex is a small pack that `extends` the base
   and sets only its Nationally Determined Parameters, in the same way an office pack extends
   BNBC 2020 today. **The loads part is built in** (see below); the materials are planned.
-- **Indian Standards**: IS 456, 1893, 800, 875 and 13920.
+- **Indian Standards**: IS 456, 1893, 800, 875 and 13920. **The loads part is built in** as
+  `is-codes` (see below); the materials (IS 456, 800, 13920) are planned.
 
 ### Eurocodes (loads and seismic): `eurocodes`
 
@@ -560,6 +562,34 @@ It chooses generic methods by id, which other packs can use too:
 | `wind.method` | `powerLaw` (default), `peakVelocityPressure` | Storey forces from qz, or from qp(z) with cpe, ρ and cscd |
 | `liveReduction.method` | `influenceArea` (default), `areaAndStoreys` | KLL·AT, or αA and αn |
 | `combinations.strengthSet`, `strengthSets` | set id → combinations | EN 1990 6.10 or 6.10a/b |
+
+### Indian Standards (loads and seismic): `is-codes`
+
+The built-in pack `is-codes` (Indian Standards (IS)) covers IS 875 Parts 1 and 2 (unit weights,
+imposed loads and their reduction by the floors carried), Part 3:2015 (wind: Vz = Vb k1 k2 k3
+k4, pz = 0.6 Vz², pd = Kd Ka Kc pz ≥ 0.7 pz), Part 5 with IS 456 Table 18 (combinations) and IS
+1893 (Part 1):2016 (zones II-V, soil types I-III, Ah = (Z/2)(I/R)(Sa/g), Ta, the least base
+shear, Qi by hi², scaling to VB, drift 0.004, irregularities). It extends BNBC 2020 for the
+materials, as `eurocodes` does. Its README and `VERIFY.md` (every value, its clause and how sure
+it is) are in `python/src/saengine/codes/packs/is-codes/`.
+
+It has towns: choosing it in **New Project** or the **New Building** wizard lists its 67 cities
+(zone and basic wind speed), soil types and terrain categories, and a new project starts from
+the pack's defaults (Delhi, soil type II, RC SMRF, terrain category 2, its live loads and
+combinations), every one changeable in Project Settings. k3 is the topographic factor of Project
+Settings → Wind, k4 the Code Values override `wind.speedFactors.importance`.
+
+The generic methods and keys it adds, open to any pack:
+
+| Key | Values | What it does |
+| --- | --- | --- |
+| `seismic.designSpectrum` (`reducedElastic`) | `factor`, `longPeriod` (`inverseSquare`, `constant`), `staticPlateau` | Sa = factor·Z·I/R·Cs; Sa/g constant beyond TD; no rising branch in the static method |
+| `seismic.lateralForce` | `distribution: heightSquared`, `minimumShare` by zone | Qi ∝ Wi hi²; the least V / W |
+| `seismic.driftAmplification` | `designForces` | Drift checked as computed; displacements Cd·de (Cd = R) |
+| `seismic.periodCoefficients.<family>.planDimension` | true | T = Ct·h^m/√d |
+| `wind.method` | `speedFactors` (with `speedFactors`, `cpByHeight`) | pd from the design wind speed; wall Cp by h/w and l/w |
+| `liveReduction.method` | `floorCount` | Reduction by the floors carried, beams by area |
+| `locations.default`, `seismic.defaultSiteClass`, `seismic.defaultSystem`, `wind.defaultExposure` | ids | A new project's choices under the pack |
 | `snow` (table) | | s = factor·μ1·Ce·Ct·sk on the roof, in Lr |
 
 A National Annex pack extends it and gives only what differs:

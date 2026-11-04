@@ -231,7 +231,7 @@ def displacement_factor(cd: float | None, importance: float | None) -> float | N
     if not cd or not importance:
         return None
     rule = getattr(_seismic(), "driftAmplification", None)
-    if rule == "displacementFactor":
+    if rule in ("displacementFactor", "designForces"):
         return float(cd)
     return float(cd) / float(importance)
 
@@ -1884,6 +1884,12 @@ def _seismic_design(
         or 1.0
         for axis in ("X", "Y")
     }
+    # C7: a pack that checks the drift of the design forces as computed (driftAmplification
+    # "designForces", IS 1893 7.11.1) takes Cd times them (Cd = R) for the separation only.
+    separation_amplification = by_axis_amplification
+    if getattr(_seismic(), "driftAmplification", None) == "designForces":
+        by_axis_amplification = {"X": 1.0, "Y": 1.0}
+        amplification = 1.0
     storeys = _levels(project, levels)
     limit_row = settings_drift_limit(
         settings, category, max(len(storeys) - 1, 0), options.redundancy
@@ -1941,6 +1947,7 @@ def _seismic_design(
     isolated = seismic_design_block(project_path.parent, spectra, notes)
     if isolated is not None:
         by_axis_amplification = isolated["amplification"]
+        separation_amplification = by_axis_amplification
         amplification = max(by_axis_amplification.values())
         allowable = isolated["allowable"]
         limit_row = {**limit_row, "ratio": allowable, "isolated": True}
@@ -1962,7 +1969,7 @@ def _seismic_design(
         project, spectra, storeys, by_axis_amplification, settings.seismic.diaphragmDeflectionLimit
     )
     separation = separation_checks(
-        project, spectra, storeys, by_axis_amplification, settings, forces, ax
+        project, spectra, storeys, separation_amplification, settings, forces, ax
     )
     notes.extend(diaphragm_notes(diaphragm, settings.seismic.diaphragmDeflectionLimit))
     notes.extend(separation["notes"])

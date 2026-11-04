@@ -29,11 +29,39 @@ The pack chooses these generic methods of SAEngine by id (other packs may choose
 (`saengine.fem.peak_velocity_pressure`), `liveReduction.method: "areaAndStoreys"` and the
 `snow` table (`saengine.fem.snow_load`).
 
+## Concrete and foundations (version 0.2, alpha 9 track C5)
+
+| Table | Code | What |
+| --- | --- | --- |
+| `concreteMethods` | EN 1992-1-1 | `ultimate` (method `partialFactors`): fcd = αcc fck/γc, fyd = fyk/γs, no φ; the strength-class relations of Table 3.1 as coefficients; the rectangular block η, λ, εcu3 (or `stressBlock: "parabolaRectangle"`); NRd with εc2; e0 = h/30 ≥ 20 mm |
+| | EN 1992-1-1 6.2, 6.3, 6.4 | `shear` (`variableStrut`): VRd,c, VRd,s, VRd,max, cot θ 1-2.5, ρw,min, link spacing; `torsion` (`thinWalledVariableStrut`); `punching` (`controlPerimeter`) |
+| | EN 1992-1-1 7.2-7.4 | `serviceStress` (k1-k4), `cracking` (`directWidth`: wmax by exposure, As,min, wk), `deflection` (`spanDepthK`: Eqs 7.16a/b, K) |
+| | EN 1992-1-1 4.4, 8, 9 | `cover` (`exposureClass`: cmin,dur by S class, Δcdev), `anchorage` (`bondStress`: fbd, lbd, l0, α6), `memberSteel` (beams, slabs, columns, walls), `exposureClasses` |
+| | EN 1998-1 Section 5 | `seismic` (`curvatureDuctility`): DCM and DCH (special → DCH, intermediate → DCM): γRd, strong column 1.3, critical lengths, hoop spacing, ρ limits, νd, confinement ωwd, DCH joints, ductile walls, coupling beams |
+| `geotechnicalMethods` | EN 1997-1 | Sets A1/A2, M1/M2, R1-R4 (spread foundations; driven, bored, CFA piles), design approaches DA1 (combinations 1 and 2), DA2, DA3 (`designApproach`, DA1 by default), bearing on the effective base (Annex D, `effectiveArea`), sliding, correlation factors ξ1-ξ4 |
+
+The generic methods: `saengine.design.design_strength`, `strut_shear`, `perimeter_punching`,
+`crack_control`, `bar_rules`, `curvature_ductility` and
+`saengine.substructure.limit_state_geotechnics`. A pack without these tables (BNBC 2020)
+designs exactly as before.
+
+What the member design does with them now: beams and columns are checked on the design
+strengths (flexure, axial force with biaxial bending and the minimum eccentricity, shear by the
+variable strut method with σcp for columns), with rows for the least and largest steel, link
+spacing and sizes and, for DCM/DCH systems, the critical-region hoops, νd, ρl and the beams'
+least steel and bars along the span. A pile type's initial load tests give Rc,k with ξ1/ξ2 and
+Rc,d per combination of the design approach. Still by the parent's method (stated in the
+design report): beam torsion and deflection, column slenderness, slabs, walls, punching,
+stairs, the special/intermediate frame detailing of the parent, Design Reinforcement's sizing
+and the foundation design itself (bearing by allowable pressure). The torsion, punching, crack
+width, span/depth, cover, anchorage, wall, joint and capacity-design functions exist and are
+pinned by tests, waiting for their homes.
+
 ## What falls back (not Eurocode yet)
 
-The pack `extends` BNBC 2020, so a project designs and runs. Until the EN 1992 to EN 1999 packs
-(tracks C5, C6) exist, these tables come from **BNBC 2020** and the report's design basis says
-so: `materials`, `factors`, `concrete`, `detailing`, `steel`, `steelSections`, `steelSeismic`,
+The pack `extends` BNBC 2020, so a project designs and runs. Until the EN 1993 to EN 1999 packs
+(track C6) exist, and for the concrete methods not covered above, these tables come from
+**BNBC 2020** and the report's design basis says so: `materials`, `factors`, `concrete`, `detailing`, `steel`, `steelSections`, `steelSeismic`,
 `steelStability`, `foundations`, `transfer`, `slabCoefficients`, `slabMethods`, `wallMethods`,
 `stairMethods`, `masonry`, `timber`, `composite`, `compositeConcrete`, `anchors`,
 `concreteTime`, `designLimits`, `designClauses`, `serviceability`, `siteInvestigation`,

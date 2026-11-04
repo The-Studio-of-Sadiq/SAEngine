@@ -1,0 +1,347 @@
+{
+  "$schema": "../../../schemas/locations.schema.json",
+  "$replace": true,
+  "$sources": [
+    "IS 875 (Part 3):2015 Annex A (basic wind speeds of cities)",
+    "IS 1893 (Part 1):2016 Annex E (seismic zones of cities)"
+  ],
+  "source": "IS 875 (Part 3):2015 Annex A basic wind speed Vb [m/s]; IS 1893 (Part 1):2016 Annex E zone of the town (zone = the IS zone number, II-V, as 2-5 in zoneCoefficients). Towns in both lists; elsewhere a custom location (enter Z and Vb from the code's maps, IS 875 (Part 3):2015 Fig. 1 and IS 1893 (Part 1):2016 Fig. 1).",
+  "default": "delhi",
+  "locations": {
+    "agra": {
+      "name": "Agra",
+      "zone": 3,
+      "windSpeed": 47.0
+    },
+    "ahmedabad": {
+      "name": "Ahmedabad",
+      "zone": 3,
+      "windSpeed": 39.0
+    },
+    "ajmer": {
+      "name": "Ajmer",
+      "zone": 2,
+      "windSpeed": 47.0
+    },
+    "amritsar": {
+      "name": "Amritsar",
+      "zone": 4,
+      "windSpeed": 47.0
+    },
+    "asansol": {
+      "name": "Asansol",
+      "zone": 3,
+      "windSpeed": 47.0
+    },
+    "aurangabad": {
+      "name": "Aurangabad",
+      "zone": 2,
+      "windSpeed": 39.0
+    },
+    "bareilly": {
+      "name": "Bareilly",
+      "zone": 3,
+      "windSpeed": 47.0
+    },
+    "bengaluru": {
+      "name": "Bengaluru",
+      "zone": 2,
+      "windSpeed": 33.0
+    },
+    "bhopal": {
+      "name": "Bhopal",
+      "zone": 2,
+      "windSpeed": 39.0
+    },
+    "bhubaneswar": {
+      "name": "Bhubaneswar",
+      "zone": 3,
+      "windSpeed": 50.0
+    },
+    "bhuj": {
+      "name": "Bhuj",
+      "zone": 5,
+      "windSpeed": 50.0
+    },
+    "bikaner": {
+      "name": "Bikaner",
+      "zone": 3,
+      "windSpeed": 47.0
+    },
+    "chandigarh": {
+      "name": "Chandigarh",
+      "zone": 4,
+      "windSpeed": 47.0
+    },
+    "chennai": {
+      "name": "Chennai",
+      "zone": 3,
+      "windSpeed": 50.0
+    },
+    "coimbatore": {
+      "name": "Coimbatore",
+      "zone": 3,
+      "windSpeed": 39.0
+    },
+    "cuttack": {
+      "name": "Cuttack",
+      "zone": 3,
+      "windSpeed": 50.0
+    },
+    "darbhanga": {
+      "name": "Darbhanga",
+      "zone": 5,
+      "windSpeed": 55.0
+    },
+    "darjeeling": {
+      "name": "Darjeeling",
+      "zone": 4,
+      "windSpeed": 47.0
+    },
+    "dehradun": {
+      "name": "Dehradun",
+      "zone": 4,
+      "windSpeed": 47.0
+    },
+    "delhi": {
+      "name": "Delhi",
+      "zone": 4,
+      "windSpeed": 47.0
+    },
+    "durgapur": {
+      "name": "Durgapur",
+      "zone": 3,
+      "windSpeed": 47.0
+    },
+    "gangtok": {
+      "name": "Gangtok",
+      "zone": 4,
+      "windSpeed": 47.0
+    },
+    "gaya": {
+      "name": "Gaya",
+      "zone": 3,
+      "windSpeed": 39.0
+    },
+    "gorakhpur": {
+      "name": "Gorakhpur",
+      "zone": 4,
+      "windSpeed": 47.0
+    },
+    "guwahati": {
+      "name": "Guwahati",
+      "zone": 5,
+      "windSpeed": 50.0
+    },
+    "hyderabad": {
+      "name": "Hyderabad",
+      "zone": 2,
+      "windSpeed": 44.0
+    },
+    "imphal": {
+      "name": "Imphal",
+      "zone": 5,
+      "windSpeed": 47.0
+    },
+    "jabalpur": {
+      "name": "Jabalpur",
+      "zone": 3,
+      "windSpeed": 47.0
+    },
+    "jaipur": {
+      "name": "Jaipur",
+      "zone": 2,
+      "windSpeed": 47.0
+    },
+    "jamshedpur": {
+      "name": "Jamshedpur",
+      "zone": 2,
+      "windSpeed": 47.0
+    },
+    "jhansi": {
+      "name": "Jhansi",
+      "zone": 2,
+      "windSpeed": 47.0
+    },
+    "jodhpur": {
+      "name": "Jodhpur",
+      "zone": 2,
+      "windSpeed": 47.0
+    },
+    "kanpur": {
+      "name": "Kanpur",
+      "zone": 3,
+      "windSpeed": 47.0
+    },
+    "kohima": {
+      "name": "Kohima",
+      "zone": 5,
+      "windSpeed": 44.0
+    },
+    "kolkata": {
+      "name": "Kolkata",
+      "zone": 3,
+      "windSpeed": 50.0
+    },
+    "kozhikode": {
+      "name": "Kozhikode (Calicut)",
+      "zone": 3,
+      "windSpeed": 39.0
+    },
+    "lucknow": {
+      "name": "Lucknow",
+      "zone": 3,
+      "windSpeed": 47.0
+    },
+    "ludhiana": {
+      "name": "Ludhiana",
+      "zone": 4,
+      "windSpeed": 47.0
+    },
+    "madurai": {
+      "name": "Madurai",
+      "zone": 2,
+      "windSpeed": 39.0
+    },
+    "mangaluru": {
+      "name": "Mangaluru (Mangalore)",
+      "zone": 3,
+      "windSpeed": 39.0
+    },
+    "moradabad": {
+      "name": "Moradabad",
+      "zone": 4,
+      "windSpeed": 47.0
+    },
+    "mumbai": {
+      "name": "Mumbai",
+      "zone": 3,
+      "windSpeed": 44.0
+    },
+    "mysuru": {
+      "name": "Mysuru (Mysore)",
+      "zone": 2,
+      "windSpeed": 33.0
+    },
+    "nagpur": {
+      "name": "Nagpur",
+      "zone": 2,
+      "windSpeed": 44.0
+    },
+    "nainital": {
+      "name": "Nainital",
+      "zone": 4,
+      "windSpeed": 47.0
+    },
+    "nashik": {
+      "name": "Nashik",
+      "zone": 3,
+      "windSpeed": 39.0
+    },
+    "nellore": {
+      "name": "Nellore",
+      "zone": 3,
+      "windSpeed": 50.0
+    },
+    "panaji": {
+      "name": "Panaji (Panjim)",
+      "zone": 3,
+      "windSpeed": 39.0
+    },
+    "patiala": {
+      "name": "Patiala",
+      "zone": 3,
+      "windSpeed": 47.0
+    },
+    "patna": {
+      "name": "Patna",
+      "zone": 4,
+      "windSpeed": 47.0
+    },
+    "prayagraj": {
+      "name": "Prayagraj (Allahabad)",
+      "zone": 2,
+      "windSpeed": 47.0
+    },
+    "puducherry": {
+      "name": "Puducherry",
+      "zone": 2,
+      "windSpeed": 50.0
+    },
+    "pune": {
+      "name": "Pune",
+      "zone": 3,
+      "windSpeed": 39.0
+    },
+    "raipur": {
+      "name": "Raipur",
+      "zone": 2,
+      "windSpeed": 39.0
+    },
+    "rajkot": {
+      "name": "Rajkot",
+      "zone": 3,
+      "windSpeed": 39.0
+    },
+    "ranchi": {
+      "name": "Ranchi",
+      "zone": 2,
+      "windSpeed": 39.0
+    },
+    "roorkee": {
+      "name": "Roorkee",
+      "zone": 4,
+      "windSpeed": 39.0
+    },
+    "rourkela": {
+      "name": "Rourkela",
+      "zone": 2,
+      "windSpeed": 39.0
+    },
+    "shimla": {
+      "name": "Shimla",
+      "zone": 4,
+      "windSpeed": 39.0
+    },
+    "srinagar": {
+      "name": "Srinagar",
+      "zone": 5,
+      "windSpeed": 39.0
+    },
+    "surat": {
+      "name": "Surat",
+      "zone": 3,
+      "windSpeed": 44.0
+    },
+    "thiruvananthapuram": {
+      "name": "Thiruvananthapuram",
+      "zone": 3,
+      "windSpeed": 39.0
+    },
+    "tiruchirappalli": {
+      "name": "Tiruchirappalli",
+      "zone": 2,
+      "windSpeed": 47.0
+    },
+    "vadodara": {
+      "name": "Vadodara",
+      "zone": 3,
+      "windSpeed": 44.0
+    },
+    "varanasi": {
+      "name": "Varanasi",
+      "zone": 3,
+      "windSpeed": 47.0
+    },
+    "vijayawada": {
+      "name": "Vijayawada",
+      "zone": 3,
+      "windSpeed": 50.0
+    },
+    "visakhapatnam": {
+      "name": "Visakhapatnam",
+      "zone": 2,
+      "windSpeed": 50.0
+    }
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "$schema": "../../../schemas/zoneCoefficients.schema.json",
+  "$replace": true,
+  "$sources": [
+    "IS 1893 (Part 1):2016 Table 3"
+  ],
+  "source": "IS 1893 (Part 1):2016 Table 3: seismic zone factor Z of zones II, III, IV and V (keys 2-5)",
+  "zones": {
+    "2": 0.1,
+    "3": 0.16,
+    "4": 0.24,
+    "5": 0.36
+  }
+}

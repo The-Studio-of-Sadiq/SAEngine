@@ -108,6 +108,11 @@ class LocationsTable(TableModel):
     """Towns with their seismic zone and basic wind speed."""
 
     locations: dict[str, Location]
+    default: str | None = Field(
+        default=None,
+        description="C7: the town a new project under this pack starts with; empty: the first "
+        "of ``locations``.",
+    )
     towns: TownMap | None = Field(
         default=None,
         description="Towns with coordinates for the site map's suggestion; empty: the pack "
@@ -489,6 +494,11 @@ class StructuralSystem(_Row):
 class PeriodCoefficient(_Row):
     Ct: float = Field(gt=0)
     m: float = Field(gt=0)
+    planDimension: bool = Field(
+        default=False,
+        description="C7: T = Ct·h^m / √d, d the base plan dimension along the shaking [m] "
+        "(False: T = Ct·h^m).",
+    )
 
 
 class DesignCategories(BaseModel):
@@ -792,6 +802,23 @@ class DesignSpectrumRule(BaseModel):
     plateau: float = Field(default=2.5, gt=0, description="Spectral amplification of the plateau.")
     lowerBound: float = Field(default=0.0, ge=0, lt=1, description="β: least Sd / ag.")
     clause: str = ""
+    # C7 (reducedElastic): the factor on Z·I/R·Cs, the long-period branch and the static plateau.
+    factor: float | None = Field(
+        default=None,
+        gt=0,
+        le=1,
+        description="reducedElastic: Sa = factor·Z·I/R·Cs (IS 1893: Z/2); empty: 2/3.",
+    )
+    longPeriod: Literal["inverseSquare", "constant"] = Field(
+        default="inverseSquare",
+        description="reducedElastic: beyond TD the normalized spectrum falls as TC·TD/T² or stays "
+        "at its value at TD.",
+    )
+    staticPlateau: bool = Field(
+        default=False,
+        description="reducedElastic: the equivalent static method takes the plateau below TB "
+        "(no rising branch); the dynamic analysis the full shape.",
+    )
     # ── mappedSpectral (C1) ──
     designShare: Share | None = Field(
         default=None, description="SDS = share × SMS, SD1 = share × SM1 (mapped values)."
@@ -829,7 +856,12 @@ class LateralForceRule(BaseModel):
     correction: float = Field(default=1.0, gt=0, le=1)
     periodTcFactor: float | None = Field(default=None, gt=0)
     minStoreys: int = Field(default=0, ge=0)
-    distribution: Literal["heightPower", "linear"] = "heightPower"
+    # C7: "heightSquared" (IS 1893 7.6.3, Qi ∝ Wi·hi² whatever the period).
+    distribution: Literal["heightPower", "linear", "heightSquared"] = "heightPower"
+    minimumShare: dict[int, Annotated[float, Field(gt=0, lt=1)]] = Field(
+        default_factory=dict,
+        description="C7: least base shear V / W by seismic zone (IS 1893 Table 7); empty: none.",
+    )
     clause: str = ""
 
 
@@ -907,7 +939,7 @@ class SeismicTable(TableModel):
     )
     periodUpperFactor: float | None = Field(
         default=None,
-        gt=1,
+        ge=1,
         description="A period from the structure's properties is at most this times the "
         "approximate period Ta (empty: 1.4).",
     )
@@ -946,11 +978,20 @@ class SeismicTable(TableModel):
         description="The base shear correction and the distribution of the lateral force "
         "method; empty: no correction, Fx ∝ wx·hx^k with k from the period.",
     )
-    driftAmplification: Literal["overImportance", "displacementFactor"] | None = Field(
-        default=None,
-        description="Design displacements from the elastic ones: overImportance (Cd·δe/I) or "
-        "displacementFactor (qd·de, Cd standing for qd, the importance already in de). "
-        "Empty: overImportance.",
+    driftAmplification: Literal["overImportance", "displacementFactor", "designForces"] | None = (
+        Field(
+            default=None,
+            description="Design displacements from the elastic ones: overImportance (Cd·δe/I) or "
+            "displacementFactor (qd·de, Cd standing for qd, the importance already in de); "
+            "designForces (C7, IS 1893 7.11): the drift checked as computed from the design "
+            "forces, the separation with Cd·de (Cd standing for R). Empty: overImportance.",
+        )
+    )
+    defaultSiteClass: str | None = Field(
+        default=None, description="C7: the site class of a new project under this pack."
+    )
+    defaultSystem: str | None = Field(
+        default=None, description="C7: the structural system of a new project under this pack."
     )
     stability: StabilityRule | None = Field(
         default=None,
@@ -1412,12 +1453,69 @@ class StructuralFactorRule(_Row):
     depthRatioMax: Positive | None = None
 
 
+class RiskCoefficientRow(_Row):
+    """C7: a class of the risk coefficient k1 (design life): the occupancy categories whose
+    wind importance is ``importance`` take k1 from the (basic wind speed [m/s], k1) points."""
+
+    id: str
+    name: str
+    importance: float = Field(gt=0, description="The occupancy categories' windImportance.")
+    k1: list[tuple[float, float]] = Field(min_length=1)
+
+
+class SpeedFactors(_Row):
+    """C7, ``method: speedFactors``: the design wind speed Vz = Vb·k1·k2·k3·k4 and the design
+    pressure pd = max(Kd·Ka·Kc, minimumShare)·airFactor·Vz² [N/m², V in m/s]; k3 is the table's
+    ``topographic``, Kd its ``directionality`` (:mod:`saengine.fem.wind_speed_factors`)."""
+
+    airFactor: float = Field(gt=0, description="pz = airFactor·Vz² [N/m²].")
+    heightFactors: dict[str, list[tuple[float, float]]] = Field(
+        description="k2: terrain (exposure) -> (height [m], k2) points, constant below the "
+        "first and above the last."
+    )
+    riskCoefficients: list[RiskCoefficientRow] = Field(default_factory=list)
+    importance: float = Field(
+        default=1.0, gt=0, description="k4 (cyclonic importance); a project overrides it."
+    )
+    importanceRows: dict[str, float] = Field(
+        default_factory=dict, description="The code's k4 values, for the engineer's choice."
+    )
+    areaAveraging: float = Field(
+        default=1.0, gt=0, le=1, description="Ka of the main wind-force resisting system."
+    )
+    areaAveragingRows: list[tuple[float, float]] = Field(
+        default_factory=list, description="The code's (tributary area [m²], Ka) points."
+    )
+    combination: float = Field(default=1.0, gt=0, le=1, description="Kc.")
+    minimumShare: float = Field(default=0.0, ge=0, le=1, description="Least Kd·Ka·Kc.")
+
+
+class CpHeightRow(_Row):
+    """C7: the wall pressure coefficients of a building up to ``heightRatioMax`` = h / w (w the
+    lesser plan dimension): windward ``windward``; leeward the first (l/w max, Cp) row with l/w
+    (l the greater plan dimension) up to it, else the last."""
+
+    heightRatioMax: float = Field(gt=0)
+    windward: float
+    leeward: list[tuple[float, float]] = Field(min_length=1)
+
+
 class WindTable(TableModel):
-    method: Literal["powerLaw", "peakVelocityPressure"] = Field(
+    method: Literal["powerLaw", "peakVelocityPressure", "speedFactors"] = Field(
         default="powerLaw",
         description="C4: how the storey forces are made: powerLaw (qz = 0.000613·Kz·Kzt·Kd·V²·I "
         "with the exposures' α and zg, G, Cp) or peakVelocityPressure (EN 1991-1-4: qp(ze) from "
-        "the terrain categories' z0 and zmin, cpe of walls by h/d, lack of correlation, cscd).",
+        "the terrain categories' z0 and zmin, cpe of walls by h/d, lack of correlation, cscd); "
+        "C7: speedFactors (IS 875-3: pd from Vz = Vb·k1·k2·k3·k4, see ``speedFactors``).",
+    )
+    speedFactors: SpeedFactors | None = None
+    cpByHeight: list[CpHeightRow] | None = Field(
+        default=None,
+        description="C7: wall Cp by h/w and l/w in place of cpWindward and cpLeeward; empty: "
+        "those.",
+    )
+    defaultExposure: str | None = Field(
+        default=None, description="C7: the exposure (terrain) of a new project under this pack."
     )
     peakVelocityPressure: PeakVelocityPressureRule | None = None
     wallPressure: list[WallPressureRow] = Field(
@@ -1498,6 +1596,12 @@ class WindTable(TableModel):
                 raise ValueError(f"exposure {key}: z0 and zmin are required (peakVelocityPressure)")
         if self.method == "peakVelocityPressure" and self.peakVelocityPressure is None:
             raise ValueError("peakVelocityPressure: the method needs its constants")
+        if self.method == "speedFactors":
+            if self.speedFactors is None:
+                raise ValueError("speedFactors: the method needs its factors")
+            missing = [k for k in self.exposures if k not in self.speedFactors.heightFactors]
+            if missing:
+                raise ValueError(f"speedFactors: no height factors of {', '.join(missing)}")
         return self
 
 
@@ -4520,12 +4624,26 @@ class AreaAndStoreys(_Group):
     combine: Literal["lesser"] = "lesser"
 
 
+class FloorCountReduction(_Group):
+    """C7, ``method: floorCount`` (IS 875-2 3.2): L / L0 = 1 − the share of the first (floors,
+    share) row whose floors is at least the floors the member carries (the last row above it);
+    a member of one floor (beams) with a tributary area of ``beamArea`` m² or more is reduced by
+    ``beamShare`` per ``beamArea`` m², at most ``beamMax``."""
+
+    rows: list[tuple[int, Annotated[float, Field(ge=0, lt=1)]]] = Field(min_length=1)
+    beamArea: Positive | None = None
+    beamShare: Share | None = None
+    beamMax: Share | None = None
+
+
 class LiveReductionTable(TableModel):
     """Reduction of floor live loads by influence area (the default pack's Part 6 Sec 2.3.13),
-    or (C4, ``method`` areaAndStoreys) by the loaded area and the number of storeys."""
+    or (C4, ``method`` areaAndStoreys) by the loaded area and the number of storeys, or (C7,
+    ``floorCount``) by the number of floors carried."""
 
-    method: Literal["influenceArea", "areaAndStoreys"] = "influenceArea"
+    method: Literal["influenceArea", "areaAndStoreys", "floorCount"] = "influenceArea"
     areaAndStoreys: AreaAndStoreys | None = None
+    floorCount: FloorCountReduction | None = None
     influenceMin: Positive | None = Field(
         default=None, description="Least KLL AT [m²] that is reduced."
     )
@@ -4570,6 +4688,10 @@ class LiveReductionTable(TableModel):
         if self.method == "areaAndStoreys":
             if self.areaAndStoreys is None:
                 raise ValueError("areaAndStoreys: the method needs its values")
+            return self
+        if self.method == "floorCount":
+            if self.floorCount is None:
+                raise ValueError("floorCount: the method needs its rows")
             return self
         names = ("influenceMin", "constant", "coefficient", "minOneFloor", "minFloors")
         missing = [n for n in (*names, "heavyFactor", "kll") if getattr(self, n) is None]
@@ -8772,6 +8894,12 @@ class SnowTable(TableModel):
         return self
 
 
+# Alpha 9 C5: the partial-factor concrete and geotechnical methods (their own module).
+from saengine.codes.method_tables import (
+    ConcreteMethodsTable,
+    GeotechnicalMethodsTable,
+)
+
 #: Table name -> model.
 TABLE_MODELS: dict[str, type[TableModel]] = {
     "locations": LocationsTable,
@@ -8825,6 +8953,9 @@ TABLE_MODELS: dict[str, type[TableModel]] = {
     "citations": CitationsTable,
     "mepOpenings": MepOpeningsTable,
     "snow": SnowTable,
+    # Alpha 9 C5.
+    "concreteMethods": ConcreteMethodsTable,
+    "geotechnicalMethods": GeotechnicalMethodsTable,
 }
 
 

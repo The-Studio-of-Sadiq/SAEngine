@@ -25,13 +25,18 @@ from saengine.fem.slab_load_shapes import EdgeProfile, slab_load_shapes
 # ───────────────────────── seismic: equivalent static force method ─────────────────────────
 
 
-def approximate_period(height: float, system: str) -> float:
-    """Fundamental period T = Ct·hn^m [s] for a building ``height`` metres tall."""
+def approximate_period(height: float, system: str, depth: float | None = None) -> float:
+    """Fundamental period T = Ct·hn^m [s] for a building ``height`` metres tall; C7: for a period
+    family of the pack with ``planDimension`` T = Ct·hn^m / √d, d = ``depth`` the base plan
+    dimension along the shaking [m] (without it d = hn: the caller gives no plan)."""
     seismic = code_context.table("seismic")
     row = seismic.systems.get(system)
     family = (row.periodFamily if row else None) or "other"
     coefficient = seismic.periodCoefficients[family]
     ct, m = coefficient.Ct, coefficient.m
+    if getattr(coefficient, "planDimension", False):
+        d = depth if depth and depth > 0 else max(height, 1e-9)
+        return ct * height**m / math.sqrt(d)
     return ct * height**m
 
 
@@ -48,28 +53,37 @@ def damping_correction(damping: float | None = None) -> float:
 
 
 def normalized_spectrum(
-    period: float, site_class: str, damping: float | None = None, hazard: Any = None
+    period: float,
+    site_class: str,
+    damping: float | None = None,
+    hazard: Any = None,
+    static: bool = False,
 ) -> float:
     """Normalized acceleration response spectrum Cs(T) for the site class, with the damping
     correction η of the viscous damping ratio ``damping`` (None: the code's reference, 5 %).
 
     C1: a pack whose design spectrum is ``mappedSpectral`` (``seismic.designSpectrum.method``)
     gives the site's design spectral acceleration Sa(T) [g] instead, from
-    ``hazard`` (the derived "Z", :class:`saengine.fem.spectral_hazard.SpectralHazard`)."""
+    ``hazard`` (the derived "Z", :class:`saengine.fem.spectral_hazard.SpectralHazard`).
+    C7, the pack's ``seismic.designSpectrum``: beyond TD constant (``longPeriod``); with
+    ``static`` (the equivalent static method) and ``staticPlateau`` the plateau below TB."""
     from saengine.fem import spectral_hazard as sh
 
     if sh.uses_mapped():
         return damping_correction(damping) * sh.spectral_acceleration(period, _mapped(hazard))
     seismic = code_context.table("seismic")
+    rule = getattr(seismic, "designSpectrum", None)
     site = seismic.siteClasses[site_class]
     s, tb, tc, td = site.S, site.TB, site.TC, site.TD
     eta = damping_correction(damping)
-    if period <= tb:
+    if period <= tb and not (static and rule is not None and rule.staticPlateau):
         return s * (1 + period / tb * (2.5 * eta - 1))
     if period <= tc:
         return 2.5 * s * eta
     if period <= td:
         return 2.5 * s * eta * tc / period
+    if rule is not None and rule.longPeriod == "constant":
+        return 2.5 * s * eta * tc / td
     return 2.5 * s * eta * tc * td / period**2
 
 
@@ -80,9 +94,11 @@ def design_acceleration(
     importance: float,
     r: float,
     damping: float | None = None,
+    static: bool = False,
 ) -> float:
-    """Design spectral acceleration Sa = (2/3)·(Z·I/R)·Cs, as a fraction of g (``damping``:
-    see :func:`normalized_spectrum`).
+    """Design spectral acceleration Sa = (2/3)·(Z·I/R)·Cs, as a fraction of g (``damping`` and
+    ``static``: see :func:`normalized_spectrum`); C7: the factor is the pack's
+    ``designSpectrum.factor`` where it gives one (IS 1893: Z/2).
 
     The pack's ``seismic.designSpectrum.method`` picks the design spectrum: ``behaviourFactor``
     (C4: R standing for q, ag = Z·I, the lower bound β·ag; the damping is in q there, so
@@ -107,7 +123,23 @@ def design_acceleration(
         )
     if rule is not None and rule.method == "mappedSpectral":
         return importance / r * normalized_spectrum(period, site_class, damping, z)
-    return 2 / 3 * z * importance / r * normalized_spectrum(period, site_class, damping)
+    factor = rule.factor if rule is not None and rule.factor is not None else 2 / 3
+    return (
+        factor
+        * z
+        * importance
+        / r
+        * normalized_spectrum(period, site_class, damping, static=static)
+    )
+
+
+def minimum_base_share(zone: int | None) -> float:
+    """C7: the pack's least equivalent static base shear V / W in seismic ``zone``
+    (``seismic.lateralForce.minimumShare``, IS 1893 Table 7); 0 where it gives none."""
+    rule = getattr(code_context.table("seismic"), "lateralForce", None)
+    if rule is None or not rule.minimumShare or zone is None:
+        return 0.0
+    return float(rule.minimumShare.get(int(zone), 0.0))
 
 
 def _mapped(hazard: Any) -> Any:
@@ -130,6 +162,7 @@ def elf_coefficient(
     importance: float,
     r: float,
     damping: float | None = None,
+    static: bool = True,
 ) -> float:
     """The equivalent static force coefficient V/W at ``period`` before the pack's base shear
     correction (:func:`base_shear_correction`): the design spectral acceleration
@@ -140,7 +173,7 @@ def elf_coefficient(
 
     if sh.uses_mapped():
         return sh.response_coefficient(period, _mapped(z), importance, r)
-    return design_acceleration(period, site_class, z, importance, r, damping)
+    return design_acceleration(period, site_class, z, importance, r, damping, static=static)
 
 
 def period_upper_factor(z: Any = None) -> float | None:
@@ -174,6 +207,8 @@ def _distribution_exponent(period: float) -> float:
     rule = getattr(code_context.table("seismic"), "lateralForce", None)
     if rule is not None and rule.distribution == "linear":
         return 1.0
+    if rule is not None and rule.distribution == "heightSquared":  # C7: IS 1893 7.6.3
+        return 2.0
     return 1.0 if period <= 0.5 else 2.0 if period >= 2.5 else 1 + (period - 0.5) / 2
 
 
@@ -323,8 +358,14 @@ def topographic_factor(height: float, exposure: str) -> float:
 
 
 def exposure_coefficient(height: float, exposure: str) -> float:
-    """Velocity pressure exposure coefficient Kz at ``height`` metres (Table 6.2.11)."""
+    """Velocity pressure exposure coefficient Kz at ``height`` metres (Table 6.2.11); C7: with
+    the pack's ``wind.method`` "speedFactors" the terrain and height factor on the pressure,
+    k2²."""
     table = code_context.table("wind")
+    if table.method == "speedFactors":
+        from saengine.fem import wind_speed_factors
+
+        return wind_speed_factors.height_factor(height, exposure) ** 2
     profile = table.exposures[exposure]
     alpha, zg = profile.alpha, profile.zg
     # C1: the power law's constants from the pack where it gives them (else Table 6.2.11's).
@@ -341,6 +382,10 @@ def velocity_pressure(height: float, speed: float, exposure: str, importance: fl
         from saengine.fem.peak_velocity_pressure import peak_velocity_pressure
 
         return peak_velocity_pressure(height, speed, exposure, importance)
+    if code_context.table("wind").method == "speedFactors":  # C7: IS 875 (Part 3)
+        from saengine.fem import wind_speed_factors
+
+        return wind_speed_factors.design_pressure(height, speed, exposure, importance)
     return (
         0.000613
         * exposure_coefficient(height, exposure)
@@ -360,6 +405,19 @@ def leeward_coefficient(aspect: float) -> float:
         if aspect <= a1:
             return c0 + (c1 - c0) * (aspect - a0) / (a1 - a0)
     return points[-1][1]
+
+
+def wall_coefficients(height: float, width: float, depth: float) -> tuple[float, float]:
+    """C7: (windward, leeward) wall Cp of a building ``height`` tall, ``width`` across the wind
+    and ``depth`` along it, by the pack's ``cpByHeight``: the row of h/w, w the lesser plan
+    dimension, then the leeward point of l/w, l the greater (the last row and point above)."""
+    rows = code_context.table("wind").cpByHeight
+    least, most = min(width, depth), max(width, depth)
+    ratio = height / least if least > 0 else 0.0
+    row = next((r for r in rows if ratio <= r.heightRatioMax), rows[-1])
+    aspect = most / least if least > 0 else 1.0
+    cp = next((c for a, c in row.leeward if aspect <= a), row.leeward[-1][1])
+    return row.windward, cp
 
 
 def wind_level_forces(
@@ -433,19 +491,26 @@ def wind_levels(
             heights, spans, depths, speed, exposure, importance
         )
     qh = velocity_pressure(heights[-1], speed, exposure, importance)
+    by_height = getattr(wind, "cpByHeight", None)
 
     def leeward(i: int) -> float:
         width = spans[i][1] - spans[i][0]
         if width <= 0:
             return 0.0
+        if by_height:  # C7: Cp by h/w and l/w
+            return qh * wind_factor("gust") * wall_coefficients(heights[-1], width, depths[i])[1]
         return qh * wind_factor("gust") * leeward_coefficient(depths[i] / width)
+
+    def windward_cp(i: int) -> float:
+        if by_height:
+            width = spans[i][1] - spans[i][0]
+            return wall_coefficients(heights[-1], width, depths[i])[0]
+        return wind.cpWindward
 
     out = []
     for i, z in enumerate(heights):
         windward = (
-            velocity_pressure(z, speed, exposure, importance)
-            * wind_factor("gust")
-            * wind.cpWindward
+            velocity_pressure(z, speed, exposure, importance) * wind_factor("gust") * windward_cp(i)
         )
         parts = [(i, (z - (heights[i - 1] if i else 0.0)) / 2)]
         if i + 1 < n:

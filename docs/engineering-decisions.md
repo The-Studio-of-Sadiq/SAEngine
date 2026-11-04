@@ -41,6 +41,41 @@ here, newest first, with the date, the question, the decision, the reason and wh
 - **No unlicensed software.** ETABS, SAP2000 and STAAD are not used for cross-checks or cited.
   Open-source tools are used instead (2026-10-25).
 
+## 2026-11-04: Indian Standards loads pack (alpha 9 track C7)
+
+- **The IS loads pack extends BNBC 2020 until the IS material packs exist.**
+  - Question: `is-codes` covers the loads only (IS 875 Parts 1, 2, 3:2015, 5; IS 1893 (Part
+    1):2016). How does a project under it design its members?
+  - Decision: the pack `extends` `bnbc2020` and replaces its load tables whole (`$replace`);
+    concrete, steel, masonry, timber, foundations, services, serviceability and every other
+    table come from BNBC 2020 and the report names the pack "BNBC 2020, modified by Indian
+    Standards (IS)". Placeholder for the IS materials (tracks C8, C9); the planned entry stays.
+- **IS 1893 has no Seismic Design Category (SAEngine practice).** Zone II reads as category B
+  (ordinary detailing permitted), zones III-V as C (ductile detailing, IS 13920); 100 % + 30 %
+  only for non-parallel systems (IS 1893 6.3.2.2). Ordinary systems carry height limit 0 in C
+  (not permitted in zones III-V, a reading of the Table 9 note).
+- **IS spectrum in the generic form.** Ah = (Z/2)(I/R)(Sa/g) as S = 1 and TC = 1.36/2.5 =
+  0.544 s (soil II), 1.67/2.5 = 0.668 s (soil III), so the falling branch is the code's; the
+  printed plateau ends (0.55, 0.67 s) differ by under 1.2 % (read as). The equivalent static
+  method takes Figure 2(a) (no rising branch), the response spectrum Figure 2(b).
+- **Drift and displacement (read as).** The drift of the design forces is checked as computed
+  against 0.004 (7.11.1; `driftAmplification: designForces`); Cd = R stands for the displacement estimate of 7.11.3, used for the
+  separation (R × the sum, R/2 for equal floor levels). Ω0 = 2.5 where the design names it
+  (SAEngine practice: IS gives no system overstrength).
+- **Torsional irregularity as Δmax/Δavg.** IS compares Δmax with 1.2 Δmin at the two ends;
+  with two ends that is Δmax/Δavg > 2·1.2/2.2 = 1.091 (1.4: 1.167). No Ax amplification.
+- **Wind area averaging Ka = 1.0 for the storey forces (SAEngine practice, conservative)**;
+  Kc = 0.9, Kd = 0.9, Kd·Ka·Kc ≥ 0.7. k3 is the topographic factor setting, k4 the Code Values
+  override `wind.speedFactors.importance`. The wind risk class (k1) of a category is its
+  `windImportance` marker (0.9 / 1.0 / 1.07), k1 interpolated by Vb in Table 1.
+- **Live load reduction by floors carried (IS 875-2 3.2)** as a pack method (`floorCount`);
+  storage, industrial, wholesale and parking floors and loads over 5.0 kN/m² are not reduced
+  (SAEngine reading of 3.2.1).
+- **Generation under the pack.** The New Building generator runs under a chosen pack that
+  names its own default system (`seismic.defaultSystem`: is-codes), so the system, period and
+  loads are the pack's; a town or site class the pack does not list falls to its defaults.
+- Every value and its confidence: `python/src/saengine/codes/packs/is-codes/VERIFY.md`.
+
 ## 2026-11-02: decisions from the feature and code-completion tracks
 
 | # | Track | Question | Decision | Why |
@@ -242,6 +277,36 @@ against the printed standard). Its behaviour choices:
   - Owner, 2026-11-04: these defaults, and the US pack's (SDS/SD1 entry, exposure B/C/D, the
     storage share above 4.79 kN/m²), are accepted; each stays overridable per project.
 
+- **Eurocodes pack, concrete and foundations (alpha 9 track C5).** The `eurocodes` pack (0.2.0)
+  adds two method tables, `concreteMethods` (EN 1992-1-1, EN 1998-1 Section 5) and
+  `geotechnicalMethods` (EN 1997-1); every value is in `codes/packs/eurocodes/VERIFY.md`
+  (rows 99-190). A pack without them (BNBC 2020) designs exactly as before. Decisions:
+  - Partial factors replace φ only where the pack's method is wired: beam and column flexure
+    and axial force (design strengths, φ = 1, the rectangular block η, λ, εcu3 so the closed-form
+    section integration stays; `stressBlock: "parabolaRectangle"` is available and slower),
+    beam and column shear (variable strut), and the new member-steel and DCM/DCH rows. The
+    other concrete checks (torsion, deflection, slenderness, slabs, walls, punching, stairs, the
+    parent's special-frame detailing) keep BNBC's method and φ; the design report says so.
+    SAEngine practice.
+  - Shear resistance VRd = max(VRd,c, min(VRd,s, VRd,max)) (no calculated links where VEd ≤
+    VRd,c), cot θ chosen in 1-2.5 for the largest resistance. Beams always need ρw,min: below it
+    the "Minimum stirrups" row fails whatever the shear. SAEngine reading of 6.2.1 and 9.2.2.
+  - The minimum eccentricity e0 is applied about both axes at once (conservative). SAEngine
+    practice.
+  - The ductility class comes from the system's frame level (special → DCH, intermediate →
+    DCM), consistent with C4's q mapping. νd uses the largest axial force of all combinations
+    (on the safe side). SAEngine practice.
+  - EN 1997-1: the design approach is a National choice; the pack sets DA1 (overridable). The
+    footing design stays allowable-pressure (BNBC); the limit state functions (Annex D bearing,
+    sliding, ξ factors) exist, and a pile type's initial load tests report Rc,k (ξ1, ξ2) and
+    Rc,d per DA combination. Owner-approved practice defaults, all overridable (owner,
+    2026-11-04).
+  - Fix of C4's `areaLoads`: the engine reads `stairsDwelling`; the Eurocodes table replaced
+    the uses without it, so the stair design failed. Added as category A stairs (2.0 kN/m²).
+  - Where it lives: `codes/method_tables.py`; `design/design_strength.py`, `strut_shear.py`,
+    `perimeter_punching.py`, `crack_control.py`, `bar_rules.py`, `curvature_ductility.py`;
+    `substructure/limit_state_geotechnics.py`; glue in `design/rc.py`, `design/check.py`,
+    `substructure/load_tests.py`.
 - **Wall piers and the remaining coupling-beam checks of special structural walls.**
   - Question: SAEngine checked special walls' piers as walls only, and diagonally reinforced
     coupling beams by 8.3.6.7(d)(iv) hoops alone. What do wall piers (BNBC 2020 Part 6 Sec

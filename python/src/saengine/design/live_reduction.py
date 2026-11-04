@@ -125,6 +125,26 @@ def area_and_storeys(area: float, floors: int, scope: LiveScope) -> tuple[float,
     )
 
 
+def floor_count(area: float, floors: int) -> tuple[float, str]:
+    """(L / L0, why) by the pack's ``floorCount`` (IS 875 (Part 2) 3.2): 1 − the share of the
+    first row covering ``floors``; a member of one floor with a tributary area of ``beamArea``
+    or more reduced by ``beamShare`` per ``beamArea``, at most ``beamMax``."""
+    rule = _table().floorCount
+    where = clause()
+    floors = max(int(floors), 1)
+    share = next((s for n, s in rule.rows if floors <= n), rule.rows[-1][1])
+    why = f"{floors} floor{'s' if floors != 1 else ''} carried: {100 * share:g} % ({where})"
+    if floors == 1 and rule.beamArea and rule.beamShare and area >= rule.beamArea:
+        beam = min(math.floor(area / rule.beamArea) * rule.beamShare, rule.beamMax or 1.0)
+        if beam > share:
+            share = beam
+            why = (
+                f"tributary area {area:.1f} m², {100 * rule.beamShare:g} % per "
+                f"{rule.beamArea:g} m²: {100 * share:g} % ({where})"
+            )
+    return 1.0 - share, f"L / L0 = {1.0 - share:.2f}, {why}"
+
+
 def reduction(kll: float, area: float, floors: int, scope: LiveScope) -> tuple[float, str]:
     """(L / L0, why) of a member with live load element factor ``kll``, tributary area
     ``area`` [m²] and ``floors`` supported, in a building of ``scope``."""
@@ -139,6 +159,11 @@ def reduction(kll: float, area: float, floors: int, scope: LiveScope) -> tuple[f
             what = f"live load over {table.heavyLive:g} kN/m²" if scope.heavy else "parking"
             return 1.0, f"{what}: not reduced ({where})"
         return area_and_storeys(area, floors, scope)
+    if getattr(table, "method", "influenceArea") == "floorCount":  # C7: IS 875 (Part 2) 3.2
+        if scope.heavy or scope.garage:
+            what = f"live load over {table.heavyLive:g} kN/m²" if scope.heavy else "parking"
+            return 1.0, f"{what}: not reduced ({where})"
+        return floor_count(area, floors)
     if scope.heavy or scope.garage:
         what = f"live load over {table.heavyLive:g} kN/m²" if scope.heavy else "parking"
         share = round(100 * (1 - table.heavyFactor))
