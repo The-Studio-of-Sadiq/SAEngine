@@ -151,6 +151,16 @@ TABLE_HELP: dict[str, str] = {
     "designLimits": "Code values of the member design no other table holds: the cap of √f'c in "
     "shear and torsion, the ERW wall thickness factor, the stair geometry rules and widths. A "
     "pack without it does not cover those checks.",
+    "concreteMethods": "Partial-factor design of reinforced concrete (alpha 9 C5): the design "
+    "strengths and the stress block by strength class (ultimate: partialFactors), shear and "
+    "torsion by the variable strut inclination (shear: variableStrut), punching on a control "
+    "perimeter, the service stress, crack width and span/depth checks, cover by exposure class, "
+    "anchorage and laps, the least and largest steel of members, and the curvature-ductility "
+    "detailing by ductility class (seismic). A pack without it designs concrete with phi.",
+    "geotechnicalMethods": "Limit state geotechnical design (alpha 9 C5): the partial factor "
+    "sets of actions, soil parameters and resistances, the design approaches combining them, "
+    "the bearing resistance on the effective base, sliding and the correlation factors of pile "
+    "resistance. A pack without it designs foundations by allowable stresses.",
     "snow": "Snow on roofs from the ground snow load: the exposure coefficients Ce, the thermal "
     "coefficient Ct, the roof shape coefficient mu1 by pitch and the load case the roof snow "
     "goes into. A pack without it does not cover snow.",

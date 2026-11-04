@@ -1,0 +1,89 @@
+{
+  "$schema": "../../../schemas/geotechnicalMethods.schema.json",
+  "$sources": [
+    "EN 1997-1:2004 Section 2.4.7, 6, 7 and Annex A (recommended partial and correlation factors), Annex D (bearing resistance)"
+  ],
+  "source": "EN 1997-1 (recommended values; the design approach is a National choice, see VERIFY.md)",
+  "designApproach": "DA1",
+  "actions": {
+    "A1": { "permanentUnfavourable": 1.35, "permanentFavourable": 1.0, "variableUnfavourable": 1.5 },
+    "A2": { "permanentUnfavourable": 1.0, "permanentFavourable": 1.0, "variableUnfavourable": 1.3 }
+  },
+  "materials": {
+    "M1": { "tanPhi": 1.0, "cohesion": 1.0, "undrained": 1.0, "unconfined": 1.0, "weight": 1.0 },
+    "M2": { "tanPhi": 1.25, "cohesion": 1.25, "undrained": 1.4, "unconfined": 1.4, "weight": 1.0 }
+  },
+  "spreadResistances": {
+    "R1": { "bearing": 1.0, "sliding": 1.0, "earth": 1.0 },
+    "R2": { "bearing": 1.4, "sliding": 1.1, "earth": 1.4 },
+    "R3": { "bearing": 1.0, "sliding": 1.0, "earth": 1.0 }
+  },
+  "pileResistances": {
+    "driven": {
+      "R1": { "base": 1.0, "shaft": 1.0, "total": 1.0, "tension": 1.25 },
+      "R2": { "base": 1.1, "shaft": 1.1, "total": 1.1, "tension": 1.15 },
+      "R3": { "base": 1.0, "shaft": 1.0, "total": 1.0, "tension": 1.1 },
+      "R4": { "base": 1.3, "shaft": 1.3, "total": 1.3, "tension": 1.6 }
+    },
+    "bored": {
+      "R1": { "base": 1.25, "shaft": 1.0, "total": 1.15, "tension": 1.25 },
+      "R2": { "base": 1.1, "shaft": 1.1, "total": 1.1, "tension": 1.15 },
+      "R3": { "base": 1.0, "shaft": 1.0, "total": 1.0, "tension": 1.1 },
+      "R4": { "base": 1.6, "shaft": 1.3, "total": 1.5, "tension": 1.6 }
+    },
+    "cfa": {
+      "R1": { "base": 1.1, "shaft": 1.0, "total": 1.1, "tension": 1.25 },
+      "R2": { "base": 1.1, "shaft": 1.1, "total": 1.1, "tension": 1.15 },
+      "R3": { "base": 1.0, "shaft": 1.0, "total": 1.0, "tension": 1.1 },
+      "R4": { "base": 1.45, "shaft": 1.3, "total": 1.4, "tension": 1.6 }
+    }
+  },
+  "approaches": {
+    "DA1": [
+      { "actions": "A1", "materials": "M1", "resistances": "R1" },
+      { "actions": "A2", "materials": "M2", "resistances": "R1", "pileMaterials": "M1", "pileResistances": "R4" }
+    ],
+    "DA2": [
+      { "actions": "A1", "materials": "M1", "resistances": "R2" }
+    ],
+    "DA3": [
+      { "actions": "A2", "structuralActions": "A1", "materials": "M2", "resistances": "R3" }
+    ]
+  },
+  "bearing": {
+    "method": "effectiveArea",
+    "nGammaFactor": 2.0,
+    "gammaShape": 0.3,
+    "undrainedShape": 0.2
+  },
+  "sliding": {
+    "method": "interfaceFriction",
+    "castInPlace": 1.0,
+    "precast": 0.6666666667,
+    "undrainedShare": 0.4
+  },
+  "correlation": {
+    "loadTests": [[1, 1.4, 1.4], [2, 1.3, 1.2], [3, 1.2, 1.05], [4, 1.1, 1.0], [5, 1.0, 1.0]],
+    "groundTests": [[1, 1.40, 1.40], [2, 1.35, 1.27], [3, 1.33, 1.23], [4, 1.31, 1.20], [5, 1.29, 1.15], [7, 1.27, 1.12], [10, 1.25, 1.08]],
+    "stiffDivisor": 1.1
+  },
+  "sources": {
+    "designApproach": "EN 1997-1 2.4.7.3.4.1 (the approach is a National choice; DA1 here is SAEngine practice, overridable)",
+    "actions": "EN 1997-1 Annex A Table A.3 (sets A1, A2)",
+    "materials": "EN 1997-1 Annex A Table A.4 (sets M1, M2)",
+    "spreadResistances": "EN 1997-1 Annex A Table A.5 (spread foundations), Table A.13 (earth resistance of retaining structures)",
+    "pileResistances": "EN 1997-1 Annex A Tables A.6 (driven), A.7 (bored), A.8 (CFA)",
+    "approaches": "EN 1997-1 2.4.7.3.4.2-2.4.7.3.4.4 (DA1 combinations 1 and 2, piles A2 + M1 + R4; DA2; DA3 with A1 on structural and A2 on geotechnical actions)",
+    "bearing": "EN 1997-1 Annex D.3 (undrained), D.4 (drained): Nγ = 2 (Nq - 1) tan φ', sγ = 1 - 0.3 B'/L', sc = 1 + 0.2 B'/L'",
+    "sliding": "EN 1997-1 6.5.3(8)-(12): δd = φ'cv,d cast in place, 2/3 φ'cv,d smooth precast; Rd <= 0.4 Vd undrained where water or air can reach the interface",
+    "correlation": "EN 1997-1 Annex A Tables A.9 (static load tests ξ1, ξ2), A.10 (ground tests ξ3, ξ4); 7.6.2.2(9), 7.6.2.3(9): ÷ 1.1 for structures stiff and strong enough"
+  },
+  "clauses": {
+    "designApproach": "EN 1997-1 2.4.7.3.4",
+    "bearing": "EN 1997-1 6.5.2, Annex D",
+    "sliding": "EN 1997-1 6.5.3",
+    "pileLoadTests": "EN 1997-1 7.6.2.2",
+    "pileGroundTests": "EN 1997-1 7.6.2.3",
+    "pileTension": "EN 1997-1 7.6.3"
+  }
+}

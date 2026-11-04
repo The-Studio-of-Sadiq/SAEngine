@@ -118,6 +118,8 @@ def phi_axial_flexure(
 ) -> float:
     """φ for moment and axial force from the net tensile strain (ACI Table 21.2.2); ``es``:
     default the code pack's Es."""
+    if _partial_factors():
+        return 1.0  # partial factors on the materials (saengine.design.design_strength)
     eps_ty = fy / (value("STEEL_E") if es is None else es)
     low = value("PHI_SPIRAL") if spiral else value("PHI_TIED")
     if eps_t <= eps_ty:
@@ -125,6 +127,24 @@ def phi_axial_flexure(
     if eps_t >= eps_ty + value("EPS_CU"):
         return value("PHI_TENSION")
     return low + (value("PHI_TENSION") - low) * (eps_t - eps_ty) / value("EPS_CU")
+
+
+def _partial_factors() -> bool:
+    """True when the pack in force designs with partial factors on the materials (its
+    ``concreteMethods.ultimate``): fcd, fyd and φ = 1 (:mod:`saengine.design.design_strength`)."""
+    from saengine.design import design_strength
+
+    return design_strength.partial_factors()
+
+
+def eps_cu(fc: float) -> float:
+    """The concrete strain at the extreme compression fibre at nominal (design) strength: the
+    pack's ``materials.concreteStrain``, or the stress block's with partial factors."""
+    if _partial_factors():
+        from saengine.design import design_strength
+
+        return design_strength.ultimate_strain(fc)
+    return value("EPS_CU")
 
 
 def bar_area(dia: float) -> float:
@@ -173,13 +193,23 @@ class RcSection:
 
     @property
     def p0(self) -> float:
-        """Nominal axial strength at zero eccentricity [N] (ACI 22.4.2.2)."""
+        """Nominal axial strength at zero eccentricity [N] (ACI 22.4.2.2); with partial factors
+        the design resistance NRd (:func:`saengine.design.design_strength.axial_resistance`)."""
         ast = self.steel_area
+        if _partial_factors():
+            from saengine.design import design_strength
+
+            return design_strength.axial_resistance(
+                self.fc, self.fy, self.es, self.gross_area - ast, ast
+            )
         return 0.85 * self.fc * (self.gross_area - ast) + self.fy * ast
 
     @property
     def phi_pn_max(self) -> float:
-        """Largest design axial compression [N] (ACI Table 22.4.2.1)."""
+        """Largest design axial compression [N] (ACI Table 22.4.2.1); NRd with partial factors
+        (the minimum eccentricity takes the place of the 0.80 / 0.85 cap)."""
+        if _partial_factors():
+            return self.p0
         if self.spiral:
             return 0.85 * value("PHI_SPIRAL") * self.p0
         return 0.80 * value("PHI_TIED") * self.p0
@@ -187,6 +217,10 @@ class RcSection:
     @property
     def phi_tension(self) -> float:
         """Design axial tension [N]: the bars at yield."""
+        if _partial_factors():
+            from saengine.design import design_strength
+
+            return design_strength.fyd(self.fy) * self.steel_area
         return value("PHI_TENSION") * self.fy * self.steel_area
 
     @property
@@ -459,16 +493,25 @@ def _concrete_section(section: RcSection):
     )
     from sectionproperties.pre.library import circular_section_by_area, rectangular_section
 
-    concrete = Concrete(
-        name="concrete",
-        density=2.4e-6,
-        stress_strain_profile=ConcreteLinear(elastic_modulus=_elastic_modulus(section.fc)),
-        ultimate_stress_strain_profile=RectangularStressBlock(
+    fy = section.fy
+    if _partial_factors():
+        # The pack's stress block on fcd, the bars at fyd (saengine.design.design_strength).
+        from saengine.design import design_strength
+
+        ultimate = design_strength.concrete_profile(section.fc)
+        fy = design_strength.steel_yield(section.fy)
+    else:
+        ultimate = RectangularStressBlock(
             compressive_strength=section.fc,
             alpha=0.85,
             gamma=beta1(section.fc),
             ultimate_strain=value("EPS_CU"),
-        ),
+        )
+    concrete = Concrete(
+        name="concrete",
+        density=2.4e-6,
+        stress_strain_profile=ConcreteLinear(elastic_modulus=_elastic_modulus(section.fc)),
+        ultimate_stress_strain_profile=ultimate,
         flexural_tensile_strength=0.62 * math.sqrt(section.fc),
         colour="lightgrey",
     )
@@ -476,7 +519,7 @@ def _concrete_section(section: RcSection):
         name="bars",
         density=7.85e-6,
         stress_strain_profile=SteelElasticPlastic(
-            yield_strength=section.fy, elastic_modulus=section.es, fracture_strain=0.05
+            yield_strength=fy, elastic_modulus=section.es, fracture_strain=0.05
         ),
         colour="grey",
     )
@@ -519,7 +562,7 @@ def flexure(section: RcSection, hogging: bool) -> Flexure:
         result = section.analysis.ultimate_bending_capacity(theta=math.pi if hogging else 0.0, n=0)
     except AnalysisError:
         return Flexure(0.0, 0.0, value("PHI_TENSION"), float("inf"))
-    eps_t = value("EPS_CU") * (1 / result.k_u - 1)
+    eps_t = eps_cu(section.fc) * (1 / result.k_u - 1)
     phi = phi_axial_flexure(eps_t, section.fy, section.es, section.spiral)
     mn = abs(result.m_x)
     return Flexure(phi * mn, mn, phi, eps_t)
@@ -538,10 +581,18 @@ class Shear:
     lambda_s: float
     with_min_stirrups: bool  # Av >= Av,min: simplified Vc (ACI Table 22.5.5.1 (a))
     vc_simplified: float  # N, 0.17 λ √f'c bw d
+    #: The pack's shear method's own notes (None: the strength design's of :func:`shear`).
+    notes: tuple[str, ...] | None = None
+    #: Vu [N] above which the minimum links are required (None: ACI 9.6.3.1's).
+    threshold: float | None = None
+    #: cot θ of the variable strut inclination method (None for the strength design).
+    cot_theta: float | None = None
 
     @property
     def av_min_threshold(self) -> float:
         """Vu [N] above which ACI 9.6.3.1 requires at least Av,min: 0.083 φ λ √f'c bw d."""
+        if self.threshold is not None:
+            return self.threshold
         return value("PHI_SHEAR") * self.vc_simplified * 0.083 / 0.17
 
 
@@ -560,7 +611,14 @@ def shear(
     √f'c <= 8.3 MPa in Vc (22.5.3.1), fyt <= 420 MPa (20.2.2.4), Vs = Av fyt d / s <=
     0.66 √f'c bw d (the section limit of 22.5.1.2). ρw = As / (bw d) of the face with the fewer bars (conservative: shear at a
     support meets hogging, at midspan sagging).
+
+    A pack whose ``concreteMethods.shear`` chooses the variable strut inclination method
+    designs by it instead (:func:`saengine.design.strut_shear.beam_shear`).
     """
+    from saengine.design import strut_shear
+
+    if strut_shear.rules() is not None and _partial_factors():
+        return strut_shear.beam_shear(section, stirrup_dia, legs, spacing)
     if not isinstance(section.profile, RectangleProfile):
         raise DesignError("shear is checked for rectangular beams only")
     b = section.profile.xDim

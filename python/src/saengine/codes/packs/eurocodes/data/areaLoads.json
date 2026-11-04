@@ -13,6 +13,7 @@
     "residentialPublic": { "name": "Category A: bedrooms of hotels and hostels", "live": 2.0, "concentrated": 2.0, "category": "A" },
     "hospitalWard": { "name": "Category A: wards in hospitals", "live": 2.0, "concentrated": 2.0, "category": "A" },
     "stairs": { "name": "Category A: stairs", "live": 2.0, "concentrated": 2.0, "category": "A" },
+    "stairsDwelling": { "name": "Category A: stairs of dwellings", "live": 2.0, "concentrated": 2.0, "category": "A" },
     "balcony": { "name": "Category A: balconies", "live": 2.5, "concentrated": 2.0, "category": "A" },
     "office": { "name": "Category B: office areas", "live": 3.0, "concentrated": 4.5, "category": "B" },
     "classroom": { "name": "Category C1: areas with tables (schools, cafés, restaurants, reception rooms)", "live": 3.0, "concentrated": 4.0, "category": "C1" },

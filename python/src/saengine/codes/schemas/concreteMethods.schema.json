@@ -1,0 +1,2018 @@
+{
+  "$defs": {
+    "AnchorageRules": {
+      "additionalProperties": false,
+      "description": "Anchorage and lap lengths from the design bond stress (method ``bondStress``).",
+      "properties": {
+        "method": {
+          "const": "bondStress",
+          "default": "bondStress",
+          "title": "Method",
+          "type": "string"
+        },
+        "bondCoefficient": {
+          "description": "fbd = coefficient η1 η2 fctd.",
+          "exclusiveMinimum": 0,
+          "title": "Bondcoefficient",
+          "type": "number"
+        },
+        "eta1Poor": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Eta1Poor",
+          "type": "number"
+        },
+        "largeBar": {
+          "description": "η2 = (bend - φ)/100 above this [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Largebar",
+          "type": "number"
+        },
+        "largeBarBend": {
+          "exclusiveMinimum": 0,
+          "title": "Largebarbend",
+          "type": "number"
+        },
+        "fckCap": {
+          "description": "fctd taken at most at this fck [MPa].",
+          "exclusiveMinimum": 0,
+          "title": "Fckcap",
+          "type": "number"
+        },
+        "hookAlpha": {
+          "description": "α1 of bent bars when cd > hookCover × φ.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Hookalpha",
+          "type": "number"
+        },
+        "hookCover": {
+          "exclusiveMinimum": 0,
+          "title": "Hookcover",
+          "type": "number"
+        },
+        "coverAlphaSlope": {
+          "description": "α2 = 1 - slope (cd - φ)/φ, in [low, 1].",
+          "exclusiveMinimum": 0,
+          "title": "Coveralphaslope",
+          "type": "number"
+        },
+        "coverAlphaLow": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Coveralphalow",
+          "type": "number"
+        },
+        "minTension": {
+          "description": "lb,min in tension: max(share lb,rqd, n φ, mm).",
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Mintension",
+          "type": "array"
+        },
+        "minCompression": {
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Mincompression",
+          "type": "array"
+        },
+        "lapMin": {
+          "description": "l0,min: max(share α6 lb,rqd, n φ, mm).",
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Lapmin",
+          "type": "array"
+        },
+        "lapAlpha6": {
+          "description": "(share of bars lapped at most, α6).",
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "exclusiveMinimum": 0,
+                "maximum": 1,
+                "type": "number"
+              },
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "title": "Lapalpha6",
+          "type": "array"
+        }
+      },
+      "required": [
+        "bondCoefficient",
+        "eta1Poor",
+        "largeBar",
+        "largeBarBend",
+        "fckCap",
+        "hookAlpha",
+        "hookCover",
+        "coverAlphaSlope",
+        "coverAlphaLow",
+        "minTension",
+        "minCompression",
+        "lapMin",
+        "lapAlpha6"
+      ],
+      "title": "AnchorageRules",
+      "type": "object"
+    },
+    "CoverRules": {
+      "additionalProperties": false,
+      "description": "Nominal cover from the exposure and structural classes (method ``exposureClass``).",
+      "properties": {
+        "method": {
+          "const": "exposureClass",
+          "default": "exposureClass",
+          "title": "Method",
+          "type": "string"
+        },
+        "structuralClass": {
+          "description": "Default structural class (S1-S6).",
+          "maximum": 6,
+          "minimum": 1,
+          "title": "Structuralclass",
+          "type": "integer"
+        },
+        "durability": {
+          "additionalProperties": {
+            "items": {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            "type": "array"
+          },
+          "description": "cmin,dur [mm] by exposure group, for structural classes S1 to S6.",
+          "title": "Durability",
+          "type": "object"
+        },
+        "exposureGroups": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Exposure class -> its group of 'durability'.",
+          "title": "Exposuregroups",
+          "type": "object"
+        },
+        "strengthReduction": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "description": "fck from which the structural class drops by one, by exposure class.",
+          "title": "Strengthreduction",
+          "type": "object"
+        },
+        "longLifeIncrease": {
+          "description": "Classes added for a 100-year design life.",
+          "minimum": 0,
+          "title": "Longlifeincrease",
+          "type": "integer"
+        },
+        "slabReduction": {
+          "description": "Classes taken off for slab geometry.",
+          "minimum": 0,
+          "title": "Slabreduction",
+          "type": "integer"
+        },
+        "deviation": {
+          "description": "Δcdev [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Deviation",
+          "type": "number"
+        },
+        "minimum": {
+          "description": "cmin at least [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Minimum",
+          "type": "number"
+        },
+        "largeAggregate": {
+          "description": "cmin,b + aggregateIncrease above this size [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Largeaggregate",
+          "type": "number"
+        },
+        "aggregateIncrease": {
+          "exclusiveMinimum": 0,
+          "title": "Aggregateincrease",
+          "type": "number"
+        }
+      },
+      "required": [
+        "structuralClass",
+        "durability",
+        "exposureGroups",
+        "strengthReduction",
+        "longLifeIncrease",
+        "slabReduction",
+        "deviation",
+        "minimum",
+        "largeAggregate",
+        "aggregateIncrease"
+      ],
+      "title": "CoverRules",
+      "type": "object"
+    },
+    "CrackRules": {
+      "additionalProperties": false,
+      "description": "Crack control: wmax by exposure class, minimum steel and the direct calculation\n(method ``directWidth``).",
+      "properties": {
+        "method": {
+          "const": "directWidth",
+          "default": "directWidth",
+          "title": "Method",
+          "type": "string"
+        },
+        "wmax": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "description": "wmax [mm] by exposure class (quasi-permanent).",
+          "title": "Wmax",
+          "type": "object"
+        },
+        "kcBending": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Kcbending",
+          "type": "number"
+        },
+        "kcTension": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Kctension",
+          "type": "number"
+        },
+        "kThin": {
+          "description": "k for h <= thinDepth.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Kthin",
+          "type": "number"
+        },
+        "kThick": {
+          "description": "k for h >= thickDepth (linear between).",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Kthick",
+          "type": "number"
+        },
+        "thinDepth": {
+          "exclusiveMinimum": 0,
+          "title": "Thindepth",
+          "type": "number"
+        },
+        "thickDepth": {
+          "exclusiveMinimum": 0,
+          "title": "Thickdepth",
+          "type": "number"
+        },
+        "k1Bond": {
+          "description": "k1 of high bond bars.",
+          "exclusiveMinimum": 0,
+          "title": "K1Bond",
+          "type": "number"
+        },
+        "k2Bending": {
+          "exclusiveMinimum": 0,
+          "title": "K2Bending",
+          "type": "number"
+        },
+        "k2Tension": {
+          "exclusiveMinimum": 0,
+          "title": "K2Tension",
+          "type": "number"
+        },
+        "k3": {
+          "exclusiveMinimum": 0,
+          "title": "K3",
+          "type": "number"
+        },
+        "k4": {
+          "exclusiveMinimum": 0,
+          "title": "K4",
+          "type": "number"
+        },
+        "ktShort": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Ktshort",
+          "type": "number"
+        },
+        "ktLong": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Ktlong",
+          "type": "number"
+        },
+        "strainFloor": {
+          "description": "εsm - εcm at least this × σs / Es.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Strainfloor",
+          "type": "number"
+        },
+        "effectiveDepthShare": {
+          "description": "hc,ef = min(share (h - d), (h - x)/3, h/2).",
+          "exclusiveMinimum": 0,
+          "title": "Effectivedepthshare",
+          "type": "number"
+        },
+        "wideSpacingFactor": {
+          "description": "Bars over 5 (c + φ/2) apart: sr,max = factor (h - x).",
+          "exclusiveMinimum": 0,
+          "title": "Widespacingfactor",
+          "type": "number"
+        },
+        "wideSpacingLimit": {
+          "description": "The spacing limit is this × (c + φ/2).",
+          "exclusiveMinimum": 0,
+          "title": "Widespacinglimit",
+          "type": "number"
+        }
+      },
+      "required": [
+        "wmax",
+        "kcBending",
+        "kcTension",
+        "kThin",
+        "kThick",
+        "thinDepth",
+        "thickDepth",
+        "k1Bond",
+        "k2Bending",
+        "k2Tension",
+        "k3",
+        "k4",
+        "ktShort",
+        "ktLong",
+        "strainFloor",
+        "effectiveDepthShare",
+        "wideSpacingFactor",
+        "wideSpacingLimit"
+      ],
+      "title": "CrackRules",
+      "type": "object"
+    },
+    "DuctilityClassRules": {
+      "additionalProperties": false,
+      "description": "The detailing of one ductility class (DCM or DCH) of earthquake-resistant concrete.",
+      "properties": {
+        "fckMin": {
+          "exclusiveMinimum": 0,
+          "title": "Fckmin",
+          "type": "number"
+        },
+        "gammaRdBeam": {
+          "description": "γRd of the beams' capacity design shear.",
+          "exclusiveMinimum": 0,
+          "title": "Gammardbeam",
+          "type": "number"
+        },
+        "gammaRdColumn": {
+          "description": "γRd of the columns' capacity design shear.",
+          "exclusiveMinimum": 0,
+          "title": "Gammardcolumn",
+          "type": "number"
+        },
+        "gammaRdJoint": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Gammardjoint"
+        },
+        "strongColumn": {
+          "description": "ΣMRc >= factor ΣMRb.",
+          "exclusiveMinimum": 0,
+          "title": "Strongcolumn",
+          "type": "number"
+        },
+        "beamCritical": {
+          "description": "lcr = factor × hw.",
+          "exclusiveMinimum": 0,
+          "title": "Beamcritical",
+          "type": "number"
+        },
+        "beamHoops": {
+          "description": "s <= min(hw / a, b dbw, c mm, d dbL).",
+          "maxItems": 4,
+          "minItems": 4,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Beamhoops",
+          "type": "array"
+        },
+        "beamFirstHoop": {
+          "description": "[mm] from the column face.",
+          "exclusiveMinimum": 0,
+          "title": "Beamfirsthoop",
+          "type": "number"
+        },
+        "hoopMinDia": {
+          "exclusiveMinimum": 0,
+          "title": "Hoopmindia",
+          "type": "number"
+        },
+        "beamRhoMinCoefficient": {
+          "description": "ρmin = c fctm / fyk.",
+          "exclusiveMinimum": 0,
+          "title": "Beamrhomincoefficient",
+          "type": "number"
+        },
+        "beamRhoMaxCoefficient": {
+          "description": "ρmax = ρ' + c / (μφ εsy,d) fcd / fyd.",
+          "exclusiveMinimum": 0,
+          "title": "Beamrhomaxcoefficient",
+          "type": "number"
+        },
+        "beamCompressionShare": {
+          "description": "As' >= share As in critical regions.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Beamcompressionshare",
+          "type": "number"
+        },
+        "beamContinuousBars": {
+          "description": "Bars along the beam, top and bottom (DCH).",
+          "minimum": 0,
+          "title": "Beamcontinuousbars",
+          "type": "integer"
+        },
+        "beamContinuousDia": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Beamcontinuousdia"
+        },
+        "nuMax": {
+          "description": "νd = NEd / (Ac fcd) at most.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Numax",
+          "type": "number"
+        },
+        "columnRho": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            }
+          ],
+          "title": "Columnrho",
+          "type": "array"
+        },
+        "columnCritical": {
+          "description": "lcr = max(a hc, lcl / b, c mm).",
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Columncritical",
+          "type": "array"
+        },
+        "columnHoops": {
+          "description": "s <= min(b0 / a, b mm, c dbL).",
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Columnhoops",
+          "type": "array"
+        },
+        "columnRestrained": {
+          "description": "Restrained bars at most this apart [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Columnrestrained",
+          "type": "number"
+        },
+        "columnMinDimension": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Columnmindimension"
+        },
+        "omegaBase": {
+          "description": "ωwd at least at the column base.",
+          "exclusiveMinimum": 0,
+          "title": "Omegabase",
+          "type": "number"
+        },
+        "omegaOther": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "ωwd at least elsewhere.",
+          "title": "Omegaother"
+        },
+        "confinementCoefficient": {
+          "description": "α ωwd >= c μφ νd εsy,d bc/b0 - offset.",
+          "exclusiveMinimum": 0,
+          "title": "Confinementcoefficient",
+          "type": "number"
+        },
+        "confinementOffset": {
+          "exclusiveMinimum": 0,
+          "title": "Confinementoffset",
+          "type": "number"
+        },
+        "classBFactor": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "μφ × factor with class B steel in critical regions.",
+          "title": "Classbfactor"
+        },
+        "jointEtaCoefficient": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Jointetacoefficient"
+        },
+        "jointEtaDivisor": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Jointetadivisor"
+        },
+        "jointExteriorShare": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Jointexteriorshare"
+        },
+        "wallCritical": {
+          "description": "hcr = max(lw, hw / b) (a: × lw).",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Wallcritical",
+          "type": "array"
+        },
+        "wallBoundaryLength": {
+          "description": "lc >= max(a lw, b bw).",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Wallboundarylength",
+          "type": "array"
+        },
+        "wallBoundaryRho": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Wallboundaryrho",
+          "type": "number"
+        },
+        "wallOmega": {
+          "exclusiveMinimum": 0,
+          "title": "Wallomega",
+          "type": "number"
+        },
+        "wallThickness": {
+          "description": "bw >= max(mm, hs / n).",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Wallthickness",
+          "type": "array"
+        },
+        "wallShearFactor": {
+          "description": "ε of the walls' design shear (DCM; DCH minimum).",
+          "exclusiveMinimum": 0,
+          "title": "Wallshearfactor",
+          "type": "number"
+        },
+        "couplingSpanRatio": {
+          "description": "Diagonal bars unless l/h >= this.",
+          "exclusiveMinimum": 0,
+          "title": "Couplingspanratio",
+          "type": "number"
+        },
+        "couplingDiagonalMin": {
+          "minimum": 1,
+          "title": "Couplingdiagonalmin",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "fckMin",
+        "gammaRdBeam",
+        "gammaRdColumn",
+        "strongColumn",
+        "beamCritical",
+        "beamHoops",
+        "beamFirstHoop",
+        "hoopMinDia",
+        "beamRhoMinCoefficient",
+        "beamRhoMaxCoefficient",
+        "beamCompressionShare",
+        "beamContinuousBars",
+        "nuMax",
+        "columnRho",
+        "columnCritical",
+        "columnHoops",
+        "columnRestrained",
+        "omegaBase",
+        "confinementCoefficient",
+        "confinementOffset",
+        "wallCritical",
+        "wallBoundaryLength",
+        "wallBoundaryRho",
+        "wallOmega",
+        "wallThickness",
+        "wallShearFactor",
+        "couplingSpanRatio",
+        "couplingDiagonalMin"
+      ],
+      "title": "DuctilityClassRules",
+      "type": "object"
+    },
+    "ExposureClass": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "fckMin": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Indicative least fck [MPa].",
+          "title": "Fckmin"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "title": "ExposureClass",
+      "type": "object"
+    },
+    "MemberSteelRules": {
+      "additionalProperties": false,
+      "description": "Least and largest steel of beams, slabs, columns and walls.",
+      "properties": {
+        "beamMinCoefficient": {
+          "description": "As,min = c fctm / fyk bt d ...",
+          "exclusiveMinimum": 0,
+          "title": "Beammincoefficient",
+          "type": "number"
+        },
+        "beamMinRatio": {
+          "description": "... at least ratio bt d.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Beamminratio",
+          "type": "number"
+        },
+        "beamMaxRatio": {
+          "description": "As,max = ratio Ac.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Beammaxratio",
+          "type": "number"
+        },
+        "slabMaxSpacing": {
+          "description": "Principal: n h, at most mm.",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Slabmaxspacing",
+          "type": "array"
+        },
+        "slabSecondaryShare": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Slabsecondaryshare",
+          "type": "number"
+        },
+        "slabSecondarySpacing": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Slabsecondaryspacing",
+          "type": "array"
+        },
+        "columnMinDia": {
+          "exclusiveMinimum": 0,
+          "title": "Columnmindia",
+          "type": "number"
+        },
+        "columnMinAxialShare": {
+          "description": "As,min = share NEd / fyd ...",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Columnminaxialshare",
+          "type": "number"
+        },
+        "columnMinRatio": {
+          "description": "... at least ratio Ac.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Columnminratio",
+          "type": "number"
+        },
+        "columnMaxRatio": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Columnmaxratio",
+          "type": "number"
+        },
+        "columnMaxRatioLaps": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Columnmaxratiolaps",
+          "type": "number"
+        },
+        "linkMinDia": {
+          "exclusiveMinimum": 0,
+          "title": "Linkmindia",
+          "type": "number"
+        },
+        "linkDiaShare": {
+          "description": "Links at least share × the largest bar.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Linkdiashare",
+          "type": "number"
+        },
+        "linkSpacing": {
+          "description": "min(n φmin, b, mm).",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Linkspacing",
+          "type": "array"
+        },
+        "linkSpacingReduction": {
+          "description": "× near beams and slabs and at laps.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Linkspacingreduction",
+          "type": "number"
+        },
+        "restrainedDistance": {
+          "description": "Bars within this [mm] of a restrained bar.",
+          "exclusiveMinimum": 0,
+          "title": "Restraineddistance",
+          "type": "number"
+        },
+        "wallVerticalMin": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Wallverticalmin",
+          "type": "number"
+        },
+        "wallVerticalMax": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Wallverticalmax",
+          "type": "number"
+        },
+        "wallVerticalSpacing": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Wallverticalspacing",
+          "type": "array"
+        },
+        "wallHorizontalShare": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Wallhorizontalshare",
+          "type": "number"
+        },
+        "wallHorizontalMin": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Wallhorizontalmin",
+          "type": "number"
+        },
+        "wallHorizontalSpacing": {
+          "exclusiveMinimum": 0,
+          "title": "Wallhorizontalspacing",
+          "type": "number"
+        }
+      },
+      "required": [
+        "beamMinCoefficient",
+        "beamMinRatio",
+        "beamMaxRatio",
+        "slabMaxSpacing",
+        "slabSecondaryShare",
+        "slabSecondarySpacing",
+        "columnMinDia",
+        "columnMinAxialShare",
+        "columnMinRatio",
+        "columnMaxRatio",
+        "columnMaxRatioLaps",
+        "linkMinDia",
+        "linkDiaShare",
+        "linkSpacing",
+        "linkSpacingReduction",
+        "restrainedDistance",
+        "wallVerticalMin",
+        "wallVerticalMax",
+        "wallVerticalSpacing",
+        "wallHorizontalShare",
+        "wallHorizontalMin",
+        "wallHorizontalSpacing"
+      ],
+      "title": "MemberSteelRules",
+      "type": "object"
+    },
+    "PowerRelation": {
+      "additionalProperties": false,
+      "description": "A strength-class relation: ``base`` up to ``highFrom`` MPa, above it\n``highBase + highCoefficient · term^highExponent`` (the term set by the method).",
+      "properties": {
+        "base": {
+          "title": "Base",
+          "type": "number"
+        },
+        "highBase": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Highbase"
+        },
+        "highCoefficient": {
+          "default": 0.0,
+          "title": "Highcoefficient",
+          "type": "number"
+        },
+        "highExponent": {
+          "default": 1.0,
+          "title": "Highexponent",
+          "type": "number"
+        },
+        "top": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Top"
+        },
+        "divisor": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Divisor"
+        }
+      },
+      "required": [
+        "base"
+      ],
+      "title": "PowerRelation",
+      "type": "object"
+    },
+    "PunchingRules": {
+      "additionalProperties": false,
+      "description": "Punching on the basic control perimeter (method ``controlPerimeter``).",
+      "properties": {
+        "method": {
+          "const": "controlPerimeter",
+          "default": "controlPerimeter",
+          "title": "Method",
+          "type": "string"
+        },
+        "perimeterDistance": {
+          "description": "u1 at this × d from the loaded area.",
+          "exclusiveMinimum": 0,
+          "title": "Perimeterdistance",
+          "type": "number"
+        },
+        "beta": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "description": "β by column position (interior, edge, corner).",
+          "title": "Beta",
+          "type": "object"
+        },
+        "crdcCoefficient": {
+          "exclusiveMinimum": 0,
+          "title": "Crdccoefficient",
+          "type": "number"
+        },
+        "k1": {
+          "exclusiveMinimum": 0,
+          "title": "K1",
+          "type": "number"
+        },
+        "sizeReference": {
+          "exclusiveMinimum": 0,
+          "title": "Sizereference",
+          "type": "number"
+        },
+        "sizeMax": {
+          "exclusiveMinimum": 0,
+          "title": "Sizemax",
+          "type": "number"
+        },
+        "rhoLMax": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Rholmax",
+          "type": "number"
+        },
+        "vminCoefficient": {
+          "exclusiveMinimum": 0,
+          "title": "Vmincoefficient",
+          "type": "number"
+        },
+        "vmaxShare": {
+          "description": "vRd,max = share × ν fcd at the column face.",
+          "exclusiveMinimum": 0,
+          "title": "Vmaxshare",
+          "type": "number"
+        },
+        "concreteShare": {
+          "description": "vRd,cs = share × vRd,c + the reinforcement term.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Concreteshare",
+          "type": "number"
+        },
+        "reinforcementCoefficient": {
+          "description": "1.5 (d / sr) Asw fywd,ef sinα / (u1 d).",
+          "exclusiveMinimum": 0,
+          "title": "Reinforcementcoefficient",
+          "type": "number"
+        },
+        "fywdEfBase": {
+          "description": "fywd,ef = base + slope × d [MPa].",
+          "exclusiveMinimum": 0,
+          "title": "Fywdefbase",
+          "type": "number"
+        },
+        "fywdEfSlope": {
+          "exclusiveMinimum": 0,
+          "title": "Fywdefslope",
+          "type": "number"
+        },
+        "outerDistance": {
+          "description": "Outermost perimeter at most this × d inside uout.",
+          "exclusiveMinimum": 0,
+          "title": "Outerdistance",
+          "type": "number"
+        }
+      },
+      "required": [
+        "perimeterDistance",
+        "beta",
+        "crdcCoefficient",
+        "k1",
+        "sizeReference",
+        "sizeMax",
+        "rhoLMax",
+        "vminCoefficient",
+        "vmaxShare",
+        "concreteShare",
+        "reinforcementCoefficient",
+        "fywdEfBase",
+        "fywdEfSlope",
+        "outerDistance"
+      ],
+      "title": "PunchingRules",
+      "type": "object"
+    },
+    "SeismicConcreteRules": {
+      "additionalProperties": false,
+      "description": "Curvature-ductility detailing (method ``curvatureDuctility``).",
+      "properties": {
+        "method": {
+          "const": "curvatureDuctility",
+          "default": "curvatureDuctility",
+          "title": "Method",
+          "type": "string"
+        },
+        "classes": {
+          "additionalProperties": {
+            "$ref": "#/$defs/DuctilityClassRules"
+          },
+          "description": "By ductility class: DCM, DCH.",
+          "title": "Classes",
+          "type": "object"
+        },
+        "frameClasses": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "The seismic systems' 'frame' level -> ductility class (special -> DCH ...).",
+          "title": "Frameclasses",
+          "type": "object"
+        }
+      },
+      "required": [
+        "classes",
+        "frameClasses"
+      ],
+      "title": "SeismicConcreteRules",
+      "type": "object"
+    },
+    "ServiceStressRules": {
+      "additionalProperties": false,
+      "description": "Stress limits under the service combinations.",
+      "properties": {
+        "k1": {
+          "description": "σc at most k1 fck, characteristic, exposure XD, XF, XS.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "K1",
+          "type": "number"
+        },
+        "k2": {
+          "description": "σc at most k2 fck, quasi-permanent, for linear creep.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "K2",
+          "type": "number"
+        },
+        "k3": {
+          "description": "σs at most k3 fyk, characteristic.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "K3",
+          "type": "number"
+        },
+        "k4": {
+          "description": "σs at most k4 fyk, imposed deformation.",
+          "exclusiveMinimum": 0,
+          "title": "K4",
+          "type": "number"
+        },
+        "k1Exposures": {
+          "items": {
+            "type": "string"
+          },
+          "title": "K1Exposures",
+          "type": "array"
+        }
+      },
+      "required": [
+        "k1",
+        "k2",
+        "k3",
+        "k4"
+      ],
+      "title": "ServiceStressRules",
+      "type": "object"
+    },
+    "SpanDepthRules": {
+      "additionalProperties": false,
+      "description": "Deflection by span/depth ratios with K factors (method ``spanDepthK``).",
+      "properties": {
+        "method": {
+          "const": "spanDepthK",
+          "default": "spanDepthK",
+          "title": "Method",
+          "type": "string"
+        },
+        "k": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "description": "K by structural system.",
+          "title": "K",
+          "type": "object"
+        },
+        "base": {
+          "exclusiveMinimum": 0,
+          "title": "Base",
+          "type": "number"
+        },
+        "lowCoefficient": {
+          "exclusiveMinimum": 0,
+          "title": "Lowcoefficient",
+          "type": "number"
+        },
+        "lowPowerCoefficient": {
+          "exclusiveMinimum": 0,
+          "title": "Lowpowercoefficient",
+          "type": "number"
+        },
+        "highCompressionShare": {
+          "exclusiveMinimum": 0,
+          "title": "Highcompressionshare",
+          "type": "number"
+        },
+        "referenceRatioCoefficient": {
+          "description": "ρ0 = c √fck.",
+          "exclusiveMinimum": 0,
+          "title": "Referenceratiocoefficient",
+          "type": "number"
+        },
+        "stressReference": {
+          "description": "Factor 310 / σs.",
+          "exclusiveMinimum": 0,
+          "title": "Stressreference",
+          "type": "number"
+        },
+        "stressSteel": {
+          "description": "310 / σs = this / (fyk As,req / As,prov).",
+          "exclusiveMinimum": 0,
+          "title": "Stresssteel",
+          "type": "number"
+        },
+        "flangeRatio": {
+          "description": "beff / bw above this: × flangeFactor.",
+          "exclusiveMinimum": 0,
+          "title": "Flangeratio",
+          "type": "number"
+        },
+        "flangeFactor": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Flangefactor",
+          "type": "number"
+        },
+        "longSpan": {
+          "description": "[mm] beams and slabs longer: × longSpan / l.",
+          "exclusiveMinimum": 0,
+          "title": "Longspan",
+          "type": "number"
+        },
+        "longFlatSpan": {
+          "description": "[mm] flat slabs longer: × longFlatSpan / l.",
+          "exclusiveMinimum": 0,
+          "title": "Longflatspan",
+          "type": "number"
+        }
+      },
+      "required": [
+        "k",
+        "base",
+        "lowCoefficient",
+        "lowPowerCoefficient",
+        "highCompressionShare",
+        "referenceRatioCoefficient",
+        "stressReference",
+        "stressSteel",
+        "flangeRatio",
+        "flangeFactor",
+        "longSpan",
+        "longFlatSpan"
+      ],
+      "title": "SpanDepthRules",
+      "type": "object"
+    },
+    "StrengthRelations": {
+      "additionalProperties": false,
+      "description": "Coefficients of the relations of concrete properties to fck (method\n``strengthClassRelations``); strains in per mille.",
+      "properties": {
+        "highFrom": {
+          "description": "fck [MPa] above which the high-strength relations apply.",
+          "exclusiveMinimum": 0,
+          "title": "Highfrom",
+          "type": "number"
+        },
+        "fcmIncrement": {
+          "description": "fcm = fck + increment [MPa].",
+          "exclusiveMinimum": 0,
+          "title": "Fcmincrement",
+          "type": "number"
+        },
+        "fctmCoefficient": {
+          "description": "fctm = coefficient fck^exponent (fck <= highFrom).",
+          "exclusiveMinimum": 0,
+          "title": "Fctmcoefficient",
+          "type": "number"
+        },
+        "fctmExponent": {
+          "exclusiveMinimum": 0,
+          "title": "Fctmexponent",
+          "type": "number"
+        },
+        "fctmHighCoefficient": {
+          "description": "fctm = c ln(1 + fcm / divisor) above.",
+          "exclusiveMinimum": 0,
+          "title": "Fctmhighcoefficient",
+          "type": "number"
+        },
+        "fctmHighDivisor": {
+          "exclusiveMinimum": 0,
+          "title": "Fctmhighdivisor",
+          "type": "number"
+        },
+        "fctkShares": {
+          "description": "fctk,0.05 and fctk,0.95 / fctm.",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Fctkshares",
+          "type": "array"
+        },
+        "ecmCoefficient": {
+          "description": "Ecm = c (fcm / divisor)^exponent [MPa].",
+          "exclusiveMinimum": 0,
+          "title": "Ecmcoefficient",
+          "type": "number"
+        },
+        "ecmDivisor": {
+          "exclusiveMinimum": 0,
+          "title": "Ecmdivisor",
+          "type": "number"
+        },
+        "ecmExponent": {
+          "exclusiveMinimum": 0,
+          "title": "Ecmexponent",
+          "type": "number"
+        },
+        "epsC2": {
+          "$ref": "#/$defs/PowerRelation"
+        },
+        "epsCu2": {
+          "$ref": "#/$defs/PowerRelation"
+        },
+        "n": {
+          "$ref": "#/$defs/PowerRelation"
+        },
+        "epsC3": {
+          "$ref": "#/$defs/PowerRelation"
+        },
+        "epsCu3": {
+          "$ref": "#/$defs/PowerRelation"
+        },
+        "eta": {
+          "$ref": "#/$defs/PowerRelation"
+        },
+        "lambda": {
+          "$ref": "#/$defs/PowerRelation"
+        }
+      },
+      "required": [
+        "highFrom",
+        "fcmIncrement",
+        "fctmCoefficient",
+        "fctmExponent",
+        "fctmHighCoefficient",
+        "fctmHighDivisor",
+        "fctkShares",
+        "ecmCoefficient",
+        "ecmDivisor",
+        "ecmExponent",
+        "epsC2",
+        "epsCu2",
+        "n",
+        "epsC3",
+        "epsCu3",
+        "eta",
+        "lambda"
+      ],
+      "title": "StrengthRelations",
+      "type": "object"
+    },
+    "StrutShearRules": {
+      "additionalProperties": false,
+      "description": "Shear by the variable strut inclination method (method ``variableStrut``).",
+      "properties": {
+        "method": {
+          "const": "variableStrut",
+          "default": "variableStrut",
+          "title": "Method",
+          "type": "string"
+        },
+        "crdcCoefficient": {
+          "description": "CRd,c = coefficient / γc.",
+          "exclusiveMinimum": 0,
+          "title": "Crdccoefficient",
+          "type": "number"
+        },
+        "k1": {
+          "description": "k1 of the axial stress σcp.",
+          "exclusiveMinimum": 0,
+          "title": "K1",
+          "type": "number"
+        },
+        "sizeReference": {
+          "description": "k = 1 + √(reference / d) [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Sizereference",
+          "type": "number"
+        },
+        "sizeMax": {
+          "description": "k at most.",
+          "exclusiveMinimum": 0,
+          "title": "Sizemax",
+          "type": "number"
+        },
+        "rhoLMax": {
+          "description": "ρl at most.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Rholmax",
+          "type": "number"
+        },
+        "vminCoefficient": {
+          "description": "vmin = c k^1.5 √fck.",
+          "exclusiveMinimum": 0,
+          "title": "Vmincoefficient",
+          "type": "number"
+        },
+        "sigmaCpShare": {
+          "description": "σcp at most this × fcd.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Sigmacpshare",
+          "type": "number"
+        },
+        "cotTheta": {
+          "description": "Least and largest cot θ.",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Cottheta",
+          "type": "array"
+        },
+        "nuCoefficient": {
+          "description": "ν1 = c (1 - fck / divisor).",
+          "exclusiveMinimum": 0,
+          "title": "Nucoefficient",
+          "type": "number"
+        },
+        "nuDivisor": {
+          "exclusiveMinimum": 0,
+          "title": "Nudivisor",
+          "type": "number"
+        },
+        "alphaCw": {
+          "exclusiveMinimum": 0,
+          "title": "Alphacw",
+          "type": "number"
+        },
+        "leverArmShare": {
+          "description": "z = share × d.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Leverarmshare",
+          "type": "number"
+        },
+        "rhoWMinCoefficient": {
+          "description": "ρw,min = c √fck / fyk.",
+          "exclusiveMinimum": 0,
+          "title": "Rhowmincoefficient",
+          "type": "number"
+        },
+        "spacingShare": {
+          "description": "sl,max = share × d (vertical links).",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Spacingshare",
+          "type": "number"
+        },
+        "legSpacingShare": {
+          "description": "st,max = share × d, at most legSpacingMax.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Legspacingshare",
+          "type": "number"
+        },
+        "legSpacingMax": {
+          "description": "[mm]",
+          "exclusiveMinimum": 0,
+          "title": "Legspacingmax",
+          "type": "number"
+        },
+        "linkShare": {
+          "description": "Share of the shear reinforcement as links at least.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Linkshare",
+          "type": "number"
+        }
+      },
+      "required": [
+        "crdcCoefficient",
+        "k1",
+        "sizeReference",
+        "sizeMax",
+        "rhoLMax",
+        "vminCoefficient",
+        "sigmaCpShare",
+        "cotTheta",
+        "nuCoefficient",
+        "nuDivisor",
+        "alphaCw",
+        "leverArmShare",
+        "rhoWMinCoefficient",
+        "spacingShare",
+        "legSpacingShare",
+        "legSpacingMax",
+        "linkShare"
+      ],
+      "title": "StrutShearRules",
+      "type": "object"
+    },
+    "StrutTorsionRules": {
+      "additionalProperties": false,
+      "description": "Torsion by the thin-walled closed section (method ``thinWalledVariableStrut``).",
+      "properties": {
+        "method": {
+          "const": "thinWalledVariableStrut",
+          "default": "thinWalledVariableStrut",
+          "title": "Method",
+          "type": "string"
+        },
+        "coverShare": {
+          "description": "tef at least this × the distance to the bar axis.",
+          "exclusiveMinimum": 0,
+          "title": "Covershare",
+          "type": "number"
+        },
+        "spacingDivisor": {
+          "description": "Torsion links at most u / divisor apart.",
+          "exclusiveMinimum": 0,
+          "title": "Spacingdivisor",
+          "type": "number"
+        },
+        "spacingMax": {
+          "description": "[mm], also at most the least dimension.",
+          "exclusiveMinimum": 0,
+          "title": "Spacingmax",
+          "type": "number"
+        },
+        "longitudinalSpacingMax": {
+          "description": "[mm]",
+          "exclusiveMinimum": 0,
+          "title": "Longitudinalspacingmax",
+          "type": "number"
+        }
+      },
+      "required": [
+        "coverShare",
+        "spacingDivisor",
+        "spacingMax",
+        "longitudinalSpacingMax"
+      ],
+      "title": "StrutTorsionRules",
+      "type": "object"
+    },
+    "UltimateRules": {
+      "additionalProperties": false,
+      "description": "Flexure and axial force by design strengths (method ``partialFactors``).",
+      "properties": {
+        "method": {
+          "const": "partialFactors",
+          "default": "partialFactors",
+          "title": "Method",
+          "type": "string"
+        },
+        "stressBlock": {
+          "default": "rectangular",
+          "enum": [
+            "rectangular",
+            "parabolaRectangle"
+          ],
+          "title": "Stressblock",
+          "type": "string"
+        },
+        "gammaC": {
+          "exclusiveMinimum": 0,
+          "title": "Gammac",
+          "type": "number"
+        },
+        "gammaS": {
+          "exclusiveMinimum": 0,
+          "title": "Gammas",
+          "type": "number"
+        },
+        "gammaCAccidental": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Gammacaccidental"
+        },
+        "gammaSAccidental": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Gammasaccidental"
+        },
+        "alphaCC": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Alphacc",
+          "type": "number"
+        },
+        "alphaCT": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Alphact",
+          "type": "number"
+        },
+        "steelE": {
+          "description": "Es [MPa].",
+          "exclusiveMinimum": 0,
+          "title": "Steele",
+          "type": "number"
+        },
+        "strengthClasses": {
+          "description": "(fck, fck,cube) [MPa] of the strength classes.",
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              },
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "title": "Strengthclasses",
+          "type": "array"
+        },
+        "relations": {
+          "$ref": "#/$defs/StrengthRelations"
+        },
+        "eccentricityDivisor": {
+          "description": "e0 = h / divisor, at least eccentricityMin.",
+          "exclusiveMinimum": 0,
+          "title": "Eccentricitydivisor",
+          "type": "number"
+        },
+        "eccentricityMin": {
+          "description": "[mm]",
+          "exclusiveMinimum": 0,
+          "title": "Eccentricitymin",
+          "type": "number"
+        },
+        "pureCompressionStrain": {
+          "default": "epsC2",
+          "description": "The strain limit of a section under axial compression.",
+          "enum": [
+            "epsC2",
+            "epsC3"
+          ],
+          "title": "Purecompressionstrain",
+          "type": "string"
+        }
+      },
+      "required": [
+        "gammaC",
+        "gammaS",
+        "alphaCC",
+        "alphaCT",
+        "steelE",
+        "strengthClasses",
+        "relations",
+        "eccentricityDivisor",
+        "eccentricityMin"
+      ],
+      "title": "UltimateRules",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Partial-factor design of reinforced concrete and its detailing (see the module notes).",
+  "properties": {
+    "source": {
+      "default": "",
+      "description": "Clause (and page) the table comes from.",
+      "title": "Source",
+      "type": "string"
+    },
+    "sources": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Clause references of single entries: {key: clause}.",
+      "title": "Sources",
+      "type": "object"
+    },
+    "clauses": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Short clause references the results cite, by key, without the code's name (e.g. 'Part 6 Sec 2.5.7.3'); read by saengine.codes.context.cite. A key the pack does not give is not cited.",
+      "title": "Clauses",
+      "type": "object"
+    },
+    "ultimate": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/UltimateRules"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "shear": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/StrutShearRules"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "torsion": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/StrutTorsionRules"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "punching": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/PunchingRules"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "serviceStress": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ServiceStressRules"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "cracking": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/CrackRules"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "deflection": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/SpanDepthRules"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "cover": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/CoverRules"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "anchorage": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/AnchorageRules"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "memberSteel": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/MemberSteelRules"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "exposureClasses": {
+      "additionalProperties": {
+        "$ref": "#/$defs/ExposureClass"
+      },
+      "title": "Exposureclasses",
+      "type": "object"
+    },
+    "defaultExposure": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Defaultexposure"
+    },
+    "seismic": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/SeismicConcreteRules"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    }
+  },
+  "title": "ConcreteMethodsTable",
+  "type": "object",
+  "$id": "saengine.codePack.concreteMethods/1"
+}
