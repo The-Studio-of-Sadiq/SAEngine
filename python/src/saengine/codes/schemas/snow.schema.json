@@ -189,6 +189,99 @@
       "title": "SnowMinimum",
       "type": "object"
     },
+    "SnowShapeDriftRule": {
+      "additionalProperties": false,
+      "description": "Alpha 9 C5c: the drift at a roof step and at a parapet by shape coefficients (method\n``shapeCoefficient``, EN 1991-1-3 5.3.6 and 6.2 type, :func:`saengine.fem.snow_load.drift`):\nat a step μ2 = μs + μw with μw = (b1 + b2) / (2 h) <= γ h / sk within ``windRange``, μs = 0\n(the upper roof's slope at most ``slideAngle``), over ls = ``lengthFactor`` h within\n``lengthRange`` [m]; at a parapet μ2 = γ h / sk within ``parapetRange`` over the same ls;\nμ1 = ``lowerShape`` away from it; s = μ Ce Ct sk.",
+      "properties": {
+        "method": {
+          "const": "shapeCoefficient",
+          "default": "shapeCoefficient",
+          "title": "Method",
+          "type": "string"
+        },
+        "density": {
+          "description": "γ of snow [kN/m³].",
+          "exclusiveMinimum": 0,
+          "title": "Density",
+          "type": "number"
+        },
+        "windRange": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Windrange",
+          "type": "array"
+        },
+        "lengthFactor": {
+          "exclusiveMinimum": 0,
+          "title": "Lengthfactor",
+          "type": "number"
+        },
+        "lengthRange": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Lengthrange",
+          "type": "array"
+        },
+        "slideAngle": {
+          "description": "μs = 0 for an upper roof up to this pitch [°].",
+          "exclusiveMinimum": 0,
+          "title": "Slideangle",
+          "type": "number"
+        },
+        "parapetRange": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Parapetrange",
+          "type": "array"
+        },
+        "lowerShape": {
+          "exclusiveMinimum": 0,
+          "title": "Lowershape",
+          "type": "number"
+        }
+      },
+      "required": [
+        "density",
+        "windRange",
+        "lengthFactor",
+        "lengthRange",
+        "slideAngle",
+        "parapetRange",
+        "lowerShape"
+      ],
+      "title": "SnowShapeDriftRule",
+      "type": "object"
+    },
     "SnowSlopeRow": {
       "additionalProperties": false,
       "description": "The roof slope factor Cs of roofs whose thermal factor is at most ``ctMax``: 1 up to\n``slipperyStart`` [°] (unobstructed slippery roofs) or ``otherStart`` (other roofs), then\nlinear to 0 at ``end``.",
@@ -379,10 +472,14 @@
           "$ref": "#/$defs/SnowDriftRule"
         },
         {
+          "$ref": "#/$defs/SnowShapeDriftRule"
+        },
+        {
           "type": "null"
         }
       ],
-      "default": null
+      "default": null,
+      "title": "Drift"
     },
     "seismicShare": {
       "anyOf": [

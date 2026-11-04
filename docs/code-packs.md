@@ -586,6 +586,21 @@ pick these ids; another code's method gets its own id and module beside them.
 | `seismic` | `curvatureDuctility` | DCM/DCH members, joints, capacity-design shear, ductile walls; the parent's special-frame detailing does not run |
 | `bearing`, `sliding` | `effectiveArea`, `interfaceFriction` | Spread footings by the design approach (the allowable-pressure rows are then reported only) |
 | `piles` | `correlationFactors` | Pile caps' piles: Rc,k with ξ, Rc,d by the resistance sets |
+| `strutAndTie` | `designStressLimits` | Deep beams, corbels and deep pile caps by strut-and-tie on the design strengths (`stress_fields`) |
+| `interfaceShear` | `interfaceShear` | Construction joints of columns and walls (c fctd + μ σn + ρ fyd μ) |
+| `ties` | `tieForces` | Peripheral, internal and column ties of the beams (in place of the integrity bars) |
+| `footingPunching` | `reducedPerimeter` | Punching of footings, pile caps and rafts within 2d, the soil pressure inside deducted |
+| `wallSlenderness` | `columnAnalogy` | Walls out of their plane as a strip column (nominal curvature), the out-of-plane shear |
+| `barShapes` | `barShapes` | Mandrels, hooks, links' bends, compression laps and column splices of the detailing |
+| `retaining` (geotechnical) | `limitStates` | Retaining walls by the design approach (Ka(φ'd), sliding, bearing on B', EQU) |
+
+Alpha 9 C5c also made these keys of the other tables generic, chosen by method id: the seismic
+table's `regularity` (`criteria`: plan and elevation, q × factor), `torsionalEffects`
+(`deltaFactor`), `modalCombination` (`independence`: SRSS or CQC), `verticalComponent`
+(`verticalSpectrum`), `foundationCapacity` (`overstrengthFactor`) and `spectrumTypeGuidance`;
+the wind table's `orography` (`annexA3`), `structuralFactor.detailed` (`annexB`) and
+`localPressures` (`areaDependent`), and `designCases` without Cases 3 and 4; the snow table's
+`drift` method `shapeCoefficient`.
 
 A project can set any area back to the default method with the override
 `concreteMethods.parentMethods` (or `geotechnicalMethods.parentMethods`), a list of area

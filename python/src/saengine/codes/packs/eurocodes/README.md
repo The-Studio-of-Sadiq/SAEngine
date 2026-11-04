@@ -72,11 +72,40 @@ methods"); the glue is `saengine.design.limit_state_rows`, `capacity_design` and
   stay as a serviceability indication. Pile caps' piles: Rc,k from load tests (ξ1, ξ2) or from
   the calculated resistance at every borehole (ξ3, ξ4), Rc,d by the R sets.
 
-Still by the parent's method (the design report lists them): deep beams and corbels, the
-deflection of slabs and stairs, the confinement ωwd of columns and walls (functions only), the
-footings' structural shear and punching, pile-cap structural design, retaining walls and
-rafts, hooks, compression and column splices in the detailing, the sizing assistant of
-footings.
+The rest of the concrete, foundation and load parts (version 0.5, alpha 9 track C5c; values
+C5c-1 to C5c-72 of VERIFY.md):
+
+- Deep beams (span below 3 h), corbels (Annex J) and the deep pile caps by strut-and-tie models
+  on the design strengths (6.5: struts fcd / 0.6 ν' fcd, nodes k1-k3 ν' fcd, ties fyd), the
+  deep beams' web mesh (9.7) (`concreteMethods.strutAndTie`, `saengine.design.stress_fields`).
+- Slabs and stairs by the limiting span/depth ratio (7.4.2) in place of the parent's least
+  thickness table.
+- The confinement ωwd of DCM/DCH columns' critical regions and of ductile walls' boundary
+  elements (EN 1998-1 5.4.3.2.2(8), 5.4.3.4.2(4)) with μφ from q0 and T1.
+- Footings, pile caps and rafts: punching on control perimeters within 2d with the soil
+  pressure (pile reactions) inside deducted (6.4.4) (`footingPunching`).
+- Retaining walls by EN 1997-1 Section 9 in each combination of the design approach (earth
+  pressure with Ka(φ'd), sliding, bearing on B', overturning by EQU) and the stem and base by
+  EN 1992-1-1 (`geotechnicalMethods.retaining`, `equilibrium`).
+- Bends, hooks and links' bends (8.3, 8.4.1, 8.5), compression laps and column splices (8.4.4,
+  8.7) in the detailing (`barShapes`).
+- Flanged wall groups' shear by the webs' VRd; walls out of their plane as columns (5.8) with
+  the out-of-plane shear VRd,c (`wallSlenderness`); construction joints by 6.2.5
+  (`interfaceShear`); tying systems by 9.10 (`ties`); the footing sizing assistant by the
+  bearing resistance of the design approach.
+- EN 1991-1-4: torsion by e = b/10 (7.1.2), orography co(z) of Annex A.3, the detailed cscd of
+  Annex B outside the simplified cases, the cladding pressures by cpe,1 / cpe,10 (7.2,
+  `wind.localPressures`); EN 1991-1-3: drifts at roof steps and parapets (5.3.6, 6.2).
+- EN 1998-1: regularity in plan and elevation by the criteria of 4.2.3 with q × 0.8 (not
+  regular in elevation) and αu/α1 averaged (not regular in plan), δ of 4.3.3.2.4 where no
+  accidental eccentricity is analysed, the vertical component where avg > 0.25 g, SRSS or CQC
+  by the modes' independence, the capacity design of foundations (4.4.2.6) and the Type 1/2
+  guidance (`seismic.regularity`, `torsionalEffects`, `verticalComponent`,
+  `modalCombination`, `foundationCapacity`, `spectrumTypeGuidance`).
+
+Still by the parent's method: the general strut-and-tie models of D-regions, the punching
+reinforcement of footings and rafts, Annex B's exceptional snow drifts and the snow on
+pitched roofs beside a step (μs = 0 taken).
 
 ## Steel and the other materials (version 0.4, alpha 9 track C6)
 
@@ -155,11 +184,9 @@ detailing, the timber joints). The load tables without a Eurocode counterpart he
 parent's too: `deadLoads` (unit weights), `cranes`, `nonstructural`, `isolation`, `pushover`,
 `nonlinearHistory`, `fatigue` and the flood, rain, helipad and shelter parts of `flood`.
 
-Not covered by this version (stated in the results where they would apply): EN 1991-1-4
-torsion (e = b/10), orography (co ≠ 1), the detailed cscd and the cladding pressures;
-EN 1991-1-3 drift and local effects; EN 1998-1 regularity criteria (4.2.3), the torsional
-effects factor δ (4.3.3.2.4), the vertical component, the SRSS/CQC choice (CQC is always used),
-response history rules and capacity design.
+Not covered by this version (stated in the results where they would apply): EN 1991-1-3
+local effects (overhangs, snow guards) and exceptional drifts; EN 1998-1 response history
+rules.
 
 ## National Annexes
 

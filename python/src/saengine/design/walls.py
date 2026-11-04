@@ -917,6 +917,7 @@ def wall_checks(
     grade_beam: Any = None,
     wall_pier: WallPier | None = None,
     ductility: str | None = None,
+    mu_phi: tuple | None = None,
 ) -> WallDesign:
     """All checks of a wall pier (ordinary, and 8.3.6 when ``special``).
 
@@ -1272,6 +1273,30 @@ def wall_checks(
         out.checks = limit_state_rows.wall_rows(
             out.checks, geometry, bars, forces, fc, fy, ductility
         )
+        # Alpha 9 C5c: out of the plane by the pack's wall method (limit_state_members).
+        from saengine.design import limit_state_members
+
+        if limit_state_members.wall_slenderness_rules() is not None:
+            out.checks = limit_state_members.wall_out_of_plane_rows(
+                out.checks, geometry, bars, forces, fc, fy, es
+            )
+            out.notes = [n for n in out.notes if not n.startswith("out-of-plane slenderness")]
+        if ductility and mu_phi is not None and bars.boundary is not None:
+            # Alpha 9 C5c: the confinement of the ductile wall's boundary elements.
+            from saengine.design import curvature_ductility
+
+            out.checks += curvature_ductility.wall_confinement_rows(
+                bars.boundary,
+                geometry.thickness,
+                geometry.length,
+                bars.cover,
+                max((f.P for f in forces), default=0.0),
+                fc,
+                fy,
+                bars.rho_l(geometry.thickness),
+                ductility,
+                mu_phi,
+            )
     if ductile_wall:
         # Alpha 9 C8: the pack's special shear wall rows (IS 13920) in place of Sec 8.3.6's.
         from saengine.design import ductile_detailing

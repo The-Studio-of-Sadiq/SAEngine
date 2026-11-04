@@ -250,6 +250,11 @@ def wind_overrides(wind: Any) -> Iterator[None]:
         for k in ("directionality", "topographic", "gust")
         if (v := getattr(wind, k, None)) is not None
     }
+    # Alpha 9 C5c: the natural frequency and damping ratio for a detailed cscd (a pack's
+    # ``structuralFactor.detailed``); read under their own names only.
+    for k in ("naturalFrequency", "damping"):
+        if (v := getattr(wind, k, None)) is not None:
+            values[k] = float(v)
     token = _WIND_OVERRIDES.set(values)
     topo_token = _TOPOGRAPHY.set(Topography.of(getattr(wind, "topography", None)))
     try:
@@ -574,9 +579,11 @@ class WindDesignCases:
 
     partial: float
     eccentricity: float
-    simultaneous: float
-    simultaneousTorsional: float
-    exemptHeight: float
+    # Alpha 9 C5c: None where the pack has no Case 3 / Case 4 / exemption (EN 1991-1-4 7.1.2:
+    # the torsional case alone).
+    simultaneous: float | None
+    simultaneousTorsional: float | None
+    exemptHeight: float | None
 
 
 def wind_design_cases() -> WindDesignCases | None:
@@ -586,8 +593,9 @@ def wind_design_cases() -> WindDesignCases | None:
     if table is None:
         return None
 
-    def value(name: str) -> float:
-        return float(table[name] if isinstance(table, dict) else getattr(table, name))
+    def value(name: str) -> float | None:
+        found = table.get(name) if isinstance(table, dict) else getattr(table, name, None)
+        return None if found is None else float(found)
 
     return WindDesignCases(
         partial=value("partial"),
@@ -605,7 +613,10 @@ def wind_torsion_exempt(
     storey with h ≤ 9.1 m, or two storeys or less designed with flexible diaphragms (light-frame
     construction, the third exempt kind, is not one SAEngine models). ``rigid_diaphragms`` is
     False only for floors designed as flexible diaphragms, not for RC slabs analysed with their
-    modelled in-plane stiffness (SAEngine's derive passes True)."""
+    modelled in-plane stiffness (SAEngine's derive passes True). Alpha 9 C5c: a pack without
+    an exemption height has no exemption."""
+    if cases.exemptHeight is None:
+        return False
     if storeys <= 1 and height <= cases.exemptHeight:
         return True
     return storeys <= 2 and not rigid_diaphragms
@@ -643,10 +654,11 @@ def wind_design_variants(
         p = cases.partial * f
         for s in pm:
             out.append((f"Case 2 {_sign(s)}e", {own: p, WIND_TORSION_CASES[own]: s * abs(p)}))
-    q = cases.simultaneous * f
-    for s in pm:
-        out.append((f"Case 3 {_sign(s)}{other}", {own: q, other: s * abs(q)}))
-    if torsion:
+    if cases.simultaneous is not None:  # Alpha 9 C5c: a pack may have no Case 3
+        q = cases.simultaneous * f
+        for s in pm:
+            out.append((f"Case 3 {_sign(s)}{other}", {own: q, other: s * abs(q)}))
+    if torsion and cases.simultaneousTorsional is not None:
         r = cases.simultaneousTorsional * f
         for s in pm:
             for t1 in pm:

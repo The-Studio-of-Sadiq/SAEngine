@@ -721,6 +721,119 @@ class DuctileDetailingRules(_Group):
     walls: DuctileWallRules
 
 
+# ───────── Alpha 9 C5c: the rest of the partial-factor members and their detailing ─────────
+
+
+class StressFieldRules(_Group):
+    """Strut-and-tie models of deep beams, corbels and pile caps on the design strengths
+    (method ``designStressLimits``, :mod:`saengine.design.stress_fields`): struts σRd,max =
+    ``strutUncracked`` fcd without transverse tension, ``strutCracked`` ν' fcd in cracked
+    zones; nodes ``nodeCCC`` / ``nodeCCT`` / ``nodeCTT`` × ν' fcd, ν' = 1 - fck / ``nuDivisor``;
+    ties As fyd; the deep beams' web mesh and the corbels' tie, strut angle and links."""
+
+    method: Literal["designStressLimits"] = "designStressLimits"
+    nuDivisor: Positive = Field(description="ν' = 1 - fck / divisor.")
+    strutUncracked: Positive = Field(description="σRd,max = share × fcd (no transverse tension).")
+    strutCracked: Positive = Field(description="σRd,max = share × ν' fcd (cracked zones).")
+    nodeCCC: Positive = Field(description="k1 of C-C-C nodes (× ν' fcd).")
+    nodeCCT: Positive = Field(description="k2 of C-C-T nodes (× ν' fcd).")
+    nodeCTT: Positive = Field(description="k3 of C-T-T nodes (× ν' fcd).")
+    minAngle: Positive = Field(description="Least angle between a strut and a tie [°].")
+    tieArm: Share = Field(description="The deep members' tie lever arm z = share × d.")
+    deepSpanRatio: Positive = Field(description="A beam span is deep when l / h is below this.")
+    deepMeshRatio: Share = Field(description="Web mesh As,dbmin = ratio × Ac, each face and way.")
+    deepMeshMin: Positive = Field(description="... and at least this [mm²/m], each face and way.")
+    deepMeshSpacing: tuple[Positive, Positive] = Field(
+        description="Mesh bars at most min(n × b, mm) apart."
+    )
+    corbelLeverShare: Share = Field(description="Corbel z0 = share × d.")
+    corbelTanTheta: tuple[Positive, Positive] = Field(description="tan θ of the corbel's strut.")
+    corbelShortShare: Share = Field(
+        description="ac <= share × hc: horizontal links; above it, vertical links."
+    )
+    corbelHorizontalLinks: Share = Field(description="ΣAs,lnk >= k1 As,main (horizontal links).")
+    corbelVerticalLinks: Share = Field(description="ΣAs,lnk >= k2 FEd / fyd (vertical links).")
+    corbelHorizontalForce: float = Field(
+        ge=0, description="HEd at least share × FEd where none is given (SAEngine practice)."
+    )
+
+
+class InterfaceShearRules(_Group):
+    """Shear at the interface between concretes cast at different times (method
+    ``interfaceShear``): vRdi = c fctd + μ σn + ρ fyd μ <= ``limitShare`` ν fcd (c = 0 under
+    net tension); c and μ by surface."""
+
+    method: Literal["interfaceShear"] = "interfaceShear"
+    surfaces: dict[str, tuple[float, Positive]] = Field(
+        description="(c, μ) by surface: verySmooth, smooth, rough, indented."
+    )
+    surfaceMap: dict[str, str] = Field(
+        description="SAEngine's surface names (monolithic, roughened, ...) -> the pack's."
+    )
+    limitShare: Share = Field(description="vRdi at most share × ν fcd.")
+
+
+class TieForceRules(_Group):
+    """Tying systems for accidental situations (method ``tieForces``): peripheral, internal
+    and column ties of cast-in-place floors, the bars at fyk (γs of the accidental situation)."""
+
+    method: Literal["tieForces"] = "tieForces"
+    peripheralPerLength: Positive = Field(description="Ftie,per = q1 li [kN/m].")
+    peripheralMin: Positive = Field(description="... at least q2 [kN].")
+    internalPerLength: Positive = Field(description="Ftie,int = q3 (l1 + l2)/2 [kN/m].")
+    internalMin: Positive = Field(description="... at least q4 [kN].")
+    columnMin: Positive = Field(description="Edge columns and walls tied for Ftie,col [kN].")
+    facadePerLength: Positive = Field(description="Ftie,fac [kN/m of facade].")
+
+
+class FootingPunchingRules(_Group):
+    """Punching of footings and pile caps (method ``reducedPerimeter``): control perimeters
+    within ``searchDistance`` d, vRd = CRd,c k (100 ρ fck)^(1/3) 2d/a >= vmin 2d/a, the soil
+    pressure inside deducted; the moment by k of c1/c2."""
+
+    method: Literal["reducedPerimeter"] = "reducedPerimeter"
+    searchDistance: Positive = Field(description="Perimeters up to this × d from the column.")
+    steps: int = Field(ge=2, description="Perimeters tried between d/steps and the limit.")
+    momentK: list[tuple[Positive, Share]] = Field(
+        description="(c1/c2, k) of the moment transferred by shear, linear between."
+    )
+    pileInsideShare: Share = Field(
+        description="Pile caps: piles within the perimeter by the share of their area inside."
+    )
+
+
+class WallSlendernessRules(_Group):
+    """Walls out of their plane (method ``columnAnalogy``): the wall strip as a column, l0 =
+    β lw, λ against λlim of the pack's slenderness method; beyond it the nominal curvature
+    method; the out-of-plane moment at least NEd e0."""
+
+    method: Literal["columnAnalogy"] = "columnAnalogy"
+    effectiveLength: dict[str, Positive] = Field(
+        description="β by the wall's restraint: braced (both floors), cantilever."
+    )
+    stripWidth: Positive = Field(description="Strip width of the check [mm].")
+
+
+class DetailingRules(_Group):
+    """Bends, hooks, compression laps and column splices (method ``barShapes``)."""
+
+    method: Literal["barShapes"] = "barShapes"
+    mandrel: list[tuple[Positive, Positive]] = Field(
+        description="(bar diameter up to [mm], φm,min / φ) of bars and links."
+    )
+    bendTail: tuple[Positive, float] = Field(
+        description="Bends and hooks of main bars: straight past the bend at least n φ, mm."
+    )
+    link135: tuple[Positive, Positive] = Field(description="Links' 135° hooks: n φ, mm.")
+    link90: tuple[Positive, Positive] = Field(description="Links' 90° bends: n φ, mm.")
+    compressionLapEnd: Positive = Field(
+        description="Compression laps: a transverse bar outside each end within n φ."
+    )
+    columnLapShare: Share = Field(
+        description="Column bars lapped at one section (α6 of that share)."
+    )
+
+
 def chosen(table: Any, group: str, method: str) -> Any | None:
     """The table's group ``group`` when it is the method ``method`` (else None): the group a
     module of that method reads (C5 and C8 share the group names, by method id)."""
@@ -804,6 +917,14 @@ class ConcreteMethodsTable(TableModel):
     flatSlabs: FlatSlabRules | None = None
     walls: WallMethodRules | None = None
     footings: FootingMethodRules | None = None
+    # Alpha 9 C5c: the deep members, interfaces, ties, footings' punching, slender walls and
+    # the bar shapes on the design strengths.
+    strutAndTie: StressFieldRules | None = None
+    interfaceShear: InterfaceShearRules | None = None
+    ties: TieForceRules | None = None
+    footingPunching: FootingPunchingRules | None = None
+    wallSlenderness: WallSlendernessRules | None = None
+    barShapes: DetailingRules | None = None
     # Alpha 9 C9b.
     deepBeams: LeverArmDeepBeamRules | None = None
     corbels: TieCorbelRules | None = None
@@ -894,6 +1015,24 @@ class FootingRules(_Group):
     )
 
 
+class EquilibriumSet(_Group):
+    """Alpha 9 C5c: the partial factors of static equilibrium (EQU) for overturning."""
+
+    permanentDestabilising: Positive
+    permanentStabilising: Positive
+    variableDestabilising: Positive
+
+
+class RetainingRules(_Group):
+    """Alpha 9 C5c: retaining walls by limit states (method ``limitStates``,
+    :mod:`saengine.substructure.limit_state_retaining`): the earth pressure with the design
+    angle of shearing resistance of each combination's M set, sliding, bearing (the base's
+    effective width) and overturning by EQU."""
+
+    method: Literal["limitStates"] = "limitStates"
+    castInPlace: bool = Field(default=True, description="Base cast against the soil.")
+
+
 class GeotechnicalMethodsTable(TableModel):
     """Limit state geotechnical design (see the module notes)."""
 
@@ -910,6 +1049,9 @@ class GeotechnicalMethodsTable(TableModel):
     correlation: CorrelationFactors | None = None
     # Alpha 9 C5b.
     footings: FootingRules | None = None
+    # Alpha 9 C5c.
+    equilibrium: EquilibriumSet | None = None
+    retaining: RetainingRules | None = None
     parentMethods: list[str] = Field(
         default_factory=list,
         description="Areas (bearing, sliding, piles) a project designs by the default method "

@@ -228,6 +228,125 @@ def column_rows(
     return rows
 
 
+# ───────────── Alpha 9 C5c: the confinement ωwd of columns and walls (wired) ─────────────
+
+
+def mu_phi_of(settings: Any, project: dict[str, Any] | None, ductility: str) -> tuple[float, str]:
+    """(μφ, how) of the project's critical regions: q0 the behaviour factor the analysis uses
+    (kw = 1), T1 the pack's approximate period Ct H^(3/4) of the structure's height (SAEngine
+    practice: shorter than the modal one, so μφ is on the safe side where T1 < TC) and TC of
+    the ground type and spectrum type."""
+    from saengine.library.settings import derived
+
+    values = derived(settings)
+    q0 = float(values.get("R") or 1.5)
+    seismic = code_context.table("seismic")
+    site = getattr(getattr(settings, "site", None), "siteClass", None)
+    spectra = getattr(seismic, "spectra", None) or {}
+    kind = str(getattr(seismic, "spectrumType", None) or "1")
+    row = (spectra.get(kind) or {}).get(site) if spectra else None
+    row = row or seismic.siteClasses.get(site) or next(iter(seismic.siteClasses.values()))
+    tc = float(row.TC)
+    height = 0.0
+    if project:
+        zs = [float(n["coords"][2]) for n in project.get("nodes", [])]
+        height = max(zs) - min(zs) if zs else 0.0
+    system = seismic.systems.get(getattr(settings.seismic, "system", ""), None)
+    family = getattr(system, "periodFamily", None) or "other"
+    coefficients = seismic.periodCoefficients.get(family) or seismic.periodCoefficients.get("other")
+    t1 = coefficients.Ct * max(height, 1.0) ** coefficients.m if coefficients else tc
+    mu = curvature_ductility(q0, t1, tc, ductility)
+    return mu, f"μφ = {mu:.2f} from q0 = {q0:g}, T1 = Ct H^m = {t1:.2f} s, TC = {tc:g} s"
+
+
+def _omega(volume_ratio: float, fyk: float, fck: float) -> float:
+    return volume_ratio * design_strength.fyd(fyk) / design_strength.fcd(fck)
+
+
+def confinement_rows(
+    section: Any, transverse: Any | None, ned_max: float, ductility: str, mu_phi: tuple[float, str]
+) -> list[dict[str, Any]]:
+    """The confinement of a rectangular column's critical regions: ωwd of its hoops and ties
+    (the core to the hoops' centreline, the legs of ``transverse``) at least the base value, and
+    α ωwd >= c μφ νd εsy,d bc/b0 - offset with α = αn αs (the restrained bars taken at the legs,
+    evenly spaced). The base critical region's requirement for all of them (on the safe side)."""
+    if transverse is None or not getattr(transverse, "spacing", None):
+        return []
+    c = class_rules(ductility)
+    mu, how = mu_phi
+    fck = section.fc
+    cover = float(getattr(transverse, "cover", None) or 40.0)
+    dbw = float(transverse.dia)
+    b, h = float(min(section.width, section.depth)), float(max(section.width, section.depth))
+    b0, h0 = b - 2 * cover - dbw, h - 2 * cover - dbw
+    if b0 <= 0 or h0 <= 0:
+        return []
+    legs_x = int(getattr(transverse, "legsX", None) or getattr(transverse, "legs", 2) or 2)
+    legs_y = int(getattr(transverse, "legsY", None) or getattr(transverse, "legs", 2) or 2)
+    s = float(transverse.spacing)
+    area = math.pi * dbw**2 / 4
+    volume = area * (legs_x * h0 + legs_y * b0) / (b0 * h0 * s)
+    fyk = getattr(transverse, "fy", None) or section.fy
+    omega = _omega(volume, fyk, fck)
+    gaps = [b0 / max(legs_y - 1, 1)] * 2 * max(legs_y - 1, 1)
+    gaps += [h0 / max(legs_x - 1, 1)] * 2 * max(legs_x - 1, 1)
+    alpha = confinement_effectiveness(b0, h0, s, gaps)
+    nu_d = max(ned_max, 0.0) / (section.gross_area * design_strength.fcd(fck))
+    eps = design_strength.fyd(section.fy) / design_strength.rules().steelE
+    need = max(c.confinementCoefficient * mu * nu_d * eps * b / b0 - c.confinementOffset, 0.0)
+    rows = [
+        _row(f"Confinement ωwd ({ductility})", c.omegaBase, omega, "",
+             f"ωwd = Vhoops/Vcore fyd/fcd = {omega:.3f} ({legs_x} × {legs_y} legs Ø{dbw:g} @ "
+             f"{s:g}, b0 = {b0:.0f}, h0 = {h0:.0f} mm); at least {c.omegaBase:g}", "confinement"),
+        _row(f"Confinement α ωwd ({ductility})", need, alpha * omega, "",
+             f"α ωwd >= {c.confinementCoefficient:g} μφ νd εsy,d bc/b0 - "
+             f"{c.confinementOffset:g} = {need:.3f}; α = αn αs = {alpha:.2f}, νd = {nu_d:.3f}, "
+             f"εsy,d = {eps * 1e3:.2f} ‰; {how}; the base critical region's rule for every "
+             "critical region (on the safe side)", "confinement"),
+    ]  # fmt: skip
+    return rows
+
+
+def wall_confinement_rows(
+    boundary: Any, t: float, lw: float, cover: float, ned_max: float, fck: float, fyk: float,
+    rho_v: float, ductility: str, mu_phi: tuple[float, str],
+) -> list[dict[str, Any]]:  # fmt: skip
+    """The confinement of a ductile wall's boundary elements (the wall type's end bars and
+    hoops ``boundary``, :class:`saengine.design.walls.Boundary`): ωwd at least the class's wall
+    value, and α ωwd >= c μφ (νd + ωv) εsy,d bw/b0 - offset, ωv = ρv fyd/fcd of the web's
+    vertical bars."""
+    if boundary is None or not getattr(boundary, "hoops", True) or boundary.length <= 0:
+        return []
+    c = class_rules(ductility)
+    mu, how = mu_phi
+    dbw, s = float(boundary.hoop_dia), float(boundary.hoop_spacing)
+    b0 = t - 2 * cover - dbw
+    h0 = boundary.length - cover - dbw
+    if b0 <= 0 or h0 <= 0 or s <= 0:
+        return []
+    area = math.pi * dbw**2 / 4
+    volume = area * (boundary.legs_along * h0 + boundary.legs_across * b0) / (b0 * h0 * s)
+    omega = _omega(volume, fyk, fck)
+    gaps = [b0 / max(boundary.legs_across - 1, 1)] * 2 * max(boundary.legs_across - 1, 1)
+    gaps += [h0 / max(boundary.legs_along - 1, 1)] * 2 * max(boundary.legs_along - 1, 1)
+    alpha = confinement_effectiveness(b0, h0, s, gaps)
+    f_cd = design_strength.fcd(fck)
+    nu_d = max(ned_max, 0.0) / (t * lw * f_cd)
+    omega_v = rho_v * design_strength.fyd(fyk) / f_cd
+    eps = design_strength.fyd(fyk) / design_strength.rules().steelE
+    need = c.confinementCoefficient * mu * (nu_d + omega_v) * eps * t / b0 - c.confinementOffset
+    rows = [
+        _row(f"Boundary element confinement ωwd ({ductility})", c.wallOmega, omega, "",
+             f"ωwd = {omega:.3f} of the end hoops Ø{dbw:g} @ {s:g} over b0 × h0 = {b0:.0f} × "
+             f"{h0:.0f} mm; at least {c.wallOmega:g}", "confinement"),
+        _row(f"Boundary element α ωwd ({ductility})", max(need, 0.0), alpha * omega, "",
+             f"α ωwd >= {c.confinementCoefficient:g} μφ (νd + ωv) εsy,d bw/b0 - "
+             f"{c.confinementOffset:g}; α = {alpha:.2f}, νd = {nu_d:.3f}, ωv = {omega_v:.3f}; "
+             f"{how}", "confinement"),
+    ]  # fmt: skip
+    return rows
+
+
 def joint_shear_resistance(fck: float, nu_d: float, bj: float, hjc: float,
                            exterior: bool = False) -> float:  # fmt: skip
     """Vjhd at most [N] (DCH)."""

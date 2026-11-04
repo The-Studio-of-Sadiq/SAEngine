@@ -965,11 +965,17 @@ def flanged_checks(
 
     # Shear along each direction: the webs together (8.3.6.4(d) for special walls).
     phi_seismic = W.wall_phi("shearSeismic")
+    # Alpha 9 C5c: the pack's shear method for the webs (VRd of each web by the variable strut
+    # method, VEd × ε of a ductile wall; limit_state_members).
+    from saengine.design import limit_state_members as lsm
+
+    pack_shear = lsm.flanged_shear_selected()
+    epsilon = lsm.ductile_wall_factor() if special and pack_shear else 1.0
     for u, section, surface in surfaces:
         webs = [group.leg(w) for w in section.webs]
         best: tuple[float, dict[str, Any]] | None = None
         for f in forces:
-            vu = abs(f.Vx * u[0] + f.Vy * u[1])
+            vu = abs(f.Vx * u[0] + f.Vy * u[1]) * epsilon
             if vu <= 0:
                 continue
             vn, acv, parts = 0.0, 0.0, []
@@ -978,7 +984,11 @@ def flanged_checks(
                 if leg.bars is None or pf is None:
                     continue
                 g = W.WallGeometry(leg.length, leg.thickness, height, height)
-                if special:
+                if pack_shear:
+                    vn_i = lsm.web_shear_resistance(
+                        leg.length, leg.thickness, leg.bars, pf.P, fc, fy
+                    )
+                elif special:
                     sv = W.special_vn(g, leg.bars.rho_t(leg.thickness), fc, fy, lam)
                     vn_i = sv["vn"]
                 else:
@@ -987,6 +997,21 @@ def flanged_checks(
                 acv += g.gross_area
                 parts.append(f"{leg.id} {_kn(vn_i):.0f}")
             if vn <= 0:
+                continue
+            if pack_shear:
+                u_ = vu / vn
+                if best is None or u_ > best[0]:
+                    ductile = f"; VEd × ε = {epsilon:g} (ductile wall)" if epsilon != 1 else ""
+                    best = (
+                        u_,
+                        {
+                            "vu": vu,
+                            "cap": vn,
+                            "f": f,
+                            "note": f"VRd of the webs ({', '.join(parts)} kN): bw = t, d = 0.8 "
+                            f"lw, the horizontal bars as links{ductile}",
+                        },
+                    )
                 continue
             limit = COMBINED_SHEAR * acv * math.sqrt(fc)
             note_limit = ""
@@ -1018,7 +1043,11 @@ def flanged_checks(
             out.checks.append(
                 _row(
                     f"Shear along {', '.join(section.webs)}, webs together "
-                    + ("(8.3.6.4(a), (d))" if special else "(6.4.8)"),
+                    + (
+                        f"({lsm.cite('flangedWallShear')})"
+                        if pack_shear
+                        else ("(8.3.6.4(a), (d))" if special else "(6.4.8)")
+                    ),
                     _kn(b["vu"]),
                     _kn(b["cap"]),
                     "kN",

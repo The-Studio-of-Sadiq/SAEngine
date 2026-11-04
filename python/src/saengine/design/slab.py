@@ -720,6 +720,12 @@ class Thickness:
     required: float  # mm
     table: str
     note: str
+    # Alpha 9 C5c: the span the table used [mm], its continuous ends, the direction it runs
+    # ("x", "y") and whether the slab is flat (the pack's span/depth ratio takes them).
+    span: float | None = None
+    ends: int = 0
+    along: str | None = None
+    flat: bool = False
 
 
 def one_way_thickness(
@@ -884,7 +890,12 @@ def minimum_thickness(
         ends = (sides["x-"], sides["x+"]) if along_x else (sides["y-"], sides["y+"])
         result = one_way_thickness(span, sum(ends), fy, ribbed)
         return Thickness(
-            result.required, result.table, result.note + f", along {'x' if along_x else 'y'}"
+            result.required,
+            result.table,
+            result.note + f", along {'x' if along_x else 'y'}",
+            span,
+            sum(ends),
+            "x" if along_x else "y",
         )
     long_x = lx >= ly
     ln_long = max(lx, ly) - support
@@ -894,8 +905,20 @@ def minimum_thickness(
     result = two_way_thickness(
         ln_long, ln_long / ln_short, alpha_fm, fy, exterior, edge_beams, drop and alpha_fm <= 0.2
     )
+    # Alpha 9 C5c: the span/depth ratio takes the shorter span of a two-way slab and the longer
+    # of a flat slab, with the continuous ends along it.
+    flat = system == "flat"
+    short_x = not long_x
+    along_x = long_x if flat else short_x
+    ends = (sides["x-"], sides["x+"]) if along_x else (sides["y-"], sides["y+"])
     return Thickness(
-        result.required, result.table, result.note + f", along {'x' if long_x else 'y'}"
+        result.required,
+        result.table,
+        result.note + f", along {'x' if long_x else 'y'}",
+        (lx if along_x else ly),
+        sum(ends),
+        "x" if along_x else "y",
+        flat,
     )
 
 
@@ -1832,8 +1855,13 @@ def slab_checks(
 
     if context.thickness is not None:
         t = context.thickness
+        span_row = _span_depth_row(t, h, fc, fy, capacities)
         checks.append(
-            _check(f"Min. thickness (Table {t.table})", t.required, h, "mm", None, t.note, True)
+            span_row
+            if span_row is not None
+            else _check(
+                f"Min. thickness (Table {t.table})", t.required, h, "mm", None, t.note, True
+            )
         )
 
     if system == "flat" and _control_perimeter() and (ribs is None or context.drop is not None):
@@ -3301,10 +3329,27 @@ def _coefficient_checks(
         checks.append(_coefficient_spacing(h, layers, method, span, spacing))
     if context.thickness is not None:
         t = context.thickness
+        span_row = _span_depth_row(t, h, fc, fy, capacities)
         checks.append(
-            _check(f"Min. thickness (Table {t.table})", t.required, h, "mm", None, t.note, True)
+            span_row
+            if span_row is not None
+            else _check(
+                f"Min. thickness (Table {t.table})", t.required, h, "mm", None, t.note, True
+            )
         )
     return checks
+
+
+def _span_depth_row(
+    thickness: Thickness, h: float, fc: float, fy: float, capacities: dict[str, Any]
+) -> dict[str, Any] | None:
+    """Alpha 9 C5c: the pack's span/depth row in place of the least thickness table (None: the
+    parent's table)."""
+    from saengine.design import limit_state_members
+
+    if not limit_state_members.span_depth_selected():
+        return None
+    return limit_state_members.slab_span_depth_row(thickness, h, fc, fy, capacities)
 
 
 def _coefficient_min_steel(

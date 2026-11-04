@@ -423,6 +423,10 @@ def design_walls(
         from saengine.design.check import _ductility_class
 
         pack_class = _ductility_class(settings)
+    # Alpha 9 C5c: μφ for the confinement of the ductile walls' boundary elements.
+    from saengine.design.check import _mu_phi
+
+    mu_phi = _mu_phi(settings, project, pack_class) if pack_class else None
     infos: dict[str, dict[str, Any]] = {}
     for e, t, bars, concrete, steel in ready:
         piers = piers_of.get(e.id, [])
@@ -462,6 +466,7 @@ def design_walls(
         }
         wall = _Wall(e, t, bars, fc, fy, es, special, drift, hw, options, earthquake, story_names)
         wall.ductility = ductility
+        wall.mu_phi = mu_phi if ductility else None
         wall.collect = collect["walls"] if collect is not None else None
         own_openings = [o for o in openings if o.host == e.id]
         for pier in piers:
@@ -928,6 +933,8 @@ class _Wall:
     layers_required: int = 1
     #: Alpha 9 C5b: the pack's ductility class of a ductile wall (None: none, or not by class).
     ductility: str | None = None
+    #: Alpha 9 C5c: (μφ, how) of a ductile wall for its boundary elements' confinement.
+    mu_phi: tuple | None = None
 
     def part(
         self,
@@ -960,6 +967,7 @@ class _Wall:
                 grade_beam=getattr(self.object, "gradeBeam", None),
                 wall_pier=wall_pier,
                 ductility=self.ductility,
+                mu_phi=self.mu_phi,
             )
         except DesignError as error:
             # Not checked is not passing: the pier stays in the wall with a failing row.

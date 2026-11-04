@@ -1072,6 +1072,24 @@ def assess(
                 }
             )
 
+    # Alpha 9 C5c: the pack's regularity criteria (saengine.fem.seismic_regularity) as
+    # findings of the plan and the elevation.
+    from saengine.fem import seismic_regularity
+
+    regular = seismic_regularity.pre_analysis(building, objects, materials)
+    for row in (regular or {}).get("rows", []):
+        if row["ok"]:
+            continue
+        kind = "planRegularity" if row["group"] == "plan" else "elevationRegularity"
+        sense = "at least" if row.get("least") else "at most"
+        found_row = _finding(
+            kind,
+            row["storey"],
+            f"{row['what']} = {row['value']:.3f}",
+            f"{sense} {row['limit']:g}",
+            note=row.get("note", ""),
+        )
+        findings.append(found_row)
     kinds = sorted({f["type"] for f in findings})
     plan = any(group(t) == "plan" for t in kinds)
     vertical = any(group(t) == "vertical" for t in kinds) or bool(soft_storeys)

@@ -605,6 +605,111 @@
       "title": "CrackWidthRules",
       "type": "object"
     },
+    "DetailingRules": {
+      "additionalProperties": false,
+      "description": "Bends, hooks, compression laps and column splices (method ``barShapes``).",
+      "properties": {
+        "method": {
+          "const": "barShapes",
+          "default": "barShapes",
+          "title": "Method",
+          "type": "string"
+        },
+        "mandrel": {
+          "description": "(bar diameter up to [mm], φm,min / φ) of bars and links.",
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              },
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "title": "Mandrel",
+          "type": "array"
+        },
+        "bendTail": {
+          "description": "Bends and hooks of main bars: straight past the bend at least n φ, mm.",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Bendtail",
+          "type": "array"
+        },
+        "link135": {
+          "description": "Links' 135° hooks: n φ, mm.",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Link135",
+          "type": "array"
+        },
+        "link90": {
+          "description": "Links' 90° bends: n φ, mm.",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Link90",
+          "type": "array"
+        },
+        "compressionLapEnd": {
+          "description": "Compression laps: a transverse bar outside each end within n φ.",
+          "exclusiveMinimum": 0,
+          "title": "Compressionlapend",
+          "type": "number"
+        },
+        "columnLapShare": {
+          "description": "Column bars lapped at one section (α6 of that share).",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Columnlapshare",
+          "type": "number"
+        }
+      },
+      "required": [
+        "mandrel",
+        "bendTail",
+        "link135",
+        "link90",
+        "compressionLapEnd",
+        "columnLapShare"
+      ],
+      "title": "DetailingRules",
+      "type": "object"
+    },
     "DuctileBeamRules": {
       "additionalProperties": false,
       "properties": {
@@ -1782,6 +1887,119 @@
         "bearingRatioMax"
       ],
       "title": "FootingMethodRules",
+      "type": "object"
+    },
+    "FootingPunchingRules": {
+      "additionalProperties": false,
+      "description": "Punching of footings and pile caps (method ``reducedPerimeter``): control perimeters\nwithin ``searchDistance`` d, vRd = CRd,c k (100 ρ fck)^(1/3) 2d/a >= vmin 2d/a, the soil\npressure inside deducted; the moment by k of c1/c2.",
+      "properties": {
+        "method": {
+          "const": "reducedPerimeter",
+          "default": "reducedPerimeter",
+          "title": "Method",
+          "type": "string"
+        },
+        "searchDistance": {
+          "description": "Perimeters up to this × d from the column.",
+          "exclusiveMinimum": 0,
+          "title": "Searchdistance",
+          "type": "number"
+        },
+        "steps": {
+          "description": "Perimeters tried between d/steps and the limit.",
+          "minimum": 2,
+          "title": "Steps",
+          "type": "integer"
+        },
+        "momentK": {
+          "description": "(c1/c2, k) of the moment transferred by shear, linear between.",
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              },
+              {
+                "exclusiveMinimum": 0,
+                "maximum": 1,
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "title": "Momentk",
+          "type": "array"
+        },
+        "pileInsideShare": {
+          "description": "Pile caps: piles within the perimeter by the share of their area inside.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Pileinsideshare",
+          "type": "number"
+        }
+      },
+      "required": [
+        "searchDistance",
+        "steps",
+        "momentK",
+        "pileInsideShare"
+      ],
+      "title": "FootingPunchingRules",
+      "type": "object"
+    },
+    "InterfaceShearRules": {
+      "additionalProperties": false,
+      "description": "Shear at the interface between concretes cast at different times (method\n``interfaceShear``): vRdi = c fctd + μ σn + ρ fyd μ <= ``limitShare`` ν fcd (c = 0 under\nnet tension); c and μ by surface.",
+      "properties": {
+        "method": {
+          "const": "interfaceShear",
+          "default": "interfaceShear",
+          "title": "Method",
+          "type": "string"
+        },
+        "surfaces": {
+          "additionalProperties": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "description": "(c, μ) by surface: verySmooth, smooth, rough, indented.",
+          "title": "Surfaces",
+          "type": "object"
+        },
+        "surfaceMap": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "SAEngine's surface names (monolithic, roughened, ...) -> the pack's.",
+          "title": "Surfacemap",
+          "type": "object"
+        },
+        "limitShare": {
+          "description": "vRdi at most share × ν fcd.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Limitshare",
+          "type": "number"
+        }
+      },
+      "required": [
+        "surfaces",
+        "surfaceMap",
+        "limitShare"
+      ],
+      "title": "InterfaceShearRules",
       "type": "object"
     },
     "LeverArm": {
@@ -3290,6 +3508,176 @@
       "title": "StrengthRelations",
       "type": "object"
     },
+    "StressFieldRules": {
+      "additionalProperties": false,
+      "description": "Strut-and-tie models of deep beams, corbels and pile caps on the design strengths\n(method ``designStressLimits``, :mod:`saengine.design.stress_fields`): struts σRd,max =\n``strutUncracked`` fcd without transverse tension, ``strutCracked`` ν' fcd in cracked\nzones; nodes ``nodeCCC`` / ``nodeCCT`` / ``nodeCTT`` × ν' fcd, ν' = 1 - fck / ``nuDivisor``;\nties As fyd; the deep beams' web mesh and the corbels' tie, strut angle and links.",
+      "properties": {
+        "method": {
+          "const": "designStressLimits",
+          "default": "designStressLimits",
+          "title": "Method",
+          "type": "string"
+        },
+        "nuDivisor": {
+          "description": "ν' = 1 - fck / divisor.",
+          "exclusiveMinimum": 0,
+          "title": "Nudivisor",
+          "type": "number"
+        },
+        "strutUncracked": {
+          "description": "σRd,max = share × fcd (no transverse tension).",
+          "exclusiveMinimum": 0,
+          "title": "Strutuncracked",
+          "type": "number"
+        },
+        "strutCracked": {
+          "description": "σRd,max = share × ν' fcd (cracked zones).",
+          "exclusiveMinimum": 0,
+          "title": "Strutcracked",
+          "type": "number"
+        },
+        "nodeCCC": {
+          "description": "k1 of C-C-C nodes (× ν' fcd).",
+          "exclusiveMinimum": 0,
+          "title": "Nodeccc",
+          "type": "number"
+        },
+        "nodeCCT": {
+          "description": "k2 of C-C-T nodes (× ν' fcd).",
+          "exclusiveMinimum": 0,
+          "title": "Nodecct",
+          "type": "number"
+        },
+        "nodeCTT": {
+          "description": "k3 of C-T-T nodes (× ν' fcd).",
+          "exclusiveMinimum": 0,
+          "title": "Nodectt",
+          "type": "number"
+        },
+        "minAngle": {
+          "description": "Least angle between a strut and a tie [°].",
+          "exclusiveMinimum": 0,
+          "title": "Minangle",
+          "type": "number"
+        },
+        "tieArm": {
+          "description": "The deep members' tie lever arm z = share × d.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Tiearm",
+          "type": "number"
+        },
+        "deepSpanRatio": {
+          "description": "A beam span is deep when l / h is below this.",
+          "exclusiveMinimum": 0,
+          "title": "Deepspanratio",
+          "type": "number"
+        },
+        "deepMeshRatio": {
+          "description": "Web mesh As,dbmin = ratio × Ac, each face and way.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Deepmeshratio",
+          "type": "number"
+        },
+        "deepMeshMin": {
+          "description": "... and at least this [mm²/m], each face and way.",
+          "exclusiveMinimum": 0,
+          "title": "Deepmeshmin",
+          "type": "number"
+        },
+        "deepMeshSpacing": {
+          "description": "Mesh bars at most min(n × b, mm) apart.",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Deepmeshspacing",
+          "type": "array"
+        },
+        "corbelLeverShare": {
+          "description": "Corbel z0 = share × d.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Corbellevershare",
+          "type": "number"
+        },
+        "corbelTanTheta": {
+          "description": "tan θ of the corbel's strut.",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Corbeltantheta",
+          "type": "array"
+        },
+        "corbelShortShare": {
+          "description": "ac <= share × hc: horizontal links; above it, vertical links.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Corbelshortshare",
+          "type": "number"
+        },
+        "corbelHorizontalLinks": {
+          "description": "ΣAs,lnk >= k1 As,main (horizontal links).",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Corbelhorizontallinks",
+          "type": "number"
+        },
+        "corbelVerticalLinks": {
+          "description": "ΣAs,lnk >= k2 FEd / fyd (vertical links).",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Corbelverticallinks",
+          "type": "number"
+        },
+        "corbelHorizontalForce": {
+          "description": "HEd at least share × FEd where none is given (SAEngine practice).",
+          "minimum": 0,
+          "title": "Corbelhorizontalforce",
+          "type": "number"
+        }
+      },
+      "required": [
+        "nuDivisor",
+        "strutUncracked",
+        "strutCracked",
+        "nodeCCC",
+        "nodeCCT",
+        "nodeCTT",
+        "minAngle",
+        "tieArm",
+        "deepSpanRatio",
+        "deepMeshRatio",
+        "deepMeshMin",
+        "deepMeshSpacing",
+        "corbelLeverShare",
+        "corbelTanTheta",
+        "corbelShortShare",
+        "corbelHorizontalLinks",
+        "corbelVerticalLinks",
+        "corbelHorizontalForce"
+      ],
+      "title": "StressFieldRules",
+      "type": "object"
+    },
     "StrutShearRules": {
       "additionalProperties": false,
       "description": "Shear by the variable strut inclination method (method ``variableStrut``).",
@@ -3685,6 +4073,64 @@
         "bearing"
       ],
       "title": "TieCorbelRules",
+      "type": "object"
+    },
+    "TieForceRules": {
+      "additionalProperties": false,
+      "description": "Tying systems for accidental situations (method ``tieForces``): peripheral, internal\nand column ties of cast-in-place floors, the bars at fyk (γs of the accidental situation).",
+      "properties": {
+        "method": {
+          "const": "tieForces",
+          "default": "tieForces",
+          "title": "Method",
+          "type": "string"
+        },
+        "peripheralPerLength": {
+          "description": "Ftie,per = q1 li [kN/m].",
+          "exclusiveMinimum": 0,
+          "title": "Peripheralperlength",
+          "type": "number"
+        },
+        "peripheralMin": {
+          "description": "... at least q2 [kN].",
+          "exclusiveMinimum": 0,
+          "title": "Peripheralmin",
+          "type": "number"
+        },
+        "internalPerLength": {
+          "description": "Ftie,int = q3 (l1 + l2)/2 [kN/m].",
+          "exclusiveMinimum": 0,
+          "title": "Internalperlength",
+          "type": "number"
+        },
+        "internalMin": {
+          "description": "... at least q4 [kN].",
+          "exclusiveMinimum": 0,
+          "title": "Internalmin",
+          "type": "number"
+        },
+        "columnMin": {
+          "description": "Edge columns and walls tied for Ftie,col [kN].",
+          "exclusiveMinimum": 0,
+          "title": "Columnmin",
+          "type": "number"
+        },
+        "facadePerLength": {
+          "description": "Ftie,fac [kN/m of facade].",
+          "exclusiveMinimum": 0,
+          "title": "Facadeperlength",
+          "type": "number"
+        }
+      },
+      "required": [
+        "peripheralPerLength",
+        "peripheralMin",
+        "internalPerLength",
+        "internalMin",
+        "columnMin",
+        "facadePerLength"
+      ],
+      "title": "TieForceRules",
       "type": "object"
     },
     "TwoWaySlabRules": {
@@ -4145,6 +4591,39 @@
       ],
       "title": "WallMethodRules",
       "type": "object"
+    },
+    "WallSlendernessRules": {
+      "additionalProperties": false,
+      "description": "Walls out of their plane (method ``columnAnalogy``): the wall strip as a column, l0 =\nβ lw, λ against λlim of the pack's slenderness method; beyond it the nominal curvature\nmethod; the out-of-plane moment at least NEd e0.",
+      "properties": {
+        "method": {
+          "const": "columnAnalogy",
+          "default": "columnAnalogy",
+          "title": "Method",
+          "type": "string"
+        },
+        "effectiveLength": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "description": "β by the wall's restraint: braced (both floors), cantilever.",
+          "title": "Effectivelength",
+          "type": "object"
+        },
+        "stripWidth": {
+          "description": "Strip width of the check [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Stripwidth",
+          "type": "number"
+        }
+      },
+      "required": [
+        "effectiveLength",
+        "stripWidth"
+      ],
+      "title": "WallSlendernessRules",
+      "type": "object"
     }
   },
   "additionalProperties": false,
@@ -4422,6 +4901,72 @@
       "anyOf": [
         {
           "$ref": "#/$defs/FootingMethodRules"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "strutAndTie": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/StressFieldRules"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "interfaceShear": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/InterfaceShearRules"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "ties": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/TieForceRules"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "footingPunching": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/FootingPunchingRules"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "wallSlenderness": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/WallSlendernessRules"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "barShapes": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/DetailingRules"
         },
         {
           "type": "null"

@@ -41,6 +41,83 @@ here, newest first, with the date, the question, the decision, the reason and wh
 - **No unlicensed software.** ETABS, SAP2000 and STAAD are not used for cross-checks or cited.
   Open-source tools are used instead (2026-10-25).
 
+## 2026-11-04: the rest of the Eurocodes concrete, foundation and load parts (alpha 9 track C5c)
+
+The `eurocodes` pack (0.5.0) now designs the parts C4, C5 and C5b left to BNBC 2020. Every value
+is in `codes/packs/eurocodes/VERIFY.md` (rows C5c-1 to C5c-72). Each area is a method chosen by
+id (`design/method_selection.py`: `strutAndTie`, `interfaceShear`, `ties`, `footingPunching`,
+`wallSlenderness`, `barShapes`, geotechnical `retaining`; the seismic table's `regularity`,
+`torsionalEffects`, `modalCombination`, `verticalComponent`, `foundationCapacity`; the wind
+table's `orography`, `structuralFactor.detailed`, `localPressures`; the snow drift method
+`shapeCoefficient`). A pack without them (BNBC 2020) runs exactly as before. SAEngine practice
+where the code leaves a gap (each overridable per project):
+
+- **Strut-and-tie on the design strengths** for deep beams (span below 3 h, and the parent's
+  concentrated-load rule), corbels and the deep pile caps: prism struts fcd, cracked struts and
+  the support struts 0.6 ν' fcd, nodes k1-k3 ν' fcd, ties fyd, no φ; least strut angle 21.8°
+  (cot θ 2.5); the corbel's z0 = 0.8 d and HEd at least 0.2 FEd. The general D-region models
+  keep the parent's procedure.
+- **Slab and stair deflection** by the span/depth ratio replaces the parent's least thickness
+  table: the shorter span of two-way slabs, the longer of flat slabs, the continuous edges along
+  it for K, ρ of the bottom bars, As,req = As,prov.
+- **Confinement ωwd** of every DCM/DCH column critical region by the base region's rule, the
+  hoops' legs evenly spaced for αn; μφ from the analysis's q (kw = 1) and T1 = Ct H^(3/4).
+- **Punching of column bases** (footings, pile caps, interior raft columns) by the perimeters
+  within 2d with the soil pressure (pile reactions) inside deducted, searched at 16 distances;
+  the raft's edge and corner columns on u1 with β. The punching reinforcement of footings and
+  rafts is not laid out under the pack (a failing row says to thicken).
+- **Retaining walls** per combination of the design approach: Ka(φ'd)/Ka(φ'k) by Rankine on the
+  soil's part of the thrust, sliding with δd = φ'd under a cast base, bearing on B', overturning
+  by EQU (EN 1990 Table A1.2(A)); the stem and base under γG = 1.35 on the earth pressure with
+  MRd and VRd,c; the parent's factors of safety reported only.
+- **Detailing**: EN mandrels, 5 φ past bends and hooks, links' 135°/90° tails, compression laps
+  with α6 of all bars lapped, the transverse bars at their ends named in the formula; column
+  tension laps with α6 of all bars.
+- **Walls out of plane** as a 1 m strip column (β 1.0 held by both floors, 2.0 free-standing,
+  single curvature); flanged groups' shear the webs' VRd summed with ε of the largest class.
+- **Construction joints** by 6.2.5 with the parent's surfaces read as monolithic = indented,
+  roughened = rough, not roughened = smooth, steel = very smooth.
+- **Ties (9.10)**: perimeter beams carry the peripheral and the column tie, inner beams the
+  internal tie with (l1 + l2)/2 taken as the beam's span; the beam type's bars at fyk.
+- **Footing sizing assistant** proposes footings for the bearing resistance of the design
+  approach (the allowable pressure where the soil gives no strength parameters).
+- **Wind**: torsion by e = b/10 with the full pressure (Case 2 of the design wind cases; no
+  simultaneous cases, so the BNBC/ASCE Cases 3 and 4 are optional fields of `designCases`);
+  orography with Lu = 2 Lh and Ld = Lu of the project's topography; the detailed cscd with
+  n1 = 46/h unless the project gives n1, δs 0.10 (a steel building gives its damping ratio),
+  the aerodynamic damping left out; cladding pressures at qp(h) with cpi +0.2/-0.3.
+- **Snow drift** at a roof step (5.3.6, μs = 0) or, without one, at the parapet height of the
+  wind settings (6.2); reported for the lower roof, not applied.
+- **Seismic regularity** is judged from the building model before the analysis so that q × 0.8
+  (not regular in elevation) and αu/α1 averaged (not regular in plan, Ω0 standing for αu/α1)
+  reach the same run's spectrum and static forces; the centre of mass at the floor's centroid,
+  the stiffness centre from the sections' moments of inertia (4.2.3.2(8)), a setback symmetric
+  when its sides differ by at most 25 %. A project's own R is not reduced. The analysis's
+  stiffness and mass indicators (70 % of the storey above, 150 % of an adjacent storey; the code
+  gives no numbers) and the criteria are the irregularity findings that decide the dynamic
+  analysis requirement.
+- **δ (4.3.3.2.4)** only where the analysis has no accidental eccentricity (no EXP/EXN cases,
+  no accidental torsion parts of the spectrum design): per element the larger direction's δ,
+  rounded up to 0.05, the centre of mass at the plan's centre; combinations per δ value act on
+  their elements only (the soft-storey mechanism).
+- **Vertical component** where avg > 0.25 g: Ev = 0.3 × avg × 3.0/1.5 × D on every member (the
+  code names long spans, cantilevers, transfer beams and isolated structures: on the safe side).
+- **SRSS or CQC** by the independence of all the analysis's modes (Tj <= 0.9 Ti).
+- **Foundations' capacity design**: the earthquake parts × min(γRd Ω, q) with Ω = q unless the
+  project gives one (the elastic response the code allows as the bound; conservative).
+- **Settings**: under another pack than the default the Project Settings no longer show the
+  default pack's Seismic Design Category, its warning or its system switch (the pack's own
+  category comes with the analysis and the report).
+- Where it lives: `design/stress_fields.py`, `design/limit_state_members.py`,
+  `substructure/limit_state_retaining.py`, `substructure/foundation_capacity.py`,
+  `fem/seismic_regularity.py`, `fem/torsional_effects.py`, `fem/local_pressures.py`; hooks
+  marked "Alpha 9 C5c" in `curvature_ductility.py`, `perimeter_punching.py`, `bar_rules.py`,
+  `check.py`, `corbels.py`, `deep_beams.py`, `rc_detailing.py`, `slab.py`, `stairs.py`,
+  `walls.py`, `wall_design.py`, `wall_flanges.py`, `drawings/detailing.py`, `shallow.py`,
+  `pilecap.py`, `raft.py`, `retaining_walls.py`, `sizing.py`, `substructure/loads.py`,
+  `fem/derive.py`, `fem/loads.py`, `fem/peak_velocity_pressure.py`, `fem/snow_load.py`,
+  `fem/irregularity.py`, `fem/seismic_design.py`, `report/build.py`, `settingsEditor.ts`.
+
 ## 2026-11-04: Indian Standards remainder (alpha 9 track C9b)
 
 The `is-codes` pack now also covers the checks that fell back to BNBC 2020 under C7-C9 where

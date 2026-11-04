@@ -276,6 +276,106 @@ code are not copied.
 | 215 | Piles from ground tests: Rc,cal per borehole (SAEngine's static method), n = the boreholes, Rc,k = min(mean/ξ3, min/ξ4), split base/shaft by their mean shares | 7.6.2.3(5)-(8) | | sure (the split is SAEngine practice) |
 | 216 | Rt,k = the shaft's uplift share with ξ3, ξ4; Rt,d = Rt,k/γs,t + the pile's weight | 7.6.3.3 | | SAEngine practice (the weight) |
 
+## Alpha 9 C5c: the remainder of the concrete, foundation and load parts
+
+Numbered C5c-1 on so that they do not clash with the rows of the other alpha 9 tracks.
+
+### EN 1992-1-1 (concreteMethods.json)
+
+| # | Value | Clause | Description | Confidence |
+| --- | --- | --- | --- | --- |
+| C5c-1 | Struts σRd,max = fcd without transverse tension, 0.6 ν' fcd in cracked zones, ν' = 1 - fck/250 | 6.5.2(1)-(2), Eqs 6.55, 6.56, 6.57N | `strutAndTie.strutUncracked`, `strutCracked`, `nuDivisor` | sure |
+| C5c-2 | Nodes k1 = 1.0 (C-C-C), k2 = 0.85 (C-C-T), k3 = 0.75 (C-T-T) × ν' fcd | 6.5.4(4) Eqs 6.60-6.62 | `nodeCCC`, `nodeCCT`, `nodeCTT` | sure |
+| C5c-3 | Ties As fyd | 6.5.3 | No φ | sure |
+| C5c-4 | Least strut-tie angle 21.8° (cot θ <= 2.5) | 6.5 (none given) | `minAngle` | SAEngine practice |
+| C5c-5 | Deep beam: span < 3 h | 5.3.1(3) | `deepSpanRatio`; the parent's concentrated-load rule (within 2 h of a support) also kept | sure (the load rule SAEngine practice) |
+| C5c-6 | Deep beam web mesh As,dbmin = 0.1 % of Ac per face and direction, at least 150 mm²/m; spacing min(2 b, 300 mm) | 9.7(1)-(2) | `deepMeshRatio`, `deepMeshMin`, `deepMeshSpacing` | sure |
+| C5c-7 | Deep beams, deep pile caps: tie lever arm z = 0.9 d | 6.5 | `tieArm` (as the parent) | SAEngine practice |
+| C5c-8 | Corbel: z0 = 0.8 d, tan θ = z0/ac within 1.0-2.5 | Annex J.3, Figure J.5 | `corbelLeverShare`, `corbelTanTheta` | unsure (tan θ limits); z0 SAEngine practice |
+| C5c-9 | Corbel: closed horizontal links ΣAs,lnk >= k1 As,main where ac <= 0.5 hc, k1 = 0.25; vertical links >= k2 FEd/fyd where ac > 0.5 hc and FEd > VRd,c, k2 = 0.5 | Annex J.3(2)-(3) | `corbelShortShare`, `corbelHorizontalLinks`, `corbelVerticalLinks` | unsure (k1, k2 recommended values) |
+| C5c-10 | Corbel HEd at least 0.2 FEd where none is given | none in EN 1992-1-1 | `corbelHorizontalForce` | SAEngine practice |
+| C5c-11 | Corbel strut at the column face over x cos θ, x = 2 (d - z0), cracked 0.6 ν' fcd | 6.5.2 | | SAEngine practice |
+| C5c-12 | Interface shear vRdi = c fctd + μ σn + ρ fyd μ (α = 90°) <= 0.5 ν fcd, c = 0 under tension | 6.2.5(1) Eqs 6.23-6.25 | `interfaceShear` | sure |
+| C5c-13 | c / μ: very smooth 0.025 / 0.5, smooth 0.20 / 0.6, rough 0.40 / 0.7, indented 0.50 / 0.9 | 6.2.5(2) | `surfaces`; very smooth c = 0.025 (the code gives 0.025-0.10) | sure |
+| C5c-14 | The parent's surfaces read as monolithic = indented, roughened = rough, not roughened = smooth, steel = very smooth | | `surfaceMap` | SAEngine practice |
+| C5c-15 | Peripheral tie Ftie,per = li q1, q1 = 10 kN/m, at least q2 = 70 kN | 9.10.2.2(2) Eq 9.15 | `ties.peripheralPerLength`, `peripheralMin` | unsure (whether q2 is a least value or a cap: check the Note) |
+| C5c-16 | Internal tie 20 kN/m, (l1 + l2)/2 taken as the beam's span, at least 70 kN | 9.10.2.3(4) | `internalPerLength`, `internalMin` | unsure (the q3/q4 form); span SAEngine practice |
+| C5c-17 | Column ties 150 kN, facade 20 kN/m | 9.10.2.4(2) | `columnMin`, `facadePerLength` (facade value stored, not checked) | sure |
+| C5c-18 | Ties at fyd of the accidental situation (γs = 1.0) | 9.10.1(4), 2.4.2.4 | | sure |
+| C5c-19 | Column bases: control perimeters within 2d, vRd = CRd,c k (100 ρ fck)^(1/3) 2d/a >= vmin 2d/a, VEd,red = VEd - ΔVEd | 6.4.4(2) Eqs 6.50, 6.51 | `footingPunching` | sure |
+| C5c-20 | k of the moment: c1/c2 <= 0.5: 0.45, 1.0: 0.6, 2.0: 0.7, >= 3.0: 0.8 (linear between) | 6.4.3(3) Table 6.1 | `momentK`; W of the perimeter at a by Eq 6.41's form | sure (W at a < 2d SAEngine practice) |
+| C5c-21 | The critical perimeter searched at 16 distances to 2d; the soil pressure inside by the mean over the bounding rectangle | | `steps` | SAEngine practice |
+| C5c-22 | Raft edge and corner columns: u1 at 2d with β, VEd less the net reaction within 2d | 6.4.2, 6.4.3(6) | | SAEngine practice |
+| C5c-23 | Pile caps: VEd less the pile reactions inside each perimeter (by the share of a pile's area inside) | 6.4.2(2) | | SAEngine practice |
+| C5c-24 | Walls out of plane: l0 = β lc, β = 1.0 held by both floors, 2.0 free-standing; i = t/√12; M at least NEd e0 | 5.8.3.2, 6.1(4) | `wallSlenderness.effectiveLength` | SAEngine practice (cf. 12.6.5.1 Table 12.1 for plain walls) |
+| C5c-25 | Walls out of plane: single curvature rm = 1 (C = 0.7), nominal curvature beyond λlim | 5.8.3.1, 5.8.8 | | SAEngine practice (on the safe side) |
+| C5c-26 | Flanged wall groups: the webs' VRd summed, VEd × ε (the largest class's ε) of a ductile wall | 6.2; EN 1998-1 5.4.2.4(7) | | SAEngine practice |
+| C5c-27 | Slabs: span/depth with K 1.0 simply supported, 1.3 end span, 1.5 interior, 1.2 flat slabs; two-way slabs the shorter span, flat slabs the longer; ρ of the bottom bars | 7.4.2(2) Table 7.4N | `deflection` (C5's values) | sure |
+| C5c-28 | Stairs: span/depth as one-way slabs by their continuous ends | 7.4.2 | | SAEngine practice |
+| C5c-29 | Mandrel φm,min = 4 φ (φ <= 16 mm), 7 φ (> 16 mm) | 8.3(2) Table 8.1N | `barShapes.mandrel` | sure |
+| C5c-30 | Bends and hooks of main bars: 5 φ past the bend | 8.4.1 Figure 8.1 | `bendTail` | unsure (the straight length of Figure 8.1 b, c) |
+| C5c-31 | Links: 135° hooks 5 φ >= 50 mm, 90° bends 10 φ >= 70 mm | 8.5(1) Figure 8.5 | `link135`, `link90` | unsure |
+| C5c-32 | Hooked anchorage lb,eq = α1 lb,rqd, α1 = 0.7 where cd > 3 φ (side cover given), else 1.0 | 8.4.4 Table 8.2 | `anchorage.hookAlpha` (C5) | sure (cd taken as 4 φ with the cover flag: SAEngine practice) |
+| C5c-33 | Compression anchorage lbd = lb,rqd >= max(0.6 lb,rqd, 10 φ, 100 mm) | 8.4.4(1) Eq 8.7 | `anchorage.minCompression` (C5) | sure |
+| C5c-34 | Compression laps l0 = α6 lb,rqd (α1 = α2 = 1) >= l0,min; one transverse bar outside each end within 4 φ | 8.7.3, 8.7.4.2(1) | `compressionLapEnd` | sure |
+| C5c-35 | Column splices: all bars lapped at one section (α6 1.5) | 8.7.3 Table 8.3 | `columnLapShare` | SAEngine practice (on the safe side) |
+| C5c-36 | Columns DCM/DCH: α ωwd >= 30 μφ νd εsy,d bc/b0 - 0.035, ωwd >= 0.08 (DCM base) / 0.12 (DCH base) | EN 1998-1 5.4.3.2.2(8), 5.5.3.2.2(6), (8) | C5's `confinementCoefficient`, `confinementOffset`, `omegaBase` | sure |
+| C5c-37 | The base region's rule for every critical region; α = αn αs with the legs evenly spaced | EN 1998-1 5.4.3.2.2(8), Eqs 5.16-5.17 | | SAEngine practice (on the safe side) |
+| C5c-38 | μφ from q0 = the analysis's q (kw = 1), T1 = Ct H^(3/4), TC of the ground type | EN 1998-1 5.2.3.4(3) Eqs 5.4, 5.5; 4.3.3.2.2(3) | | SAEngine practice (T1 approximate) |
+| C5c-39 | Ductile walls' boundary elements: α ωwd >= 30 μφ (νd + ωv) εsy,d bw/b0 - 0.035, ωwd >= 0.08 (DCM) / 0.12 (DCH) | EN 1998-1 5.4.3.4.2(4) Eq 5.20, 5.5.3.4.5 | `wallOmega` (C5) | sure (DCH's 0.12 unsure) |
+
+### EN 1997-1 (geotechnicalMethods.json)
+
+| # | Value | Clause | Description | Confidence |
+| --- | --- | --- | --- | --- |
+| C5c-40 | EQU: γG,dst 1.10, γG,stb 0.90, γQ,dst 1.50 | EN 1990 Table A1.2(A) | `equilibrium` (overturning of retaining walls) | sure |
+| C5c-41 | Retaining walls: Ka(φ'd) / Ka(φ'k) by Rankine on the retained soil (K0 = 1 - sin φ' at rest) | EN 1997-1 9.5, Annex C | `retaining` | SAEngine practice (the ratio) |
+| C5c-42 | Retaining walls: sliding V'd tan δd / γR,h, δd = φ'd under the base (cast in place), passive / γR,e | 9.7.3, 6.5.3 | | sure |
+| C5c-43 | Retaining walls: bearing on B' = B - 2e (Annex D) per design combination | 9.7.2, 6.5.2 | | sure |
+| C5c-44 | Retaining walls: the stem and base under γG of A1 (1.35) on the earth pressure | EN 1990 Table A1.2(B), EN 1997-1 2.4.7.3.4 | | SAEngine practice |
+| C5c-45 | Footing sizing assistant by the bearing resistance rows of the design approach | 6.5.2 | | SAEngine practice |
+
+### EN 1991-1-4 (wind.json)
+
+| # | Value | Clause | Description | Confidence |
+| --- | --- | --- | --- | --- |
+| C5c-46 | Torsion by e = b/10 with the full pressure; no simultaneous cases | 7.1.2(2), Figure 7.1 | `designCases` (Case 2 of the design wind cases) | sure |
+| C5c-47 | co = 1 for Φ < 0.05; 1 + 2 s Φ for 0.05 <= Φ < 0.3; 1 + 0.6 s for Φ >= 0.3 with Le = H/0.3 | Annex A.3 Eqs A.1-A.3 | `orography` | sure |
+| C5c-48 | s upwind A e^(B X/Lu), A = 0.1552 z⁴ - 0.8575 z³ + 1.8133 z² - 1.9115 z + 1.0124, B = 0.3542 z² - 1.0577 z + 2.6456 (z = z/Le), -1.5 <= X/Lu <= 0, z/Le <= 2 | Annex A.3 Eq A.2 | `upwindA`, `upwindB` | unsure (the polynomial coefficients) |
+| C5c-49 | s downwind of hills and ridges A e^(B X/Ld), B = -0.3056 z² + 1.0212 z - 1.7637, 0 <= X/Ld <= 2 | Annex A.3 Eq A.4 | `hillB` | unsure (the polynomial coefficients) |
+| C5c-50 | s downwind of cliffs and escarpments A log²(X/Le) + B log(X/Le) + C, A = -1.3420 l³ - 0.8222 l² + 0.4609 l - 0.0791, B = -1.0196 l³ - 0.8910 l² + 0.5343 l - 0.1156, C = 0.8030 l³ + 0.4236 l² - 0.5738 l + 0.1606 (l = log z/Le), 0.1 <= X/Ld <= 3.5, z/Le >= 0.1; linear to the crest below 0.1 | Annex A.3 Eq A.3 | `cliffA`, `cliffB`, `cliffC` | unsure (coefficients, and X/Le or X/Ld in the log) |
+| C5c-51 | Lu = 2 × the project's half-height distance Lh, Ld = Lu | | `lengthFromHalfHeight` | SAEngine practice |
+| C5c-52 | cscd of Annex B: zs = 0.6 h, L(zs) = 300 (zs/200)^α, α = 0.67 + 0.05 ln z0, B² = 1/(1 + 0.9 ((b + h)/L)^0.63), SL = 6.8 fL/(1 + 10.2 fL)^(5/3), R² = π²/(2δ) SL Rh Rb, η = 4.6 fL h/L (b), kp = √(2 ln νT) + 0.6/√(2 ln νT) >= 3, ν >= 0.08 Hz, T = 600 s | 6.3.1, Annex B.1-B.2 | `structuralFactor.detailed` | sure |
+| C5c-53 | n1 = 46/h where the project gives none; δs = 0.10 (concrete buildings), 0.05 (steel); δa left out | Annex F Eq F.2, Table F.2 | `frequencyCoefficient`, `structuralDamping` | sure (δa omitted: SAEngine practice, on the safe side) |
+| C5c-54 | cpe = cpe,1 at A <= 1 m², cpe,10 at A >= 10 m², log10 A between | 7.2.1 Figure 7.2 | `localPressures.areaSmall`, `areaLarge` | sure |
+| C5c-55 | Walls cpe,10 / cpe,1: A -1.2/-1.4, B -0.8/-1.1, C -0.5/-0.5; D +0.8/+1.0 (h/d >= 1), +0.7/+1.0 (<= 0.25); E -0.7 (5), -0.5 (1), -0.3 (<= 0.25) | 7.2.2 Table 7.1 | `zones` | sure |
+| C5c-56 | Flat roofs cpe,10 / cpe,1, sharp eaves: F -1.8/-2.5, G -1.2/-2.0, H -0.7/-1.2, I ±0.2; parapets hp/h 0.025: F -1.6/-2.2, G -1.1/-1.8; 0.05: -1.4/-2.0, -0.9/-1.6; 0.10: -1.2/-1.8, -0.8/-1.4 | 7.2.3 Table 7.2 | `zones` (H with parapets as sharp eaves) | unsure (the parapet rows) |
+| C5c-57 | e = min(b, 2h); cpi +0.2 / -0.3 the more onerous | 7.2.2 Figure 7.5, 7.2.9(6) Note 2 | `edgeFactor`, `internal` | sure |
+
+### EN 1991-1-3 (snow.json)
+
+| # | Value | Clause | Description | Confidence |
+| --- | --- | --- | --- | --- |
+| C5c-58 | Roofs abutting taller construction: μ2 = μs + μw, μw = (b1 + b2)/(2h) <= γh/sk, 0.8 <= μw <= 4, ls = 2h within 5-15 m, μs = 0 for α <= 15°, γ = 2 kN/m³ | 5.3.6 Eqs 5.8, 5.9 | `drift` (method `shapeCoefficient`) | sure |
+| C5c-59 | Parapets: μ2 = γh/sk within 0.8-2.0, ls = 2h within 5-15 m | 6.2 Eq 6.1 | `parapetRange` | sure |
+| C5c-60 | μ1 = 0.8 away from the drift; Annex B (exceptional drifts) not covered | 5.3.6, Annex B | `lowerShape` | sure |
+
+### EN 1998-1 (seismic.json)
+
+| # | Value | Clause | Description | Confidence |
+| --- | --- | --- | --- | --- |
+| C5c-61 | Plan: λ = Lmax/Lmin <= 4; the floor within its convex envelope, the area between <= 5 % of the floor's | 4.2.3.2(4)-(5) | `regularity.slendernessMax`, `compactnessShare` | sure |
+| C5c-62 | Plan: e0 <= 0.30 r, r >= ls in both directions; the stiffness centre and r from the moments of inertia of the columns and walls | 4.2.3.2(6) Eqs 4.1a, 4.1b; 4.2.3.2(8) | `eccentricityShare`, `torsionalRadius` | sure (the centre of mass at the floor's centroid SAEngine practice) |
+| C5c-63 | Elevation: setbacks symmetric each <= 20 % of the dimension below; a single one in the lower 15 % of the height <= 50 %; unsymmetric each <= 10 % and together <= 30 % of the base's | 4.2.3.3(5) Figure 4.1 | `setbackShare`, `baseHeightShare`, `baseSetbackShare`, `unsymmetricShare`, `unsymmetricTotal` | sure |
+| C5c-64 | A setback symmetric when its two sides differ by at most 25 % of it | | `symmetryTolerance` | SAEngine practice |
+| C5c-65 | Abrupt change indicators: storey stiffness < 70 % of the storey above, mass > 150 % of an adjacent storey | 4.2.3.3(3) (no numbers) | `irregularities.soft`, `mass` | SAEngine practice |
+| C5c-66 | Not regular in elevation: q0 × 0.8 (and qd = q); not regular in plan: αu/α1 = (1 + αu/α1)/2 | 4.2.3.1(7), 5.2.2.2(6) | `elevationFactor`, `planAverage`; αu/α1 is the system's Ω0 | sure (applied to q of every system: the plan rule is written for concrete systems) |
+| C5c-67 | δ = 1 + 0.6 x/Le (1.2 for planar models) where no accidental eccentricity is analysed | 4.3.3.2.4(1)-(2) Eq 4.12 | `torsionalEffects`; the larger of the two directions' δ rounded up to 0.05 | sure (application SAEngine practice) |
+| C5c-68 | Modes independent when Tj <= 0.9 Ti; SRSS where all are, else CQC | 4.3.3.3.2(1)-(3) | `modalCombination` | sure |
+| C5c-69 | Vertical component where avg > 0.25 g; avg/ag = 0.90 (Type 1), 0.45 (Type 2); the vertical spectrum's plateau 3.0 avg/q with q = 1.5; 0.30 in the combination | 4.3.3.5.2(1), (4), Table 3.4, 3.2.2.5(5) | `verticalComponent` | sure (every member, the plateau: SAEngine practice) |
+| C5c-70 | Foundations: EFd = EF,G + γRd Ω EF,E, γRd = 1.0 for q <= 3, 1.2 above, Ω <= q | 4.4.2.6(2)-(4) Eq 4.30 | `foundationCapacity` | sure |
+| C5c-71 | Ω taken as q (the elastic response) unless the project gives one | 4.4.2.6(2) | `foundationCapacity.omega` | SAEngine practice (on the safe side) |
+| C5c-72 | Type 2 spectrum where the earthquakes that contribute most have Ms <= 5.5 | 3.2.2.2(2) Note 1 | `spectrumTypeGuidance` | sure |
 
 ## Steel and the other materials (alpha 9 track C6)
 

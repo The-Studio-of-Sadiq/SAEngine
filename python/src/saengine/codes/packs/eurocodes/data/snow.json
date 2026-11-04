@@ -15,11 +15,22 @@
   "loadCase": "Lr",
   "withRoofLive": "envelope",
   "exceptionalFactor": 2.0,
+  "drift": {
+    "method": "shapeCoefficient",
+    "density": 2.0,
+    "windRange": [0.8, 4.0],
+    "lengthFactor": 2.0,
+    "lengthRange": [5.0, 15.0],
+    "slideAngle": 15.0,
+    "parapetRange": [0.8, 2.0],
+    "lowerShape": 0.8
+  },
   "sources": {
     "exposures": "EN 1991-1-3 Table 5.1, recommended Ce",
     "thermal": "EN 1991-1-3 Sec 5.2(8): Ct = 1.0 (less only for roofs of high thermal transmittance, by the National Annex)",
     "shape": "EN 1991-1-3 Table 5.2: μ1 = 0.8 for 0° ≤ α ≤ 30°, 0.8 (60 - α)/30 for 30° < α < 60°, 0 for α ≥ 60° (monopitch and duopitch roofs, the undrifted case; drift, μ2 and local effects are not covered)",
     "loadCase": "SAEngine practice: the roof snow goes into the roof case Lr, the larger of it and the category H imposed load (EN 1991-1-1 Sec 3.3.2(1): roof imposed loads need not act with snow)",
-    "exceptionalFactor": "EN 1991-1-3 Sec 4.3, Eq 4.1: Cesl = 2.0 (exceptional snow loads, accidental; reported, not applied)"
+    "exceptionalFactor": "EN 1991-1-3 Sec 4.3, Eq 4.1: Cesl = 2.0 (exceptional snow loads, accidental; reported, not applied)",
+    "drift": "EN 1991-1-3 5.3.6 Eqs 5.8, 5.9 (roofs abutting taller construction: μ2 = μs + μw, μw = (b1 + b2)/(2h) <= γh/sk, 0.8 <= μw <= 4 recommended, ls = 2h within 5-15 m, μs = 0 for α <= 15°, γ = 2 kN/m³), 6.2 Eq 6.1 (drifting at projections and parapets: μ2 = γh/sk, 0.8 <= μ2 <= 2.0, ls = 2h within 5-15 m); μ1 = 0.8 away from the drift; Annex B (exceptional drifts) not covered; reported for the lower roof, not applied"
   }
 }
