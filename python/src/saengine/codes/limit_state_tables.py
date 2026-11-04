@@ -254,6 +254,20 @@ class BoltGradeStrength(_Group):
     fub: Positive = Field(description="Ultimate tensile stress of the bolt [MPa].")
     fyb: Positive = Field(description="Yield stress of the bolt [MPa].")
     pretensioned: bool = Field(description="May be used as a friction grip bolt.")
+    # Alpha 9 C20b (GB 50017 Table 4.4.6 type: the design strengths tabulated by bolt grade):
+    # Vd = planes × π d²/4 × fv (the shank), Td = An × ft, in place of fub / (√3 γmb) Anb and
+    # share fub An / γmb.
+    designShear: Positive | None = Field(
+        default=None, description="fv of the bolt [MPa] on the shank (none: the formula)."
+    )
+    designTension: Positive | None = Field(
+        default=None, description="ft of the bolt [MPa] on An (none: the formula)."
+    )
+    pretension: dict[str, Positive] = Field(
+        default_factory=dict,
+        description="P [kN] of a friction grip bolt by size ('M20'), in place of proofShare "
+        "fub Anb (empty: that).",
+    )
 
 
 class SteelBoltRules(_Group):
@@ -276,6 +290,16 @@ class SteelBoltRules(_Group):
     longJoint: tuple[Positive, Positive, Positive, Share] = Field(
         description="(a, b, c, least): βlj = a - b lj / d for lj > c d, at least the least."
     )
+    # Alpha 9 C20b (GB 50017 11.4.1 type: Ncb = d Σt fcb with fcb tabulated by the connected
+    # steel): fcb = this × fu of the connected part, no γ and no end or pitch reduction (the
+    # code's detailing rules for e and p taken as met).
+    bearingStrength: Positive | None = Field(
+        default=None, description="fcb / fu of the connected part (none: the kb formula)."
+    )
+    # GB 50017 11.4.2 type: friction grip Nv = slipFactor k nf μ P (none: γmf).
+    slipFactor: Share | None = Field(
+        default=None, description="Vdsf = this × μ ne Kh P in place of / γmf (none: γmf)."
+    )
 
 
 class SteelWeldRules(_Group):
@@ -284,6 +308,11 @@ class SteelWeldRules(_Group):
     method: Literal["throatShear"] = "throatShear"
     throatShare: Share
     field: bool = Field(description="Field welds (γmw field) by default.")
+    # Alpha 9 C20b (GB 50017 Table 4.4.5 type: ffw by electrode): (electrode fu up to [MPa],
+    # ffw [MPa]) on the throat, in place of fu / (√3 γmw); the first row holding.
+    filletStrengths: list[tuple[Positive, Positive]] = Field(
+        default_factory=list, description="(electrode fu up to [MPa], ffw [MPa]) (empty: γmw)."
+    )
 
 
 class SteelConnectionRules(_Group):
@@ -381,6 +410,12 @@ class SteelSeismicRules(_Group):
     frames: dict[str, SeismicFrameRules]
     columnAmplified: bool = Field(description="Columns' axial strength under the Ω0 combinations.")
     rAbove: float = Field(ge=0, description="The rules apply when R is above this.")
+    # Alpha 9 C20b (GB 50011 8.1.3, 8.3-8.4 type: the rules by the seismic grade): the
+    # building's seismic grade (seismic.seismicGrades) -> frame kind, in place of the system's.
+    gradeFrames: dict[str, str] = Field(
+        default_factory=dict,
+        description="Seismic grade id -> frame kind of 'frames' (empty: by the system).",
+    )
 
 
 class SteelLimitStateTable(TableModel):

@@ -1,0 +1,17 @@
+{
+  "$schema": "../../../schemas/occupancyCategories.schema.json",
+  "$replace": true,
+  "$sources": [
+    "KDS 41 17 00:2019 3.2, Table 3.2-1 (seismic importance classes special, I, II and the importance factors 1.5, 1.2, 1.0)"
+  ],
+  "source": "KDS 41 17 00:2019: importance class special (I = 1.5), I (1.2) and II (1.0). The categories I-IV are SAEngine's slots: I and II take class II, III class I, IV class special. The wind importance stays 1.0 (the base pack's ASCE 7 method; KDS 41 12 00's importance factor of the wind is not set, VERIFY.md K3).",
+  "categories": {
+    "I": { "description": "Importance class II: buildings of low occupancy (I = 1.0)", "seismicImportance": 1.0, "windImportance": 1.0 },
+    "II": { "description": "Importance class II: buildings not in the classes special or I (I = 1.0)", "seismicImportance": 1.0, "windImportance": 1.0 },
+    "III": { "description": "Importance class I: buildings with many occupants (assembly, schools, large buildings) (I = 1.2)", "seismicImportance": 1.2, "windImportance": 1.0 },
+    "IV": { "description": "Importance class special: essential facilities (hospitals, fire and police stations, emergency facilities) and hazardous facilities (I = 1.5)", "seismicImportance": 1.5, "windImportance": 1.0 }
+  },
+  "sources": {
+    "categories": "KDS 41 17 00:2019 Table 3.2-1 (check the uses of each class)"
+  }
+}

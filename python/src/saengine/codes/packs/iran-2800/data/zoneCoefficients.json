@@ -1,0 +1,14 @@
+{
+  "$schema": "../../../schemas/zoneCoefficients.schema.json",
+  "$replace": true,
+  "$sources": [
+    "Standard 2800 (4th ed.) 2-2, Table 2-1: the design base acceleration A of the zones of very high, high, moderate and low relative seismic hazard"
+  ],
+  "source": "Standard 2800 (4th ed.) Table 2-1: A = 0.35 (zone 1, very high), 0.30 (zone 2, high), 0.25 (zone 3, moderate), 0.20 (zone 4, low)",
+  "zones": {
+    "1": 0.35,
+    "2": 0.3,
+    "3": 0.25,
+    "4": 0.2
+  }
+}

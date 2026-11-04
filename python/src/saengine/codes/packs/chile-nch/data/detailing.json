@@ -1,0 +1,14 @@
+{
+  "$schema": "../../../schemas/detailing.schema.json",
+  "$sources": [
+    "DS 60 (MINVU, 2011) 21.9.6.2: boundary elements of walls (the Chilean change of NCh 430 after the 2010 earthquake)"
+  ],
+  "source": "NCh 430:2008 (ACI 318-08) with DS 60 (2011): the base pack's ACI 318-19 detailing with the DS 60 boundary element trigger of walls",
+  "walls": {
+    "driftMin": 0.007,
+    "driftFactor": 1.0
+  },
+  "sources": {
+    "walls": "DS 60 21.9.6.2: boundary elements where c ≥ lw / (600 δu/hw) with δu/hw at least 0.007 (ACI 318-19 18.10.6.2: lw / (600 × 1.5 δu/hw), δu/hw ≥ 0.005). DS 60's other wall rules (the compressive strain limit εc ≤ 0.008 at δu, the least wall thickness and the confinement of the boundary) are not set: the base pack's ACI 318-19 rules apply (VERIFY.md C17)"
+  }
+}

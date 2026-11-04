@@ -1,0 +1,14 @@
+{
+  "$schema": "../../../schemas/zoneCoefficients.schema.json",
+  "$replace": true,
+  "$sources": [
+    "E.030 2018 10, Table 1: the zone factor Z of the seismic zones 1-4"
+  ],
+  "source": "E.030 2018 Table 1: Z = 0.10 (zone 1), 0.25 (zone 2), 0.35 (zone 3), 0.45 (zone 4)",
+  "zones": {
+    "1": 0.1,
+    "2": 0.25,
+    "3": 0.35,
+    "4": 0.45
+  }
+}

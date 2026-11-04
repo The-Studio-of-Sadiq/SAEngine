@@ -1,0 +1,35 @@
+{
+  "$schema": "../../../schemas/concrete.schema.json",
+  "$sources": [
+    "KS D 3504 (deformed steel bars: D10, D13, D16, D19, D22, D25, D29, D32)"
+  ],
+  "barDiameters": {
+    "$replace": true,
+    "all": [10.0, 13.0, 16.0, 19.0, 22.0, 25.0, 29.0, 32.0],
+    "main": [13.0, 16.0, 19.0, 22.0, 25.0, 29.0, 32.0],
+    "column": [16.0, 19.0, 22.0, 25.0, 29.0, 32.0],
+    "slab": [10.0, 13.0, 16.0],
+    "stirrup": [10.0, 13.0],
+    "wall": [10.0, 13.0, 16.0, 19.0],
+    "boundary": [16.0, 19.0, 22.0, 25.0, 29.0, 32.0],
+    "hoop": [10.0, 13.0],
+    "lintel": [10.0, 13.0, 16.0, 19.0, 22.0, 25.0],
+    "tank": [10.0, 13.0, 16.0, 19.0, 22.0, 25.0],
+    "foundation": [13.0, 16.0, 19.0, 22.0, 25.0, 29.0]
+  },
+  "barNames": {
+    "$replace": true,
+    "10": "D10",
+    "13": "D13",
+    "16": "D16",
+    "19": "D19",
+    "22": "D22",
+    "25": "D25",
+    "29": "D29",
+    "32": "D32"
+  },
+  "sources": {
+    "barDiameters": "KS D 3504: the bars named by their rounded nominal diameter (D10 9.53 mm, D13 12.7, D16 15.9, D19 19.1, D22 22.2, D25 25.4, D29 28.6, D32 31.8 mm); SAEngine designs with the rounded diameters as the base pack does with the US bars (VERIFY.md K10); the sets by use are SAEngine practice",
+    "barNames": "KS D 3504: D + the rounded nominal diameter"
+  }
+}

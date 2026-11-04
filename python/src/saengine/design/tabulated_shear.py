@@ -135,9 +135,12 @@ def slab_factor(depth: float, r: Any | None = None) -> float:
 
 
 def stirrup_yield(fy: float, r: Any | None = None) -> float:
-    """fyd of stirrups [MPa]: min(fy, fyMax) / γs."""
+    """fyd of stirrups [MPa]: min(fy, fyMax) / γs (alpha 9 C20b: the design yield of that
+    grade where the pack tabulates it, :func:`saengine.design.design_strength.fyd`)."""
+    from saengine.design import design_strength
+
     r = r or rules()
-    return min(fy, r.fyMax) / gamma_s()
+    return design_strength.fyd(min(fy, r.fyMax))
 
 
 def least_stirrups(b: float, spacing: float, fy: float, r: Any | None = None) -> float:
@@ -520,12 +523,64 @@ def link_spacing_limit(b: float, depth: float, cover: float, dia: float, t: Any 
 # ─────────────────────────────── punching ───────────────────────────────
 
 
-def punching_stress(fck: float, short: float, long: float) -> float:
-    """ks τc [MPa] of the punching shear (no shear reinforcement)."""
+def punching_stress(
+    fck: float,
+    short: float,
+    long: float,
+    d: float | None = None,
+    b0: float | None = None,
+    alpha_s: float | None = None,
+) -> float:
+    """ks τc [MPa] of the punching shear (no shear reinforcement).
+
+    Alpha 9 C20b: with the pack's ``strength`` "tensile" (GB 50010 6.5.1 type), coefficient ×
+    fctd × βh × η, η = min(ks, η2) with η2 = a + αs d / (b b0) where the pack gives its
+    ``locationTerm`` and the caller the section (``d``, ``b0`` [mm], ``alpha_s``), βh by the
+    depth ``d`` (the effective depth taken for h: SAEngine practice)."""
     p = punching_rules()
     beta = short / long if long > 0 else 1.0
-    ks = min(1.0, p.ratioBase + beta)
-    return ks * p.coefficient * math.sqrt(fck)
+    ks = min(1.0, p.ratioBase + p.ratioFactor * beta)
+    if getattr(p, "strength", "root") != "tensile":
+        return ks * p.coefficient * math.sqrt(fck)
+    from saengine.design import design_strength
+
+    eta = ks
+    if p.locationTerm is not None and d and b0 and alpha_s:
+        a, b = p.locationTerm
+        eta = min(eta, float(a) + float(alpha_s) * d / (float(b) * b0))
+    return p.coefficient * design_strength.fctd(fck) * punching_depth_factor(d) * eta
+
+
+def punching_depth_factor(d: float | None) -> float:
+    """Alpha 9 C20b: βh of the pack's ``punching.depthFactors`` at depth ``d`` [mm] (1 without
+    them or the depth)."""
+    p = punching_rules()
+    points = sorted(getattr(p, "depthFactors", None) or [])
+    if not points or not d:
+        return 1.0
+    return _interp(d, [a for a, _ in points], [b for _, b in points])
+
+
+def punching_note(fck: float, short: float, long: float, allowed: float) -> str:
+    """The formula of the punching stress in force, for the notes (alpha 9 C20b)."""
+    p = punching_rules()
+    if getattr(p, "strength", "root") != "tensile":
+        return (
+            f"ks τc = (0.5 + βc <= 1) × {p.coefficient:g} √fck = {allowed:.3f} MPa, βc the "
+            "short over the long column side"
+        )
+    from saengine.design import design_strength
+
+    eta2 = ""
+    if p.locationTerm is not None:
+        a, b = p.locationTerm
+        eta2 = f", η2 = {a:g} + αs d/({b:g} um) (αs 40 interior, 30 edge, 20 corner)"
+    return (
+        f"{p.coefficient:g} βh fctd η = {allowed:.3f} MPa, fctd = "
+        f"{design_strength.fctd(fck):.2f} MPa, η = min(η1, η2), η1 = {p.ratioBase:g} + "
+        f"{p.ratioFactor:g} βc <= 1 (βc the short over the long column side){eta2}, βh by the "
+        "depth"
+    )
 
 
 def punching_row(
@@ -542,7 +597,7 @@ def punching_row(
     """The punching row: τv = (Vu + extra) / (b0 d) [MPa] against ks τc. ``extra``: the share of
     an unbalanced moment as a shear [N] where the caller has it."""
     p = punching_rules()
-    allowed = punching_stress(fck, short, long)
+    allowed = punching_stress(fck, short, long, d, b0)  # C20b: βh at d (the tensile form)
     tv = (vu + extra) / (b0 * d) if b0 > 0 and d > 0 else math.inf
     return _row(
         f"Punching shear{_paren('punching')}",
@@ -551,7 +606,12 @@ def punching_row(
         "MPa",
         combination,
         f"τv = Vu/(b0 d), b0 = {b0:.0f} mm at {p.perimeterDistance:g} d, d = {d:.0f} mm; "
-        f"ks τc = (0.5 + βc <= 1) × {p.coefficient:g} √fck = {allowed:.3f} MPa; with shear "
+        + (
+            f"ks τc = (0.5 + βc <= 1) × {p.coefficient:g} √fck = {allowed:.3f} MPa"
+            if getattr(p, "strength", "root") != "tensile"
+            else punching_note(fck, short, long, allowed)
+        )
+        + "; with shear "
         f"reinforcement τv <= {p.reinforcedMax:g} τc and the steel for Vu - "
         f"{p.concreteShare:g} Vc; {where}",
     )
@@ -640,7 +700,9 @@ def wall_shear_row(
     w = wall_rules()
     d = w.depthShare * length
     tcw = wall_shear_strength(fck, height, length)
-    fyd = fy / gamma_s()
+    from saengine.design import design_strength
+
+    fyd = design_strength.fyd(fy)  # Alpha 9 C20b: fy / γs, or the pack's tabulated value
     vc = tcw * t * d
     vus = fyd * ah_per_spacing * d
     vmax = w.shearMaxShare * fck * t * d
@@ -706,46 +768,78 @@ def method_lines(code: str) -> list[str]:
         if torsion_rules() is not None
         else []
     )
+    # Alpha 9 C20b: the GB 50010 type torsion, deflection, crack and slenderness methods.
+    from saengine.design import plastic_torsion, seismic_grades, tension_stiffening
+
+    if plastic_torsion.rules() is not None:
+        torsion = [f"Beam {plastic_torsion.method_line()}."]
+    deflection = (
+        "Beam deflection: the span / effective depth ratio with the modification factors of "
+        "the tension and compression steel and the flanges, and the deflection from the "
+        "analysis scaled to Ieff with creep and shrinkage (final at most span/250, after the "
+        f"partitions span/350 or 20 mm){_paren('deflection')}."
+    )
+    if tension_stiffening.deflection_rules() is not None:
+        deflection = f"Beam {tension_stiffening.method_line()}."
+    slender = (
+        f"slender columns (lex/D above the limit) with the additional moments Pu D/{divisor} "
+        f"(lex/D)² reduced by k = (Puz - Pu)/(Puz - Pb){_paren('slenderness')}"
+    )
+    if col is not None and col.slenderness.method == "endMomentMagnifier":
+        s = col.slenderness
+        slender = (
+            f"slender columns by M = Cm ηns M2, Cm = {s.cmBase:g} + {s.cmRatio:g} M1/M2 >= "
+            f"{s.cmMin:g}, ηns = 1 + (lc/h)² ζc / ({s.divisor:g} (M2/N + ea)/h0)"
+            f"{_paren('slenderness')}"
+        )
     shares = u.axialShares
     cap = (
         f"Pu <= {shares[0]:g} fck Ac + {shares[1]:g} fy Asc"
         if shares
         else "NRd of the stress block"
     )
-    return [
-        (
-            f"Limit state design to {code}: design strengths {u.alphaCC:g} fck / γm (γm = "
-            f"{u.gammaC:g}) and fy / γs (γs = {u.gammaS:g}), no strength reduction factor"
-            f"{_paren('designStrength')}."
-        ),
-        (
-            f"Flexure and axial force by strain compatibility with {block}, the bars "
-            f"elastic-perfectly plastic at fy / γs; the neutral axis of beams at most xu,max"
-            f"{_paren('ultimate')}."
-        ),
-        (
-            "Beams: sagging and hogging moments about the strong axis; shear τv = Vu/(b d) "
-            f"against τc of the pack's table by pt and the grade, Vus = fyd Asv d / sv, τv <= "
-            f"τc,max{_paren('shear')}; least stirrups Asv/(b sv) >= {r.minStirrupStress:g}/fyd "
-            f"where τv > τc/2{_paren('shearMinimum')}; least and largest steel, side face steel, "
-            f"cover by the exposure condition and the development and lap lengths by the design "
-            f"bond stress{_paren('beamSteel')}."
-        ),
-        *torsion,
-        (
-            "Beam deflection: the span / effective depth ratio with the modification factors of "
-            "the tension and compression steel and the flanges, and the deflection from the "
-            "analysis scaled to Ieff with creep and shrinkage (final at most span/250, after the "
-            f"partitions span/350 or 20 mm){_paren('deflection')}."
-        ),
-        (
-            f"Columns: axial force with biaxial bending, {cap}, the moments at least Pu emin "
-            f"about both axes at once ({e_text}{_paren('minimumEccentricity')}); "
-            f"slender columns (lex/D above the limit) with the additional moments Pu D/{divisor} "
-            f"(lex/D)² reduced by k = (Puz - Pu)/(Puz - Pb){_paren('slenderness')}; {biaxial}; "
-            f"least and largest steel, bars, ties{_paren('columnSteel')}."
-        ),
-    ] + _remainder_lines(r)
+    if shares and getattr(u, "axialYieldShare", None) is not None:  # Alpha 9 C20b
+        cap = f"Pu <= {shares[0]:g} fck Ac + {u.axialYieldShare:g} fyd Asc"
+    yields = getattr(u, "designYields", None)
+    steel = (
+        "fy by bar grade ("
+        + ", ".join(f"{a:g} -> {b:g} MPa" for a, b in yields)
+        + f"; other grades fy / γs, γs = {u.gammaS:g})"
+        if yields
+        else f"fy / γs (γs = {u.gammaS:g})"
+    )
+    return (
+        [
+            (
+                f"Limit state design to {code}: design strengths {u.alphaCC:g} fck / γm (γm = "
+                f"{u.gammaC:g}) and {steel}, no strength reduction factor"
+                f"{_paren('designStrength')}."
+            ),
+            (
+                f"Flexure and axial force by strain compatibility with {block}, the bars "
+                f"elastic-perfectly plastic at fy / γs; the neutral axis of beams at most xu,max"
+                f"{_paren('ultimate')}."
+            ),
+            (
+                "Beams: sagging and hogging moments about the strong axis; shear τv = Vu/(b d) "
+                f"against τc of the pack's table by pt and the grade, Vus = fyd Asv d / sv, τv <= "
+                f"τc,max{_paren('shear')}; least stirrups Asv/(b sv) >= {r.minStirrupStress:g}/fyd "
+                f"where τv > τc/2{_paren('shearMinimum')}; least and largest steel, side face steel, "
+                f"cover by the exposure condition and the development and lap lengths by the design "
+                f"bond stress{_paren('beamSteel')}."
+            ),
+            *torsion,
+            deflection,
+            (
+                f"Columns: axial force with biaxial bending, {cap}, the moments at least Pu emin "
+                f"about both axes at once ({e_text}{_paren('minimumEccentricity')}); "
+                f"{slender}; {biaxial}; "
+                f"least and largest steel, bars, ties{_paren('columnSteel')}."
+            ),
+        ]
+        + _remainder_lines(r)
+        + seismic_grades.method_lines()
+    )
 
 
 def _remainder_lines(r: Any) -> list[str]:

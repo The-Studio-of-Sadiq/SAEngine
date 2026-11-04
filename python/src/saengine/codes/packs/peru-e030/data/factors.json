@@ -1,0 +1,21 @@
+{
+  "$schema": "../../../schemas/factors.schema.json",
+  "$sources": [
+    "E.060 2009 9.3 (strength reduction factors)"
+  ],
+  "source": "E.060 9.3.2: the strength reduction factors φ where they differ from ACI 318-19 (the rest are the base pack's)",
+  "phi": {
+    "compressionTied": 0.7,
+    "shear": 0.85,
+    "punching": 0.85,
+    "bearing": 0.7,
+    "plain": 0.65
+  },
+  "sources": {
+    "compressionTied": "E.060 9.3.2.2: compression-controlled members with ties φ = 0.70 (ACI 318-19: 0.65)",
+    "shear": "E.060 9.3.2.3: shear and torsion φ = 0.85 (ACI 318-19: 0.75)",
+    "punching": "E.060 9.3.2.3: two-way shear as shear, φ = 0.85",
+    "bearing": "E.060 9.3.2.4: bearing on concrete φ = 0.70",
+    "plain": "E.060 9.3.5: structural plain concrete φ = 0.65 (uncertain)"
+  }
+}

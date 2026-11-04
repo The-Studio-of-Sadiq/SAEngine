@@ -1,0 +1,59 @@
+{
+  "schema": "saengine.codePack/1",
+  "id": "southafrica-sans",
+  "name": "South Africa (SANS 10160, SANS 10100, SANS 10162)",
+  "edition": "SANS 10160:2011",
+  "country": "ZA",
+  "units": "SI",
+  "version": "0.1.0",
+  "extends": "eurocodes",
+  "covers": [
+    "locations",
+    "zoneCoefficients",
+    "seismic",
+    "combinations",
+    "concreteMethods"
+  ],
+  "description": "The South African National Standards (alpha 9 track C24), a pack that extends the built-in pack eurocodes: SANS 10160:2011 follows EN 1990 / EN 1991 / EN 1998 with South African values. Loads: the SANS 10160-1 STR combinations (1.35G, 1.2G + 1.6Q (+ 0.6W), 1.2G + 1.3W + 0.5Q, 0.9G + 1.3W, G + 0.3Q + E) as a set of the parent's strengthSets; wind by the parent's EN 1991-1-4 method with the towns' fundamental basic wind speed vb,0 of SANS 10160-3 (36-44 m/s); seismic by SANS 10160-4 (the towns' peak ground acceleration ag, 0.05-0.15 g with the mining areas, the ground types 1-4 with S, TB, TC, TD, the importance factors 0.8-1.4) on the parent's EN 1998-1 design spectrum, behaviour factors and rules. Concrete: SANS 10100-1 is a BS 8110 type code on the cube strength; this pack keeps the parent's EN 1992-1-1 methods (a pack has one parent: the loads decide it) with SANS 10100-1's γm 1.5 and 1.15 and αcc 0.85 (0.67 fcu/γm ≈ 0.85 fck/γm): SANS 10100-1's own shear, detailing and deflection values are not set. Steel: SANS 10162-1 (a CSA S16 type code) is not set: the parent's EN 1993-1-1 applies and the report names it. Every value is listed in VERIFY.md; the towns' ag and vb,0, the ground type parameters and the combinations' ψ are uncertain and must be checked before design.",
+  "sources": [
+    {
+      "id": "SANS10160",
+      "title": "SANS 10160 Basis of structural design and actions for buildings and industrial structures (Parts 1-8)",
+      "edition": "2011",
+      "publisher": "South African Bureau of Standards (SABS)"
+    },
+    {
+      "id": "SANS10100",
+      "title": "SANS 10100-1 The structural use of concrete, Part 1: Design",
+      "edition": "2000",
+      "publisher": "South African Bureau of Standards (SABS)"
+    },
+    {
+      "id": "SANS10162",
+      "title": "SANS 10162-1 The structural use of steel, Part 1: Limit-states design of hot-rolled steelwork",
+      "edition": "2011",
+      "publisher": "South African Bureau of Standards (SABS)"
+    }
+  ],
+  "clauses": {
+    "locations": ["SANS 10160-3 Figure 1 (vb,0), SANS 10160-4 Figure 1 (seismic hazard zones and ag)"],
+    "zoneCoefficients": ["SANS 10160-4 5.2 (ag bands)"],
+    "seismic": ["SANS 10160-4 (2011) 5-8"],
+    "combinations": ["SANS 10160-1 (2011) Table 3 (STR)"],
+    "concreteMethods": ["SANS 10100-1 3.3.3 (γm), 4.3.4 (the block)"]
+  },
+  "basis": {
+    "general": "SANS 10160:2011 (the parent's EN 1990 / EN 1991 / EN 1998 methods with South African values)",
+    "concrete": "SANS 10100-1 partial factors on the parent's EN 1992-1-1 methods",
+    "steel": "Not covered (SANS 10162-1: the parent's EN 1993-1-1 applies)"
+  },
+  "tableCodes": {
+    "seismic": "SANS 10160-4",
+    "locations": "SANS 10160",
+    "zoneCoefficients": "SANS 10160-4",
+    "combinations": "SANS 10160-1",
+    "concreteMethods": "SANS 10100-1"
+  },
+  "author": "SAEngine contributors",
+  "licence": "AGPL-3.0-only"
+}

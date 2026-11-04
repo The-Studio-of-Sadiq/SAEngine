@@ -1,0 +1,17 @@
+{
+  "$schema": "../../../schemas/factors.schema.json",
+  "$sources": [
+    "KDS 14 20 10:2021 4.2.3 (strength reduction factors)"
+  ],
+  "source": "KDS 14 20 10 4.2.3: the strength reduction factors φ of KDS 14 20 where they differ from ACI 318-19 (the rest are the base pack's, the same numbers)",
+  "phi": {
+    "tension": 0.85,
+    "compressionSpiral": 0.7,
+    "plain": 0.55
+  },
+  "sources": {
+    "tension": "KDS 14 20 10 4.2.3: tension-controlled sections φ = 0.85 (ACI 318-19: 0.90)",
+    "compressionSpiral": "KDS 14 20 10 4.2.3: compression-controlled sections with spirals φ = 0.70 (ACI 318-19: 0.75)",
+    "plain": "KDS 14 20 10 4.2.3: structural plain concrete φ = 0.55 (ACI 318-19: 0.60)"
+  }
+}

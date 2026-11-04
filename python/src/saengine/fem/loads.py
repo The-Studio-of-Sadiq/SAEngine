@@ -319,15 +319,37 @@ def _distribution_exponent(period: float) -> float:
     return 1.0 if period <= 0.5 else 2.0 if period >= 2.5 else 1 + (period - 0.5) / 2
 
 
+def top_force(top: Any, period: float, base_shear: float, site_class: str | None) -> float | None:
+    """Alpha 9 C20b: Ft [N] of a ``lateralForce.topForce`` by the site's corner period (GB
+    50011 Table 5.2.1 type δn): None while T <= cornerFactor × TC of the site class (None also
+    without the site class or ``factor``), else (factor T + offset) V >= 0 with the offset of the
+    first ``offsets`` row whose TC holds; the caller caps it at maxShare V."""
+    if site_class is None or top.factor is None:
+        return None
+    site = code_context.table("seismic").siteClasses.get(site_class)
+    if site is None:
+        return None
+    tc = float(site.TC)
+    if top.cornerFactor is not None and period <= top.cornerFactor * tc:
+        return None
+    rows = sorted(top.offsets)
+    offset = next((o for up_to, o in rows if tc <= up_to + 1e-9), rows[-1][1] if rows else 0.0)
+    return max(top.factor * period + offset, 0.0) * base_shear
+
+
 def vertical_distribution(
-    levels: list[tuple[float, float]], base_shear: float, period: float
+    levels: list[tuple[float, float]],
+    base_shear: float,
+    period: float,
+    site_class: str | None = None,
 ) -> list[float]:
     """Lateral force at each level: Fx = V·wx·hx^k / Σ wi·hi^k for (height, weight) levels.
 
     k = 1 for T ≤ 0.5 s, 2 for T ≥ 2.5 s, linear in between; k = 1 always with the pack's
     ``seismic.lateralForce.distribution`` "linear" (C4: EN 1998-1 4.3.3.2.3, Fi ∝ zi·mi).
     Alpha 9 C19: "shearCoefficientAi" the storey shears V·Ai·αi
-    (:func:`saengine.fem.shear_coefficient.level_forces`).
+    (:func:`saengine.fem.shear_coefficient.level_forces`). Alpha 9 C20b: ``site_class`` for a
+    top force by the site's corner period TC (:func:`top_force`).
     """
     rule = getattr(code_context.table("seismic"), "lateralForce", None)
     if rule is not None and rule.distribution == "shearCoefficientAi":  # Alpha 9 C19: Ai
@@ -341,7 +363,11 @@ def vertical_distribution(
     top = getattr(rule, "topForce", None) if rule is not None else None
     ft: float | None = None
     if top is not None and levels:
-        if top.storeyFactor is not None:  # Alpha 9 C21: ΔFN = factor N V (TBDY 2018 4.7.2.2)
+        if top.cornerFactor is not None or top.offsets:
+            # Alpha 9 C20b: δn by the site's TC (GB 50011 Table 5.2.1 type).
+            if top.periodFrom is None or period > top.periodFrom:
+                ft = top_force(top, period, base_shear, site_class)
+        elif top.storeyFactor is not None:  # Alpha 9 C21: ΔFN = factor N V (TBDY 2018 4.7.2.2)
             ft = top.storeyFactor * len(levels) * base_shear
         elif top.factor is not None and top.periodFrom is not None and period > top.periodFrom:
             ft = top.factor * period * base_shear

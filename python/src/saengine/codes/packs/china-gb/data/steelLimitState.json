@@ -345,10 +345,189 @@
     "sectionPlastic": "8.1.1",
     "sectionLinear": "8.1.1",
     "memberCompression": "8.2.1",
-    "memberTension": "8.1.1"
+    "memberTension": "8.1.1",
+    "boltShear": "11.4.1",
+    "boltBearing": "11.4.1",
+    "boltTension": "11.4.1",
+    "boltCombined": "11.4.1-8",
+    "slip": "11.4.2",
+    "blockShear": "7.1.1",
+    "fillet": "11.2.2",
+    "longJoint": "11.4.5",
+    "seismic": "GB 50011-2010 8.2.5, 8.3.2, 8.4.1"
+  },
+  "connections": {
+    "bolts": {
+      "method": "partialFactorBolts",
+      "grades": {
+        "4.6": {
+          "fub": 400,
+          "fyb": 240,
+          "pretensioned": false,
+          "designShear": 140,
+          "designTension": 170
+        },
+        "4.8": {
+          "fub": 400,
+          "fyb": 320,
+          "pretensioned": false,
+          "designShear": 140,
+          "designTension": 170
+        },
+        "5.6": {
+          "fub": 500,
+          "fyb": 300,
+          "pretensioned": false,
+          "designShear": 190,
+          "designTension": 210
+        },
+        "8.8": {
+          "fub": 800,
+          "fyb": 640,
+          "pretensioned": true,
+          "designShear": 250,
+          "designTension": 400,
+          "pretension": {
+            "M16": 80,
+            "M20": 125,
+            "M22": 150,
+            "M24": 175,
+            "M27": 230,
+            "M30": 280
+          }
+        },
+        "10.9": {
+          "fub": 1000,
+          "fyb": 900,
+          "pretensioned": true,
+          "designShear": 310,
+          "designTension": 500,
+          "pretension": {
+            "M16": 100,
+            "M20": 155,
+            "M22": 190,
+            "M24": 225,
+            "M27": 290,
+            "M30": 355
+          }
+        }
+      },
+      "aliases": {
+        "8.8S": "8.8",
+        "10.9S": "10.9"
+      },
+      "netShare": 0.78,
+      "tensionShare": 0.8,
+      "bearingFactor": 1.0,
+      "bearingEnd": 2.0,
+      "bearingPitch": [
+        3.0,
+        0.25
+      ],
+      "proofShare": 0.7,
+      "slipMu": {
+        "A": 0.3,
+        "B": 0.45
+      },
+      "holeKh": {
+        "standard": 1.0,
+        "oversized": 0.85,
+        "shortSlot": 0.85,
+        "longSlot": 0.7
+      },
+      "longJoint": [
+        1.1,
+        0.006667,
+        15.0,
+        0.7
+      ],
+      "bearingStrength": 0.82,
+      "slipFactor": 0.9
+    },
+    "welds": {
+      "method": "throatShear",
+      "throatShare": 0.7,
+      "field": false,
+      "filletStrengths": [
+        [
+          420,
+          160
+        ],
+        [
+          490,
+          200
+        ],
+        [
+          550,
+          220
+        ]
+      ]
+    },
+    "blockShear": [
+      0.9,
+      0.9
+    ],
+    "parentCode": "BNBC 2020 Part 6"
+  },
+  "seismic": {
+    "method": "prescriptiveFrames",
+    "systems": {
+      "steelFrame": "ungraded",
+      "steelBraced": "ungraded"
+    },
+    "frames": {
+      "grade-1": {
+        "braceSlenderness": 120.0,
+        "kBracing": false,
+        "plasticMembers": [
+          "beam",
+          "column"
+        ],
+        "strongColumn": 1.15,
+        "connectionMoment": 1.3,
+        "note": "GB 50011-2010 8.2.5, 8.3, 8.4, 一级"
+      },
+      "grade-2": {
+        "braceSlenderness": 120.0,
+        "kBracing": false,
+        "plasticMembers": [
+          "beam",
+          "column"
+        ],
+        "strongColumn": 1.1,
+        "connectionMoment": 1.3,
+        "note": "GB 50011-2010 8.2.5, 8.3, 8.4, 二级"
+      },
+      "grade-3": {
+        "braceSlenderness": 120.0,
+        "kBracing": false,
+        "plasticMembers": [
+          "beam"
+        ],
+        "strongColumn": 1.05,
+        "connectionMoment": 1.3,
+        "note": "GB 50011-2010 8.2.5, 8.3, 8.4, 三级"
+      },
+      "grade-4": {
+        "braceSlenderness": 180.0,
+        "kBracing": false,
+        "plasticMembers": [],
+        "strongColumn": 1.0,
+        "connectionMoment": 1.3,
+        "note": "GB 50011-2010 8.2.5, 8.3, 8.4, 四级"
+      }
+    },
+    "columnAmplified": false,
+    "rAbove": 0.0,
+    "gradeFrames": {
+      "steel-1": "grade-1",
+      "steel-2": "grade-2",
+      "steel-3": "grade-3",
+      "steel-4": "grade-4"
+    }
   },
   "sources": {
-    "partialFactors": "GB 50017-2017 Table 4.4.1: f of Q355 at t <= 16 mm is 305 MPa: γR = 355/305 = 1.164 taken for every grade (SAEngine practice: Q235 gives 202 in place of 215 MPa, on the safe side); the bolt and weld factors are not GB values (connections are the parent's)",
+    "partialFactors": "GB 50017-2017 Table 4.4.1: f of Q355 at t <= 16 mm is 305 MPa: γR = 355/305 = 1.164 taken for every grade (SAEngine practice: Q235 gives 202 in place of 215 MPa, on the safe side); γmb, γmw are not GB values and not used where the connections group tabulates the strength",
     "designStrength": "GB/T 700 and GB/T 1591-2018: the yield strength by thickness (Q235, Q355, Q390, Q420), divided by γR",
     "compression.perry": "GB 50017-2017 Appendix D (D.0.5): φ = 1 - α1 λn² (λn <= 0.215), else the Perry form with α2, α3 of the classes a, b, c, d (c and d with their second pair from λn 1.05)",
     "compression.rolledI": "GB 50017-2017 Table 7.2.1-1: rolled I and H with b/h <= 0.8 x a, y b; b/h > 0.8 x b, y c; t >= 80 mm x c, y d (Table 7.2.1-2)",
@@ -360,6 +539,12 @@
     "shear.lambdaLimits": "GB 50017-2017 6.3.3: τcr = fv up to λn,s 0.8, [1 - 0.59 (λn,s - 0.8)] fv to 1.2, 1.1 fv/λn,s² beyond (SAEngine's method takes 1.0/λ² there, on the safe side)",
     "slenderness": "GB 50017-2017 Table 7.4.6 (main compression members 150) and Table 7.4.7 (tension members 300, static loads)",
     "shearModulus": "GB 50017-2017 Table 4.4.8: G = 79 000 MPa",
-    "classification": "GB 50017-2017 Table 3.5.1: S1 / S3 / S4 limits in SAEngine's plastic / compact / semi-compact (S3 takes γx 1.05, S4 the elastic moment, S5 slender); the web limits at α0 = 2 (bending), axial by the factors k of (1 + k r)"
+    "classification": "GB 50017-2017 Table 3.5.1: S1 / S3 / S4 limits in SAEngine's plastic / compact / semi-compact (S3 takes γx 1.05, S4 the elastic moment, S5 slender); the web limits at α0 = 2 (bending), axial by the factors k of (1 + k r)",
+    "connections.bolts": "GB 50017-2017 Table 4.4.6: grade C 4.6, 4.8 fv 140, ft 170; grade A/B 5.6 fv 190, ft 210; high-strength bearing type 8.8 fv 250, ft 400, 10.9 fv 310, ft 500 MPa (U); 11.4.1 Nv = nv π d²/4 fv, Nt = π de²/4 ft (de as 0.78 of the shank: P), Nc = d Σt fc with fc 305 (Q235) / 385 (Q355) of grade C: 0.82 fu (P, on the safe side for A/B and high-strength bolts), √((Nv/Nvb)² + (Nt/Ntb)²) <= 1",
+    "connections.slip": "GB 50017-2017 11.4.2: Nv = 0.9 k nf μ P, P by size of Table 11.4.2-2 (8.8: 80-280 kN, 10.9: 100-355 kN, U), μ 0.30 (A, wire brushed) / 0.45 (B, blasted) of Table 11.4.2-1 (U), k 1.0 / 0.85 / 0.7 by the hole (U)",
+    "connections.longJoint": "GB 50017-2017 11.4.5: l1 > 15 d0: η = 1.1 - l1/(150 d0) >= 0.7 (on d in place of d0: U)",
+    "connections.welds": "GB 50017-2017 Table 4.4.5 ffw 160 (E43), 200 (E50), 220 (E55) MPa by the electrode's fu 420 / 490 / 550; 11.2.2 he = 0.7 hf, βf = 1.0 (front fillets' 1.22 not used: on the safe side)",
+    "connections.blockShear": "GB 50017-2017 7.1: the parent's block shear form (U)",
+    "seismic": "GB 50011-2010 8.1.3 (grades), 8.2.5 (Σ Wpc (fyc - N/Ac) >= η Σ Wpb fyb, η 1.15 / 1.10 / 1.05 / 1.0: the ratio ΣMpc / ΣMpb of the parent's joint check), 8.3.2 (width-thickness by grade: grades 一, 二 the plastic S1 limits of beams and columns, 三 beams, 四 none; U), 8.4.1 (braces λ <= 120 εk for 一-三, 180 for 四 in tension; εk not applied: U), 8.1.6 (no K braces), 8.2.8 (connections 1.3 Mp as a flag: U); steel-none (intensity 6 up to 50 m): no rule"
   }
 }

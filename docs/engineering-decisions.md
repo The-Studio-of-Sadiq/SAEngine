@@ -88,6 +88,50 @@ here, newest first, with the date, the question, the decision, the reason and wh
   procedure (they are assessed by the nonlinear procedure's fibre walls), base isolation as a
   retrofit (B37's isolators are designed as for a new building; P6 later).
 
+## 2026-11-05: group 2 country packs (alpha 9 track C24)
+
+Packs `korea-kds`, `iran-2800`, `peru-e030`, `chile-nch` and `brazil-nbr` (extend
+`aci318-asce7-22`), `egypt-ecp` (extends `bs8110`) and `southafrica-sans` (extends
+`eurocodes`). The values were entered from knowledge of the codes (no text on this PC); each
+pack's `VERIFY.md` lists them with their clauses and marks the uncertain ones. Not tested yet
+(owner, 2026-11-05: no test runs this week).
+
+- **SAEngine practice, parents.** Egypt extends `bs8110`: ECP 203 designs on the cube strength
+  with 0.67 fcu/γc as BS 8110 does, and ECP 201's EN 1998-1 type spectrum is a data choice (the
+  `behaviourFactor` method), not a parent. South Africa extends `eurocodes` (SANS 10160 is an
+  EN 1990 / 1991 / 1998 code); SANS 10100-1 (BS 8110 type) is represented by αcc 0.85 on the
+  parent's EN 1992-1-1 methods and SANS 10162-1 (CSA S16 type) is not covered (the parent's
+  EN 1993-1-1 applies). Brazil extends the US pack (NBR 15421 is the ASCE 7 form, NBR 8800 AISC
+  type) with NBR 6118 by the generic partial-factor ultimate and tabulated shear methods.
+- **SAEngine practice, Korea.** KDS's S (zone factor × 2.0) is entered as SS = 2.5 S and
+  S1 = S so the base pack's Fa SS × 2/3 gives KDS's SDS; KDS's 10-minute V0 × 1.43 is the
+  3-second gust of the base pack's ASCE 7 wind method.
+- **SAEngine practice, Iran.** B = B1 N depends on the zone's group: each soil type has a site
+  class for zones 1-2 (I-IV) and one for zones 3-4 (IL-IVL); the project picks the one of its
+  zone. The drift limit is 0.020 for all periods (0.025 below 0.7 s as a Code Value).
+- **SAEngine practice, Chile.** R* is taken at each ordinate's period (NCh 433 takes it at T*:
+  equal at the fundamental period, larger ordinates for the higher modes); NCh 433's own static
+  coefficient (2.75 S A0 (T'/T*)^n / gR) is not built, the static method takes the spectrum at
+  the period; Cmin and Cmax bound every ordinate; Cmax of Table 6.4 (by R) is written by the R0
+  of the systems with that R. DS 60's boundary element trigger (δu/hw ≥ 0.007, no 1.5 factor)
+  replaces ACI 318-19's.
+- **SAEngine practice, Peru.** Buildings are taken as regular (Ia = Ip = 1); Ω0 (not in E.030)
+  takes the ASCE 7 values of the same systems.
+- **SAEngine practice, Brazil.** NBR 15421's category A zones are analysed as category B; the
+  categories are read by SDS and SD1 bands that match ag on class B; Cup by SD1. NBR 6123 is
+  built for class B buildings; the wall coefficients +0.8 / leeward stand for the drag
+  coefficient Ca. Model I shear's 0.9 d lever and fywd ≤ 435 MPa are folded into the stirrup
+  fy cap of 450 MPa.
+- **SAEngine practice, Egypt.** ECP 203's shear with stirrups counts half of qcu, so the
+  tabulated τc is 0.12 √(fcu/γc) for every member (members without stirrups on the safe side).
+  The Type 2 spectrum (longer corner periods) is the default; the wind is the parent's BS 6399-2
+  method with placeholder speeds.
+- **Placeholders.** The towns' wind speeds of Iran, Peru, Chile and Egypt are placeholders (their
+  wind codes are not built); every pack names this in its README.
+- **Generic mechanisms (no existing pack sets them):** a shape branch's divisor `d`, `m` and
+  negative powers; `shapeFactors.ductilityForm` "periodRatio" with `ratioShare`,
+  `ratioPeriods`; `shapeFactors.soilFactors`, `leastSoilShare`, `capByDuctility`.
+
 ## 2026-11-05: Australia and New Zealand second remainder (alpha 9 track C18c)
 
 `australia-as` 0.3 and `newzealand-nzs` 0.3 (VERIFY C18c-1 to C18c-60 and C18c-1 to C18c-29).
@@ -229,6 +273,46 @@ New generic methods, chosen by id (no other pack sets them, so their results are
   pack) likewise gives none.
 - **Where:** `fem/records.py`, `fem/spectral_matching.py`, `fem/nonlinear_history.py`,
   `fem/hinges.py` (P5 section), `fem/nonlinear.py` (`history_model`), the packs' `VERIFY.md`.
+
+## 2026-11-05: China pack remainder (alpha 9 track C20b)
+
+The rest of `china-gb`: GB 50010 torsion, punching, cracks, deflection, cover, anchorage, member
+steel, slender columns and walls; the seismic grade with γRE in the member design; δn and the
+vertical earthquake; GB 50017 bolts and welds and the seismic steel by grade; GB 50007 fa and
+the ψs settlement. Every method is generic and picked by id (unset in every other pack: the
+default pack's results do not change); `VERIFY.md` rows C20b-1 to C20b-96 list the values.
+Nothing was run (owner, 2026-11-05); the tests are written.
+
+- **SAEngine practice, γRE.** S <= R / γRE is applied as γRE × the forces of the earthquake
+  combinations (by force component: bending 0.75 beams / 0.80 columns / 0.85 walls, shear and
+  torsion 0.85, steel 0.75 strength / 0.80 stability), before the member checks, so Design
+  Reinforcement sizes from the same forces. Columns take 0.80 at every μN (0.75 below 0.15 not
+  used: on the safe side).
+- **SAEngine practice, the grade's force factors.** The earthquake part of the forces (the
+  combination's lateral cases) is amplified: columns' moments × ηc, their shears × ηc ηvc,
+  beams' shears × ηvb, walls' in-plane shears × ηvw, on every storey and column end (the code's
+  exemptions of the top storey and μN < 0.15 and its strengthened-region limits not taken: on
+  the safe side; the corner columns' 1.1 and the bottom sections' factor not added: VERIFY U).
+  The grade comes from the system, the model's height and the zone (C20's `seismicGrades`).
+- **SAEngine practice, deflection and cracks.** The deflection under Mq = D + ψq L (ψq 0.4) is
+  the analysis's scaled from its E I to B = Bs/θ (γf' = 0); the crack width under the same Mq.
+- **SAEngine practice, laps and anchorage.** 25 % of the bars lapped at one section for beams,
+  50 % for columns; one largest unlapped bar size (25 mm).
+- **SAEngine practice, slender columns.** lc is the clear height; the sway P-Δ is the analysis's
+  (a second-order run) as in the other tabulated packs.
+- **SAEngine practice, GB 50007.** The qa of Project Settings > Foundation (no soil report) is
+  read as fak and corrected for b and d with the clay row and γ = 18 kN/m³ (Code Values); the
+  soil report's own qa is unchanged. The settlement takes Es = 1.35 E of the log and the ψs
+  column at p0 >= fak (on the safe side).
+- **SAEngine practice, the vertical earthquake.** The share of the gravity load by zone (5.3.3)
+  goes on the dead load of the response spectrum combinations with γEv 0.5, on every member,
+  when the vertical component is on; 5.3.1's FEvk of 9-degree tall buildings is not computed.
+- **Where:** `design/seismic_grades.py`, `design/plastic_torsion.py`,
+  `design/tension_stiffening.py`, `design/end_moment_magnifier.py`,
+  `design/shear_span_walls.py`, `soil/characteristic_bearing.py`, the hooks in
+  `design/check.py`, `design/walls.py`, `design/member_limits.py`, `design/tabulated_shear.py`,
+  `design/steel/limit_state.py`, `fem/loads.py`, `fem/seismic_design.py`, `soil/settlement.py`,
+  `substructure/shallow.py`; the pack's `README.md` and `VERIFY.md`.
 
 ## 2026-11-05: China pack (alpha 9 track C20)
 

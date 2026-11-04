@@ -1,0 +1,17 @@
+{
+  "$schema": "../../../schemas/occupancyCategories.schema.json",
+  "$replace": true,
+  "$sources": [
+    "E.030 2018 15, Table 5: the use categories A (essential), B (important), C (common), D (temporary) and the use factor U"
+  ],
+  "source": "E.030 2018 Table 5: category A essential buildings U = 1.5 (A1 with base isolation 1.0: not set), B important U = 1.3, C common U = 1.0. The categories I-IV are SAEngine's slots: I and II take C, III B, IV A. The wind importance stays 1.0.",
+  "categories": {
+    "I": { "description": "Category C: common buildings of low occupancy (U = 1.0; category D temporary buildings: at the designer's discretion)", "seismicImportance": 1.0, "windImportance": 1.0 },
+    "II": { "description": "Category C: common buildings (dwellings, offices, hotels, restaurants) (U = 1.0)", "seismicImportance": 1.0, "windImportance": 1.0 },
+    "III": { "description": "Category B: important buildings (cinemas, theatres, stadiums, shopping centres, prisons, museums, libraries) (U = 1.3)", "seismicImportance": 1.3, "windImportance": 1.0 },
+    "IV": { "description": "Category A: essential buildings (hospitals, schools, fire and police stations, emergency centres, power and water facilities) (U = 1.5)", "seismicImportance": 1.5, "windImportance": 1.0 }
+  },
+  "sources": {
+    "categories": "E.030 2018 Table 5 (check the uses of each category)"
+  }
+}

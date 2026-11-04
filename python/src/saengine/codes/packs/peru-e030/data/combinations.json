@@ -1,0 +1,65 @@
+{
+  "$schema": "../../../schemas/combinations.schema.json",
+  "$replace": true,
+  "$sources": [
+    "E.060 2009 9.2 (required strength: the load combinations)",
+    "E.030 2018 (the earthquake E at the strength level, combined by E.060 9.2.3)"
+  ],
+  "source": "E.060 9.2: CM dead (D with SD), CV live (L, the roof live Lr with it), CVi wind (W), CS earthquake (E, the vertical effect by the pack's verticalFactor). The allowable stress combinations are the base pack's ASCE 7-22 Sec 2.4 ones (SAEngine practice).",
+  "loadCases": {
+    "D": "Dead (CM)",
+    "SD": "Superimposed dead (finishes)",
+    "L": "Live (CV)",
+    "Lr": "Roof live",
+    "S": "Snow",
+    "WX": "Wind in X",
+    "WY": "Wind in Y",
+    "EX": "Earthquake in X",
+    "EY": "Earthquake in Y",
+    "F": "Fluids (equipment contents)",
+    "H": "Earth and groundwater pressure (basement walls)",
+    "T": "Temperature"
+  },
+  "strength": [
+    { "id": "1", "name": "1.4D + 1.7L", "factors": { "D": 1.4, "F": 1.4, "L": 1.7, "Lr": 1.7, "H": 1.7 }, "source": "E.060 9.2.1 (U = 1.4 CM + 1.7 CV)" },
+    { "id": "2W", "name": "1.25(D + L + W)", "factors": { "D": 1.25, "F": 1.25, "L": 1.25, "Lr": 1.25, "W": 1.25, "H": 1.7 }, "source": "E.060 9.2.2 (U = 1.25 (CM + CV ± CVi))" },
+    { "id": "3W", "name": "0.9D + 1.25W", "factors": { "D": 0.9, "W": 1.25, "H": 1.7 }, "source": "E.060 9.2.2 (U = 0.9 CM ± 1.25 CVi)" },
+    { "id": "4E", "name": "1.25(D + L) + E", "factors": { "D": 1.25, "F": 1.25, "L": 1.25, "Lr": 1.25, "E": 1.0, "H": 1.7 }, "source": "E.060 9.2.3 (U = 1.25 (CM + CV) ± CS)" },
+    { "id": "5E", "name": "0.9D + E", "factors": { "D": 0.9, "E": 1.0, "H": 1.7 }, "source": "E.060 9.2.3 (U = 0.9 CM ± CS)" }
+  ],
+  "service": [
+    { "id": "1", "name": "D + L", "factors": { "D": 1.0, "L": 1.0, "Lr": 1.0 }, "source": "E.060 9.6 (deflections under the service loads)" },
+    { "id": "2", "name": "D + 0.25L", "factors": { "D": 1.0, "L": 0.25 }, "source": "SAEngine practice: the long-term part (E.030 26 share of the live load)" },
+    { "id": "3", "name": "D + L + W", "factors": { "D": 1.0, "L": 1.0, "W": 1.0 }, "source": "SAEngine practice: drift under wind (E.020 gives no service combination)" }
+  ],
+  "gravity": [
+    { "name": "1.4D + 1.7L", "factors": { "D": 1.4, "L": 1.7 } }
+  ],
+  "temperature": [
+    { "name": "1.05D + 1.25L + 1.05T", "factors": { "D": 1.05, "L": 1.25, "Lr": 1.25, "T": 1.05 } },
+    { "name": "1.05D + 1.25L - 1.05T", "factors": { "D": 1.05, "L": 1.25, "Lr": 1.25, "T": -1.05 } }
+  ],
+  "allowable": [
+    { "id": "1", "name": "D", "factors": { "D": 1.0, "F": 1.0 }, "source": "ASCE 7-22 Sec 2.4.1 combination 1 (SAEngine practice)" },
+    { "id": "2", "name": "D + L", "factors": { "D": 1.0, "H": 1.0, "F": 1.0, "L": 1.0 }, "source": "ASCE 7-22 Sec 2.4.1 combination 2 (SAEngine practice)" },
+    { "id": "3", "name": "D + Lr", "factors": { "D": 1.0, "H": 1.0, "F": 1.0, "Lr": 1.0 }, "source": "ASCE 7-22 Sec 2.4.1 combination 3 (SAEngine practice)" },
+    { "id": "4", "name": "D + 0.75L + 0.75Lr", "factors": { "D": 1.0, "H": 1.0, "F": 1.0, "L": 0.75, "Lr": 0.75 }, "source": "ASCE 7-22 Sec 2.4.1 combination 4 (SAEngine practice)" },
+    { "id": "5W", "name": "D + 0.6W", "factors": { "D": 1.0, "H": 1.0, "F": 1.0, "W": 0.6 }, "source": "ASCE 7-22 Sec 2.4.1 combination 5 (SAEngine practice)" },
+    { "id": "5E", "name": "D + 0.7E", "factors": { "D": 1.0, "H": 1.0, "F": 1.0, "E": 0.7 }, "source": "ASCE 7-22 Sec 2.4.5 combination 8 (SAEngine practice)" },
+    { "id": "7", "name": "0.6D + 0.6W", "factors": { "D": 0.6, "W": 0.6, "H": 1.0 }, "source": "ASCE 7-22 Sec 2.4.1 combination 7 (SAEngine practice)" },
+    { "id": "8", "name": "0.6D + 0.7E", "factors": { "D": 0.6, "E": 0.7, "H": 1.0 }, "source": "ASCE 7-22 Sec 2.4.5 combination 10 (SAEngine practice)" }
+  ],
+  "seismicDeadUpper": 1.25,
+  "seismicDeadLower": 0.9,
+  "overstrength": "E.030 2018 gives no overstrength factor: the elements the base pack designs for Ω0 times the earthquake effect take the systems' Omega0 (SAEngine practice, the ASCE 7 values)",
+  "optionalCases": ["F", "H", "T", "S"],
+  "sources": {
+    "strength": "E.060 9.2.1-9.2.3 (check the factors against the printed standard; H with 1.7 as E.060 9.2.4)",
+    "seismicDeadUpper": "E.060 9.2.3: 1.25 (CM + CV) ± CS",
+    "seismicDeadLower": "E.060 9.2.3: 0.9 CM ± CS",
+    "temperature": "E.060 9.2.5 (1.05 CM + 1.25 CV + 1.05 CT; uncertain)"
+  },
+  "clauses": {
+    "strength": "E.060 9.2"
+  }
+}

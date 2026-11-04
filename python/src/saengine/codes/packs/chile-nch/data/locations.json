@@ -1,0 +1,25 @@
+{
+  "$schema": "../../../schemas/locations.schema.json",
+  "$replace": true,
+  "$sources": [
+    "NCh 433 Figure 4.1 and Table 4.1 (the communes' seismic zones; SAEngine readings, uncertain: VERIFY.md C1); NCh 432 (wind): SAEngine placeholder (VERIFY.md C2)"
+  ],
+  "source": "NCh 433: the seismic zone of each town (to be checked against Table 4.1, VERIFY.md C1); the basic wind speed V (3-second gust, the base pack's ASCE 7 method) is a placeholder of 35 m/s to replace from NCh 432. Elsewhere a custom location: enter A0 / g as Z and V.",
+  "default": "santiago",
+  "locations": {
+    "arica": { "name": "Arica", "zone": 3, "windSpeed": 35.0 },
+    "iquique": { "name": "Iquique", "zone": 3, "windSpeed": 35.0 },
+    "antofagasta": { "name": "Antofagasta", "zone": 3, "windSpeed": 35.0 },
+    "calama": { "name": "Calama", "zone": 2, "windSpeed": 35.0 },
+    "laserena": { "name": "La Serena", "zone": 3, "windSpeed": 35.0 },
+    "valparaiso": { "name": "Valparaíso", "zone": 3, "windSpeed": 35.0 },
+    "vinadelmar": { "name": "Viña del Mar", "zone": 3, "windSpeed": 35.0 },
+    "santiago": { "name": "Santiago", "zone": 2, "windSpeed": 35.0 },
+    "rancagua": { "name": "Rancagua", "zone": 2, "windSpeed": 35.0 },
+    "talca": { "name": "Talca", "zone": 2, "windSpeed": 35.0 },
+    "concepcion": { "name": "Concepción", "zone": 3, "windSpeed": 35.0 },
+    "temuco": { "name": "Temuco", "zone": 2, "windSpeed": 35.0 },
+    "valdivia": { "name": "Valdivia", "zone": 3, "windSpeed": 35.0 },
+    "puertomontt": { "name": "Puerto Montt", "zone": 2, "windSpeed": 35.0 }
+  }
+}

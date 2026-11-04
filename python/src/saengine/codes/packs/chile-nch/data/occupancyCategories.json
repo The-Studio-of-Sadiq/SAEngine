@@ -1,0 +1,17 @@
+{
+  "$schema": "../../../schemas/occupancyCategories.schema.json",
+  "$replace": true,
+  "$sources": [
+    "NCh 433 Mod.2009 4.3 and Table 6.1: the occupancy categories I-IV and the importance factor I"
+  ],
+  "source": "NCh 433 Table 6.1: category I (low risk to life, I = 0.6), II (ordinary buildings, 1.0), III (buildings with many occupants, 1.2), IV (essential and government buildings, 1.2). SAEngine's categories I-IV are the code's. The wind importance stays 1.0.",
+  "categories": {
+    "I": { "description": "Category I: buildings of low risk to human life (agricultural, temporary) (I = 0.6)", "seismicImportance": 0.6, "windImportance": 1.0 },
+    "II": { "description": "Category II: ordinary buildings (dwellings, offices, shops) (I = 1.0)", "seismicImportance": 1.0, "windImportance": 1.0 },
+    "III": { "description": "Category III: buildings with many occupants (theatres, stadiums, schools, prisons) (I = 1.2)", "seismicImportance": 1.2, "windImportance": 1.0 },
+    "IV": { "description": "Category IV: essential and government buildings (hospitals, fire and police stations, emergency facilities) (I = 1.2)", "seismicImportance": 1.2, "windImportance": 1.0 }
+  },
+  "sources": {
+    "categories": "NCh 433 Mod.2009 Table 6.1 (check the uses of each category)"
+  }
+}

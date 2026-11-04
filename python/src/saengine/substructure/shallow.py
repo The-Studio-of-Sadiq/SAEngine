@@ -428,7 +428,8 @@ def punching_stress(
     from saengine.design import tabulated_shear
 
     if tabulated_shear.punching_rules() is not None:
-        allowed = tabulated_shear.punching_stress(fc, min(c1, c2), max(c1, c2))
+        # Alpha 9 C20b: d, b0 and αs for the tensile form (GB 50010 6.5.1 type; root ignores).
+        allowed = tabulated_shear.punching_stress(fc, min(c1, c2), max(c1, c2), d, b0, alpha_s)
         return allowed / rc.value("PHI_SHEAR")
     root = min(math.sqrt(fc), 8.3)
     beta = max(c1, c2) / min(c1, c2)
@@ -777,6 +778,28 @@ class Bearing:
     # base [mm] (negative: above it), when the soil report gives them.
     founding_soil: str | None = None
     water_depth: float | None = None
+
+
+def _width_depth_corrected(
+    bearing: Bearing, foundation: Foundation, founding_level: float, b: float, l_: float
+) -> Bearing:
+    """Alpha 9 C20b: the qa of Project Settings → Foundation read as the characteristic value
+    fak and corrected for the footing's width and depth by the pack's rule (GB 50007 5.2.4
+    type, :func:`saengine.soil.characteristic_bearing.corrected`); unchanged without it."""
+    if bearing.qa is None or bearing.source != "settings":
+        return bearing
+    from saengine.soil import characteristic_bearing
+
+    depth = (float(foundation.groundLevel) - founding_level) / 1e3
+    found = characteristic_bearing.corrected(float(bearing.qa), min(b, l_) / 1e3, depth)
+    if found is None:
+        return bearing
+    fa, note = found
+    return replace(
+        bearing,
+        qa=fa,
+        note=f"fak = {bearing.qa:g} kPa from Project Settings → Foundation; {note}",
+    )
 
 
 def manual_bearing(foundation: Foundation) -> Bearing:
@@ -1782,7 +1805,9 @@ class SoilBearing:
         if not self.used:
             if not override and self.presumptive:
                 return self._presumptive(founding_level, b, l_)
-            return manual_bearing(self.foundation)
+            return _width_depth_corrected(
+                manual_bearing(self.foundation), self.foundation, founding_level, b, l_
+            )
         from saengine.soil.report import allowable_bearing
 
         found = allowable_bearing(self.text or "", None, x, y, founding_level, b, l_)

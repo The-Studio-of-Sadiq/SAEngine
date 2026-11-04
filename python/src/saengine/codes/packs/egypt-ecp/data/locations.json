@@ -1,0 +1,25 @@
+{
+  "$schema": "../../../schemas/locations.schema.json",
+  "$replace": true,
+  "$sources": [
+    "ECP 201-2012 Figure 8.1 and Table 8.1 (the towns' seismic zones; SAEngine readings, uncertain: VERIFY.md E1); the wind speed: SAEngine placeholder for the parent's BS 6399-2 method (VERIFY.md E2)"
+  ],
+  "source": "ECP 201-2012: the seismic zone of each town (to be checked against Table 8.1, VERIFY.md E1); the wind speed is a placeholder hourly mean Vb for the parent's BS 6399-2 method (ECP 201's wind method and map are not set). Elsewhere a custom location: enter ag as Z and Vb.",
+  "default": "cairo",
+  "locations": {
+    "cairo": { "name": "Cairo", "zone": 3, "windSpeed": 22.0 },
+    "giza": { "name": "Giza", "zone": 3, "windSpeed": 22.0 },
+    "alexandria": { "name": "Alexandria", "zone": 2, "windSpeed": 25.0 },
+    "portsaid": { "name": "Port Said", "zone": 2, "windSpeed": 25.0 },
+    "ismailia": { "name": "Ismailia", "zone": 3, "windSpeed": 22.0 },
+    "suez": { "name": "Suez", "zone": 4, "windSpeed": 25.0 },
+    "mansoura": { "name": "Mansoura", "zone": 2, "windSpeed": 22.0 },
+    "tanta": { "name": "Tanta", "zone": 2, "windSpeed": 22.0 },
+    "asyut": { "name": "Asyut", "zone": 2, "windSpeed": 22.0 },
+    "luxor": { "name": "Luxor", "zone": 2, "windSpeed": 22.0 },
+    "aswan": { "name": "Aswan", "zone": 4, "windSpeed": 22.0 },
+    "hurghada": { "name": "Hurghada", "zone": 5, "zoneLabel": "5A", "windSpeed": 25.0 },
+    "sharmelsheikh": { "name": "Sharm El Sheikh", "zone": 5, "zoneLabel": "5A", "windSpeed": 25.0 },
+    "nuweiba": { "name": "Nuweiba", "zone": 6, "zoneLabel": "5B", "windSpeed": 25.0 }
+  }
+}

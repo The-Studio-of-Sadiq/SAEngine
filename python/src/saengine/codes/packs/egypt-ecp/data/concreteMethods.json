@@ -1,0 +1,60 @@
+{
+  "$schema": "../../../schemas/concreteMethods.schema.json",
+  "$sources": [
+    "ECP 203-2018 Chapter 4: 4.2.1 (γc 1.5, γs 1.15; the block 0.67 fcu/γc over a = 0.8 c; c ≤ 2/3 cb), Chapter 2 (Ec = 4400 √fcu, fctr = 0.6 √fcu), 4.2.1.3 (emin = 0.05 t ≥ 20 mm), 4.3 (short columns Pu = 0.35 fcu Ac + 0.67 fy As), 4.2.2 (shear: qcu = 0.24 √(fcu/γc), qmax = 0.7 √(fcu/γc) ≤ 4 N/mm², qs = qu - 0.5 qcu, the least stirrups, their spacing)"
+  ],
+  "source": "ECP 203: the parent's BS 8110 limit state methods (both codes design on the cube strength fcu with 0.67 fcu/γc) with ECP 203's values; the areas not set here (punching, deflection, cracking, cover, anchorage, member limits, columns' additional moments, two-way slabs) stay the parent's BS 8110 rules (VERIFY.md E18).",
+  "ultimate": {
+    "$remove": ["eccentricityMax"],
+    "gammaS": 1.15,
+    "strengthClasses": [[20, 20], [25, 25], [30, 30], [35, 35], [40, 40], [45, 45], [50, 50], [60, 60]],
+    "relations": {
+      "fctmCoefficient": 0.6,
+      "fctmHighCoefficient": 0.6,
+      "ecmCoefficient": 4400,
+      "ecmDivisor": 1,
+      "ecmExponent": 0.5,
+      "ecmOffset": 0.0,
+      "eta": { "base": 1.0 },
+      "lambda": { "base": 0.8 }
+    },
+    "eccentricityDivisor": 20,
+    "eccentricityMin": 20,
+    "axialShares": [0.35, 0.67],
+    "neutralAxisLimit": [0.58, 1.0]
+  },
+  "shear": {
+    "$replace": true,
+    "method": "tabulatedStress",
+    "grades": [20, 25, 30, 35, 40, 45, 50, 60],
+    "steelRatios": [0.15, 3.0],
+    "tauC": [
+      [0.4382, 0.4899, 0.5367, 0.5797, 0.6197, 0.6573, 0.6928, 0.7589],
+      [0.4382, 0.4899, 0.5367, 0.5797, 0.6197, 0.6573, 0.6928, 0.7589]
+    ],
+    "maxStress": [2.556, 2.8577, 3.1305, 3.3813, 3.6148, 3.8341, 4.0, 4.0],
+    "minStirrupStress": 0.35,
+    "fyMax": 460,
+    "spacing": [0.5, 200],
+    "slabDepths": [],
+    "enhancement": 1.0
+  },
+  "clauses": {
+    "designStrength": "ECP 203 4.2.1 (γc 1.5, γs 1.15)",
+    "ultimate": "ECP 203 4.2.1 (the block 0.67 fcu/γc over 0.8 c)",
+    "minimumEccentricity": "ECP 203 4.2.1.3 (emin = 0.05 t ≥ 20 mm)",
+    "shear": "ECP 203 4.2.2"
+  },
+  "sources": {
+    "ultimate.gammaS": "ECP 203 4.2.1: γs = 1.15 (γc = 1.5 as the parent)",
+    "ultimate.relations": "ECP 203: the block 0.67 fcu/γc (alphaCC 0.67, η 1.0) over a = 0.8 c (λ 0.8); Ec = 4400 √fcu; fctr = 0.6 √fcu",
+    "ultimate.eccentricity": "ECP 203 4.2.1.3: emin = 0.05 t, at least 20 mm (no cap: the parent's 20 mm cap removed)",
+    "ultimate.axialShares": "ECP 203 4.3: short tied columns Pu = 0.35 fcu Ac + 0.67 fy As",
+    "ultimate.neutralAxisLimit": "ECP 203 4.2.1: c ≤ (2/3) cb, cb/d = 600 / (600 + fy/γs): 0.42 d for fy 400 MPa (written as (1 - k1)/k2 with k1 0.58, k2 1.0; 0.44 d for fy 360)",
+    "shear.tauC": "ECP 203 4.2.2: qcu = 0.24 √(fcu/γc) of beams; with stirrups qs = qu - 0.5 qcu: the method's τc holds 0.5 qcu = 0.12 √(fcu/1.5) (exact for members with stirrups; on the safe side for members without, which ECP 203 lets carry qcu)",
+    "shear.maxStress": "ECP 203 4.2.2: qu,max = 0.7 √(fcu/γc) ≤ 4.0 N/mm²",
+    "shear.minStirrupStress": "ECP 203 4.2.2: Ast,min = 0.4 b s / fy (Asv fy/(b s) ≥ 0.4, i.e. 0.35 with fy/γs; check)",
+    "shear.spacing": "ECP 203 4.2.2: stirrups at most 200 mm and d/2 apart (check)",
+    "shear.enhancement": "ECP 203: no enhancement near supports (1.0)"
+  }
+}

@@ -535,6 +535,11 @@ class ShapeBranch(BaseModel):
     # term + c2 (t0 / T)^n2 (0: none).
     c2: float = Field(default=0.0, description="c2 of the second term c2 (t0 / T)^n2.")
     n2: float = 1.0
+    # Alpha 9 C24 (NCh 433 Eq 6-10 type: α = (1 + 4.5 (T/T0)^p) / (1 + (T/T0)^3)): the branch
+    # divided by 1 + d (t0 / T)^m (0: no divisor). A negative power (n, n2, m) is a power of
+    # T / t0: its term is 0 at T = 0.
+    d: float = Field(default=0.0, description="d of the divisor 1 + d (t0 / T)^m.")
+    m: float = 1.0
 
 
 class SiteClass(_Row):
@@ -986,6 +991,25 @@ class VerticalComponentRule(BaseModel):
     plateau: float = Field(gt=0)
     behaviour: float = Field(gt=0)
     combinationShare: float = Field(gt=0, le=1)
+    members: str = Field(default="", description="Which members the code applies it to.")
+
+
+class GravityShareVerticalRule(BaseModel):
+    """Alpha 9 C20b: the vertical seismic action as a share of the gravity load by the seismic
+    zone (method ``gravityShare``, GB 50011 5.3.3 type: 10 % / 15 % / 20 % of the
+    representative gravity load at intensity 8 / 8 (0.30g) / 9 for long spans and
+    cantilevers): Ev / D = combinationShare × share of the zone (zones not listed: none),
+    applied to every member (on the safe side) when the vertical component is on."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    method: Literal["gravityShare"]
+    shares: dict[int, Annotated[float, Field(gt=0, lt=1)]] = Field(
+        description="Seismic zone -> Ev / G (the vertical action over the gravity load)."
+    )
+    combinationShare: float = Field(
+        gt=0, description="The vertical action's factor in the combination (γEv)."
+    )
     members: str = Field(default="", description="Which members the code applies it to.")
 
 
@@ -1441,6 +1465,35 @@ class ShapeFactorsRule(BaseModel):
     )
     nearFaultFull: float = Field(default=2.0, ge=0, description="N = Nmax up to D [km].")
     nearFaultNone: Positive = Field(default=20.0, description="N = 1 from D [km].")
+    # Alpha 9 C24 (E.030 2018 Table 3, NCh 433 Table 6.3 type): the soil factor S on Cd by site
+    # class and the site's Z; (Z from, S) steps, S of the last step at or below Z (the first
+    # below them all). A class without steps (or an empty table): S = 1.
+    soilFactors: dict[str, list[tuple[float, Positive]]] = Field(
+        default_factory=dict,
+        description="S on Cd by site class: (Z from, S) steps; empty: S = 1.",
+    )
+    # Alpha 9 C24 (NCh 433 Eq 6-11 type): kμ = 1 + T / (ratioShare T0 + T / μ), T0 of the site
+    # class (``ratioPeriods``), in place of the linear form ("linear": the forms above).
+    ductilityForm: Literal["linear", "periodRatio"] = Field(
+        default="linear",
+        description="linear: kμ by ductilityPeriod (or μ); periodRatio: kμ = 1 + T / "
+        "(ratioShare T0 + T / μ).",
+    )
+    ratioShare: Positive | None = Field(default=None, description="periodRatio: the share of T0.")
+    ratioPeriods: dict[str, Positive] = Field(
+        default_factory=dict,
+        description="periodRatio: T0 [s] by site class (a class without one: kμ = μ).",
+    )
+    # Alpha 9 C24 (E.030 2018 28.2.1 C/R ≥ 0.11, NCh 433 6.2.3.1.1 Cmin = A0 S / 6g): the least
+    # Cd as a share of Z I S, and the cap by μ (NCh 433 Table 6.4 Cmax).
+    leastSoilShare: Positive | None = Field(
+        default=None, description="Cd at least this × Z I S (empty: none)."
+    )
+    capByDuctility: list[tuple[Positive, Positive]] = Field(
+        default_factory=list,
+        description="(μ, share): Cd at most share × Z I S, share linear between, the end values "
+        "beyond; empty: no cap.",
+    )
     clauses: dict[str, str] = Field(default_factory=dict)
 
 
@@ -1651,6 +1704,17 @@ class TopForce(BaseModel):
     storeyFactor: float | None = Field(
         default=None, gt=0, description="Ft = storeyFactor × N × V (N levels), in place of T."
     )
+    # Alpha 9 C20b (GB 50011 Table 5.2.1 type: δn = 0.08 T1 + 0.07 / + 0.01 / - 0.02 by Tg,
+    # only where T1 > 1.4 Tg): Ft = (factor T + offset) V, the offset of the first row whose
+    # corner period holds the site's TC, applied where T > cornerFactor × TC.
+    cornerFactor: float | None = Field(
+        default=None, gt=0, description="Ft = 0 while T <= this × TC (none: periodFrom only)."
+    )
+    offsets: list[tuple[float, float]] = Field(
+        default_factory=list,
+        description="(TC up to [s], offset): Ft = (factor T + offset) V; the first row whose TC "
+        "holds, the last row above.",
+    )
 
 
 class LateralForceRule(BaseModel):
@@ -1746,16 +1810,106 @@ class RareDriftRule(BaseModel):
     clause: str = ""
 
 
+class GradeDetailing(BaseModel):
+    """Alpha 9 C20b: the detailing of one seismic grade (GB 50011 6.3, GB 50010 11.3-11.7
+    type, :mod:`saengine.design.seismic_grades`); an empty field is not checked. Ratios are
+    shares (0.004 = 0.4 %); ``ft/fy`` terms on the design strengths."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    beamEndSteel: tuple[float, float] | None = Field(
+        default=None, description="(ratio, c): As/(b h) at the ends at least max(ratio, c ft/fy)."
+    )
+    beamSpanSteel: tuple[float, float] | None = Field(
+        default=None, description="(ratio, c): As/(b h) in the span at least max(ratio, c ft/fy)."
+    )
+    beamEndDepth: float | None = Field(
+        default=None, gt=0, le=1, description="x/h0 at the ends at most (the stress block's x)."
+    )
+    beamEndCompression: float | None = Field(
+        default=None, gt=0, le=1, description="As'/As at the ends at least."
+    )
+    beamHoopZone: tuple[Positive, Positive] | None = Field(
+        default=None, description="(a, mm): the end zone at least max(a hb, mm) long."
+    )
+    beamHoops: tuple[Positive, Positive, Positive] | None = Field(
+        default=None, description="(a, b, mm): hoops in the end zone at most min(hb/a, b d, mm)."
+    )
+    beamHoopDia: Positive | None = Field(default=None, description="End zone hoops at least [mm].")
+    columnSteel: dict[str, Annotated[float, Field(gt=0, lt=1)]] = Field(
+        default_factory=dict,
+        description="Least total steel ratio of columns: 'interior' (and edge), 'corner'.",
+    )
+    columnSteelIncrease: list[tuple[Positive, Annotated[float, Field(ge=0, lt=1)]]] = Field(
+        default_factory=list,
+        description="(fyk from [MPa], ratio added) to the column steel by the bar grade: the "
+        "last row whose fyk is at most the bars' (none: nothing added).",
+    )
+    columnHoopZone: tuple[Positive, Positive, Positive] | None = Field(
+        default=None, description="(a, b, mm): the end zone at least max(a hc, Hn/b, mm)."
+    )
+    columnHoops: tuple[Positive, Positive] | None = Field(
+        default=None, description="(a, mm): hoops in the end zone at most min(a d, mm)."
+    )
+    columnHoopDia: Positive | None = Field(
+        default=None, description="End zone hoops at least [mm]."
+    )
+    confinement: list[tuple[float, Positive]] = Field(
+        default_factory=list,
+        description="(μN, λv) points, linear between: ρv >= λv fc / fyv in the end zones.",
+    )
+    confinementMin: float | None = Field(
+        default=None, gt=0, lt=1, description="ρv in the end zones at least this."
+    )
+    confinementFckMin: Positive | None = Field(
+        default=None, description="fck at least this [MPa] in λv fc / fyv."
+    )
+    wallWebMin: float | None = Field(
+        default=None, gt=0, lt=1, description="Wall web steel ρ each way at least this."
+    )
+
+
+class ResistanceAdjustment(BaseModel):
+    """Alpha 9 C20b: the seismic adjustment factors γRE of the resistances (GB 50011 Table
+    5.4.2 type): S <= R / γRE, applied as γRE × the earthquake combinations' forces."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    beamBending: float = Field(gt=0, le=1)
+    columnBending: float = Field(gt=0, le=1, description="Columns in compression and bending.")
+    wallBending: float = Field(gt=0, le=1)
+    shear: float = Field(gt=0, le=1, description="Shear and torsion of every concrete member.")
+    steelStrength: float = Field(gt=0, le=1, description="Steel beams (strength).")
+    steelStability: float = Field(gt=0, le=1, description="Steel columns and braces (stability).")
+
+
+class GradeDesignRule(BaseModel):
+    """Alpha 9 C20b: the seismic grade in the member design (method ``gradeFactors``,
+    :mod:`saengine.design.seismic_grades`): in the earthquake combinations the earthquake part
+    of the forces × the grade's factors (columns' moments × strongColumn ηc, their shears ×
+    ηc × columnShear ηvc, beams' shears × beamShear ηvb, walls' in-plane shear × wallShear
+    ηvw), then every force × γRE (``adjustment``); the grade's axialRatio μN, confinement and
+    detailing checked."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    method: Literal["gradeFactors"] = "gradeFactors"
+    adjustment: ResistanceAdjustment
+    clause: str = ""
+
+
 class SeismicGrade(BaseModel):
     """Alpha 9 C20: one seismic (detailing) grade: its name, the detailing level it stands for
     in SAEngine's levels, and the design factors the code gives it (by key: strongColumn ηc,
-    columnShear ηvc, beamShear ηvb, axialRatio μN, confinement λv ...)."""
+    columnShear ηvc, beamShear ηvb, wallShear ηvw, axialRatio μN, anchorage ζaE ...)."""
 
     model_config = ConfigDict(extra="forbid")
 
     label: str
     level: Literal["special", "intermediate", "ordinary"]
     factors: dict[str, float] = Field(default_factory=dict)
+    # Alpha 9 C20b: the grade's detailing rules checked in the member design.
+    detailing: GradeDetailing | None = None
 
 
 class SeismicGradeRow(BaseModel):
@@ -1832,7 +1986,8 @@ class SeismicTable(TableModel):
     regularity: RegularityCriteria | None = None
     torsionalEffects: TorsionalEffectsRule | None = None
     modalCombination: ModalCombinationRule | None = None
-    verticalComponent: VerticalComponentRule | None = None
+    # Alpha 9 C20b: or the vertical action as a share of the gravity load (gravityShare).
+    verticalComponent: VerticalComponentRule | GravityShareVerticalRule | None = None
     foundationCapacity: FoundationCapacityRule | None = None
     spectrumTypeGuidance: SpectrumTypeGuidance | None = None
     clauses: dict[str, str] = Field(
@@ -1942,6 +2097,13 @@ class SeismicTable(TableModel):
     seismicGrades: SeismicGradesRule | None = Field(
         default=None,
         description="Seismic grades by structure type, intensity and height; empty: none.",
+    )
+    # Alpha 9 C20b: the grade's factors applied in the member design and the seismic
+    # adjustment factor γRE of the resistances (GB 50011 5.4.2, 6.2 type; empty: neither).
+    gradeDesign: GradeDesignRule | None = Field(
+        default=None,
+        description="The seismic grade's force factors and γRE in the member design; empty: "
+        "not applied.",
     )
 
     @model_validator(mode="after")
@@ -4700,6 +4862,36 @@ class RaftStiffness(_Group):
     spacingVariation: Share = Field(description="Adjacent spacings within this share.")
 
 
+class WidthDepthCorrection(_Group):
+    """Alpha 9 C20b: fa = fak + ηb γ (b - width[0]) + ηd γm (d - depthFrom) (GB 50007 5.2.4
+    type, :mod:`saengine.soil.characteristic_bearing`), b within ``width`` [m], d the founding
+    depth below the natural ground [m] (no depth term above depthFrom), (ηb, ηd) of the soil
+    kind ``soil`` (a project's Code Value), γ = γm = ``unitWeight`` [kN/m³] (no soil report:
+    SAEngine practice)."""
+
+    method: Literal["widthDepthCorrection"]
+    factors: dict[str, tuple[Annotated[float, Field(ge=0)], Annotated[float, Field(ge=0)]]]
+    soil: str = Field(description="The soil kind of ``factors`` taken.")
+    width: tuple[Positive, Positive] = Field(description="b within (low, high) [m].")
+    depthFrom: float = Field(ge=0, description="[m]")
+    unitWeight: Positive = Field(description="γ and γm [kN/m³].")
+
+
+class LayerwiseSettlement(_Group):
+    """Alpha 9 C20b: s = ψs Σ p0 / Esi (zi ᾱi - zi-1 ᾱi-1) (GB 50007 5.3.5 type,
+    :func:`saengine.soil.characteristic_bearing.layerwise_settlement`): ᾱ the mean vertical
+    stress coefficient under the centre (Boussinesq, four corner rectangles), Esi =
+    oedometricFactor × the layer's E, down to zn = b (a - c ln b) (``depthCoefficients``) or
+    the log's bottom; ψs by the equivalent Ēs (``psi``: (Ēs [MPa], ψs at p0 >= fak, ψs at p0
+    <= 0.75 fak), linear between, the end values outside), the first column taken (p0 >= fak:
+    SAEngine practice, on the safe side)."""
+
+    method: Literal["layerwiseSummation"]
+    psi: list[tuple[Positive, Positive, Positive]] = Field(min_length=2)
+    depthCoefficients: tuple[Positive, Positive]
+    oedometricFactor: Positive
+
+
 class ShallowFoundations(_Group):
     """The geotechnical rules of shallow foundations (footings and rafts): load combinations,
     allowable increase, factors of safety, depths, thicknesses, presumptive values, subgrade
@@ -4772,6 +4964,18 @@ class ShallowFoundations(_Group):
         default=None,
         description="The shape, depth and inclination factors of the bearing capacity "
         "equation by method (``flowValue``); empty: SAEngine's Vesic / De Beer / Hansen set.",
+    )
+    # Alpha 9 C20b (GB 50007 5.2.4, 5.3.5 type): the characteristic bearing value corrected
+    # for the width and depth, and the settlement by the layer-wise summation with ψs.
+    widthDepthCorrection: WidthDepthCorrection | None = Field(
+        default=None,
+        description="fa = fak + ηb γ (b - 3) + ηd γm (d - 0.5) of a qa given without a soil "
+        "report (method ``widthDepthCorrection``); empty: qa as given.",
+    )
+    layerwiseSettlement: LayerwiseSettlement | None = Field(
+        default=None,
+        description="The settlement of footings by the layer-wise summation with the "
+        "empirical factor ψs (method ``layerwiseSummation``); empty: SAEngine's methods.",
     )
 
 

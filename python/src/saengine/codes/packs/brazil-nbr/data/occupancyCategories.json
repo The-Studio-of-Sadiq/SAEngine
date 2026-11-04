@@ -1,0 +1,18 @@
+{
+  "$schema": "../../../schemas/occupancyCategories.schema.json",
+  "$replace": true,
+  "$sources": [
+    "NBR 15421:2006 Table 3 (use categories I-III and the importance factor I)",
+    "NBR 6123:1988 Table 3 (the statistical factor S3 of the use groups)"
+  ],
+  "source": "NBR 15421: use category I (I = 1.0), II (1.25), III (1.5); NBR 6123 Table 3: S3 = 0.95 (group 3, low occupancy), 1.00 (group 2, dwellings, offices, shops), 1.10 (group 1, essential buildings). The categories I-IV are SAEngine's slots; the windImportance holds S3 (the speedFactors method's k1).",
+  "categories": {
+    "I": { "description": "Low occupancy (NBR 15421 category I, I = 1.0; NBR 6123 group 3, S3 = 0.95)", "seismicImportance": 1.0, "windImportance": 0.95 },
+    "II": { "description": "Dwellings, offices, shops, hotels (category I, I = 1.0; group 2, S3 = 1.00)", "seismicImportance": 1.0, "windImportance": 1.0 },
+    "III": { "description": "Buildings with many occupants or of substantial risk (category II, I = 1.25; group 2, S3 = 1.00)", "seismicImportance": 1.25, "windImportance": 1.0 },
+    "IV": { "description": "Essential buildings (hospitals, fire and police stations, communication and power) (category III, I = 1.5; group 1, S3 = 1.10)", "seismicImportance": 1.5, "windImportance": 1.1 }
+  },
+  "sources": {
+    "categories": "NBR 15421 Table 3; NBR 6123 Table 3 (check the uses of each category and group)"
+  }
+}
