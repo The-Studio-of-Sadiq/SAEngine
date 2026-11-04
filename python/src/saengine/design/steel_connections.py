@@ -172,11 +172,33 @@ def _ls() -> Any | None:
     return limit_state.connection_rules()
 
 
+def references(text: str) -> str:
+    """Alpha 9 C3: ``text`` with the default pack's clause references of the connection notes
+    replaced by the pack's (``connections.references``, longest first); unchanged without it."""
+    try:
+        found = connection_data().references
+    except Exception:  # noqa: BLE001 - no pack machinery: the text as written
+        return text
+    if not found or not text:
+        return text
+    import re
+
+    keys = sorted(found, key=len, reverse=True)
+    alternatives = "|".join(re.escape(k) for k in keys)
+    pattern = re.compile(f"(?:{alternatives})" + r"(?![0-9a-z]|\.[0-9])")
+
+    def swap(match: Any) -> str:
+        return found.get(match.group(0), match.group(0))
+
+    return pattern.sub(swap, text)
+
+
 def _check(name, demand, capacity, unit, combination, note="", flag=False) -> dict[str, Any]:
     """A check in the design_report format (saengine.design.check._check)."""
     u = demand / capacity if capacity > 0 else (0.0 if demand <= 0 else math.inf)
     u = round(float(u), 3) if math.isfinite(u) else 99.0
-    if note and _ls() is not None:  # C9: the clauses in the pack's words
+    note = references(note)
+    if note and _ls() is not None:  # C9: a parent clause the pack does not map, named so
         from saengine.design.steel import limit_state
 
         note = limit_state.rewrite_note(note)
@@ -294,7 +316,10 @@ def slip_capacity(c: Any, d: float, planes: int = 1, tension: float = 0.0) -> tu
     slip = data.slip
     mu = slip.mu[c.surfaceClass]
     hsc = slip.hsc[c.holeType]
+    from saengine.design.steel import basis as steel_basis
+
     p = slip.phiStrength if c.slipCritical == "strength" else slip.phiServiceability
+    p = steel_basis.factor("slip", p)  # alpha 9 C3: 1 / Ω by ASD
     ks = max(1.0 - tension / (slip.Du * tb), 0.0) if tension > 0 else 1.0
     rn = mu * slip.Du * hsc * tb * planes
     note = (
@@ -1007,6 +1032,8 @@ def check_brace_gusset(
 def phi(key: str, default: float) -> float:
     """φ ``key`` of the code pack's steel table (``phi``, extra keys allowed); ``default`` when
     the pack in use has none."""
+    from saengine.design.steel import basis as steel_basis
+
     try:
         table = steel_table().phi
     except Exception:  # noqa: BLE001 - no pack at all: the default given
@@ -1014,7 +1041,8 @@ def phi(key: str, default: float) -> float:
     value = getattr(table, key, None)
     if value is None:
         value = (getattr(table, "model_extra", None) or {}).get(key)
-    return float(value) if value is not None else default
+    # Alpha 9 C3: 1 / Ω when the member is checked by ASD.
+    return steel_basis.factor(key, float(value) if value is not None else default)
 
 
 def _plate_compression(area: float, t: float, length: float, m: SteelMaterial) -> tuple[float, str]:

@@ -45,17 +45,38 @@ The generic methods: `saengine.design.design_strength`, `strut_shear`, `perimete
 `saengine.substructure.limit_state_geotechnics`. A pack without these tables (BNBC 2020)
 designs exactly as before.
 
-What the member design does with them now: beams and columns are checked on the design
-strengths (flexure, axial force with biaxial bending and the minimum eccentricity, shear by the
-variable strut method with σcp for columns), with rows for the least and largest steel, link
-spacing and sizes and, for DCM/DCH systems, the critical-region hoops, νd, ρl and the beams'
-least steel and bars along the span. A pile type's initial load tests give Rc,k with ξ1/ξ2 and
-Rc,d per combination of the design approach. Still by the parent's method (stated in the
-design report): beam torsion and deflection, column slenderness, slabs, walls, punching,
-stairs, the special/intermediate frame detailing of the parent, Design Reinforcement's sizing
-and the foundation design itself (bearing by allowable pressure). The torsion, punching, crack
-width, span/depth, cover, anchorage, wall, joint and capacity-design functions exist and are
-pinned by tests, waiting for their homes.
+What the design does with them (version 0.3, alpha 9 track C5b): every area is picked by
+`saengine.design.method_selection` (see `docs/code-packs.md`, "Concrete and foundation
+methods"); the glue is `saengine.design.limit_state_rows`, `capacity_design` and
+`saengine.substructure.limit_state_footings`, `limit_state_piles`.
+
+- Beams and columns on the design strengths (C5), and now beam torsion (6.3), span/depth
+  deflection (7.4.2; the calculated deflection follows a span that exceeds it), crack widths
+  and stress limits under the pack's quasi-permanent and characteristic combinations (7.2,
+  7.3; they replace the bar-spacing crack control), column slenderness by λlim and the nominal
+  curvature method (5.8.3.1, 5.8.8).
+- Slabs (shells, coefficients, direct design and equivalent frame moments as SAEngine computes
+  them) and stairs: MRd of the strips on fcd/fyd with xu/d ≤ 0.448, VRd,c, the least steel and
+  spacings of 9.3.1.1; punching of flat slabs on u1 at 2d with β (6.4).
+- Walls: EN 1992-1-1 9.6 steel and spacings, in-plane shear by the variable strut method, the
+  P-M interaction on the design strengths; ductile walls (DCM/DCH): ε = 1.5 on VEd, thickness,
+  critical height.
+- DCM/DCH frames: the curvature-ductility rows (C5) plus ΣMRc ≥ 1.3 ΣMRb at the joints, joint
+  shear (DCH), capacity-design shear of beams and columns, the critical regions' hoop spacing;
+  the parent's special/intermediate frame detailing does not run.
+- Design Reinforcement sizes with the pack's resistances, least/largest steel, link sizes and
+  spacings, and proposes the critical regions' hoops of the ductility class.
+- Anchorage and laps of the detailing and the bar schedule by 8.4 and 8.7.
+- Spread footings: bearing (Annex D) and sliding in each combination of the design approach
+  (DA1 by default) with the founding layer of the nearest borehole; the allowable-pressure rows
+  stay as a serviceability indication. Pile caps' piles: Rc,k from load tests (ξ1, ξ2) or from
+  the calculated resistance at every borehole (ξ3, ξ4), Rc,d by the R sets.
+
+Still by the parent's method (the design report lists them): deep beams and corbels, the
+deflection of slabs and stairs, the confinement ωwd of columns and walls (functions only), the
+footings' structural shear and punching, pile-cap structural design, retaining walls and
+rafts, hooks, compression and column splices in the detailing, the sizing assistant of
+footings.
 
 ## What falls back (not Eurocode yet)
 

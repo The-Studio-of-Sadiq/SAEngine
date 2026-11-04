@@ -252,14 +252,28 @@ def method_lines(code: str) -> list[str]:
             f"least and largest steel, bar and link sizes and link spacing "
             f"({cite('concreteMethods', 'columnSteel')}, {cite('concreteMethods', 'columnLinks')})."
         ),
-        (
-            "Not yet by the pack's own method (the parent pack's method and values, stated in its "
-            "lines): beam torsion, beam deflection, column slenderness, slabs, walls, punching, "
-            "stairs and the seismic detailing other than the curvature-ductility rows of beams and "
-            "columns. Design Reinforcement sizes the bars by the parent pack's method; the checks "
-            "above then verify them."
-        ),
     ]
+    # Alpha 9 C5b: the other areas by the pack's methods (saengine.design.limit_state_rows), and
+    # what still takes the parent pack's method.
+    from saengine.design import limit_state_rows, method_selection
+
+    lines += limit_state_rows.method_lines()
+    chosen = method_selection.limit_state_areas()
+    parent = [
+        name
+        for area, name in (
+            ("torsion", "beam torsion"),
+            ("deflection", "beam deflection"),
+            ("slenderness", "column slenderness"),
+            ("punching", "punching"),
+            ("seismic", "the seismic detailing"),
+        )
+        if not chosen.get(area)
+    ]
+    parent += ["deep beams and corbels (strut-and-tie)", "the deflection of slabs and stairs"]
+    lines.append(
+        "By the parent pack's method and values (stated in its lines): " + ", ".join(parent) + "."
+    )
     return lines
 
 

@@ -220,12 +220,10 @@ class SteelConnectionRules(_Group):
     blockShear: tuple[Share, Share] = Field(
         description="Tdb rupture term shares (net tension, net shear)."
     )
-    clauseMap: dict[str, str] = Field(
-        default_factory=dict,
-        description="Clause texts of the parent pack in the connection notes -> this pack's.",
-    )
     parentCode: str = Field(
-        default="", description="Put before a parent clause the map does not give."
+        default="",
+        description="Put before a parent clause the steel table's connections.references do "
+        "not map (the notes name the parent's rule).",
     )
 
 

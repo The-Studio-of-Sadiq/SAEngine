@@ -42,8 +42,8 @@ def clause(key: str) -> str:
     text = (getattr(table, "clauses", None) or {}).get(key) if table is not None else None
     if not text:
         return ""
-    pack = code_context.current()
-    return f"{pack.edition or pack.name} {text}"
+    # Alpha 9 C5b: an inherited clause is named after the pack that wrote it.
+    return code_context.cite("compositeConcrete", key)
 
 
 @dataclass(frozen=True)

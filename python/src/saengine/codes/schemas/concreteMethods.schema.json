@@ -2540,6 +2540,30 @@
           },
           "title": "K1Exposures",
           "type": "array"
+        },
+        "quasiPermanent": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Quasipermanent"
+        },
+        "characteristic": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Characteristic"
         }
       },
       "required": [
@@ -2585,6 +2609,144 @@
         "maxRatio"
       ],
       "title": "SlendernessRule",
+      "type": "object"
+    },
+    "SlendernessRules": {
+      "additionalProperties": false,
+      "description": "Column slenderness by the slenderness limit and the nominal curvature method (method\n``nominalCurvature``; alpha 9 C5b).",
+      "properties": {
+        "method": {
+          "const": "nominalCurvature",
+          "default": "nominalCurvature",
+          "title": "Method",
+          "type": "string"
+        },
+        "limitCoefficient": {
+          "description": "λlim = coefficient A B C / √n.",
+          "exclusiveMinimum": 0,
+          "title": "Limitcoefficient",
+          "type": "number"
+        },
+        "creepShare": {
+          "description": "A = 1 / (1 + share φef) (A taken 1/(1 + share φef) from the given φef).",
+          "exclusiveMinimum": 0,
+          "title": "Creepshare",
+          "type": "number"
+        },
+        "mechanicalShare": {
+          "description": "B = √(1 + share ω).",
+          "exclusiveMinimum": 0,
+          "title": "Mechanicalshare",
+          "type": "number"
+        },
+        "momentRatioBase": {
+          "description": "C = base - rm.",
+          "exclusiveMinimum": 0,
+          "title": "Momentratiobase",
+          "type": "number"
+        },
+        "unbracedRatio": {
+          "description": "rm of unbraced members and transverse loads.",
+          "title": "Unbracedratio",
+          "type": "number"
+        },
+        "creepCoefficient": {
+          "description": "φ(∞, t0) of the columns (SAEngine practice, overridable).",
+          "minimum": 0,
+          "title": "Creepcoefficient",
+          "type": "number"
+        },
+        "sustainedShare": {
+          "description": "M0Eqp / M0Ed when the analysis gives no sustained share (φef = φ × share).",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Sustainedshare",
+          "type": "number"
+        },
+        "curvatureDepthShare": {
+          "description": "1/r0 = εyd / (share d).",
+          "exclusiveMinimum": 0,
+          "title": "Curvaturedepthshare",
+          "type": "number"
+        },
+        "curvatureDistribution": {
+          "description": "e2 = (1/r) l0² / c.",
+          "exclusiveMinimum": 0,
+          "title": "Curvaturedistribution",
+          "type": "number"
+        },
+        "balancedAxial": {
+          "description": "nbal of Kr.",
+          "exclusiveMinimum": 0,
+          "title": "Balancedaxial",
+          "type": "number"
+        },
+        "betaBase": {
+          "description": "β = base + fck / fckDivisor - λ / lambdaDivisor.",
+          "exclusiveMinimum": 0,
+          "title": "Betabase",
+          "type": "number"
+        },
+        "betaFckDivisor": {
+          "exclusiveMinimum": 0,
+          "title": "Betafckdivisor",
+          "type": "number"
+        },
+        "betaLambdaDivisor": {
+          "exclusiveMinimum": 0,
+          "title": "Betalambdadivisor",
+          "type": "number"
+        },
+        "equivalentMoment": {
+          "description": "M0e = a M02 + b M01 >= c M02 (braced members).",
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            }
+          ],
+          "title": "Equivalentmoment",
+          "type": "array"
+        },
+        "curvatureShareEnd": {
+          "description": "MEd >= M01 + share M2 (braced members).",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Curvatureshareend",
+          "type": "number"
+        }
+      },
+      "required": [
+        "limitCoefficient",
+        "creepShare",
+        "mechanicalShare",
+        "momentRatioBase",
+        "unbracedRatio",
+        "creepCoefficient",
+        "sustainedShare",
+        "curvatureDepthShare",
+        "curvatureDistribution",
+        "balancedAxial",
+        "betaBase",
+        "betaFckDivisor",
+        "betaLambdaDivisor",
+        "equivalentMoment",
+        "curvatureShareEnd"
+      ],
+      "title": "SlendernessRules",
       "type": "object"
     },
     "SpanDepthFactorRules": {
@@ -3566,6 +3728,31 @@
           "title": "Purecompressionstrain",
           "type": "string"
         },
+        "neutralAxisLimit": {
+          "anyOf": [
+            {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "exclusiveMinimum": 0,
+                  "maximum": 1,
+                  "type": "number"
+                },
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Neutralaxislimit"
+        },
         "gradePrefix": {
           "anyOf": [
             {
@@ -3971,6 +4158,25 @@
       ],
       "default": null,
       "title": "Defaultexposure"
+    },
+    "slenderness": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/SlendernessRules"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "parentMethods": {
+      "description": "Areas (saengine.design.method_selection) a project designs by the default method instead of the pack's (an override).",
+      "items": {
+        "type": "string"
+      },
+      "title": "Parentmethods",
+      "type": "array"
     },
     "seismic": {
       "anyOf": [

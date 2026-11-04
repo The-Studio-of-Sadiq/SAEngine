@@ -142,9 +142,13 @@ class BeamLoads:
 def _least_strain(fy: float) -> float:
     """The least net tensile strain of a beam section: 0.004 (ACI 9.3.3.1), or with the pack's
     member limits (alpha 9 C8, IS 456 38.1(f)) fyd / Es + their ``neutralAxisStrain``."""
+    from saengine.design import limit_state_rows
     from saengine.design.member_limits import limits
 
     found = limits()
+    if found is None and limit_state_rows.partial_factors():
+        # Alpha 9 C5b: the pack's neutral axis limit (limit_state_rows.strain_limit).
+        return limit_state_rows.strain_limit(fy)
     if found is None:
         return 0.004
     from saengine.design import design_strength
@@ -162,6 +166,19 @@ def _beam_label(reinforcement: dict[str, Any]) -> str:
         if _zone_text(t):
             parts[-1] += f" ({_zone_text(t)})"
     return ", ".join(parts)
+
+
+def _capacity_text(parent: str, pack: str, key: str) -> str:
+    """Alpha 9 C5b: a capacity-design rule as the proposal's notes name it: the parent pack's
+    text, or the pack's own (``pack`` with its clause ``concreteMethods.clauses[key]``) where
+    the pack designs by ductility class."""
+    from saengine.codes import context as code_context
+    from saengine.design import capacity_design
+
+    if not capacity_design.selected():
+        return parent
+    clause = code_context.cite("concreteMethods", key)
+    return pack + (f" ({clause})" if clause else "")
 
 
 class BeamDesigner:
@@ -311,7 +328,7 @@ class BeamDesigner:
                 continue
             if capacity.phi_mn <= 0 or round(demand / capacity.phi_mn, 3) > 1.0:
                 return None
-            if capacity.eps_t < _least_strain(self.fy):  # ACI 9.3.3.1 (C8: the pack's xu,max)
+            if capacity.eps_t < _least_strain(self.fy):  # ACI 9.3.3.1 (default pack)
                 return None
             result[name] = demand / capacity.phi_mn
         if round(loads.shear / resistance.phi_vn, 3) > 1.0 or not resistance.with_min_stirrups:
@@ -1032,10 +1049,12 @@ def _joint_fails(case: _JointCase, sections: dict[str, Any], profile: Any = None
     beams = {b.id: sections[b.id] for b in case.joint.beams if b.id in sections}
     if not beams:
         return False
+    from saengine.design import capacity_design
+
+    # Alpha 9 C5b: the pack's joint shear (DCH) where it designs by ductility class.
+    joint_rows = capacity_design.joint_rows if capacity_design.selected() else dj.joint_checks
     try:
-        rows, _ = dj.joint_checks(
-            case.joint, beams, case.below, case.above, profile or case.profile
-        )
+        rows, _ = joint_rows(case.joint, beams, case.below, case.above, profile or case.profile)
     except DesignError:
         return False
     return any(r["name"].startswith("Joint shear") and not r["ok"] for r in rows)
@@ -1090,10 +1109,16 @@ def _strong_column_fails(
     column_above = case.above
     if column_above is not None and above is not None:
         column_above = dataclasses.replace(column_above, section=above)
+    from saengine.design import capacity_design
+
+    # Alpha 9 C5b: ΣMRc >= factor ΣMRb where the pack designs by ductility class.
+    strong_rows = (
+        capacity_design.strong_column_rows
+        if capacity_design.selected()
+        else dj.strong_column_checks
+    )
     try:
-        rows, _ = dj.strong_column_checks(
-            case.joint, beams, column_below, column_above, case.profile
-        )
+        rows, _ = strong_rows(case.joint, beams, column_below, column_above, case.profile)
     except DesignError:
         return False
     return any(not r["ok"] and not r["flag"] for r in rows)
@@ -1571,9 +1596,15 @@ def _joint_too_small(found: _TypeResult, joint_ids: list[str], suggestion: str) 
             *entry["notes"],
             (
                 f"bars for its axial forces and moments: {bars['text']}; not proposed, the joints "
-                "need a larger column (joint shear φ γ √f'c Aj, Sec 8.3.7.3, does not depend on "
-                "the column's bars; the beams' bars give Vj = 1.25 fy As - Vcol, judged on each "
-                "beam type's shared bars)"
+                + _capacity_text(
+                    "need a larger column (joint shear φ γ √f'c Aj, Sec 8.3.7.3, does not depend "
+                    "on the column's bars; the beams' bars give Vj = 1.25 fy As - Vcol, judged on "
+                    "each beam type's shared bars)",
+                    "need a larger column (joint shear η fcd √(1 - νd/η) bj hjc does not depend "
+                    "on the column's bars; the beams' bars give Vjhd = γRd ΣAs fyd, judged on "
+                    "each beam type's shared bars)",
+                    "jointShear",
+                )
             ),
         ]
     if "byType" in entry:
@@ -2201,7 +2232,12 @@ def propose(
                 *again.entry["notes"],
                 (
                     f"bars raised for strong column / weak beam at {', '.join(joint_ids)}: "
-                    "ΣMnc ≥ 1.2 ΣMnb (Sec 8.3.5.2(b), Eq. 6.8.5); for all its members"
+                    + _capacity_text(
+                        "ΣMnc ≥ 1.2 ΣMnb (Sec 8.3.5.2(b), Eq. 6.8.5)",
+                        "ΣMRc ≥ 1.3 ΣMRb",
+                        "strongColumn",
+                    )
+                    + "; for all its members"
                 ),
             ]
             column_results[type_id] = again
@@ -2213,8 +2249,11 @@ def propose(
             found.entry["strongColumn"] = {
                 "joints": sorted(set(joint_ids)),
                 "suggestion": (
-                    "no bars up to the largest ρ give ΣMnc ≥ 1.2 ΣMnb (Sec 8.3.5.2(b)): a "
-                    "larger column, or lighter beam bars from deeper beams"
+                    "no bars up to the largest ρ give "
+                    + _capacity_text(
+                        "ΣMnc ≥ 1.2 ΣMnb (Sec 8.3.5.2(b))", "ΣMRc ≥ 1.3 ΣMRb", "strongColumn"
+                    )
+                    + ": a larger column, or lighter beam bars from deeper beams"
                 ),
             }
             found.warnings.append(
@@ -2388,7 +2427,23 @@ def _zone_text(transverse: dict[str, Any]) -> str:
 
 
 def _seismic_members(members: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    return [m["seismicContext"] for m in members if m.get("seismicContext")]
+    """The members' contexts of the parent pack's seismic detailing (those of a pack's own
+    ductility classes, alpha 9 C5b, are :func:`_ductility_members`')."""
+    return [
+        m["seismicContext"]
+        for m in members
+        if m.get("seismicContext") and m["seismicContext"].get("method") is None
+    ]
+
+
+def _ductility_members(members: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Alpha 9 C5b: the members' contexts of the pack's ductility classes
+    (:mod:`saengine.design.capacity_design`)."""
+    return [
+        m["seismicContext"]
+        for m in members
+        if m.get("seismicContext") and m["seismicContext"].get("method") == "curvatureDuctility"
+    ]
 
 
 def seismic_transverse(
@@ -2633,9 +2688,37 @@ def _with_seismic(
     opts: Options,
 ) -> dict[str, Any] | None:
     """Adds the seismic hoop zones to ``pick`` (in place) and returns the detailing info."""
-    if pick.reinforcement is None or not _seismic_members(members):
+    ductile = _ductility_members(members)
+    if pick.reinforcement is None or not (_seismic_members(members) or ductile):
         return None
     first = members[0]
+    if ductile:
+        # Alpha 9 C5b: the hoops of the pack's ductility class (saengine.design.capacity_design).
+        from saengine.design import capacity_design
+
+        try:
+            section = section_of(
+                obj.profile,
+                LinearReinforcement.model_validate(pick.reinforcement),
+                first["fc"],
+                first["fy"],
+                first["es"],
+                first["aggregate"],
+            )
+            reinforcement, info = capacity_design.propose_transverse(
+                kind,
+                section,
+                pick.reinforcement,
+                ductile,
+                opts.stirrup_diameters,
+                opts.min_stirrup_spacing,
+            )
+        except DesignError as error:
+            return {"zones": None, "sectionTooSmall": [], "notes": [f"seismic detailing: {error}"]}
+        pick.reinforcement = reinforcement
+        pick.label = label_of(reinforcement)
+        pick.notes = [*pick.notes, *info["notes"]]
+        return info
     try:
         reinforcement, info = seismic_transverse(
             kind,

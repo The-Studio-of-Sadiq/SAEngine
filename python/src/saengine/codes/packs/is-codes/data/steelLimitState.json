@@ -16,48 +16,158 @@
   "classification": {
     "method": "epsilonLimits",
     "referenceFy": 250,
-    "outstandRolled": {"plastic": 9.4, "compact": 10.5, "semiCompact": 15.7},
-    "outstandWelded": {"plastic": 8.4, "compact": 9.4, "semiCompact": 13.6},
-    "internalFlange": {"plastic": 29.3, "compact": 33.5, "semiCompact": 42.0},
+    "outstandRolled": {
+      "plastic": 9.4,
+      "compact": 10.5,
+      "semiCompact": 15.7
+    },
+    "outstandWelded": {
+      "plastic": 8.4,
+      "compact": 9.4,
+      "semiCompact": 13.6
+    },
+    "internalFlange": {
+      "plastic": 29.3,
+      "compact": 33.5,
+      "semiCompact": 42.0
+    },
     "internalAxial": 42.0,
-    "web": {"plastic": 84.0, "compact": 105.0, "semiCompact": 126.0},
+    "web": {
+      "plastic": 84.0,
+      "compact": 105.0,
+      "semiCompact": 126.0
+    },
     "webAxial": 42.0,
-    "webAxialFactors": [1.0, 1.5, 2.0],
-    "channelWeb": {"plastic": 42.0, "compact": 42.0, "semiCompact": 42.0},
-    "angleBending": {"plastic": 9.4, "compact": 10.5, "semiCompact": 15.7},
-    "angleAxial": [15.7, 25.0],
-    "teeStem": {"plastic": 8.4, "compact": 9.4, "semiCompact": 18.9},
-    "circularBending": {"plastic": 42.0, "compact": 52.0, "semiCompact": 146.0, "squared": true},
+    "webAxialFactors": [
+      1.0,
+      1.5,
+      2.0
+    ],
+    "channelWeb": {
+      "plastic": 42.0,
+      "compact": 42.0,
+      "semiCompact": 42.0
+    },
+    "angleBending": {
+      "plastic": 9.4,
+      "compact": 10.5,
+      "semiCompact": 15.7
+    },
+    "angleAxial": [
+      15.7,
+      25.0
+    ],
+    "teeStem": {
+      "plastic": 8.4,
+      "compact": 9.4,
+      "semiCompact": 18.9
+    },
+    "circularBending": {
+      "plastic": 42.0,
+      "compact": 52.0,
+      "semiCompact": 146.0,
+      "squared": true
+    },
     "circularAxial": 88.0
   },
   "compression": {
     "method": "bucklingCurves",
-    "alpha": {"a": 0.21, "b": 0.34, "c": 0.49, "d": 0.76},
+    "alpha": {
+      "a": 0.21,
+      "b": 0.34,
+      "c": 0.49,
+      "d": 0.76
+    },
     "plateau": 0.2,
     "rolledI": [
-      [1.2, 40, "a", "b"],
-      [1.2, 100, "b", "c"],
-      [0.0, 100, "b", "c"],
-      [0.0, 100000, "d", "d"]
+      [
+        1.2,
+        40,
+        "a",
+        "b"
+      ],
+      [
+        1.2,
+        100,
+        "b",
+        "c"
+      ],
+      [
+        0.0,
+        100,
+        "b",
+        "c"
+      ],
+      [
+        0.0,
+        100000,
+        "d",
+        "d"
+      ]
     ],
     "weldedI": [
-      [40, "b", "c"],
-      [100000, "c", "d"]
+      [
+        40,
+        "b",
+        "c"
+      ],
+      [
+        100000,
+        "c",
+        "d"
+      ]
     ],
     "families": {
-      "channel": {"major": "c", "minor": "c"},
-      "tee": {"major": "c", "minor": "c"},
-      "angle": {"major": "c", "minor": "c"},
-      "rhs": {"major": "b", "minor": "b"},
-      "chs": {"major": "b", "minor": "b"},
-      "bar": {"major": "c", "minor": "c"},
-      "round": {"major": "c", "minor": "c"}
+      "channel": {
+        "major": "c",
+        "minor": "c"
+      },
+      "tee": {
+        "major": "c",
+        "minor": "c"
+      },
+      "angle": {
+        "major": "c",
+        "minor": "c"
+      },
+      "rhs": {
+        "major": "b",
+        "minor": "b"
+      },
+      "chs": {
+        "major": "b",
+        "minor": "b"
+      },
+      "bar": {
+        "major": "c",
+        "minor": "c"
+      },
+      "round": {
+        "major": "c",
+        "minor": "c"
+      }
     },
     "angleConstants": {
-      "twoBoltsFixed": [0.2, 0.35, 20.0],
-      "twoBoltsHinged": [0.7, 0.6, 5.0],
-      "oneBoltFixed": [0.75, 0.35, 20.0],
-      "oneBoltHinged": [1.25, 0.5, 60.0]
+      "twoBoltsFixed": [
+        0.2,
+        0.35,
+        20.0
+      ],
+      "twoBoltsHinged": [
+        0.7,
+        0.6,
+        5.0
+      ],
+      "oneBoltFixed": [
+        0.75,
+        0.35,
+        20.0
+      ],
+      "oneBoltHinged": [
+        1.25,
+        0.5,
+        60.0
+      ]
     },
     "angleCondition": "twoBoltsHinged",
     "angleCurve": "c"
@@ -65,14 +175,30 @@
   "tension": {
     "method": "yieldRupture",
     "ruptureShare": 0.9,
-    "angleAlpha": [[2, 0.6], [3, 0.7], [4, 0.8]],
+    "angleAlpha": [
+      [
+        2,
+        0.6
+      ],
+      [
+        3,
+        0.7
+      ],
+      [
+        4,
+        0.8
+      ]
+    ],
     "angleBolts": 2
   },
   "flexure": {
     "method": "elasticCriticalMoment",
     "elasticCap": 1.2,
     "elasticCapCantilever": 1.5,
-    "alphaLT": {"rolled": 0.21, "welded": 0.49},
+    "alphaLT": {
+      "rolled": 0.21,
+      "welded": 0.49
+    },
     "ltbPlateau": 0.4,
     "ltbBase": 0.2,
     "highShare": 0.6
@@ -82,8 +208,14 @@
     "bucklingLimit": 67.0,
     "poisson": 0.3,
     "kvUnstiffened": 5.35,
-    "kvStiffened": [4.0, 5.35],
-    "lambdaLimits": [0.8, 1.2],
+    "kvStiffened": [
+      4.0,
+      5.35
+    ],
+    "lambdaLimits": [
+      0.8,
+      1.2
+    ],
     "lambdaSlope": 0.8
   },
   "interaction": {
@@ -100,7 +232,10 @@
     "cmMin": 0.4,
     "tensionPsi": 0.8
   },
-  "slenderness": {"compression": 180.0, "tension": 400.0},
+  "slenderness": {
+    "compression": 180.0,
+    "tension": 400.0
+  },
   "shearModulus": 76900.0,
   "welded": false,
   "nominalHollowWall": true,
@@ -108,9 +243,21 @@
     "bolts": {
       "method": "partialFactorBolts",
       "grades": {
-        "4.6": {"fub": 400, "fyb": 240, "pretensioned": false},
-        "8.8": {"fub": 800, "fyb": 640, "pretensioned": true},
-        "10.9": {"fub": 1000, "fyb": 900, "pretensioned": true}
+        "4.6": {
+          "fub": 400,
+          "fyb": 240,
+          "pretensioned": false
+        },
+        "8.8": {
+          "fub": 800,
+          "fyb": 640,
+          "pretensioned": true
+        },
+        "10.9": {
+          "fub": 1000,
+          "fyb": 900,
+          "pretensioned": true
+        }
       },
       "aliases": {
         "8.8N": "8.8",
@@ -127,43 +274,38 @@
       "tensionShare": 0.9,
       "bearingFactor": 2.5,
       "bearingEnd": 3.0,
-      "bearingPitch": [3.0, 0.25],
+      "bearingPitch": [
+        3.0,
+        0.25
+      ],
       "proofShare": 0.7,
-      "slipMu": {"A": 0.2, "B": 0.5},
-      "holeKh": {"standard": 1.0, "oversized": 0.85, "shortSlot": 0.85, "longSlot": 0.7},
-      "longJoint": [1.075, 0.005, 15.0, 0.75]
+      "slipMu": {
+        "A": 0.2,
+        "B": 0.5
+      },
+      "holeKh": {
+        "standard": 1.0,
+        "oversized": 0.85,
+        "shortSlot": 0.85,
+        "longSlot": 0.7
+      },
+      "longJoint": [
+        1.075,
+        0.005,
+        15.0,
+        0.75
+      ]
     },
-    "welds": {"method": "throatShear", "throatShare": 0.7, "field": false},
-    "blockShear": [0.9, 0.9],
-    "parentCode": "BNBC 2020 Part 6",
-    "clauseMap": {
-      "Eqs 6.10.169-170a": "IS 800:2007 10.3.6",
-      "Eq 6.10.168": "IS 800:2007 10.3.3",
-      "Eq 6.10.171": "IS 800:2007 10.4.3",
-      "Eq 6.10.172a": "IS 800:2007 10.4.6",
-      "Eq 6.10.173a": "IS 800:2007 10.3.4",
-      "Eq 6.10.178": "IS 800:2007 6.4.1",
-      "Eqs 6.10.162-163": "IS 800:2007 10.5.7",
-      "Eq 6.10.162-163": "IS 800:2007 10.5.7",
-      "Sec 10.10.3.6": "IS 800:2007 10.3.5",
-      "Sec 10.10.3.7": "IS 800:2007 10.3.6",
-      "Sec 10.10.3.8": "IS 800:2007 10.4.3",
-      "Sec 10.10.3.9": "IS 800:2007 10.4.6",
-      "Sec 10.10.3.10": "IS 800:2007 10.3.4",
-      "Sec 10.10.3.3": "IS 800:2007 10.2.2",
-      "Sec 10.10.3.5": "IS 800:2007 10.2.4.3",
-      "Table 6.10.11": "IS 800:2007 Table 19",
-      "Table 6.10.12": "IS 800:2007 10.2.4.2",
-      "Table 6.10.7": "IS 800:2007 Table 21",
-      "Table 6.10.10 [f]": "IS 800:2007 10.3.3.1",
-      "Table 6.10.10 note [f]": "IS 800:2007 10.3.3.1",
-      "Table 6.10.10": "IS 800:2007 10.3.3",
-      "Sec 10.10.2.2.2": "IS 800:2007 10.5.8.1",
-      "Sec 10.10.4.2": "IS 800:2007 8.4",
-      "Sec 10.10.4.3": "IS 800:2007 6.4.1",
-      "Sec 10.10.4.1": "IS 800:2007 6.2-6.3",
-      "Sec 10.2.3.13.2": "IS 800:2007 10.2.1"
-    }
+    "welds": {
+      "method": "throatShear",
+      "throatShare": 0.7,
+      "field": false
+    },
+    "blockShear": [
+      0.9,
+      0.9
+    ],
+    "parentCode": "BNBC 2020 Part 6"
   },
   "seismic": {
     "method": "prescriptiveFrames",
@@ -176,16 +318,24 @@
       "ocbf": {
         "braceSlenderness": 120.0,
         "braceCompressionShare": 0.8,
-        "tensionShare": [0.3, 0.7],
+        "tensionShare": [
+          0.3,
+          0.7
+        ],
         "kBracing": false,
         "plasticMembers": [],
         "note": "IS 800:2007 12.7"
       },
       "scbf": {
         "braceSlenderness": 160.0,
-        "tensionShare": [0.3, 0.7],
+        "tensionShare": [
+          0.3,
+          0.7
+        ],
         "kBracing": false,
-        "plasticMembers": ["brace"],
+        "plasticMembers": [
+          "brace"
+        ],
         "note": "IS 800:2007 12.8"
       },
       "omf": {
@@ -196,7 +346,10 @@
         "connectionMoment": 1.2,
         "driftAngle": 0.04,
         "strongColumn": 1.2,
-        "plasticMembers": ["beam", "column"],
+        "plasticMembers": [
+          "beam",
+          "column"
+        ],
         "note": "IS 800:2007 12.11"
       }
     },

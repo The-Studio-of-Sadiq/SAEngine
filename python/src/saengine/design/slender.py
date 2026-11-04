@@ -1504,6 +1504,14 @@ class SlenderContext:
         cm_given = given.get("cm") if given else None
         dns_given = given.get("deltaNs") if given else None
         ds_given = given.get("deltaS") if given else None
+        # Alpha 9 C5b: the pack's nominal curvature method (see the per-combination loop).
+        from saengine.design import limit_state_rows, method_selection
+
+        pack_curvature = method_selection.uses("slenderness", "nominalCurvature")
+        if pack_curvature:
+            radius, depth = _pack_geometry(section, h)
+            area = float(section.gross_area)
+            steel = float(section.steel_area)
         for seg in segs:
             for p in seg.pieces:
                 segment_of[p.id] = seg
@@ -1565,6 +1573,34 @@ class SlenderContext:
                 m_bot, m_top = float(m_all[0]), float(m_all[-1])
                 ms_bot, ms_top = float(ms_all[0]), float(ms_all[-1])
                 first = max(abs(m_bot), abs(m_top))
+                if pack_curvature:
+                    # Alpha 9 C5b: the pack's slenderness limit and nominal curvature method
+                    # (saengine.design.limit_state_rows) take the place of the moment magnifier.
+                    spectral = c < len(self.spectrum) and self.spectrum[c]
+                    m2 = first
+                    m1 = min(abs(m_bot), abs(m_top))
+                    same = spectral or m2 == 0 or m_bot * m_top > 0
+                    curved = free or spectral or not consistent or _curved(m_all)
+                    found = limit_state_rows.nominal_curvature(
+                        pu, m1 if same else -m1, m2, sway_storey or free, curved, k_used * lu,
+                        radius, depth, section.fc, section.fy, section.es, area, steel,
+                        p_sus / pu if pu > 0 else None,
+                    )  # fmt: skip
+                    med = float(found["med"])
+                    mc[c] = max(mc[c], med)
+                    mc_no_min[c] = max(mc_no_min[c], med)
+                    magnified[c] = magnified[c] or bool(found["slender"])
+                    pack_info: dict[str, Any] = {
+                        "segment": seg, "c": c, "pu": pu, "first": first, "ds": 1.0,
+                        "k": k_used, "slender": k_used * lu / radius, "lu": lu,
+                        "sway": sway_storey if framing else None, "framing": framing,
+                        "given": given, "k_note": "", "neglected": not found["slender"],
+                        "mc": med, "m2": m2, "limit": found["lambdaLim"], "pack": found,
+                        "radius": radius, "spectral": spectral,
+                        "dns": med / m2 if m2 else 1.0,
+                    }  # fmt: skip
+                    best = _governs(best, pack_info)
+                    continue
                 # Sway magnification of the end moments (6.3.10.7).
                 ds = 1.0
                 sway_applies = (
@@ -1680,6 +1716,8 @@ class SlenderContext:
             return _check(
                 f"Slenderness about {axis}", 0.0, _limit("KLU_R_MAX"), "", None, "", flag=True
             )
+        if best.get("pack") is not None:  # Alpha 9 C5b
+            return _pack_check(axis, best, self.combinations)
         seg: Segment = best["segment"]
         c = best["c"]
         storey = seg.storey
@@ -1833,6 +1871,48 @@ class SlenderContext:
         if failures:
             result["ok"] = False
         return result
+
+
+def _pack_geometry(section: Any, h: float) -> tuple[float, float]:
+    """Alpha 9 C5b: (i, d) of a column about the axis of depth ``h``: i the gross section's
+    radius of gyration (h/√12, a circle's h/4), d = h/2 + is with is that of the bars about the
+    centroid (EN 1992-1-1 5.8.8.3(2)); 0.8 h without bars."""
+    circular = _dimensions(section)[2]
+    radius = h / 4 if circular else h / math.sqrt(12)
+    bars = list(getattr(section, "bars", ()) or ())
+    if not bars:
+        return radius, 0.8 * h
+    width, depth, _ = _dimensions(section)
+    along_y = abs(h - depth) <= abs(h - width)
+    total = sum(b.area for b in bars)
+    second = sum(b.area * (b.y if along_y else b.x) ** 2 for b in bars)
+    return radius, h / 2 + math.sqrt(second / total)
+
+
+def _pack_check(axis: str, best: dict[str, Any], combinations: list[str]) -> dict[str, Any]:
+    """Alpha 9 C5b: the slenderness row of an axis by the pack's method: λ against λlim,
+    reported only (the strength check takes MEd with the second-order moment)."""
+    from saengine.design import limit_state_rows
+    from saengine.design.check import _check
+
+    found = best["pack"]
+    sway = (
+        bool(best.get("sway"))
+        if best.get("framing")
+        else bool(best["segment"].storey is not None and best["segment"].storey.sway)
+    )
+    note = limit_state_rows.slenderness_note(found, best["lu"], best["k"], best["radius"], sway)
+    note += f"; {best['segment'].pieces[0].name}"
+    label = "slender, nominal curvature" if found["slender"] else "not slender"
+    return _check(
+        f"Slenderness about {axis} ({label})",
+        float(found["lambda"]),
+        float(found["lambdaLim"]),
+        "",
+        combinations[best["c"]],
+        note,
+        flag=True,
+    )
 
 
 def _governs(best: dict[str, Any] | None, info: dict[str, Any]) -> dict[str, Any]:

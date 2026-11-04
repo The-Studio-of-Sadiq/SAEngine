@@ -193,6 +193,45 @@
       "title": "DesignApproachCombination",
       "type": "object"
     },
+    "FootingRules": {
+      "additionalProperties": false,
+      "description": "How spread footings take the soil's strength when the bearing is by limit states (alpha\n9 C5b): the characteristic soil parameters of the founding layer, the drained or undrained\ncase, and what the project's footing takes as the characteristic actions.",
+      "properties": {
+        "drained": {
+          "default": "auto",
+          "description": "auto: undrained where the founding layer gives cu and no φ', both checked where it gives both.",
+          "enum": [
+            "auto",
+            "drained",
+            "undrained"
+          ],
+          "title": "Drained",
+          "type": "string"
+        },
+        "castInPlace": {
+          "default": true,
+          "description": "Footings cast against the soil.",
+          "title": "Castinplace",
+          "type": "boolean"
+        },
+        "waterAtInterface": {
+          "default": true,
+          "description": "Water can reach the base (undrained sliding limit).",
+          "title": "Wateratinterface",
+          "type": "boolean"
+        },
+        "phiCvShare": {
+          "default": 1.0,
+          "description": "φ'cv,k = share × φ'k where the soil gives no φ'cv.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Phicvshare",
+          "type": "number"
+        }
+      },
+      "title": "FootingRules",
+      "type": "object"
+    },
     "MaterialSet": {
       "additionalProperties": false,
       "properties": {
@@ -435,6 +474,25 @@
         }
       ],
       "default": null
+    },
+    "footings": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/FootingRules"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "parentMethods": {
+      "description": "Areas (bearing, sliding, piles) a project designs by the default method instead of the pack's (an override).",
+      "items": {
+        "type": "string"
+      },
+      "title": "Parentmethods",
+      "type": "array"
     }
   },
   "required": [

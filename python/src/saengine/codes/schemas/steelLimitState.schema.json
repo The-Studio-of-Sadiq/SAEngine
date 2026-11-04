@@ -632,17 +632,9 @@
           "title": "Blockshear",
           "type": "array"
         },
-        "clauseMap": {
-          "additionalProperties": {
-            "type": "string"
-          },
-          "description": "Clause texts of the parent pack in the connection notes -> this pack's.",
-          "title": "Clausemap",
-          "type": "object"
-        },
         "parentCode": {
           "default": "",
-          "description": "Put before a parent clause the map does not give.",
+          "description": "Put before a parent clause the steel table's connections.references do not map (the notes name the parent's rule).",
           "title": "Parentcode",
           "type": "string"
         }

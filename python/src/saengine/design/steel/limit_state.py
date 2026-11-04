@@ -1550,15 +1550,14 @@ def long_joint(length: float, d: float | None) -> float:
 
 
 def rewrite_note(note: str) -> str:
-    """A connection note with the parent pack's clause texts in this pack's words (the group's
-    ``clauseMap``); a parent clause the map does not give is named after the parent code."""
+    """A connection note after the steel table's ``connections.references`` (C3's mapping of
+    the parent's clause texts to the pack's): a parent clause left is named after the parent
+    code (the group's ``parentCode``)."""
     import re
 
     cr = connection_rules()
     if cr is None or not note:
         return note
-    for old in sorted(cr.clauseMap, key=len, reverse=True):
-        note = note.replace(old, cr.clauseMap[old])
     if cr.parentCode:
         note = re.sub(
             r"(?<![\w.])((?:Secs?|Eqs?|Tables?) (?:6\.10\.|10\.)[0-9][0-9a-z.\-()]*)",

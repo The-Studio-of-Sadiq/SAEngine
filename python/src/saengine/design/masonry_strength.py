@@ -178,9 +178,10 @@ def shear_coefficient(ratio: float) -> float:
 
 
 def shear_maximum(ratio: float) -> float:
-    """Largest Vn / (Amv √f'm) by M/Vd (Table 6.7.14, linear between)."""
+    """Largest Vn / (Amv √f'm) by M/Vd (Table 6.7.14, linear between; alpha 9 C3: from the
+    pack's ``maxRatioLow`` when it gives one)."""
     sh = _s().shear
-    lo, hi = float(sh["ratioLow"]), float(sh["ratioHigh"])
+    lo, hi = float(sh.get("maxRatioLow", sh["ratioLow"])), float(sh["ratioHigh"])
     m_lo, m_hi = float(sh["maxLow"]), float(sh["maxHigh"])
     if ratio <= lo:
         return m_lo
@@ -444,11 +445,17 @@ def _shear_wall(
         v = abs(f.V2)
         ratio = abs(f.M3) / (v * d) if v > 0 else float(s.shear["ratioHigh"])
         vm = float(s.shear["masonry"]) * shear_coefficient(ratio) * ae * math.sqrt(m.fm)
-        vn = min(vm + av_fy, shear_maximum(ratio) * ae * math.sqrt(m.fm))
+        steel_part = av_fy
+        if "steelShare" in s.shear or "axialShare" in s.shear:
+            # Alpha 9 C3: a pack whose shear strength takes a share of the steel and of the
+            # axial load (Vn = Vm + share_s Av fy + share_p Pu).
+            steel_part = float(s.shear.get("steelShare", 1.0)) * av_fy
+            vm += float(s.shear.get("axialShare", 0.0)) * pu
+        vn = min(vm + steel_part, shear_maximum(ratio) * ae * math.sqrt(m.fm))
         v_flex = mn * v / abs(f.M3) if abs(f.M3) > 0 else math.inf
         phi_v = float(s.phi["shear"])
         note = f"{f.where}; M/Vd = {ratio:.2f}, Cd {shear_coefficient(ratio):.2f}"
-        in_flexure = vn > v_flex
+        in_flexure = vn > v_flex and bool(s.shear.get("flexureMode", True))
         if in_flexure:
             flexure_mode = True
             phi_v = float(s.phi["shearFlexure"])
