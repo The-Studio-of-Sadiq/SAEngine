@@ -216,7 +216,18 @@ def test_sections_deflection_and_seismic_rules(is_pack):
     from saengine.library import steel_sections
     from saengine.verification.cases.common import settings
 
-    assert steel_sections.FAMILIES == ("ISMB", "ISMC", "L", "SHS", "RHS", "CHS")
+    # C9b adds ISLB, ISWB and ISHB.
+    assert steel_sections.FAMILIES == (
+        "ISLB",
+        "ISMB",
+        "ISWB",
+        "ISHB",
+        "ISMC",
+        "L",
+        "SHS",
+        "RHS",
+        "CHS",
+    )
     assert steel_sections.find("IPE 300") is None and steel_sections.find("ISMB 300") is not None
     limits = is_pack.table("serviceability").deflection
     assert (limits.uses["floor"].live, limits.uses["floorBrittle"].live) == (300, 360)
