@@ -664,7 +664,8 @@ def punching_capacity(
     from saengine.design import moment_punching, tabulated_shear
 
     if tabulated_shear.punching_rules() is not None:
-        allowed = tabulated_shear.punching_stress(fc, 1.0, beta) / _phi_punching()
+        # Alpha 9 C20b: d, b0 and αs for the tensile form (GB 50010 6.5.1 type; root ignores).
+        allowed = tabulated_shear.punching_stress(fc, 1.0, beta, d, b0, alpha_s) / _phi_punching()
         return PunchingCapacity(allowed, (allowed, allowed, allowed), 1.0)
     if moment_punching.rules() is not None:  # Alpha 9 C18b: fcv (AS 3600 9.3 type), no λs
         fcv, shape, cap = moment_punching.strength(fc, beta)

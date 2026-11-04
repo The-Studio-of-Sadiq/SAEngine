@@ -137,8 +137,15 @@ def fctd(fck: float, found: Any | None = None) -> float:
 
 
 def fyd(fyk: float, found: Any | None = None, accidental: bool = False) -> float:
-    """Design yield strength fyk / γs [MPa]."""
+    """Design yield strength fyk / γs [MPa]; alpha 9 C20b: the pack's tabulated design yield
+    of the bar grade (``designYields``, GB 50010 Table 4.2.3-1 type) where it gives the grade
+    (not in accidental situations)."""
     r = found or rules()
+    table = getattr(r, "designYields", None)
+    if table and not accidental:
+        for grade, value in table:
+            if abs(float(grade) - fyk) < 0.5:
+                return float(value)
     gamma = (r.gammaSAccidental or r.gammaS) if accidental else r.gammaS
     return fyk / gamma
 
@@ -183,6 +190,9 @@ def axial_resistance(
     r = rules()
     if r.axialShares is not None:
         # C8 (IS 456 39.3): the axial cap by shares of fck and fy (the pack's).
+        share = getattr(r, "axialYieldShare", None)
+        if share is not None:  # Alpha 9 C20b: the steel term on fyd (GB 50010 6.2.15 type)
+            return r.axialShares[0] * fck * concrete_area + float(share) * fyd(fyk, r) * steel
         return r.axialShares[0] * fck * concrete_area + r.axialShares[1] * fyk * steel
     p = properties(fck, r)
     strain = p.eps_c2 if r.pureCompressionStrain == "epsC2" else p.eps_c3

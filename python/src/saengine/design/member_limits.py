@@ -73,6 +73,8 @@ def nominal_cover(bar: float, kind: str = "beam", fck: float = 0.0) -> float | N
         return None
     key, cond = found
     cover = cond.cover
+    if kind in ("beam", "column") and getattr(cond, "beamCover", None) is not None:
+        cover = cond.beamCover  # Alpha 9 C20b: beams and columns (GB 50010 Table 8.2.1 type)
     first = next(iter(c.conditions))
     if key == first and bar <= c.smallBarReduction[1]:
         cover -= c.smallBarReduction[0]
@@ -90,8 +92,13 @@ def bond_stress(fck: float) -> float:
     return _interp(fck, list(b.grades), list(b.bond))
 
 
-def development_length(dia: float, fy: float, fck: float, compression: bool = False) -> float:
-    """Ld = φ σs / (4 τbd) [mm], σs = fy / γs; deformed bars (fy above the plain bars')."""
+def development_length(
+    dia: float, fy: float, fck: float, compression: bool = False, seismic: float = 1.0
+) -> float:
+    """Ld = φ σs / (4 τbd) [mm], σs = fy / γs; deformed bars (fy above the plain bars').
+
+    Alpha 9 C20b (GB 50010 8.3 type): × ζa of the pack's large bars, at least ``minLength``,
+    × ``seismic`` (ζa,E of the seismic grade, 11.1.7; 1 outside earthquake design)."""
     from saengine.design import design_strength
 
     b = bond_rules()
@@ -101,15 +108,40 @@ def development_length(dia: float, fy: float, fck: float, compression: bool = Fa
         tau *= b.deformedFactor
     if compression:
         tau *= b.compressionFactor
-    return dia * design_strength.fyd(fy) / (4 * tau)
+    ld = dia * design_strength.fyd(fy) / (4 * tau)
+    large = getattr(b, "largeBarFactor", None)
+    if large is not None and dia > large[0]:
+        ld *= float(large[1])
+    if seismic != 1.0:
+        ld *= seismic
+    floor = getattr(b, "minLength", None)
+    return max(ld, float(floor)) if floor is not None else ld
 
 
-def lap_length(dia: float, fy: float, fck: float, kind: str = "flexure") -> float | None:
+def lap_length(
+    dia: float,
+    fy: float,
+    fck: float,
+    kind: str = "flexure",
+    seismic: float = 1.0,
+    share: float | None = None,
+) -> float | None:
     """The lap [mm] in flexural tension, direct tension or compression; None above the largest
-    bar that may be lapped."""
+    bar that may be lapped. Alpha 9 C20b: ll = ζl Ld at least ``lapMinLength`` where the pack
+    gives ``lapFactors``: ζl of the first row whose share holds ``share`` (the share of the
+    bars lapped at one section; None: the first row's)."""
     b = bond_rules()
     if dia > b.lapLargeBar:
         return None
+    factors = getattr(b, "lapFactors", None)
+    floor = getattr(b, "lapMinLength", None)
+    if factors:
+        rows = sorted(factors)
+        wanted = rows[0][0] if share is None else share
+        zeta = next((z for s, z in rows if s >= wanted - 1e-9), rows[-1][1])
+        ld = development_length(dia, fy, fck, kind == "compression", seismic)
+        lap = float(zeta) * ld
+        return max(lap, float(floor)) if floor is not None else lap
     if kind == "compression":
         return max(development_length(dia, fy, fck, True), b.lapCompression * dia)
     ld = development_length(dia, fy, fck)
@@ -123,6 +155,19 @@ def _grade_row(fck: float) -> dict[str, Any] | None:
     if found is None:
         return None
     key, cond = found
+    if cond.cement is None:
+        # Alpha 9 C20b: a code without a least cement content (GB 50010 3.5.3 type); the
+        # grade named as the pack names it.
+        from saengine.design import design_strength
+
+        return _row(
+            f"Concrete grade for the exposure{_paren('durability')}",
+            cond.grade,
+            fck,
+            "MPa",
+            f"exposure '{key}': at least {design_strength.strength_class(cond.grade)}, "
+            f"w/c <= {cond.waterCement:g} (the mix is not checked)",
+        )
     return _row(
         f"Concrete grade for the exposure{_paren('durability')}",
         cond.grade,
@@ -150,10 +195,12 @@ def _cover_rows(cover: float | None, bar: float, kind: str, fck: float) -> list[
     ]
 
 
-def _anchorage_rows(section: Any) -> list[dict[str, Any]]:
+def _anchorage_rows(section: Any, kind: str = "beam") -> list[dict[str, Any]]:
     if bond_rules() is None or not section.bars:
         return []
     dia = max(b.dia for b in section.bars)
+    if getattr(bond_rules(), "lapFactors", None):
+        return _factored_anchorage_rows(section, dia, kind)  # Alpha 9 C20b
     ld = development_length(dia, section.fy, section.fc)
     lap = lap_length(dia, section.fy, section.fc)
     rows = [
@@ -170,6 +217,61 @@ def _anchorage_rows(section: Any) -> list[dict[str, Any]]:
         )
     ]
     b = bond_rules()
+    if dia > b.lapLargeBar:
+        rows.append(
+            _row(
+                f"No laps of bars above {b.lapLargeBar:g} mm{_paren('laps')}",
+                dia,
+                b.lapLargeBar,
+                "mm",
+                "splice them by welding or couplers",
+                flag=True,
+            )
+        )
+    return rows
+
+
+def _factored_anchorage_rows(section: Any, dia: float, kind: str) -> list[dict[str, Any]]:
+    """Alpha 9 C20b: la = ζa lab (lab = φ fyd / (4 τbd)) at least the pack's least length, the
+    seismic la,E = ζa,E la of the building's seismic grade, and the laps ll = ζl la (llE = ζl
+    la,E) by the share of the bars lapped at one section (GB 50010 8.3, 8.4, 11.1.7 type)."""
+    from saengine.design import seismic_grades
+
+    b = bond_rules()
+    zeta_e = seismic_grades.factor("anchorage", 1.0)
+    share = b.columnLapShare if kind == "column" else None
+    la = development_length(dia, section.fy, section.fc)
+    lae = development_length(dia, section.fy, section.fc, seismic=zeta_e)
+    lap = lap_length(dia, section.fy, section.fc, seismic=zeta_e, share=share)
+    rows_ = sorted(b.lapFactors)
+    wanted = rows_[0][0] if share is None else share
+    zeta_l = next((z for s, z in rows_ if s >= wanted - 1e-9), rows_[-1][1])
+    large = b.largeBarFactor
+    notes = [
+        f"la = ζa lab, lab = φ fyd / (4 τbd), τbd = {bond_stress(section.fc):.2f} MPa"
+        + (f", ζa {large[1]:g} above {large[0]:g} mm" if large is not None else "")
+        + (f", at least {b.minLength:g} mm" if b.minLength is not None else "")
+    ]
+    if zeta_e != 1.0:
+        notes.append(f"la,E = ζa,E la = {zeta_e:g} × {la:.0f} = {lae:.0f} mm (seismic grade)")
+    notes.append(
+        f"laps ll = ζl la{',E' if zeta_e != 1.0 else ''} = {lap:.0f} mm (ζl {zeta_l:g}, "
+        f"{100 * wanted:g} % of the bars lapped at one section"
+        + (f", at least {b.lapMinLength:g} mm" if b.lapMinLength is not None else "")
+        + f"){_paren('laps')}"
+        if lap is not None
+        else "bars this large are not lapped: welded or mechanical splices"
+    )
+    rows = [
+        _row(
+            f"Development length of {dia:g} mm bars{_paren('anchorage')}",
+            lae,
+            lae,
+            "mm",
+            "; ".join(notes),
+            flag=True,
+        )
+    ]
     if dia > b.lapLargeBar:
         rows.append(
             _row(
@@ -215,15 +317,34 @@ def beam_rows(
                     f"xu/d <= xu,max/d = εcu / (εcu + fyd/Es + {lim.neutralAxisStrain:g})",
                 )
             )
-        rows.append(
-            _row(
-                f"Least tension steel, {face}{_paren('beamSteel')}",
-                lim.beamMin / section.fy * b * d,
-                area,
-                "mm²",
-                f"As/(b d) >= {lim.beamMin:g}/fy",
+        if getattr(lim, "beamMinRatio", None) is not None:
+            # Alpha 9 C20b: max(ratio, c fctd / fyd) on b h (GB 50010 8.5.1 type).
+            tensile = (
+                (lim.beamMinTensile or 0.0)
+                * design_strength.fctd(section.fc)
+                / design_strength.fyd(section.fy)
             )
-        )
+            least = max(float(lim.beamMinRatio), tensile)
+            rows.append(
+                _row(
+                    f"Least tension steel, {face}{_paren('beamSteel')}",
+                    least * b * h,
+                    area,
+                    "mm²",
+                    f"As/(b h) >= max({100 * lim.beamMinRatio:g} %, "
+                    f"{lim.beamMinTensile or 0.0:g} fctd/fyd = {100 * tensile:.3f} %)",
+                )
+            )
+        else:
+            rows.append(
+                _row(
+                    f"Least tension steel, {face}{_paren('beamSteel')}",
+                    lim.beamMin / section.fy * b * d,
+                    area,
+                    "mm²",
+                    f"As/(b d) >= {lim.beamMin:g}/fy",
+                )
+            )
         rows.append(
             _row(
                 f"Largest steel, {face}{_paren('beamSteel')}",
@@ -235,14 +356,17 @@ def beam_rows(
         )
     if h > lim.sideFaceDepth:
         inner = [bar for bar in section.bars if abs(bar.y) < 0.3 * h]
+        # Alpha 9 C20b: the share of each face (GB 50010 9.2.13 type) doubles the total.
+        each = bool(getattr(lim, "sideFaceEach", False))
         rows.append(
             _row(
                 f"Side face steel{_paren('sideFace')}",
-                lim.sideFaceShare * b * h,
+                lim.sideFaceShare * b * h * (2 if each else 1),
                 sum(bar.area for bar in inner),
                 "mm²",
-                f"D > {lim.sideFaceDepth:g} mm: {lim.sideFaceShare * 100:g} % of the web area on the "
-                f"two faces, at most {lim.sideFaceSpacing:g} mm apart",
+                f"D > {lim.sideFaceDepth:g} mm: {lim.sideFaceShare * 100:g} % of the web area on "
+                + ("each face" if each else "the two faces")
+                + f", at most {lim.sideFaceSpacing:g} mm apart",
             )
         )
     r = shear_rules()
@@ -319,7 +443,7 @@ def column_rows(section: Any, transverse: Any, cover: float | None) -> list[dict
     grade = _grade_row(section.fc)
     if grade is not None:
         rows.append(grade)
-    rows += _anchorage_rows(section)
+    rows += _anchorage_rows(section, "column")
     return rows
 
 
@@ -331,19 +455,31 @@ def slab_rows(
     spacing: float | None,
     area_per_m: float,
     main: bool = True,
+    fc: float | None = None,
 ) -> list[dict[str, Any]]:
-    """The least steel (per metre width), bar size and spacing of a solid slab direction."""
+    """The least steel (per metre width), bar size and spacing of a solid slab direction
+    (alpha 9 C20b: ``fc`` [MPa] for the pack's ``slabMinTensile``)."""
     lim = limits()
     if lim is None:
         return []
     share = lim.slabMin[1] if fy <= lim.plainFy else lim.slabMin[0]
+    how = f"{share * 100:g} % of b D"
+    tensile_c = getattr(lim, "slabMinTensile", None)
+    if tensile_c is not None and fy > lim.plainFy and fc:
+        # Alpha 9 C20b: at least c fctd / fyd too (GB 50010 8.5.1 type), where the caller
+        # gives the slab's concrete.
+        from saengine.design import design_strength
+
+        tensile = tensile_c * design_strength.fctd(fc) / design_strength.fyd(fy)
+        how = f"max({share * 100:g} %, {tensile_c:g} fctd/fyd = {100 * tensile:.3f} %) of b D"
+        share = max(share, tensile)
     rows = [
         _row(
             f"Least slab steel{_paren('slabSteel')}",
             share * 1000 * thickness,
             area_per_m,
             "mm²/m",
-            f"{share * 100:g} % of b D",
+            how,
         ),
         _row(
             f"Slab bar diameter{_paren('slabSteel')}",

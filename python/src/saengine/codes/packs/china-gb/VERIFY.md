@@ -17,7 +17,7 @@ SAEngine practice (not a code value) is marked **P**.
 | 7 | + 0.3W (ψw 0.2 × 1.5) for structures over 60 m, applied to all | GB 55002 4.3.2 | P |
 | 8 | Service: G + Q, G + 0.5Q (ψf), G + 0.4Q (ψq), G + 0.7Q + W | GB 50009 3.2.8-3.2.10 | |
 | 9 | Design working life factor γL = 1.0 (50 years) | GB 55001 3.1.13 | |
-| 10 | γRE (GB 50011 Table 5.4.2) not applied | - | P (safe side) |
+| 10 | γRE (GB 50011 Table 5.4.2): applied since C20b (see C20b-41 to C20b-46) | - | |
 | 11 | Earth pressure H × 1.3, fluids F × 1.3 (as permanent) | GB 55001 3.1.13 | P |
 
 ## GB 55001-2021 / GB 50009-2012 (live loads, kN/m²)
@@ -78,7 +78,7 @@ SAEngine practice (not a code value) is marked **P**.
 | 53 | Site classes I0-IV by vs and the cover | 4.1.6 | |
 | 54 | FEk = α1 Geq, Geq = 0.85 GE (more than one storey) | 5.2.1 | |
 | 55 | Fi = Gi Hi / Σ Gj Hj FEk | 5.2.1 | |
-| 56 | δn top additional force not applied | 5.2.1, Table 5.2.1 | P |
+| 56 | δn top additional force: applied since C20b (C20b-60 to C20b-63) | 5.2.1, Table 5.2.1 | |
 | 57 | λ (T1 < 3.5 s): 0.008, 0.016 (0.024), 0.032 (0.048), 0.064, every period, base shear only | Table 5.2.5 | P |
 | 58 | Representative gravity load G + 0.5Q | 5.1.3 | |
 | 59 | Modal combination CQC; 90 % mass participation | 5.2.2 | |
@@ -137,7 +137,7 @@ SAEngine practice (not a code value) is marked **P**.
 | 102 | fc C20-C80: 9.6 11.9 14.3 16.7 19.1 21.1 23.1 25.3 27.5 29.7 31.8 33.8 35.9 | Table 4.1.4-1 | |
 | 103 | ftk = 0.322 fck^0.61 (to C50), 1.312 ln(1 + fck/5) above | Table 4.1.3-2 (fit) | P |
 | 104 | Ec = 23 620 (fck/10)^0.342 | Table 4.1.5 (fit) | P |
-| 105 | γs 1.15 for every bar grade (HRB400 348 for 360) | 4.2.3 | P |
+| 105 | γs 1.15 only for grades outside Table 4.2.3-1 since C20b (C20b-1 to C20b-4) | 4.2.3 | P |
 | 106 | α1 1.0 to C50, 0.94 at C80; β1 0.8 to 0.74 | 6.2.6 | |
 | 107 | εcu = 0.0033 - (fcu,k - 50) 10⁻⁵; ε0 0.002 + 0.5 (fcu,k - 50) 10⁻⁵; n = 2 - (fcu,k - 50)/60 | 6.2.1 | |
 | 108 | ea = max(20, h/30) | 6.2.5 | |
@@ -225,3 +225,131 @@ check every row (a city's districts can differ).
 | 176 | Dalian | 7 (0.10g) | 2 | 0.65 | 0.40 |
 | 177 | Suzhou | 7 (0.10g) | 1 | 0.45 | 0.40 |
 | 178 | A custom site takes design group 3 | - | P |
+
+## Alpha 9 C20b: the remainder
+
+### GB 50010-2010 (2015): design yields, torsion, punching
+
+| # | Value | Clause | |
+| --- | --- | --- | --- |
+| C20b-1 | fy HPB300 270, HRB335 300, HRB400 360, HRB500 435 MPa | Table 4.2.3-1 | |
+| C20b-2 | fy' of HRB500 410 not told apart (435 taken in compression too) | Table 4.2.3-1 | U |
+| C20b-3 | Stirrups' fyv at most 360 MPa (fyMax 400 -> 360) | 4.2.3 | |
+| C20b-4 | Axial cap 0.9 (fc A + fy' As'), fy' the design yield | 6.2.15 | |
+| C20b-5 | Torsion section V/(b h0) + T/(0.8 Wt) <= 0.25 βc fc (τc,max of the shear group) | 6.4.1 | |
+| C20b-6 | No calculation where V/(b h0) + T/Wt <= 0.7 ft | 6.4.2 | |
+| C20b-7 | Wt = b² (3h - b)/6 | 6.4.3 | |
+| C20b-8 | T <= 0.35 βt ft Wt + 1.2 √ζ fyv Ast1 Acor/s | 6.4.4, 6.4.8 | |
+| C20b-9 | ζ = 1.2 taken for the design, 0.6 <= ζ <= 1.7 | 6.4.4 | P |
+| C20b-10 | βt = 1.5/(1 + 0.5 V Wt/(T b h0)), 0.5-1.0 | 6.4.8 | |
+| C20b-11 | V <= (1.5 - βt) 0.7 ft b h0 + fyv Asv h0/s | 6.4.8 | |
+| C20b-12 | ρtl >= 0.6 √(T/(V b)) ft/fy, T/(V b) at most 2 | 9.2.5 | |
+| C20b-13 | ρsv >= 0.28 ft/fyv with torsion | 9.2.10 | |
+| C20b-14 | Punching 0.7 βh ft η um h0, um at h0/2 | 6.5.1 | |
+| C20b-15 | η1 = 0.4 + 1.2/βs (βs >= 2), η2 = 0.5 + αs h0/(4 um), αs 40 / 30 / 20 | 6.5.1 | |
+| C20b-16 | βh 1.0 at h <= 800 mm, 0.9 at 2000 mm, linear; taken at h0 | 6.5.1 | P |
+| C20b-17 | With links at most 1.2 ft η um h0; concrete 0.5 ft η um h0 (shares 1.714, 0.714; not laid out) | 6.5.3 | |
+| C20b-18 | Unbalanced moment by the γv of the parent's section (Appendix F's equivalent load not used) | Appendix F | U |
+
+### GB 50010: cracks, deflection, cover, anchorage, member steel
+
+| # | Value | Clause | |
+| --- | --- | --- | --- |
+| C20b-19 | wmax = αcr ψ σs/Es (1.9 cs + 0.08 deq/ρte), αcr 1.9 (bending) | 7.1.2 | |
+| C20b-20 | ψ = 1.1 - 0.65 ftk/(ρte σs), 0.2-1.0; ρte = As/(0.5 b h) >= 0.01; 20 <= cs <= 65 | 7.1.2 | |
+| C20b-21 | σs = Mq/(0.87 h0 As), quasi-permanent, ψq 0.4 | 7.1.4 | P (ψq of dwellings and offices) |
+| C20b-22 | wlim 0.3 (一), 0.2 (二a, 二b, 三a, 三b) | Table 3.4.5 | |
+| C20b-23 | Bs = Es As h0²/(1.15 ψ + 0.2 + 6 αE ρ/(1 + 3.5 γf')), γf' = 0 | 7.2.3 | P (γf') |
+| C20b-24 | B = Bs/θ, θ 2.0 at ρ' = 0 to 1.6 at ρ' = ρ | 7.2.2, 7.2.5 | |
+| C20b-25 | Limits l0/200 (< 7 m), l0/250 (7-9 m), l0/300 (> 9 m); cantilevers l0 = 2 × the length | Table 3.4.3 | |
+| C20b-26 | The deflection: the analysis's under Mq scaled from its E I to B | 7.2.1 | P |
+| C20b-27 | Cover slabs 15 / 20 / 25 / 30 / 40, beams and columns 20 / 25 / 35 / 40 / 50 mm (一 ... 三b) | Table 8.2.1 | |
+| C20b-28 | + 5 mm at C25 and below | Table 8.2.1 note | |
+| C20b-29 | Foundations 40 mm (with blinding) | 8.2.2 | |
+| C20b-30 | w/c 0.60 / 0.55 / 0.50 / 0.45 / 0.40, least C20 / C25 / C30 / C35 / C40 | Table 3.5.3 | U (air-entrained alternatives) |
+| C20b-31 | lab = α fy d / ft, α 0.14 ribbed, 0.16 plain, ft at most of C60 | 8.3.1 | |
+| C20b-32 | la = ζa lab >= 200 mm, ζa 1.10 above 25 mm | 8.3.2 | |
+| C20b-33 | Compression anchorage 0.7 la | 8.3.4 | |
+| C20b-34 | ll = ζl la, ζl 1.2 / 1.4 / 1.6 at 25 / 50 / 100 %, >= 300 mm | 8.4.4 | |
+| C20b-35 | Beams 25 %, columns 50 % lapped at one section | 8.4.3 | P |
+| C20b-36 | No lapped bars above 25 mm | 8.4.2 | U (28 mm in compression) |
+| C20b-37 | laE = ζaE la, ζaE 1.15 (一, 二), 1.05 (三), 1.00 (四) | 11.1.7 | |
+| C20b-38 | Beams ρ >= max(0.20 %, 45 ft/fy) on b h; slabs 0.15 % (400/500 MPa) and 45 ft/fy | 8.5.1 | |
+| C20b-39 | Side bars from hw 450 mm, 0.1 % b hw each face, <= 200 mm apart | 9.2.13 | |
+| C20b-40 | Column bars >= 12 mm, ties >= d/4 and 6 mm, <= min(400, b, 15 d); column steel 0.55 % - 5 %; beams at most 4 % and slab bars at most h/8 (SAEngine practice) | 9.3.1, 9.3.2, 8.5.1 | P (4 %, h/8) |
+
+### GB 50011-2010: the seismic grade in the member design, δn, vertical action
+
+| # | Value | Clause | |
+| --- | --- | --- | --- |
+| C20b-41 | γRE beams 0.75 | Table 5.4.2 | |
+| C20b-42 | γRE columns 0.80 (0.75 below μN 0.15 not used) | Table 5.4.2 | P (safe side) |
+| C20b-43 | γRE shear walls 0.85 | Table 5.4.2 | |
+| C20b-44 | γRE shear (every member) 0.85 | Table 5.4.2 | |
+| C20b-45 | γRE steel strength 0.75, stability 0.80 | Table 5.4.2 | |
+| C20b-46 | γRE applied as γRE × the earthquake combinations' forces | 5.4.2 | P |
+| C20b-47 | ηc on the earthquake part of the columns' moments, every storey and end (exemptions not taken) | 6.2.2, 6.2.3 | P |
+| C20b-48 | Column shear × ηc ηvc; beam shear × ηvb; wall shear × ηvw (every storey) | 6.2.4, 6.2.5, 6.2.8 | P |
+| C20b-49 | Corner columns' 1.1 not applied | 6.2.6 | U |
+| C20b-50 | Beam ends x/h0 <= 0.25 (一), 0.35 (二, 三) | 6.3.3 | |
+| C20b-51 | Beam ends As'/As >= 0.5 (一), 0.3 (二, 三) | 6.3.3 | |
+| C20b-52 | Beam hoop zone max(2 hb, 500) (一), max(1.5 hb, 500); hoops min(hb/4, 6 d / 8 d, 100 / 100 / 150 / 150); dia 10 / 8 / 8 / 6 | Table 6.3.3 | U |
+| C20b-53 | Beam steel supports 0.40 % & 80 ft/fy, 0.30 & 65, 0.25 & 55; span 0.30 & 65, 0.25 & 55, 0.20 & 45 | GB 50010 Table 11.3.6-1 | U |
+| C20b-54 | Column steel (%): frames 1.0 / 0.8 / 0.7 / 0.6, others 0.9 / 0.7 / 0.6 / 0.5, corners 1.1 / 0.9 / 0.8 / 0.7 | Table 6.3.7-1 | U (corners not told apart) |
+| C20b-55 | + 0.05 % for 400 MPa bars, + 0.1 % below | Table 6.3.7-1 note | U |
+| C20b-56 | Column hoops min(6 d, 100) (一), min(8 d, 100) (二), min(8 d, 150) (三, 四); dia 10 / 8 / 8 / 6 | Table 6.3.7-2 | U (三, 四 base 100) |
+| C20b-57 | Column hoop zone max(hc, Hn/6, 500) | 6.3.9 | |
+| C20b-58 | λv by μN: 一 0.10-0.23, 二 0.08-0.24, 三 / 四 0.06-0.22 (ordinary and compound hoops); fc at least of C35; ρv >= 0.8 / 0.6 / 0.4 / 0.4 % | 6.3.9, Table 6.3.9 | U |
+| C20b-59 | Wall webs 0.25 % (一, 二, 三), 0.20 % (四) | 6.4.3 | |
+| C20b-60 | δn = 0.08 T1 + 0.07 (Tg <= 0.35) | Table 5.2.1 | |
+| C20b-61 | δn = 0.08 T1 + 0.01 (0.35 < Tg <= 0.55) | Table 5.2.1 | |
+| C20b-62 | δn = 0.08 T1 - 0.02 (Tg > 0.55) | Table 5.2.1 | |
+| C20b-63 | δn only where T1 > 1.4 Tg; at most 0.9 | 5.2.1 | P (the cap) |
+| C20b-64 | Vertical action 10 % (8, 0.20g), 15 % (8, 0.30g), 20 % (9) of the gravity load | 5.3.3 | |
+| C20b-65 | γEv 0.5 with the horizontal action, on the dead load, every member, the response spectrum combinations | GB 55002 4.3.2 | U (the dead load for G + 0.5Q: P) |
+| C20b-66 | The 9-degree tall buildings' FEvk = 0.65 αmax × 0.75 GE not computed (the 20 % share) | 5.3.1 | U |
+
+### GB 50010: slender columns and walls
+
+| # | Value | Clause | |
+| --- | --- | --- | --- |
+| C20b-67 | No P-δ where M1/M2 <= 0.9, N/(fc A) <= 0.9 and lc/i <= 34 - 12 M1/M2 | 6.2.3 | |
+| C20b-68 | M = Cm ηns M2, Cm = 0.7 + 0.3 M1/M2 >= 0.7 | 6.2.4 | |
+| C20b-69 | ηns = 1 + (lc/h)² ζc/(1300 (M2/N + ea)/h0), ζc = 0.5 fc A/N <= 1 | 6.2.4 | |
+| C20b-70 | lc the clear height | 6.2.4 | P |
+| C20b-71 | Wall shear 1/(λ - 0.5) (0.5 ft b h0 + 0.13 N) + fyv Ash h0/sv, λ 1.5-2.2, N <= 0.2 fc b h | 6.3.21 | |
+| C20b-72 | Seismic 1/(λ - 0.5) (0.4 ft b h0 + 0.1 N) + 0.8 fyv Ash h0/sv (/ γRE on the forces) | 11.7.4 | |
+| C20b-73 | Wall section V <= 0.25 βc fc b h0 (seismic 0.20 / 0.15 not used) | 6.3.20, 11.7.3 | U |
+| C20b-74 | h0 = 0.9 lw | - | P |
+| C20b-75 | Wall web steel >= 0.20 % | 9.4.4 | |
+
+### GB 50017-2017: connections and seismic steel
+
+| # | Value | Clause | |
+| --- | --- | --- | --- |
+| C20b-76 | Bolts 4.6 / 4.8 fv 140, ft 170; 5.6 fv 190, ft 210 | Table 4.4.6 | U |
+| C20b-77 | 8.8 fv 250, ft 400; 10.9 fv 310, ft 500 (bearing-type high-strength) | Table 4.4.6 | U |
+| C20b-78 | Nv on the shank π d²/4; Nt on 0.78 × the shank area | 11.4.1 | P (de) |
+| C20b-79 | Bearing fc = 0.82 fu of the connected part (grade C: 305 / 385) | Table 4.4.6 | P (safe side) |
+| C20b-80 | Friction Nv = 0.9 k nf μ P; P 8.8: M16 80 ... M30 280; 10.9: M16 100 ... M30 355 kN | 11.4.2, Table 11.4.2-2 | U |
+| C20b-81 | μ 0.30 (A, wire brushed), 0.45 (B, blasted) | Table 11.4.2-1 | U |
+| C20b-82 | Long joints η = 1.1 - l1/(150 d0) >= 0.7 beyond 15 d0 (on d) | 11.4.5 | U |
+| C20b-83 | Fillet ffw 160 (E43), 200 (E50), 220 (E55) on 0.7 hf, βf 1.0 | Table 4.4.5, 11.2.2 | |
+| C20b-84 | Block shear: the parent's form | 7.1 | U |
+| C20b-85 | Steel strong column ηs 1.15 / 1.10 / 1.05 / 1.0 as ΣMpc / ΣMpb | GB 50011 8.2.5 | U |
+| C20b-86 | Plastic sections (S1): grades 一, 二 beams and columns, 三 beams | GB 50011 8.3.2 | U |
+| C20b-87 | Braces λ <= 120 (一-三), 180 (四), εk not applied; no K braces | GB 50011 8.4.1, 8.1.6 | U |
+| C20b-88 | Connections 1.3 Mp (a flag) | GB 50011 8.2.8 | U |
+
+### GB 50007-2011
+
+| # | Value | Clause | |
+| --- | --- | --- | --- |
+| C20b-89 | fa = fak + ηb γ (b - 3) + ηd γm (d - 0.5), b 3-6 m | 5.2.4 | |
+| C20b-90 | ηb / ηd: fill and silt-mud 0 / 1.0, red clay 0.15 / 1.4, silt 0.3 / 1.5, clay 0.3 / 1.6, fine sand 2.0 / 3.0, coarse sand and gravel 3.0 / 4.4 | Table 5.2.4 | U |
+| C20b-91 | Clay taken; γ = γm = 18 kN/m³; the qa of Project Settings read as fak | - | P |
+| C20b-92 | s = ψs Σ p0/Esi (zi ᾱi - zi-1 ᾱi-1) | 5.3.5 | |
+| C20b-93 | ψs 1.4 / 1.3 / 1.0 / 0.4 / 0.2 at Ēs 2.5 / 4.0 / 7.0 / 15.0 / 20.0 MPa (p0 >= fak column) | Table 5.3.5 | P (column) |
+| C20b-94 | zn = b (2.5 - 0.4 ln b) | 5.3.8 | |
+| C20b-95 | Es = 1.35 E of the log (ν = 0.3) | - | P |
+| C20b-96 | ᾱ by Boussinesq under the centre (Appendix K by computation) | Appendix K | |

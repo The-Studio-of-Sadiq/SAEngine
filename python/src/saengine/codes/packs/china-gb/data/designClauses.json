@@ -1,0 +1,30 @@
+{
+  "$schema": "../../../schemas/designClauses.schema.json",
+  "$sources": [
+    "GB 50010-2010 6.4, 6.5.1, 7.2; GB 50011-2010 5.2.3"
+  ],
+  "source": "GB 50010-2010: the clauses of the checks of the member design this pack covers (alpha 9 C20b), without the code's name. A group given here is given whole; a key the code has no counterpart for is empty, so the row names the code without a clause.",
+  "shortName": "GB 50010",
+  "clauses": {
+    "check": {
+      "torsion": "6.4",
+      "deflection": "3.4.3, 7.2",
+      "columnShear": "6.3.12",
+      "windCases": "",
+      "patternLive": "",
+      "accidentalTorsion": "",
+      "omega": "",
+      "fireRatings": ""
+    },
+    "punching": {
+      "punching": "6.5.1",
+      "section": "6.5.1"
+    }
+  },
+  "sources": {
+    "check.torsion": "GB 50010-2010 6.4 (the method plasticModulus of concreteMethods.torsion)",
+    "check.deflection": "GB 50010-2010 3.4.3 (limits) and 7.2 (B = Bs/θ, the method longTermStiffness)",
+    "check.columnShear": "GB 50010-2010 6.3.12 (columns with axial force: the parent's computation, U)",
+    "punching.punching": "GB 50010-2010 6.5.1 (0.7 βh ft η um h0, the tensile form of rootStress)"
+  }
+}

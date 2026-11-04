@@ -2474,7 +2474,8 @@ def _derive_fem(
             # C4: the pack's base shear correction (λ of EN 1998-1 4.3.3.2.2), 1 without it
             correction = fl.base_shear_correction(period, len(heights), settings.site.siteClass)
             shear = sa * sum(weights) * correction
-            forces = fl.vertical_distribution(rel_levels, shear, period)
+            # Alpha 9 C20b: the site class for a top force by TC (GB 50011 Table 5.2.1 type).
+            forces = fl.vertical_distribution(rel_levels, shear, period, settings.site.siteClass)
             if simple_share is not None:  # Alpha 9 C18b: Fi = share × Wi at every level
                 sa, correction = float(simple_share), 1.0
                 shear = sa * sum(weights)

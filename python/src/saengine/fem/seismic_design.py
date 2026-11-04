@@ -312,6 +312,8 @@ def vertical_terms(settings: Any) -> dict[str, Any] | None:
     from saengine.library.settings import derived
 
     rule = getattr(_seismic(), "verticalComponent", None)
+    if rule is not None and rule.method == "gravityShare":
+        return _gravity_share_terms(settings, rule)
     if rule is None or rule.method != "verticalSpectrum":
         return None
     values = derived(settings)
@@ -326,12 +328,50 @@ def vertical_terms(settings: Any) -> dict[str, Any] | None:
     return {"avg": avg, "applies": applies, "coefficient": coefficient, "members": rule.members}
 
 
+def _gravity_share_terms(settings: Any, rule: Any) -> dict[str, Any]:
+    """Alpha 9 C20b: the vertical action of the pack's ``gravityShare`` rule (GB 50011 5.3.3
+    type): Ev / G = the share of the site's seismic zone (0 in a zone the rule does not list),
+    Ev / D in the combinations = combinationShare × that share; ``avg`` holds the share."""
+    from saengine.library.settings import derived
+
+    values = derived(settings)
+    zone = values.get("zone")
+    z = values.get("Z")
+    if zone is None and isinstance(z, int | float):
+        zone = zone_of(z)
+    share = float(rule.shares.get(int(zone), 0.0)) if zone is not None else 0.0
+    return {
+        "avg": share,
+        "applies": share > 0,
+        "coefficient": rule.combinationShare * share,
+        "members": rule.members,
+        "gravityShare": True,
+    }
+
+
 def _c5c_notes(settings: Any, options: Any, spectra: dict[str, Any]) -> list[str]:
     """Alpha 9 C5c: the notes of the pack's vertical component, modal combination and spectrum
     type guidance (none without them)."""
     seismic = _seismic()
     notes: list[str] = []
     found = vertical_terms(settings)
+    if found is not None and found.get("gravityShare"):
+        # Alpha 9 C20b: the vertical action as a share of the gravity load (GB 50011 5.3.3).
+        clause = code_context.cite("seismic", "vertical")
+        if found["applies"] and not getattr(options, "verticalComponent", False):
+            notes.append(
+                f"vertical earthquake: {100 * found['avg']:g} % of the gravity load at this "
+                f"intensity for {found['members'] or 'the members the code names'} ({clause}); "
+                "turn on the vertical component in Project Settings > Seismic"
+            )
+        elif found["applies"]:
+            notes.append(
+                f"vertical earthquake: Ev = {100 * found['avg']:g} % of the gravity load, "
+                f"±{found['coefficient']:.4f} D in the earthquake combinations (the dead load "
+                f"taken for the representative gravity load), on every member (on the safe side; "
+                f"{clause})"
+            )
+        found = None
     if found is not None:
         clause = code_context.cite("seismic", "vertical")
         if found["applies"] and not getattr(options, "verticalComponent", False):

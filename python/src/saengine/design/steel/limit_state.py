@@ -1301,8 +1301,18 @@ def seismic_frames(settings: Any) -> dict[str, list[str]]:
 
     rows = code_context.table("seismic").systems
     found: dict[str, list[str]] = {}
+    # Alpha 9 C20b: the frame kind of the building's seismic grade (GB 50011 8.1.3 type), in
+    # place of the system's, where the pack maps the grade.
+    by_grade = None
+    if getattr(sr, "gradeFrames", None):
+        from saengine.design import seismic_grades
+
+        grade = seismic_grades.current()
+        by_grade = sr.gradeFrames.get(grade["grade"]) if grade is not None else None
     for system, override in _systems_in_use(settings):
         frame = sr.systems.get(system)
+        if frame is not None and by_grade is not None:
+            frame = by_grade
         if frame is None or frame not in sr.frames:
             continue
         row = rows.get(system)
@@ -1647,6 +1657,9 @@ def bolt_shear(grade: str, d: float, planes: int = 1, factor: float = 1.0) -> fl
     × ``factor`` (βlj of a long joint)."""
     cr = connection_rules()
     g = bolt_strength(grade, cr)
+    if getattr(g, "designShear", None) is not None:
+        # Alpha 9 C20b: fv by grade on the shank (GB 50017 11.4.1 type).
+        return factor * float(g.designShear) * planes * math.pi * d**2 / 4
     anb = float(cr.bolts.netShare) * math.pi * d**2 / 4
     return factor * float(g.fub) / (math.sqrt(3) * _gamma("gammaMb")) * planes * anb
 
@@ -1662,6 +1675,10 @@ def bolt_tension(grade: str, d: float, frv: float = 0.0) -> tuple[float, str]:
     tnb = min(float(cr.bolts.tensionShare) * float(g.fub) * an, float(g.fyb) * asb * gmb / gm0)
     tdb = tnb / gmb
     note = f"Tdb = Tnb / γmb, Tnb = {float(cr.bolts.tensionShare):g} fub An ≤ fyb Asb γmb / γm0"
+    if getattr(g, "designTension", None) is not None:
+        # Alpha 9 C20b: ft by grade on the net area (GB 50017 11.4.1 type).
+        tdb = float(g.designTension) * an
+        note = f"Tdb = ft An, ft = {float(g.designTension):g} MPa"
     if frv <= 0:
         return tdb, f"{note} ({cite('boltTension')})"
     vd = bolt_shear(grade, d, 1)
@@ -1698,6 +1715,16 @@ def slip_resistance(c: Any, d: float, planes: int = 1, tension: float = 0.0) -> 
         f"Vdsf = μf ne Kh F0 / γmf: μf {float(mu):g} × {planes} plane(s) × Kh {float(kh):g} × F0 "
         f"{f0 / 1e3:.0f} kN / γmf {gmf:g} ({cite('slip')})"
     )
+    pre = (getattr(g, "pretension", None) or {}).get(f"M{d:g}")
+    if getattr(b, "slipFactor", None) is not None and pre is not None:
+        # Alpha 9 C20b: Nv = factor k nf μ P with P tabulated by size (GB 50017 11.4.2 type).
+        f0 = float(pre) * 1e3
+        gmf = 1.0 / float(b.slipFactor)
+        vdsf = float(b.slipFactor) * float(mu) * planes * float(kh) * f0
+        note = (
+            f"Vdsf = {float(b.slipFactor):g} k nf μ P: μ {float(mu):g} × {planes} plane(s) × k "
+            f"{float(kh):g} × P {f0 / 1e3:.0f} kN ({cite('slip')})"
+        )
     if tension > 0:
         tdf = float(b.tensionShare) * float(g.fub) * anb / gmf
         share = min(tension / tdf, 1.0) if tdf > 0 else 1.0
@@ -1712,6 +1739,9 @@ def bearing(d: float, t: float, fu: float, lc: float, d0: float, at: str | None)
     (e = lc + d0 / 2, p = lc + d0); None: the lesser of both readings. fub / fu is not known
     here (taken ≥ 1)."""
     b = connection_rules().bolts
+    if getattr(b, "bearingStrength", None) is not None:
+        # Alpha 9 C20b: Ncb = d t fcb, fcb = share × fu (GB 50017 11.4.1 type).
+        return float(b.bearingStrength) * d * t * fu
     if math.isinf(lc):
         kb = 1.0
     else:
@@ -1739,6 +1769,10 @@ def fillet_per_mm(w: float, fu: float) -> float:
     """The design strength of a fillet weld per mm [N/mm]: share w × fu / (√3 γmw), ``fu`` the
     weld metal's (the electrode's; the parent metal is not known here)."""
     cr = connection_rules()
+    rows = sorted(getattr(cr.welds, "filletStrengths", None) or [])
+    if rows:  # Alpha 9 C20b: ffw by the electrode (GB 50017 11.2.2 type)
+        ffw = next((f for up_to, f in rows if fu <= up_to + 1e-9), rows[-1][1])
+        return float(cr.welds.throatShare) * w * float(ffw)
     gmw = _gamma("gammaMwField" if cr.welds.field else "gammaMw")
     return float(cr.welds.throatShare) * w * fu / (math.sqrt(3) * gmw)
 

@@ -979,6 +979,13 @@ def wall_checks(
             if factor != 1.0:
                 forces = amplified(forces, factor)
                 out.notes.append(f"In-plane shear of the earthquake combinations: {how}")
+    # Alpha 9 C20b: the seismic grade's ηvw and γRE on the earthquake combinations (the pack's
+    # seismic.gradeDesign; unchanged without it).
+    from saengine.design import seismic_grades
+
+    forces, grade_note = seismic_grades.wall_forces(forces)
+    if grade_note:
+        out.notes.append(grade_note)
     t, lw = geometry.thickness, geometry.length
     acv = geometry.gross_area
     fyt = fy if fyt is None else fyt
@@ -1126,9 +1133,16 @@ def wall_checks(
 
     # In-plane shear.
     phi_v = rc_value("PHI_SHEAR")
-    from saengine.design import simplified_walls, tabulated_shear
+    from saengine.design import shear_span_walls, simplified_walls, tabulated_shear
 
-    if vu_case is not None and simplified_walls.rules() is not None:
+    if vu_case is not None and shear_span_walls.rules() is not None:
+        # Alpha 9 C20b: in-plane shear by the shear span ratio (GB 50010 6.3.21 type).
+        found_row = shear_span_walls.shear_row(forces, t, lw, fc, fy, rho_t)
+        if found_row is not None:
+            out.checks.append(found_row)
+        out.checks += shear_span_walls.web_rows(rho_l, rho_t)
+        out.checks += seismic_grades.wall_rows(rho_l, rho_t)
+    elif vu_case is not None and simplified_walls.rules() is not None:
         # Alpha 9 C18b: in-plane shear by the aspect ratio (AS 3600 11.6 type).
         out.checks.append(
             simplified_walls.shear_row(

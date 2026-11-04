@@ -181,7 +181,7 @@
           "type": "string"
         },
         "alphaN": {
-          "description": "(Pu / Puz, αn), linear between.",
+          "description": "(Pu / Puz, αn), linear between (loadContour).",
           "items": {
             "maxItems": 2,
             "minItems": 2,
@@ -202,27 +202,31 @@
           "type": "array"
         },
         "puzShares": {
-          "description": "Puz = a fck Ac + b fy Asc.",
-          "maxItems": 2,
-          "minItems": 2,
-          "prefixItems": [
+          "anyOf": [
             {
-              "exclusiveMinimum": 0,
-              "type": "number"
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                },
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                }
+              ],
+              "type": "array"
             },
             {
-              "exclusiveMinimum": 0,
-              "type": "number"
+              "type": "null"
             }
           ],
-          "title": "Puzshares",
-          "type": "array"
+          "default": null,
+          "description": "Puz = a fck Ac + b fy Asc (loadContour).",
+          "title": "Puzshares"
         }
       },
-      "required": [
-        "alphaN",
-        "puzShares"
-      ],
       "title": "BiaxialRule",
       "type": "object"
     },
@@ -286,6 +290,103 @@
           "exclusiveMinimum": 0,
           "title": "Laplargebar",
           "type": "number"
+        },
+        "minLength": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Ld at least this [mm] (none: no floor).",
+          "title": "Minlength"
+        },
+        "largeBarFactor": {
+          "anyOf": [
+            {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                },
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "(bars above [mm], ζa): Ld × ζa of the larger bars.",
+          "title": "Largebarfactor"
+        },
+        "lapFactors": {
+          "anyOf": [
+            {
+              "items": {
+                "maxItems": 2,
+                "minItems": 2,
+                "prefixItems": [
+                  {
+                    "exclusiveMinimum": 0,
+                    "maximum": 1,
+                    "type": "number"
+                  },
+                  {
+                    "exclusiveMinimum": 0,
+                    "type": "number"
+                  }
+                ],
+                "type": "array"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "(share of bars lapped at a section up to, ζl): laps ll = ζl Ld in flexural tension in place of max(Ld, lapTension φ); the first row taken (none: lapTension).",
+          "title": "Lapfactors"
+        },
+        "lapMinLength": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Laps at least this [mm] (none: no floor).",
+          "title": "Lapminlength"
+        },
+        "columnLapShare": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The share of the bars lapped at one section taken for columns (beams: the first lapFactors row's).",
+          "title": "Columnlapshare"
         }
       },
       "required": [
@@ -397,10 +498,18 @@
     },
     "ColumnMethodRules": {
       "additionalProperties": false,
-      "description": "Columns: slenderness (``additionalMoment``) and biaxial bending (``loadContour``, or\nthe interaction ``surface``).",
+      "description": "Columns: slenderness (``additionalMoment``, alpha 9 C20b ``endMomentMagnifier``) and\nbiaxial bending (``loadContour``, or the interaction ``surface``).",
       "properties": {
         "slenderness": {
-          "$ref": "#/$defs/SlendernessRule"
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SlendernessRule"
+            },
+            {
+              "$ref": "#/$defs/EndMomentSlendernessRule"
+            }
+          ],
+          "title": "Slenderness"
         },
         "biaxial": {
           "$ref": "#/$defs/BiaxialRule"
@@ -2472,6 +2581,84 @@
       "title": "DuctilityClassRules",
       "type": "object"
     },
+    "EndMomentSlendernessRule": {
+      "additionalProperties": false,
+      "description": "Alpha 9 C20b: slender columns by the end moments (method ``endMomentMagnifier``, GB\n50010 6.2.3-6.2.4 type, :mod:`saengine.design.end_moment_magnifier`): M = Cm ηns M2 >= M2\nwith Cm = cmBase + cmRatio M1/M2 >= cmMin, ηns = 1 + (lc/h)² ζc / (divisor (M2/N + ea)/h0),\nζc = zetaShare fcd A / N <= 1; not needed where M1/M2 <= exemptRatio, N/(fcd A) <=\nexemptAxial and lc/i <= a - b M1/M2 (``exemptSlenderness``).",
+      "properties": {
+        "method": {
+          "const": "endMomentMagnifier",
+          "title": "Method",
+          "type": "string"
+        },
+        "cmBase": {
+          "exclusiveMinimum": 0,
+          "title": "Cmbase",
+          "type": "number"
+        },
+        "cmRatio": {
+          "exclusiveMinimum": 0,
+          "title": "Cmratio",
+          "type": "number"
+        },
+        "cmMin": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Cmmin",
+          "type": "number"
+        },
+        "divisor": {
+          "exclusiveMinimum": 0,
+          "title": "Divisor",
+          "type": "number"
+        },
+        "zetaShare": {
+          "exclusiveMinimum": 0,
+          "title": "Zetashare",
+          "type": "number"
+        },
+        "exemptRatio": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Exemptratio",
+          "type": "number"
+        },
+        "exemptAxial": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Exemptaxial",
+          "type": "number"
+        },
+        "exemptSlenderness": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Exemptslenderness",
+          "type": "array"
+        }
+      },
+      "required": [
+        "method",
+        "cmBase",
+        "cmRatio",
+        "cmMin",
+        "divisor",
+        "zetaShare",
+        "exemptRatio",
+        "exemptAxial",
+        "exemptSlenderness"
+      ],
+      "title": "EndMomentSlendernessRule",
+      "type": "object"
+    },
     "EquivalentTorsionRules": {
       "additionalProperties": false,
       "description": "Torsion by the equivalent shear and moment (method ``equivalentShear``): Ve = Vu +\nshearFactor Tu / b, Me1 = Mu + Tu (1 + D/b) / momentDivisor; links Asv = Tu sv / (b1 d1\nfyd) + Vu sv / (depthDivisor d1 fyd), at least (τve - τc) b sv / fyd.",
@@ -2558,10 +2745,18 @@
           "type": "number"
         },
         "cement": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
           "description": "Least cement content [kg/m³].",
-          "exclusiveMinimum": 0,
-          "title": "Cement",
-          "type": "number"
+          "title": "Cement"
         },
         "waterCement": {
           "description": "Largest free water-cement ratio.",
@@ -2575,11 +2770,24 @@
           "exclusiveMinimum": 0,
           "title": "Grade",
           "type": "number"
+        },
+        "beamCover": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Nominal cover of beams and columns [mm] (none: cover).",
+          "title": "Beamcover"
         }
       },
       "required": [
         "cover",
-        "cement",
         "waterCement",
         "grade"
       ],
@@ -3002,6 +3210,157 @@
       "title": "LeverArmDeepBeamRules",
       "type": "object"
     },
+    "LongTermStiffnessRules": {
+      "additionalProperties": false,
+      "description": "Deflection by the long-term stiffness B = Bs / θ (method ``longTermStiffness``,\n:mod:`saengine.design.tension_stiffening`): Bs = Es As h0² / (psiFactor ψ + offset +\nratioFactor αE ρ / (1 + flangeFactor γf')), θ = a - (a - b) ρ'/ρ (``theta``), the analysis's\ndeflection under Mq scaled from its E I to B; at most l0 / divisor by the span\n(``limits``), cantilevers on l0 = cantileverFactor × their length.",
+      "properties": {
+        "method": {
+          "const": "longTermStiffness",
+          "title": "Method",
+          "type": "string"
+        },
+        "psiFactor": {
+          "exclusiveMinimum": 0,
+          "title": "Psifactor",
+          "type": "number"
+        },
+        "offset": {
+          "exclusiveMinimum": 0,
+          "title": "Offset",
+          "type": "number"
+        },
+        "ratioFactor": {
+          "exclusiveMinimum": 0,
+          "title": "Ratiofactor",
+          "type": "number"
+        },
+        "flangeFactor": {
+          "exclusiveMinimum": 0,
+          "title": "Flangefactor",
+          "type": "number"
+        },
+        "theta": {
+          "description": "θ at ρ' = 0 and at ρ' = ρ.",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Theta",
+          "type": "array"
+        },
+        "limits": {
+          "description": "(l0 up to [mm], divisor): the first row holding (none: any).",
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "anyOf": [
+                  {
+                    "exclusiveMinimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "minItems": 1,
+          "title": "Limits",
+          "type": "array"
+        },
+        "cantileverFactor": {
+          "exclusiveMinimum": 0,
+          "title": "Cantileverfactor",
+          "type": "number"
+        },
+        "areaShare": {
+          "description": "Ate = this × b h (ψ).",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Areashare",
+          "type": "number"
+        },
+        "rhoTeMin": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Rhotemin",
+          "type": "number"
+        },
+        "psi": {
+          "description": "(a, b, low, high): ψ = a - b ftk / (ρte σs) within (low, high).",
+          "maxItems": 4,
+          "minItems": 4,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Psi",
+          "type": "array"
+        },
+        "leverArm": {
+          "description": "σs = M / (this h0 As).",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Leverarm",
+          "type": "number"
+        },
+        "liveShare": {
+          "description": "ψq: the live load's share in Mq.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Liveshare",
+          "type": "number"
+        }
+      },
+      "required": [
+        "method",
+        "psiFactor",
+        "offset",
+        "ratioFactor",
+        "flangeFactor",
+        "theta",
+        "limits",
+        "cantileverFactor",
+        "areaShare",
+        "rhoTeMin",
+        "psi",
+        "leverArm",
+        "liveShare"
+      ],
+      "title": "LongTermStiffnessRules",
+      "type": "object"
+    },
     "MemberLimitRules": {
       "additionalProperties": false,
       "description": "Least and largest steel and the bar rules of beams, slabs and columns of codes that give\nthem as ratios (beams As/(b d) >= beamMin / fy ...).",
@@ -3173,9 +3532,58 @@
         },
         "neutralAxisStrain": {
           "description": "xu,max: the bars' strain at least fyd/Es + this (limiting depth).",
-          "exclusiveMinimum": 0,
+          "minimum": 0,
           "title": "Neutralaxisstrain",
           "type": "number"
+        },
+        "beamMinRatio": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "As/(b h) at least this (none: beamMin / fy on b d).",
+          "title": "Beamminratio"
+        },
+        "beamMinTensile": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "With beamMinRatio: As/(b h) also at least this × fctd/fyd.",
+          "title": "Beammintensile"
+        },
+        "slabMinTensile": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Slabs: As/(b D) also at least this × fctd/fyd (none).",
+          "title": "Slabmintensile"
+        },
+        "sideFaceEach": {
+          "default": false,
+          "description": "sideFaceShare is of each face (else both faces together).",
+          "title": "Sidefaceeach",
+          "type": "boolean"
         }
       },
       "required": [
@@ -3518,6 +3926,152 @@
       "title": "PanelCase",
       "type": "object"
     },
+    "PlasticTorsionRules": {
+      "additionalProperties": false,
+      "description": "Torsion of beams on the plastic torsional modulus Wt = b² (3h - b) / 6 (method\n``plasticModulus``, :mod:`saengine.design.plastic_torsion`): the section V/(b h0) + T/(share\nWt) at most τc,max of the shear group; no calculation where V/(b h0) + T/Wt <= plainLimit\nfctd; else T <= concreteShare βt fctd Wt + steelFactor √ζ fyv Ast1 Acor / s and V <=\n(shearBase - βt) shearConcrete fctd b h0 + fyv Asv h0 / s with βt = a / (1 + b V Wt / (T b\nh0)) in betaTRange, the longitudinal Astl = ζ fyv Ast1 ucor / (fy s).",
+      "properties": {
+        "method": {
+          "const": "plasticModulus",
+          "title": "Method",
+          "type": "string"
+        },
+        "sectionWtShare": {
+          "description": "V/(b h0) + T/(share Wt) <= τc,max.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Sectionwtshare",
+          "type": "number"
+        },
+        "plainLimit": {
+          "description": "V/(b h0) + T/Wt <= this × fctd: no calculation.",
+          "exclusiveMinimum": 0,
+          "title": "Plainlimit",
+          "type": "number"
+        },
+        "concreteShare": {
+          "description": "Tc = this βt fctd Wt.",
+          "exclusiveMinimum": 0,
+          "title": "Concreteshare",
+          "type": "number"
+        },
+        "steelFactor": {
+          "description": "Ts = this √ζ fyv Ast1 Acor / s.",
+          "exclusiveMinimum": 0,
+          "title": "Steelfactor",
+          "type": "number"
+        },
+        "zeta": {
+          "description": "ζ taken for the design (Astl fy s / (Ast1 fyv ucor)).",
+          "exclusiveMinimum": 0,
+          "title": "Zeta",
+          "type": "number"
+        },
+        "zetaRange": {
+          "description": "ζ within (low, high).",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Zetarange",
+          "type": "array"
+        },
+        "betaT": {
+          "description": "βt = a / (1 + b V Wt / (T b h0)).",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Betat",
+          "type": "array"
+        },
+        "betaTRange": {
+          "description": "βt within (low, high).",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            }
+          ],
+          "title": "Betatrange",
+          "type": "array"
+        },
+        "shearBase": {
+          "description": "Vc = (base - βt) shearConcrete fctd b h0.",
+          "exclusiveMinimum": 0,
+          "title": "Shearbase",
+          "type": "number"
+        },
+        "shearConcrete": {
+          "exclusiveMinimum": 0,
+          "title": "Shearconcrete",
+          "type": "number"
+        },
+        "minLinks": {
+          "description": "Asv/(b s) at least this × fctd / fyv.",
+          "exclusiveMinimum": 0,
+          "title": "Minlinks",
+          "type": "number"
+        },
+        "minLongitudinal": {
+          "description": "(a, cap): Astl/(b h) at least a √(T/(V b)) fctd/fy, T/(V b) at most cap.",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Minlongitudinal",
+          "type": "array"
+        }
+      },
+      "required": [
+        "method",
+        "sectionWtShare",
+        "plainLimit",
+        "concreteShare",
+        "steelFactor",
+        "zeta",
+        "zetaRange",
+        "betaT",
+        "betaTRange",
+        "shearBase",
+        "shearConcrete",
+        "minLinks",
+        "minLongitudinal"
+      ],
+      "title": "PlasticTorsionRules",
+      "type": "object"
+    },
     "PowerRelation": {
       "additionalProperties": false,
       "description": "A strength-class relation: ``base`` up to ``highFrom`` MPa, above it\n``highBase + highCoefficient · term^highExponent`` (the term set by the method).",
@@ -3753,6 +4307,68 @@
           "maximum": 1,
           "title": "Concreteshare",
           "type": "number"
+        },
+        "strength": {
+          "default": "root",
+          "description": "root: coefficient √fck; tensile: coefficient fctd.",
+          "enum": [
+            "root",
+            "tensile"
+          ],
+          "title": "Strength",
+          "type": "string"
+        },
+        "ratioFactor": {
+          "default": 1.0,
+          "description": "ks = ratioBase + this × βc <= 1.",
+          "exclusiveMinimum": 0,
+          "title": "Ratiofactor",
+          "type": "number"
+        },
+        "locationTerm": {
+          "anyOf": [
+            {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                },
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "(a, b): η2 = a + αs d / (b b0) (none: not used).",
+          "title": "Locationterm"
+        },
+        "depthFactors": {
+          "description": "(depth [mm], βh), linear between (empty: 1).",
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              },
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "title": "Depthfactors",
+          "type": "array"
         }
       },
       "required": [
@@ -3869,6 +4485,122 @@
         "k4"
       ],
       "title": "ServiceStressRules",
+      "type": "object"
+    },
+    "ShearSpanWallRules": {
+      "additionalProperties": false,
+      "description": "In-plane shear of walls by the shear span ratio λ = M / (V h0) (method\n``shearSpanRatio``, :mod:`saengine.design.shear_span_walls`): V <= 1/(λ - lambdaOffset)\n(a fctd t h0 + b N Aw/A) + c fyv Ash h0 / sv with (a, b, c) ``terms`` (``seismicTerms`` in\nthe earthquake combinations), λ within lambdaRange, N at most axialShare fcd t lw, the\nsection V <= sectionShare fcd t h0, h0 = depthShare lw; the web steel ρ at least webMin.",
+      "properties": {
+        "method": {
+          "const": "shearSpanRatio",
+          "title": "Method",
+          "type": "string"
+        },
+        "terms": {
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Terms",
+          "type": "array"
+        },
+        "seismicTerms": {
+          "anyOf": [
+            {
+              "maxItems": 3,
+              "minItems": 3,
+              "prefixItems": [
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                },
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                },
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Seismicterms"
+        },
+        "lambdaOffset": {
+          "exclusiveMinimum": 0,
+          "title": "Lambdaoffset",
+          "type": "number"
+        },
+        "lambdaRange": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Lambdarange",
+          "type": "array"
+        },
+        "axialShare": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Axialshare",
+          "type": "number"
+        },
+        "sectionShare": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Sectionshare",
+          "type": "number"
+        },
+        "depthShare": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Depthshare",
+          "type": "number"
+        },
+        "webMin": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Webmin",
+          "type": "number"
+        }
+      },
+      "required": [
+        "method",
+        "terms",
+        "lambdaOffset",
+        "lambdaRange",
+        "axialShare",
+        "sectionShare",
+        "depthShare",
+        "webMin"
+      ],
+      "title": "ShearSpanWallRules",
       "type": "object"
     },
     "SimplifiedWallRules": {
@@ -5331,6 +6063,127 @@
       "title": "TabulatedShearRules",
       "type": "object"
     },
+    "TensionStiffeningCrackRules": {
+      "additionalProperties": false,
+      "description": "Crack width with the strain non-uniformity ψ of the bars between cracks (method\n``effectiveTensionRatio``, :mod:`saengine.design.tension_stiffening`): wmax = αcr ψ σs/Es\n(coverFactor cs + barFactor deq / ρte), ψ = a - b ftk / (ρte σs) in (low, high), ρte = As /\n(areaShare b h) at least rhoTeMin, σs = Mq / (leverArm h0 As), cs within coverRange, Mq of\nthe quasi-permanent loads (liveShare of the live load).",
+      "properties": {
+        "method": {
+          "const": "effectiveTensionRatio",
+          "title": "Method",
+          "type": "string"
+        },
+        "width": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "description": "wlim [mm] by exposure (environment) class.",
+          "title": "Width",
+          "type": "object"
+        },
+        "memberFactor": {
+          "description": "αcr of members in bending.",
+          "exclusiveMinimum": 0,
+          "title": "Memberfactor",
+          "type": "number"
+        },
+        "coverFactor": {
+          "exclusiveMinimum": 0,
+          "title": "Coverfactor",
+          "type": "number"
+        },
+        "barFactor": {
+          "exclusiveMinimum": 0,
+          "title": "Barfactor",
+          "type": "number"
+        },
+        "coverRange": {
+          "description": "cs within (low, high) [mm].",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Coverrange",
+          "type": "array"
+        },
+        "areaShare": {
+          "description": "Ate = this × b h.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Areashare",
+          "type": "number"
+        },
+        "rhoTeMin": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Rhotemin",
+          "type": "number"
+        },
+        "psi": {
+          "description": "(a, b, low, high): ψ = a - b ftk / (ρte σs) within (low, high).",
+          "maxItems": 4,
+          "minItems": 4,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Psi",
+          "type": "array"
+        },
+        "leverArm": {
+          "description": "σs = M / (this h0 As).",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Leverarm",
+          "type": "number"
+        },
+        "liveShare": {
+          "description": "ψq: the live load's share in Mq.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Liveshare",
+          "type": "number"
+        }
+      },
+      "required": [
+        "method",
+        "width",
+        "memberFactor",
+        "coverFactor",
+        "barFactor",
+        "coverRange",
+        "areaShare",
+        "rhoTeMin",
+        "psi",
+        "leverArm",
+        "liveShare"
+      ],
+      "title": "TensionStiffeningCrackRules",
+      "type": "object"
+    },
     "TieCorbelRules": {
       "additionalProperties": false,
       "description": "Corbels by the tie at the root (method ``rootTie``): av / d at most ``spanRatio``, the\nouter edge at least ``edgeDepth`` × the depth at the face, the tie for Vu av + Nuc (h - d)\nby the design strengths with Nuc at least ``tensionShare`` Vu, shear at the face by the\ntabulated τc enhanced by ``enhancement`` d / av (at most τc,max) with the horizontal links,\nthe links Ah at least ``tiesShare`` As within ``tiesDepth`` d of the main bars, the bearing\nat most ``bearing`` × fck.",
@@ -5882,6 +6735,48 @@
           "default": null,
           "description": "e0 at most this [mm] (none: no cap).",
           "title": "Eccentricitymax"
+        },
+        "designYields": {
+          "anyOf": [
+            {
+              "items": {
+                "maxItems": 2,
+                "minItems": 2,
+                "prefixItems": [
+                  {
+                    "exclusiveMinimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "exclusiveMinimum": 0,
+                    "type": "number"
+                  }
+                ],
+                "type": "array"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "(fyk [MPa], fy design [MPa]) by bar grade: fyd of a bar of that fyk; other grades fyk / γs (none: fyk / γs for every grade).",
+          "title": "Designyields"
+        },
+        "axialYieldShare": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The axial cap's steel term = this × fyd (the design yield by grade) in place of axialShares[1] × fyk (none: axialShares).",
+          "title": "Axialyieldshare"
         }
       },
       "required": [
@@ -6234,6 +7129,9 @@
           "$ref": "#/$defs/TorsionInteractionRules"
         },
         {
+          "$ref": "#/$defs/PlasticTorsionRules"
+        },
+        {
           "type": "null"
         }
       ],
@@ -6278,6 +7176,9 @@
           "$ref": "#/$defs/CrackWidthRules"
         },
         {
+          "$ref": "#/$defs/TensionStiffeningCrackRules"
+        },
+        {
           "type": "null"
         }
       ],
@@ -6291,6 +7192,9 @@
         },
         {
           "$ref": "#/$defs/SpanDepthFactorRules"
+        },
+        {
+          "$ref": "#/$defs/LongTermStiffnessRules"
         },
         {
           "type": "null"
@@ -6558,6 +7462,17 @@
       "anyOf": [
         {
           "$ref": "#/$defs/SimplifiedWallRules"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "shearSpanWalls": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ShearSpanWallRules"
         },
         {
           "type": "null"

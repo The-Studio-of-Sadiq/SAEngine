@@ -728,14 +728,21 @@ def _result(
         )  # fmt: skip
     if tabulated_shear.punching_rules() is not None:
         # Alpha 9 C8: ks τc on the same section (IS 456 31.6.3), no φ, no λs.
-        allowed = tabulated_shear.punching_stress(fc, 1.0, beta)
+        # Alpha 9 C20b: the section's d, b0 and αs for the tensile form (GB 50010 6.5.1 type).
+        allowed = tabulated_shear.punching_stress(
+            fc, 1.0, beta, section.d, section.b0, section.alpha_s
+        )
+        if getattr(tabulated_shear.punching_rules(), "strength", "root") == "tensile":
+            how = f"vc = {tabulated_shear.punching_note(fc, 1.0, beta, allowed)}"
+        else:
+            how = (
+                f"vc = ks τc = (0.5 + βc <= 1) × "
+                f"{tabulated_shear.punching_rules().coefficient:g} √fck = {allowed:.3f} MPa, "
+                "βc the short over the long column side"
+            )
         notes = [
             *notes,
-            (
-                f"{tabulated_shear.cite('punching')}: vc = ks τc = (0.5 + βc <= 1) × "
-                f"{tabulated_shear.punching_rules().coefficient:g} √fck = {allowed:.3f} MPa, "
-                "βc the short over the long column side (vc of the three values above)"
-            ),
+            f"{tabulated_shear.cite('punching')}: {how} (vc of the three values above)",
         ]
         return PunchingResult(
             section.location, section.b0, section.d, section.alpha_s, beta, vu, direct,

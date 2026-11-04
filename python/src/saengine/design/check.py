@@ -797,7 +797,13 @@ def _design_run(
         members.append((addition.id, addition.type, addition))
     # Integrator glue: the forces at the support faces (saengine.design.face_forces) from the
     # analysis's face offsets and face forces (saengine.fem.end_zones, face-forces.json).
-    from saengine.design import face_forces
+    # Alpha 9 C20b (seismic_grades): the seismic grade's force factors and γRE on the
+    # earthquake combinations (the pack's seismic.gradeDesign; nothing without it), before
+    # every member check, so Design Reinforcement sizes from the same forces.
+    from saengine.design import face_forces, seismic_grades
+
+    seismic_grades.set_context(settings, project)
+    notes += seismic_grades.apply(pieces, combinations, extra, members, types, mats)
 
     face_data = _face_forces_file(out_dir)
     face_offsets = (face_data or {}).get("faceOffsets")
@@ -1109,7 +1115,8 @@ def _design_run(
                     own,
                     project,
                     shear_depth=face_forces.shear_depth(section),
-                    face_rows=face_forces.face_rows_of(face_data, static_factors, own)
+                    # Alpha 9 C20b: with the seismic grade's factors (unchanged without them).
+                    face_rows=seismic_grades.face_rows(face_data, static_factors, own, member_id)
                     if static_factors
                     else None,
                     face_offsets=face_offsets,
@@ -1134,6 +1141,10 @@ def _design_run(
                         capacities,
                         getattr(reinforcement, "cover", None),
                     )
+                # Alpha 9 C20b: the seismic grade's detailing (none without the pack's rule).
+                checks += seismic_grades.beam_rows(
+                    section, getattr(object_type.reinforcement, "transverse", None), capacities
+                )
                 # Integrator glue (0.0.45): torsion (saengine.design.torsion) and deflection
                 # (saengine.design.deflection) of beams of the building model.
                 if isinstance(element, BeamElement):
@@ -1264,7 +1275,8 @@ def _design_run(
                 faced = face_forces.at_faces(
                     own,
                     project,
-                    face_rows=face_forces.face_rows_of(face_data, static_factors, own)
+                    # Alpha 9 C20b: with the seismic grade's factors (unchanged without them).
+                    face_rows=seismic_grades.face_rows(face_data, static_factors, own, member_id)
                     if static_factors
                     else None,
                     face_offsets=face_offsets,
@@ -1315,6 +1327,17 @@ def _design_run(
                         object_type.reinforcement.transverse,
                         object_type.reinforcement.cover,
                     )
+                # Alpha 9 C20b: the seismic grade's μN, hoops and least steel (none without
+                # the pack's rule).
+                checks += seismic_grades.column_rows(
+                    member_id,
+                    section,
+                    object_type.reinforcement.transverse,
+                    object_type.reinforcement.cover,
+                    own,
+                    combinations,
+                    _turned(element, exact),
+                )
             # Alpha 9 C19: the pack's allowable stress design (allowableStress) and the member's
             # rank for Ds (horizontalCapacity.memberRanks), from the per-case forces.
             if allowable_stress.table() is not None or member_rank.tables() is not None:
@@ -4236,7 +4259,15 @@ def _column_checks(
                         )
                     )
         if slender is not None and column_rules is not None:
-            points, slender_rows = additional_moment.slender_points(section, slender, points)
+            from saengine.design import end_moment_magnifier
+
+            if end_moment_magnifier.rules() is not None:
+                # Alpha 9 C20b: M = Cm ηns M2 from the end moments (GB 50010 6.2.4 type).
+                points, slender_rows = end_moment_magnifier.magnified_points(
+                    section, slender, pieces, combinations, turned, points
+                )
+            else:
+                points, slender_rows = additional_moment.slender_points(section, slender, points)
     if design_strength.partial_factors():
         # Alpha 9 C5: the moments at least NEd e0 about each axis (minimum eccentricity,
         # saengine.design.design_strength.minimum_moment); Mx bends over the profile's depth.
@@ -4698,10 +4729,11 @@ def _beam_torsion_checks(
     reinforcement = beam.reinforcement
     if reinforcement is None:
         return [], None
-    from saengine.design import torsion_interaction
+    from saengine.design import plastic_torsion, torsion_interaction
 
     interaction = torsion_interaction.rules() is not None  # Alpha 9 C18b (AS 3600 8.3 type)
-    if tabulated_shear.torsion_rules() is not None or interaction:
+    plastic = plastic_torsion.rules() is not None  # Alpha 9 C20b (GB 50010 6.4 type)
+    if tabulated_shear.torsion_rules() is not None or interaction or plastic:
         # Alpha 9 C8: torsion by the equivalent shear and moment (IS 456 41) in place of the
         # thin-walled tube; every station's (Tu, Vu, Mu).
         points: list[tuple[float, float, float, str, str]] = []
@@ -4727,6 +4759,14 @@ def _beam_torsion_checks(
             if transverse is not None and transverse.spacing
             else None
         )
+        if plastic:  # Alpha 9 C20b: Wt, βt, the closed links and Astl
+            try:
+                found = plastic_torsion.torsion_rows(section, reinforcement.cover, stirrups, points)
+            except DesignError as error:
+                found = [
+                    _check("Torsion", 0.0, 0.0, "kN·m", None, f"not checked: {error}", flag=True)
+                ]
+            return found, None
         if interaction:  # Alpha 9 C18b: Tuc, the interaction with shear and the links
             try:
                 found = torsion_interaction.torsion_rows(
@@ -4958,7 +4998,11 @@ def _beam_deflection_checks(
         if len(inside) < 2:
             continue
         where = f"{element.id}" + (f" span {number}" if len(spans) > 1 else "")
-        if not sensitive and span_depth_factors.rules() is None:  # C8: IS checks every span
+        from saengine.design import tension_stiffening
+
+        # Alpha 9 C20b: the long-term stiffness method checks every span (GB 50010 7.2 type).
+        long_term = tension_stiffening.deflection_rules() is not None
+        if not sensitive and span_depth_factors.rules() is None and not long_term:
             ends = int(t0 > 1e-3 or framing.continues(element, 0)) + int(
                 t1 < 1 - 1e-3 or framing.continues(element, 1)
             )
@@ -5017,6 +5061,20 @@ def _beam_deflection_checks(
         along_z = piece.depth_along_z != turned
         inertia = float(props.get("Iy" if along_z else "Iz", 0.0) or 0.0)
         ei = float(props.get("E", 0.0) or 0.0) * inertia * 1e6  # N·m² -> N·mm²
+        if long_term:
+            # Alpha 9 C20b: B = Bs/θ under Mq and the crack width with ψ (GB 50010 7.1, 7.2
+            # type, saengine.design.tension_stiffening) in place of Ie and Table 6.6.2.
+            rows += tension_stiffening.span_rows(
+                section,
+                ec,
+                span_mm,
+                cantilever,
+                (max(m_dead, 0.0), d_dead),
+                (max(m_live, 0.0), d_live),
+                ei,
+                where + (" (cantilever)" if cantilever else ""),
+            )
+            continue
         if span_depth_factors.rules() is not None:
             # Alpha 9 C8: span / depth with modification factors, the Annex C calculation and
             # the crack width (saengine.design.span_depth_factors) in place of Ie and Table 6.6.2.
