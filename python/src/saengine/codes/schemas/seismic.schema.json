@@ -518,6 +518,17 @@
           ],
           "default": null
         },
+        "shortPeriodReduction": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ShortPeriodReduction"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "ubc97": {
           "anyOf": [
             {
@@ -817,6 +828,19 @@
           "description": "The system's group is one of these (empty: any).",
           "title": "Groups"
         },
+        "concrete": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The system is a concrete one (its systems row's concrete).",
+          "title": "Concrete"
+        },
         "limits": {
           "additionalProperties": {
             "type": "number"
@@ -832,6 +856,35 @@
         "limits"
       ],
       "title": "DriftLimit",
+      "type": "object"
+    },
+    "DriftServiceRatio": {
+      "additionalProperties": false,
+      "description": "Alpha 9 C21: a drift limit checked as λ δ / h ≤ the limit (TBDY 2018 4.9.1.3: λ the\nratio of the elastic spectral accelerations of the more frequent earthquake to the design\nearthquake's): the allowable drift of the table (or its row) divided by ``value``, a\nproject's Code Value (the site's own ratio).",
+      "properties": {
+        "value": {
+          "description": "λ (the drift limits are divided by it).",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Value",
+          "type": "number"
+        },
+        "label": {
+          "default": "λ",
+          "description": "The factor's symbol in the code.",
+          "title": "Label",
+          "type": "string"
+        },
+        "clause": {
+          "default": "",
+          "title": "Clause",
+          "type": "string"
+        }
+      },
+      "required": [
+        "value"
+      ],
+      "title": "DriftServiceRatio",
       "type": "object"
     },
     "DuctilityOverstrength": {
@@ -1024,6 +1077,36 @@
         "gammaHigh"
       ],
       "title": "FoundationCapacityRule",
+      "type": "object"
+    },
+    "HeightClass": {
+      "additionalProperties": false,
+      "description": "Alpha 9 C21: a building height class: the building is of this class when its height\nabove the base exceeds ``above`` [m] of its column (the first class, in order, it\nexceeds).",
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "label": {
+          "default": "",
+          "title": "Label",
+          "type": "string"
+        },
+        "above": {
+          "additionalProperties": {
+            "minimum": 0,
+            "type": "number"
+          },
+          "description": "Least height [m] (exclusive) by column of ``columns`` ('all': any).",
+          "title": "Above",
+          "type": "object"
+        }
+      },
+      "required": [
+        "id",
+        "above"
+      ],
+      "title": "HeightClass",
       "type": "object"
     },
     "HigherModeTable": {
@@ -1522,6 +1605,131 @@
       "title": "MultiPeriodRule",
       "type": "object"
     },
+    "PerformanceBasedRules": {
+      "additionalProperties": false,
+      "description": "Alpha 9 C21: when the code requires performance-based design (TBDY 2018 3.3, 3.4 and\nChapter 13 type, :mod:`saengine.fem.performance_requirements`): the building's height class\nby its height and design category, and the rules that ask for the performance objectives;\nreported in the analysis notes with the procedures (the Pushover and the Nonlinear time\nhistory analyses) that carry them out. Empty: not covered.",
+      "properties": {
+        "columns": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Design category -> column of the height classes (empty: 'all').",
+          "title": "Columns",
+          "type": "object"
+        },
+        "heightClasses": {
+          "description": "In order, the tallest first.",
+          "items": {
+            "$ref": "#/$defs/HeightClass"
+          },
+          "title": "Heightclasses",
+          "type": "array"
+        },
+        "heightLabel": {
+          "default": "height class",
+          "description": "The classes' name.",
+          "title": "Heightlabel",
+          "type": "string"
+        },
+        "rules": {
+          "items": {
+            "$ref": "#/$defs/PerformanceRule"
+          },
+          "title": "Rules",
+          "type": "array"
+        },
+        "clause": {
+          "default": "",
+          "title": "Clause",
+          "type": "string"
+        }
+      },
+      "title": "PerformanceBasedRules",
+      "type": "object"
+    },
+    "PerformanceObjective": {
+      "additionalProperties": false,
+      "description": "Alpha 9 C21: one performance objective of a performance-based design: the hazard level,\nthe performance level the building must meet there and the analysis that shows it.",
+      "properties": {
+        "hazard": {
+          "description": "The hazard level as the code names it (DD-1 ...).",
+          "title": "Hazard",
+          "type": "string"
+        },
+        "level": {
+          "description": "The performance level (collapse prevention ...).",
+          "title": "Level",
+          "type": "string"
+        },
+        "procedure": {
+          "default": "strength",
+          "description": "linear (an elastic response spectrum analysis), strength (the strength-based design), pushover (the Pushover analysis) or nonlinearHistory (the Nonlinear time history analysis).",
+          "enum": [
+            "linear",
+            "strength",
+            "pushover",
+            "nonlinearHistory"
+          ],
+          "title": "Procedure",
+          "type": "string"
+        },
+        "label": {
+          "default": "",
+          "title": "Label",
+          "type": "string"
+        }
+      },
+      "required": [
+        "hazard",
+        "level"
+      ],
+      "title": "PerformanceObjective",
+      "type": "object"
+    },
+    "PerformanceRule": {
+      "additionalProperties": false,
+      "description": "Alpha 9 C21: buildings that need a performance-based design: of the height ``classes``\nor in the design ``categories`` (either holding).",
+      "properties": {
+        "classes": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Classes",
+          "type": "array"
+        },
+        "categories": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Categories",
+          "type": "array"
+        },
+        "label": {
+          "default": "",
+          "description": "What the rule is (tall buildings ...).",
+          "title": "Label",
+          "type": "string"
+        },
+        "objectives": {
+          "items": {
+            "$ref": "#/$defs/PerformanceObjective"
+          },
+          "minItems": 1,
+          "title": "Objectives",
+          "type": "array"
+        },
+        "clause": {
+          "default": "",
+          "title": "Clause",
+          "type": "string"
+        }
+      },
+      "required": [
+        "objectives"
+      ],
+      "title": "PerformanceRule",
+      "type": "object"
+    },
     "PeriodCoefficient": {
       "additionalProperties": false,
       "properties": {
@@ -2015,6 +2223,17 @@
           ],
           "default": null,
           "title": "Most"
+        },
+        "c2": {
+          "default": 0.0,
+          "description": "c2 of the second term c2 (t0 / T)^n2.",
+          "title": "C2",
+          "type": "number"
+        },
+        "n2": {
+          "default": 1.0,
+          "title": "N2",
+          "type": "number"
         }
       },
       "title": "ShapeBranch",
@@ -2300,6 +2519,25 @@
         "aiDenominator"
       ],
       "title": "ShearCoefficientRule",
+      "type": "object"
+    },
+    "ShortPeriodReduction": {
+      "additionalProperties": false,
+      "description": "Alpha 9 C21: a reduction of the two-period spectrum of ``mappedSpectral`` that grows with\nthe period up to TS (TBDY 2018 4.3, Eq 4.1 type, method ``overstrengthRamp``): Ra(T) = D +\n(R/I - D) T / TS for T ≤ TS, R/I beyond, D the system's overstrength (its ``Omega0``); the\ndesign spectrum Sa(T) / Ra(T) and the equivalent static coefficient Sa(T) / Ra(T) of the\nfull spectrum (with its ramp below T0), within ``csLimits``. Where the caller gives no\noverstrength (elastic spectra) Ra = R/I.",
+      "properties": {
+        "method": {
+          "const": "overstrengthRamp",
+          "default": "overstrengthRamp",
+          "title": "Method",
+          "type": "string"
+        },
+        "clause": {
+          "default": "",
+          "title": "Clause",
+          "type": "string"
+        }
+      },
+      "title": "ShortPeriodReduction",
       "type": "object"
     },
     "SiteClass": {
@@ -3446,33 +3684,66 @@
     },
     "TopForce": {
       "additionalProperties": false,
-      "description": "Alpha 9 C10: the concentrated top force Ft of the equivalent static method.",
+      "description": "Alpha 9 C10: the concentrated top force Ft of the equivalent static method: factor × T ×\nV when T > periodFrom; alpha 9 C21 (TBDY 2018 4.7.2.2, ΔFN = 0.0075 N Vt): with\n``storeyFactor`` storeyFactor × N × V whatever the period, N the number of levels.",
       "properties": {
         "periodFrom": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
           "description": "Ft = 0 while T <= this [s].",
-          "exclusiveMinimum": 0,
-          "title": "Periodfrom",
-          "type": "number"
+          "title": "Periodfrom"
         },
         "factor": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
           "description": "Ft = factor × T × V.",
-          "exclusiveMinimum": 0,
-          "title": "Factor",
-          "type": "number"
+          "title": "Factor"
         },
         "maxShare": {
-          "description": "Ft at most this × V.",
-          "exclusiveMaximum": 1,
-          "exclusiveMinimum": 0,
-          "title": "Maxshare",
-          "type": "number"
+          "anyOf": [
+            {
+              "exclusiveMaximum": 1,
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Ft at most this × V (empty: no cap).",
+          "title": "Maxshare"
+        },
+        "storeyFactor": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Ft = storeyFactor × N × V (N levels), in place of T.",
+          "title": "Storeyfactor"
         }
       },
-      "required": [
-        "periodFrom",
-        "factor",
-        "maxShare"
-      ],
       "title": "TopForce",
       "type": "object"
     },
@@ -3821,6 +4092,28 @@
       },
       "title": "Driftredundancycategories",
       "type": "array"
+    },
+    "driftServiceRatio": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/DriftServiceRatio"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "performanceBased": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/PerformanceBasedRules"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
     },
     "siteSpecificStudy": {
       "$ref": "#/$defs/SiteSpecificStudy"
