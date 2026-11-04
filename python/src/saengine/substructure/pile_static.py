@@ -208,8 +208,80 @@ class AlphaBeta:
         return fb, text, layer.n60
 
 
+class EarthPressure(AlphaBeta):
+    """Alpha 9 C8, ``earthPressure`` (IS 2911 (Part 1/Sec 2) Annex B), unit values [kPa] of
+    bored and driven piles of every diameter alike:
+
+    - cohesive soil: ``fs = α cu`` (α of ``static``), ``fb = Nc cu`` with the pack's constant Nc;
+    - cohesionless soil: ``fs = K σ'v tan δ``, δ = deltaShare φ', K by pile kind; ``fb = ½ D γ'
+      Nγ + σ'v Nq`` with Nq of the pack's figure at φ' (``static.nq``) and Nγ = gammaFactor (Nq
+      + 1) tan φ'; σ'v constant below ``criticalDepth`` × D (skin and base).
+    """
+
+    id = "earthPressure"
+
+    def __init__(self, found: Any) -> None:
+        super().__init__(found)
+        self.earth = found.earthPressure
+
+    def skin(
+        self,
+        profile: Profile,
+        layer: SoilLayer,
+        kind: str,
+        z: float,
+        diameter: float,
+        construction: tuple[str, str] | None = None,
+    ) -> tuple[float | None, str]:
+        e = self.earth
+        if layer.behaviour == "cohesive":
+            if layer.cu is None:
+                return None, "no cu"
+            alpha = self.alpha(layer.cu)
+            return alpha * layer.cu, f"fs = α cu, α = {alpha:.3f}"
+        if not layer.phi:
+            return None, "no φ'"
+        k = e.k["driven" if kind == "driven" else "bored"]
+        delta = math.radians(e.deltaShare * layer.phi)
+        zc = min(z, e.criticalDepth * diameter)
+        text = f"fs = K σ'v tan δ, K = {k:g}, δ = {e.deltaShare:g} φ' ({layer.phi:.1f}°)"
+        if zc < z:
+            text += f", σ'v at {e.criticalDepth:g} D = {zc:.1f} m"
+        return k * profile.sigma_v_eff(zc) * math.tan(delta), text
+
+    def base(
+        self,
+        profile: Profile,
+        layer: SoilLayer,
+        kind: str,
+        tip: float,
+        diameter: float,
+        length: float,
+    ) -> tuple[float, str, float | None]:
+        e = self.earth
+        if layer.behaviour == "cohesive":
+            if layer.cu is None:
+                return 0.0, "no cu at the tip", layer.n60
+            return e.nc * layer.cu, f"fb = Nc cu, Nc = {e.nc:g}", layer.n60
+        if not layer.phi:
+            return 0.0, "no φ' at the tip", layer.n60
+        zc = min(tip, e.criticalDepth * diameter)
+        sigma = profile.sigma_v_eff(zc)
+        nq = soil_piles.interpolate(self.static.nq, layer.phi)
+        ng = e.gammaFactor * (nq + 1) * math.tan(math.radians(layer.phi))
+        gamma = max((profile.sigma_v_eff(tip + 0.5) - profile.sigma_v_eff(tip)) / 0.5, 0.0)
+        fb = 0.5 * diameter * gamma * ng + sigma * nq
+        text = (
+            f"fb = ½ D γ' Nγ + σ'v Nq, Nq = {nq:.1f}, Nγ = {ng:.1f} at φ' {layer.phi:.1f}°, "
+            f"σ'v = {sigma:.0f} kPa"
+        )
+        if zc < tip:
+            text += f" (at {e.criticalDepth:g} D)"
+        return fb, text, layer.n60
+
+
 #: The static methods by the id the pack gives in ``foundations.piles.staticMethod``.
-METHODS: dict[str, type[AlphaBeta]] = {AlphaBeta.id: AlphaBeta}
+METHODS: dict[str, type[AlphaBeta]] = {AlphaBeta.id: AlphaBeta, EarthPressure.id: EarthPressure}
 
 
 def method() -> AlphaBeta | None:

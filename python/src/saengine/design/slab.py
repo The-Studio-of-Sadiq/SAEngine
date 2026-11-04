@@ -403,6 +403,26 @@ def layer_capacity(
         es = rc_value("STEEL_E")
     if d <= 0:
         raise ValueError("the cover leaves no room for the bars")
+    from saengine.design import tabulated_shear
+
+    if tabulated_shear.rules() is not None:
+        # Alpha 9 C8: the pack's block on the design strengths (IS 456 0.36 fck xu at 0.42 xu,
+        # Annex G), no φ; the εt limit is xu,max (saengine.design.member_limits).
+        from saengine.design import design_strength
+        from saengine.design.member_limits import limits
+
+        r = design_strength.rules()
+        p = design_strength.properties(fc, r)
+        fyd = design_strength.fyd(fy, r)
+        x = area * fyd / (p.eta * design_strength.fcd(fc, r) * p.lam * width)
+        cu = design_strength.ultimate_strain(fc)
+        eps_t = cu * (d - x) / x if x > 0 else math.inf
+        mn = area * fyd * (d - p.lam * x / 2)
+        lim = limits()
+        extra = lim.neutralAxisStrain if lim is not None else 0.002
+        return LayerCapacity(
+            area, d, p.lam * x, x, eps_t, 1.0, mn, mn, cu / (cu + fyd / es + extra)
+        )
     a = area * fy / (0.85 * fc * width)
     c = a / beta1(fc)
     eps_t = rc_value("EPS_CU") * (d - c) / c if c > 0 else math.inf
@@ -415,7 +435,16 @@ def layer_capacity(
 def one_way_shear(rho: float, d: float, fc: float, lam: float = 1.0) -> tuple[float, float]:
     """φVc per metre [N/m] of a slab without shear reinforcement (ACI Table 22.5.5.1 (c)) and
     its size effect factor λs: Vc = 0.66 λs λ ρ^(1/3) √f'c b d <= 0.42 λ √f'c b d,
-    √f'c <= 8.3 MPa, λs = √(2 / (1 + 0.004 d)) <= 1, b = 1000 mm."""
+    √f'c <= 8.3 MPa, λs = √(2 / (1 + 0.004 d)) <= 1, b = 1000 mm.
+
+    Alpha 9 C8: with the pack's tabulated shear, k τc b d (k by the slab's depth, taken as d
+    plus the usual 25 mm to the bars: the callers give d only), no φ (λs reported as 1)."""
+    from saengine.design import tabulated_shear
+
+    if tabulated_shear.rules() is not None:
+        tc = tabulated_shear.tau_c(fc, 100 * max(rho, 0.0))
+        k = tabulated_shear.slab_factor(d + 25.0)
+        return k * tc * 1000 * d, 1.0
     root = min(math.sqrt(fc), 8.3)
     lambda_s = min(1.0, math.sqrt(2 / (1 + 0.004 * d)))
     vc = 0.66 * lambda_s * lam * max(rho, 0.0) ** (1 / 3) * root * 1000 * d
@@ -428,8 +457,12 @@ def min_steel_ratio(fy: float, aggregate: str | None = None) -> float:
     :func:`saengine.design.rc_detailing.shrinkage_ratio`: the default pack's BNBC 8.1.11.2 (a) 0.0020 below fy
     420, else the greater of 0.0018 x 420 / fy and 0.0014), times the aggregate's factor
     (8.1.11.2 (b): x 1.5 for brick aggregate). ``aggregate``: None, the project's."""
+    from saengine.design.member_limits import limits
     from saengine.design.rc_detailing import shrinkage_ratio
 
+    found = limits()
+    if found is not None:  # Alpha 9 C8: the pack's slab ratios (IS 456 26.5.2.1)
+        return found.slabMin[1] if fy <= found.plainFy else found.slabMin[0]
     return shrinkage_ratio(fy, aggregate)[0]
 
 
@@ -442,6 +475,20 @@ def required_area(moment: float, d: float, fc: float, fy: float, width: float = 
     the steel at that limit: the contour then shows the section is too thin there."""
     if moment <= 0 or d <= 0:
         return 0.0
+    from saengine.design import tabulated_shear
+
+    if tabulated_shear.rules() is not None:
+        # Alpha 9 C8: Mu = fyd As (d - λ x / 2), x = fyd As / (η fcd λ b) (IS 456 Annex G).
+        from saengine.design import design_strength
+
+        r = design_strength.rules()
+        p = design_strength.properties(fc, r)
+        fyd = design_strength.fyd(fy, r)
+        block = p.eta * design_strength.fcd(fc, r) * width  # force per unit depth of block
+        # Mu = C (d - a/2) with C = block a: a = d - √(d² - 2 Mu / block), at most its limit.
+        root = max(0.0, d * d - 2 * moment / block)
+        a = d - math.sqrt(root)
+        return block * a / fyd
     rn = moment / (rc_value("PHI_TENSION") * width * d**2)
     k = 0.85 * fc
     root = max(0.0, 1 - 2 * rn / k)
@@ -572,7 +619,16 @@ def punching_capacity(
 ) -> PunchingCapacity:
     """vc of two-way shear without shear reinforcement (ACI 22.6.5.2, SI): the least of
     0.33 λs λ √f'c, 0.17 (1 + 2/β) λs λ √f'c and 0.083 (2 + αs d / b0) λs λ √f'c, with
-    λs = √(2 / (1 + 0.004 d)) <= 1 (22.5.5.1.3) and √f'c <= 8.3 MPa (22.6.3.1)."""
+    λs = √(2 / (1 + 0.004 d)) <= 1 (22.5.5.1.3) and √f'c <= 8.3 MPa (22.6.3.1).
+
+    Alpha 9 C8: with the pack's ``rootStress`` punching (IS 456 31.6.3), ks τc (β the long
+    over the short side) divided by the pack's φ of punching, so that the callers' φ vc is
+    ks τc (that method has no φ)."""
+    from saengine.design import tabulated_shear
+
+    if tabulated_shear.punching_rules() is not None:
+        allowed = tabulated_shear.punching_stress(fc, 1.0, beta) / _phi_punching()
+        return PunchingCapacity(allowed, (allowed, allowed, allowed), 1.0)
     root = min(math.sqrt(fc), 8.3)
     lambda_s = min(1.0, math.sqrt(2 / (1 + 0.004 * d)))
     k = lambda_s * lam * root
@@ -2506,7 +2562,21 @@ class TwoWayCoefficients:
 
 def two_way_coefficients(m: float, case: int) -> TwoWayCoefficients:
     """The default pack's BNBC Tables 6.6.8-6.6.11 at ``m`` (0.5 <= m <= 1; linear between the tabulated
-    ratios) for ``case``."""
+    ratios) for ``case``.
+
+    Alpha 9 C8: a pack whose ``concreteMethods.twoWaySlabs`` is the ``restrainedPanel`` method
+    (IS 456 Annex D) gives the moment coefficients by its own case of the same continuous
+    edges, α of the whole load (dead and live alike); the load shares stay the table's."""
+    from saengine.design import panel_coefficients
+
+    if panel_coefficients.rules() is not None:
+        base = _two_way_table(m, case)
+        return panel_coefficients.coefficients(m, case, base)
+    return _two_way_table(m, case)
+
+
+def _two_way_table(m: float, case: int) -> TwoWayCoefficients:
+    """:func:`two_way_coefficients` from the pack's ``slabCoefficients``."""
     table = coefficient_table()["twoWay"]
     ratios = [float(r) for r in table["ratios"]]
     if not ratios[0] - 1e-9 <= m <= ratios[-1] + 1e-9:

@@ -45,7 +45,9 @@ from saengine.design import (
     seismic_rules,
     slab,
     slab_systems,
+    span_depth_factors,
     steel_design,
+    tabulated_shear,
 )
 from saengine.design import corbels as corbel_design
 from saengine.design import deflection as deflection_design
@@ -786,6 +788,10 @@ def _design_run(
 
     member_rules = bar_rules.covered()
     ductility = _ductility_class(settings) if member_rules else None
+    # Alpha 9 C8: the tabulated codes' member rules (saengine.design.member_limits).
+    from saengine.design import member_limits
+
+    limit_rules = member_limits.covered()
 
     for member_id, type_id, element in members:
         # A cancelled request (Stop Waiting on Design Reinforcement) stops here.
@@ -1010,6 +1016,14 @@ def _design_run(
                     checks += bar_rules.beam_rows(section, beam_transverse)
                     if ductility:
                         checks += curvature_ductility.beam_rows(section, beam_transverse, ductility)
+                if limit_rules:  # Alpha 9 C8: the ratio limits, cover, grade and bond rows
+                    reinforcement = object_type.reinforcement
+                    checks += member_limits.beam_rows(
+                        section,
+                        getattr(reinforcement, "transverse", None),
+                        capacities,
+                        getattr(reinforcement, "cover", None),
+                    )
                 # Integrator glue (0.0.45): torsion (saengine.design.torsion) and deflection
                 # (saengine.design.deflection) of beams of the building model.
                 if isinstance(element, BeamElement):
@@ -1063,13 +1077,14 @@ def _design_run(
                     # integrity (saengine.design.rc_detailing); a beam with a slab on one side
                     # only is a perimeter beam.
                     hf, sides = framing.slab_beside(element, section.width)
-                    checks += rc_detailing.beam_checks(
-                        section,
-                        checks,
-                        perimeter=sides == 1,
-                        span=_longest_span(element, framing),
-                        flange=(hf, sides),
-                    )
+                    if not limit_rules:  # C8: the pack's crack width and side face rows instead
+                        checks += rc_detailing.beam_checks(
+                            section,
+                            checks,
+                            perimeter=sides == 1,
+                            span=_longest_span(element, framing),
+                            flange=(hf, sides),
+                        )
                     if deep_rows:
                         for row in checks:
                             if row["name"] == "Shear" or row["name"].startswith("Minimum stirrups"):
@@ -1137,6 +1152,12 @@ def _design_run(
                         checks += curvature_ductility.column_rows(
                             section, column_transverse, ned_max, ductility
                         )
+                if limit_rules:  # Alpha 9 C8 (see the beams)
+                    checks += member_limits.column_rows(
+                        section,
+                        object_type.reinforcement.transverse,
+                        object_type.reinforcement.cover,
+                    )
             if live_row is not None:
                 checks.append(live_row)
             if roof_row is not None:
@@ -1238,7 +1259,24 @@ def _design_run(
             scope["checks"] = scope.get("checks", []) + steel_braced_found["checks"]
     # Integrator glue: the earthquake-resistant detailing of the default pack's BNBC Sec 8.3 (seismic_detailing).
     joints: list[dict[str, Any]] = []
-    if scope is not None:
+    from saengine.design import ductile_detailing
+
+    if scope is not None and ductile_detailing.rules() is not None:
+        # Alpha 9 C8: the pack's ductile detailing (IS 13920) in place of Sec 8.3's rows.
+        found = ductile_detailing.apply(
+            project,
+            building,
+            types,
+            designed,
+            combinations,
+            extra,
+            scope,
+            settings,
+            _profile_forces,
+        )
+        joints = found["joints"]
+        notes += found["notes"]
+    elif scope is not None:
         found = seismic_detailing.apply(
             project,
             building,
@@ -1729,7 +1767,11 @@ def _assemble(
         # Alpha 9 C5: the pack's partial-factor method replaces the basis, flexure, beam and
         # column lines; the torsion and deflection lines stay (the parent pack's methods).
         lines = design_strength.method_lines(code)
-        method = lines[:3] + method[3:5] + lines[3:]
+        if tabulated_shear.rules() is not None:
+            # C8: the tabulated methods' lines replace the basis to the columns (six lines).
+            method = lines + method[6:]
+        else:
+            method = lines[:3] + method[3:5] + lines[3:]
     if columns_seen:
         method += slenderness_design.method(slender_options, context.model.lateral_cracked)
     if faced_any:
@@ -1793,7 +1835,12 @@ def _assemble(
     if stairs_found["elements"] or stairs_found["skipped"]:
         method += stair_design.METHOD
     if scope is not None and scope.get("detailingLevel"):
-        method += seismic_detailing.METHOD
+        from saengine.design import ductile_detailing
+
+        if ductile_detailing.rules() is not None:  # C8: the pack's ductile detailing
+            method += ductile_detailing.method_lines()
+        else:
+            method += seismic_detailing.METHOD
     failed_joints = [j for j in joints if not j["ok"]]
     # The building's own seismic checks (the system permitted in the category, its height,
     # the bar grades: seismic_rules), each one check of the totals.
@@ -3585,7 +3632,12 @@ def _beam_checks(
                 resistance.av_min_threshold / 1e3,
                 "kN",
                 shear_demand[1],
-                "links below ρw,min: beams need at least the least links whatever the shear"
+                (
+                    # C8: the tabulated method asks for them where τv > τc / 2.
+                    "stirrups below the least Asv: Vu must not exceed Vc / 2 (τc / 2)"
+                    if tabulated_shear.rules() is not None
+                    else "links below ρw,min: beams need at least the least links whatever the shear"
+                )
                 + (f"; {shear_demand[2]}" if shear_demand[2] else ""),
             )
         )
@@ -3618,7 +3670,17 @@ def _column_checks(
     checks: the strength check then takes the demand points with the magnified moments."""
     axial = (-math.inf, None, "")
     governing: tuple[float, Any, str | None, str, float] | None = None
-    if slender is not None:
+    from saengine.design import additional_moment
+
+    # Alpha 9 C8: the pack's additional moment method in place of the moment magnification.
+    column_rules = additional_moment.rules()
+    slender_rows: list[dict[str, Any]] | None = None
+    lengths = {"x": 0.0, "y": 0.0}
+    if slender is not None and column_rules is not None:
+        for axis_result in slender.axes:
+            info = (axis_result.check or {}).get("slenderness") or {}
+            lengths[info.get("axis") or axis_result.axis] = float(info.get("lu") or 0.0)
+    if slender is not None and column_rules is None:
         points = slender.points
     else:
         points = []
@@ -3636,14 +3698,17 @@ def _column_checks(
                             _where(piece, k, count),
                         )
                     )
+        if slender is not None and column_rules is not None:
+            points, slender_rows = additional_moment.slender_points(section, slender, points)
     if design_strength.partial_factors():
         # Alpha 9 C5: the moments at least NEd e0 about each axis (minimum eccentricity,
         # saengine.design.design_strength.minimum_moment); Mx bends over the profile's depth.
+        # C8: e0 with the unsupported length where the pack gives its divisor (IS 456 25.4).
         points = [
             (
                 pu,
-                max(mux, design_strength.minimum_moment(pu, section.depth)),
-                max(muy, design_strength.minimum_moment(pu, section.width)),
+                max(mux, design_strength.minimum_moment(pu, section.depth, lengths["x"])),
+                max(muy, design_strength.minimum_moment(pu, section.width, lengths["y"])),
                 *rest,
             )
             for pu, mux, muy, *rest in points
@@ -3669,6 +3734,13 @@ def _column_checks(
             axial[2],
         )
     ]
+    contour = additional_moment.load_contour(section, surface, points) if points else None
+    if contour is not None and governing is not None:
+        # Alpha 9 C8: biaxial bending by the load contour (IS 456 39.6) in place of the
+        # surface's own utilisation; the surface gives Mux1, Muy1 at Pu.
+        util, (pu, mux, muy, combination, where), how = contour
+        result = dataclasses.replace(surface.check(pu, mux, muy), note=how)
+        governing = (util, result, combination, where, pu)
     if governing is not None:
         utilisation, result, combination, where, pu = governing
         note = f"Pu = {pu / 1e3:.1f} kN; {where}" + (f"; {result.note}" if result.note else "")
@@ -3683,7 +3755,9 @@ def _column_checks(
                 utilisation=utilisation,
             )
         )
-    if slender is not None:
+    if slender_rows is not None:
+        checks += slender_rows  # C8: in place of the moment magnification's rows
+    elif slender is not None:
         checks += slender.checks
     return checks
 
@@ -4087,6 +4161,39 @@ def _beam_torsion_checks(
     reinforcement = beam.reinforcement
     if reinforcement is None:
         return [], None
+    if tabulated_shear.torsion_rules() is not None:
+        # Alpha 9 C8: torsion by the equivalent shear and moment (IS 456 41) in place of the
+        # thin-walled tube; every station's (Tu, Vu, Mu).
+        points: list[tuple[float, float, float, str, str]] = []
+        for piece in pieces:
+            for first, stacked, values in _profile_blocks(piece, turned):
+                torque = np.abs(stacked[..., 3]) * 1e3  # N·m -> N·mm, as the moments
+                count = values["Mx"].shape[1]
+                for c in range(values["Mx"].shape[0]):
+                    k = int(np.argmax(torque[c]))
+                    if torque[c, k] > 0:
+                        points.append(
+                            (
+                                float(torque[c, k]),
+                                float(values["Vy"][c, k]),
+                                float(values["Mx"][c, k]),
+                                combinations[first + c],
+                                _where(piece, k, count),
+                            )
+                        )
+        transverse = reinforcement.transverse
+        stirrups = (
+            (transverse.dia, transverse.legs, transverse.spacing)
+            if transverse is not None and transverse.spacing
+            else None
+        )
+        capacities = {hog: flexure(section, hog) for hog in (False, True)}
+        return (
+            tabulated_shear.torsion_rows(
+                section, reinforcement.cover, stirrups, points, capacities
+            ),
+            None,
+        )
     width = section.width
     thickness, sides = framing.slab_beside(element, width)
     try:
@@ -4294,7 +4401,7 @@ def _beam_deflection_checks(
         if len(inside) < 2:
             continue
         where = f"{element.id}" + (f" span {number}" if len(spans) > 1 else "")
-        if not sensitive:
+        if not sensitive and span_depth_factors.rules() is None:  # C8: IS checks every span
             ends = int(t0 > 1e-3 or framing.continues(element, 0)) + int(
                 t1 < 1 - 1e-3 or framing.continues(element, 1)
             )
@@ -4353,6 +4460,32 @@ def _beam_deflection_checks(
         along_z = piece.depth_along_z != turned
         inertia = float(props.get("Iy" if along_z else "Iz", 0.0) or 0.0)
         ei = float(props.get("E", 0.0) or 0.0) * inertia * 1e6  # N·m² -> N·mm²
+        if span_depth_factors.rules() is not None:
+            # Alpha 9 C8: span / depth with modification factors, the Annex C calculation and
+            # the crack width (saengine.design.span_depth_factors) in place of Ie and Table 6.6.2.
+            ends = int(t0 > 1e-3 or framing.continues(element, 0)) + int(
+                t1 < 1 - 1e-3 or framing.continues(element, 1)
+            )
+            try:
+                stiffness = deflection_design.section_stiffness(section, ec, hogging=cantilever)
+            except (DesignError, ValueError) as error:
+                notes.append(f"{where}: deflection not checked: {error}")
+                continue
+            rows += span_depth_factors.span_rows(
+                section,
+                stiffness,
+                ec,
+                span_mm,
+                ends,
+                cantilever,
+                (max(m_dead, 0.0), d_dead),
+                (max(m_live, 0.0), d_live),
+                ei,
+                sustained,
+                where + (" (cantilever)" if cantilever else ""),
+                framing.slab_beside(element, section.width),
+            )
+            continue
         if ei <= 0 or d_dead + d_live <= 0:
             continue
         try:

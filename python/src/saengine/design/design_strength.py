@@ -171,6 +171,9 @@ def axial_resistance(
     """NRd [N] of a section in pure compression (see the module notes); ``concrete_area`` net
     of the bars."""
     r = rules()
+    if r.axialShares is not None:
+        # C8 (IS 456 39.3): the axial cap by shares of fck and fy (the pack's).
+        return r.axialShares[0] * fck * concrete_area + r.axialShares[1] * fyk * steel
     p = properties(fck, r)
     strain = p.eps_c2 if r.pureCompressionStrain == "epsC2" else p.eps_c3
     sigma_s = min(fyd(fyk, r), es * strain)
@@ -178,22 +181,28 @@ def axial_resistance(
     return eta * fcd(fck, r) * concrete_area + sigma_s * steel
 
 
-def eccentricity(depth: float) -> float:
-    """e0 [mm] of a member of depth ``depth`` [mm] in the direction considered."""
+def eccentricity(depth: float, length: float = 0.0) -> float:
+    """e0 [mm] of a member of depth ``depth`` [mm] in the direction considered; C8: plus
+    ``length`` / eccentricityLengthDivisor where the pack gives one (IS 456 25.4)."""
     r = rules()
-    return max(depth / r.eccentricityDivisor, r.eccentricityMin)
+    e = depth / r.eccentricityDivisor
+    if r.eccentricityLengthDivisor is not None:
+        e += length / r.eccentricityLengthDivisor
+    return max(e, r.eccentricityMin)
 
 
-def minimum_moment(pu: float, depth: float) -> float:
+def minimum_moment(pu: float, depth: float, length: float = 0.0) -> float:
     """NEd e0 [N·mm] (0 without partial factors or in tension)."""
     if not partial_factors() or pu <= 0:
         return 0.0
-    return pu * eccentricity(depth)
+    return pu * eccentricity(depth, length)
 
 
 def strength_class(fck: float) -> str:
     """The class name of fck, "C30/37" (the nearest class at or below fck), or "fck = x MPa"."""
     r = rules()
+    if r.gradePrefix:  # C8: grades by their characteristic strength ("M25")
+        return f"{r.gradePrefix}{fck:g}"
     best = None
     for cyl, cube in r.strengthClasses:
         if cyl <= fck + 1e-9:
@@ -207,6 +216,10 @@ def method_lines(code: str) -> list[str]:
     """The design report's method lines of the members designed with partial factors (they
     take the place of the strength design's lines on the basis, flexure, beams and columns)."""
     r = rules()
+    from saengine.design import tabulated_shear
+
+    if tabulated_shear.rules() is not None:  # C8: the tabulated (IS 456 type) methods
+        return tabulated_shear.method_lines(code)
     cite = code_context.cite
     block = (
         "the rectangular stress block η fcd over λ x, εcu3 at the extreme fibre"

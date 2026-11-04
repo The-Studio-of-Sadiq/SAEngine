@@ -3083,6 +3083,23 @@ class PileCapRules(_Group):
     )
 
 
+class BearingFactorRules(_Group):
+    """Alpha 9 C8: the factors of qnu = c Nc sc dc ic + q (Nq - 1) sq dq iq + ½ γ B Nγ sγ dγ iγ
+    by the flow value Nφ = tan²(45° + φ/2) (method ``flowValue``, IS 6403): Nc, Nq of
+    Prandtl-Reissner, Nγ = gammaFactor (Nq + 1) tan φ; shape 1 + a B/L (c, q), 1 - b B/L (γ),
+    square and circle rows; depth dc = 1 + c Df/B √Nφ, dq = dγ = 1 + d Df/B √Nφ from φ at
+    least depthPhiMin (else 1); inclination (1 - α/90)² (c, q), (1 - α/φ)² (γ)."""
+
+    method: Literal["flowValue"] = "flowValue"
+    gammaFactor: Positive
+    shape: tuple[Positive, Positive, Positive] = Field(description="(sc, sq slope, sγ slope).")
+    square: tuple[Positive, Positive, Positive] = Field(description="(sc, sq, sγ) of squares.")
+    circle: tuple[Positive, Positive, Positive] = Field(description="(sc, sq, sγ) of circles.")
+    depth: tuple[Positive, Positive] = Field(description="(dc coefficient, dq = dγ coefficient).")
+    depthPhiMin: float = Field(ge=0, description="dq = dγ = 1 below this φ [°].")
+    undrainedNc: Positive = Field(description="Nc at φ = 0.")
+
+
 class ShallowFoundations(_Group):
     """The geotechnical rules of shallow foundations (footings and rafts): load combinations,
     allowable increase, factors of safety, depths, thicknesses, presumptive values, subgrade
@@ -3137,6 +3154,12 @@ class ShallowFoundations(_Group):
     columnBase: ColumnBaseTransfer
     tieBeams: TieBeamRules | None = Field(
         default=None, description="Tie beams between foundations; empty: not covered."
+    )
+    # Alpha 9 C8: the bearing capacity factors by method id (none: Vesic, De Beer, Hansen).
+    bearingFactors: BearingFactorRules | None = Field(
+        default=None,
+        description="The shape, depth and inclination factors of the bearing capacity "
+        "equation by method (``flowValue``); empty: SAEngine's Vesic / De Beer / Hansen set.",
     )
 
 
@@ -3456,13 +3479,30 @@ class PileDowndrag(_Group):
     dragloadFactor: Positive = Field(description="Load factor on the dragload in the section.")
 
 
+class PileEarthPressure(_Group):
+    """Alpha 9 C8 (method ``earthPressure``): cohesive base Nc cu (constant), skin α cu (α of
+    ``static``); cohesionless skin K σ'v tan δ, δ = deltaShare φ, K by pile kind; base
+    ½ D γ' Nγ + σ'v Nq (Nq of ``static.nq``, Nγ = gammaFactor (Nq + 1) tan φ), σ'v constant
+    below criticalDepth × D."""
+
+    nc: Positive
+    k: dict[Literal["bored", "driven"], Positive]
+    deltaShare: Share
+    gammaFactor: Positive
+    criticalDepth: Positive
+
+
 class PileRules(_Group):
     """Deep foundation rules: the static method by id, its values, drilled shafts, the SPT
     relations and the settlement of piles."""
 
-    staticMethod: Literal["alphaBeta"] = Field(
+    staticMethod: Literal["alphaBeta", "earthPressure"] = Field(
         description="Engine method of the static pile capacity (``alphaBeta``: α in clay, β and "
-        "Nq in sand, with the critical depth)."
+        "Nq in sand, with the critical depth; alpha 9 C8 ``earthPressure``: α in clay with a "
+        "constant Nc, K σ'v tan δ and ½ D γ Nγ + σ'v Nq in sand, IS 2911-1-2 Annex B)."
+    )
+    earthPressure: PileEarthPressure | None = Field(
+        default=None, description="The values of ``earthPressure`` (C8)."
     )
     soilClasses: PileSoilClasses
     static: PileStatic

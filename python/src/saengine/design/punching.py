@@ -714,6 +714,24 @@ def _result(
     notes: list[str],
 ) -> PunchingResult:
     vu, direct, g_u, g_v, combination = worst
+    from saengine.design import tabulated_shear
+
+    if tabulated_shear.punching_rules() is not None:
+        # Alpha 9 C8: ks τc on the same section (IS 456 31.6.3), no φ, no λs.
+        allowed = tabulated_shear.punching_stress(fc, 1.0, beta)
+        notes = [
+            *notes,
+            (
+                f"{tabulated_shear.cite('punching')}: vc = ks τc = (0.5 + βc <= 1) × "
+                f"{tabulated_shear.punching_rules().coefficient:g} √fck = {allowed:.3f} MPa, "
+                "βc the short over the long column side (vc of the three values above)"
+            ),
+        ]
+        return PunchingResult(
+            section.location, section.b0, section.d, section.alpha_s, beta, vu, direct,
+            (g_u, g_v), combination, allowed, (allowed, allowed, allowed), 1.0, allowed,
+            vu / allowed, notes=notes,
+        )  # fmt: skip
     capacity = punching_capacity(fc, section.d, section.b0, beta, section.alpha_s, lam)
     phi_vc = rc_value("PHI_SHEAR") * capacity.vc
     return PunchingResult(
@@ -733,6 +751,23 @@ def _result(
         vu / phi_vc,
         notes=notes,
     )
+
+
+def _tabulated_punching(result: PunchingResult) -> bool:
+    """Alpha 9 C8: with the pack's ``rootStress`` punching SAEngine does not lay out shear
+    reinforcement (the studs' and stirrups' rules here are the strength design's): a section
+    short of ks τc fails, with the limit of the reinforced section noted."""
+    from saengine.design import tabulated_shear
+
+    p = tabulated_shear.punching_rules()
+    if p is None:
+        return False
+    result.notes.append(
+        f"shear reinforcement may carry Vu - {p.concreteShare:g} Vc up to τv = "
+        f"{p.reinforcedMax:g} τc ({p.reinforcedMax * result.vc:.3f} MPa): not laid out by "
+        "SAEngine, thicken the slab, add a drop or enlarge the column"
+    )
+    return True
 
 
 def slab_punching(
@@ -769,6 +804,8 @@ def slab_punching(
     assert worst is not None
     result = _result(section, worst, beta, fc, lam, notes)
     if not result.needs_reinforcement and provided is None:
+        return result
+    if _tabulated_punching(result):
         return result
     member = Polygon(_local(boundary, centre, angle))
     local_openings = [_local(o, centre, angle) for o in openings]
@@ -874,6 +911,8 @@ def footing_punching(
     beta = max(cu, cv) / min(cu, cv)
     result = _result(section, worst, beta, fc, lam, [])
     if not result.needs_reinforcement and provided is None:
+        return result
+    if _tabulated_punching(result):
         return result
     member = box(-length / 2 - u, -width / 2 - v, length / 2 - u, width / 2 - v)
 

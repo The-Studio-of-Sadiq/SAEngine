@@ -855,6 +855,13 @@ def wall_checks(
     per type and length. ``fyt``: the hoops' yield strength (default ``fy``)."""
     if es is None:
         es = rc_value("STEEL_E")
+    # Alpha 9 C8: a pack with its own ductile detailing (IS 13920) checks a special wall as an
+    # ordinary one here and adds its own special wall rows at the end.
+    from saengine.design import ductile_detailing
+
+    ductile_wall = special and ductile_detailing.rules() is not None
+    if ductile_wall:
+        special = False
     out = WallDesign()
     t, lw = geometry.thickness, geometry.length
     acv = geometry.gross_area
@@ -996,7 +1003,17 @@ def wall_checks(
 
     # In-plane shear.
     phi_v = rc_value("PHI_SHEAR")
-    if vu_case is not None:
+    from saengine.design import tabulated_shear
+
+    if vu_case is not None and tabulated_shear.wall_rules() is not None:
+        # Alpha 9 C8: in-plane shear by the aspect ratio (IS 456 32.4, IS 13920 for special
+        # walls with the same τc), the horizontal bars Ah/Sv = ρt t.
+        out.checks.append(
+            tabulated_shear.wall_shear_row(
+                vu, t, lw, geometry.aspect * lw, fc, fy, rho_t * t, vu_name
+            )
+        )
+    elif vu_case is not None:
         if special:
             sv = special_vn(geometry, rho_t, fc, fy, lam)
             vn = sv["vn"]
@@ -1152,6 +1169,11 @@ def wall_checks(
         boundary=boundary,
         pier=wall_pier,
     )
+    if ductile_wall:
+        # Alpha 9 C8: the pack's special shear wall rows (IS 13920) in place of Sec 8.3.6's.
+        from saengine.design import ductile_detailing
+
+        out.checks += ductile_detailing.wall_rows(geometry, bars, forces, fc)
     settle_informative(out.checks)
     strength = [c for c in out.checks if not c["flag"]]
     out.utilisation = max((c["utilisation"] for c in strength), default=0.0)
@@ -2610,6 +2632,31 @@ def coupling_beam_checks(
     when not given). ``piers``: the lengths of the piers beside it (the diagonal bars'
     embedment, (d)(ii)); ``web``: the wall's web bars (its longitudinal and perimeter bars
     unless the type gives the beam's own)."""
+    from saengine.design import ductile_detailing
+
+    if ductile_detailing.rules() is not None:
+        # Alpha 9 C8: the pack's coupling beam rule (IS 13920): diagonal bars by τv and ls/D,
+        # their strength 2 Asd fyd sin α; the beam rules otherwise (the frame beams' rows).
+        from saengine.design import design_strength
+
+        row = ductile_detailing.coupling_row(ln, h, bw, vu, fc, diagonal is not None)
+        out = CouplingBeam("diagonal" if row is not None and not row["flag"] else "either")
+        if row is not None:
+            out.checks.append(row)
+        edge = diagonal.edge if diagonal and diagonal.edge else cover + 10.0 + 2 * 20.0
+        alpha = diagonal.angle if diagonal and diagonal.angle else math.atan((h - 2 * edge) / ln)
+        fyd = design_strength.fyd(fy)
+        sin = math.sin(alpha)
+        out.avd_required = vu / (2 * fyd * sin) if sin > 0 else math.inf
+        if diagonal is not None:
+            out.checks.append(
+                _row(
+                    named("Coupling beam diagonal bars Vu <= 2 Asd fyd sin α", "couplingShear"),
+                    _kn(vu), _kn(2 * diagonal.area() * fyd * sin), "kN", combination,
+                    f"α = {math.degrees(alpha):.1f}°, fyd = {fyd:.0f} MPa",
+                )
+            )  # fmt: skip
+        return out
     acw = bw * h
     root = math.sqrt(fc)
     ratio = ln / h

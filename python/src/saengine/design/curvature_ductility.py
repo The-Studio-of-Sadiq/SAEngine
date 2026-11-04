@@ -40,7 +40,9 @@ def rules() -> Any | None:
     pack = code_context.current()
     if not pack.has("concreteMethods") or not design_strength.partial_factors():
         return None
-    return getattr(pack.table("concreteMethods"), "seismic", None)
+    from saengine.codes.method_tables import chosen  # C8: another method may hold the group
+
+    return chosen(pack.table("concreteMethods"), "seismic", "curvatureDuctility")
 
 
 def ductility_class(frame: str | None) -> str | None:

@@ -42,14 +42,18 @@ def rules() -> Any | None:
     pack = code_context.current()
     if not pack.has("concreteMethods"):
         return None
-    return getattr(pack.table("concreteMethods"), "shear", None)
+    from saengine.codes.method_tables import chosen  # C8: another method may hold the group
+
+    return chosen(pack.table("concreteMethods"), "shear", "variableStrut")
 
 
 def torsion_rules() -> Any | None:
     pack = code_context.current()
     if not pack.has("concreteMethods"):
         return None
-    return getattr(pack.table("concreteMethods"), "torsion", None)
+    from saengine.codes.method_tables import chosen  # C8: another method may hold the group
+
+    return chosen(pack.table("concreteMethods"), "torsion", "thinWalledVariableStrut")
 
 
 def size_factor(d: float, r: Any) -> float:
