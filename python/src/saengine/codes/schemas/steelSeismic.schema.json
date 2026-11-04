@@ -266,6 +266,19 @@
           "title": "Compactmembers",
           "type": "array"
         },
+        "moderateMembers": {
+          "description": "Alpha 9 C3: members that must meet the moderately ductile limits.",
+          "items": {
+            "enum": [
+              "brace",
+              "column",
+              "beam"
+            ],
+            "type": "string"
+          },
+          "title": "Moderatemembers",
+          "type": "array"
+        },
         "filledHssExempt": {
           "default": false,
           "description": "Concrete-filled HSS braces need not be compact.",
@@ -881,9 +894,10 @@
           "type": "number"
         },
         "compactness": {
-          "description": "Width-thickness limits of the beams and columns.",
+          "description": "Width-thickness limits of the beams and columns (alpha 9 C3: ``moderate`` the moderately ductile limits, ``widthThicknessModerate``).",
           "enum": [
             "seismic",
+            "moderate",
             "compact",
             "none"
           ],
@@ -2008,6 +2022,12 @@
           "title": "Relaxedratio",
           "type": "number"
         },
+        "expectedYield": {
+          "default": false,
+          "description": "Alpha 9 C3: the limits are of √(E / (Ry Fy)) (and E / (Ry Fy)) with the member's expected yield ratio Ry, not of √(E/Fy).",
+          "title": "Expectedyield",
+          "type": "boolean"
+        },
         "note": {
           "default": "",
           "title": "Note",
@@ -2084,6 +2104,17 @@
     },
     "widthThickness": {
       "$ref": "#/$defs/SteelSeismicWidthThickness"
+    },
+    "widthThicknessModerate": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/SteelSeismicWidthThickness"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
     },
     "columns": {
       "$ref": "#/$defs/SteelSeismicColumns"

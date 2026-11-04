@@ -540,6 +540,14 @@
           "description": "Method ids where the code gives a requirement but no method (e.g. ``prying``: ``tStub``); a missing key: the check is not made.",
           "title": "Methods",
           "type": "object"
+        },
+        "references": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Alpha 9 C3: the clause references the connection notes are written with (the default pack's) -> this pack's references; empty: the notes as written.",
+          "title": "References",
+          "type": "object"
         }
       },
       "required": [
@@ -566,6 +574,192 @@
         "concreteBearingMax"
       ],
       "title": "SteelConnectionData",
+      "type": "object"
+    },
+    "SteelEffectiveWidthFactors": {
+      "additionalProperties": false,
+      "description": "Alpha 9 C3: the imperfection factors c1, c2 of the effective width of a slender element\nin compression, be = b (1 - c1 √(Fel/Fcr)) √(Fel/Fcr), Fel = (c2 λr/λ)² Fy.",
+      "properties": {
+        "c1": {
+          "exclusiveMinimum": 0,
+          "title": "C1",
+          "type": "number"
+        },
+        "c2": {
+          "exclusiveMinimum": 0,
+          "title": "C2",
+          "type": "number"
+        }
+      },
+      "required": [
+        "c1",
+        "c2"
+      ],
+      "title": "SteelEffectiveWidthFactors",
+      "type": "object"
+    },
+    "SteelMemberMethods": {
+      "additionalProperties": false,
+      "description": "Alpha 9 C3: the member strength methods a pack chooses where its steel code differs from\nthe default pack's (each a method id of :mod:`saengine.design.steel.members`; a missing\ngroup: the default pack's methods).",
+      "properties": {
+        "compressionSlender": {
+          "default": "formFactor",
+          "description": "Slender elements in compression: ``formFactor`` (Q = Qs Qa, Fcr of Q Fy) or ``effectiveWidth`` (Pn = Fcr Ae with the effective widths of every slender element).",
+          "enum": [
+            "formFactor",
+            "effectiveWidth"
+          ],
+          "title": "Compressionslender",
+          "type": "string"
+        },
+        "effectiveWidth": {
+          "additionalProperties": {
+            "$ref": "#/$defs/SteelEffectiveWidthFactors"
+          },
+          "description": "c1, c2 of ``effectiveWidth`` by element kind: ``stiffened`` (webs and other stiffened elements), ``hssWalls`` (walls of rectangular HSS), ``other`` (unstiffened elements: flanges, legs, stems).",
+          "title": "Effectivewidth",
+          "type": "object"
+        },
+        "roundEffectiveArea": {
+          "default": [
+            0.038,
+            0.6667
+          ],
+          "description": "Round HSS with a slender wall: Ae / Ag (or Q) = a E / (Fy D/t) + b: [a, b].",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Roundeffectivearea",
+          "type": "array"
+        },
+        "webShear": {
+          "default": "cv",
+          "description": "Webs of I-shapes and channels without tension field action: ``cv`` (Cv with the elastic branch) or ``cv1`` (Cv1 = 1.10 √(kv E/Fy) / (h/tw) at most 1).",
+          "enum": [
+            "cv",
+            "cv1"
+          ],
+          "title": "Webshear",
+          "type": "string"
+        },
+        "kvUnstiffened": {
+          "default": 5.0,
+          "description": "kv of an unstiffened web (and of a/h beyond the limits).",
+          "exclusiveMinimum": 0,
+          "title": "Kvunstiffened",
+          "type": "number"
+        },
+        "tensionField": {
+          "default": "limited",
+          "description": "Panels outside the proportion limits of tension field action: ``limited`` (none counted) or ``reduced`` (the denominator 1.15 (a/h + √(1+(a/h)²))).",
+          "enum": [
+            "limited",
+            "reduced"
+          ],
+          "title": "Tensionfield",
+          "type": "string"
+        },
+        "teeFlexure": {
+          "default": "criticalMoment",
+          "description": "Tees about the major axis: ``criticalMoment`` (Mn the least of Mp and Mcr) or ``lengthLimits`` (Lp, Lr of the stem in tension, stem local buckling, flange local buckling by λp, λr).",
+          "enum": [
+            "criticalMoment",
+            "lengthLimits"
+          ],
+          "title": "Teeflexure",
+          "type": "string"
+        },
+        "teeCompression": {
+          "default": "twoStress",
+          "description": "Flexural-torsional buckling of tees: ``twoStress`` (Fcry, Fcrz, H) or ``general`` (Fe of singly symmetric members, then the flexural buckling curve).",
+          "enum": [
+            "twoStress",
+            "general"
+          ],
+          "title": "Teecompression",
+          "type": "string"
+        },
+        "hssLateralTorsional": {
+          "default": false,
+          "description": "Rectangular HSS about the major axis also checked for lateral-torsional buckling with Lp = a E ry √(J A) / Mp and Lr = b E ry √(J A) / (0.7 Fy Sx).",
+          "title": "Hsslateraltorsional",
+          "type": "boolean"
+        },
+        "hssLtb": {
+          "default": [
+            0.13,
+            2.0
+          ],
+          "description": "[a, b] of ``hssLateralTorsional``.",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Hssltb",
+          "type": "array"
+        },
+        "teeStem": {
+          "default": [
+            0.84,
+            1.52,
+            1.43,
+            0.515,
+            1.52
+          ],
+          "description": "Tee stems in flexural compression: d/tw <= a √(E/Fy) Fcr = Fy; <= b √(E/Fy) Fcr = (c - d (d/tw) √(Fy/E)) Fy; above Fcr = e E / (d/tw)².",
+          "maxItems": 5,
+          "minItems": 5,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Teestem",
+          "type": "array"
+        },
+        "teeFlangeSlender": {
+          "default": 0.7,
+          "description": "Slender tee flange: Mn = this E Sxc / (bf/2tf)².",
+          "exclusiveMinimum": 0,
+          "title": "Teeflangeslender",
+          "type": "number"
+        }
+      },
+      "title": "SteelMemberMethods",
       "type": "object"
     },
     "SteelMembers": {
@@ -851,10 +1045,17 @@
           "type": "number"
         },
         "webLimit": {
-          "description": "a/h above (this / (h/tw))²: likewise.",
-          "exclusiveMinimum": 0,
-          "title": "Weblimit",
-          "type": "number"
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "a/h above (this / (h/tw))²: likewise (null: no such limit, alpha 9 C3).",
+          "title": "Weblimit"
         },
         "webFlange": {
           "description": "No TFA when 2 Aw / (Afc + Aft) exceeds this.",
@@ -1073,6 +1274,50 @@
       "maximum": 1,
       "title": "Netareamax",
       "type": "number"
+    },
+    "designMethod": {
+      "default": "LRFD",
+      "description": "LRFD (φ, strength combinations) or ASD (Ω, ASD combinations).",
+      "enum": [
+        "LRFD",
+        "ASD"
+      ],
+      "title": "Designmethod",
+      "type": "string"
+    },
+    "omega": {
+      "additionalProperties": {
+        "exclusiveMinimum": 0,
+        "type": "number"
+      },
+      "description": "Ω by the limit state keys of ``phi`` (ASD).",
+      "title": "Omega",
+      "type": "object"
+    },
+    "omegaFromPhi": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "ASD: Ω = this / φ for a limit state ``omega`` does not list (None: the pack does not cover ASD and the steel checks stay LRFD, with a note).",
+      "title": "Omegafromphi"
+    },
+    "memberMethods": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/SteelMemberMethods"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
     },
     "connections": {
       "anyOf": [

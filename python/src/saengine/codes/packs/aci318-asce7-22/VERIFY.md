@@ -257,10 +257,126 @@ the ACI 318-19 numbering as recalled; each must be checked with the values.
 | C58 | two-way slab coefficient method, stair spans, masonry lintel wind rule | — | ACI 318-19 has none: the extended pack's, cited as BNBC 2020 | PRACTICE |
 | C59 | lintel bearing 100 mm, span/600 | TMS 402 5.2.1.3-5.2.1.4 | Cited as TMS 402-22 | UNSURE (clause numbers) |
 
+## Steel: AISC 360-22, AISC 341-22 (track C3)
+
+No copy of AISC 360-22, AISC 341-22 or TMS 402-22 was available. Values are entered from the
+author's knowledge of the specifications; section numbers follow the 2016 arrangement (kept
+in 2022 as recalled) and equation numbers are given only where recalled with confidence. SI
+values are those of the SI tables of AISC 360 (Tables J3.1M-J3.4M, J3.2 in MPa) as recalled.
+Steel shapes are SAEngine's own shape list (owner decision), not the AISC shapes database.
+
+### Design basis and φ / Ω — `steel.json`
+
+| # | Value | Clause | Description | Status |
+|---|---|---|---|---|
+| S1 | designMethod LRFD; ASD selectable, Ω = 1.5 / φ for limit states without a listed Ω | Sec B3.1, B3.2 | `omegaFromPhi` 1.5 is how AISC relates φ and Ω (SAEngine practice for the few unlisted ones: HSS connection factors) | OK? |
+| S2 | φ 0.90 / 0.75, Ω 1.67 / 2.00 | Sec D2 | Tension yielding / rupture | OK? |
+| S3 | φ 0.90, Ω 1.67 | Sec E1, F1, G1 | Compression, flexure, shear | OK? |
+| S4 | φ 1.00, Ω 1.50 rolled I webs with h/tw ≤ 2.24 √(E/Fy) | Sec G2.1(a) | key `shearWebYield` | OK? |
+| S5 | φ 0.75, Ω 2.00 bolts, bearing, block shear, welds, anchor rods | J2.4, J3.6-J3.7, J3.10, J4.3, J9 | | OK? |
+| S6 | φ 0.65, Ω 2.31 concrete bearing | Sec J8 | Was 0.60 in BNBC 2020 | OK? |
+| S7 | φ 0.90 / 1.00 / 0.75 / 0.85 / 0.90 / 0.90 (Ω 1.67 / 1.50 / 2.00 / 1.76 / 1.67 / 1.67) | Sec J10.1-J10.6 | Flange bending, web yielding, crippling, sidesway, compression buckling, panel zone | OK? |
+| S8 | φ 1.00 / 0.75 (Ω 1.50 / 2.00) elements in shear | Sec J4.2 | | OK? |
+| S9 | Ω 1.50 slip (standard holes) | Sec J3.8 | With hsc 0.85 / 0.70 this gives Ω 1.76 / 2.14 | OK? |
+| S10 | Ω 1.67 torsion, Ω 2.00 bracing stiffness | Sec H3, App 6 | | OK? |
+| S11 | KL/r ≤ 200, L/r ≤ 300 | Sec E2, D1 (user notes) | Checked as limits (SAEngine practice; flags for beams) | PRACTICE |
+
+### Member methods — `steel.json` `memberMethods`
+
+| # | Value | Clause | Description | Status |
+|---|---|---|---|---|
+| S12 | compressionSlender `effectiveWidth`: Pn = Fcr Ae, be = b (1 − c1 √(Fel/Fcr)) √(Fel/Fcr), Fel = (c2 λr/λ)² Fy when λ > λr √(Fy/Fcr) | Sec E7.1, Eqs E7-1 to E7-5 | Replaces Q = Qs Qa of 360-10 | OK? |
+| S13 | c1, c2 = 0.18, 1.31 (stiffened), 0.20, 1.38 (walls of rectangular HSS), 0.22, 1.49 (other: flanges, legs, stems) | Table E7.1 | | OK? |
+| S14 | round HSS Ae / Ag = 0.038 E / (Fy D/t) + 2/3 | Sec E7.2, Eq E7-6 | | OK? |
+| S15 | webShear `cv1`: Cv1 = 1 for h/tw ≤ 1.10 √(kv E/Fy), else 1.10 √(kv E/Fy) / (h/tw); kv 5.34 unstiffened (and a/h > 3) | Sec G2.1(b), Eqs G2-3, G2-4 | No elastic branch (Cv2 keeps it, Sec G2.2) | OK? |
+| S16 | tension field: Eq G2-7 (1.15 √(1 + (a/h)²)) within 2 Aw/(Afc + Aft) ≤ 2.5, h/bf ≤ 6.0; Eq G2-8 (1.15 (a/h + √(1 + (a/h)²))) outside; no limit (260/(h/tw))² on a/h | Sec G2.2 | The assignment of G2-7 / G2-8 to the two cases as recalled | UNSURE |
+| S17 | tees `lengthLimits`: Lp = 1.76 ry √(E/Fy), Lr = 1.95 (E/Fy) √(Iy J)/Sx √(2.36 (Fy/E) d Sx/J + 1); stem in compression Mcr ≤ My | Sec F9.2 | Sx the least elastic modulus | OK? |
+| S18 | tee flange local buckling Mn = Mp − (Mp − 0.7 Fy Sxc)(λ − λpf)/(λrf − λpf) ≤ 1.6 My; slender 0.7 E Sxc / (bf/2tf)² | Sec F9.3 | Changed in 2016 as recalled | UNSURE |
+| S19 | tee stem local buckling: d/tw ≤ 0.84 √(E/Fy) Fcr = Fy; ≤ 1.52 √(E/Fy) (1.43 − 0.515 (d/tw) √(Fy/E)) Fy; else 1.52 E / (d/tw)² | Sec F9.4(b) | | OK? |
+| S20 | teeCompression `general`: Fe of singly symmetric members, then Eqs E3-2, E3-3 | Sec E4 | The tee-specific Fcry/Fcrz form of 360-05 not used | UNSURE |
+| S21 | rectangular HSS lateral-torsional buckling: Lp = 0.13 E ry √(J Ag)/Mp, Lr = 2 E ry √(J Ag)/(0.7 Fy Sx), elastic Mn = 2 E Cb √(J Ag)/(Lb/ry) | Sec F7.4 | | OK? |
+| S22 | Sec F2-F6, F8, F10-F12, H1-H3 equations as the default pack's (AISC 360-05 = 360-22 for these) | — | Clause references only changed | OK? |
+
+### Connections — `steel.json` `connections`
+
+| # | Value | Clause | Description | Status |
+|---|---|---|---|---|
+| S23 | Fnt 310 / 620 / 780 MPa (A307, Group A, Group B) | Table J3.2 | | OK? |
+| S24 | Fnv 188 (A307), 372 / 469 (Group A N / X), 469 / 579 (Group B N / X) MPa | Table J3.2 | A307 188 vs 186 (27 ksi) | UNSURE (A307) |
+| S25 | threaded parts Fnt 0.75 Fu, Fnv 0.450 Fu (N), 0.563 Fu (X) | Table J3.2 | | OK? |
+| S26 | pretension (kN) as BNBC 2020: 91-475 Group A, 114-595 Group B (M16-M36) | Table J3.1M | Inherited values, AISC clause | OK? |
+| S27 | μ 0.30 (Class A), 0.50 (Class B), Du 1.13, φ 1.00 / 0.85 / 0.70 by hole (hsc) | Sec J3.8, Eq J3-4 | Short slots taken at 0.85 whatever their direction (conservative) | OK? |
+| S28 | edge distances 22, 26, 28, 30, 34, 38, 46 mm (M16-M36), 1.25 d above; no sheared-edge increase | Table J3.4M | | OK? |
+| S29 | holes d + 2 (M16-M24), d + 3 above | Table J3.3M | Inherited values | OK? |
+| S30 | long joints: Fnv × 0.833 beyond 950 mm | Table J3.2 note | Applied by SAEngine to tension splices only | UNSURE (scope) |
+| S31 | Pp = 0.85 f'c A1, ≤ 1.7 f'c A1, 0.85 √(A2/A1) | Sec J8, Eqs J8-1, J8-2 | | OK? |
+| S32 | fillet weld minimum (Table J2.4), maximum along edges (J2.2b): as BNBC 2020 | Table J2.4, Sec J2.2b | Inherited values | OK? |
+| S33 | connection notes: BNBC 2020 references mapped to AISC 360-22 sections and equations (`references`) | Ch J | Chapter K (HSS) equations keep the BNBC 2020 number, named so | UNSURE (equation numbers J3-3a, J3-5a, J3-6a/c, J10-5a/b) |
+| S34 | HSS connection φ (Chapter K): the default pack's (360-05) values | Ch K | 2016 rearranged Chapter K | UNSURE |
+
+### Stability — `steelStability.json`
+
+| # | Value | Clause | Description | Status |
+|---|---|---|---|---|
+| S35 | Ni = 0.002 α Yi, additive 0.001 α Yi; EI* = 0.8 τb EI, EA* = 0.8 EA; τb = 4 (αPr/Py)(1 − αPr/Py) above 0.5 | Sec C2.2b, C2.3 | Same as BNBC 2020; 360-22 writes τb with Pns (= Py for nonslender) | OK? |
+| S36 | Notional loads in the gravity-only combinations while Δ2nd/Δ1st ≤ 1.7 | Sec C2.2b(4) | Was 1.5 (360-10, BNBC 2020) | UNSURE |
+| S37 | Effective length method while Δ2nd/Δ1st ≤ 1.5; K = 1 ≤ 1.1; first-order method αPr ≤ 0.5 Py, Ni = 2.1 α (Δ/L) Yi ≥ 0.0042 Yi | App 7, Sec 7.2-7.3 | | OK? |
+| S38 | α 1.0 (LRFD), 1.6 (ASD); ASD analysis at 1.6 × the ASD combinations | Sec C2.1(4) | SAEngine keeps the direct analysis method LRFD only | OK? |
+| S39 | P-δ neglected while αPr < 0.15 PeL | App 8 | | UNSURE |
+
+### Seismic: AISC 341-22 — `steelSeismic.json`
+
+| # | Value | Clause | Description | Status |
+|---|---|---|---|---|
+| S40 | width-thickness limits of √(E/(Ry Fy)) (`expectedYield`) | Table D1.1 | 341-10 used √(E/Fy) | OK? |
+| S41 | λhd 0.32, λmd 0.40: flanges of I-shapes, channels, tees; angle legs; tee stems | Table D1.1 | | OK? |
+| S42 | webs λhd: Ca ≤ 0.114: 2.57 (1 − 1.04 Ca); above 0.88 (2.68 − Ca) ≥ 1.57 | Table D1.1 | SMF beam webs 2.57 | OK? |
+| S43 | webs λmd: Ca ≤ 0.114: 3.96 (1 − 3.04 Ca); above 1.29 (2.12 − Ca) ≥ 1.57 | Table D1.1 | | OK? |
+| S44 | rectangular HSS walls λhd 0.65, λmd 0.76 | Table D1.1 | λmd read as 0.64 √(E/Fy) of 341-10 at Ry 1.4 | UNSURE (λmd) |
+| S45 | round HSS D/t λhd 0.053, λmd 0.062 E/(Ry Fy) | Table D1.1 | | OK? |
+| S46 | Ca = Pu / (φc Py), φc 0.90, Py = Fy Ag | Table D1.1 note | Whether Py is Ry Fy Ag in 341-22 | UNSURE |
+| S47 | H-pile flanges and webs, flat bars, the relaxed ratio 2.0 of SMF columns: the default pack's | Table D1.1 | Not revised | UNSURE |
+| S48 | Ry, Rt: A500 Grade C 1.3, 1.2; Grade B and A501 1.4, 1.3; A1085 1.25, 1.15; the other rows as BNBC 2020 (A36 1.5/1.2, A992 / A572 Gr 50 1.1/1.1, A529 1.2/1.2 and 1.1/1.2, A53 1.6/1.2, plates A36 1.3/1.2, A572 1.1/1.2) | Sec A3.2 | | OK? |
+| S49 | IMF beams and columns moderately ductile; SMF highly ductile; OMF no seismic limits | Sec E1.5a, E2.5a, E3.5a | | OK? |
+| S50 | SCBF braces and columns highly ductile, beams moderately; OCBF braces moderately ductile | Sec F2.5a, F1.5a | | OK? |
+| S51 | the other seismic rules (connections, panel zones, bracing, splices, bases, EBF links, BRBF, SPSW, STMF, composite systems): the default pack's (341-05 based), cited as BNBC 2020 | — | Not revised in this version | — |
+
+### Composite: AISC 360-22 Chapter I — `composite.json`
+
+| # | Value | Clause | Description | Status |
+|---|---|---|---|---|
+| S52 | f'c 21-69 MPa normal weight, 21-41 MPa lightweight; Fy ≤ 525 MPa | Sec I1.3 | | OK? |
+| S53 | Es 200 000 MPa | Sec I1.5 | Was 210 000 in BNBC 2020 | OK? |
+| S54 | encased EIeff = Es Is + Es Isr + C1 Ec Ic, C1 = 0.25 + 3 ρ ≤ 0.7 | Sec I2.1b | ρ taken As / Ag without Asr (conservative) | OK? |
+| S55 | filled C3 = 0.45 + 3 ρ ≤ 0.9 | Sec I2.2b | Same simplification | OK? |
+| S56 | filled walls compact only: b/t ≤ 2.26 √(E/Fy) (1011 / √Fy), D/t ≤ 0.15 E/Fy (30 000 / Fy) | Sec I1.4, Table I1.1a | Noncompact and slender filled sections not designed (refused) | OK? |
+| S57 | φb 0.90 (Ω 1.67) of encased and filled members in flexure | Sec I3.3 | Was 0.85 | UNSURE |
+| S58 | Rp 0.75 for studs welded directly to the steel shape | Sec I8.2a | Was 1.0 in BNBC 2020 | OK? |
+
+### Masonry: TMS 402-22 Chapter 9 — `masonry.json`
+
+| # | Value | Clause | Description | Status |
+|---|---|---|---|---|
+| M1 | φ 0.90 axial and flexure, 0.80 shear | Sec 9.1.4 | | OK? |
+| M2 | εmu 0.0025 (clay; 0.0035 concrete masonry not used), 0.80 f'm over 0.80 c | Sec 9.3.2 | | OK? |
+| M3 | Pn = 0.80 [0.80 f'm (An − As) + fy As] | Sec 9.3.4.1.1 | The slenderness factor not applied to shear walls | UNSURE |
+| M4 | Vnm = 0.083 [4.0 − 1.75 Mu/(Vu dv)] Anv √f'm + 0.25 Pu, Mu/(Vu dv) 0 to 1.0; Vns = 0.5 ρn fy Anv; Vn ≤ 0.498 / 0.332 Anv √f'm at 0.25 / 1.0 | Sec 9.3.6.5 | γg = 1.0 | UNSURE (clause numbers) |
+| M5 | f'm 10.3-27.6 MPa for shear walls | Sec 9.1.9.1 | Concrete masonry; clay up to 41.4 | UNSURE |
+| M6 | slender walls, modulus of rupture, boundary members, reinforcement rules, the allowable stress method and the seismic and empirical rules: the default pack's, cited as BNBC 2020 | — | TMS 402-22 Chapter 8 (ASD) not in the pack | — |
+
 ## Not covered in this version (fall back or absent)
 
-- Steel, masonry, timber, the geotechnical foundation tables and every other material table:
-  inherited from BNBC 2020 (the report names them as the BNBC tables); AISC 360-22 is track C3.
+- Timber (NDS): inherited from BNBC 2020 Chapter 11 (IS-style permissible stresses of
+  Bangladeshi species); NDS reference design values and adjustment factors (CD, CM, Ct, CL, CP,
+  CF) need their own species tables and a timber method, not built.
+- Masonry by allowable stresses (TMS 402-22 Chapter 8) and the masonry rules not listed above:
+  BNBC 2020's, named so.
+- AISC 360-22: built-up members (Sec E6 with Ki), stability bracing (Appendix 6), ponding
+  (Appendix 2), stiffener requirements of tension field panels (Sec G2.3), HSS connections
+  (Chapter K equations), fatigue (Appendix 3), fire (Appendix 4): the default pack's rules,
+  cited as BNBC 2020's.
+- The geotechnical foundation tables and the remaining material tables: inherited from BNBC 2020
+  (the report names them as the BNBC tables).
 - The seismic detailing rows of special, intermediate and ordinary frames (ductile members and
   joints) still print the extended pack's clause numbers in their row names: their values are
   ACI 318-19's (the same numbers), the row clauses are not yet read from the pack.

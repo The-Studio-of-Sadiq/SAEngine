@@ -94,8 +94,8 @@ def test_clauses_name_the_code_they_come_from(us):
     assert clauses.short_clause("slab", "oneWaySpans") == "ACI 318 6.5.1(d)"
     assert code_context.cite("concrete", "shrinkage").startswith("ACI 318-19 24.4.3.2")
     assert code_context.cite("citations", "barDevelopmentHooked").startswith("ACI 318-19 25.4.3.1")
-    # Steel is a later track: still the extended pack's.
-    assert clauses.clause("steelMembers", "part") == "BNBC 2020 Part 6"
+    # C3: steel members are AISC 360-22's.
+    assert clauses.clause("steelMembers", "flexureYield") == "AISC 360-22 Sec F2.1, Eq F2-1"
 
 
 # ───────────────────────────── methods ─────────────────────────────

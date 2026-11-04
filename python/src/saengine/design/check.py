@@ -764,6 +764,7 @@ def _design_run(
 
     steel_members: list[steel_seismic.SteelMember] = []  # B35
     steel_stability = None
+    steel_asd: dict[str, Any] = {}  # alpha 9 C3: the run's ASD state (_steel_asd)
     anchor_seismic = None
     from saengine.design import timber as timber_design
 
@@ -819,6 +820,25 @@ def _design_run(
                 notes.extend(steel_stability.notes)
             if anchor_seismic is None:  # B26: the earthquake side of the anchors in concrete
                 anchor_seismic = _anchor_seismic(resolved, combinations, extra)
+            # B35: the amplified load only in the steel seismic axial check.
+            steel_pieces = _without(own, omega_indices) if member_id in steel_amplified else own
+            steel_combinations = combinations
+            steel_extra: dict[str, Any] = {"stability": steel_stability, "anchors": anchor_seismic}
+            # Alpha 9 C3: a pack (or project) that designs steel by ASD: the member under the
+            # allowable stress combinations, its strengths Rn / Ω (saengine.design.steel.basis).
+            asd = _steel_asd(object_type, settings, steel_stability, service, notes, steel_asd)
+            if asd is not None:
+                case_forces, asd_names, asd_factors = asd
+                steel_pieces = timber_design.asd_pieces(own, case_forces, asd_factors)
+                steel_combinations = asd_names
+                from saengine.design.steel import basis as steel_basis
+                from saengine.design.steel.stability import for_asd
+
+                steel_extra = {
+                    "stability": for_asd(steel_stability),
+                    "anchors": anchor_seismic,
+                    "basis": steel_basis.ASD,
+                }
             try:
                 entry, steel_collected = steel_design.design_member(
                     member_id,
@@ -826,14 +846,12 @@ def _design_run(
                     object_type,
                     steel_material,
                     mats,
-                    # B35: the amplified load only in the steel seismic axial check.
-                    _without(own, omega_indices) if member_id in steel_amplified else own,
-                    combinations,
+                    steel_pieces,
+                    steel_combinations,
                     _turned(element, exact),
                     project,
                     design_overwrites.steel_options(
-                        resolved_overwrites.get(member_id),
-                        {"stability": steel_stability, "anchors": anchor_seismic},
+                        resolved_overwrites.get(member_id), steel_extra
                     ),
                 )
             except SteelDesignError as error:
@@ -1513,6 +1531,52 @@ def _design_timber(
         checked.append(entry)
         seen = True
     return seen
+
+
+def _steel_asd(
+    object_type: Any,
+    settings: Any,
+    stability: Any,
+    service: dict[str, Any],
+    notes: list[str],
+    state: dict[str, Any],
+) -> tuple[dict[str, Any], list[str], list[dict[str, float]]] | None:
+    """Alpha 9 C3: ``(case forces, names, factors)`` of the allowable stress combinations when a
+    steel member of ``object_type`` is checked by ASD (the pack's ``steel.designMethod``, see
+    :func:`saengine.design.steel.basis.member_basis`), None for LRFD. ``state`` keeps the
+    run's answers and notes (each said once)."""
+    from saengine.design.steel import basis as steel_basis
+
+    if "chosen" not in state:
+        state["chosen"] = steel_basis.chosen()
+        note = steel_basis.basis_note()
+        if note:
+            notes.append(note)
+    if state["chosen"] != steel_basis.ASD:
+        return None
+    if "seismic" not in state:
+        from saengine.design.steel import seismic as steel_seismic
+        from saengine.design.steel import seismic_braced
+
+        state["seismic"] = bool(
+            steel_seismic.provisions(settings).applies
+            or seismic_braced.braced_provisions(settings).applies
+        )
+    basis, why = steel_basis.member_basis(
+        object_type, state["seismic"], bool(getattr(stability, "direct", False))
+    )
+    if basis != steel_basis.ASD:
+        said = state.setdefault("said", set())
+        if why not in said:
+            said.add(why)
+            notes.append(f"steel members: {why}")
+        return None
+    if "forces" not in state:
+        case_forces, names, factors, reason = _allowable_forces(service, notes, "steel (ASD)")
+        state["forces"] = None if reason else (case_forces, names, factors)
+        if reason:
+            notes.append(f"steel members: checked by LRFD ({reason})")
+    return state["forces"]
 
 
 def _allowable_forces(

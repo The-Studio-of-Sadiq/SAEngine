@@ -1,0 +1,61 @@
+{
+  "$schema": "../../../schemas/masonry.schema.json",
+  "$sources": [
+    "TMS 402-22 Building Code Requirements for Masonry Structures, Chapter 9 (strength design): the values of the strength method; the allowable stress method, the empirical rules, the seismic detailing and the other masonry rules are the default pack's (BNBC 2020 Part 6 Chapter 7), named as BNBC 2020's"
+  ],
+  "source": "TMS 402-22 Chapter 9 (strength design of reinforced masonry, a wall type's masonryMethod 'strength'); the allowable stress design of the walls and the rest of the table: BNBC 2020 Part 6 Chapter 7 (the pack it extends)",
+  "strength": {
+    "phi": {
+      "slenderFlexure": 0.9,
+      "axial": 0.9,
+      "axialMax": 0.9,
+      "axialIncreaseFyMax": 410.0,
+      "axialIncreaseArea": 0.1,
+      "axialIncreaseBalanced": 0.25,
+      "shear": 0.8,
+      "shearFlexure": 0.8
+    },
+    "ultimateStrain": 0.0025,
+    "stressBlock": {
+      "stress": 0.8,
+      "depth": 0.8
+    },
+    "axial": {
+      "masonry": 0.8,
+      "reduction": 0.8
+    },
+    "fmRange": {
+      "shearWall": [10.3, 27.6]
+    },
+    "shear": {
+      "masonry": 0.083,
+      "cdLow": 4.0,
+      "cdHigh": 2.25,
+      "ratioLow": 0.0,
+      "ratioHigh": 1.0,
+      "maxRatioLow": 0.25,
+      "maxLow": 0.498,
+      "maxHigh": 0.332,
+      "steelShare": 0.5,
+      "axialShare": 0.25,
+      "flexureMode": false,
+      "note": "TMS 402-22 Sec 9.3.6 (shear of reinforced masonry in plane): Vnm = 0.083 [4.0 - 1.75 Mu/(Vu dv)] Anv sqrt(f'm) + 0.25 Pu with Mu/(Vu dv) taken from 0 to 1.0 (SI form of the psi equation), Vns = 0.5 (Av/s) fy dv (here 0.5 ρn fy Anv), Vn at most 0.083 x 6 Anv sqrt(f'm) up to Mu/(Vu dv) 0.25 and 0.083 x 4 Anv sqrt(f'm) from 1.0, linear between; γg = 1.0 (fully grouted walls) assumed; no flexure mode"
+    }
+  },
+  "clauses": {
+    "strengthMethod": "TMS 402-22 Chapter 9 (strength design), Sec 9.1.4 (φ), 9.3.2 (design assumptions: εmu 0.0025 clay, 0.0035 concrete masonry, 0.80 f'm over 0.80 c)",
+    "shearWallRange": "TMS 402-22 Sec 9.1.9.1 (f'm 10.3-27.6 MPa for concrete masonry in strength design)",
+    "shearWallAxial": "TMS 402-22 Sec 9.3.4.1.1 (Pn = 0.80 [0.80 f'm (An - As) + fy As])",
+    "shearWallFlexure": "TMS 402-22 Sec 9.3.2, 9.3.6",
+    "shearWallShear": "TMS 402-22 Sec 9.3.6.5 (Vnm, Vns, the maximum Vn)",
+    "shearWallReinforcement": "BNBC 2020 Part 6 Sec 7.7.2.6, the default pack's rule",
+    "boundary": "BNBC 2020 Part 6 Sec 7.7.2.7, the default pack's rule",
+    "slenderWall": "BNBC 2020 Part 6 Sec 7.7.1, Eq 6.7.36, the default pack's rule",
+    "slenderReinforcement": "BNBC 2020 Part 6 Sec 7.7.1.1(a), the default pack's rule",
+    "slenderMoment": "BNBC 2020 Part 6 Sec 7.7.1.2, Eqs 6.7.37-6.7.38, the default pack's rule",
+    "slenderDeflection": "BNBC 2020 Part 6 Sec 7.7.1.3, Eqs 6.7.39-6.7.42, Table 6.7.13, the default pack's rule"
+  },
+  "sources": {
+    "strength": "TMS 402-22 Chapter 9: φ 0.90 axial and flexure of reinforced masonry, 0.80 shear (Sec 9.1.4); εmu 0.0025 (clay masonry; 0.0035 of concrete masonry not used: conservative), stress block 0.80 f'm over 0.80 c (Sec 9.3.2); Pn = 0.80 [0.80 f'm (An - As) + fy As] (Sec 9.3.4.1.1, the slenderness factor not applied to shear walls); shear by Sec 9.3.6.5; the slender wall, reinforcement, boundary and modulus of rupture values are the default pack's"
+  }
+}
