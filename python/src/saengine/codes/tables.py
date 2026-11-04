@@ -10357,6 +10357,7 @@ class SnowTable(TableModel):
 # imperfection (and the steel groups of steelLimitState, in limit_state_tables).
 # Alpha 9 C9: steel by limit state design with partial factors and buckling curves.
 from saengine.codes.bar_schedule_tables import BarScheduleTable  # C14
+from saengine.codes.excavation_tables import ExcavationSupportTable  # P1: staged excavations
 from saengine.codes.limit_state_tables import SteelLimitStateTable
 from saengine.codes.material_method_tables import (
     AluminiumTable,
@@ -10456,6 +10457,8 @@ TABLE_MODELS: dict[str, type[TableModel]] = {
     "embeddedWalls": EmbeddedWallsTable,
     # Alpha 9 C14: the bar bending schedule's standard.
     "barSchedule": BarScheduleTable,
+    # Alpha 9 P1: staged excavations, their walls and supports.
+    "excavationSupport": ExcavationSupportTable,
 }
 
 

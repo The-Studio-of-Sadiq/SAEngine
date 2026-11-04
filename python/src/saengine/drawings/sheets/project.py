@@ -33,6 +33,8 @@ from saengine.drawings.sheets.model import (
     ColumnLine,
     ColumnSection,
     DrawingSet,
+    ExcavationSupportItem,
+    ExcavationWallDetail,
     FootingDetail,
     Grid,
     Level,
@@ -742,6 +744,56 @@ def retaining_wall_detail(wall: Any, ground: float) -> RetainingWallDetail:
     )
 
 
+def excavation_wall_detail(excavation: Any, ground: float) -> ExcavationWallDetail | None:
+    """Alpha 9 P1: the section of an excavation's embedded wall with a type and a toe (the
+    library's input: its stages, supports and given anchor lengths; anchors without lengths
+    drawn at the code pack's least ones), or None."""
+    from saengine.library.substructure import EMBEDDED_WALL_TYPES
+    from saengine.substructure.excavation_support import stages_of, table
+
+    wall = excavation.wall
+    if wall is None or wall.wallType is None or wall.toeLevel is None:
+        return None
+    top = excavation.groundLevel if excavation.groundLevel is not None else ground
+    rules = table()
+    anchors = rules.anchors if rules is not None else None
+    if wall.wallType in ("contiguous", "secant"):
+        thickness = float(wall.pileDiameter or 600.0)
+    elif wall.wallType == "diaphragm":
+        thickness = float(wall.thickness or 600.0)
+    else:
+        thickness = 300.0
+    supports = []
+    for s in wall.supports:
+        free = s.freeLength or (anchors.freeLengthMin * 1e3 if anchors else 0.0)
+        fixed = s.fixedLength or (anchors.fixedLengthMin * 1e3 if anchors else 0.0)
+        supports.append(
+            ExcavationSupportItem(
+                s.id,
+                s.kind,
+                top - s.level,
+                s.inclination,
+                s.spacing,
+                s.section or "",
+                float(free) if s.kind == "anchor" else 0.0,
+                float(fixed) if s.kind == "anchor" else 0.0,
+            )
+        )
+    stages = [(st.name, st.dig * 1e3) for st in stages_of(wall, top, excavation.bottomLevel)]
+    water = excavation.designWaterTable
+    return ExcavationWallDetail(
+        mark=excavation.id,
+        kind=EMBEDDED_WALL_TYPES.get(wall.wallType, wall.wallType),
+        thickness=thickness,
+        ground_level=top,
+        toe=top - wall.toeLevel,
+        stages=stages,
+        supports=supports,
+        water=None if water is None else water * 1e3,
+        text=wall.section or "",
+    )
+
+
 def footing_detail(
     e: dict[str, Any], objects: Any, columns: dict[str, dict], substructure
 ) -> FootingDetail:
@@ -1277,6 +1329,11 @@ def fill_from_detailing(
     data.retaining_walls = [
         retaining_wall_detail(w, settings_ground(bim))
         for w in (substructure.retainingWalls if substructure is not None else [])
+    ]
+    data.excavation_walls = [  # Alpha 9 P1
+        found
+        for e in (substructure.excavations if substructure is not None else [])
+        if (found := excavation_wall_detail(e, settings_ground(bim))) is not None
     ]
     data.walls = [
         wall_detail(e, _type_of(objects, str(e.get("type"))), bim, levels)

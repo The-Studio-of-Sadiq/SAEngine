@@ -96,6 +96,18 @@ def ka_coulomb(phi: float, delta: float = 0.0, beta: float = 0.0, alpha: float =
     return num / (math.cos(a) ** 2 * math.cos(d + a) * (1 + root) ** 2)
 
 
+def kp_coulomb(phi: float, delta: float = 0.0) -> float:
+    """Coulomb passive coefficient of a vertical wall and level ground with wall friction δ
+    (degrees): ``cos²φ' / (cos δ (1 - √(sin(φ' + δ) sin φ' / cos δ))²)``. It overestimates the
+    passive resistance for δ above about φ'/3 (a curved failure surface gives less); alpha 9
+    P1, the staged excavations, the code pack chooses δ."""
+    p, d = math.radians(phi), math.radians(delta)
+    root = math.sqrt(math.sin(p + d) * math.sin(p) / math.cos(d))
+    if root >= 1:
+        raise ValueError(f"Coulomb passive: δ = {delta:g}° too large for φ' = {phi:g}°")
+    return math.cos(p) ** 2 / (math.cos(d) * (1 - root) ** 2)
+
+
 def kae_mononobe_okabe(
     phi: float,
     kh: float,

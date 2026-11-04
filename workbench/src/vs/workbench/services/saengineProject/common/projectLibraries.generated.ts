@@ -23108,6 +23108,35 @@ export const SUBSTRUCTURE_SCHEMA: IJSONSchema = {
 					title: 'Old or likely to be damaged',
 					type: 'boolean',
 				},
+				pressure: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Bearing pressure under its foundation [kPa] (a strip load on the excavation\'s embedded wall); empty: not loaded on the wall.',
+					title: 'Footing pressure',
+				},
+				width: {
+					anyOf: [
+						{
+							description: '[mm]',
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Width of its foundation at right angles to the excavation\'s edge [mm]; empty: 1.5 m.',
+					title: 'Footing width',
+				},
 			},
 			required: ['id', 'foundingLevel'],
 			title: 'AdjoiningStructure',
@@ -23397,7 +23426,7 @@ export const SUBSTRUCTURE_SCHEMA: IJSONSchema = {
 		},
 		EmbeddedWall: {
 			additionalProperties: false,
-			description: 'Alpha 9 P7: the embedded wall round an excavation (sheet, contiguous or secant piles,\na diaphragm wall), designed per metre run by the code pack\'s ``embeddedWalls`` method\n(:mod:`saengine.substructure.embedded_wall`): its embedment, bending moment and prop force.\nThe wall sections, walers, struts and anchors are designed separately.',
+			description: 'Alpha 9 P7: the embedded wall round an excavation (sheet, contiguous or secant piles,\na diaphragm wall), designed per metre run by the code pack\'s ``embeddedWalls`` method\n(:mod:`saengine.substructure.embedded_wall`): its embedment, bending moment and prop force.\nAlpha 9 P1: with a ``wallType``, the wall is also analysed stage by stage on the code\npack\'s ``excavationSupport`` method and its section, walers, struts, anchors and rakers\ndesigned (:mod:`saengine.substructure.excavation_support`).',
 			properties: {
 				kind: {
 					default: 'cantilever',
@@ -23484,13 +23513,258 @@ export const SUBSTRUCTURE_SCHEMA: IJSONSchema = {
 					description: 'Spacing of the struts or anchors along the wall [mm]; empty: per metre.',
 					title: 'Prop spacing',
 				},
+				wallType: {
+					anyOf: [
+						{
+							enum: ['sheetPile', 'contiguous', 'secant', 'soldier', 'diaphragm'],
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Sheet piles, contiguous or secant bored piles, soldier piles with lagging or a diaphragm wall: the wall is analysed stage by stage and its section designed; empty: only the embedment, moment and prop force above.',
+					enumDescriptions: ['Steel sheet piles', 'Contiguous bored piles', 'Secant bored piles', 'Soldier piles and lagging', 'Diaphragm wall'],
+					title: 'Wall type',
+				},
+				section: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Sheet piles: the sheet pile section (saengine.library.sheet_piles); soldier piles: the steel section of the piles (the steel sections table).',
+					title: 'Section',
+				},
+				material: {
+					anyOf: [
+						{
+							maxLength: 64,
+							minLength: 1,
+							pattern: '^[A-Za-z0-9._-]+$',
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Concrete of the piles or diaphragm wall, or the steel of the sheet or soldier piles (03 Materials).',
+					title: 'Material',
+				},
+				pileDiameter: {
+					anyOf: [
+						{
+							description: '[mm]',
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Contiguous and secant piles [mm].',
+					title: 'Pile diameter',
+				},
+				pileSpacing: {
+					anyOf: [
+						{
+							description: '[mm]',
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Centre to centre of adjacent piles along the wall [mm] (secant: less than the diameter; soldier piles: of the steel piles).',
+					title: 'Pile spacing',
+				},
+				allReinforced: {
+					default: false,
+					description: 'Secant walls: every pile reinforced (hard-hard); else every second pile (the soft or firm piles between carry no bending).',
+					title: 'All piles reinforced',
+					type: 'boolean',
+				},
+				thickness: {
+					anyOf: [
+						{
+							description: '[mm]',
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Diaphragm wall thickness [mm].',
+					title: 'Thickness',
+				},
+				rebar: {
+					anyOf: [
+						{
+							maxLength: 64,
+							minLength: 1,
+							pattern: '^[A-Za-z0-9._-]+$',
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Reinforcement material (03 Materials).',
+					title: 'Bar material',
+				},
+				barCount: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'integer',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Longitudinal bars of a pile.',
+					title: 'Bars per pile',
+				},
+				barDia: {
+					anyOf: [
+						{
+							description: '[mm]',
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Longitudinal bars of a pile, or the main bars of each face of a diaphragm wall [mm].',
+					title: 'Bar diameter',
+				},
+				barSpacing: {
+					anyOf: [
+						{
+							description: '[mm]',
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Diaphragm wall: main bars of each face [mm]; empty: proposed.',
+					title: 'Bar spacing',
+				},
+				linkDia: {
+					anyOf: [
+						{
+							description: '[mm]',
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Pile links or spirals [mm].',
+					title: 'Link diameter',
+				},
+				linkSpacing: {
+					anyOf: [
+						{
+							description: '[mm]',
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Pile links or spirals [mm].',
+					title: 'Link spacing',
+				},
+				cover: {
+					default: 75,
+					description: 'To the links or bars [mm].',
+					exclusiveMinimum: 0,
+					title: 'Cover',
+					type: 'number',
+				},
+				crackLimit: {
+					default: 0.3,
+					description: 'Diaphragm wall: wk at most [mm].',
+					exclusiveMinimum: 0,
+					title: 'Crack limit',
+					type: 'number',
+				},
+				laggingThickness: {
+					anyOf: [
+						{
+							description: '[mm]',
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Soldier piles: timber lagging between the piles [mm].',
+					title: 'Lagging thickness',
+				},
+				length: {
+					anyOf: [
+						{
+							description: '[mm]',
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Run of the wall in plan [mm] for the quantities; empty: the perimeter of the excavation\'s outline.',
+					title: 'Wall length',
+				},
+				stages: {
+					description: 'The construction stages in order; empty: dig to the bottom (a propped wall: to below the prop level, place the prop, dig to the bottom).',
+					items: {
+						$ref: '#/$defs/ExcavationStage',
+					},
+					title: 'Stages',
+					type: 'array',
+				},
+				supports: {
+					description: 'Struts, ground anchors and rakers of the wall.',
+					items: {
+						$ref: '#/$defs/WallSupport',
+					},
+					title: 'Supports',
+					type: 'array',
+				},
 			},
 			title: 'EmbeddedWall',
 			type: 'object',
 		},
 		Excavation: {
 			additionalProperties: false,
-			description: 'An excavation for the foundations or a basement: its depth, how its sides are kept, the\nloads and buildings beside it and the ground water at its base. The checks are the\ncode pack\'s rules of excavation work and, with ``wall``, the design of its embedded wall\n(alpha 9 P7); the walers, struts and anchors are designed separately.',
+			description: 'An excavation for the foundations or a basement: its depth, how its sides are kept, the\nloads and buildings beside it and the ground water at its base. The checks are the\ncode pack\'s rules of excavation work and, with ``wall``, the design of its embedded wall\n(alpha 9 P7) and its staged analysis with the supports (alpha 9 P1).',
 			properties: {
 				id: {
 					maxLength: 64,
@@ -23733,6 +24007,69 @@ export const SUBSTRUCTURE_SCHEMA: IJSONSchema = {
 			},
 			required: ['distance'],
 			title: 'ExcavationLoad',
+			type: 'object',
+		},
+		ExcavationStage: {
+			additionalProperties: false,
+			description: 'Alpha 9 P1: one construction stage of a staged excavation: the supports placed (at the\nprevious stage\'s dig level, before digging on) and removed, then the dig to its level.',
+			properties: {
+				name: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'e.g. \'Dig to -2.0 m\'.',
+					title: 'Name',
+				},
+				digLevel: {
+					description: 'Excavated to this level [mm, project datum].',
+					title: 'Dig level',
+					type: 'number',
+				},
+				install: {
+					description: 'Supports placed at the start of the stage (ids).',
+					items: {
+						maxLength: 64,
+						minLength: 1,
+						pattern: '^[A-Za-z0-9._-]+$',
+						type: 'string',
+					},
+					title: 'Install',
+					type: 'array',
+				},
+				remove: {
+					description: 'Supports removed at the start of the stage (ids).',
+					items: {
+						maxLength: 64,
+						minLength: 1,
+						pattern: '^[A-Za-z0-9._-]+$',
+						type: 'string',
+					},
+					title: 'Remove',
+					type: 'array',
+				},
+				surcharge: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'On the retained ground during this stage [kPa]; empty: the wall\'s.',
+					title: 'Surcharge',
+				},
+			},
+			required: ['digLevel'],
+			title: 'ExcavationStage',
 			type: 'object',
 		},
 		FactorOfSafety: {
@@ -26077,6 +26414,215 @@ export const SUBSTRUCTURE_SCHEMA: IJSONSchema = {
 			},
 			required: ['spacing'],
 			title: 'TransverseZone',
+			type: 'object',
+		},
+		WallSupport: {
+			additionalProperties: false,
+			description: 'Alpha 9 P1: a strut, ground anchor or raker of an embedded wall, repeated at its\nspacing along the wall.',
+			properties: {
+				id: {
+					description: 'Its mark, e.g. S1 or A1.',
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				kind: {
+					default: 'strut',
+					description: 'A steel strut across the excavation, a ground anchor behind the wall, or an inclined raker to a thrust block in the base.',
+					enum: ['strut', 'anchor', 'raker'],
+					enumDescriptions: ['Strut', 'Ground anchor', 'Raker'],
+					title: 'Kind',
+					type: 'string',
+				},
+				level: {
+					description: 'At the wall [mm, project datum].',
+					title: 'Level',
+					type: 'number',
+				},
+				spacing: {
+					default: 3000,
+					description: 'Along the wall [mm].',
+					exclusiveMinimum: 0,
+					title: 'Spacing',
+					type: 'number',
+				},
+				section: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Struts and rakers: the steel section (the steel sections table); empty: the forces are reported only.',
+					title: 'Section',
+				},
+				material: {
+					anyOf: [
+						{
+							maxLength: 64,
+							minLength: 1,
+							pattern: '^[A-Za-z0-9._-]+$',
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Steel of the strut, raker and waler (03 Materials).',
+					title: 'Material',
+				},
+				length: {
+					anyOf: [
+						{
+							description: '[mm]',
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Struts: across the excavation; rakers: along the raker [mm]. Empty: a strut 10 m, a raker from the level down to the base at its inclination.',
+					title: 'Length',
+				},
+				inclination: {
+					default: 0.0,
+					description: 'Below the horizontal [°] (anchors typically 15-30, rakers 30-60).',
+					exclusiveMaximum: 80,
+					minimum: 0,
+					title: 'Inclination',
+					type: 'number',
+				},
+				preload: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Force put in at placing, per support [kN]; empty: none for struts and rakers, the code pack\'s lock-off share of the working load for anchors.',
+					title: 'Preload',
+				},
+				stiffness: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Axial stiffness per support [kN/m] as built; empty: E A / L from the section or tendon.',
+					title: 'Stiffness',
+				},
+				waler: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Steel section of the waler along the wall at the supports (empty: none, or a capping beam).',
+					title: 'Waler',
+				},
+				tendonArea: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Anchors: steel area [mm²].',
+					title: 'Tendon area',
+				},
+				tendonStrength: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Anchors: characteristic (ultimate) strength fpk of the tendon [MPa].',
+					title: 'Tendon strength',
+				},
+				groutDiameter: {
+					anyOf: [
+						{
+							description: '[mm]',
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Anchors: of the fixed length [mm]; empty: the code pack\'s.',
+					title: 'Grout diameter',
+				},
+				freeLength: {
+					anyOf: [
+						{
+							description: '[mm]',
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Anchors: as built [mm]; empty: required.',
+					title: 'Free length',
+				},
+				fixedLength: {
+					anyOf: [
+						{
+							description: '[mm]',
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Anchors: as built [mm]; empty: required.',
+					title: 'Fixed length',
+				},
+				permanent: {
+					default: false,
+					description: 'Anchors: permanent works (the permanent factors).',
+					title: 'Permanent',
+					type: 'boolean',
+				},
+			},
+			required: ['id', 'level'],
+			title: 'WallSupport',
 			type: 'object',
 		},
 	},

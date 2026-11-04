@@ -1,0 +1,86 @@
+{
+  "$schema": "../../../schemas/excavationSupport.schema.json",
+  "$sources": [
+    "BNBC 2020 Part 6 Sec 3.12-3.12.2.3 (pp. 797-800) and Sec 3.16 (p. 805): excavation sides kept by shoring, sheeting, sheet piling or retaining walls, taller sheet piles with tie-back anchors; no method for the staged analysis, the struts or the anchors",
+    "BNBC 2020 Part 6 Sec 2.7.3.1 (p. 685): the load factor 1.6 on H, taken on the wall's and the supports' effects (foundations.retainingWall.hFactor)",
+    "SAEngine practice where BNBC 2020 is silent: the wall on elastic-plastic subgrade springs stage by stage (kh by Schmitt 1995), Coulomb pressures with δa = 2/3 φ' and δp = 1/3 φ', the least fluid pressure 5 kN/m³ (CIRIA C580), Boussinesq strip loads; anchors by BS 8081:2015 factors and test loads, bond stresses of the PTI DC35.1 ranges; basal heave by Bjerrum and Eide (1956), piping by Harr's exit gradient (1962); see VERIFY.md"
+  ],
+  "source": "SAEngine practice where BNBC 2020 is silent (Part 6 Sec 3.12, 3.16: excavation sides retained, sheet piles with tie-back anchors, no method): staged analysis on subgrade springs, steel struts by Part 6 Chapter 10, ground anchors by BS 8081",
+  "analysis": "subgradeReaction",
+  "analyses": [
+    {
+      "name": "Characteristic soil, effects × the factor on H",
+      "strengths": "characteristic",
+      "effectFactor": null
+    }
+  ],
+  "earthPressure": {
+    "activeMethod": "coulomb",
+    "passiveMethod": "coulomb",
+    "activeFriction": 0.6667,
+    "passiveFriction": 0.3333,
+    "minimumFluid": 5.0,
+    "stripLoad": "boussinesq",
+    "stripFactor": 1.0
+  },
+  "subgrade": {
+    "method": "schmitt",
+    "schmittCoefficient": 2.1,
+    "poisson": 0.3,
+    "granularModulus": [[28.0, 10.0], [32.0, 25.0], [36.0, 50.0], [40.0, 80.0]],
+    "cohesiveModulus": 300.0,
+    "tabulatedGranular": [[28.0, 10.0], [32.0, 25.0], [36.0, 50.0], [40.0, 80.0]],
+    "tabulatedCohesive": 80.0,
+    "concreteStiffness": 0.7,
+    "soldierPassiveWidth": 3.0
+  },
+  "struts": {
+    "temperatureRange": 15.0,
+    "temperatureRestraint": 0.5,
+    "expansion": 1.2e-5,
+    "temperatureFactor": 1.0,
+    "selfWeightFactor": 1.2,
+    "effectiveLength": 1.0,
+    "symmetricShare": 0.5,
+    "walerMoment": 0.1,
+    "walerShear": 0.6
+  },
+  "anchors": {
+    "standard": "BS 8081:2015 (SAEngine practice)",
+    "tendonFactor": 1.4,
+    "groundFactor": 2.0,
+    "permanentTendonFactor": 2.0,
+    "permanentGroundFactor": 3.0,
+    "proofFactor": 1.25,
+    "permanentProofFactor": 1.5,
+    "lockOffShare": 1.1,
+    "testTendonLimit": 0.8,
+    "freeLengthMin": 5.0,
+    "fixedLengthMin": 3.0,
+    "fixedLengthMax": 10.0,
+    "wedgeClearance": 0.2,
+    "wedgeClearanceMin": 1.5,
+    "groutDiameter": 150.0,
+    "bondGranular": [[28.0, 100.0], [32.0, 200.0], [36.0, 300.0], [40.0, 400.0]],
+    "bondCohesive": 0.35,
+    "bondCohesiveMax": 250.0,
+    "stiffnessLength": 0.5
+  },
+  "heave": {
+    "basal": "bjerrumEide",
+    "basalFactor": 1.5,
+    "basalNcMax": 9.0,
+    "piping": "harrExit",
+    "pipingFactor": 2.0
+  },
+  "deflectionShare": 0.005,
+  "clauses": {
+    "required": "Part 6 Sec 3.12 (p. 797) and Sec 3.16 (p. 805): excavation sides retained; sheet piles, tie-back anchors (no design method)",
+    "method": "SAEngine practice where BNBC 2020 is silent: the wall on elastic-plastic subgrade springs stage by stage (kh by Schmitt 1995), Coulomb pressures with wall friction",
+    "effects": "Part 6 Sec 2.7.3.1 (p. 685): 1.6H on the wall's moments, shears and support forces",
+    "struts": "Part 6 Chapter 10 (compression, flexure, combined forces); temperature and self weight SAEngine practice",
+    "anchors": "SAEngine practice where BNBC 2020 is silent: BS 8081:2015 factors of safety, proof and lock-off loads, least free and fixed lengths",
+    "heave": "SAEngine practice where BNBC 2020 is silent: basal heave by Bjerrum and Eide (1956), piping by Harr's exit gradient Δh / (π d) (1962)",
+    "deflection": "SAEngine practice: the wall's deflection reported against 0.5 % of the excavation depth"
+  }
+}

@@ -187,6 +187,11 @@ TABLE_HELP: dict[str, str] = {
     "embeddedWalls": "Embedded excavation walls (alpha 9 P7): the factor on the passive "
     "resistance or the partial factor set, the embedment increase, the least surcharge and the "
     "overdig. A pack without it does not design embedded walls.",
+    "excavationSupport": "Staged excavations (alpha 9 P1): the analysis runs of the wall on "
+    "elastic-plastic soil springs, the earth pressure coefficients and wall friction, the "
+    "subgrade modulus, the struts' temperature and buckling length, the ground anchors' factors, "
+    "test and lock-off loads and bond stresses, and the basal heave and piping factors. A pack "
+    "without it does not analyse staged excavations or design their supports.",
     "snow": "Snow on roofs from the ground snow load: the exposure coefficients Ce, the thermal "
     "coefficient Ct, the roof shape coefficient mu1 by pitch and the load case the roof snow "
     "goes into. A pack without it does not cover snow.",

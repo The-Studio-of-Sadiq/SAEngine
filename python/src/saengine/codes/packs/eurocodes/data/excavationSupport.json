@@ -1,0 +1,39 @@
+{
+  "$schema": "../../../schemas/excavationSupport.schema.json",
+  "$sources": [
+    "EN 1997-1 Section 9 (9.5.1 wall friction, 9.7 ultimate limit states, 9.8.1 structural design, 9.3.2.2 unplanned excavation) with Design Approach 1: Combination 1 (A1: γG 1.35 on the effects, M1) and Combination 2 (the M2 strengths of the embeddedWalls method, A2); EN 1997-1 Section 8 (8.5: Ra,d = Ra,k / γa, γa 1.1 of Table A.12) with EN 1537 / EN ISO 22477-5 for the tests; EN 1997-1 2.4.7.5 (HYD: γG,dst 1.35, γG,stb 0.9); the subgrade analysis and the other values SAEngine practice from the parent pack; see VERIFY.md"
+  ],
+  "source": "EN 1997-1 Section 9 (DA1: C1 effects × 1.35, C2 on the M2 strengths), Section 8 and EN 1537 for ground anchors; the staged analysis on subgrade springs SAEngine practice",
+  "analyses": [
+    {
+      "name": "DA1 Combination 1: characteristic soil, effects × 1.35",
+      "strengths": "characteristic",
+      "effectFactor": 1.35
+    },
+    {
+      "name": "DA1 Combination 2: M2 strengths, effects × 1.0",
+      "strengths": "design",
+      "effectFactor": 1.0
+    }
+  ],
+  "anchors": {
+    "standard": "EN 1997-1 Section 8 with EN 1537 / EN ISO 22477-5",
+    "tendonFactor": 1.5525,
+    "groundFactor": 1.485,
+    "permanentTendonFactor": 1.5525,
+    "permanentGroundFactor": 1.485,
+    "proofFactor": 1.25,
+    "permanentProofFactor": 1.25
+  },
+  "heave": {
+    "pipingFactor": 1.5
+  },
+  "clauses": {
+    "required": "EN 1997-1 9.7 and 9.8 (embedded walls: ultimate limit states, structural design)",
+    "method": "EN 1997-1 9.8.1 by soil-structure interaction (SAEngine practice: subgrade springs, Schmitt 1995), DA1 C1 and C2",
+    "effects": "EN 1997-1 2.4.7.3.4.2 DA1: C1 γG 1.35 on the effects, C2 on the M2 strengths",
+    "struts": "EN 1993-1-1 6.2-6.3 (struts and walers); temperature and self weight SAEngine practice",
+    "anchors": "EN 1997-1 8.5 (Pd = 1.35 P, Ra,d = Ra,k / 1.1) with EN 1537 / EN ISO 22477-5 acceptance tests",
+    "heave": "EN 1997-1 2.4.7.5 (HYD, γdst 1.35 / γstb 0.9) by Harr's exit gradient; basal heave by Bjerrum and Eide (SAEngine practice)"
+  }
+}
