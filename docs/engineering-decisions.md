@@ -615,6 +615,12 @@ against the printed standard). Its behaviour choices:
   packs for the codes that adopt ACI/ASCE (Saudi Arabia, Pakistan, the Philippines, Indonesia),
   Canada, Mexico, Australia and New Zealand, Japan, China, Turkey, Nepal and Sri Lanka, and an
   opt-in hazard lookup by site coordinates. Report and drawing languages come with i18n.
+  Owner, later still: packs for Myanmar, Bhutan, Malaysia, Singapore, Qatar and the Gulf, Hong
+  Kong, Korea, Iran, Egypt, South Africa, Brazil, Chile, Peru and Russia; SAEngine must work with
+  any country's code (a readiness audit, a conformance test every pack passes, and pack
+  authoring an office can do itself). Eurocode foundation capacity design computes Ω from the
+  dissipative members with q as the cap; under the IS pack, column construction joints keep
+  the shear-friction check, labelled SAEngine practice (IS 456 has no such rule).
   The US pack's steel shapes come from SAEngine's own shape list, not the AISC shapes
   database, whose redistribution terms are not checked (owner).
 - **Eurocodes pack, loads and seismic (alpha 9 track C4).** The built-in pack `eurocodes`
