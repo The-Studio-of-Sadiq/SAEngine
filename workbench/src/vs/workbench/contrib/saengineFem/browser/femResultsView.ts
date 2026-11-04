@@ -25,7 +25,7 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
-import { IFemResultList } from '../../../../platform/saengine/common/femSolver.js';
+import { FemTableCell, IFemResultList } from '../../../../platform/saengine/common/femSolver.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
@@ -38,7 +38,7 @@ import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
 import { EditorFrame, IEditorFrameStatus } from '../../saengineProject/browser/editorFrame.js';
 import { ChartColor, IChartSeries, renderChart, renderSheet } from './femChart.js';
-import { baseReactionTable, closedPmCurve, defaultChartResult, describeMode, elasticDriftLimit, orderLike, extremes, FEM_COLUMN_INTERACTION_COMMAND, FEM_MEMBER_FORCES_COMMAND, FEM_STORY_RESPONSE_COMMAND, FemAxis2, IFemColumnDiagram, IFemColumnShortening, IFemPushoverCurve, IFemColumnInteraction, IFemMemberForces, IFemNonlinearHistory, IFemStoryResponse, IFemStoryResult, IFemTimeHistoryDesign, isEarthquakeResult, MemberComponent, memberEnvelope, memberValues, modalTable, modesToReach, profilePeak, spectrumAt, storeyProfile, StoreyQuantity, storeyQuantityLabel, STOREY_QUANTITIES } from './femChartData.js';
+import { baseReactionTable, closedPmCurve, defaultChartResult, describeMode, elasticDriftLimit, orderLike, extremes, FEM_COLUMN_INTERACTION_COMMAND, FEM_MEMBER_FORCES_COMMAND, FEM_STORY_RESPONSE_COMMAND, FemAxis2, IFemColumnDiagram, IFemColumnShortening, hingeRowsOf, IFemHingeRow, IFemPushoverAcceptance, IFemPushoverCurve, IFemPushoverTarget, IFemColumnInteraction, IFemMemberForces, IFemNonlinearHistory, IFemStoryResponse, IFemStoryResult, IFemTimeHistoryDesign, isEarthquakeResult, MemberComponent, memberEnvelope, memberValues, modalTable, modesToReach, profilePeak, spectrumAt, storeyProfile, StoreyQuantity, storeyQuantityLabel, STOREY_QUANTITIES } from './femChartData.js';
 import { IFemDesignRequired, IFemSteelRequirement, resultsFolder, runDesignRequired } from './femDesign.js';
 import { appendPlannedChips, FemPlanned } from './femPlannedFeatures.js';
 import { errorSummary, FEM_RESULT_LIST_COMMAND, IFemRunTracker } from './femResultsBar.js';
@@ -623,8 +623,15 @@ export class FemResultsEditor extends EditorPane {
 		const guides: { axis: 'x'; value: number; label: string; color?: ChartColor }[] = [];
 		if (target?.bilinear && target.target !== undefined) {
 			series.push({ name: localize('femResults.bilinear', "Bilinear fit"), color: 'orange', style: 'dashed', points: target.bilinear.map(p => [(start + p[0]) * length, p[1] * force]) });
-			guides.push({ axis: 'x', value: (start + target.target) * length, label: localize('femResults.targetMark', "δt"), color: 'red' });
-			if (target.noDropTo !== undefined) {
+			// P3: FEMA 440 finds a performance point; the other methods a target displacement.
+			const mark = target.method === 'equivalentLinearization' ? localize('femResults.performanceMark', "performance point") : localize('femResults.targetMark', "δt");
+			guides.push({ axis: 'x', value: (start + target.target) * length, label: target.hazards?.length ? `${mark} ${target.hazards[0].id}` : mark, color: 'red' });
+			for (const hazard of (target.hazards ?? []).slice(1)) {
+				if (!hazard.beyondCurve) {
+					guides.push({ axis: 'x', value: (start + hazard.target) * length, label: `δt ${hazard.id}`, color: 'red' });
+				}
+			}
+			if (target.noDropTo !== undefined && target.noDropTo !== null) {
 				guides.push({ axis: 'x', value: (start + target.noDropTo) * length, label: localize('femResults.noDropMark', "no drop"), color: 'foreground' });
 			}
 			if (target.required !== undefined) {
@@ -649,7 +656,7 @@ export class FemResultsEditor extends EditorPane {
 			renderSheet(section, {
 				name: localize('femResults.targetTable', "Target displacement"),
 				columns: [localize('femResults.quantityCol', "Quantity"), localize('femResults.valueCol', "Value"), localize('femResults.clauseCol', "Clause")],
-				rows: [
+				rows: target.method !== undefined && target.method !== 'coefficient' ? this.otherTargetRows(target) : [
 					[localize('femResults.t1', "Period of the first increment T1 [s]"), value(target.T1, 3), ''],
 					[localize('femResults.vy', "Effective yield strength Vy"), this.format('force', target.Vy ?? 0), ''],
 					[localize('femResults.dy', "Effective yield displacement δy"), this.format('length', target.dy ?? 0), ''],
@@ -666,7 +673,10 @@ export class FemResultsEditor extends EditorPane {
 			});
 		}
 		const acceptance = curve.acceptance;
-		if (acceptance?.available && acceptance.rows) {
+		const hinges = hingeRowsOf(acceptance);
+		if (acceptance && hinges) {
+			this.renderHinges(section, acceptance, hinges);
+		} else if (acceptance?.available && acceptance.rows) {
 			const yes = localize('femResults.yes', "yes"), no = localize('femResults.no', "no");
 			const kinds: { [kind: string]: string } = {
 				concrete: localize('femResults.fibreConcrete', "concrete"),
@@ -682,8 +692,96 @@ export class FemResultsEditor extends EditorPane {
 		} else if (acceptance && !acceptance.available) {
 			append(section, $('.fem-results-note', undefined, localize('femResults.noAcceptance', "No member acceptance: {0}", acceptance.reason ?? '')));
 		}
-		// What stays planned: the performance levels and other target displacement methods.
-		this.renderStore.add(appendPlannedChips(section, undefined, [FemPlanned.performancePoint, FemPlanned.pushoverHinges, FemPlanned.fibreWalls], this.commandService));
+		// What stays planned: walls with openings as nonlinear piers and spandrels.
+		this.renderStore.add(appendPlannedChips(section, undefined, [FemPlanned.fibreWalls], this.commandService));
+	}
+
+	/** P3: the rows of a target displacement found by another method than `coefficient`. */
+	private otherTargetRows(target: IFemPushoverTarget): FemTableCell[][] {
+		const clauses = target.clauses ?? {};
+		const value = (v: number | undefined, digits: number) => v === undefined ? '' : v.toFixed(digits);
+		const yes = localize('femResults.yes', "yes"), no = localize('femResults.no', "no");
+		const rows: FemTableCell[][] = [[localize('femResults.t1', "Period of the first increment T1 [s]"), value(target.T1, 3), '']];
+		if (target.method === 'n2') {
+			rows.push(
+				[localize('femResults.gamma', "Transformation factor Γ"), value(target.Gamma, 3), clauses.sdof ?? ''],
+				[localize('femResults.mStar', "Equivalent mass m* [t]"), value(target.mStar === undefined ? undefined : target.mStar / 1e3, 1), clauses.sdof ?? ''],
+				[localize('femResults.fyStar', "Yield force Fy*"), this.format('force', target.FyStar ?? 0), clauses.idealisation ?? ''],
+				[localize('femResults.dyStar', "Yield displacement dy*"), this.format('length', target.dyStar ?? 0), clauses.idealisation ?? ''],
+				[localize('femResults.tStar', "Period T* [s]"), value(target.Tstar, 3), clauses.period ?? ''],
+				[localize('femResults.se', "Elastic spectral acceleration Se(T*) [g]"), value(target.Se, 3), ''],
+				[localize('femResults.det', "Elastic displacement det*"), this.format('length', target.det ?? 0), clauses.target ?? ''],
+				[localize('femResults.qu', "qu"), value(target.qu, 2), clauses.target ?? ''],
+				[localize('femResults.dtStar', "dt*"), this.format('length', target.dtStar ?? 0), clauses.target ?? ''],
+			);
+		} else {
+			rows.push(
+				[localize('femResults.vy', "Effective yield strength Vy"), this.format('force', target.Vy ?? 0), ''],
+				[localize('femResults.dy', "Effective yield displacement δy"), this.format('length', target.dy ?? 0), ''],
+				[localize('femResults.te', "Effective period Te [s]"), value(target.Te, 3), clauses.period ?? ''],
+				[localize('femResults.sa', "Spectral acceleration Sa(Te) [g]"), value(target.Sa, 3), ''],
+			);
+			if (target.method === 'displacementCoefficient') {
+				rows.push(
+					[localize('femResults.c0', "C0"), value(target.C0, 3), clauses.c0 ?? ''],
+					[localize('femResults.mu', "Strength ratio μ"), value(target.mu, 2), clauses.rd ?? ''],
+					[localize('femResults.c1Site', "C1 (site factor a = {0})", value(target.a, 0)), value(target.C1, 3), clauses.c1 ?? ''],
+					[localize('femResults.c2', "C2"), value(target.C2, 3), clauses.c2 ?? ''],
+					[localize('femResults.cm', "Cm"), value(target.Cm, 2), ''],
+				);
+			} else {
+				rows.push(
+					[localize('femResults.t0', "Initial period T0 [s]"), value(target.T0, 3), clauses.damping ?? ''],
+					[localize('femResults.ductility', "Ductility μ"), value(target.mu, 2), clauses.damping ?? ''],
+					[localize('femResults.beta', "Effective damping βeff [%]"), value(target.beta, 1), clauses.damping ?? ''],
+					[localize('femResults.reduction', "Spectral reduction B"), value(target.B, 3), clauses.damping ?? ''],
+					[localize('femResults.pf', "PF, α1"), `${value(target.PF, 3)}, ${value(target.alpha1, 3)}`, clauses.sdof ?? ''],
+				);
+			}
+		}
+		rows.push(
+			[target.method === 'equivalentLinearization' ? localize('femResults.performancePoint', "Performance point δt") : localize('femResults.dt', "Target displacement δt"), this.format('length', target.target ?? 0), clauses.target ?? ''],
+			[localize('femResults.pushedTo', "Pushed to (at least {0})", this.format('length', target.required ?? 0)), this.format('length', target.pushedTo ?? 0) + ' ' + (target.reached ? yes : no), clauses.pushTo ?? ''],
+		);
+		for (const hazard of (target.hazards ?? []).slice(1)) {
+			rows.push([localize('femResults.hazardTarget', "Target displacement at {0} ({1})", hazard.label || hazard.id, hazard.level), this.format('length', hazard.target) + (hazard.beyondCurve ? ' ' + localize('femResults.beyondCurve', "(beyond the curve)") : ''), clauses.hazards ?? '']);
+		}
+		return rows;
+	}
+
+	/**
+	 * P3: the hinges (`fem/hinges.py`) at the target displacement: each hazard level against its
+	 * performance level, and the hinges by their ratio to the level checked, with their state.
+	 */
+	private renderHinges(section: HTMLElement, acceptance: IFemPushoverAcceptance, rows: readonly IFemHingeRow[]): void {
+		const yes = localize('femResults.yes', "yes"), no = localize('femResults.no', "no");
+		const level = acceptance.checkedLevel ?? '';
+		const labels = new Map((acceptance.levels ?? []).map(l => [l.id, l.label]));
+		const hazards = acceptance.hazards ?? [];
+		if (hazards.length) {
+			renderSheet(section, {
+				name: localize('femResults.hazardTable', "Performance by hazard level"),
+				columns: [localize('femResults.hazardCol', "Hazard level"), localize('femResults.performanceLevelCol', "Performance level"), localize('femResults.failedCol', "Hinges exceeding"), localize('femResults.worstCol', "Largest ratio"), localize('femResults.okCol', "OK")],
+				rows: hazards.map(h => [h.label || h.id, labels.get(h.level) ?? h.level, h.available ? (h.failed ?? 0) : localize('femResults.notReached', "not reached"), h.worst === null || h.worst === undefined ? '' : Number(h.worst.toFixed(3)), h.ok === null || h.ok === undefined ? '' : h.ok ? yes : no]),
+			});
+		}
+		const covered = rows.filter(r => r.covered);
+		const failed = covered.filter(r => !r.ok).length;
+		const limit = (r: IFemHingeRow) => r.limits?.[level];
+		renderSheet(section, {
+			name: localize('femResults.hingeTable', "Hinges at the target displacement against {0} ({1} of {2} exceed it)", labels.get(level) ?? level, failed, covered.length),
+			columns: [
+				localize('femResults.hingeCol', "Hinge"), localize('femResults.componentCol', "Component"), localize('femResults.stateCol', "State"), localize('femResults.backboneCol', "Backbone"),
+				localize('femResults.demandCol', "Demand"), localize('femResults.limitCol', "Limit"), localize('femResults.ratioCol', "Ratio"), localize('femResults.okCol', "OK"),
+			],
+			rows: rows.map(r => r.covered
+				? [r.hinge, r.component, r.state ?? '', r.backbone ?? '', Number(r.demand.toPrecision(4)), limit(r) === undefined ? '' : Number(limit(r)!.toPrecision(4)), r.ratio === null ? '' : Number(r.ratio.toFixed(3)), r.ok ? yes : no]
+				: [r.hinge, r.component, localize('femResults.notCovered', "not covered"), '', Number(r.demand.toPrecision(4)), '', '', r.reason ?? '']),
+			notes: [
+				localize('femResults.hingeMeasure', "Demand and limit are in the hinge's own measure: plastic or chord rotation [rad] for concrete, multiples of θy (or of a brace's yield or buckling deformation) for steel, the storey drift ratio for walls controlled by shear. State: the lowest performance level the hinge still meets; backbone: B (not yielded), B-C (up to a), C-E (up to b), E+ (beyond b)."),
+				...(acceptance.clause ? [acceptance.clause] : []), ...(acceptance.notes ?? []), ...(acceptance.note ? [acceptance.note] : []),
+			],
+		});
 	}
 
 	private section(title: string, help?: string): HTMLElement {
