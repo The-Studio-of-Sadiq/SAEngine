@@ -284,7 +284,7 @@
       "flexureAngleLtb": "Sec F10.2",
       "flexureAngleLeg": "Sec F10.3(b)",
       "flexureAngleLegSlender": "Sec F10.3(c)",
-      "braceSlenderness": "Appendix 6 (the default pack's limit L/r 180, BNBC 2020 Sec 10.19.4)",
+      "braceSlenderness": "Appendix 6 (L/r 180 of stability braces: the default pack's limit, kept by SAEngine as a flag)",
       "eqTorsional": "Sec E4",
       "eqFlexuralTorsional": "Sec E4",
       "eqAngleEqual": "Sec F10.2",
@@ -295,14 +295,14 @@
       "interactionSection": "Sec H1.1",
       "unsymmetricEq": "Eq H2-1",
       "webLimit": "Sec F13.2",
-      "bracingColumnNodal": "BNBC 2020 Part 6 Sec 10.19.2.2 Eqs 6.10.287-288 (the default pack's bracing rules)",
-      "bracingColumnRelative": "BNBC 2020 Part 6 Sec 10.19.2.1 Eqs 6.10.285-286 (the default pack's bracing rules)",
-      "bracingBeamNodal": "BNBC 2020 Part 6 Sec 10.19.3.1(b) Eqs 6.10.291-292 (the default pack's bracing rules)",
+      "bracingColumnNodal": "Appendix 6, Sec 6.2.2, Eqs A-6-3, A-6-4",
+      "bracingColumnRelative": "Appendix 6, Sec 6.2.1, Eqs A-6-1, A-6-2",
+      "bracingBeamNodal": "Appendix 6, Sec 6.3.1b, Eqs A-6-7, A-6-8",
       "methodTension": "Tension: yielding Fy Ag (Sec D2(a)) and rupture Fu Ae (Sec D2(b)), Ae = An U (Table D3.1 defaults: I-shapes and tees 0.90 / 0.85 by bf >= 2/3 d, channels 0.85, angles 0.60, rectangular HSS 1 - x/l at l = H, round HSS 1 - 1/pi at l = D); An = Ag (welded ends) unless set.",
       "methodCompression": "Compression: flexural buckling (Sec E3), torsional and flexural-torsional buckling (Sec E4, tees by Fe of singly symmetric members), single angles by Sec E5, slender elements by the effective width method of Sec E7 (Table E7.1 c1, c2; round HSS Sec E7.2); K = 1.0 unless overridden, lengths between the brace points the analysis model shows.",
       "methodFlexure": "Flexure: Sections F2-F11 by shape (yielding, lateral-torsional buckling with Cb from the moment diagram, flange and web local buckling; tees by Lp, Lr and stem local buckling, Sec F9; rectangular HSS also lateral-torsional buckling, Sec F7.4); a slab braces the top flange.",
       "methodShear": "Shear: Chapter G (webs by Cv1 of Sec G2.1 with kv = 5.34 unstiffened; tension field action by Sec G2.2); combined forces: Sec H1.1 (Eqs H1-1a, H1-1b), moments amplified by B1 (Appendix 8).",
-      "methodConnections": "Steel connections (when the object type sets one): fin plate, shear end plate or brace gusset checked for the member's end shears or axial forces to AISC 360-22 Chapter J (bolts J3, bearing and tearout J3.10, block shear J4.3, welds J2, the Whitmore section); listed as 'Connection: ...' checks of the member. The analysis pins these member ends (no end moment); an end kept rigid is flagged as 'end moment at a simple connection'. Flange-plate moment connections (with the column flange, web and panel zone checks of Sec J10), cover-plate splices (Sec J6), column base plates on concrete (bearing Sec J8, anchor rods J9) and welded HSS joints (Chapter K) are checked the same way when the type sets them; also slip-critical bolts (Sec J3.8), end plates under axial tension (prying), the column stiffeners and doublers (Sec J10.8-J10.9), plates and cap plates on HSS and HSS moment connections (Chapter K, by the default pack's equations)."
+      "methodConnections": "Steel connections (when the object type sets one): fin plate, shear end plate or brace gusset checked for the member's end shears or axial forces to AISC 360-22 Chapter J (bolts J3, bearing and tearout J3.10, block shear J4.3, welds J2, the Whitmore section); listed as 'Connection: ...' checks of the member. The analysis pins these member ends (no end moment); an end kept rigid is flagged as 'end moment at a simple connection'. Flange-plate moment connections (with the column flange, web and panel zone checks of Sec J10), cover-plate splices (Sec J6), column base plates on concrete (bearing Sec J8, anchor rods J9) and welded HSS joints (Chapter K) are checked the same way when the type sets them; also slip-critical bolts (Sec J3.8), end plates under axial tension (prying), the column stiffeners and doublers (Sec J10.8-J10.9), plates and cap plates on HSS and HSS moment connections (Chapter K, Secs K2-K5)."
     }
   }
 }

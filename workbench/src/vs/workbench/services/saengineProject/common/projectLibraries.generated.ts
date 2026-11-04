@@ -915,6 +915,39 @@ export const MATERIALS_SCHEMA: IJSONSchema = {
 					title: 'Live load duration',
 					type: 'string',
 				},
+				referenceGrade: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Grade of the code pack\'s reference design values (e.g. No.2, Select Structural, a glulam stress class such as 24F-1.8E) when its timber method uses them; none: the pack\'s default grade. The species is the Species above.',
+					title: 'Reference grade',
+				},
+				incised: {
+					default: false,
+					description: 'Sawn lumber incised for preservative treatment (incising factor).',
+					title: 'Incised',
+					type: 'boolean',
+				},
+				temperature: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Sustained service temperature above normal [°C] (temperature factor); none: normal temperatures.',
+					title: 'Service temperature',
+				},
 			},
 			title: 'TimberProperties',
 			type: 'object',
@@ -6854,6 +6887,12 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 					],
 					default: null,
 					title: 'Spaced',
+				},
+				repetitive: {
+					default: false,
+					description: 'One of three or more members at most 610 mm apart joined by a load-distributing floor or roof (the repetitive member factor of a code pack that designs timber by reference design values).',
+					title: 'Repetitive',
+					type: 'boolean',
 				},
 			},
 			title: 'TimberMember',
@@ -17854,6 +17893,9 @@ export const TEMPLATES: { readonly [defName: string]: object } = {
 	},
 	FerrocementProperties: {
 		fc: 35,
+	},
+	AluminiumProperties: {
+		alloy: 'EN AW-6082 T6',
 	},
 	BambooMember: {},
 	BambooJoint: {

@@ -28,8 +28,6 @@ import math
 from collections.abc import Sequence
 from typing import Any
 
-import numpy as np
-
 from saengine.codes import context as code_context
 from saengine.design.timber.members import Section, TimberDesignError
 
@@ -327,14 +325,4 @@ def method_lines() -> list[str]:
     ]
 
 
-def strength_combination_factors(extra_factors: Any, count: int) -> list[dict[str, float]]:
-    """Each combination's ``{case: factor}`` from the run's demand data (``extra["factors"]``),
-    empty for those it lacks (their load duration is then permanent: the safe side)."""
-    out = []
-    for c in range(count):
-        f = extra_factors[c] if extra_factors and c < len(extra_factors) else {}
-        out.append({k: float(v) for k, v in (f or {}).items() if isinstance(v, (int, float))})
-    return out
-
-
-__all__ = ["active", "design_member", "method_lines", "np"]
+__all__ = ["active", "design_member", "method_lines"]

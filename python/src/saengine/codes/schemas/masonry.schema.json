@@ -1,5 +1,64 @@
 {
   "$defs": {
+    "MasonryAdditiveShear": {
+      "additionalProperties": false,
+      "description": "Alpha 9 C3b (TMS 402-22 Sec 8.3.5.1): Fv = Fvm + Fvs, Fvm = masonryFactor (first - slope\nM/(V dv)) √f'm + axialShare P/An, Fvs = steelShare ρh Fs; at most maxLow √f'm up to\nM/(V dv) = ratioLow and maxHigh √f'm from 1.0, linear between; fv = V / An [MPa].",
+      "properties": {
+        "masonryFactor": {
+          "exclusiveMinimum": 0,
+          "title": "Masonryfactor",
+          "type": "number"
+        },
+        "first": {
+          "exclusiveMinimum": 0,
+          "title": "First",
+          "type": "number"
+        },
+        "slope": {
+          "exclusiveMinimum": 0,
+          "title": "Slope",
+          "type": "number"
+        },
+        "axialShare": {
+          "minimum": 0,
+          "title": "Axialshare",
+          "type": "number"
+        },
+        "steelShare": {
+          "exclusiveMinimum": 0,
+          "title": "Steelshare",
+          "type": "number"
+        },
+        "ratioLow": {
+          "exclusiveMaximum": 1,
+          "minimum": 0,
+          "title": "Ratiolow",
+          "type": "number"
+        },
+        "maxLow": {
+          "exclusiveMinimum": 0,
+          "title": "Maxlow",
+          "type": "number"
+        },
+        "maxHigh": {
+          "exclusiveMinimum": 0,
+          "title": "Maxhigh",
+          "type": "number"
+        }
+      },
+      "required": [
+        "masonryFactor",
+        "first",
+        "slope",
+        "axialShare",
+        "steelShare",
+        "ratioLow",
+        "maxLow",
+        "maxHigh"
+      ],
+      "title": "MasonryAdditiveShear",
+      "type": "object"
+    },
     "MasonryAllowable": {
       "additionalProperties": false,
       "properties": {
@@ -83,6 +142,33 @@
           "exclusiveMinimum": 0,
           "title": "Columnsteelarea",
           "type": "number"
+        },
+        "longAbove": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "h'/t above which Fa = fmShare f'm (longCoefficient t / h')² (none: the formula above at every slenderness).",
+          "title": "Longabove"
+        },
+        "longCoefficient": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Longcoefficient"
         }
       },
       "required": [
@@ -287,6 +373,52 @@
         "values"
       ],
       "title": "MasonryAnchorTable",
+      "type": "object"
+    },
+    "MasonryAxialFriction": {
+      "additionalProperties": false,
+      "description": "Alpha 9 C3b (TMS 402-22 Sec 8.2.6.2): Fv of unreinforced masonry, the least of\nrootFactor √f'm, cap and base + friction × fa (groutedBase in running bond, solid grouted;\nstackBond in stack bond) [MPa].",
+      "properties": {
+        "rootFactor": {
+          "exclusiveMinimum": 0,
+          "title": "Rootfactor",
+          "type": "number"
+        },
+        "cap": {
+          "exclusiveMinimum": 0,
+          "title": "Cap",
+          "type": "number"
+        },
+        "base": {
+          "exclusiveMinimum": 0,
+          "title": "Base",
+          "type": "number"
+        },
+        "groutedBase": {
+          "exclusiveMinimum": 0,
+          "title": "Groutedbase",
+          "type": "number"
+        },
+        "friction": {
+          "exclusiveMinimum": 0,
+          "title": "Friction",
+          "type": "number"
+        },
+        "stackBond": {
+          "exclusiveMinimum": 0,
+          "title": "Stackbond",
+          "type": "number"
+        }
+      },
+      "required": [
+        "rootFactor",
+        "cap",
+        "base",
+        "groutedBase",
+        "friction",
+        "stackBond"
+      ],
+      "title": "MasonryAxialFriction",
       "type": "object"
     },
     "MasonryBandRow": {
@@ -1136,6 +1268,29 @@
           "title": "Emratio",
           "type": "number"
         },
+        "emRatioByUnit": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              },
+              "propertyNames": {
+                "enum": [
+                  "clay",
+                  "concrete"
+                ]
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Alpha 9 C3b: emRatio by the units (clay, concrete).",
+          "title": "Emratiobyunit"
+        },
         "emCap": {
           "description": "Em at most this [MPa].",
           "exclusiveMinimum": 0,
@@ -1764,6 +1919,27 @@
           "title": "Concrete",
           "type": "object"
         },
+        "method": {
+          "default": "byUnit",
+          "description": "``byUnit`` (clay by √f'm, concrete by mortar grade) or ``axialFriction`` (alpha 9 C3b: the least of √f'm, a cap and base + friction × fa).",
+          "enum": [
+            "byUnit",
+            "axialFriction"
+          ],
+          "title": "Method",
+          "type": "string"
+        },
+        "axialFriction": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MasonryAxialFriction"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "note": {
           "default": "",
           "title": "Note",
@@ -1896,6 +2072,27 @@
         },
         "reinforcement": {
           "$ref": "#/$defs/MasonryShearRow"
+        },
+        "method": {
+          "default": "alternative",
+          "description": "``alternative`` (the masonry or the reinforcement taking all the shear, fv = V/(t j d)) or ``additive`` (alpha 9 C3b: Fv = Fvm + Fvs, fv = V/An).",
+          "enum": [
+            "alternative",
+            "additive"
+          ],
+          "title": "Method",
+          "type": "string"
+        },
+        "additive": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MasonryAdditiveShear"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         }
       },
       "required": [
@@ -2214,6 +2411,21 @@
           "exclusiveMinimum": 0,
           "title": "Cap",
           "type": "number"
+        },
+        "reinforcedShare": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Fb of reinforced masonry = this × f'm (none: fmShare).",
+          "title": "Reinforcedshare"
         }
       },
       "required": [
@@ -2341,6 +2553,22 @@
           "exclusiveMinimum": 0,
           "title": "Cap",
           "type": "number"
+        },
+        "steps": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/MasonrySteelStep"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Alpha 9 C3b: the stress by grade (the first step whose fyMax the bar's fy does not exceed); none: fyShare × fy at most cap.",
+          "title": "Steps"
         }
       },
       "required": [
@@ -2348,6 +2576,37 @@
         "cap"
       ],
       "title": "MasonrySteelCap",
+      "type": "object"
+    },
+    "MasonrySteelStep": {
+      "additionalProperties": false,
+      "description": "Alpha 9 C3b: an allowable steel stress by grade: ``value`` for fy up to ``fyMax``.",
+      "properties": {
+        "fyMax": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "[MPa]; null: any above.",
+          "title": "Fymax"
+        },
+        "value": {
+          "description": "[MPa]",
+          "exclusiveMinimum": 0,
+          "title": "Value",
+          "type": "number"
+        }
+      },
+      "required": [
+        "fyMax",
+        "value"
+      ],
+      "title": "MasonrySteelStep",
       "type": "object"
     },
     "MasonryStiffening": {

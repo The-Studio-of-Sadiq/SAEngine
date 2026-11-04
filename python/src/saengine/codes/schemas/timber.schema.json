@@ -1,5 +1,78 @@
 {
   "$defs": {
+    "TimberBeamStability": {
+      "additionalProperties": false,
+      "description": "CL: le from lu (the generic rule for any load), RB = √(le d / b²) <= rbMax, FbE = fbe\nEmin' / RB², CL = (1 + α)/a - √(((1 + α)/a)² - α/b), α = FbE / Fb*.",
+      "properties": {
+        "shortRatio": {
+          "description": "lu/d below this: le = shortFactor lu.",
+          "exclusiveMinimum": 0,
+          "title": "Shortratio",
+          "type": "number"
+        },
+        "shortFactor": {
+          "exclusiveMinimum": 0,
+          "title": "Shortfactor",
+          "type": "number"
+        },
+        "longRatio": {
+          "description": "lu/d up to this: le = midFactor lu + midDepth d.",
+          "exclusiveMinimum": 0,
+          "title": "Longratio",
+          "type": "number"
+        },
+        "midFactor": {
+          "exclusiveMinimum": 0,
+          "title": "Midfactor",
+          "type": "number"
+        },
+        "midDepth": {
+          "exclusiveMinimum": 0,
+          "title": "Middepth",
+          "type": "number"
+        },
+        "longFactor": {
+          "description": "Above longRatio: le = longFactor lu.",
+          "exclusiveMinimum": 0,
+          "title": "Longfactor",
+          "type": "number"
+        },
+        "rbMax": {
+          "exclusiveMinimum": 0,
+          "title": "Rbmax",
+          "type": "number"
+        },
+        "fbe": {
+          "exclusiveMinimum": 0,
+          "title": "Fbe",
+          "type": "number"
+        },
+        "a": {
+          "exclusiveMinimum": 0,
+          "title": "A",
+          "type": "number"
+        },
+        "b": {
+          "exclusiveMinimum": 0,
+          "title": "B",
+          "type": "number"
+        }
+      },
+      "required": [
+        "shortRatio",
+        "shortFactor",
+        "longRatio",
+        "midFactor",
+        "midDepth",
+        "longFactor",
+        "rbMax",
+        "fbe",
+        "a",
+        "b"
+      ],
+      "title": "TimberBeamStability",
+      "type": "object"
+    },
     "TimberBearing": {
       "additionalProperties": false,
       "properties": {
@@ -293,6 +366,43 @@
       "title": "TimberColumn",
       "type": "object"
     },
+    "TimberColumnStability": {
+      "additionalProperties": false,
+      "description": "CP = (1 + α)/(2c) - √(((1 + α)/(2c))² - α/c), α = FcE / Fc*, FcE = fce Emin' /\n(le/d)²; c by product; le/d at most maxSlenderness.",
+      "properties": {
+        "fce": {
+          "exclusiveMinimum": 0,
+          "title": "Fce",
+          "type": "number"
+        },
+        "c": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "propertyNames": {
+            "enum": [
+              "sawn",
+              "glulam"
+            ]
+          },
+          "title": "C",
+          "type": "object"
+        },
+        "maxSlenderness": {
+          "exclusiveMinimum": 0,
+          "title": "Maxslenderness",
+          "type": "number"
+        }
+      },
+      "required": [
+        "fce",
+        "c",
+        "maxSlenderness"
+      ],
+      "title": "TimberColumnStability",
+      "type": "object"
+    },
     "TimberConnectors": {
       "additionalProperties": false,
       "properties": {
@@ -477,6 +587,168 @@
       "title": "TimberDepthFactor",
       "type": "object"
     },
+    "TimberDowels": {
+      "additionalProperties": false,
+      "description": "Dowel-type fasteners (yield limit equations): dowel bearing strengths Fe = parallel × G\n(D >= ``smallDiameter``), perpendicular × G^perpendicularExponent / √D (D in in.), small\ndowels small × G^smallExponent; Fyb by fastener; the reduction terms Rd; steel side plates\nFe = steelShare × Fu; group action γ; the geometry factor by end distance.",
+      "properties": {
+        "smallDiameter": {
+          "description": "[mm]",
+          "exclusiveMinimum": 0,
+          "title": "Smalldiameter",
+          "type": "number"
+        },
+        "parallel": {
+          "exclusiveMinimum": 0,
+          "title": "Parallel",
+          "type": "number"
+        },
+        "perpendicular": {
+          "exclusiveMinimum": 0,
+          "title": "Perpendicular",
+          "type": "number"
+        },
+        "perpendicularExponent": {
+          "exclusiveMinimum": 0,
+          "title": "Perpendicularexponent",
+          "type": "number"
+        },
+        "small": {
+          "exclusiveMinimum": 0,
+          "title": "Small",
+          "type": "number"
+        },
+        "smallExponent": {
+          "exclusiveMinimum": 0,
+          "title": "Smallexponent",
+          "type": "number"
+        },
+        "boltFyb": {
+          "description": "In the table's units.",
+          "exclusiveMinimum": 0,
+          "title": "Boltfyb",
+          "type": "number"
+        },
+        "nailFyb": {
+          "description": "[[diameter up to (mm), Fyb], ...].",
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              },
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "title": "Nailfyb",
+          "type": "array"
+        },
+        "rdLarge": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "description": "Rd / Kθ of D >= smallDiameter by mode group: I, II, III (III and IV).",
+          "title": "Rdlarge",
+          "type": "object"
+        },
+        "kTheta": {
+          "description": "Kθ = 1 + this × θ/90°.",
+          "exclusiveMinimum": 0,
+          "title": "Ktheta",
+          "type": "number"
+        },
+        "rdSmall": {
+          "description": "KD of small dowels: [up to (mm), KD there, a] with KD = a D (in.) + 0.5 above.",
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Rdsmall",
+          "type": "array"
+        },
+        "groupGamma": {
+          "description": "Load/slip modulus γ = this × D^1.5 (lb/in, in.).",
+          "exclusiveMinimum": 0,
+          "title": "Groupgamma",
+          "type": "number"
+        },
+        "endFull": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "description": "End distance for CΔ = 1, in diameters: tensionSoftwood, tensionHardwood, compression.",
+          "title": "Endfull",
+          "type": "object"
+        },
+        "endMin": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "description": "End distance for CΔ = 0.5 (the least).",
+          "title": "Endmin",
+          "type": "object"
+        },
+        "spacingFull": {
+          "description": "Spacing in a row for CΔ = 1, in diameters.",
+          "exclusiveMinimum": 0,
+          "title": "Spacingfull",
+          "type": "number"
+        },
+        "spacingMin": {
+          "description": "Least spacing in a row, in diameters.",
+          "exclusiveMinimum": 0,
+          "title": "Spacingmin",
+          "type": "number"
+        },
+        "wetService": {
+          "description": "CM of the lateral values in wet service.",
+          "exclusiveMinimum": 0,
+          "title": "Wetservice",
+          "type": "number"
+        }
+      },
+      "required": [
+        "smallDiameter",
+        "parallel",
+        "perpendicular",
+        "perpendicularExponent",
+        "small",
+        "smallExponent",
+        "boltFyb",
+        "nailFyb",
+        "rdLarge",
+        "kTheta",
+        "rdSmall",
+        "groupGamma",
+        "endFull",
+        "endMin",
+        "spacingFull",
+        "spacingMin",
+        "wetService"
+      ],
+      "title": "TimberDowels",
+      "type": "object"
+    },
     "TimberDuration": {
       "additionalProperties": false,
       "properties": {
@@ -514,6 +786,47 @@
         "impact"
       ],
       "title": "TimberDuration",
+      "type": "object"
+    },
+    "TimberFlatUseRow": {
+      "additionalProperties": false,
+      "description": "Cfu of dimension lumber on its wide face up to a width [mm], by thickness.",
+      "properties": {
+        "widthMax": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "[mm]; null: any wider.",
+          "title": "Widthmax"
+        },
+        "factor": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Factor",
+          "type": "array"
+        }
+      },
+      "required": [
+        "widthMax",
+        "factor"
+      ],
+      "title": "TimberFlatUseRow",
       "type": "object"
     },
     "TimberFlexure": {
@@ -977,6 +1290,78 @@
       "title": "TimberLowDurability",
       "type": "object"
     },
+    "TimberLrfd": {
+      "additionalProperties": false,
+      "description": "The LRFD format: KF and φ by value; connections KF, φz; the time effect factor λ.",
+      "properties": {
+        "KF": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "propertyNames": {
+            "enum": [
+              "Fb",
+              "Ft",
+              "Fv",
+              "Fcp",
+              "Fc",
+              "E",
+              "Emin"
+            ]
+          },
+          "title": "Kf",
+          "type": "object"
+        },
+        "phi": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "propertyNames": {
+            "enum": [
+              "Fb",
+              "Ft",
+              "Fv",
+              "Fcp",
+              "Fc",
+              "E",
+              "Emin"
+            ]
+          },
+          "title": "Phi",
+          "type": "object"
+        },
+        "connectionKF": {
+          "exclusiveMinimum": 0,
+          "title": "Connectionkf",
+          "type": "number"
+        },
+        "connectionPhi": {
+          "exclusiveMinimum": 0,
+          "title": "Connectionphi",
+          "type": "number"
+        },
+        "timeEffect": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "description": "λ: ``dead`` (dead load alone), ``roof`` (roof live, snow, rain governing), ``lateral`` (wind or earthquake), and per live load duration (continuous, twoMonths, sevenDays, impact) when the live load governs.",
+          "title": "Timeeffect",
+          "type": "object"
+        }
+      },
+      "required": [
+        "KF",
+        "phi",
+        "connectionKF",
+        "connectionPhi",
+        "timeEffect"
+      ],
+      "title": "TimberLrfd",
+      "type": "object"
+    },
     "TimberNailSize": {
       "additionalProperties": false,
       "properties": {
@@ -1204,6 +1589,437 @@
         "q"
       ],
       "title": "TimberPlank",
+      "type": "object"
+    },
+    "TimberReference": {
+      "additionalProperties": false,
+      "description": "Reference design values and their adjustment factors (the ``referenceDesign`` method).",
+      "properties": {
+        "units": {
+          "description": "The unit of the stresses below, e.g. psi.",
+          "title": "Units",
+          "type": "string"
+        },
+        "toMPa": {
+          "description": "× this gives MPa.",
+          "exclusiveMinimum": 0,
+          "title": "Tompa",
+          "type": "number"
+        },
+        "format": {
+          "default": "ASD",
+          "description": "ASD (allowable stress combinations, CD) or LRFD (strength combinations, KF, φ, λ).",
+          "enum": [
+            "ASD",
+            "LRFD"
+          ],
+          "title": "Format",
+          "type": "string"
+        },
+        "defaultSpecies": {
+          "title": "Defaultspecies",
+          "type": "string"
+        },
+        "defaultGrade": {
+          "title": "Defaultgrade",
+          "type": "string"
+        },
+        "species": {
+          "additionalProperties": {
+            "$ref": "#/$defs/TimberReferenceSpecies"
+          },
+          "minProperties": 1,
+          "title": "Species",
+          "type": "object"
+        },
+        "sizeClasses": {
+          "$ref": "#/$defs/TimberSizeClasses"
+        },
+        "sizeFactors": {
+          "additionalProperties": {
+            "items": {
+              "$ref": "#/$defs/TimberSizeFactorRow"
+            },
+            "type": "array"
+          },
+          "description": "CF of dimension lumber by grade group: ``default`` and the groups of ``sizeFactorGroups``.",
+          "title": "Sizefactors",
+          "type": "object"
+        },
+        "sizeFactorGroups": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Grade -> its CF group (else ``default``).",
+          "title": "Sizefactorgroups",
+          "type": "object"
+        },
+        "flatUse": {
+          "items": {
+            "$ref": "#/$defs/TimberFlatUseRow"
+          },
+          "title": "Flatuse",
+          "type": "array"
+        },
+        "volume": {
+          "$ref": "#/$defs/TimberVolumeFactor"
+        },
+        "wetService": {
+          "additionalProperties": {
+            "$ref": "#/$defs/TimberWetService"
+          },
+          "propertyNames": {
+            "enum": [
+              "dimension",
+              "beamsStringers",
+              "postsTimbers",
+              "glulam"
+            ]
+          },
+          "title": "Wetservice",
+          "type": "object"
+        },
+        "temperature": {
+          "items": {
+            "$ref": "#/$defs/TimberTemperatureRow"
+          },
+          "minItems": 1,
+          "title": "Temperature",
+          "type": "array"
+        },
+        "incising": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "propertyNames": {
+            "enum": [
+              "Fb",
+              "Ft",
+              "Fv",
+              "Fcp",
+              "Fc",
+              "E",
+              "Emin"
+            ]
+          },
+          "title": "Incising",
+          "type": "object"
+        },
+        "repetitive": {
+          "exclusiveMinimum": 0,
+          "title": "Repetitive",
+          "type": "number"
+        },
+        "duration": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "description": "CD by load case (the longest prefix of the case's name): a number, or ``live`` (the material's live load duration, ``liveDuration``).",
+          "title": "Duration",
+          "type": "object"
+        },
+        "liveDuration": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "description": "CD of the live load by the material's live load duration.",
+          "title": "Liveduration",
+          "type": "object"
+        },
+        "lrfd": {
+          "$ref": "#/$defs/TimberLrfd"
+        },
+        "beamStability": {
+          "$ref": "#/$defs/TimberBeamStability"
+        },
+        "columnStability": {
+          "$ref": "#/$defs/TimberColumnStability"
+        },
+        "bearingArea": {
+          "description": "Cb = (lb + a) / lb for bearings shorter than b [mm]: [a, b].",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Bearingarea",
+          "type": "array"
+        },
+        "dowels": {
+          "$ref": "#/$defs/TimberDowels"
+        }
+      },
+      "required": [
+        "units",
+        "toMPa",
+        "defaultSpecies",
+        "defaultGrade",
+        "species",
+        "sizeClasses",
+        "sizeFactors",
+        "flatUse",
+        "volume",
+        "wetService",
+        "temperature",
+        "incising",
+        "repetitive",
+        "duration",
+        "liveDuration",
+        "lrfd",
+        "beamStability",
+        "columnStability",
+        "bearingArea",
+        "dowels"
+      ],
+      "title": "TimberReference",
+      "type": "object"
+    },
+    "TimberReferenceSpecies": {
+      "additionalProperties": false,
+      "description": "A species combination (sawn lumber) or a glued laminated timber stress class.",
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "product": {
+          "default": "sawn",
+          "enum": [
+            "sawn",
+            "glulam"
+          ],
+          "title": "Product",
+          "type": "string"
+        },
+        "G": {
+          "description": "Specific gravity (connections).",
+          "exclusiveMinimum": 0,
+          "title": "G",
+          "type": "number"
+        },
+        "grades": {
+          "additionalProperties": {
+            "additionalProperties": {
+              "$ref": "#/$defs/TimberReferenceValues"
+            },
+            "propertyNames": {
+              "enum": [
+                "dimension",
+                "beamsStringers",
+                "postsTimbers",
+                "glulam"
+              ]
+            },
+            "type": "object"
+          },
+          "minProperties": 1,
+          "title": "Grades",
+          "type": "object"
+        },
+        "source": {
+          "default": "",
+          "title": "Source",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "G",
+        "grades"
+      ],
+      "title": "TimberReferenceSpecies",
+      "type": "object"
+    },
+    "TimberReferenceValues": {
+      "additionalProperties": false,
+      "description": "Reference design values of one grade and size class, in the table's ``units``: Fb\nbending (glulam: tension zone stressed in tension), Ft tension and Fc compression parallel\nto the grain, Fv shear, Fcp compression perpendicular to the grain, E and Emin.",
+      "properties": {
+        "Fb": {
+          "exclusiveMinimum": 0,
+          "title": "Fb",
+          "type": "number"
+        },
+        "Ft": {
+          "exclusiveMinimum": 0,
+          "title": "Ft",
+          "type": "number"
+        },
+        "Fv": {
+          "exclusiveMinimum": 0,
+          "title": "Fv",
+          "type": "number"
+        },
+        "Fcp": {
+          "exclusiveMinimum": 0,
+          "title": "Fcp",
+          "type": "number"
+        },
+        "Fc": {
+          "exclusiveMinimum": 0,
+          "title": "Fc",
+          "type": "number"
+        },
+        "E": {
+          "exclusiveMinimum": 0,
+          "title": "E",
+          "type": "number"
+        },
+        "Emin": {
+          "exclusiveMinimum": 0,
+          "title": "Emin",
+          "type": "number"
+        },
+        "FbNegative": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Glulam: Fb with the compression zone stressed in tension.",
+          "title": "Fbnegative"
+        },
+        "Fby": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Bending about the weak axis.",
+          "title": "Fby"
+        }
+      },
+      "required": [
+        "Fb",
+        "Ft",
+        "Fv",
+        "Fcp",
+        "Fc",
+        "E",
+        "Emin"
+      ],
+      "title": "TimberReferenceValues",
+      "type": "object"
+    },
+    "TimberSizeClasses": {
+      "additionalProperties": false,
+      "description": "How a sawn section's size class is found [mm]: thickness up to ``dimensionMax`` is\ndimension lumber; thicker, beams and stringers when the depth exceeds the thickness by more\nthan ``beamsExcess``, else posts and timbers.",
+      "properties": {
+        "dimensionMax": {
+          "exclusiveMinimum": 0,
+          "title": "Dimensionmax",
+          "type": "number"
+        },
+        "beamsExcess": {
+          "exclusiveMinimum": 0,
+          "title": "Beamsexcess",
+          "type": "number"
+        },
+        "thinMax": {
+          "description": "Dimension lumber up to this thick: the first CF of Fb.",
+          "exclusiveMinimum": 0,
+          "title": "Thinmax",
+          "type": "number"
+        },
+        "timberDepth": {
+          "description": "Timbers deeper than this: CF = (this/d)^(1/x).",
+          "exclusiveMinimum": 0,
+          "title": "Timberdepth",
+          "type": "number"
+        },
+        "timberExponent": {
+          "description": "x of the timbers' CF.",
+          "exclusiveMinimum": 0,
+          "title": "Timberexponent",
+          "type": "number"
+        }
+      },
+      "required": [
+        "dimensionMax",
+        "beamsExcess",
+        "thinMax",
+        "timberDepth",
+        "timberExponent"
+      ],
+      "title": "TimberSizeClasses",
+      "type": "object"
+    },
+    "TimberSizeFactorRow": {
+      "additionalProperties": false,
+      "description": "CF of dimension lumber up to a depth (wide face) [mm]: Fb by thickness (up to\n``thinMax``, above), Ft, Fc.",
+      "properties": {
+        "depthMax": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "[mm]; null: any deeper.",
+          "title": "Depthmax"
+        },
+        "Fb": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Fb",
+          "type": "array"
+        },
+        "Ft": {
+          "exclusiveMinimum": 0,
+          "title": "Ft",
+          "type": "number"
+        },
+        "Fc": {
+          "exclusiveMinimum": 0,
+          "title": "Fc",
+          "type": "number"
+        }
+      },
+      "required": [
+        "depthMax",
+        "Fb",
+        "Ft",
+        "Fc"
+      ],
+      "title": "TimberSizeFactorRow",
       "type": "object"
     },
     "TimberSlope": {
@@ -1547,6 +2363,152 @@
       ],
       "title": "TimberStrengthClass",
       "type": "object"
+    },
+    "TimberTemperatureRow": {
+      "additionalProperties": false,
+      "description": "Ct up to a service temperature [°C], dry and wet, by value.",
+      "properties": {
+        "tMax": {
+          "exclusiveMinimum": 0,
+          "title": "Tmax",
+          "type": "number"
+        },
+        "dry": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "propertyNames": {
+            "enum": [
+              "Fb",
+              "Ft",
+              "Fv",
+              "Fcp",
+              "Fc",
+              "E",
+              "Emin"
+            ]
+          },
+          "title": "Dry",
+          "type": "object"
+        },
+        "wet": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "propertyNames": {
+            "enum": [
+              "Fb",
+              "Ft",
+              "Fv",
+              "Fcp",
+              "Fc",
+              "E",
+              "Emin"
+            ]
+          },
+          "title": "Wet",
+          "type": "object"
+        }
+      },
+      "required": [
+        "tMax",
+        "dry",
+        "wet"
+      ],
+      "title": "TimberTemperatureRow",
+      "type": "object"
+    },
+    "TimberVolumeFactor": {
+      "additionalProperties": false,
+      "description": "Glulam CV = (length/L)^(1/x) (depth/d)^(1/x) (width/b)^(1/x) <= 1 [mm].",
+      "properties": {
+        "length": {
+          "exclusiveMinimum": 0,
+          "title": "Length",
+          "type": "number"
+        },
+        "depth": {
+          "exclusiveMinimum": 0,
+          "title": "Depth",
+          "type": "number"
+        },
+        "width": {
+          "exclusiveMinimum": 0,
+          "title": "Width",
+          "type": "number"
+        },
+        "exponent": {
+          "exclusiveMinimum": 0,
+          "title": "Exponent",
+          "type": "number"
+        }
+      },
+      "required": [
+        "length",
+        "depth",
+        "width",
+        "exponent"
+      ],
+      "title": "TimberVolumeFactor",
+      "type": "object"
+    },
+    "TimberWetService": {
+      "additionalProperties": false,
+      "description": "CM of one size class by value, and the thresholds below which CM of Fb and Fc is 1\n(dimension lumber: Fb CF and Fc CF in the table's units).",
+      "properties": {
+        "factors": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "propertyNames": {
+            "enum": [
+              "Fb",
+              "Ft",
+              "Fv",
+              "Fcp",
+              "Fc",
+              "E",
+              "Emin"
+            ]
+          },
+          "title": "Factors",
+          "type": "object"
+        },
+        "fbExempt": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Fbexempt"
+        },
+        "fcExempt": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Fcexempt"
+        }
+      },
+      "required": [
+        "factors"
+      ],
+      "title": "TimberWetService",
+      "type": "object"
     }
   },
   "additionalProperties": false,
@@ -1654,12 +2616,25 @@
     },
     "method": {
       "default": "permissibleStress",
+      "description": "Timber members by ``permissibleStress`` (the stresses above, K factors), ``referenceDesign`` (the ``reference`` values times their adjustment factors) or ``partialFactors`` (strength classes, kmod and γM, the ``limitState`` data).",
       "enum": [
         "permissibleStress",
+        "referenceDesign",
         "partialFactors"
       ],
       "title": "Method",
       "type": "string"
+    },
+    "reference": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/TimberReference"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
     },
     "limitState": {
       "anyOf": [

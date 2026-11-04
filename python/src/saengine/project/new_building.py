@@ -36,6 +36,8 @@ SYSTEMS = {
     "rcFrameCore": "rcFrameWithWalls",
     "flatSlab": "flatSlab",
     "masonry": "masonry",
+    "steelMomentFrame": "steelMomentFrame",
+    "steelBracedFrame": "steelBracedFrame",
 }
 
 #: Parts the generator does not write: folder -> (main file, part id) or None (folder only).
@@ -113,7 +115,7 @@ def spec_from_wizard(spec: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
             raise NewBuildingError(f"unknown structural system '{system}'")
         out["system"] = SYSTEMS[system]
     materials = spec.get("materials") or {}
-    for key in ("concrete", "rebar"):
+    for key in ("concrete", "rebar", "steel"):
         if materials.get(key):
             out[key] = materials[key]
     footing = spec.get("footing")

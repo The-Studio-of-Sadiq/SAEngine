@@ -1435,9 +1435,7 @@ def _design_run(
 
     timber_seen = False
     if timber_todo:
-        timber_seen = _design_timber(
-            timber_todo, service, checked, skipped, notes, project, combinations, extra
-        )
+        timber_seen = _design_timber(timber_todo, service, checked, skipped, notes, project)
     if b39_todo:
         _design_b39(b39_todo, combinations, service, checked, skipped, notes)
     for type_id, (section, _) in {**beam_sections, **column_sections}.items():
@@ -1646,15 +1644,13 @@ def _design_timber(
     skipped: list[dict[str, Any]],
     notes: list[str],
     project: dict[str, Any] | None = None,
-    combinations: list[str] | None = None,
-    extra: dict[str, Any] | None = None,
 ) -> bool:
     """T45 integrator glue: the timber members of ``todo`` (``(id, object type, material,
     pieces, turned)``) under the code pack's allowable stress combinations, formed from the
     analysis's per-case forces in ``service`` (:func:`_demands`' ``extra["service"]``); their
     entries go to ``checked``, the members that cannot be checked to ``skipped``. True when a
     member was checked. Alpha 9 C6: a pack whose timber method is ``partialFactors`` designs
-    them under the run's ultimate ``combinations`` (their factors from ``extra``) instead."""
+    them under its strength combinations formed the same way (each one's factors give kmod)."""
     from saengine.design import timber as timber_design
     from saengine.design.timber import limit_state as timber_limit_state
 
@@ -1663,35 +1659,33 @@ def _design_timber(
             {"id": member_id, "kind": object_type.kind, "type": object_type.id, "reason": reason}
         )
 
-    if timber_limit_state.active():
-        names = list(combinations or [])
-        factors = timber_limit_state.strength_combination_factors(
-            (extra or {}).get("factors"), len(names)
-        )
-        seen = False
-        for member_id, object_type, material, own, turned in todo:
-            if not names:
-                skip(member_id, object_type, "no load combination could be formed")
-                continue
-            try:
-                entry = timber_limit_state.design_member(
-                    member_id, object_type.kind, object_type, material, own, names, factors,
-                    turned,
-                )  # fmt: skip
-            except timber_design.TimberDesignError as error:
-                skip(member_id, object_type, str(error))
-                continue
-            checked.append(entry)
-            seen = True
-        return seen
-
-    case_forces, names, factors, reason = _allowable_forces(service, notes, "timber")
+    # Alpha 9 C3b: a pack's timber method in the LRFD format takes the strength combinations;
+    # alpha 9 C6: so does the limit state method (partial factors, kmod by each combination).
+    by_limit_state = timber_limit_state.active()
+    case_forces, names, factors, reason = _allowable_forces(
+        service,
+        notes,
+        "timber",
+        "strength" if by_limit_state else timber_design.combination_set(),
+    )
     if reason:
         for member_id, object_type, *_ in todo:
             skip(member_id, object_type, f"timber not checked: {reason}")
         return False
     seen = False
     for member_id, object_type, material, own, turned in todo:
+        if by_limit_state:
+            try:
+                entry = timber_limit_state.design_member(
+                    member_id, object_type.kind, object_type, material,
+                    timber_design.asd_pieces(own, case_forces, factors), names, factors, turned,
+                )  # fmt: skip
+            except timber_design.TimberDesignError as error:
+                skip(member_id, object_type, str(error))
+                continue
+            checked.append(entry)
+            seen = True
+            continue
         try:
             entry = timber_design.design_timber_member(
                 member_id,
@@ -1759,19 +1753,25 @@ def _steel_asd(
 
 
 def _allowable_forces(
-    service: dict[str, Any], notes: list[str], what: str
+    service: dict[str, Any], notes: list[str], what: str, category: str = "allowable"
 ) -> tuple[dict[str, Any], list[str], list[dict[str, float]], str]:
     """The analysis's per-case forces in ``service`` (:func:`_demands`' ``extra["service"]``)
     and the code pack's allowable stress combinations formed from them, ``(case forces, names,
     factors, "")``; the combinations whose wind or earthquake cases have no results are left out
-    (a note for ``what`` says so). With no combinations or forces the reason is the last item."""
-    from saengine.fem.combinations import allowable_combinations
+    (a note for ``what`` says so). With no combinations or forces the reason is the last item.
+    Alpha 9 C3b: ``category`` "strength" forms the strength combinations instead."""
+    from saengine.fem.combinations import allowable_combinations, strength_combinations
 
     case_forces = {**(service.get("forces") or {}), **(service.get("lateralForces") or {})}
-    formed = allowable_combinations(set(case_forces) | {"SD", "L", "Lr"})
+    form = strength_combinations if category == "strength" else allowable_combinations
+    formed = form(set(case_forces) | {"SD", "L", "Lr"})
     if not formed or not case_forces:
         reason = (
-            "the code pack has no allowable stress combinations"
+            (
+                "the code pack has no strength combinations"
+                if category == "strength"
+                else "the code pack has no allowable stress combinations"
+            )
             if not formed
             else "the load cases' forces were not found"
         )
@@ -1784,8 +1784,8 @@ def _allowable_forces(
     left_out = len(formed) - len(usable)
     if left_out:
         notes.append(
-            f"{what}: {left_out} allowable stress combinations left out (their wind or "
-            "earthquake cases have no results)"
+            f"{what}: {left_out} {'strength' if category == 'strength' else 'allowable stress'} "
+            "combinations left out (their wind or earthquake cases have no results)"
         )
     return case_forces, [n for n, _ in usable], [f for _, f in usable], ""
 

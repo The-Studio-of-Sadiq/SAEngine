@@ -2,11 +2,15 @@
 
 The built-in US pack. This version covers the **loads** of ASCE/SEI 7-22 (alpha 9, track C1)
 and **structural concrete** of ACI 318-19 (track C2), **structural steel** of AISC 360-22 and
-AISC 341-22 and the strength design of **masonry** of TMS 402-22 (track C3); timber (NDS) is a
-later track. The pack extends `bnbc2020`: every table or value it does not give (timber,
-masonry by allowable stresses, the steel and masonry rules it does not revise, the geotechnical
-tables, the building services, dead load unit weights ...) is BNBC 2020's, and the report and
-the design notes cite those as BNBC 2020's.
+AISC 341-22 and the strength design of **masonry** of TMS 402-22 (track C3), and (track C3b)
+**timber** by the NDS 2018, **masonry** by allowable stresses (TMS 402-22 Chapter 8, the
+default masonry method), the rest of AISC 360-22 (built-up members, stability bracing,
+ponding, tension field stiffeners, HSS connections, fatigue) and of AISC 341-22 (moment frame
+connections and panel zones, links, BRBF, SPSW, composite systems) and the steel systems of
+the New Building generator. The pack extends `bnbc2020`: every table or value it does not give
+(the masonry empirical and seismic rules, the geotechnical tables, the building services, dead
+load unit weights ...) is BNBC 2020's, and the report and the design notes cite those as BNBC
+2020's.
 
 Each table's clause references are named after the code they come from (`tableCodes` in
 `pack.json`): the concrete tables "ACI 318-19", the load clauses "ASCE 7-22", the steel tables
@@ -54,6 +58,32 @@ members and their connections by Rn / Ω under the ASD combinations of ASCE 7-22
 composite members, the members of a steel seismic force-resisting system and runs by the
 direct analysis method stay LRFD (the report says so). Steel shapes are SAEngine's own shape
 list, not the AISC shapes database (owner).
+
+### Timber, masonry ASD, the steel remainder and the generator (C3b)
+
+| File | What it holds | Clauses |
+| --- | --- | --- |
+| `timber.json` | method `referenceDesign`: reference design values (psi) of Douglas Fir-Larch, Hem-Fir, Spruce-Pine-Fir and two glulam stress classes; CD, CM, Ct, Ci, CF, Cfu, Cr, CV, CL, CP, Cb; LRFD KF, φ, λ; dowel-type fasteners (Fe, Rd, Fyb, Cg, CΔ); the deflection creep factor | NDS 2018 Ch 2-5, 11-12, App N; Supplement Tables 4A, 4D, 5A |
+| `masonry.json` `allowable` | Fa by h/r (slender members), Fb 1/3 and 0.45 f'm, Ft, Fv with the axial stress, Fv = Fvm + Fvs (`additive`), Fs by grade (`steps`); no one-third increase, no halving; Em by the units | TMS 402-22 Ch 8, Sec 4.2.2 |
+| `steel.json` | built-up members by Ki (`builtUp.method = ki`), stability bracing (`torsionalMomentForm = share`), ponding references, tension field stiffeners by inertia (`stiffenerMethod = inertia`), Chapter K φ and references | AISC 360-22 E6, App 2, App 6, G2.3, Ch K |
+| `fatigue.json` | the stress categories' Cf and FTH, the design stress range | AISC 360-22 App 3 |
+| `steelSeismic.json` | Cpr of the expected moment (`hingeFactorMethod = cpr`), beam bracing by Ry Fy (`beamBracingExpected`), SPSW Ic, composite concrete limits; the AISC 341-22 section of every rule | AISC 341-22 Ch A-K, AISC 358 |
+| `seismic.json` `generatorSystems` | the New Building generator's steel systems | ASCE 7-22 Table 12.2-1 |
+
+Timber members are designed by `saengine.design.timber.reference` when the pack's timber method
+is `referenceDesign`: ASD by default (the allowable stress combinations, CD), LRFD with the
+project override `timber.reference.format = LRFD` (the strength combinations, KF φ λ). The
+material's Species (a reference species id or name), Reference grade, location (wet or outside:
+wet service), incising and service temperature, and the member type's restraint spacing and
+repetitive option, set the factors. Bolted and nailed joints are checked by the yield limit
+equations; split rings and disc-dowels are flagged not covered under this method.
+
+The New Building wizard's "Steel moment frame" and "Steel braced frame" generate steel columns
+(HEB), beams (IPE), X braces (SHS, BIM inclined members) and RC slabs, with the first system of
+`generatorSystems` the Seismic Design Category and height permit (steel not specifically
+detailed in B and C, else OMF, IMF, SMF or OCBF, SCBF), every member within that system's
+width-thickness limits; Design mode then checks them under the pack (LRFD, or ASD by
+`steel.designMethod`).
 
 Choose it in Project Settings (Design code) or in the New Building wizard. The site's values
 come from the ASCE Hazard Tool, not from a table of towns: enter SDS, SD1 (or SMS, SM1, or the

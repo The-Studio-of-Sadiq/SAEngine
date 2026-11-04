@@ -50,7 +50,7 @@ from typing import Any
 import numpy as np
 
 from saengine.design.steel import seismic as S
-from saengine.design.steel.seismic import PREFIX, _check, _rule, cite
+from saengine.design.steel.seismic import PREFIX, _check, _rule, cite, ref
 
 #: The braced kinds this module designs.
 KINDS = ("scbf", "ocbf", "ebf", "brbf")
@@ -512,7 +512,8 @@ def link_checks(
                 False,
                 cite(t, "linkBracing"),
                 f"both flanges braced at both link ends, each brace Pb = {k.braceStrength:g} Ry Z "
-                f"Fy / ho = {pb / 1e3:.1f} kN, stiffness by Eq 6.10.292 with Cd = 1, Lb = e",
+                f"Fy / ho = {pb / 1e3:.1f} kN, stiffness by "
+                f"{ref(t, 'braceStiffness', 'Eq 6.10.292')} with Cd = 1, Lb = e",
                 flag=True,
             )
         )
@@ -1623,7 +1624,8 @@ def _compact_rows(shape: Any, steel: Any, member: str, table: Any) -> list[dict[
                 limit,
                 "",
                 cite(table, "ebfBrace"),
-                f"λ = {el.ratio:.1f} ≤ {limit:.1f} of Table 6.10.1 case {el.case}",
+                f"λ = {el.ratio:.1f} ≤ {limit:.1f} of "
+                f"{ref(table, 'widthThicknessTable', 'Table 6.10.1')} case {el.case}",
             )
         )
     return out

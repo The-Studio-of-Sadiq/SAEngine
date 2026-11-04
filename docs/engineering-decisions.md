@@ -41,6 +41,51 @@ here, newest first, with the date, the question, the decision, the reason and wh
 - **No unlicensed software.** ETABS, SAP2000 and STAAD are not used for cross-checks or cited.
   Open-source tools are used instead (2026-10-25).
 
+## 2026-11-04: the rest of the US pack (alpha 9, track C3b)
+
+SAEngine practice where the NDS 2018, TMS 402-22, AISC 360-22 or AISC 341-22 leave a gap or the
+engine has no method (pack values, overridable per project; every value in the pack's
+VERIFY.md):
+
+- **Timber by reference design values** is a method of its own (`timber.method =
+  referenceDesign`, `saengine.design.timber.reference`), beside the default pack's permissible
+  stresses. ASD is the pack's format (the usual US timber practice); LRFD by
+  `timber.reference.format` takes the strength combinations with KF, φ and λ.
+- The load cases map to the NDS load durations by name (D, SD, F, H, T permanent 0.9; L the
+  material's live load duration, continuous = ten years 1.0; Lr and R 1.25; S 1.15; W, E and
+  the flood load 1.6); λ by the governing load (dead 0.6, occupancy live 0.8, impact 1.25, roof
+  live / snow / rain 0.8, wind / earthquake 1.0). Storage live loads (λ 0.7) are not told
+  apart.
+- A timber material "wet" or "outside" is in wet service; le of columns is the member length
+  (Ke = 1.0); lu of beams the type's restraint spacing; CL uses the 'any loading' le of NDS
+  Table 3.3.3. A material that names no reference species takes Douglas Fir-Larch No.2 (the
+  pack's default), with a note.
+- Glulam beams take Fbx- where the top is in tension (Mx > 0) and in cantilevers.
+- Bolted and nailed timber joints: side members of the member's species and depth; Cg by NDS
+  11.3.6 for bolts (nails 1.0); CΔ by the end distance and spacing only. Split rings and
+  disc-dowels are flagged not covered under this method.
+- Timber deflection limits L/240, L/360 with brittle finishes, L/120 cantilevers, with Kcr 1.5
+  (IBC Table 1604.3 is not in the pack).
+- **Masonry by allowable stresses follows TMS 402-22 Chapter 8** under the US pack (it stays the
+  default masonry method; strength design is the wall type's choice). The pack's mortar grades
+  M1, M2 are taken as Type M or S, M3, M4 as Type N; beams and the out-of-plane shear take
+  M/(V d) = 1.0; walls h'/t at most 30; no one-third increase and no halving of the stresses.
+- **AISC 360-22**: built-up members by Ki (Sec E6), Appendix 6 bracing values (0.005 Pr,
+  0.005 Mr Cd/ho, Mbr = 0.02 Mr), the G2.3 stiffener inertia of tension field panels, the
+  Chapter K φ (round gapped K joints 0.95: the BNBC 2020 misprint decision does not apply to
+  the US pack); the HSS connection equations keep the forms SAEngine has (AISC 360-10 based),
+  cited by their AISC 360-22 sections and tables. Appendix 4 (fire) has no home and stays
+  planned.
+- **AISC 341-22**: the expected moment of SMF and IMF beams by Cpr = (Fy + Fu)/(2 Fy) <= 1.2
+  (AISC 358), the fixed 1.1 when Fu is unknown; beam bracing by Ry Fy.
+- **New Building, steel systems**: the generator takes the first of the pack's
+  `seismic.generatorSystems` the category and height permit, least ductile first: steel not
+  specifically detailed (R = 3) in Seismic Design Categories B and C, so the AISC 341-22
+  provisions do not apply and ASD can be used; then OMF, IMF, SMF or OCBF, SCBF. Columns HEB,
+  beams IPE, X braces SHS (no BRBF: the braces are hollow sections), RC slabs without composite
+  action, every member within the system's width-thickness limits; the sizes are rules of thumb
+  (the notes state them), Design mode sizes the members.
+
 ## 2026-11-04: Indian Standards steel and the other materials (alpha 9 track C9)
 
 The `is-codes` pack now covers IS 800:2007 (members, connections, Section 12 frames, Table 6

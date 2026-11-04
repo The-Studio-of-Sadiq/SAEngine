@@ -108,6 +108,7 @@ TEMPLATES: dict[str, dict[str, Any]] = {
     "BambooProperties": {"condition": "green"},
     "BambooTested": {"rupture": 60, "E": 10000, "compression": 40},
     "FerrocementProperties": {"fc": 35},
+    "AluminiumProperties": {"alloy": "EN AW-6082 T6"},  # alpha 9 C6
     "BambooMember": {},
     "BambooJoint": {"kind": "gusset", "fastening": "fishPlate"},
     "FerrocementMember": {"mesh": "wovenSquare", "layers": 4, "wireDiameter": 1.0, "spacing": 13},

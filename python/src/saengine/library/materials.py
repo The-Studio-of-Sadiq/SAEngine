@@ -211,6 +211,25 @@ class TimberProperties(_Model):
             "enumDescriptions": ["Continuous", "Two months", "Seven days", "Impact"]
         },
     )
+    # Alpha 9 C3b: a code pack that designs timber by reference design values (e.g. NDS).
+    referenceGrade: str | None = Field(
+        default=None,
+        title="Reference grade",
+        description="Grade of the code pack's reference design values (e.g. No.2, Select "
+        "Structural, a glulam stress class such as 24F-1.8E) when its timber method uses them; "
+        "none: the pack's default grade. The species is the Species above.",
+    )
+    incised: bool = Field(
+        default=False,
+        description="Sawn lumber incised for preservative treatment (incising factor).",
+    )
+    temperature: float | None = Field(
+        default=None,
+        gt=0,
+        title="Service temperature",
+        description="Sustained service temperature above normal [°C] (temperature factor); "
+        "none: normal temperatures.",
+    )
 
 
 class BambooTested(_Model):

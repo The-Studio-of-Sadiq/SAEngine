@@ -94,7 +94,7 @@ registerPlannedFeature({
 	id: PLANNED_CODE_PACK_US,
 	part: 'settings',
 	title: localize('codePacks.planned.us', "Code Pack: ACI 318-19 + ASCE 7-22 (US)"),
-	summary: localize('codePacks.planned.usSummaryLoads', "A design-code pack for projects designed to the US codes. Covered now: the loads of ASCE 7-22 (built-in pack aci318-asce7-22: load combinations, live loads and their reduction, seismic design from the site's mapped SDS and SD1, wind, roof snow), chosen in Project Settings or the New Building wizard. Planned: concrete design to ACI 318-19 and the other materials, which fall back to {0} until then.", activeCodeName()),
+	summary: localize('codePacks.planned.usSummaryMaterials', "A design-code pack for projects designed to the US codes. Covered now, in the built-in pack aci318-asce7-22 (chosen in Project Settings or the New Building wizard): the loads of ASCE 7-22, structural concrete (ACI 318-19), structural steel (AISC 360-22, LRFD or ASD, and AISC 341-22), timber (NDS 2018, ASD or LRFD) and masonry (TMS 402-22 allowable stress and strength design); a steel moment or braced frame building can be generated. Planned: the geotechnical tables and the steel fire design (AISC 360-22 Appendix 4), which fall back to {0} or are not covered until then.", activeCodeName()),
 	steps: [
 		localize('codePacks.planned.us1Loads', "Choose ACI 318-19 + ASCE 7-22 as the project's design code in Project Settings or in the New Building wizard (built in: no install)."),
 		localize('codePacks.planned.us2Loads', "Enter the site's SDS, SD1, S1 and TL and the basic wind speed V from the ASCE Hazard Tool (Project Settings > Site); a snow load where the site has one."),
@@ -107,10 +107,10 @@ registerPlannedFeature({
 		{ label: localize('codePacks.planned.usSite', "Site class"), example: 'D' },
 	],
 	outputs: [
-		localize('codePacks.planned.usOut1Loads', "Covered: wind, seismic, snow and gravity loads, load combinations (ASCE 7-22). Planned: concrete members (beams, columns, slabs, walls, footings) and seismic detailing (ACI 318-19), steel and the other materials"),
+		localize('codePacks.planned.usOut1Materials', "Covered: loads and combinations (ASCE 7-22), concrete members and seismic detailing (ACI 318-19), steel members, connections and seismic systems (AISC 360-22, AISC 341-22), timber members and bolted or nailed joints (NDS 2018), masonry walls (TMS 402-22). Planned: the geotechnical tables, steel fire design"),
 		localize('codePacks.planned.usOut2', "The same reports and drawings as {0}, citing ACI 318-19 and ASCE 7-22", activeCodeName()),
 	],
-	references: ['ACI 318-19 Building Code Requirements for Structural Concrete', 'ASCE/SEI 7-22 Minimum Design Loads and Associated Criteria for Buildings and Other Structures'],
+	references: ['ACI 318-19 Building Code Requirements for Structural Concrete', 'ASCE/SEI 7-22 Minimum Design Loads and Associated Criteria for Buildings and Other Structures', 'ANSI/AISC 360-22 and 341-22', 'ANSI/AWC NDS-2018', 'TMS 402-22'],
 });
 
 registerPlannedFeature({
