@@ -1,0 +1,19 @@
+{
+  "$schema": "../../../schemas/wind.schema.json",
+  "$sources": [
+    "MNBC 2020 Part 3 wind loads in the ASCE 7-05 Chapter 6 form: qz = 0.613 Kz Kzt Kd V² I with the exposure constants of ASCE 7-05 Table 6-2 and Kz = 2.01 (z/zg)^(2/α)"
+  ],
+  "source": "MNBC 2020 Part 3 wind (ASCE 7-05 Chapter 6 form as SAEngine reads MNBC's adoption): the 50-year basic wind speed V (3-second gust) of the town, the importance factor I of the occupancy, Kz of the exposure constants of ASCE 7-05 Table 6-2; Kd 0.85, G 0.85, the topography, the pressure coefficients and the rest are the parent's (ASCE 7-22, the same values)",
+  "exposures": {
+    "$replace": true,
+    "B": {"description": "Exposure B: urban and suburban areas, wooded areas, closely spaced obstructions", "alpha": 7.0, "zg": 365.76, "c": 0.3, "l": 97.54, "epsilonBar": 0.3333, "alphaBar": 0.25, "bBar": 0.45, "zmin": 9.14},
+    "C": {"description": "Exposure C: open terrain with scattered obstructions, grasslands", "alpha": 9.5, "zg": 274.32, "c": 0.2, "l": 152.4, "epsilonBar": 0.2, "alphaBar": 0.1538, "bBar": 0.65, "zmin": 4.57},
+    "D": {"description": "Exposure D: flat unobstructed areas and water surfaces (coast, delta)", "alpha": 11.5, "zg": 213.36, "c": 0.15, "l": 198.12, "epsilonBar": 0.125, "alphaBar": 0.1111, "bBar": 0.8, "zmin": 2.13}
+  },
+  "kzFactor": 2.01,
+  "kzMinHeight": 4.57,
+  "sources": {
+    "exposures": "ASCE 7-05 Table 6-2 form: α 7.0, 9.5, 11.5 and zg 1200, 900, 700 ft (365.76, 274.32, 213.36 m); c, l, ε̄, ᾱ, b̄ and zmin as the parent",
+    "kzFactor": "ASCE 7-05 Table 6-3 note: Kz = 2.01 (z/zg)^(2/α), z at least 15 ft (4.57 m)"
+  }
+}

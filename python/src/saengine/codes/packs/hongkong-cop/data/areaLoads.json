@@ -1,0 +1,25 @@
+{
+  "$schema": "../../../schemas/areaLoads.schema.json",
+  "$sources": [
+    "HK Code of Practice for Dead and Imposed Loads 2011, Table 3.2 (imposed floor and roof loads); the rows not set here are BS 6399-1:1996's (the parent pack bs8110)"
+  ],
+  "uses": {
+    "residential": {
+      "name": "Domestic uses: flats and houses",
+      "live": 2.0
+    },
+    "office": {
+      "name": "Offices for general use",
+      "live": 3.0
+    },
+    "roof": {
+      "name": "Roof: not accessible except for maintenance (HK CoP Loads 2011)",
+      "live": 0.75
+    }
+  },
+  "sources": {
+    "uses.residential": "HK CoP Dead and Imposed Loads 2011 Table 3.2, domestic uses: 2.0 kPa",
+    "uses.office": "HK CoP Dead and Imposed Loads 2011 Table 3.2, offices for general use: 3.0 kPa",
+    "uses.roof": "HK CoP Dead and Imposed Loads 2011 Table 3.2, roofs not accessible to the public: 0.75 kPa"
+  }
+}

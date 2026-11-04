@@ -1,0 +1,56 @@
+{
+  "schema": "saengine.codePack/1",
+  "id": "myanmar-mnbc",
+  "name": "Myanmar National Building Code 2020 (MNBC)",
+  "edition": "MNBC 2020",
+  "country": "MM",
+  "units": "SI",
+  "version": "0.1.0",
+  "extends": "aci318-asce7-22",
+  "covers": [
+    "locations",
+    "zoneCoefficients",
+    "occupancyCategories",
+    "combinations",
+    "seismic",
+    "wind",
+    "concrete",
+    "barSchedule"
+  ],
+  "description": "A thin pack for Myanmar (alpha 9 track C23): MNBC 2020 Part 3 designs in the IBC / ASCE 7 and ACI 318 form, so it extends the US pack aci318-asce7-22 and sets what MNBC changes. Seismic: the towns' mapped SS and S1 (with the MNBC zone for information) and the site coefficients Fa and Fv of site classes A-F, SDS = 2/3 Fa SS and SD1 = 2/3 Fv S1 (a generic option of the mapped spectral method; a project's own SS, S1 or SDS, SD1 take precedence), the two-period spectrum, Cs and the Seismic Design Category of the parent. Wind: the 50-year basic wind speed (3-second gust) by town, the ASCE 7-05 form exposure constants and wind importance factors, with the 1.6W / 1.0W load combinations of the ASCE 7-05 Sec 2.3.2 / 2.4.1 form. Metric bars (10-32 mm) with BS 8666 schedules; SI units. Concrete (ACI 318-19), steel (AISC 360-22), the live loads and the rest are the parent's. Every value is listed in VERIFY.md: the towns' SS, S1 and wind speeds are SAEngine estimates by zone and region, to be replaced with the MNBC tables' values before design.",
+  "sources": [
+    {
+      "id": "MNBC2020",
+      "title": "Myanmar National Building Code, Part 3 Structural Design",
+      "edition": "2020",
+      "publisher": "Ministry of Construction, Myanmar"
+    }
+  ],
+  "clauses": {
+    "locations": ["MNBC 2020 Part 3 (seismic zone map, mapped SS and S1, basic wind speed)"],
+    "zoneCoefficients": ["MNBC 2020 Part 3 seismic zones (for information)"],
+    "occupancyCategories": ["MNBC 2020 Part 3 (ASCE 7-05 Table 6-1 form)"],
+    "combinations": ["MNBC 2020 Part 3 (ASCE 7-05 Sec 2.3.2 and 2.4.1 form)"],
+    "seismic": ["MNBC 2020 Part 3 (site classes, Fa, Fv; ASCE 7-05 form)"],
+    "wind": ["MNBC 2020 Part 3 (ASCE 7-05 Chapter 6 form)"],
+    "concrete": ["SAEngine practice (metric bars)"],
+    "barSchedule": ["BS 8666 (SAEngine practice)"]
+  },
+  "basis": {
+    "general": "MNBC 2020 Part 3 (loads, wind and seismic in the IBC / ASCE 7 form; the parent's ASCE 7-22 where MNBC gives no own value)",
+    "concrete": "ACI 318-19 (as MNBC 2020 refers), metric bars",
+    "steel": "AISC 360-22 and AISC 341-22 (parent pack)",
+    "method": "Strength design (LRFD)"
+  },
+  "tableCodes": {
+    "locations": "MNBC 2020",
+    "zoneCoefficients": "MNBC 2020",
+    "occupancyCategories": "MNBC 2020",
+    "combinations": "MNBC 2020",
+    "seismic": "MNBC 2020",
+    "wind": "MNBC 2020"
+  },
+  "author": "SAEngine contributors",
+  "licence": "AGPL-3.0-only",
+  "hooks": null
+}

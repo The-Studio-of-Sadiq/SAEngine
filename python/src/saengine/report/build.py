@@ -4019,6 +4019,64 @@ def _size_text(result: dict[str, Any]) -> str:
     return text + " m"
 
 
+def _excavation_support_rows(excavations: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Alpha 9 P1: the staged excavations' tables (stages and supports) of the excavations'
+    ``support`` (:func:`saengine.substructure.excavation_support.support_checks`)."""
+    out = []
+    for result in excavations:
+        support = result.get("support")
+        if not isinstance(support, dict):
+            continue
+        ids = [str(s.get("id")) for s in support.get("supports", [])]
+        stages = [
+            [
+                str(st.get("name", "")),
+                fmt(st.get("dig"), 2),
+                fmt(st.get("Mmax"), 1),
+                fmt(st.get("Mmin"), 1),
+                fmt(st.get("Vmax"), 1),
+                fmt(st.get("ymax"), 1),
+                fmt((st.get("mobilised") or 0.0) * 100, 0),
+                *[fmt((st.get("forces") or {}).get(i), 1) for i in ids],
+            ]
+            for st in support.get("stages", [])
+        ]
+        supports = [
+            [
+                str(s.get("id")),
+                str(s.get("kind")),
+                _m(s.get("level"), 2),
+                fmt(s.get("perMetre"), 1),
+                fmt(s.get("working"), 0),
+                fmt(s.get("design"), 0),
+                fmt(s.get("proof"), 0) if s.get("proof") is not None else "–",
+                fmt(s.get("lockOff"), 0) if s.get("lockOff") is not None else "–",
+                str(s.get("stiffness") or "–"),
+            ]
+            for s in support.get("supports", [])
+        ]
+        out.append(
+            {
+                "title": (
+                    f"{result.get('id')}: {support.get('section')}, toe {fmt(support.get('length'), 2)} "
+                    f"m below the retained ground ({support.get('toe')}), design dig level "
+                    f"{fmt(support.get('design'), 2)} m (overdig {fmt(support.get('overdig'), 2)} "
+                    f"m), surcharge {fmt(support.get('surcharge'), 1)} kPa; runs: "
+                    + "; ".join(
+                        f"{n} (× {fmt(f, 2)})"
+                        for n, f in zip(
+                            support.get("runs", []), support.get("factors", []), strict=False
+                        )
+                    )
+                ),
+                "supportIds": ids,
+                "stages": stages,
+                "supports": supports,
+            }
+        )
+    return out
+
+
 def _check_rows(checks: list[dict[str, Any]]) -> tuple[list[list[str]], list[bool]]:
     rows = [
         [
@@ -4207,6 +4265,8 @@ def _foundations(parts: _Parts) -> dict[str, Any]:
             }
         )
 
+    staged = _excavation_support_rows(report.get("excavations", []))  # Alpha 9 P1
+
     # R1-5 of re-walk 1: the one count of the foundations and tie beams (as the part list and
     # Run All count them), "n of N"; those without a bearing check counted as such. The
     # building's own checks, excavations and formwork are listed but are not foundations.
@@ -4272,6 +4332,7 @@ def _foundations(parts: _Parts) -> dict[str, Any]:
         "pileLoads": pile_loads,
         "capacityTables": tables,
         "rafts": rafts,
+        "excavationSupport": staged,
         "details": details,
         "skipped": [
             [

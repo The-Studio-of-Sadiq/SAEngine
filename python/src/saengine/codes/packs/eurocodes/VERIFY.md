@@ -558,3 +558,14 @@ length along the bar's centre line (SAEngine practice), with the mandrel diamete
 | P7E5 | windComfort.limits | 15 / 18 / 25 milli-g | SAEngine practice (EN 1990 A1.4.4 leaves them to the project) | Practice |
 | P7E6 | embeddedWalls.materials, variableFactor | M2, 1.3 | EN 1997-1 Annex A (DA1 C2) | Sure |
 | P7E7 | embeddedWalls.embedmentIncrease | 1.2 | Blum, SAEngine practice | Practice |
+
+## Alpha 9 P1: excavation support
+
+| # | Path | Value | Source | Sure? |
+|---|---|---|---|---|
+| P1E1 | excavationSupport.analyses | DA1 C1: characteristic, effects × 1.35; C2: M2 strengths, × 1.0 | EN 1997-1 2.4.7.3.4.2, Annex A | Sure |
+| P1E2 | excavationSupport.anchors.tendonFactor | 1.5525 = 1.35 × 1.15 | EN 1997-1 8.5 with γs 1.15 of EN 1992-1-1 | Check |
+| P1E3 | excavationSupport.anchors.groundFactor | 1.485 = 1.35 × 1.1 (γa of Table A.12) | EN 1997-1 8.5, Annex A | Check |
+| P1E4 | excavationSupport.anchors.proofFactor | 1.25 × working (temporary and permanent) | EN 1537 / EN ISO 22477-5 acceptance test | Unsure |
+| P1E5 | excavationSupport.heave.pipingFactor | 1.5 = γG,dst 1.35 / γG,stb 0.9 | EN 1997-1 2.4.7.5 (HYD) | Check |
+| P1E6 | excavationSupport (rest) | as bnbc2020 ES1-ES31 | SAEngine practice | see bnbc2020 |

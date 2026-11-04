@@ -11,9 +11,8 @@ A code pack chooses how the design spectrum is found with its ``seismic.designSp
   Settings > Site (``site.spectral``), or its multi-period spectrum. This module computes from them
   the two-period design spectrum, the equivalent lateral force coefficient Cs with its bounds,
   the band of the Seismic Design Category table, and the period's upper limit Cu·Ta. Every
-  number comes from the pack's ``designSpectrum`` block. Alpha 9 C16: with the pack's
-  ``siteCoefficients`` also from SS and S1 (SMS = Fa SS, SM1 = Fv S1, the ASCE 7-16 form), and
-  a town of the pack may carry SS, S1 and TL;
+  number comes from the pack's ``designSpectrum`` block (alpha 9 C23: with its
+  ``siteCoefficients`` also from SS and S1, a town's where the project gives none);
 - ``ubc97`` (alpha 9 C16): the seismic coefficients Ca and Cv of the zone's Z and the soil
   profile (with the near-source factors Na, Nv) give the same two-period spectrum with 2.5 Ca in
   place of SDS and Cv in place of SD1 (UBC 1997 Figure 16-3, Sec 1630.2.1); the town's zone
@@ -30,6 +29,7 @@ Units: g, s.
 from __future__ import annotations
 
 from itertools import pairwise
+from types import SimpleNamespace
 from typing import Any, Self
 
 from saengine.codes import context as code_context
@@ -171,27 +171,22 @@ def site_hazard(
     spectral: Any,
     site_class: str,
     pack: Any = None,
-    location: Any = None,
     z: Any = None,
     zone: Any = None,
 ) -> SpectralHazard | None:
     """The site's :class:`SpectralHazard` from the settings' ``site.spectral`` block (SDS and
-    SD1 entered; else from SMS and SM1 with the pack's design share; alpha 9 C16: else from SS
-    and S1 by the pack's ``siteCoefficients``, the town's (``location``) SS, S1, TL where the
-    project enters none; else from the MCER multi-period spectrum); None without values or
-    when the pack's method is not mapped. ``ubc97``: from the zone coefficient ``z`` and the
-    ``zone`` (:func:`ubc97_hazard`)."""
+    SD1 entered; else from SMS and SM1 with the pack's design share; else from the MCER
+    multi-period spectrum); None without values or when the pack's method is not mapped.
+    Alpha 9 C16: ``ubc97`` from the zone coefficient ``z`` and the ``zone`` instead
+    (:func:`ubc97_hazard`)."""
     hazard = rule(pack)
     if hazard is not None and hazard.method == UBC97:
         return ubc97_hazard(z, zone, site_class, spectral, pack)
-    town = _town_values(location)
-    if hazard is None or (spectral is None and not town):
+    if hazard is None or spectral is None:
         return None
 
     def get(name: str) -> float | None:
-        value = getattr(spectral, name, None) if spectral is not None else None
-        if value is None:
-            value = town.get(name)
+        value = getattr(spectral, name, None)
         return None if value is None else float(value)
 
     sds, sd1 = get("sds"), get("sd1")
@@ -201,19 +196,19 @@ def site_hazard(
         sms, sm1 = get("sms"), get("sm1")
         if sms is not None and sm1 is not None:
             sds, sd1, source = share * sms, share * sm1, "SDS, SD1 = (2/3) SMS, SM1"
-    coefficients = hazard.siteCoefficients
+    coefficients = getattr(hazard, "siteCoefficients", None)  # Alpha 9 C23: Fa SS, Fv S1
     ss, s1 = get("ss"), get("s1")
-    if (sds is None or sd1 is None) and share is not None and coefficients is not None:
-        found = from_site_coefficients(ss, s1, site_class, coefficients)
-        if found is not None and ss is not None and s1 is not None:
-            fa, fv = found
+    missing = sds is None or sd1 is None
+    if missing and coefficients is not None and share and ss is not None and s1 is not None:
+        factors = site_factors(ss, s1, site_class, pack)
+        if factors is not None:
+            fa, fv, used = factors
             sds, sd1 = share * fa * ss, share * fv * s1
-            entered = spectral is not None and getattr(spectral, "ss", None) is not None
             source = (
-                f"SDS, SD1 = (2/3) Fa SS, (2/3) Fv S1 from the {'entered' if entered else 'town'}"
-                f" SS = {ss:g} g, S1 = {s1:g} g with Fa = {fa:.3g}, Fv = {fv:.3g}"
+                f"SDS, SD1 = {share:.3g} × Fa SS, Fv S1 with Fa = {fa:.3g}, Fv = {fv:.3g} "
+                f"(site class {used})"
             )
-    mcer = getattr(spectral, "mcerSpectrum", None) if spectral is not None else None
+    mcer = getattr(spectral, "mcerSpectrum", None)
     if (sds is None or sd1 is None) and mcer:
         try:
             sds, sd1 = from_mcer(mcer, site_class, pack)
@@ -222,16 +217,55 @@ def site_hazard(
             pass
     if sds is None or sd1 is None or sds <= 0:
         return None
-    design = (getattr(spectral, "designSpectrum", None) if spectral is not None else None) or None
+    design = getattr(spectral, "designSpectrum", None) or None
     return SpectralHazard(sds, sd1, get("s1"), get("tl"), design, source)
 
 
-def _town_values(location: Any) -> dict[str, float]:
-    """Alpha 9 C16: the mapped values a town of the pack carries (SS, S1, TL), {} without."""
-    if location is None:
-        return {}
-    out = {k: getattr(location, k, None) for k in ("ss", "s1", "tl")}
-    return {k: float(v) for k, v in out.items() if v is not None}
+def _along(points: list[float], values: list[float], x: float) -> float:
+    return _interp(list(zip(points, values, strict=True)), x)
+
+
+def site_factors(
+    ss: float, s1: float, site_class: str, pack: Any = None
+) -> tuple[float, float, str] | None:
+    """Alpha 9 C23: (Fa, Fv, the class used) of the pack's ``siteCoefficients`` at the mapped
+    SS and S1 for ``site_class`` (a class needing a site study, ``siteSpecificStudy``, read as
+    its assumed class); None without the table or the class."""
+    hazard = rule(pack)
+    table = getattr(hazard, "siteCoefficients", None) if hazard is not None else None
+    if table is None:
+        return None
+    used = site_class
+    if used not in table.fa.classes or used not in table.fv.classes:
+        seismic = pack.table("seismic") if pack is not None else code_context.table("seismic")
+        study = getattr(seismic, "siteSpecificStudy", None)
+        if study is None or site_class not in study.classes:
+            return None
+        used = study.assumedClass or ""
+        if used not in table.fa.classes or used not in table.fv.classes:
+            return None
+    fa = _along(list(table.fa.points), list(table.fa.classes[used]), ss)
+    fv = _along(list(table.fv.points), list(table.fv.classes[used]), s1)
+    return fa, fv, used
+
+
+def with_location(spectral: Any, location: Any) -> Any:
+    """Alpha 9 C23: the site's mapped values with the town's (``locations`` SS, S1, TL) where
+    the project gives none; ``spectral`` itself when the town has none."""
+    names = ("ss", "s1", "tl")
+    town = {n: getattr(location, n, None) for n in names} if location is not None else {}
+    if not any(v is not None for v in town.values()):
+        return spectral
+    if spectral is None:
+        merged: dict[str, Any] = {}
+    elif hasattr(spectral, "model_dump"):
+        merged = spectral.model_dump()
+    else:
+        merged = dict(vars(spectral))
+    for name in names:
+        if merged.get(name) is None and town.get(name) is not None:
+            merged[name] = town[name]
+    return SimpleNamespace(**merged)
 
 
 def _row(table: dict[str, list[float]], site_class: str, assumed: str | None) -> Any:
@@ -239,23 +273,6 @@ def _row(table: dict[str, list[float]], site_class: str, assumed: str | None) ->
     if row is None and assumed is not None:
         row = table.get(assumed)
     return row
-
-
-def from_site_coefficients(
-    ss: float | None, s1: float | None, site_class: str, coefficients: Any
-) -> tuple[float, float] | None:
-    """Alpha 9 C16: (Fa, Fv) of ``site_class`` at the mapped SS and S1 from the pack's
-    ``siteCoefficients`` (linear between its columns, held beyond); None without SS and S1 or
-    without a row of the class (nor of its ``assumedClass``)."""
-    if ss is None or s1 is None:
-        return None
-    fa_row = _row(coefficients.fa, site_class, coefficients.assumedClass)
-    fv_row = _row(coefficients.fv, site_class, coefficients.assumedClass)
-    if fa_row is None or fv_row is None:
-        return None
-    fa = _interp(list(zip(coefficients.ssValues, fa_row, strict=True)), ss)
-    fv = _interp(list(zip(coefficients.s1Values, fv_row, strict=True)), s1)
-    return fa, fv
 
 
 def near_source_factors(spectral: Any, ubc: Any) -> tuple[float, float, str]:

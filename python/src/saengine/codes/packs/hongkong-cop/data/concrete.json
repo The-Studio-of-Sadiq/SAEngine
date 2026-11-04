@@ -1,0 +1,12 @@
+{
+  "$schema": "../../../schemas/concrete.schema.json",
+  "$sources": [
+    "HK CoP Concrete 2013 Table 3.2: Ec = 3.46 √fcu + 3.21 kN/mm²"
+  ],
+  "modulus": {
+    "normal": 4050.0
+  },
+  "sources": {
+    "modulus": "HK CoP Concrete 2013 Table 3.2 (Ec = 3.46 √fcu + 3.21 kN/mm²), here as 4050 √fcu for the analysis model (within 3 % from C25 to C45; SAEngine form of the rule; the design of concreteMethods uses 3.46 √fcu + 3.21 itself)"
+  }
+}

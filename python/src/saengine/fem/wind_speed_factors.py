@@ -23,6 +23,11 @@ pressure (the form of IS 875 (Part 3)):
   averaging of the main wind-force resisting system: ``speedFactors.areaAveraging``; Kc,
   combination: ``speedFactors.combination``.
 
+Alpha 9 C23: a terrain with ``speedFactors.referencePressures`` (codes that tabulate the design
+pressure by height, the Hong Kong Code of Practice on Wind Effects type) takes pz = q(z)·k1·k3·k4,
+the factors acting on the pressure; Vz is then √(pz / airFactor) and k2 √(q(z) / q(10 m)), for the
+notes only.
+
 The pressures enter the storey forces of :func:`saengine.fem.loads.wind_levels` in place of the
 velocity pressure qz, with the pack's wall pressure coefficients and its gust factor (1.0 for a
 code whose coefficients include the gusts). Every number comes from the code pack in force.
@@ -58,8 +63,22 @@ def _interpolate(points: list[tuple[float, float]] | list[list[float]], x: float
     return pts[-1][1]
 
 
+def reference_pressure(height: float, exposure: str, table: Any | None = None) -> float | None:
+    """Alpha 9 C23: q(z) [kN/m²] of the pack's ``referencePressures`` of the terrain
+    ``exposure`` at ``height`` [m]; None where the pack tabulates no pressure for it."""
+    rows = (table or _table()).referencePressures or {}
+    if exposure not in rows:
+        return None
+    return _interpolate(rows[exposure], max(float(height), 0.0))
+
+
 def height_factor(height: float, exposure: str) -> float:
-    """k2 at ``height`` [m] in the terrain ``exposure``."""
+    """k2 at ``height`` [m] in the terrain ``exposure``; alpha 9 C23: √(q(z) / q(10 m)) of a
+    terrain with reference pressures."""
+    q = reference_pressure(height, exposure)
+    if q is not None:
+        q10 = reference_pressure(10.0, exposure) or q
+        return math.sqrt(q / q10) if q10 > 0 else 1.0
     rows = _table().heightFactors
     if exposure not in rows:
         raise ValueError(f"no height factors for terrain '{exposure}' in the code pack")
@@ -136,6 +155,10 @@ def factors(height: float, speed: float, exposure: str, importance: float) -> di
     k = max(kd * ka * kc, float(table.minimumShare))
     vz = float(speed) * k1 * k2 * k3 * k4
     pz = table.airFactor * vz**2 / 1000.0
+    q = reference_pressure(height, exposure, table)
+    if q is not None:  # Alpha 9 C23: the code's pressure by height, the factors on it
+        pz = q * k1 * k3 * k4
+        vz = math.sqrt(pz * 1000.0 / table.airFactor)
     return {
         "k1": k1,
         "k2": k2,

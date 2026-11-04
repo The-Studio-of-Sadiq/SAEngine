@@ -1,0 +1,15 @@
+{
+  "$schema": "../../../schemas/zoneCoefficients.schema.json",
+  "$replace": true,
+  "$sources": [
+    "MNBC 2020 seismic zone map of Myanmar (zones 1 to 5), for information"
+  ],
+  "source": "For information only: the upper peak ground acceleration [g] of each MNBC seismic zone (1 low, 2 moderate, 3 strong, 4 severe, 5 destructive) as SAEngine reads the zone map. The MNBC design spectrum takes the town's (or the project's) SS and S1 with Fa and Fv, not Z (seismic.designSpectrum.method mappedSpectral): a Z entered in Project Settings is not used.",
+  "zones": {
+    "1": 0.1,
+    "2": 0.15,
+    "3": 0.3,
+    "4": 0.4,
+    "5": 0.5
+  }
+}

@@ -683,12 +683,12 @@ pack folder), all starting in SI units:
 | `philippines-nscp` | NSCP 2015 Vol 1 | Zones 2 and 4 and V by province; the `ubc97` method; ASCE 7-10 Kz constants; importance factors; PNS 49 bars; the concrete clause references numbered 4xx |
 | `indonesia-sni` | SNI 1726:2019, SNI 1727:2020, SNI 2847:2019 | Cities with SS, S1, TL; site classes SA-SF with Fa, Fv; ASCE 7-16 Kz constants; D-bar names |
 
-The generic keys they use, open to any pack (a pack without them behaves as before):
+Saudi Arabia and Indonesia use the site coefficients and the towns' SS, S1, TL of the thin
+country packs (below). The generic keys these packs add, open to any pack (a pack without them
+behaves as before):
 
 | Key | What it does |
 | --- | --- |
-| `seismic.designSpectrum.siteCoefficients` | `ssValues`, `s1Values`, `fa` and `fv` by site class (linear between columns), `assumedClass` for a class without a row: SMS = Fa SS, SM1 = Fv S1 when the project gives neither SDS, SD1 nor SMS, SM1 (method `mappedSpectral`) |
-| `locations.<town>.ss`, `s1`, `tl` | The town's mapped values, used where Site > Mapped spectral values gives none |
 | `locations.<town>.zoneLabel` | The zone as the code names it (2A) in the location list |
 | `seismic.designSpectrum.method: ubc97` with `ubc97` | Ca, Cv by soil profile at `zValues`; × Na, Nv (`na`, `nv` by source type: (km, factor) points) from `nearSourceFrom`; V ≥ `nearSourceFactor` Z Nv I W/R; `periodUpper` (Z from, Cu) steps. The spectrum and Cs are `mappedSpectral`'s with 2.5 Ca for SDS and Cv for SD1; the town's zone reads `designCategories` |
 
@@ -727,6 +727,29 @@ The generic keys these two packs add, open to any pack (absent: the behaviour be
 | `steelLimitState.shear.yieldShare`, `designStrength` | shear yield = share × fy; py by thickness per grade |
 | `seismic.designSpectrum.shapePlateau`, `descendingExponent`, `leastCoefficient` | the plateau, the power of TC/T and the least C/R of `reducedElastic` |
 | `seismic.lateralForce.topForce` | Ft = factor T V at most maxShare V when T > periodFrom |
+
+### Thin country packs (alpha 9 C23)
+
+Small built-in packs that extend a family pack and set only what the country changes (each
+pack's README and `VERIFY.md` are in `python/src/saengine/codes/packs/<id>/`; the Malaysian and
+Singapore annexes are the National Annex packs above):
+
+| Pack | Extends | What it sets |
+| --- | --- | --- |
+| `myanmar-mnbc` | `aci318-asce7-22` | MNBC 2020: towns with the zone, SS, S1 and V; Fa, Fv and site classes A-F; the 1.6W combinations and wind importance of the ASCE 7-05 form; ASCE 7-05 exposure constants; metric bars; SI |
+| `bhutan` | `is-codes` | Towns with the IS seismic zone (IV west, V elsewhere) and Vb |
+| `qatar-qcs` | `bs8110` | QCS 2014: towns with Vb (BS 6399-2), a coastal default terrain, the 'severe' exposure; no seismic loading |
+| `hongkong-cop` | `bs8110` | HK CoP Wind 2019 pressures by height; HK CoP Concrete 2013 γm, stress block and x/d by grade, Ec, vc to C80, vmax 7 N/mm²; HK imposed loads; no seismic loading |
+
+The generic keys they add, open to any pack (a pack without them behaves as before):
+
+| Key | What it does |
+| --- | --- |
+| `seismic.designSpectrum.siteCoefficients` (`fa`, `fv`) | Under `mappedSpectral`: SMS = Fa SS, SM1 = Fv S1 by site class (linear between the points) where SDS, SD1 and SMS, SM1 are not given; a site-study class is read as its assumed class |
+| `locations.*.ss`, `s1`, `tl` | A town's mapped values, used where the project enters none (Site > Mapped spectral values win) |
+| `wind.speedFactors.referencePressures` | By terrain, (height, kN/m²) points: pz = q(z) k1 k3 k4 (the factors on the pressure), the basic speed not used |
+| `concreteMethods.ultimate.relations.<relation>.steps` | (fck up to, value) bands in place of base and the high relation (stress block depth, εcu, ...) |
+| `concreteMethods.ultimate.neutralAxisSteps` | (fck up to, xu/d) bands of the neutral axis limit where the grade is known |
 
 ## Other package kinds
 

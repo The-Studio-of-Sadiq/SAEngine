@@ -2760,8 +2760,8 @@ def _choices(table: Any) -> dict[str, list[dict[str, str]]]:
             z = zones.get(v.zone)
             label = v.zoneLabel or v.zone  # Alpha 9 C16: the code's name of the zone
             hazard = f"zone {label}, Z {z:.2f}, " if z is not None else f"zone {label}, "
-            if v.ss is not None and v.s1 is not None:  # Alpha 9 C16: a town's mapped values
-                hazard = f"SS {v.ss:g} g, S1 {v.s1:g} g, "
+            if v.ss is not None and v.s1 is not None:  # Alpha 9 C23: the town's mapped values
+                hazard = f"zone {label}, SS {v.ss:g}, S1 {v.s1:g}, "
             rows.append({"id": key, "label": f"{v.name} ({hazard}V {v.windSpeed:g} m/s)"})
         out["locations"] = [*rows, {"id": "custom", "label": "Custom (enter Z and V)"}]
     if area is not None:
@@ -3037,15 +3037,12 @@ def derived(settings: ProjectSettings) -> dict[str, Any]:
     from saengine.fem import spectral_hazard as sh
 
     if sh.uses_mapped(pack):
-        # Alpha 9 C16: the town's SS, S1, TL (siteCoefficients) and, for ubc97, Z and its zone.
+        # Alpha 9 C23: the town's mapped SS, S1, TL where the project enters none; C16: for
+        # ubc97 the Z and its zone (the zone nearest an entered Z).
+        spectral = sh.with_location(settings.site.spectral, location)
         given = settings.site.zoneCoefficient is not None
         z = sh.site_hazard(
-            settings.site.spectral,
-            settings.site.siteClass,
-            pack,
-            location=location,
-            z=z,
-            zone=None if given else zone,
+            spectral, settings.site.siteClass, pack, z=z, zone=None if given else zone
         )
         zone = sh.band(z, pack) if z is not None else None
     speed = settings.site.windSpeed or (location.windSpeed if location else None)
@@ -3394,14 +3391,11 @@ def _mapped_problems(settings: ProjectSettings, pack: CodePack) -> list[tuple[st
 
     if not sh.uses_mapped(pack):
         return []
-    if not sh.takes_mapped_values(pack):
+    if not sh.takes_mapped_values(pack):  # Alpha 9 C16: ubc97 takes Z
         return _ubc97_problems(settings, pack)
     locations = pack.table("locations").locations if pack.has("locations") else {}
-    location = locations.get(settings.site.location)
-    hazard = sh.site_hazard(
-        settings.site.spectral, settings.site.siteClass, pack, location=location
-    )
-    if hazard is not None:
+    spectral = sh.with_location(settings.site.spectral, locations.get(settings.site.location))
+    if sh.site_hazard(spectral, settings.site.siteClass, pack) is not None:
         return []
     edition = pack.edition or pack.name
     return [

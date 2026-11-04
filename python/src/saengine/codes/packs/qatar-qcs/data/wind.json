@@ -1,0 +1,10 @@
+{
+  "$schema": "../../../schemas/wind.schema.json",
+  "$sources": [
+    "QCS 2014: wind loading to BS 6399-2:1997 (standard method, parent pack bs8110)"
+  ],
+  "defaultExposure": "town2",
+  "sources": {
+    "defaultExposure": "SAEngine practice: Qatar's towns lie on the coast, so a new project starts as a town site 2 km from the sea (BS 6399-2 Table 4); choose the site's own terrain and distance in Project Settings > Wind"
+  }
+}

@@ -84,3 +84,42 @@ author is less sure of.
 | EW3 | freeEarthIncrease | 1.0 | with the factor on Kp | Practice |
 | EW4 | minimumSurcharge | 10 kPa | CIRIA C580 / EN 1997-1 practice | Check |
 | EW5 | overdigShare, overdigMax | 10 % of H, 0.5 m | EN 1997-1 9.3.2.2 | Sure |
+
+## Excavation support (`excavationSupport`; BNBC Part 6 Sec 3.12 p. 797, Sec 3.16 p. 805; alpha 9 P1)
+
+BNBC 2020 asks for retained excavation sides and names sheet piles with tie-back anchors without
+a method: every value below except ES2 and ES16 is SAEngine practice.
+
+| # | Path | Value | Source | Sure? |
+|---|---|---|---|---|
+| ES1 | analysis | subgradeReaction: elastic-plastic springs, each stage on the total deflection, supports from their placing | SAEngine practice | Practice |
+| ES2 | analyses[0] | characteristic soil, effects × hFactor 1.6 | BNBC Part 6 Sec 2.7.3.1 (p. 685): 1.6H | Check (1.6H on the effects of a characteristic soil-structure analysis) |
+| ES3 | earthPressure.activeMethod / passiveMethod | coulomb / coulomb, horizontal components | SAEngine practice | Practice |
+| ES4 | earthPressure.activeFriction | δa = 2/3 φ' | CIRIA C580, BS 8002 practice (from memory) | Check |
+| ES5 | earthPressure.passiveFriction | δp = 1/3 φ' (Coulomb overestimates Kp above about φ'/3) | SAEngine practice | Check |
+| ES6 | earthPressure.minimumFluid | 5 kN/m³ × z behind the wall | CIRIA C580 4.1.3 (from memory) | Check |
+| ES7 | earthPressure.stripFactor | 1.0 (a flexible wall; 2.0 for an unyielding one) | Boussinesq, SAEngine practice | Check |
+| ES8 | subgrade.method, schmittCoefficient | schmitt, 2.1 | Schmitt (1995), kh = 2.1 Eoed^(4/3) / EI^(1/3) | Check |
+| ES9 | subgrade.poisson | 0.3 | SAEngine practice | Practice |
+| ES10 | subgrade.granularModulus | φ' 28/32/36/40° → E 10/25/50/80 MPa | SAEngine practice (typical ranges) | Unsure |
+| ES11 | subgrade.cohesiveModulus | E = 300 cu | SAEngine practice | Unsure |
+| ES12 | subgrade.tabulatedGranular, tabulatedCohesive | φ' 28/32/36/40° → 10/25/50/80 MN/m³; 80 cu | SAEngine practice (Terzaghi 1955 order of magnitude) | Unsure |
+| ES13 | subgrade.concreteStiffness | 0.7 × uncracked EI | SAEngine practice | Check |
+| ES14 | subgrade.soldierPassiveWidth | 3 × flange width (≤ spacing) | FHWA / Broms arching practice | Check |
+| ES15 | struts.temperatureRange, temperatureRestraint, expansion, temperatureFactor | 15 °C, 0.5, 1.2e-5 /°C, 1.0 | CIRIA C517 practice (ΔT for Bangladesh SAEngine's) | Unsure |
+| ES16 | struts.selfWeightFactor | 1.2 | BNBC Part 6 Sec 2.7.3.1: 1.2D | Sure |
+| ES17 | struts.effectiveLength, symmetricShare | K 1.0; half the strut's length shortens | SAEngine practice | Practice |
+| ES18 | struts.walerMoment, walerShear | w s²/10, 0.6 w s | continuous-beam coefficients | Practice |
+| ES19 | anchors.tendonFactor, groundFactor (permanent) | 1.4, 2.0 (2.0, 3.0) | BS 8081:2015 minimum factors of safety (from memory) | Check |
+| ES20 | anchors.proofFactor (permanent), lockOffShare, testTendonLimit | 1.25 (1.5), 1.1, 0.8 fpk A | BS 8081 practice (from memory) | Check |
+| ES21 | anchors.freeLengthMin, fixedLengthMin, fixedLengthMax | 5 m, 3 m, 10 m | BS 8081 practice | Check |
+| ES22 | anchors.wedgeClearance, wedgeClearanceMin | 0.2 H, 1.5 m | FHWA GEC No. 4 | Check |
+| ES23 | anchors.groutDiameter | 150 mm | SAEngine practice | Practice |
+| ES24 | anchors.bondGranular | φ' 28/32/36/40° → τ 100/200/300/400 kPa | PTI DC35.1 ranges (mid values, from memory) | Unsure |
+| ES25 | anchors.bondCohesive, bondCohesiveMax | 0.35 cu, 250 kPa | BS 8081 α for stiff clay (from memory) | Check |
+| ES26 | anchors.stiffnessLength | free + 0.5 × fixed length | PTI apparent free length | Practice |
+| ES27 | heave.basalFactor, basalNcMax | 1.5, Nc ≤ 9 | Bjerrum & Eide (1956), Skempton's Nc | Check |
+| ES28 | heave.pipingFactor | 2.0 on Harr's exit gradient | Harr (1962) | Check |
+| ES29 | deflectionShare | 0.5 % of the excavation depth (reported) | SAEngine practice | Practice |
+| ES30 | sheet pile U sections (saengine.library.sheet_piles) | 400×100×10.5: W 874 cm³/m, I 8 740 cm⁴/m, 120 kg/m²; 400×125×13: 1 340, 16 800, 150; 400×170×15.5: 2 270, 38 600, 190; 600×130×10.3: 1 000, 13 000, 102; 600×180×13.4: 1 800, 32 400, 136; 600×210×18: 2 700, 56 700, 176 | JIS A 5523 / A 5528 types II-IV, IIw-IVw (from memory) | Check |
+| ES31 | sheet pile Z sections | generic nominal W 1 100-3 000 cm³/m, I ≈ W h / 2 | SAEngine nominal | Unsure (use the supplier's) |

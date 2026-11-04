@@ -353,7 +353,14 @@ SECTIONS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ),
     (
         "Foundations and site",
-        ("foundations", "siteInvestigation", "construction", "embeddedWalls", "materials"),
+        (
+            "foundations",
+            "siteInvestigation",
+            "construction",
+            "embeddedWalls",
+            "excavationSupport",
+            "materials",
+        ),
     ),
     (
         "Fire, services and planning",

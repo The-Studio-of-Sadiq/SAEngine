@@ -71,24 +71,19 @@ class Location(_Row):
     name: str
     zone: int = Field(description="Seismic zone (index into zoneCoefficients).")
     windSpeed: float = Field(gt=0, description="Basic wind speed V [m/s].")
-    # Alpha 9 C16: the zone as the code names it, and a town's mapped spectral values (packs
-    # whose design spectrum is mappedSpectral with siteCoefficients). Empty: as before.
+    # Alpha 9 C23: the town's mapped spectral values, for a pack whose design spectrum is
+    # mappedSpectral and gives site coefficients (MNBC 2020 type town tables); empty: none, the
+    # project enters them (Site > Mapped spectral values), as before.
+    ss: float | None = Field(
+        default=None, gt=0, description="Mapped MCE acceleration SS at short periods [g]."
+    )
+    s1: float | None = Field(default=None, gt=0, description="Mapped MCE acceleration S1 [g].")
+    tl: float | None = Field(
+        default=None, gt=0, description="Long-period transition period TL [s]."
+    )
+    # Alpha 9 C16: the zone as the code names it (zones 2A, 2B numbered 2, 3 in the data).
     zoneLabel: str | None = Field(
         default=None, description="The zone as the code names it (e.g. '2A'); empty: its number."
-    )
-    ss: float | None = Field(
-        default=None,
-        gt=0,
-        description="Mapped MCER spectral acceleration SS at short periods [g] of the town "
-        "(mappedSpectral packs); the project's entered value replaces it. Empty: none.",
-    )
-    s1: float | None = Field(
-        default=None,
-        gt=0,
-        description="Mapped MCER spectral acceleration S1 at 1 s [g] of the town; empty: none.",
-    )
-    tl: float | None = Field(
-        default=None, gt=0, description="Long-period transition period TL [s]; empty: none."
     )
 
 
@@ -948,32 +943,34 @@ class MultiPeriodRule(BaseModel):
     softClasses: list[str] = Field(default_factory=list)
 
 
-class SiteCoefficients(BaseModel):
-    """Alpha 9 C16 (mappedSpectral, the ASCE 7-16 form): SMS = Fa·SS, SM1 = Fv·S1 with the site
-    coefficients Fa and Fv by site class, given at the mapped values ``ssValues`` /
-    ``s1Values`` (linear between them, held beyond). Used when the project gives neither SDS,
-    SD1 nor SMS, SM1 but SS and S1 (entered, or the town's). A class without a row (one that
-    needs a site response analysis) takes ``assumedClass``'s row where given, else gives no
-    hazard."""
+class SiteCoefficientTable(BaseModel):
+    """Alpha 9 C23: one site coefficient table (Fa by SS, Fv by S1): the factor of each site
+    class at the mapped values ``points`` [g], linear between, the end values outside."""
 
     model_config = ConfigDict(extra="forbid")
 
-    ssValues: list[Positive] = Field(min_length=1, description="SS [g] of the Fa columns.")
-    s1Values: list[Positive] = Field(min_length=1, description="S1 [g] of the Fv columns.")
-    fa: dict[str, list[Positive]] = Field(description="Fa by site class, one per ssValues.")
-    fv: dict[str, list[Positive]] = Field(description="Fv by site class, one per s1Values.")
-    assumedClass: str | None = Field(
-        default=None, description="The row a class without one takes; empty: no hazard."
+    points: list[Positive] = Field(min_length=1, description="SS (or S1) of the columns [g].")
+    classes: dict[str, list[Positive]] = Field(
+        description="Site class id -> the factor at each point."
     )
-    clause: str = ""
 
     @model_validator(mode="after")
-    def _lengths(self) -> SiteCoefficients:
-        bad = [k for k, v in self.fa.items() if len(v) != len(self.ssValues)]
-        bad += [k for k, v in self.fv.items() if len(v) != len(self.s1Values)]
-        if bad:
-            raise ValueError(f"site coefficient rows of the wrong length: {sorted(set(bad))}")
+    def _lengths(self) -> SiteCoefficientTable:
+        for key, row in self.classes.items():
+            if len(row) != len(self.points):
+                raise ValueError(f"site class {key}: one factor per point")
         return self
+
+
+class SiteCoefficients(BaseModel):
+    """Alpha 9 C23: SMS = Fa·SS and SM1 = Fv·S1 from the site's (or its town's) mapped values,
+    used where neither SDS, SD1 nor SMS, SM1 are given (the IBC / ASCE 7-05 to 7-16 form)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    fa: SiteCoefficientTable
+    fv: SiteCoefficientTable
+    clause: str = ""
 
 
 class Ubc97Rule(BaseModel):
@@ -1045,8 +1042,8 @@ class DesignSpectrumRule(BaseModel):
       Seismic Design Category read by the band of SDS and SD1 (``sdsBands``, ``sd1Bands``, the
       more severe; the band after the last where S1 ≥ ``s1Extreme``) as zone packs read it by
       zone; the period's upper limit Cu·Ta from ``periodUpper`` by SD1. The fields after
-      ``lowerBound`` are this method's. Alpha 9 C16: with ``siteCoefficients`` SMS, SM1 also
-      from SS, S1 by Fa, Fv (the ASCE 7-16 form), and a town may carry SS, S1, TL.
+      ``lowerBound`` are this method's. Alpha 9 C23: with ``siteCoefficients`` SMS, SM1 also
+      from SS, S1 by Fa, Fv, and a town may carry SS, S1, TL.
     - ``ubc97`` (alpha 9 C16, UBC 1997 Sec 1629-1630 and the codes that adopt it): the same
       two-period spectrum and Cs bounds with 2.5 Ca for SDS and Cv for SD1, Ca and Cv from the
       zone's Z and the soil profile by ``ubc97`` (:class:`Ubc97Rule`)."""
@@ -1117,8 +1114,9 @@ class DesignSpectrumRule(BaseModel):
         description="(SD1 [g], Cu) points: T ≤ Cu·Ta, Cu linear between, held beyond.",
     )
     multiPeriod: MultiPeriodRule | None = None
-    # Alpha 9 C16: SMS = Fa SS, SM1 = Fv S1 (mappedSpectral); Ca, Cv of the ubc97 method.
+    # Alpha 9 C23: Fa and Fv by site class (empty: SDS, SD1 or SMS, SM1 must be given).
     siteCoefficients: SiteCoefficients | None = None
+    # Alpha 9 C16: Ca, Cv of the ubc97 method.
     ubc97: Ubc97Rule | None = None
     clauses: dict[str, str] = Field(default_factory=dict)
 
@@ -2027,6 +2025,15 @@ class SpeedFactors(_Row):
     # Alpha 9 C12: k3 from the site's slope, and the gust factor method of tall buildings.
     topography: SlopeTopography | None = None
     gustFactor: GustFactorRules | None = None
+    # Alpha 9 C23: codes that tabulate the design pressure by height (the Hong Kong Code of
+    # Practice on Wind Effects type) instead of a basic speed and k2.
+    referencePressures: dict[str, list[tuple[float, Positive]]] | None = Field(
+        default=None,
+        description="By terrain (exposure id): (height [m], reference design pressure [kN/m²]) "
+        "points, linear between, constant outside. For such a terrain pz = q(z)·k1·k3·k4 (the "
+        "factors then act on the pressure) and the basic wind speed is not used; its k2 is "
+        "reported as √(q(z) / q(10 m)). Empty: pz = airFactor·Vz².",
+    )
 
 
 class CpHeightRow(_Row):
@@ -2152,7 +2159,12 @@ class WindTable(TableModel):
         if self.method == "speedFactors":
             if self.speedFactors is None:
                 raise ValueError("speedFactors: the method needs its factors")
-            missing = [k for k in self.exposures if k not in self.speedFactors.heightFactors]
+            pressures = self.speedFactors.referencePressures or {}  # Alpha 9 C23
+            missing = [
+                k
+                for k in self.exposures
+                if k not in self.speedFactors.heightFactors and k not in pressures
+            ]
             if missing:
                 raise ValueError(f"speedFactors: no height factors of {', '.join(missing)}")
         return self
@@ -10471,6 +10483,7 @@ class SnowTable(TableModel):
 # imperfection (and the steel groups of steelLimitState, in limit_state_tables).
 # Alpha 9 C9: steel by limit state design with partial factors and buckling curves.
 from saengine.codes.bar_schedule_tables import BarScheduleTable  # C14
+from saengine.codes.excavation_tables import ExcavationSupportTable  # P1: staged excavations
 from saengine.codes.limit_state_tables import SteelLimitStateTable
 from saengine.codes.material_method_tables import (
     AluminiumTable,
@@ -10570,6 +10583,8 @@ TABLE_MODELS: dict[str, type[TableModel]] = {
     "embeddedWalls": EmbeddedWallsTable,
     # Alpha 9 C14: the bar bending schedule's standard.
     "barSchedule": BarScheduleTable,
+    # Alpha 9 P1: staged excavations, their walls and supports.
+    "excavationSupport": ExcavationSupportTable,
 }
 
 

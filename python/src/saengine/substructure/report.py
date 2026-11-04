@@ -189,6 +189,10 @@ def report(ctx: Context) -> dict[str, Any]:
     notes += excavation_rules.waterproofing_notes(ctx)
     if excavations or temporary:
         method += [m for m in excavation_rules.method_lines() if m not in method]
+    if any(e.get("support") for e in excavations):  # Alpha 9 P1: staged excavation support
+        from saengine.substructure.excavation_support import method_lines as support_method
+
+        method += [m for m in support_method() if m not in method]
 
     # Machine and generator foundations (the pack's machine foundation rules).
     from saengine.substructure import machine as machine_rules

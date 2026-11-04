@@ -1,0 +1,51 @@
+{
+  "$schema": "../../../schemas/locations.schema.json",
+  "$replace": true,
+  "$sources": [
+    "QCS 2014 (Qatar Construction Specifications): wind loading to BS 6399-2; the basic wind speed of Qatar's sites (SAEngine practice value, VERIFY.md Q1)"
+  ],
+  "source": "QCS 2014 refers the wind loading to BS 6399-2: Vb is the basic hourly mean wind speed at 10 m in open country (BS 6399-2 2.2.1). One value for the whole peninsula as SAEngine practice (VERIFY.md Q1: to be replaced by the value the project's authority or the QCS section in force gives). Seismic zone 0: QCS 2014 and the British Standards give no earthquake loading (not covered; zoneCoefficients of bs8110). Elsewhere a custom location.",
+  "default": "doha",
+  "locations": {
+    "doha": {
+      "name": "Doha",
+      "zone": 0,
+      "windSpeed": 25.0
+    },
+    "lusail": {
+      "name": "Lusail",
+      "zone": 0,
+      "windSpeed": 25.0
+    },
+    "alWakrah": {
+      "name": "Al Wakrah",
+      "zone": 0,
+      "windSpeed": 25.0
+    },
+    "alRayyan": {
+      "name": "Al Rayyan",
+      "zone": 0,
+      "windSpeed": 25.0
+    },
+    "alKhor": {
+      "name": "Al Khor",
+      "zone": 0,
+      "windSpeed": 25.0
+    },
+    "mesaieed": {
+      "name": "Mesaieed",
+      "zone": 0,
+      "windSpeed": 25.0
+    },
+    "rasLaffan": {
+      "name": "Ras Laffan",
+      "zone": 0,
+      "windSpeed": 25.0
+    },
+    "dukhan": {
+      "name": "Dukhan",
+      "zone": 0,
+      "windSpeed": 25.0
+    }
+  }
+}

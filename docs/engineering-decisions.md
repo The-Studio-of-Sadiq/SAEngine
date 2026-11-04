@@ -48,12 +48,12 @@ here, newest first, with the date, the question, the decision, the reason and wh
   SBC 304 / 306), `pakistan-bcp` (BCP SP-2007, the UBC 1997 form), `philippines-nscp` (NSCP 2015
   Vol 1: Section 208 in the UBC 1997 form, Section 207 ASCE 7-10, Chapter 4 numbered 4xx) and
   `indonesia-sni` (SNI 1726:2019 in the ASCE 7-16 form, SNI 1727, 2847, 1729). Every value is in
-  the pack's `VERIFY.md`; no code text was available. UAE / Gulf was left to track C23.
+  the pack's `VERIFY.md`; no code text was available. UAE / Gulf was left to track C23 (which
+  built Qatar). Saudi Arabia and Indonesia use C23's `seismic.designSpectrum.siteCoefficients`
+  (Fa, Fv) and the towns' `ss`, `s1`, `tl`.
 - **Generic keys the packs needed (any pack may use them; the existing packs do not set them,
-  so their results are unchanged):** `seismic.designSpectrum.siteCoefficients` (Fa, Fv by site
-  class over SS / S1: SMS = Fa SS, SM1 = Fv S1, used when the project gives neither SDS, SD1 nor
-  SMS, SM1), a town's `ss`, `s1`, `tl` and `zoneLabel` in `locations` (the town's mapped values
-  are used where the project enters none), and the design spectrum method `ubc97`
+  so their results are unchanged):** a town's `zoneLabel` in `locations` (zones named 2A, 2B),
+  and the design spectrum method `ubc97`
   (`seismic.designSpectrum.ubc97`: Ca, Cv by soil profile and Z, the near-source factors Na, Nv
   from Site > Mapped spectral values > seismic source type and distance, or Na, Nv entered; the
   least 0.8 Z Nv I W / R; Cu by Z). `ubc97` draws the same two-period spectrum and Cs bounds as
@@ -71,6 +71,40 @@ here, newest first, with the date, the question, the decision, the reason and wh
   are SAEngine's choice. SBC 304, NSCP Chapter 4 and SNI 2847 adopt ACI 318-14; the base pack's
   ACI 318-19 rules apply (the ACI 318-14 forms are not built in) and the clause references are
   named after the local code (NSCP renumbered 4xx).
+
+## 2026-11-04: thin country packs (alpha 9 track C23)
+
+- **What was built.** Four built-in packs that set only what their country changes:
+  `myanmar-mnbc` (extends `aci318-asce7-22`), `bhutan` (extends `is-codes`), `qatar-qcs`
+  (extends `bs8110`) and `hongkong-cop` (extends `bs8110`). Malaysia and Singapore were done as
+  National Annex packs in C15. Every value is in the pack's `VERIFY.md`; no code text was
+  available.
+- **Generic keys (any pack may use them; the existing packs do not set them, so their results
+  are unchanged):** `seismic.designSpectrum.siteCoefficients` (Fa, Fv by site class: SMS = Fa SS,
+  SM1 = Fv S1 under `mappedSpectral` where SDS, SD1 and SMS, SM1 are not given), the towns'
+  `ss`, `s1`, `tl` in `locations` (used where the project enters none),
+  `wind.speedFactors.referencePressures` (a code's design pressure by height, the factors k1, k3,
+  k4 on the pressure), `concreteMethods.ultimate.relations.<relation>.steps` and
+  `ultimate.neutralAxisSteps` (values by strength band).
+- **Which parent (SAEngine practice).** Qatar extends `bs8110`, not `eurocodes`: QCS 2014's
+  structural references are the British Standards and its wind follows BS 6399-2. Hong Kong
+  extends `bs8110`. No `uae-dubai` pack: Dubai practice is the US codes with the authority's own
+  values, which SAEngine cannot state reliably; the US pack with entered values covers it.
+- **SAEngine practice, Myanmar.** MNBC 2020 is read as the ASCE 7-05 form: 50-year basic wind
+  speeds with 1.6W (strength) and 1.0W (allowable) combinations (on the safe side should MNBC use
+  ultimate speeds), wind importance 0.87-1.15, Fa and Fv of ASCE 7-05 Tables 11.4-1 and 11.4-2,
+  site classes A-F; the towns' SS and S1 are SAEngine estimates from the zone (SS ≈ 2.5 ×, S1 ≈
+  1.0 × the zone's upper PGA) and the wind speeds readings by region: both must be replaced with
+  MNBC's town values before design (VERIFY.md N2, N10). Metric bars and BS 8666 schedules.
+- **SAEngine practice, Hong Kong.** The wind pressures are the 2004 edition's design pressures as
+  known, to be replaced by the 2019 edition's (VERIFY.md H1); Sθ, the size and dynamic factor and
+  the correlation factor are 1.0, the BS 6399 wall coefficients stand in for the building's force
+  coefficient; εcu above C60 as steps at each band's top. Seismic not covered; steel stays BS
+  5950-1.
+- **SAEngine practice, Bhutan and Qatar.** Bhutan: zone IV in the west, V elsewhere, and Vb of
+  the adjoining Indian regions (to be checked). Qatar: Vb = 25 m/s for every town, a town site 2
+  km from the sea and the 'severe' exposure as defaults; no seismic loading; the temperature
+  range is a project input (suggestion about 25 °C).
 
 ## 2026-11-04: National Annex packs on the Eurocodes (alpha 9 track C15)
 
@@ -132,6 +166,49 @@ practice where BNBC 2020 is silent**, except the non-building structures, which 
   pressures with the passive divided by 2.0, the least surcharge 10 kPa and an overdig of 10 % of
   H up to 0.5 m; the Eurocodes pack uses EN 1997-1 M2 strengths and q × 1.3. Wall sections,
   walers, struts and anchors stay with track P1.
+
+## 2026-11-04: staged excavation support and shoring (alpha 9 track P1)
+
+The pack's new `excavationSupport` table holds the method ids and values; BNBC 2020 asks for
+retained excavation sides and names sheet piles with tie-back anchors (Part 6 Sec 3.12, 3.16)
+without a method, so in the default pack each item is **SAEngine practice where BNBC 2020 is
+silent** (the 1.6H factor on the effects is BNBC's Sec 2.7.3.1). Every value is overridable in
+Code Values. P7's limit-equilibrium embedment check stays as it is; P1 adds rows only when an
+excavation's wall has a *wall type*, so existing projects keep their results.
+
+- **Staged analysis (SAEngine practice).** The wall per metre on elastic-plastic springs (at
+  rest to active behind, to passive in front, kh by Schmitt 1995 from the borehole's E or the
+  pack's correlation), Coulomb pressures with δa = 2/3 φ' and δp = 1/3 φ' (Coulomb passive is
+  taken no further than φ'/3, where it stays near the curved-surface values), hydrostatic water
+  both sides (front dewatered to the dig level), adjoining footings as Boussinesq strip loads.
+  Each stage is solved on the total deflection from the at-rest state (no unloading memory of
+  the soil); a support placed in a stage starts from the wall's deflection at that moment, which
+  is what carries the staging. A support that would pull drops out. The last stage takes P7's
+  unplanned overdig. Bored and diaphragm walls use 0.7 × the uncracked EI.
+- **Runs and factors.** The default pack: one characteristic run, effects × the pack's factor on
+  earth pressure (1.6H); the Eurocodes pack: DA1 C1 (characteristic, × 1.35) and C2 (M2
+  strengths, × 1.0), enveloped. Anchors' working loads come from the characteristic run.
+- **Sections.** Sheet piles from a nominal per-metre table (JIS U types, generic Z types; VERIFY
+  with the supplier), W fy / γM0 or φb Fy W (elastic); bored piles by the pack's P-M surface per
+  reinforced pile (secant: every second pile unless all are reinforced), pile shear by the pile
+  section rule (ACI packs) or the pack's one-way shear on bw = D, d = 0.8 D (others); diaphragm
+  walls by the retaining walls' strip design both faces; soldier piles by the pack's steel
+  member checks (braced at the supports) with timber lagging against the formwork rules'
+  allowable stress, the soil below the dig acting on 3 × the flange width.
+- **Supports.** Struts and rakers by the pack's steel member checks with the temperature force
+  (ΔT 15 °C, half restrained, × 1.0) and the self weight (× 1.2); a strut's stiffness from half
+  its length (symmetric pit). Walers continuous: M = w s²/10, V = 0.6 w s. Ground anchors by the
+  pack's standard (BS 8081 in the default pack, EN 1997-1 8 / EN 1537 in the Eurocodes pack, PTI
+  DC35.1 / FHWA GEC 4 in the US pack): tendon and bond factors, proof and lock-off loads, the
+  free length beyond the active wedge from the dig level plus max(0.2 H, 1.5 m), the fixed length
+  by the bond integrated along it.
+- **Base.** Basal heave of a cohesive base by Bjerrum and Eide (needs the outline), piping at the
+  toe by Harr's exit gradient Δh / (π d) (one wall in deep uniform soil; a flow net decides for
+  layered ground), the wall's deflection reported against 0.5 % H.
+- **Quantities and drawings.** The bill measures sheet piles (kg), bored and diaphragm walls'
+  concrete and bars, soldier piles, lagging, struts (one per two spacings: a strut joins two
+  walls), rakers, walers and anchors (number and drilled length, given or the pack's least);
+  the drawings add a section of each typed wall with its stages, supports and water table.
 
 ## 2026-11-04: display units, SI or US customary (alpha 9 track C13)
 

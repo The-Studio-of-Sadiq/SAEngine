@@ -1,0 +1,41 @@
+{
+  "schema": "saengine.codePack/1",
+  "id": "qatar-qcs",
+  "name": "Qatar (QCS 2014 with BS 8110 / BS 6399)",
+  "edition": "QCS 2014",
+  "country": "QA",
+  "units": "SI",
+  "version": "0.1.0",
+  "extends": "bs8110",
+  "covers": [
+    "locations",
+    "wind",
+    "concreteMethods"
+  ],
+  "description": "A thin pack for Qatar (alpha 9 track C23): the Qatar Construction Specifications 2014 refer the structural design to the British Standards, so it extends the legacy pack bs8110 (BS 8110-1:1997 concrete, BS 6399 loads with the standard wind method, BS 5950-1 steel) and sets Qatar's towns with the basic wind speed (one SAEngine practice value, to be checked), a coastal town site as the default terrain and the 'severe' exposure for new concrete members. Earthquake: not covered (QCS 2014 and the British Standards give no seismic loading; zone 0, no earthquake cases; a Z entered per project uses the parent's spectrum, named BNBC 2020). The Gulf's temperature range is not a pack value: enter the uniform change in Project Settings > Temperature (README). QCS's own durability rules and the Eurocode route that newer Qatari projects follow are not included (choose eurocodes for that). Every value is listed in VERIFY.md.",
+  "sources": [
+    {
+      "id": "QCS2014",
+      "title": "Qatar Construction Specifications",
+      "edition": "2014",
+      "publisher": "Qatar General Organization for Standards and Metrology"
+    }
+  ],
+  "clauses": {
+    "locations": ["QCS 2014 (wind to BS 6399-2:1997; SAEngine practice basic wind speed)"],
+    "wind": ["BS 6399-2:1997 standard method, as QCS 2014 refers"],
+    "concreteMethods": ["BS 8110-1:1997 Table 3.3 (exposure), as QCS 2014 refers"]
+  },
+  "basis": {
+    "general": "QCS 2014 with BS 6399-1:1996 and BS 6399-2:1997 (no seismic loading)",
+    "concrete": "BS 8110-1:1997 as QCS 2014 refers; torsion, flat slabs, walls and footings from BNBC 2020 until covered",
+    "steel": "BS 5950-1:2000 (members); connections from BNBC 2020",
+    "method": "Limit state design (BS 8110, BS 5950)"
+  },
+  "tableCodes": {
+    "locations": "QCS 2014"
+  },
+  "author": "SAEngine contributors",
+  "licence": "AGPL-3.0-only",
+  "hooks": null
+}

@@ -58,16 +58,15 @@ def test_the_us_pack_is_unchanged():
 
 
 def test_site_coefficients_interpolate():
-    rule = registry.load("saudi-sbc").table("seismic").designSpectrum.siteCoefficients
-    # SBC 301-2018 Table 11.4-1 / 11.4-2 (ASCE 7-16 values), class D.
-    fa, fv = sh.from_site_coefficients(0.6, 0.25, "SD", rule)
+    pack = registry.load("saudi-sbc")
+    # SBC 301-2018 Table 11.4-1 / 11.4-2 (ASCE 7-16 values), class D (C23's site coefficients).
+    fa, fv, used = sh.site_factors(0.6, 0.25, "SD", pack)
     assert fa == pytest.approx(1.4 - 0.1 / 0.25 * 0.2)
-    assert fv == pytest.approx(2.1)
-    assert sh.from_site_coefficients(0.1, 0.05, "SD", rule) == (1.6, 2.4)  # held below
-    assert sh.from_site_coefficients(0.6, 0.25, "SF", rule) == sh.from_site_coefficients(
-        0.6, 0.25, "SE", rule
-    )  # SF reads SE meanwhile
-    assert sh.from_site_coefficients(None, 0.25, "SD", rule) is None
+    assert fv == pytest.approx(2.1) and used == "SD"
+    assert sh.site_factors(0.1, 0.05, "SD", pack) == (1.6, 2.4, "SD")  # held below
+    assert sh.site_factors(0.6, 0.25, "SF", pack)[2] == "SE"  # SF reads SE meanwhile
+    se = registry.load("indonesia-sni")
+    assert sh.site_factors(1.5, 0.6, "SE", se)[:2] == (0.8, 2.0)  # SNI 1726:2019 Tabel 6, 7
 
 
 def _settings(pack_id, location, site_class="SD", **site):
@@ -92,7 +91,7 @@ def test_saudi_town_values_give_sds_and_sd1():
     assert isinstance(z, sh.SpectralHazard)
     assert float(z) == pytest.approx(2 / 3 * 1.6 * 0.24, rel=1e-6)
     assert z.sd1 == pytest.approx(2 / 3 * 2.4 * 0.07, rel=1e-6)
-    assert z.s1 == 0.07 and "town" in z.source
+    assert z.s1 == 0.07 and "Fa = 1.6" in z.source
     assert values["zone"] == 2  # SDS >= 0.167, SD1 >= 0.067: the second band (SDC B)
     assert values["windSpeed"] == 47.0
     assert not any(p.startswith("site.spectral") for p in problems)
@@ -183,7 +182,7 @@ def test_pack_choices_name_the_zones():
     labels = {c["id"]: c["label"] for c in pack_choices(registry.load("pakistan-bcp"))["locations"]}
     assert labels["lahore"].startswith("Lahore (zone 2A, Z 0.15")
     labels = {c["id"]: c["label"] for c in pack_choices(registry.load("saudi-sbc"))["locations"]}
-    assert labels["haql"].startswith("Haql (SS 1 g, S1 0.33 g")
+    assert labels["haql"].startswith("Haql (zone 0, SS 1, S1 0.33, V 45")
 
 
 def test_local_bars_and_clause_names():

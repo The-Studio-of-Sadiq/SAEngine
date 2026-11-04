@@ -31,19 +31,6 @@
           "title": "Windspeed",
           "type": "number"
         },
-        "zoneLabel": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "The zone as the code names it (e.g. '2A'); empty: its number.",
-          "title": "Zonelabel"
-        },
         "ss": {
           "anyOf": [
             {
@@ -55,7 +42,7 @@
             }
           ],
           "default": null,
-          "description": "Mapped MCER spectral acceleration SS at short periods [g] of the town (mappedSpectral packs); the project's entered value replaces it. Empty: none.",
+          "description": "Mapped MCE acceleration SS at short periods [g].",
           "title": "Ss"
         },
         "s1": {
@@ -69,7 +56,7 @@
             }
           ],
           "default": null,
-          "description": "Mapped MCER spectral acceleration S1 at 1 s [g] of the town; empty: none.",
+          "description": "Mapped MCE acceleration S1 [g].",
           "title": "S1"
         },
         "tl": {
@@ -83,8 +70,21 @@
             }
           ],
           "default": null,
-          "description": "Long-period transition period TL [s]; empty: none.",
+          "description": "Long-period transition period TL [s].",
           "title": "Tl"
+        },
+        "zoneLabel": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The zone as the code names it (e.g. '2A'); empty: its number.",
+          "title": "Zonelabel"
         }
       },
       "required": [

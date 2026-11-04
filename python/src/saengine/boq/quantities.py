@@ -188,6 +188,10 @@ KINDS: dict[str, str] = {
     "solid": "solid blocks",
     "plinth": "equipment plinths",
     "tank": "water and septic tanks",
+    # Alpha 9 P1: the embedded walls of excavations and their supports (last: the order of the
+    # kinds above stays as it was).
+    "embeddedWall": "embedded excavation walls",
+    "excavationSupport": "excavation supports",
 }
 
 #: The note on a tank whose bars wait for its design (the workbench's Run All measures the bill
@@ -290,6 +294,24 @@ FOUNDATION_CONVENTIONS = [
         "and blinding below the ground; column stubs and pedestals below the ground are not "
         "deducted. No battered sides, dewatering, shoring, disposal of surplus spoil or bored "
         "pile spoil are measured."
+    ),
+]
+
+
+#: Alpha 9 P1: the measurement of the excavations' embedded walls and supports.
+EMBEDDED_WALL_CONVENTIONS = [
+    (
+        "Embedded excavation walls (9 Substructure, excavations with a wall type): over the "
+        "outline's perimeter (else the wall's length) from the excavation's ground to the toe "
+        "level. Sheet piles by their mass per m² of wall; bored piles by count (the run over the "
+        "spacing), concrete of the full length (secant overlaps measured once), bars and links "
+        "of the reinforced piles (contiguous, or every second secant pile unless all are "
+        "reinforced); soldier piles by count and mass, timber lagging over the retained "
+        "height; diaphragm walls by run × thickness × depth, the main bars of both faces. "
+        "Struts one per two spacings of the run (a strut joins two walls), rakers one per "
+        "spacing, walers along the run at each support level, ground anchors by number and "
+        "drilled length (free plus fixed as given, else the code pack's least). No guide walls, "
+        "capping beams, temporary works or disposal are measured."
     ),
 ]
 
@@ -1673,6 +1695,9 @@ class _Measure:
 
         for wall in substructure.retainingWalls:
             self.retaining_wall(wall, story, blinding, below)
+        for excavation in substructure.excavations:  # Alpha 9 P1
+            if excavation.wall is not None and excavation.wall.wallType is not None:
+                self.embedded_wall(excavation, story)
 
         self.earthwork(pits, below, story)
 
@@ -1754,6 +1779,185 @@ class _Measure:
             if part and mesh is not None:
                 total = mesh_length(area, mesh.spacing, run, mesh.dia)
                 self.rebar(wall.id, bars.material, mesh.dia, total, story, detail)
+
+    def embedded_wall(self, excavation: Any, story: str | None) -> None:
+        """Alpha 9 P1: an excavation's embedded wall (see :data:`EMBEDDED_WALL_CONVENTIONS`):
+        sheet piles [kg], bored piles' concrete and bars, soldier piles [kg] and lagging [m²],
+        a diaphragm wall's concrete and bars, and its supports."""
+        from saengine.library.sheet_piles import find as sheet_pile
+        from saengine.library.steel_sections import find as steel_section
+
+        wall = excavation.wall
+        eid = excavation.id
+        if excavation.outline:
+            run = Polygon(excavation.outline).exterior.length
+        elif wall.length:
+            run = float(wall.length)
+        else:
+            self.notes.append(f"{eid}: its wall has no length and no outline; not measured.")
+            return
+        ground = excavation.groundLevel if excavation.groundLevel is not None else self.ground_level
+        if wall.toeLevel is None:
+            self.notes.append(f"{eid}: its wall has no toe level; not measured.")
+            return
+        depth = ground - wall.toeLevel  # mm
+        if depth <= 0:
+            return
+        material = self.materials.get(wall.material) if wall.material else None
+        kind = wall.wallType
+        order = _kind_order("embeddedWall")
+        if kind == "sheetPile":
+            sp = sheet_pile(wall.section)
+            if sp is None:
+                self.notes.append(
+                    f"{eid}: sheet pile section '{wall.section}' unknown; not measured."
+                )
+            else:
+                self.bill.add(
+                    "steel",
+                    (wall.material or "", order, sp.name),
+                    f"Steel sheet piles {sp.name} ({sp.mass:g} kg/m²)"
+                    + (f", {wall.material}" if wall.material else ""),
+                    "kg",
+                    eid,
+                    run * depth * MM2 * sp.mass,
+                    story=story,
+                    material=wall.material,
+                    kind="embeddedWall",
+                )
+        elif kind in ("contiguous", "secant") and wall.pileDiameter and wall.pileSpacing:
+            d, s = float(wall.pileDiameter), float(wall.pileSpacing)
+            count = math.ceil(run / s)
+            area = math.pi * d * d / 4
+            volume = count * area * depth
+            if kind == "secant" and s < d:
+                r = d / 2  # the lens cut where two piles overlap, measured once
+                lens = 2 * r * r * math.acos(s / (2 * r)) - s / 2 * math.sqrt(4 * r * r - s * s)
+                volume -= count * lens * depth
+            if material is not None:
+                self.concrete(eid, material, "embeddedWall", volume, story)
+            all_bars = kind == "contiguous" or wall.allReinforced
+            reinforced = count if all_bars else math.ceil(count / 2)
+            if wall.rebar and wall.barCount and wall.barDia:
+                total = reinforced * wall.barCount * bar_length(depth, wall.barDia)
+                self.rebar(eid, wall.rebar, wall.barDia, total, story, "pile wall bars")
+                if wall.linkDia and wall.linkSpacing:
+                    ring = math.pi * max(d - 2 * wall.cover, 0.0)
+                    total = reinforced * ring * depth / float(wall.linkSpacing)
+                    self.rebar(eid, wall.rebar, wall.linkDia, total, story, "pile wall links")
+        elif kind == "soldier" and wall.pileSpacing:
+            section = steel_section(wall.section)
+            count = math.ceil(run / float(wall.pileSpacing))
+            if section is not None:
+                self.bill.add(
+                    "steel",
+                    (wall.material or "", order, section.name),
+                    f"Steel soldier piles {section.name} ({section.mass:.1f} kg/m)"
+                    + (f", {wall.material}" if wall.material else ""),
+                    "kg",
+                    eid,
+                    count * depth / 1e3 * section.mass,
+                    story=story,
+                    material=wall.material,
+                    kind="embeddedWall",
+                )
+            if wall.laggingThickness:
+                self.bill.add(
+                    "formwork",
+                    (order, "lagging", float(wall.laggingThickness)),
+                    f"Timber lagging {wall.laggingThickness:g} mm between soldier piles",
+                    "m2",
+                    eid,
+                    run * (ground - excavation.bottomLevel) * MM2,
+                    story=story,
+                    kind="embeddedWall",
+                )
+        elif kind == "diaphragm" and wall.thickness:
+            if material is not None:
+                volume = run * float(wall.thickness) * depth
+                self.concrete(eid, material, "embeddedWall", volume, story)
+            if wall.rebar and wall.barDia and wall.barSpacing:
+                total = 2 * mesh_length(run * depth, wall.barSpacing, depth, wall.barDia)
+                self.rebar(eid, wall.rebar, wall.barDia, total, story, "diaphragm wall faces")
+        for support in wall.supports:
+            self.wall_support(eid, support, run, story)
+
+    def wall_support(self, eid: str, support: Any, run: float, story: str | None) -> None:
+        """Alpha 9 P1: struts (one per two spacings of the wall's run: a strut joins two
+        walls), rakers, their walers along the run, and the anchors (their free and fixed
+        lengths as given, else the code pack's least)."""
+        from saengine.codes import context as code_context
+        from saengine.library.steel_sections import find as steel_section
+
+        order = _kind_order("excavationSupport")
+        count = math.ceil(run / float(support.spacing))
+        where = f"{eid}/{support.id}"
+        if support.kind == "strut":
+            count = math.ceil(count / 2)
+        if support.kind in ("strut", "raker"):
+            section = steel_section(support.section)
+            length = (support.length or (10_000.0 if support.kind == "strut" else 0.0)) / 1e3
+            if section is not None and length > 0:
+                self.bill.add(
+                    "steel",
+                    (support.material or "", order, section.name),
+                    f"Steel {support.kind}s {section.name} ({section.mass:.1f} kg/m)",
+                    "kg",
+                    where,
+                    count * length * section.mass,
+                    story=story,
+                    material=support.material,
+                    kind="excavationSupport",
+                )
+            elif section is not None:
+                self.notes.append(f"{where}: the raker has no length; not measured.")
+        else:
+            pack = code_context.current()
+            rules = (
+                pack.table("excavationSupport").anchors if pack.has("excavationSupport") else None
+            )
+            free = support.freeLength / 1e3 if support.freeLength else None
+            fixed = support.fixedLength / 1e3 if support.fixedLength else None
+            if free is None or fixed is None:
+                self.notes.append(
+                    f"{where}: the anchors' lengths are not all given; the code pack's least free "
+                    "and fixed lengths are measured (the design may need more)."
+                )
+            free = free if free is not None else (rules.freeLengthMin if rules else 0.0)
+            fixed = fixed if fixed is not None else (rules.fixedLengthMin if rules else 0.0)
+            self.bill.add(
+                "steel",
+                ("anchor", order, "nr"),
+                "Ground anchors, installed, stressed and tested",
+                "nr",
+                where,
+                float(count),
+                story=story,
+                kind="excavationSupport",
+            )
+            self.bill.add(
+                "steel",
+                ("anchor", order, "m"),
+                "Ground anchors, drilled length (free and fixed)",
+                "m",
+                where,
+                count * (free + fixed),
+                story=story,
+                kind="excavationSupport",
+            )
+        section = steel_section(support.waler) if support.waler else None
+        if section is not None:
+            self.bill.add(
+                "steel",
+                (support.material or "", order, f"waler {section.name}"),
+                f"Steel walers {section.name} ({section.mass:.1f} kg/m)",
+                "kg",
+                where,
+                run / 1e3 * section.mass,
+                story=story,
+                material=support.material,
+                kind="excavationSupport",
+            )
 
     def pile(self, pile: PileSolid, story: str | None) -> None:
         """One pile: concrete, bars, and the moulds of a driven precast pile."""
@@ -2330,6 +2534,11 @@ class _Measure:
             or self.substructure.retainingWalls
         ):
             notes += FOUNDATION_CONVENTIONS
+        if self.substructure is not None and any(
+            e.wall is not None and e.wall.wallType is not None
+            for e in self.substructure.excavations
+        ):
+            notes += EMBEDDED_WALL_CONVENTIONS
         if self.mep is not None and (
             self.mep.openings or any(e.plinth for e in self.mep.equipment)
         ):
@@ -2513,7 +2722,11 @@ def compute_boq(
 
         designs = {**read_designs(project_root), **read_fire_designs(project_root)}
     earthwork = substructure is not None and bool(
-        substructure.foundations or substructure.tieBeams or substructure.retainingWalls
+        substructure.foundations
+        or substructure.tieBeams
+        or substructure.retainingWalls
+        # Alpha 9 P1: the embedded walls are measured from the ground level too.
+        or any(e.wall is not None and e.wall.wallType for e in substructure.excavations)
     )
     library = MaterialLibrary.model_validate_json(materials_text)
     # The bill is measured from the materials the other files name (and their mortars) only, and

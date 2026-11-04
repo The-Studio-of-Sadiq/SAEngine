@@ -2703,6 +2703,33 @@
           ],
           "default": null,
           "title": "Divisor"
+        },
+        "steps": {
+          "anyOf": [
+            {
+              "items": {
+                "maxItems": 2,
+                "minItems": 2,
+                "prefixItems": [
+                  {
+                    "exclusiveMinimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "type": "number"
+                  }
+                ],
+                "type": "array"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "(fck up to [MPa], value) bands: the value of the first band holding fck, the last band's above; empty: base and the high relation.",
+          "title": "Steps"
         }
       },
       "required": [
@@ -4571,6 +4598,35 @@
           ],
           "default": null,
           "title": "Neutralaxislimit"
+        },
+        "neutralAxisSteps": {
+          "anyOf": [
+            {
+              "items": {
+                "maxItems": 2,
+                "minItems": 2,
+                "prefixItems": [
+                  {
+                    "exclusiveMinimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "exclusiveMinimum": 0,
+                    "maximum": 1,
+                    "type": "number"
+                  }
+                ],
+                "type": "array"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "(fck up to [MPa], xu/d at most) bands, the last band's above; empty: neutralAxisLimit.",
+          "title": "Neutralaxissteps"
         },
         "gradePrefix": {
           "anyOf": [

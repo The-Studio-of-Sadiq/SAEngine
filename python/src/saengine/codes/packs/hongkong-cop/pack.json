@@ -1,0 +1,67 @@
+{
+  "schema": "saengine.codePack/1",
+  "id": "hongkong-cop",
+  "name": "Hong Kong Codes of Practice (Buildings Department)",
+  "edition": "HK Codes of Practice",
+  "country": "HK",
+  "units": "SI",
+  "version": "0.1.0",
+  "extends": "bs8110",
+  "covers": [
+    "locations",
+    "areaLoads",
+    "wind",
+    "concreteMethods",
+    "concrete"
+  ],
+  "description": "A thin pack for Hong Kong (alpha 9 track C23): it extends the legacy British Standards pack bs8110 and sets what the Hong Kong Codes of Practice change. Wind by the Code of Practice on Wind Effects in Hong Kong 2019: the design pressure by height from the code's reference pressures (one profile for the territory, a generic method of speedFactors), the topography factor Sq on the pressure, Sθ and the size and dynamic factor taken 1.0 (rigid buildings; the dynamic response is not covered). Concrete by the Code of Practice for Structural Use of Concrete 2013 where it differs from BS 8110: γm 1.15 for the bars, the stress block depth 0.9 x / 0.8 x / 0.72 x and the neutral axis limit 0.5 d / 0.4 d / 0.33 d by grade, εcu above C60, Ec = 3.46 √fcu + 3.21 kN/mm², vc with fcu up to 80 and the maximum shear stress 0.8 √fcu up to 7 N/mm². Imposed loads of the Code of Practice for Dead and Imposed Loads 2011 for dwellings, offices and roofs. Steel: the HK Code of Practice for the Structural Use of Steel 2011 follows BS 5950-1 for the members SAEngine designs; its own values are not set, the parent's BS 5950-1:2000 values apply (named BS 5950-1 in the report). Earthquake: not covered (zone 0, no earthquake cases; Hong Kong's seismic provisions are not included). Load combinations, cover, the other loads and the rest: BS 8110 / BS 6399 (the parent), then BNBC 2020. Every value is listed in VERIFY.md: the wind pressures and the imposed loads are to be checked against the printed codes before design.",
+  "sources": [
+    {
+      "id": "HKWind2019",
+      "title": "Code of Practice on Wind Effects in Hong Kong",
+      "edition": "2019",
+      "publisher": "Buildings Department, Hong Kong"
+    },
+    {
+      "id": "HKConcrete2013",
+      "title": "Code of Practice for Structural Use of Concrete",
+      "edition": "2013",
+      "publisher": "Buildings Department, Hong Kong"
+    },
+    {
+      "id": "HKLoads2011",
+      "title": "Code of Practice for Dead and Imposed Loads",
+      "edition": "2011",
+      "publisher": "Buildings Department, Hong Kong"
+    },
+    {
+      "id": "HKSteel2011",
+      "title": "Code of Practice for the Structural Use of Steel",
+      "edition": "2011",
+      "publisher": "Buildings Department, Hong Kong"
+    }
+  ],
+  "clauses": {
+    "locations": ["HK CoP Wind Effects 2019 (one reference pressure profile)"],
+    "areaLoads": ["HK CoP Dead and Imposed Loads 2011 Table 3.2"],
+    "wind": ["HK CoP Wind Effects 2019 Section 3 (reference design wind pressures, Sq, Sθ)"],
+    "concreteMethods": ["HK CoP Structural Use of Concrete 2013 (Table 2.2, 6.1.2.4, 6.1.2.5, Table 6.3)"],
+    "concrete": ["HK CoP Structural Use of Concrete 2013 Table 3.2"]
+  },
+  "basis": {
+    "general": "HK Code of Practice on Wind Effects 2019 and Code of Practice for Dead and Imposed Loads 2011; load combinations of BS 8110-1 Table 2.1 (the HK concrete code's Table 2.1 is the same form); no seismic loading",
+    "concrete": "HK Code of Practice for Structural Use of Concrete 2013 where it differs from BS 8110-1:1997; the rest by BS 8110 (parent pack bs8110), torsion, flat slabs, walls and footings from BNBC 2020 until covered",
+    "steel": "BS 5950-1:2000 members (the HK Code of Practice for the Structural Use of Steel 2011 values not set)",
+    "method": "Limit state design"
+  },
+  "tableCodes": {
+    "locations": "HK CoP Wind 2019",
+    "wind": "HK CoP Wind 2019",
+    "areaLoads": "HK CoP Loads 2011",
+    "concreteMethods": "HK CoP Concrete 2013",
+    "concrete": "HK CoP Concrete 2013"
+  },
+  "author": "SAEngine contributors",
+  "licence": "AGPL-3.0-only",
+  "hooks": null
+}

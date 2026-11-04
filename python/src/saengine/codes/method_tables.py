@@ -43,6 +43,13 @@ class PowerRelation(_Group):
     #: The reference of the term ((top - fck)/100, (fck - highFrom), ...): its use is the method's.
     top: float | None = None
     divisor: float | None = None
+    # Alpha 9 C23 (HK CoP Concrete 2013 6.1.2.4: 0.9 x up to C45, 0.8 x to C70, 0.72 x to
+    # C100): the value by strength band in place of base and the high relation.
+    steps: list[tuple[Positive, float]] | None = Field(
+        default=None,
+        description="(fck up to [MPa], value) bands: the value of the first band holding fck, "
+        "the last band's above; empty: base and the high relation.",
+    )
 
 
 class StrengthRelations(_Group):
@@ -103,6 +110,13 @@ class UltimateRules(_Group):
     #: Alpha 9 C5b: (k1, k2) of the redistribution rule δ >= k1 + k2 xu/d; with δ = 1 the
     #: limit xu/d <= (1 - k1)/k2 of slabs and stairs designed from the elastic analysis.
     neutralAxisLimit: tuple[Share, Positive] | None = None
+    # Alpha 9 C23 (HK CoP Concrete 2013 6.1.2.4(c): x <= 0.5 d up to C45, 0.4 d to C70, 0.33 d
+    # to C100): the limit by strength band, where the grade is known, before neutralAxisLimit.
+    neutralAxisSteps: list[tuple[Positive, Share]] | None = Field(
+        default=None,
+        description="(fck up to [MPa], xu/d at most) bands, the last band's above; empty: "
+        "neutralAxisLimit.",
+    )
     # C8 (IS 456): grade names, the axial cap by shares of fck and fy, e0 with the length.
     gradePrefix: str | None = Field(
         default=None, description="Grades named prefix + fck ('M25'); none: 'C fck/fck,cube'."

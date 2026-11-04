@@ -1,0 +1,571 @@
+{
+  "$defs": {
+    "SupportAnalysis": {
+      "additionalProperties": false,
+      "description": "One run of the staged analysis: the soil's strengths and the factor on its effects.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "name": {
+          "description": "Shown in the report, e.g. 'Characteristic × 1.6'.",
+          "title": "Name",
+          "type": "string"
+        },
+        "strengths": {
+          "description": "characteristic: the soil as given; design: the strengths divided by the embeddedWalls method's partial factors (its materials set).",
+          "enum": [
+            "characteristic",
+            "design"
+          ],
+          "title": "Strengths",
+          "type": "string"
+        },
+        "effectFactor": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "On the moments, shears and support forces of the run; empty: the pack's factor on earth pressure (foundations.retainingWall.hFactor or γG of A1).",
+          "title": "Effectfactor"
+        }
+      },
+      "required": [
+        "name",
+        "strengths"
+      ],
+      "title": "SupportAnalysis",
+      "type": "object"
+    },
+    "SupportAnchors": {
+      "additionalProperties": false,
+      "description": "Ground anchors: the standard's factors, test and lock-off loads and bond stresses.",
+      "properties": {
+        "standard": {
+          "description": "Shown in the report, e.g. 'BS 8081'.",
+          "title": "Standard",
+          "type": "string"
+        },
+        "tendonFactor": {
+          "description": "Temporary: working load ≤ fpk A / this.",
+          "exclusiveMinimum": 0,
+          "title": "Tendonfactor",
+          "type": "number"
+        },
+        "groundFactor": {
+          "description": "Temporary: π D L τ ≥ this × working load.",
+          "exclusiveMinimum": 0,
+          "title": "Groundfactor",
+          "type": "number"
+        },
+        "permanentTendonFactor": {
+          "exclusiveMinimum": 0,
+          "title": "Permanenttendonfactor",
+          "type": "number"
+        },
+        "permanentGroundFactor": {
+          "exclusiveMinimum": 0,
+          "title": "Permanentgroundfactor",
+          "type": "number"
+        },
+        "proofFactor": {
+          "description": "Temporary: proof (acceptance) load / working.",
+          "exclusiveMinimum": 0,
+          "title": "Prooffactor",
+          "type": "number"
+        },
+        "permanentProofFactor": {
+          "exclusiveMinimum": 0,
+          "title": "Permanentprooffactor",
+          "type": "number"
+        },
+        "lockOffShare": {
+          "description": "Lock-off load / working load.",
+          "exclusiveMinimum": 0,
+          "title": "Lockoffshare",
+          "type": "number"
+        },
+        "testTendonLimit": {
+          "description": "Proof load ≤ this × fpk A.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Testtendonlimit",
+          "type": "number"
+        },
+        "freeLengthMin": {
+          "description": "Least free (tendon) length [m].",
+          "exclusiveMinimum": 0,
+          "title": "Freelengthmin",
+          "type": "number"
+        },
+        "fixedLengthMin": {
+          "description": "Least fixed (bond) length [m].",
+          "exclusiveMinimum": 0,
+          "title": "Fixedlengthmin",
+          "type": "number"
+        },
+        "fixedLengthMax": {
+          "description": "Longest fixed length counted [m].",
+          "exclusiveMinimum": 0,
+          "title": "Fixedlengthmax",
+          "type": "number"
+        },
+        "wedgeClearance": {
+          "description": "Beyond the active wedge: this × H ...",
+          "minimum": 0,
+          "title": "Wedgeclearance",
+          "type": "number"
+        },
+        "wedgeClearanceMin": {
+          "description": "... at least this [m].",
+          "minimum": 0,
+          "title": "Wedgeclearancemin",
+          "type": "number"
+        },
+        "groutDiameter": {
+          "description": "Of the fixed length when none is given [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Groutdiameter",
+          "type": "number"
+        },
+        "bondGranular": {
+          "description": "(φ' [°], ultimate grout-ground bond τ [kPa]), linear between.",
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "minItems": 1,
+          "title": "Bondgranular",
+          "type": "array"
+        },
+        "bondCohesive": {
+          "description": "Cohesive soil: τ = this × cu ...",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Bondcohesive",
+          "type": "number"
+        },
+        "bondCohesiveMax": {
+          "description": "... at most this [kPa].",
+          "exclusiveMinimum": 0,
+          "title": "Bondcohesivemax",
+          "type": "number"
+        },
+        "stiffnessLength": {
+          "description": "Apparent free length = free length + this × fixed length (stiffness).",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Stiffnesslength",
+          "type": "number"
+        }
+      },
+      "required": [
+        "standard",
+        "tendonFactor",
+        "groundFactor",
+        "permanentTendonFactor",
+        "permanentGroundFactor",
+        "proofFactor",
+        "permanentProofFactor",
+        "lockOffShare",
+        "testTendonLimit",
+        "freeLengthMin",
+        "fixedLengthMin",
+        "fixedLengthMax",
+        "wedgeClearance",
+        "wedgeClearanceMin",
+        "groutDiameter",
+        "bondGranular",
+        "bondCohesive",
+        "bondCohesiveMax",
+        "stiffnessLength"
+      ],
+      "title": "SupportAnchors",
+      "type": "object"
+    },
+    "SupportEarthPressure": {
+      "additionalProperties": false,
+      "description": "The earth pressures of the staged analysis (horizontal components).",
+      "properties": {
+        "activeMethod": {
+          "enum": [
+            "rankine",
+            "coulomb"
+          ],
+          "title": "Activemethod",
+          "type": "string"
+        },
+        "passiveMethod": {
+          "enum": [
+            "rankine",
+            "coulomb"
+          ],
+          "title": "Passivemethod",
+          "type": "string"
+        },
+        "activeFriction": {
+          "description": "δ / φ' behind the wall (active).",
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Activefriction",
+          "type": "number"
+        },
+        "passiveFriction": {
+          "description": "δ / φ' in front (passive).",
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Passivefriction",
+          "type": "number"
+        },
+        "minimumFluid": {
+          "description": "Least active pressure behind = this × z [kN/m³] (cohesive soil).",
+          "minimum": 0,
+          "title": "Minimumfluid",
+          "type": "number"
+        },
+        "stripLoad": {
+          "const": "boussinesq",
+          "default": "boussinesq",
+          "title": "Stripload",
+          "type": "string"
+        },
+        "stripFactor": {
+          "description": "On the elastic strip-load pressure.",
+          "exclusiveMinimum": 0,
+          "title": "Stripfactor",
+          "type": "number"
+        }
+      },
+      "required": [
+        "activeMethod",
+        "passiveMethod",
+        "activeFriction",
+        "passiveFriction",
+        "minimumFluid",
+        "stripFactor"
+      ],
+      "title": "SupportEarthPressure",
+      "type": "object"
+    },
+    "SupportHeave": {
+      "additionalProperties": false,
+      "description": "The base of the excavation: basal heave of a soft base, piping at the toe.",
+      "properties": {
+        "basal": {
+          "const": "bjerrumEide",
+          "default": "bjerrumEide",
+          "title": "Basal",
+          "type": "string"
+        },
+        "basalFactor": {
+          "description": "Least factor of safety on basal heave.",
+          "exclusiveMinimum": 0,
+          "title": "Basalfactor",
+          "type": "number"
+        },
+        "basalNcMax": {
+          "description": "Nc of a deep square excavation (H/B ≥ 2.5).",
+          "exclusiveMinimum": 0,
+          "title": "Basalncmax",
+          "type": "number"
+        },
+        "piping": {
+          "const": "harrExit",
+          "default": "harrExit",
+          "title": "Piping",
+          "type": "string"
+        },
+        "pipingFactor": {
+          "description": "icr / iexit at least this.",
+          "exclusiveMinimum": 0,
+          "title": "Pipingfactor",
+          "type": "number"
+        }
+      },
+      "required": [
+        "basalFactor",
+        "basalNcMax",
+        "pipingFactor"
+      ],
+      "title": "SupportHeave",
+      "type": "object"
+    },
+    "SupportStruts": {
+      "additionalProperties": false,
+      "description": "Struts, rakers and walers (steel).",
+      "properties": {
+        "temperatureRange": {
+          "description": "ΔT of the strut [°C].",
+          "minimum": 0,
+          "title": "Temperaturerange",
+          "type": "number"
+        },
+        "temperatureRestraint": {
+          "description": "Share of the free expansion the wall and soil restrain.",
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Temperaturerestraint",
+          "type": "number"
+        },
+        "expansion": {
+          "description": "Coefficient of thermal expansion [1/°C].",
+          "exclusiveMinimum": 0,
+          "title": "Expansion",
+          "type": "number"
+        },
+        "temperatureFactor": {
+          "description": "Load factor on the temperature force.",
+          "minimum": 0,
+          "title": "Temperaturefactor",
+          "type": "number"
+        },
+        "selfWeightFactor": {
+          "description": "Load factor on the strut's self weight.",
+          "exclusiveMinimum": 0,
+          "title": "Selfweightfactor",
+          "type": "number"
+        },
+        "effectiveLength": {
+          "description": "K of the strut's buckling length.",
+          "exclusiveMinimum": 0,
+          "title": "Effectivelength",
+          "type": "number"
+        },
+        "symmetricShare": {
+          "description": "Share of a strut's length that shortens under the wall's push (0.5: a symmetric excavation, the strut's middle stays put).",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Symmetricshare",
+          "type": "number"
+        },
+        "walerMoment": {
+          "description": "Waler M = this × w s² (continuous over props).",
+          "exclusiveMinimum": 0,
+          "title": "Walermoment",
+          "type": "number"
+        },
+        "walerShear": {
+          "description": "Waler V = this × w s.",
+          "exclusiveMinimum": 0,
+          "title": "Walershear",
+          "type": "number"
+        }
+      },
+      "required": [
+        "temperatureRange",
+        "temperatureRestraint",
+        "expansion",
+        "temperatureFactor",
+        "selfWeightFactor",
+        "effectiveLength",
+        "symmetricShare",
+        "walerMoment",
+        "walerShear"
+      ],
+      "title": "SupportStruts",
+      "type": "object"
+    },
+    "SupportSubgrade": {
+      "additionalProperties": false,
+      "description": "The modulus of subgrade reaction kh of the soil springs.",
+      "properties": {
+        "method": {
+          "enum": [
+            "schmitt",
+            "tabulated"
+          ],
+          "title": "Method",
+          "type": "string"
+        },
+        "schmittCoefficient": {
+          "description": "a of kh = a Eoed^(4/3) / EI^(1/3).",
+          "exclusiveMinimum": 0,
+          "title": "Schmittcoefficient",
+          "type": "number"
+        },
+        "poisson": {
+          "description": "ν: Eoed = E (1-ν) / ((1+ν)(1-2ν)).",
+          "exclusiveMaximum": 0.5,
+          "minimum": 0,
+          "title": "Poisson",
+          "type": "number"
+        },
+        "granularModulus": {
+          "description": "(φ' [°], E [MPa]) of granular soil, linear between.",
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "minItems": 1,
+          "title": "Granularmodulus",
+          "type": "array"
+        },
+        "cohesiveModulus": {
+          "description": "E = this × cu of cohesive soil.",
+          "exclusiveMinimum": 0,
+          "title": "Cohesivemodulus",
+          "type": "number"
+        },
+        "tabulatedGranular": {
+          "description": "tabulated: (φ' [°], kh [MN/m³]), linear between.",
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "minItems": 1,
+          "title": "Tabulatedgranular",
+          "type": "array"
+        },
+        "tabulatedCohesive": {
+          "description": "tabulated: kh = this × cu [1/m].",
+          "exclusiveMinimum": 0,
+          "title": "Tabulatedcohesive",
+          "type": "number"
+        },
+        "concreteStiffness": {
+          "description": "EI of reinforced concrete walls × this.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Concretestiffness",
+          "type": "number"
+        },
+        "soldierPassiveWidth": {
+          "description": "Soldier piles: below the dig level the soil acts on this × the flange width (at most the spacing).",
+          "exclusiveMinimum": 0,
+          "title": "Soldierpassivewidth",
+          "type": "number"
+        }
+      },
+      "required": [
+        "method",
+        "schmittCoefficient",
+        "poisson",
+        "granularModulus",
+        "cohesiveModulus",
+        "tabulatedGranular",
+        "tabulatedCohesive",
+        "concreteStiffness",
+        "soldierPassiveWidth"
+      ],
+      "title": "SupportSubgrade",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Staged analysis of embedded walls and the design of their supports (see the module).",
+  "properties": {
+    "source": {
+      "default": "",
+      "description": "Clause (and page) the table comes from.",
+      "title": "Source",
+      "type": "string"
+    },
+    "sources": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Clause references of single entries: {key: clause}.",
+      "title": "Sources",
+      "type": "object"
+    },
+    "clauses": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Short clause references the results cite, by key, without the code's name (e.g. 'Part 6 Sec 2.5.7.3'); read by saengine.codes.context.cite. A key the pack does not give is not cited.",
+      "title": "Clauses",
+      "type": "object"
+    },
+    "analysis": {
+      "const": "subgradeReaction",
+      "title": "Analysis",
+      "type": "string"
+    },
+    "analyses": {
+      "items": {
+        "$ref": "#/$defs/SupportAnalysis"
+      },
+      "minItems": 1,
+      "title": "Analyses",
+      "type": "array"
+    },
+    "earthPressure": {
+      "$ref": "#/$defs/SupportEarthPressure"
+    },
+    "subgrade": {
+      "$ref": "#/$defs/SupportSubgrade"
+    },
+    "struts": {
+      "$ref": "#/$defs/SupportStruts"
+    },
+    "anchors": {
+      "$ref": "#/$defs/SupportAnchors"
+    },
+    "heave": {
+      "$ref": "#/$defs/SupportHeave"
+    },
+    "deflectionShare": {
+      "description": "Reported deflection limit: this × H.",
+      "exclusiveMinimum": 0,
+      "maximum": 1,
+      "title": "Deflectionshare",
+      "type": "number"
+    }
+  },
+  "required": [
+    "analysis",
+    "analyses",
+    "earthPressure",
+    "subgrade",
+    "struts",
+    "anchors",
+    "heave",
+    "deflectionShare"
+  ],
+  "title": "ExcavationSupportTable",
+  "type": "object",
+  "$id": "saengine.codePack.excavationSupport/1"
+}

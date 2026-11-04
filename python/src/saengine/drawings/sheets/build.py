@@ -122,6 +122,8 @@ def _fit_plan(
 
 
 DETAIL_SCALES = (25, 50, 75, 100, 150, 200)
+#: The least scale of an excavation wall's section (alpha 9 P1): a wall is metres deep.
+EXCAVATION_SCALE = 100
 
 
 def _fit_detail(
@@ -254,6 +256,20 @@ def _categories(data: DrawingSet, settings: DrawingSettings) -> tuple[list[_Cate
                 settings.detail_scale,
                 specs,
                 scale_text=f"1:{settings.detail_scale:g}",
+            )
+        )
+    # Alpha 9 P1: the excavations' embedded walls with their stages and supports.
+    excavation_scale = max(settings.detail_scale, EXCAVATION_SCALE)
+    specs = _details(
+        details.excavation_wall_detail, data.excavation_walls, excavation_scale, area, problems
+    )
+    if specs:
+        out.append(
+            _Category(
+                "Excavation support",
+                excavation_scale,
+                specs,
+                scale_text=f"1:{excavation_scale:g}",
             )
         )
     specs = _details(

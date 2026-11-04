@@ -941,6 +941,20 @@ class AdjoiningStructure(_Model):
         description="An old structure likely to be damaged by piling or excavation "
         "(tell-tales while piling).",
     )
+    # Alpha 9 P1: its footing as a strip load on an excavation's embedded wall.
+    pressure: float | None = Field(
+        default=None,
+        ge=0,
+        title="Footing pressure",
+        description="Bearing pressure under its foundation [kPa] (a strip load on the "
+        "excavation's embedded wall); empty: not loaded on the wall.",
+    )
+    width: Length | None = Field(
+        default=None,
+        title="Footing width",
+        description="Width of its foundation at right angles to the excavation's edge [mm]; "
+        "empty: 1.5 m.",
+    )
 
 
 class ExcavationLoad(_Model):
@@ -962,11 +976,119 @@ class ExcavationLoad(_Model):
     )
 
 
+EMBEDDED_WALL_TYPES = {
+    "sheetPile": "Steel sheet piles",
+    "contiguous": "Contiguous bored piles",
+    "secant": "Secant bored piles",
+    "soldier": "Soldier piles and lagging",
+    "diaphragm": "Diaphragm wall",
+}
+
+EmbeddedWallType = Literal["sheetPile", "contiguous", "secant", "soldier", "diaphragm"]
+
+
+class ExcavationStage(_Model):
+    """Alpha 9 P1: one construction stage of a staged excavation: the supports placed (at the
+    previous stage's dig level, before digging on) and removed, then the dig to its level."""
+
+    name: str | None = Field(default=None, description="e.g. 'Dig to -2.0 m'.")
+    digLevel: float = Field(
+        title="Dig level", description="Excavated to this level [mm, project datum]."
+    )
+    install: list[Id] = Field(
+        default_factory=list, description="Supports placed at the start of the stage (ids)."
+    )
+    remove: list[Id] = Field(
+        default_factory=list, description="Supports removed at the start of the stage (ids)."
+    )
+    surcharge: float | None = Field(
+        default=None,
+        ge=0,
+        description="On the retained ground during this stage [kPa]; empty: the wall's.",
+    )
+
+
+class WallSupport(_Model):
+    """Alpha 9 P1: a strut, ground anchor or raker of an embedded wall, repeated at its
+    spacing along the wall."""
+
+    id: Id = Field(description="Its mark, e.g. S1 or A1.")
+    kind: Literal["strut", "anchor", "raker"] = Field(
+        default="strut",
+        description="A steel strut across the excavation, a ground anchor behind the wall, or "
+        "an inclined raker to a thrust block in the base.",
+        json_schema_extra=_labels(["Strut", "Ground anchor", "Raker"]),
+    )
+    level: float = Field(description="At the wall [mm, project datum].")
+    spacing: Length = Field(default=3000, description="Along the wall [mm].")
+    section: str | None = Field(
+        default=None,
+        description="Struts and rakers: the steel section (the steel sections table); empty: "
+        "the forces are reported only.",
+    )
+    material: Id | None = Field(
+        default=None, description="Steel of the strut, raker and waler (03 Materials)."
+    )
+    length: Length | None = Field(
+        default=None,
+        description="Struts: across the excavation; rakers: along the raker [mm]. Empty: a "
+        "strut 10 m, a raker from the level down to the base at its inclination.",
+    )
+    inclination: float = Field(
+        default=0.0,
+        ge=0,
+        lt=80,
+        description="Below the horizontal [°] (anchors typically 15-30, rakers 30-60).",
+    )
+    preload: float | None = Field(
+        default=None,
+        ge=0,
+        description="Force put in at placing, per support [kN]; empty: none for struts and "
+        "rakers, the code pack's lock-off share of the working load for anchors.",
+    )
+    stiffness: float | None = Field(
+        default=None,
+        gt=0,
+        description="Axial stiffness per support [kN/m] as built; empty: E A / L from the "
+        "section or tendon.",
+    )
+    waler: str | None = Field(
+        default=None,
+        description="Steel section of the waler along the wall at the supports (empty: none, "
+        "or a capping beam).",
+    )
+    tendonArea: float | None = Field(
+        default=None, gt=0, title="Tendon area", description="Anchors: steel area [mm²]."
+    )
+    tendonStrength: float | None = Field(
+        default=None,
+        gt=0,
+        title="Tendon strength",
+        description="Anchors: characteristic (ultimate) strength fpk of the tendon [MPa].",
+    )
+    groutDiameter: Length | None = Field(
+        default=None,
+        title="Grout diameter",
+        description="Anchors: of the fixed length [mm]; empty: the code pack's.",
+    )
+    freeLength: Length | None = Field(
+        default=None, title="Free length", description="Anchors: as built [mm]; empty: required."
+    )
+    fixedLength: Length | None = Field(
+        default=None, title="Fixed length", description="Anchors: as built [mm]; empty: required."
+    )
+    permanent: bool = Field(
+        default=False, description="Anchors: permanent works (the permanent factors)."
+    )
+
+
 class EmbeddedWall(_Model):
     """Alpha 9 P7: the embedded wall round an excavation (sheet, contiguous or secant piles,
     a diaphragm wall), designed per metre run by the code pack's ``embeddedWalls`` method
     (:mod:`saengine.substructure.embedded_wall`): its embedment, bending moment and prop force.
-    The wall sections, walers, struts and anchors are designed separately."""
+    Alpha 9 P1: with a ``wallType``, the wall is also analysed stage by stage on the code
+    pack's ``excavationSupport`` method and its section, walers, struts, anchors and rakers
+    designed (:mod:`saengine.substructure.excavation_support`)."""
 
     kind: Literal["cantilever", "propped"] = Field(
         default="cantilever",
@@ -1009,13 +1131,107 @@ class EmbeddedWall(_Model):
         title="Prop spacing",
         description="Spacing of the struts or anchors along the wall [mm]; empty: per metre.",
     )
+    # Alpha 9 P1: the wall's section, its staged excavation and its supports, analysed on the
+    # code pack's excavationSupport method (saengine.substructure.excavation_support).
+    wallType: EmbeddedWallType | None = Field(  # type: ignore[valid-type]
+        default=None,
+        title="Wall type",
+        description="Sheet piles, contiguous or secant bored piles, soldier piles with lagging "
+        "or a diaphragm wall: the wall is analysed stage by stage and its section designed; "
+        "empty: only the embedment, moment and prop force above.",
+        json_schema_extra=_labels(list(EMBEDDED_WALL_TYPES.values())),
+    )
+    section: str | None = Field(
+        default=None,
+        description="Sheet piles: the sheet pile section (saengine.library.sheet_piles); soldier "
+        "piles: the steel section of the piles (the steel sections table).",
+    )
+    material: Id | None = Field(
+        default=None,
+        description="Concrete of the piles or diaphragm wall, or the steel of the sheet or "
+        "soldier piles (03 Materials).",
+    )
+    pileDiameter: Length | None = Field(
+        default=None, title="Pile diameter", description="Contiguous and secant piles [mm]."
+    )
+    pileSpacing: Length | None = Field(
+        default=None,
+        title="Pile spacing",
+        description="Centre to centre of adjacent piles along the wall [mm] (secant: less than "
+        "the diameter; soldier piles: of the steel piles).",
+    )
+    allReinforced: bool = Field(
+        default=False,
+        title="All piles reinforced",
+        description="Secant walls: every pile reinforced (hard-hard); else every second pile "
+        "(the soft or firm piles between carry no bending).",
+    )
+    thickness: Length | None = Field(default=None, description="Diaphragm wall thickness [mm].")
+    rebar: Id | None = Field(
+        default=None, title="Bar material", description="Reinforcement material (03 Materials)."
+    )
+    barCount: int | None = Field(
+        default=None, gt=0, title="Bars per pile", description="Longitudinal bars of a pile."
+    )
+    barDia: Length | None = Field(
+        default=None,
+        title="Bar diameter",
+        description="Longitudinal bars of a pile, or the main bars of each face of a diaphragm "
+        "wall [mm].",
+    )
+    barSpacing: Length | None = Field(
+        default=None,
+        title="Bar spacing",
+        description="Diaphragm wall: main bars of each face [mm]; empty: proposed.",
+    )
+    linkDia: Length | None = Field(
+        default=None, title="Link diameter", description="Pile links or spirals [mm]."
+    )
+    linkSpacing: Length | None = Field(
+        default=None, title="Link spacing", description="Pile links or spirals [mm]."
+    )
+    cover: Length = Field(default=75, description="To the links or bars [mm].")
+    crackLimit: float = Field(
+        default=0.3, gt=0, title="Crack limit", description="Diaphragm wall: wk at most [mm]."
+    )
+    laggingThickness: Length | None = Field(
+        default=None,
+        title="Lagging thickness",
+        description="Soldier piles: timber lagging between the piles [mm].",
+    )
+    length: Length | None = Field(
+        default=None,
+        title="Wall length",
+        description="Run of the wall in plan [mm] for the quantities; empty: the perimeter of "
+        "the excavation's outline.",
+    )
+    stages: list[ExcavationStage] = Field(
+        default_factory=list,
+        description="The construction stages in order; empty: dig to the bottom (a propped "
+        "wall: to below the prop level, place the prop, dig to the bottom).",
+    )
+    supports: list[WallSupport] = Field(
+        default_factory=list, description="Struts, ground anchors and rakers of the wall."
+    )
+
+    @model_validator(mode="after")
+    def _stages(self) -> EmbeddedWall:
+        ids = [s.id for s in self.supports]
+        duplicates = sorted({i for i in ids if ids.count(i) > 1})
+        if duplicates:
+            raise ValueError(f"duplicate wall supports {', '.join(duplicates)}")
+        named = {i for stage in self.stages for i in (*stage.install, *stage.remove)}
+        unknown = sorted(named - set(ids))
+        if unknown:
+            raise ValueError(f"stages name unknown supports {', '.join(unknown)}")
+        return self
 
 
 class Excavation(_Model):
     """An excavation for the foundations or a basement: its depth, how its sides are kept, the
     loads and buildings beside it and the ground water at its base. The checks are the
     code pack's rules of excavation work and, with ``wall``, the design of its embedded wall
-    (alpha 9 P7); the walers, struts and anchors are designed separately."""
+    (alpha 9 P7) and its staged analysis with the supports (alpha 9 P1)."""
 
     id: Id
     outline: list[Point2] | None = Field(
