@@ -246,15 +246,22 @@ METHODS = {"fibreStrain": fibre_strain}
 PEAK_METHODS = {"fibreStrain": fibre_strain_peaks}
 
 
-def evaluate(project: dict[str, Any], results: Any, target: dict[str, Any]) -> dict[str, Any]:
+def evaluate(
+    project: dict[str, Any], results: Any, target: dict[str, Any], project_path: Any = None
+) -> dict[str, Any]:
     """The acceptance of the members of a pushover run at the step its target displacement
     (``target``, :func:`saengine.fem.pushover_target.evaluate`) is reached, by the method of
-    the code pack in force."""
+    the code pack in force (P3: ``hingeRotation``, the hinges of :mod:`saengine.fem.hinges`,
+    with the object types of the project at ``project_path``)."""
     from saengine.fem.pushover_target import clause
 
     rule = table()
     if rule is None:
         return {"available": False, "reason": "the code pack does not cover pushover acceptance"}
+    if rule.method == "hingeRotation":
+        from saengine.fem import hinges
+
+        return hinges.evaluate(project, results, target, project_path)
     method = METHODS.get(rule.method)
     if method is None:
         return {"available": False, "reason": f"acceptance method '{rule.method}' unknown"}
@@ -326,7 +333,7 @@ def pushover_results(out_dir: Any, project_path: Any) -> list[dict[str, Any]]:
             {
                 "key": f"case:{entry['case_id']}",
                 "label": entry["case_name"],
-                **evaluate_run(project, analysis, results, settings),
+                **evaluate_run(project, analysis, results, settings, project_path),
             }
         )
     return found
@@ -348,10 +355,15 @@ def analysis_settings(project_path: Any) -> Any:
 
 
 def evaluate_run(
-    project: dict[str, Any], analysis: dict[str, Any], results: Any, settings: Any
+    project: dict[str, Any],
+    analysis: dict[str, Any],
+    results: Any,
+    settings: Any,
+    project_path: Any = None,
 ) -> dict[str, Any]:
-    """``{"target", "acceptance"}`` of one pushover run."""
+    """``{"target", "acceptance"}`` of one pushover run (``project_path``: the model's file,
+    for the object types the hinges read)."""
     from saengine.fem import pushover_target
 
     target = pushover_target.evaluate(project, analysis, results, settings)
-    return {"target": target, "acceptance": evaluate(project, results, target)}
+    return {"target": target, "acceptance": evaluate(project, results, target, project_path)}

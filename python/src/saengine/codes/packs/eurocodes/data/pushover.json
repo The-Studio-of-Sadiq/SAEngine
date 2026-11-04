@@ -1,0 +1,166 @@
+{
+  "$schema": "../../../schemas/pushover.schema.json",
+  "$replace": true,
+  "$sources": [
+    "EN 1998-1:2004 Sec 4.3.3.4.2 (pushover analysis), Annex B (target displacement, N2)",
+    "EN 1998-3:2005 Sec 2.1 (limit states), Annex A (RC chord rotation), Annex B (steel)"
+  ],
+  "source": "EN 1998-1:2004 Sec 4.3.3.4.2 and Annex B; EN 1998-3:2005 Annexes A and B",
+  "sources": {
+    "pattern": "EN 1998-1 Sec 4.3.3.4.2.2(1): a 'modal' pattern (the first mode's shape) and a 'uniform' one; SAEngine runs the modal",
+    "pushTo": "EN 1998-1 Sec 4.3.3.4.2.3(2): the control node pushed to 150 % of the target displacement",
+    "controlPoint": "EN 1998-1 Sec 4.3.3.4.2.3(1): control node at the centre of mass at the roof",
+    "sdof": "EN 1998-1 Annex B.2, B.3 (Eqs B.2, B.3: m*, Γ, F*, d*)",
+    "idealisation": "EN 1998-1 Annex B.3 (Eq B.6: dy* by equal energies)",
+    "period": "EN 1998-1 Annex B.4 (Eq B.7)",
+    "target": "EN 1998-1 Annex B.5 (Eqs B.8-B.12) and B.6 (dt = Γ·dt*)",
+    "hazards": "EN 1998-3 Sec 2.1(3) (return periods of the limit states); the spectrum scale of the Near Collapse level by EN 1998-1 Sec 2.1(4) Note with k = 3 (SAEngine practice)",
+    "acceptance": "EN 1998-3 Sec 4.4.2, A.3.2 (chord rotation capacities)",
+    "hinges": "EN 1998-3 Annex A (A.3.2.2 Eq A.1, A.3.2.3, A.3.2.4) and Annex B (B.5.2)"
+  },
+  "procedure": {
+    "loadPattern": "firstMode",
+    "pushToTarget": 1.5,
+    "noDropToTarget": null,
+    "pDelta": true,
+    "expectedStrengths": "nominal",
+    "source": "EN 1998-1 Sec 4.3.3.4.2",
+    "note": "EN 1998-1 asks for two lateral load patterns (modal and uniform); SAEngine runs the one chosen in the project settings. The fibre model uses the nominal strengths (the mean strengths and confidence factors of EN 1998-3 are not applied; SAEngine practice)."
+  },
+  "targetDisplacement": {
+    "method": "n2",
+    "spectrumR": 1.0,
+    "spectrumImportance": 1.0,
+    "n2": {
+      "source": "EN 1998-1 Annex B.5, B.6",
+      "cornerPeriod": "TC",
+      "maxElasticMultiple": 3.0,
+      "iterate": true
+    },
+    "hazards": [
+      {"id": "SD", "label": "Significant Damage (the design earthquake, 475 years)", "spectrumScale": 1.0, "level": "SD"},
+      {"id": "NC", "label": "Near Collapse (2475 years)", "spectrumScale": 1.73, "level": "NC"},
+      {"id": "DL", "label": "Damage Limitation (225 years)", "spectrumScale": 0.78, "level": "DL"}
+    ],
+    "source": "EN 1998-1 Annex B; the elastic spectrum of Sec 3.2.2.2 (q = 1)",
+    "note": "dt* is capped at 3 det* (Annex B.5 Note). The spectrum of the Near Collapse and Damage Limitation levels is the design one scaled by (TLR/TL)^(1/3) (EN 1998-1 Sec 2.1(4) Note, k = 3; SAEngine practice where the National Annex gives no spectrum of its own)."
+  },
+  "acceptance": {
+    "method": "hingeRotation",
+    "performanceLevel": "SD",
+    "source": "EN 1998-3 Sec 4.4.2, A.3.2",
+    "note": "The chord rotation of every member end at each limit state's target displacement against that limit state's capacity."
+  },
+  "hinges": {
+    "levels": [
+      {"id": "DL", "label": "Damage Limitation"},
+      {"id": "SD", "label": "Significant Damage"},
+      {"id": "NC", "label": "Near Collapse"}
+    ],
+    "assignment": {
+      "source": "EN 1993-1-1 Table 5.2 (class 1 and 2 limits, as √(E/fy) multiples with E = 210 GPa)",
+      "steelYieldDivisor": 6,
+      "compactFlange": 0.301,
+      "noncompactFlange": 0.334,
+      "compactWeb": 2.41,
+      "noncompactWeb": 2.78,
+      "effectiveLength": 1.0
+    },
+    "clauses": {
+      "rcBeam": "EN 1998-3 A.3.2.2, Eq A.1; A.3.2.3; A.3.2.4",
+      "rcColumn": "EN 1998-3 A.3.2.2, Eq A.1; A.3.2.3; A.3.2.4",
+      "rcWall": "EN 1998-3 A.3.2.2(1) (walls), Eq A.1",
+      "steelBeam": "EN 1998-3 B.5.2",
+      "steelColumn": "EN 1998-3 B.5.2",
+      "steelBrace": "EN 1998-3 B.5.3"
+    },
+    "components": {
+      "rcBeam": {
+        "model": "chordRotationCapacity",
+        "deformation": "chordRotation",
+        "source": "EN 1998-3 A.3.2.2 Eq A.1 (primary members), A.3.2.3, A.3.2.4",
+        "chordRotation": {
+          "gammaEl": 1.5,
+          "k": 0.016,
+          "axialBase": 0.3,
+          "omegaMin": 0.01,
+          "omegaExponent": 0.225,
+          "spanExponent": 0.35,
+          "confinementBase": 25,
+          "diagonalBase": 1.25,
+          "wallFactor": 0.58,
+          "yieldLevel": "DL",
+          "shares": {"SD": 0.75, "NC": 1.0}
+        },
+        "note": "Members with seismic detailing (no division by 1.2), no diagonal bars (ρd = 0), bars without laps in the plastic hinge."
+      },
+      "rcColumn": {
+        "model": "chordRotationCapacity",
+        "deformation": "chordRotation",
+        "source": "EN 1998-3 A.3.2.2 Eq A.1 (primary members), A.3.2.3, A.3.2.4",
+        "chordRotation": {
+          "gammaEl": 1.5,
+          "k": 0.016,
+          "axialBase": 0.3,
+          "omegaMin": 0.01,
+          "omegaExponent": 0.225,
+          "spanExponent": 0.35,
+          "confinementBase": 25,
+          "diagonalBase": 1.25,
+          "wallFactor": 0.58,
+          "yieldLevel": "DL",
+          "shares": {"SD": 0.75, "NC": 1.0}
+        }
+      },
+      "rcWall": {
+        "model": "chordRotationCapacity",
+        "deformation": "chordRotation",
+        "source": "EN 1998-3 A.3.2.2 Eq A.1 with the wall factor",
+        "chordRotation": {
+          "gammaEl": 1.5,
+          "k": 0.016,
+          "axialBase": 0.3,
+          "omegaMin": 0.01,
+          "omegaExponent": 0.225,
+          "spanExponent": 0.35,
+          "confinementBase": 25,
+          "diagonalBase": 1.25,
+          "wallFactor": 0.58,
+          "yieldLevel": "DL",
+          "shares": {"SD": 0.75, "NC": 1.0}
+        }
+      },
+      "steelBeam": {
+        "model": "table",
+        "deformation": "yieldMultiple",
+        "variables": ["slenderness"],
+        "source": "EN 1998-3 B.5.2 (beams and columns in bending, class 1 and 2)",
+        "rows": [
+          {"at": {"slenderness": 0.0}, "limits": {"DL": 1.0, "SD": 6.0, "NC": 8.0}},
+          {"at": {"slenderness": 1.0}, "limits": {"DL": 0.25, "SD": 2.0, "NC": 3.0}}
+        ]
+      },
+      "steelColumn": {
+        "model": "table",
+        "deformation": "yieldMultiple",
+        "variables": ["slenderness"],
+        "source": "EN 1998-3 B.5.2 (beams and columns in bending, class 1 and 2; N/Npl ≤ 0.3)",
+        "rows": [
+          {"match": {"axialRatio": [null, 0.3]}, "at": {"slenderness": 0.0}, "limits": {"DL": 1.0, "SD": 6.0, "NC": 8.0}},
+          {"match": {"axialRatio": [null, 0.3]}, "at": {"slenderness": 1.0}, "limits": {"DL": 0.25, "SD": 2.0, "NC": 3.0}}
+        ],
+        "note": "Columns above N/Npl = 0.3: not covered (no row)."
+      },
+      "steelBrace": {
+        "model": "table",
+        "deformation": "axialMultiple",
+        "source": "EN 1998-3 B.5.3 (braces in tension and in compression)",
+        "rows": [
+          {"match": {"action": "tension"}, "limits": {"DL": 0.25, "SD": 7.0, "NC": 9.0}},
+          {"match": {"action": "compression"}, "limits": {"DL": 0.25, "SD": 4.0, "NC": 6.0}}
+        ]
+      }
+    },
+    "note": "The hinges are assigned to the fibre model's member ends and read from its run: they do not change the analysis (SAEngine practice). θy (Damage Limitation) is the chord rotation at the first yield of the tension bars in the analysis; the shear capacity checks of EN 1998-3 A.3.3 are not covered."
+  }
+}

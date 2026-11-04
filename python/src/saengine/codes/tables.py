@@ -7487,8 +7487,10 @@ class PushoverProcedure(_Row):
     pushToTarget: Positive = Field(
         description="Push the control point to at least this × the target displacement."
     )
-    noDropToTarget: Positive = Field(
-        description="The base shear may not drop in any step up to this × the target displacement."
+    noDropToTarget: Positive | None = Field(
+        default=None,
+        description="The base shear may not drop in any step up to this × the target "
+        "displacement; empty: the code has no such rule.",
     )
     pDelta: bool = Field(default=True, description="P-Delta effects in the analysis.")
     expectedStrengths: Literal["nominal", "expected"] = Field(
@@ -7499,32 +7501,134 @@ class PushoverProcedure(_Row):
     note: str = Field(default="", description="Why the values are what they are.")
 
 
-class TargetDisplacement(_Row):
-    """The target displacement of the control point (``fem.pushover_target``). Method
-    ``coefficient``: a bilinear fit of the capacity curve, the effective period
-    Te = T1·√(K1/Ke) and δt = C0·C1·Sa(Te)·(Te/2π)²·g."""
+class DisplacementCoefficients(_Row):
+    """P3: the coefficients of method ``displacementCoefficient`` (δt = C0·C1·C2·Sa·Te²/4π²·g):
+    C1 = 1 + (μ - 1)/(a·Te²) between ``c1PeriodMin`` and ``c1PeriodMax`` (C1 at ``c1PeriodMin``
+    below it, 1 above ``c1PeriodMax``), C2 = 1 + ((μ - 1)/Te)²/``c2Divisor`` up to
+    ``c2PeriodMax`` (1 above), μ = Sa/(Vy/W)·Cm."""
 
-    method: Literal["coefficient"] = Field(
-        description="Method id (the engine's generic implementation)."
+    siteFactors: dict[str, Positive] = Field(
+        description="The site class factor a of C1, by the pack's site class id."
     )
-    bilinearFitShare: Share = Field(
+    siteFactorDefault: Positive = Field(
+        description="a of a site class not listed (the softest soils' value is safe)."
+    )
+    c1PeriodMin: Positive = Field(description="Below this Te [s] C1 is taken at this Te.")
+    c1PeriodMax: Positive = Field(description="Above this Te [s] C1 = 1.")
+    c2PeriodMax: Positive = Field(description="Above this Te [s] C2 = 1.")
+    c2Divisor: Positive = Field(description="The divisor of ((μ - 1)/Te)² in C2.")
+    massFactor: Positive = Field(
+        default=1.0,
+        description="The effective mass factor Cm in μ (1.0, its upper bound, unless the pack "
+        "gives the system's value).",
+    )
+
+
+class LinearizationBand(_Row):
+    """FEMA 440-style effective damping and period over one band of the ductility μ: the
+    ``beta`` and ``period`` coefficient pairs of the band's formula (see the method)."""
+
+    beta: tuple[float, float] = Field(description="The damping coefficients of the band [%].")
+    period: tuple[float, float] = Field(description="The period coefficients of the band.")
+
+
+class EquivalentLinearization(_Row):
+    """P3: the values of method ``equivalentLinearization`` (effective period and damping of
+    the bilinear SDOF system, the spectrum reduced by B(βeff) = numerator/(constant - ln βeff),
+    the performance point where the capacity spectrum meets the modified demand spectrum)."""
+
+    initialDamping: Positive = Field(description="β0 of the elastic spectrum [%].")
+    bands: tuple[Positive, Positive] = Field(
+        description="The ductilities μ where the low band ends and the high band starts."
+    )
+    low: LinearizationBand = Field(
+        description="1 < μ < bands[0]: β = A(μ-1)² + B(μ-1)³ + β0, "
+        "Teff = [G(μ-1)² + H(μ-1)³ + 1]·T0."
+    )
+    mid: LinearizationBand = Field(
+        description="bands[0] ≤ μ ≤ bands[1]: β = C + D(μ-1) + β0, Teff = [I + J(μ-1) + 1]·T0."
+    )
+    high: LinearizationBand = Field(
+        description="μ > bands[1]: β = E·[(F(μ-1) - 1)/(F(μ-1))²]·(Teff/T0)² + β0, "
+        "Teff = {K·[√((μ-1)/(1 + L(μ-2))) - 1] + 1}·T0."
+    )
+    reductionNumerator: Positive = Field(description="Numerator of B(βeff).")
+    reductionConstant: Positive = Field(description="Constant of B(βeff) (minus ln βeff[%]).")
+    tolerance: Positive = Field(
+        default=0.05, description="The trial and the found displacement agree within this share."
+    )
+
+
+class N2Rule(_Row):
+    """P3: the values of method ``n2`` (equivalent SDOF system, elasto-perfectly plastic
+    idealisation, dt* from the elastic spectrum with the equal-displacement rule above the
+    corner period and the q-correction below it)."""
+
+    cornerPeriod: Literal["TB", "TC", "TD"] = Field(
+        description="The corner period of the spectrum that separates short from medium periods."
+    )
+    maxElasticMultiple: Positive | None = Field(
+        default=None,
+        description="dt* is taken as at most this × the elastic displacement det*; empty: no cap.",
+    )
+    iterate: bool = Field(
+        default=True,
+        description="Idealise again with dm* = dt* until the target settles (the iterative "
+        "procedure the code permits).",
+    )
+
+
+class HazardLevel(_Row):
+    """P3: one hazard level the target displacement is found for, with the performance level
+    the hinges must meet there."""
+
+    id: str = Field(description="Short id (BSE-1N, SD ...).")
+    label: str = Field(default="", description="What the level is (shown with the results).")
+    spectrumScale: Positive = Field(
+        default=1.0, description="Factor on the spectrum the target is read from."
+    )
+    level: str = Field(description="The performance level (an id of hinges.levels) checked.")
+
+
+class TargetDisplacement(_Row):
+    """The target displacement of the control point (``fem.pushover_target``), by method id:
+    ``coefficient`` (C0·C1·Sa·(Te/2π)²·g, C1 by Rd), ``displacementCoefficient`` (adds C2 and
+    C1 by the site factor), ``equivalentLinearization`` (the performance point by effective
+    period and damping) or ``n2`` (equivalent SDOF, elasto-perfectly plastic idealisation)."""
+
+    method: Literal["coefficient", "displacementCoefficient", "equivalentLinearization", "n2"] = (
+        Field(description="Method id (the engine's generic implementation).")
+    )
+    bilinearFitShare: Share | None = Field(
+        default=None,
         description="The bilinear curve's first segment meets the capacity curve at this × "
-        "the effective yield strength."
+        "the effective yield strength (methods coefficient, displacementCoefficient, "
+        "equivalentLinearization).",
     )
     spectrumR: Positive = Field(
         description="R of the spectrum Sa is read from (1: the real, unreduced spectrum)."
     )
     spectrumImportance: Positive = Field(description="I of the spectrum Sa is read from.")
-    c1PeriodLimit: Literal["TB", "TC", "TD"] = Field(
-        description="C1 = 1 where Te exceeds this corner period of the site class."
+    c1PeriodLimit: Literal["TB", "TC", "TD"] | None = Field(
+        default=None,
+        description="Method coefficient: C1 = 1 where Te exceeds this corner period.",
     )
-    c1Period: Literal["TB", "TC", "TD"] = Field(
-        description="The corner period Ts of the C1 formula C1 = [1 + (Rd - 1)·Ts/Te] / Rd."
+    c1Period: Literal["TB", "TC", "TD"] | None = Field(
+        default=None,
+        description="Method coefficient: the corner period Ts of C1 = [1 + (Rd - 1)·Ts/Te] / Rd.",
     )
     minimumRd: Positive = Field(
         default=1.0,
         description="Rd is taken as at least this (below 1 the structure stays elastic and the "
         "C1 formula has no meaning).",
+    )
+    coefficients: DisplacementCoefficients | None = None
+    linearization: EquivalentLinearization | None = None
+    n2: N2Rule | None = None
+    hazards: list[HazardLevel] = Field(
+        default_factory=list,
+        description="P3: hazard levels the target is found for, the first the main one; "
+        "empty: one target from the spectrum as it is.",
     )
     note: str = Field(default="", description="Why the values are what they are.")
 
@@ -7532,36 +7636,215 @@ class TargetDisplacement(_Row):
 class PushoverAcceptance(_Row):
     """Acceptance of the members at the target displacement (``fem.acceptance``). Method
     ``fibreStrain``: each fibre's strain at the member's end sections against a share of the
-    strain at which its material loses strength."""
+    strain at which its material loses strength. Method ``hingeRotation`` (P3): the hinges of
+    ``hinges`` (:mod:`saengine.fem.hinges`) against the performance level of each hazard."""
 
-    method: Literal["fibreStrain"] = Field(
+    method: Literal["fibreStrain", "hingeRotation"] = Field(
         description="Method id (the engine's generic implementation)."
     )
-    deformationShare: Share = Field(
-        description="A member's deformation may reach at most this × the deformation at which "
-        "it fails (gravity loss, or strength below residualStrengthShare)."
+    deformationShare: Share | None = Field(
+        default=None,
+        description="fibreStrain: a member's deformation may reach at most this × the "
+        "deformation at which it fails (gravity loss, or strength below residualStrengthShare).",
     )
-    residualStrengthShare: Share = Field(
-        description="Strength (share of the peak) below which the component has failed."
+    residualStrengthShare: Share | None = Field(
+        default=None,
+        description="fibreStrain: strength (share of the peak) below which the component has "
+        "failed.",
     )
-    reinforcementFractureStrain: Positive = Field(
-        description="Strain at which a reinforcing bar is taken as lost (fracture or buckling): "
-        "the fibre model's bars do not degrade."
+    reinforcementFractureStrain: Positive | None = Field(
+        default=None,
+        description="fibreStrain: strain at which a reinforcing bar is taken as lost (fracture "
+        "or buckling): the fibre model's bars do not degrade.",
     )
-    steelFractureStrain: Positive = Field(
-        description="Strain at which a structural steel fibre is taken as lost (fracture or "
-        "local buckling): the fibre model's steel does not degrade."
+    steelFractureStrain: Positive | None = Field(
+        default=None,
+        description="fibreStrain: strain at which a structural steel fibre is taken as lost "
+        "(fracture or local buckling): the fibre model's steel does not degrade.",
+    )
+    performanceLevel: str | None = Field(
+        default=None,
+        description="hingeRotation: the performance level checked when the target has no "
+        "hazard levels (an id of hinges.levels; empty: the last).",
     )
     note: str = Field(default="", description="Why the values are what they are.")
+
+    @model_validator(mode="after")
+    def _method_values(self) -> PushoverAcceptance:
+        if self.method == "fibreStrain":
+            missing = [
+                k
+                for k in (
+                    "deformationShare",
+                    "residualStrengthShare",
+                    "reinforcementFractureStrain",
+                    "steelFractureStrain",
+                )
+                if getattr(self, k) is None
+            ]
+            if missing:
+                raise ValueError("method fibreStrain needs " + ", ".join(missing))
+        return self
+
+
+class PerformanceLevel(_Row):
+    """A structural performance level of the hinges, in rising order of damage."""
+
+    id: str
+    label: str = ""
+
+
+#: Range of a numeric hinge variable a table row applies to ([from, to), None: open).
+HingeRange = tuple[float | None, float | None]
+
+
+class HingeRow(_Row):
+    """One row of a hinge table: where it applies (``match``: a categorical variable's value,
+    or a numeric variable's range), the grid point it gives (``at``: numeric variables;
+    between the rows of a group the values are interpolated linearly, beyond them the end row
+    holds) and the modelling parameters and limits there."""
+
+    match: dict[str, str | HingeRange] = Field(default_factory=dict)
+    at: dict[str, float] = Field(default_factory=dict)
+    a: float | None = Field(
+        default=None, ge=0, description="Deformation where the strength starts to drop."
+    )
+    b: float | None = Field(
+        default=None, ge=0, description="Deformation where the residual strength is lost."
+    )
+    c: float | None = Field(
+        default=None, ge=0, description="Residual strength (share of the yield strength)."
+    )
+    limits: dict[str, float] = Field(description="Deformation limit per performance level id.")
+
+
+class ColumnRegression(_Row):
+    """Model ``columnRegression`` of RC columns: a = a0 + aN·n + aRho·ρt + aV·v ≥ 0;
+    b = b0/(b1 + n/bN·(1/ρt)·(fc/fyt)) + bC ≥ a; c = c0 + cN·n ≥ 0; with n = N/(Ag·fc) and
+    v = V/Vcol; limits ``ioShare``·a (at most ``ioMax``), ``shares``·b per other level."""
+
+    a: tuple[float, float, float, float] = Field(description="a0, aN, aRho, aV.")
+    b: tuple[float, float, float, float] = Field(description="b0, b1, bN, bC.")
+    c: tuple[float, float] = Field(description="c0, cN.")
+    ioLevel: str = Field(description="The level limited by a share of a.")
+    ioShare: Positive
+    ioMax: Positive
+    shares: dict[str, Positive] = Field(description="Other levels: their limit as a share of b.")
+    rhoMax: Positive = Field(description="ρt is taken at most as this.")
+    rhoMin: float = Field(
+        default=0.0, ge=0, description="Below this ρt the column has no ductility (a = b = 0)."
+    )
+    axialMax: Positive | None = Field(default=None, description="n is taken at most as this.")
+    shearRatioMin: float = Field(default=0.0, ge=0, description="v is taken at least as this.")
+    # The column's shear strength Vcol = k·λ·[Av·fyt·d/s + vc·√fc/(M/Vd)·√(1 + N/(vn·√fc·Ag))·
+    # share·Ag] (MPa, N, mm).
+    shearK: Positive = 1.0
+    shearLambda: Positive = 1.0
+    shearConcrete: Positive = Field(description="vc of Vcol [√MPa].")
+    shearAxial: Positive = Field(description="vn of Vcol [√MPa].")
+    shearArea: Share = Field(description="Share of Ag of Vcol.")
+    shearSpan: tuple[Positive, Positive] = Field(description="Range M/Vd is taken within.")
+
+
+class ChordRotationCapacity(_Row):
+    """Model ``chordRotationCapacity``: the ultimate chord rotation of an RC member by an
+    empirical formula θum = (1/γel)·k·c^ν·[max(ωmin, ω')/max(ωmin, ω)·fc]^e1·(LV/h)^e2·
+    base^(α·ρsx·fyw/fc)·diag^(100·ρd) (fc in MPa), × ``wallFactor`` for walls; the levels are
+    ``yieldLevel`` (θ ≤ θy, the chord rotation at the first yield of the bars) and shares of
+    θum."""
+
+    gammaEl: Positive
+    k: Positive
+    axialBase: Positive
+    omegaMin: Positive
+    omegaExponent: float
+    spanExponent: float
+    confinementBase: Positive
+    diagonalBase: Positive
+    wallFactor: Positive = 1.0
+    yieldLevel: str = Field(description="The level met while θ ≤ θy.")
+    shares: dict[str, Positive] = Field(description="Other levels: their limit as a share of θum.")
+
+
+class HingeComponent(_Row):
+    """The hinges of one kind of component (rcBeam, rcColumn, rcWall, rcWallShear, steelBeam,
+    steelColumn, steelBrace): the model giving their parameters, what deformation they are
+    measured by and the model's values."""
+
+    model: Literal["table", "columnRegression", "chordRotationCapacity"]
+    deformation: Literal[
+        "plasticRotation", "chordRotation", "yieldMultiple", "drift", "axialMultiple"
+    ] = Field(
+        description="plasticRotation: chord rotation beyond yield [rad]; chordRotation: the "
+        "whole chord rotation [rad]; yieldMultiple: plastic rotation / θy; drift: storey drift "
+        "ratio; axialMultiple: axial deformation beyond yield or buckling / that deformation."
+    )
+    variables: list[str] = Field(default_factory=list, description="Variables of the table.")
+    rows: list[HingeRow] = Field(default_factory=list)
+    regression: ColumnRegression | None = None
+    chordRotation: ChordRotationCapacity | None = None
+    note: str = ""
+
+
+class HingeAssignment(_Row):
+    """Values the hinge variables are worked out with (SI: MPa, mm)."""
+
+    stressUnitPerMPa: Positive = Field(
+        default=1.0,
+        description="The unit √fc of the shear stress variables is in, per MPa (145.04: psi).",
+    )
+    # The RC table variables (rhoBalance, conforming, control, spacing); empty where the
+    # pack's RC models do not use them.
+    concreteShear: Positive | None = Field(
+        default=None, description="Vc = this·√fc·b·d of the shear control [√MPa]."
+    )
+    conformingSpacing: Share | None = Field(
+        default=None, description="Conforming hoops: spacing at most this × d."
+    )
+    conformingShear: Share | None = Field(
+        default=None,
+        description="Conforming hoops: their shear strength at least this × the shear.",
+    )
+    closeSpacing: Share | None = Field(
+        default=None, description="Stirrups 'close': spacing at most this × d."
+    )
+    stressBlock: Share | None = Field(default=None, description="α1 of the balanced ratio.")
+    ultimateStrain: Positive | None = Field(default=None, description="εcu of the balanced ratio.")
+    beta1: list[tuple[Positive, Share]] = Field(
+        default_factory=list, description="β1 by fc [MPa], interpolated, held beyond the ends."
+    )
+    wallShearAspect: Positive | None = Field(
+        default=None,
+        description="Walls with hw/lw at most this are controlled by shear (component "
+        "rcWallShear); empty: by flexure.",
+    )
+    steelYieldDivisor: Positive = Field(description="θy = Z·Fy·L/(divisor·E·I).")
+    compactFlange: Positive = Field(description="Compact flange: bf/2tf ≤ this·√(E/Fy).")
+    noncompactFlange: Positive
+    compactWeb: Positive = Field(description="Compact web: h/tw ≤ this·√(E/Fy).")
+    noncompactWeb: Positive
+    effectiveLength: Positive = Field(default=1.0, description="K of braces and columns.")
+
+
+class PushoverHinges(_Row):
+    """P3: hinges at the member ends of the pushover (:mod:`saengine.fem.hinges`): their
+    performance levels, the values they are assigned with and the parameters per component."""
+
+    levels: list[PerformanceLevel] = Field(min_length=1)
+    assignment: HingeAssignment
+    components: dict[str, HingeComponent] = Field(default_factory=dict)
+    clauses: dict[str, str] = Field(default_factory=dict, description="Clause per component.")
+    note: str = ""
 
 
 class PushoverTable(TableModel):
     """Nonlinear static (pushover) analysis: the procedure, the target displacement method and
-    the acceptance of the members."""
+    the acceptance of the members (with P3's hinges)."""
 
     procedure: PushoverProcedure
     targetDisplacement: TargetDisplacement
     acceptance: PushoverAcceptance
+    hinges: PushoverHinges | None = None
 
 
 # ───────────────────────────────── ramps and accessibility (B24) ─────────────────────────────────

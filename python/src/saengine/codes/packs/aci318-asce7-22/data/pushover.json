@@ -1,0 +1,229 @@
+{
+  "$schema": "../../../schemas/pushover.schema.json",
+  "$replace": true,
+  "$sources": [
+    "ASCE/SEI 41-17 Sec 7.4.3 (nonlinear static procedure), Sec 7.4.3.3.2 Eqs 7-28 to 7-30 (target displacement)",
+    "ASCE/SEI 41-17 Sec 2.2.1 (performance objectives), Sec 2.4.1 (BSE-1N, BSE-2N)",
+    "ASCE/SEI 41-17 Tables 10-7, 10-8, 10-19, 10-20 (concrete), Table 9-7.1 (steel)",
+    "FEMA 440 (2005) Sec 6.2 and 6.4 (equivalent linearization)"
+  ],
+  "source": "ASCE/SEI 41-17 Ch 7 (nonlinear static procedure), Ch 9-10 (hinges)",
+  "sources": {
+    "pattern": "ASCE 41-17 Sec 7.4.3.2.3: lateral load pattern in proportion to the first mode",
+    "pushTo": "ASCE 41-17 Sec 7.4.3.2.1 (as SAEngine reads it): the control node pushed to at least 150 % of the target displacement",
+    "controlPoint": "ASCE 41-17 Sec 7.4.3.2.2: control node at the centre of mass at the roof",
+    "bilinear": "ASCE 41-17 Sec 7.4.3.2.4: bilinear idealised curve through 0.6 Vy, equal areas",
+    "period": "ASCE 41-17 Sec 7.4.3.2.5, Eq 7-27 (Te = Ti·√(Ki/Ke))",
+    "target": "ASCE 41-17 Sec 7.4.3.3.2, Eq 7-28",
+    "c0": "ASCE 41-17 Sec 7.4.3.3.2 (C0: the first mode's participation factor at the control node)",
+    "c1": "ASCE 41-17 Eq 7-29 (C1, site class factor a)",
+    "c2": "ASCE 41-17 Eq 7-30 (C2)",
+    "rd": "ASCE 41-17 Eq 7-31 (μstrength = Sa/(Vy/W)·Cm)",
+    "damping": "FEMA 440 Eqs 6-5 to 6-11 (effective damping and period, spectral reduction B)",
+    "sdof": "FEMA 440 Sec 6.4 (capacity spectrum, MADRS)",
+    "hazards": "ASCE 41-17 Sec 2.2.1 Table 2-2 (BPON) and Sec 2.4.1: BSE-1N = 2/3 BSE-2N, BSE-2N = the ASCE 7 MCER",
+    "acceptance": "ASCE 41-17 Sec 7.5.3.2 (deformation-controlled actions, nonlinear procedures) with the hinge tables",
+    "hinges": "ASCE 41-17 Sec 7.5.3.2 and Tables 9-7.1, 10-7, 10-8, 10-19, 10-20"
+  },
+  "procedure": {
+    "loadPattern": "firstMode",
+    "pushToTarget": 1.5,
+    "noDropToTarget": null,
+    "pDelta": true,
+    "expectedStrengths": "nominal",
+    "source": "ASCE 41-17 Sec 7.4.3.2",
+    "note": "ASCE 41 has no rule against a drop of the base shear before the target (its strength degradation limit, Eq 7-32, is not covered in this version). The fibre model uses the nominal strengths: the expected strength factors of ASCE 41 Tables 9-1/10-1 are not applied (SAEngine practice; the hinge limits do not depend on it)."
+  },
+  "targetDisplacement": {
+    "method": "displacementCoefficient",
+    "bilinearFitShare": 0.6,
+    "spectrumR": 1.0,
+    "spectrumImportance": 1.0,
+    "coefficients": {
+      "source": "ASCE 41-17 Eqs 7-29, 7-30, Table 7-4",
+      "siteFactors": {
+        "SA": 130,
+        "SB": 130,
+        "SBC": 90,
+        "SC": 90,
+        "SCD": 60,
+        "SD": 60,
+        "SDE": 60,
+        "SE": 60,
+        "SF": 60
+      },
+      "siteFactorDefault": 60,
+      "c1PeriodMin": 0.2,
+      "c1PeriodMax": 1.0,
+      "c2PeriodMax": 0.7,
+      "c2Divisor": 800,
+      "massFactor": 1.0
+    },
+    "linearization": {
+      "source": "FEMA 440 Sec 6.2.1 (Eqs 6-5a-c, 6-6a-c for any capacity curve), Eq 6-11, Eqs 6-12, 6-13",
+      "initialDamping": 5.0,
+      "bands": [4.0, 6.5],
+      "low": {"beta": [4.9, -1.1], "period": [0.2, -0.038]},
+      "mid": {"beta": [14.0, 0.32], "period": [0.28, 0.13]},
+      "high": {"beta": [19.0, 0.64], "period": [0.89, 0.05]},
+      "reductionNumerator": 4.0,
+      "reductionConstant": 5.6,
+      "tolerance": 0.05
+    },
+    "hazards": [
+      {"id": "BSE-1N", "label": "BSE-1N (2/3 of the MCER, the design earthquake)", "spectrumScale": 1.0, "level": "LS"},
+      {"id": "BSE-2N", "label": "BSE-2N (the MCER)", "spectrumScale": 1.5, "level": "CP"}
+    ],
+    "source": "ASCE 41-17 Sec 7.4.3.3.2, Eqs 7-28 to 7-31; the spectrum is the site's ASCE 7-22 design spectrum with R = 1, I = 1",
+    "note": "Site classes BC and CD of ASCE 7-22 (not in ASCE 41-17) take the a of the softer neighbouring class, the safe side (SAEngine practice). Cm = 1.0, the upper bound of Table 7-4 (SAEngine practice: the system's value is not looked up). The method equivalentLinearization (FEMA 440) is selectable as a project override of targetDisplacement.method."
+  },
+  "acceptance": {
+    "method": "hingeRotation",
+    "performanceLevel": "LS",
+    "source": "ASCE 41-17 Sec 7.5.3.2",
+    "note": "Every hinge's deformation at each hazard's target displacement is checked against the limit of that hazard's performance level (BSE-1N: Life Safety, BSE-2N: Collapse Prevention)."
+  },
+  "hinges": {
+    "levels": [
+      {"id": "IO", "label": "Immediate Occupancy"},
+      {"id": "LS", "label": "Life Safety"},
+      {"id": "CP", "label": "Collapse Prevention"}
+    ],
+    "assignment": {
+      "source": "ACI 318-19 Sec 22.2.2.4, 22.5.5.1; ASCE 41-17 Table 10-7 notes, Table 9-7.1 notes",
+      "stressUnitPerMPa": 145.038,
+      "concreteShear": 0.17,
+      "conformingSpacing": 0.333333,
+      "conformingShear": 0.75,
+      "closeSpacing": 0.5,
+      "stressBlock": 0.85,
+      "ultimateStrain": 0.003,
+      "beta1": [[28, 0.85], [55, 0.65]],
+      "wallShearAspect": 1.5,
+      "steelYieldDivisor": 6,
+      "compactFlange": 0.305,
+      "noncompactFlange": 0.38,
+      "compactWeb": 2.45,
+      "noncompactWeb": 3.76,
+      "effectiveLength": 1.0
+    },
+    "clauses": {
+      "rcBeam": "ASCE 41-17 Table 10-7",
+      "rcColumn": "ASCE 41-17 Table 10-8, Eq 10-3",
+      "rcWall": "ASCE 41-17 Table 10-19",
+      "rcWallShear": "ASCE 41-17 Table 10-20",
+      "steelBeam": "ASCE 41-17 Table 9-7.1, Eq 9-1",
+      "steelColumn": "ASCE 41-17 Table 9-7.1, Eq 9-2",
+      "steelBrace": "ASCE 41-17 Table 9-7.1"
+    },
+    "components": {
+      "rcBeam": {
+        "model": "table",
+        "deformation": "plasticRotation",
+        "variables": ["rhoBalance", "shearStress"],
+        "source": "ASCE 41-17 Table 10-7, conditions i and ii",
+        "rows": [
+          {"match": {"control": "flexure", "conforming": "C"}, "at": {"rhoBalance": 0.0, "shearStress": 3}, "a": 0.025, "b": 0.05, "c": 0.2, "limits": {"IO": 0.01, "LS": 0.025, "CP": 0.05}},
+          {"match": {"control": "flexure", "conforming": "C"}, "at": {"rhoBalance": 0.0, "shearStress": 6}, "a": 0.02, "b": 0.04, "c": 0.2, "limits": {"IO": 0.005, "LS": 0.02, "CP": 0.04}},
+          {"match": {"control": "flexure", "conforming": "C"}, "at": {"rhoBalance": 0.5, "shearStress": 3}, "a": 0.02, "b": 0.03, "c": 0.2, "limits": {"IO": 0.005, "LS": 0.02, "CP": 0.03}},
+          {"match": {"control": "flexure", "conforming": "C"}, "at": {"rhoBalance": 0.5, "shearStress": 6}, "a": 0.015, "b": 0.02, "c": 0.2, "limits": {"IO": 0.005, "LS": 0.015, "CP": 0.02}},
+          {"match": {"control": "flexure", "conforming": "NC"}, "at": {"rhoBalance": 0.0, "shearStress": 3}, "a": 0.02, "b": 0.03, "c": 0.2, "limits": {"IO": 0.005, "LS": 0.02, "CP": 0.03}},
+          {"match": {"control": "flexure", "conforming": "NC"}, "at": {"rhoBalance": 0.0, "shearStress": 6}, "a": 0.01, "b": 0.015, "c": 0.2, "limits": {"IO": 0.0015, "LS": 0.01, "CP": 0.015}},
+          {"match": {"control": "flexure", "conforming": "NC"}, "at": {"rhoBalance": 0.5, "shearStress": 3}, "a": 0.01, "b": 0.015, "c": 0.2, "limits": {"IO": 0.005, "LS": 0.01, "CP": 0.015}},
+          {"match": {"control": "flexure", "conforming": "NC"}, "at": {"rhoBalance": 0.5, "shearStress": 6}, "a": 0.005, "b": 0.01, "c": 0.2, "limits": {"IO": 0.0015, "LS": 0.005, "CP": 0.01}},
+          {"match": {"control": "shear", "spacing": "close"}, "a": 0.003, "b": 0.02, "c": 0.2, "limits": {"IO": 0.0015, "LS": 0.01, "CP": 0.02}},
+          {"match": {"control": "shear", "spacing": "wide"}, "a": 0.003, "b": 0.01, "c": 0.2, "limits": {"IO": 0.0015, "LS": 0.005, "CP": 0.01}}
+        ],
+        "note": "Conditions iii (inadequate development or splicing) and iv (embedment into the joint) are not covered: the bars are taken as developed."
+      },
+      "rcColumn": {
+        "model": "columnRegression",
+        "deformation": "plasticRotation",
+        "source": "ASCE 41-17 Table 10-8 (columns not controlled by inadequate development or splicing), Eq 10-3",
+        "regression": {
+          "a": [0.042, -0.043, 0.63, -0.023],
+          "b": [0.5, 5.0, 0.8, -0.01],
+          "c": [0.24, -0.4],
+          "ioLevel": "IO",
+          "ioShare": 0.15,
+          "ioMax": 0.005,
+          "shares": {"LS": 0.5, "CP": 0.7},
+          "rhoMax": 0.0175,
+          "rhoMin": 0.0005,
+          "axialMax": 0.7,
+          "shearRatioMin": 0.2,
+          "shearK": 1.0,
+          "shearLambda": 1.0,
+          "shearConcrete": 0.5,
+          "shearAxial": 0.5,
+          "shearArea": 0.8,
+          "shearSpan": [2.0, 4.0]
+        },
+        "note": "Vcol by Eq 10-3 with k = 1 and αcol = 1 (ties at s ≤ 0.75 d); the axial load N at the target displacement stands for NUD."
+      },
+      "rcWall": {
+        "model": "table",
+        "deformation": "plasticRotation",
+        "variables": ["axialStress", "shearStress"],
+        "source": "ASCE 41-17 Table 10-19 (walls controlled by flexure)",
+        "rows": [
+          {"match": {"boundary": "confined"}, "at": {"axialStress": 0.1, "shearStress": 4}, "a": 0.015, "b": 0.02, "c": 0.75, "limits": {"IO": 0.005, "LS": 0.015, "CP": 0.02}},
+          {"match": {"boundary": "confined"}, "at": {"axialStress": 0.1, "shearStress": 6}, "a": 0.01, "b": 0.015, "c": 0.4, "limits": {"IO": 0.004, "LS": 0.01, "CP": 0.015}},
+          {"match": {"boundary": "confined"}, "at": {"axialStress": 0.25, "shearStress": 4}, "a": 0.009, "b": 0.012, "c": 0.6, "limits": {"IO": 0.003, "LS": 0.009, "CP": 0.012}},
+          {"match": {"boundary": "confined"}, "at": {"axialStress": 0.25, "shearStress": 6}, "a": 0.005, "b": 0.01, "c": 0.3, "limits": {"IO": 0.0015, "LS": 0.005, "CP": 0.01}},
+          {"match": {"boundary": "unconfined"}, "at": {"axialStress": 0.1, "shearStress": 4}, "a": 0.008, "b": 0.015, "c": 0.6, "limits": {"IO": 0.002, "LS": 0.008, "CP": 0.015}},
+          {"match": {"boundary": "unconfined"}, "at": {"axialStress": 0.1, "shearStress": 6}, "a": 0.006, "b": 0.01, "c": 0.3, "limits": {"IO": 0.002, "LS": 0.006, "CP": 0.01}},
+          {"match": {"boundary": "unconfined"}, "at": {"axialStress": 0.25, "shearStress": 4}, "a": 0.003, "b": 0.005, "c": 0.25, "limits": {"IO": 0.001, "LS": 0.003, "CP": 0.005}},
+          {"match": {"boundary": "unconfined"}, "at": {"axialStress": 0.25, "shearStress": 6}, "a": 0.002, "b": 0.004, "c": 0.2, "limits": {"IO": 0.001, "LS": 0.002, "CP": 0.004}}
+        ]
+      },
+      "rcWallShear": {
+        "model": "table",
+        "deformation": "drift",
+        "variables": [],
+        "source": "ASCE 41-17 Table 10-20 (walls controlled by shear; drift ratios)",
+        "rows": [
+          {"match": {"axialStress": [null, 0.05]}, "a": 0.01, "b": 0.02, "c": 0.4, "limits": {"IO": 0.004, "LS": 0.015, "CP": 0.02}},
+          {"match": {"axialStress": [0.05, null]}, "a": 0.0075, "b": 0.01, "c": 0.2, "limits": {"IO": 0.003, "LS": 0.0075, "CP": 0.01}}
+        ]
+      },
+      "steelBeam": {
+        "model": "table",
+        "deformation": "yieldMultiple",
+        "variables": ["slenderness"],
+        "source": "ASCE 41-17 Table 9-7.1 (beams, flexure), θy by Eq 9-1",
+        "rows": [
+          {"at": {"slenderness": 0.0}, "a": 9, "b": 11, "c": 0.6, "limits": {"IO": 1, "LS": 9, "CP": 11}},
+          {"at": {"slenderness": 1.0}, "a": 4, "b": 6, "c": 0.2, "limits": {"IO": 0.25, "LS": 3, "CP": 4}}
+        ]
+      },
+      "steelColumn": {
+        "model": "table",
+        "deformation": "yieldMultiple",
+        "variables": ["slenderness", "axialRatio"],
+        "source": "ASCE 41-17 Table 9-7.1 (columns, flexure), θy by Eq 9-2",
+        "rows": [
+          {"match": {"axialRatio": [null, 0.2]}, "at": {"slenderness": 0.0}, "a": 9, "b": 11, "c": 0.6, "limits": {"IO": 1, "LS": 9, "CP": 11}},
+          {"match": {"axialRatio": [null, 0.2]}, "at": {"slenderness": 1.0}, "a": 4, "b": 6, "c": 0.2, "limits": {"IO": 0.25, "LS": 3, "CP": 4}},
+          {"match": {"axialRatio": [0.2, 0.5]}, "at": {"slenderness": 0.0, "axialRatio": 0.2}, "a": 7.333, "b": 11.333, "c": 0.2, "limits": {"IO": 0.25, "LS": 9.333, "CP": 11.333}},
+          {"match": {"axialRatio": [0.2, 0.5]}, "at": {"slenderness": 0.0, "axialRatio": 0.5}, "a": 1.833, "b": 2.833, "c": 0.2, "limits": {"IO": 0.25, "LS": 2.333, "CP": 2.833}},
+          {"match": {"axialRatio": [0.2, 0.5]}, "at": {"slenderness": 1.0, "axialRatio": 0.2}, "a": 1, "b": 1.5, "c": 0.2, "limits": {"IO": 0.25, "LS": 1.2, "CP": 1.2}},
+          {"match": {"axialRatio": [0.2, 0.5]}, "at": {"slenderness": 1.0, "axialRatio": 0.5}, "a": 1, "b": 1.5, "c": 0.2, "limits": {"IO": 0.25, "LS": 1.2, "CP": 1.2}},
+          {"match": {"axialRatio": [0.5, null]}, "a": 0, "b": 0, "c": 0, "limits": {"IO": 0, "LS": 0, "CP": 0}}
+        ],
+        "note": "P/PCL above 0.5: force-controlled, no plastic rotation accepted."
+      },
+      "steelBrace": {
+        "model": "table",
+        "deformation": "axialMultiple",
+        "variables": [],
+        "source": "ASCE 41-17 Table 9-7.1 (braces in tension; braces in compression, W, I, 2L in plane, 2C in plane)",
+        "rows": [
+          {"match": {"action": "tension"}, "a": 11, "b": 14, "c": 0.8, "limits": {"IO": 0.25, "LS": 7, "CP": 9}},
+          {"match": {"action": "compression"}, "a": 0.5, "b": 10, "c": 0.3, "limits": {"IO": 0.25, "LS": 5, "CP": 7}}
+        ]
+      }
+    },
+    "note": "The hinges are assigned to the fibre model's member ends and read from its run: they do not change the analysis (SAEngine practice). The plastic rotation of a concrete end is its chord rotation beyond the one at the first yield of its tension bars in the analysis."
+  }
+}
