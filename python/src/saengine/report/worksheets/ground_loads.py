@@ -767,7 +767,7 @@ def _seismic(s: Sheet) -> None:
         s.heading("Vertical distribution")
         storey = s["hn"] / n
         levels = [((i + 1) * storey, s["weight"] / n) for i in range(n)]
-        forces = L.vertical_distribution(levels, v, t)
+        forces = L.vertical_distribution(levels, v, t, s["site"])  # C20b: TC of the site
         k = 1.0 if t <= 0.5 else 2.0 if t >= 2.5 else 1 + (t - 0.5) / 2
         s.step("k", k, "", "1 for T ≤ 0.5 s, 2 for T ≥ 2.5 s", _code("wsBaseShear"))
         for (height, _), force in reversed(list(zip(levels, forces, strict=True))):

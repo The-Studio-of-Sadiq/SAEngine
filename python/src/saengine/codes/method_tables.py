@@ -132,6 +132,18 @@ class UltimateRules(_Group):
     eccentricityMax: Positive | None = Field(
         default=None, description="e0 at most this [mm] (none: no cap)."
     )
+    # Alpha 9 C20b (GB 50010 Table 4.2.3-1 type: the design yield strength tabulated by bar
+    # grade, HRB400 360 MPa, in place of fyk / γs).
+    designYields: list[tuple[Positive, Positive]] | None = Field(
+        default=None,
+        description="(fyk [MPa], fy design [MPa]) by bar grade: fyd of a bar of that fyk; "
+        "other grades fyk / γs (none: fyk / γs for every grade).",
+    )
+    axialYieldShare: Positive | None = Field(
+        default=None,
+        description="The axial cap's steel term = this × fyd (the design yield by grade) in "
+        "place of axialShares[1] × fyk (none: axialShares).",
+    )
 
 
 class StrutShearRules(_Group):
@@ -493,6 +505,20 @@ class RootStressPunchingRules(_Group):
     ratioBase: Positive
     reinforcedMax: Positive
     concreteShare: Share
+    # Alpha 9 C20b (GB 50010 6.5.1 type: Fl <= 0.7 βh ft η um h0): τc = coefficient × fctd × βh
+    # × η in place of coefficient √fck × ks, η = min(ks, η2), ks = ratioBase + ratioFactor βc
+    # <= 1, η2 = a + αs d / (b b0) (``locationTerm``, αs 40 / 30 / 20 by the column's
+    # position), βh by the depth (``depthFactors``, linear between, the end values outside).
+    strength: Literal["root", "tensile"] = Field(
+        default="root", description="root: coefficient √fck; tensile: coefficient fctd."
+    )
+    ratioFactor: Positive = Field(default=1.0, description="ks = ratioBase + this × βc <= 1.")
+    locationTerm: tuple[Positive, Positive] | None = Field(
+        default=None, description="(a, b): η2 = a + αs d / (b b0) (none: not used)."
+    )
+    depthFactors: list[tuple[Positive, Positive]] = Field(
+        default_factory=list, description="(depth [mm], βh), linear between (empty: 1)."
+    )
 
 
 class SpanDepthFactorRules(_Group):
@@ -548,9 +574,15 @@ class CrackWidthRules(_Group):
 
 class ExposureCondition(_Group):
     cover: Positive = Field(description="Nominal cover [mm].")
-    cement: Positive = Field(description="Least cement content [kg/m³].")
+    # Alpha 9 C20b (GB 50010 3.5.3: no least cement content): none, not stated.
+    cement: Positive | None = Field(default=None, description="Least cement content [kg/m³].")
     waterCement: Share = Field(description="Largest free water-cement ratio.")
     grade: Positive = Field(description="Least grade fck [MPa].")
+    # Alpha 9 C20b (GB 50010 Table 8.2.1: beams and columns take more cover than slabs and
+    # walls): the cover of beams and columns; none: ``cover`` for every member.
+    beamCover: Positive | None = Field(
+        default=None, description="Nominal cover of beams and columns [mm] (none: cover)."
+    )
 
 
 class ExposureConditionRules(_Group):
@@ -582,6 +614,29 @@ class BondTableRules(_Group):
     lapCompression: Positive = Field(description="Laps in compression: max(Ld,c, n φ).")
     lapDirectTension: Positive = Field(description="Laps in direct tension: max(x Ld, n φ).")
     lapLargeBar: Positive = Field(description="No laps of bars larger than this [mm].")
+    # Alpha 9 C20b (GB 50010 8.3.1-8.3.2, 8.4.4, 11.1.7 type): la = ζa lab at least minLength,
+    # ζa of large bars, laps ll = ζl la by the share of bars lapped at one section (at least
+    # lapMinLength), and the seismic la,E = ζa,E la with ζa,E the seismic grade's "anchorage"
+    # factor (:mod:`saengine.design.seismic_grades`).
+    minLength: Positive | None = Field(
+        default=None, description="Ld at least this [mm] (none: no floor)."
+    )
+    largeBarFactor: tuple[Positive, Positive] | None = Field(
+        default=None, description="(bars above [mm], ζa): Ld × ζa of the larger bars."
+    )
+    lapFactors: list[tuple[Share, Positive]] | None = Field(
+        default=None,
+        description="(share of bars lapped at a section up to, ζl): laps ll = ζl Ld in flexural "
+        "tension in place of max(Ld, lapTension φ); the first row taken (none: lapTension).",
+    )
+    lapMinLength: Positive | None = Field(
+        default=None, description="Laps at least this [mm] (none: no floor)."
+    )
+    columnLapShare: Share | None = Field(
+        default=None,
+        description="The share of the bars lapped at one section taken for columns (beams: "
+        "the first lapFactors row's).",
+    )
 
 
 class MemberLimitRules(_Group):
@@ -604,9 +659,42 @@ class MemberLimitRules(_Group):
     tieDiaShare: Share = Field(description="Ties at least share × the largest bar ...")
     tieDiaMin: Positive = Field(description="... and this [mm].")
     tiePitch: tuple[Positive, Positive] = Field(description="min(least dimension, n φ, mm).")
-    neutralAxisStrain: Positive = Field(
-        description="xu,max: the bars' strain at least fyd/Es + this (limiting depth)."
+    neutralAxisStrain: float = Field(
+        ge=0, description="xu,max: the bars' strain at least fyd/Es + this (limiting depth)."
     )
+    # Alpha 9 C20b (GB 50010 8.5.1 type: ρmin = max(0.20 %, 45 ft/fy) of beams and slabs, on
+    # b h): with beamMinRatio the least steel is max(beamMinRatio, beamMinTensile fctd/fyd) b h
+    # in place of beamMin / fy b d.
+    beamMinRatio: Share | None = Field(
+        default=None, description="As/(b h) at least this (none: beamMin / fy on b d)."
+    )
+    beamMinTensile: Positive | None = Field(
+        default=None, description="With beamMinRatio: As/(b h) also at least this × fctd/fyd."
+    )
+    slabMinTensile: Positive | None = Field(
+        default=None, description="Slabs: As/(b D) also at least this × fctd/fyd (none)."
+    )
+    sideFaceEach: bool = Field(
+        default=False, description="sideFaceShare is of each face (else both faces together)."
+    )
+
+
+class EndMomentSlendernessRule(_Group):
+    """Alpha 9 C20b: slender columns by the end moments (method ``endMomentMagnifier``, GB
+    50010 6.2.3-6.2.4 type, :mod:`saengine.design.end_moment_magnifier`): M = Cm ηns M2 >= M2
+    with Cm = cmBase + cmRatio M1/M2 >= cmMin, ηns = 1 + (lc/h)² ζc / (divisor (M2/N + ea)/h0),
+    ζc = zetaShare fcd A / N <= 1; not needed where M1/M2 <= exemptRatio, N/(fcd A) <=
+    exemptAxial and lc/i <= a - b M1/M2 (``exemptSlenderness``)."""
+
+    method: Literal["endMomentMagnifier"]
+    cmBase: Positive
+    cmRatio: Positive
+    cmMin: Share
+    divisor: Positive
+    zetaShare: Positive
+    exemptRatio: Share
+    exemptAxial: Share
+    exemptSlenderness: tuple[Positive, Positive]
 
 
 class SlendernessRule(_Group):
@@ -622,15 +710,20 @@ class SlendernessRule(_Group):
 
 class BiaxialRule(_Group):
     method: Literal["loadContour", "surface"] = "loadContour"
-    alphaN: list[tuple[Share, Positive]] = Field(description="(Pu / Puz, αn), linear between.")
-    puzShares: tuple[Positive, Positive] = Field(description="Puz = a fck Ac + b fy Asc.")
+    # Alpha 9 C20b: not read by the ``surface`` method (may be left out there).
+    alphaN: list[tuple[Share, Positive]] = Field(
+        default_factory=list, description="(Pu / Puz, αn), linear between (loadContour)."
+    )
+    puzShares: tuple[Positive, Positive] | None = Field(
+        default=None, description="Puz = a fck Ac + b fy Asc (loadContour)."
+    )
 
 
 class ColumnMethodRules(_Group):
-    """Columns: slenderness (``additionalMoment``) and biaxial bending (``loadContour``, or
-    the interaction ``surface``)."""
+    """Columns: slenderness (``additionalMoment``, alpha 9 C20b ``endMomentMagnifier``) and
+    biaxial bending (``loadContour``, or the interaction ``surface``)."""
 
-    slenderness: SlendernessRule
+    slenderness: SlendernessRule | EndMomentSlendernessRule
     biaxial: BiaxialRule
 
 
@@ -1057,6 +1150,100 @@ class SimplifiedWallRules(_Group):
     phiShear: Share = Field(description="φ of the shear.")
 
 
+# ── Alpha 9 C20b: torsion, cracks, deflection and walls of the GB 50010 type ──
+
+
+class PlasticTorsionRules(_Group):
+    """Torsion of beams on the plastic torsional modulus Wt = b² (3h - b) / 6 (method
+    ``plasticModulus``, :mod:`saengine.design.plastic_torsion`): the section V/(b h0) + T/(share
+    Wt) at most τc,max of the shear group; no calculation where V/(b h0) + T/Wt <= plainLimit
+    fctd; else T <= concreteShare βt fctd Wt + steelFactor √ζ fyv Ast1 Acor / s and V <=
+    (shearBase - βt) shearConcrete fctd b h0 + fyv Asv h0 / s with βt = a / (1 + b V Wt / (T b
+    h0)) in betaTRange, the longitudinal Astl = ζ fyv Ast1 ucor / (fy s)."""
+
+    method: Literal["plasticModulus"]
+    sectionWtShare: Share = Field(description="V/(b h0) + T/(share Wt) <= τc,max.")
+    plainLimit: Positive = Field(description="V/(b h0) + T/Wt <= this × fctd: no calculation.")
+    concreteShare: Positive = Field(description="Tc = this βt fctd Wt.")
+    steelFactor: Positive = Field(description="Ts = this √ζ fyv Ast1 Acor / s.")
+    zeta: Positive = Field(description="ζ taken for the design (Astl fy s / (Ast1 fyv ucor)).")
+    zetaRange: tuple[Positive, Positive] = Field(description="ζ within (low, high).")
+    betaT: tuple[Positive, Positive] = Field(description="βt = a / (1 + b V Wt / (T b h0)).")
+    betaTRange: tuple[Share, Share] = Field(description="βt within (low, high).")
+    shearBase: Positive = Field(description="Vc = (base - βt) shearConcrete fctd b h0.")
+    shearConcrete: Positive
+    minLinks: Positive = Field(description="Asv/(b s) at least this × fctd / fyv.")
+    minLongitudinal: tuple[Positive, Positive] = Field(
+        description="(a, cap): Astl/(b h) at least a √(T/(V b)) fctd/fy, T/(V b) at most cap."
+    )
+
+
+class TensionStiffeningCrackRules(_Group):
+    """Crack width with the strain non-uniformity ψ of the bars between cracks (method
+    ``effectiveTensionRatio``, :mod:`saengine.design.tension_stiffening`): wmax = αcr ψ σs/Es
+    (coverFactor cs + barFactor deq / ρte), ψ = a - b ftk / (ρte σs) in (low, high), ρte = As /
+    (areaShare b h) at least rhoTeMin, σs = Mq / (leverArm h0 As), cs within coverRange, Mq of
+    the quasi-permanent loads (liveShare of the live load)."""
+
+    method: Literal["effectiveTensionRatio"]
+    width: dict[str, Positive] = Field(description="wlim [mm] by exposure (environment) class.")
+    memberFactor: Positive = Field(description="αcr of members in bending.")
+    coverFactor: Positive
+    barFactor: Positive
+    coverRange: tuple[Positive, Positive] = Field(description="cs within (low, high) [mm].")
+    areaShare: Share = Field(description="Ate = this × b h.")
+    rhoTeMin: Share
+    psi: tuple[Positive, Positive, Share, Positive] = Field(
+        description="(a, b, low, high): ψ = a - b ftk / (ρte σs) within (low, high)."
+    )
+    leverArm: Share = Field(description="σs = M / (this h0 As).")
+    liveShare: Share = Field(description="ψq: the live load's share in Mq.")
+
+
+class LongTermStiffnessRules(_Group):
+    """Deflection by the long-term stiffness B = Bs / θ (method ``longTermStiffness``,
+    :mod:`saengine.design.tension_stiffening`): Bs = Es As h0² / (psiFactor ψ + offset +
+    ratioFactor αE ρ / (1 + flangeFactor γf')), θ = a - (a - b) ρ'/ρ (``theta``), the analysis's
+    deflection under Mq scaled from its E I to B; at most l0 / divisor by the span
+    (``limits``), cantilevers on l0 = cantileverFactor × their length."""
+
+    method: Literal["longTermStiffness"]
+    psiFactor: Positive
+    offset: Positive
+    ratioFactor: Positive
+    flangeFactor: Positive
+    theta: tuple[Positive, Positive] = Field(description="θ at ρ' = 0 and at ρ' = ρ.")
+    limits: list[tuple[Positive | None, Positive]] = Field(
+        min_length=1, description="(l0 up to [mm], divisor): the first row holding (none: any)."
+    )
+    cantileverFactor: Positive
+    areaShare: Share = Field(description="Ate = this × b h (ψ).")
+    rhoTeMin: Share
+    psi: tuple[Positive, Positive, Share, Positive] = Field(
+        description="(a, b, low, high): ψ = a - b ftk / (ρte σs) within (low, high)."
+    )
+    leverArm: Share = Field(description="σs = M / (this h0 As).")
+    liveShare: Share = Field(description="ψq: the live load's share in Mq.")
+
+
+class ShearSpanWallRules(_Group):
+    """In-plane shear of walls by the shear span ratio λ = M / (V h0) (method
+    ``shearSpanRatio``, :mod:`saengine.design.shear_span_walls`): V <= 1/(λ - lambdaOffset)
+    (a fctd t h0 + b N Aw/A) + c fyv Ash h0 / sv with (a, b, c) ``terms`` (``seismicTerms`` in
+    the earthquake combinations), λ within lambdaRange, N at most axialShare fcd t lw, the
+    section V <= sectionShare fcd t h0, h0 = depthShare lw; the web steel ρ at least webMin."""
+
+    method: Literal["shearSpanRatio"]
+    terms: tuple[Positive, Positive, Positive]
+    seismicTerms: tuple[Positive, Positive, Positive] | None = None
+    lambdaOffset: Positive
+    lambdaRange: tuple[Positive, Positive]
+    axialShare: Share
+    sectionShare: Share
+    depthShare: Share
+    webMin: Share
+
+
 class ConcreteMethodsTable(TableModel):
     """Partial-factor design of reinforced concrete and its detailing (see the module notes)."""
 
@@ -1065,11 +1252,19 @@ class ConcreteMethodsTable(TableModel):
     # compression field method.
     shear: StrutShearRules | TabulatedShearRules | CompressionFieldShearRules | None = None
     # Alpha 9 C18b: torsionInteraction, momentTransfer (AS 3600 8.3, 9.3 type).
-    torsion: StrutTorsionRules | EquivalentTorsionRules | TorsionInteractionRules | None = None
+    # Alpha 9 C20b: plasticModulus (GB 50010 6.4 type).
+    torsion: (
+        StrutTorsionRules
+        | EquivalentTorsionRules
+        | TorsionInteractionRules
+        | PlasticTorsionRules
+        | None
+    ) = None
     punching: PunchingRules | RootStressPunchingRules | MomentTransferPunchingRules | None = None
     serviceStress: ServiceStressRules | None = None
-    cracking: CrackRules | CrackWidthRules | None = None
-    deflection: SpanDepthRules | SpanDepthFactorRules | None = None
+    # Alpha 9 C20b: effectiveTensionRatio and longTermStiffness (GB 50010 7.1, 7.2 type).
+    cracking: CrackRules | CrackWidthRules | TensionStiffeningCrackRules | None = None
+    deflection: SpanDepthRules | SpanDepthFactorRules | LongTermStiffnessRules | None = None
     cover: CoverRules | ExposureConditionRules | None = None
     anchorage: AnchorageRules | BondTableRules | None = None
     memberSteel: MemberSteelRules | None = None
@@ -1103,6 +1298,8 @@ class ConcreteMethodsTable(TableModel):
     corbels: TieCorbelRules | None = None
     # Alpha 9 C18b: walls by the simplified method (AS 3600 11.5, 11.6 type).
     simplifiedWalls: SimplifiedWallRules | None = None
+    # Alpha 9 C20b: wall shear by the shear span ratio (GB 50010 6.3.21, 11.7.4 type).
+    shearSpanWalls: ShearSpanWallRules | None = None
 
 
 # ───────────────────────────── geotechnicalMethods ─────────────────────────────

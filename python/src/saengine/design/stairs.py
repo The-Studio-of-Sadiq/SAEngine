@@ -1304,7 +1304,9 @@ def _tabulated_part_checks(
             f"k τc b d at pt = {100 * rho:.2f} %, no shear reinforcement, at the support reaction",
         )
     )
-    for row in member_limits.slab_rows(demand.h, d, fy, main.dia, main.spacing, main.area):
+    for row in member_limits.slab_rows(
+        demand.h, d, fy, main.dia, main.spacing, main.area, fc=fc
+    ):  # Alpha 9 C20b: fc for the pack's slabMinTensile
         row["name"] = f"{p}: {row['name']}"
         checks.append(row)
     dist = bars.distribution

@@ -49,6 +49,13 @@ further ids of the same groups: ``shear`` ``tabulatedStress``, ``torsion`` ``equ
 the method of the id in force; the partial-factor strip, section and sizing functions
 (``ultimate`` ``partialFactors``) serve both families, the tabulated methods' own rules first.
 
+Alpha 9 C20b ids of the tabulated family (GB 50010 type): ``torsion`` ``plasticModulus``
+(plastic_torsion), ``cracking`` ``effectiveTensionRatio`` and ``deflection`` ``longTermStiffness``
+(tension_stiffening), ``columns.slenderness`` ``endMomentMagnifier`` (end_moment_magnifier), the
+group ``shearSpanWalls`` ``shearSpanRatio`` (shear_span_walls) and the ``rootStress`` punching's
+``strength`` "tensile"; the seismic grade in the member design is the seismic table's
+``gradeDesign`` (seismic_grades).
+
 The member kinds follow from these: slabs, stairs and walls take ``ultimate``, ``shear``,
 ``memberSteel`` and (walls) ``seismic``; beam-column joints and the capacity-design shear take
 ``seismic``; Design Reinforcement sizes with ``ultimate``, ``shear`` and ``memberSteel``.

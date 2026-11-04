@@ -825,6 +825,25 @@ The generic keys it adds, open to any pack (a pack without them behaves as befor
 | `seismic.seismicGrades` | The grade by the zone's intensity column (raised by occupancy category), the system's group and the height; its level and factors in the summary (`seismicGrade`) and notes |
 | `steelLimitState.compression.perry` | A buckling curve by its Perry constants: φ = 1 - a1 λn² to the plateau, else [(a2 + a3 λn + λn²) - √((a2 + a3 λn + λn²)² - 4 λn²)] / (2 λn²) |
 
+The C20b remainder adds these generic keys (a pack without them behaves as before):
+
+| Key | What it does |
+| --- | --- |
+| `concreteMethods.ultimate.designYields`, `axialYieldShare` | fyd tabulated by fyk (GB 50010 Table 4.2.3-1 type) in place of fyk/γs; the axial cap's steel term on fyd |
+| `concreteMethods.torsion` `plasticModulus` | Torsion on Wt = b²(3h - b)/6 with the concrete's share × βt, closed links for T and V, Astl (`design/plastic_torsion.py`) |
+| `concreteMethods.punching` `rootStress` with `strength: "tensile"` | c βh fctd η, η = min(ratioBase + ratioFactor βc, a + αs d/(b b0)), βh by depth |
+| `concreteMethods.cracking` `effectiveTensionRatio`, `deflection` `longTermStiffness` | wmax = αcr ψ σs/Es (c1 cs + c2 deq/ρte) and B = Bs/θ under Mq (`design/tension_stiffening.py`) |
+| `concreteMethods.cover.conditions.*.beamCover`, `anchorage.lapFactors` (`minLength`, `largeBarFactor`, `lapMinLength`, `columnLapShare`) | Beams' and columns' own cover; la = ζa lab >= floor, laps ζl la, la,E = ζa,E la (the seismic grade's `anchorage` factor) |
+| `concreteMethods.memberLimits.beamMinRatio` (`beamMinTensile`, `slabMinTensile`, `sideFaceEach`) | Least steel max(ratio, c fctd/fyd) on b h; side bars per face |
+| `concreteMethods.columns.slenderness` `endMomentMagnifier` | M = Cm ηns M2 from the signed end moments, with the exemption by M1/M2, N/(fc A) and lc/i (`design/end_moment_magnifier.py`) |
+| `concreteMethods.shearSpanWalls` `shearSpanRatio` | Wall shear 1/(λ - c) (a ft t h0 + b N) + c' fyv Ash h0/sv, its seismic terms (`design/shear_span_walls.py`) |
+| `seismic.gradeDesign` `gradeFactors` and `seismicGrades.grades.*.detailing` | The grade's ηc, ηvc, ηvb, ηvw on the earthquake part of the forces, γRE on the earthquake combinations, the checks of μN, λv, end zones and least steel (`design/seismic_grades.py`) |
+| `seismic.lateralForce.topForce.cornerFactor`, `offsets` | Ft = (factor T + offset by TC) V where T > cornerFactor TC (GB δn) |
+| `seismic.verticalComponent` `gravityShare` | Ev / G by zone, × combinationShare on D in the response spectrum combinations |
+| `steelLimitState.connections` `designShear`, `designTension`, `pretension`, `bearingStrength`, `slipFactor`, `welds.filletStrengths` | Bolt and weld strengths tabulated by grade and electrode in place of the partial-factor formulas |
+| `steelLimitState.seismic.gradeFrames` | The steel seismic frame kind by the building's seismic grade |
+| `foundations.shallow.widthDepthCorrection`, `layerwiseSettlement` | fa = fak + ηb γ (b - b0) + ηd γm (d - d0) of a qa given without a soil report; s = ψs Σ p0/Es (z ᾱ) (`soil/characteristic_bearing.py`) |
+
 ## Other package kinds
 
 The same `pack.json` and the same registry hold the other packages of the marketplace

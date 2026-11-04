@@ -231,7 +231,8 @@ def test_gb50010_design_strengths_and_block(cn):
 
     assert ds.partial_factors()
     assert ds.fcd(20.1) == pytest.approx(20.1 / 1.4, rel=1e-6)  # C30 fc 14.3 (4.1.4)
-    assert ds.fyd(400.0) == pytest.approx(400 / 1.15)
+    # Alpha 9 C20b: Table 4.2.3-1 (HRB400 360 MPa) in place of fyk / 1.15.
+    assert ds.fyd(400.0) == pytest.approx(360.0)
     p50, p80 = ds.properties(32.4), ds.properties(50.2)
     assert (p50.eta, p50.lam, p50.eps_cu3) == pytest.approx((1.0, 0.8, 0.0033))  # 6.2.6
     assert (p80.eta, p80.lam, p80.eps_cu3) == pytest.approx((0.94, 0.74, 0.0030))

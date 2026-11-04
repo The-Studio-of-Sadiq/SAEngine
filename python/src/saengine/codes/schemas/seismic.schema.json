@@ -1026,6 +1026,385 @@
       "title": "FoundationCapacityRule",
       "type": "object"
     },
+    "GradeDesignRule": {
+      "additionalProperties": false,
+      "description": "Alpha 9 C20b: the seismic grade in the member design (method ``gradeFactors``,\n:mod:`saengine.design.seismic_grades`): in the earthquake combinations the earthquake part\nof the forces × the grade's factors (columns' moments × strongColumn ηc, their shears ×\nηc × columnShear ηvc, beams' shears × beamShear ηvb, walls' in-plane shear × wallShear\nηvw), then every force × γRE (``adjustment``); the grade's axialRatio μN, confinement and\ndetailing checked.",
+      "properties": {
+        "method": {
+          "const": "gradeFactors",
+          "default": "gradeFactors",
+          "title": "Method",
+          "type": "string"
+        },
+        "adjustment": {
+          "$ref": "#/$defs/ResistanceAdjustment"
+        },
+        "clause": {
+          "default": "",
+          "title": "Clause",
+          "type": "string"
+        }
+      },
+      "required": [
+        "adjustment"
+      ],
+      "title": "GradeDesignRule",
+      "type": "object"
+    },
+    "GradeDetailing": {
+      "additionalProperties": false,
+      "description": "Alpha 9 C20b: the detailing of one seismic grade (GB 50011 6.3, GB 50010 11.3-11.7\ntype, :mod:`saengine.design.seismic_grades`); an empty field is not checked. Ratios are\nshares (0.004 = 0.4 %); ``ft/fy`` terms on the design strengths.",
+      "properties": {
+        "beamEndSteel": {
+          "anyOf": [
+            {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "(ratio, c): As/(b h) at the ends at least max(ratio, c ft/fy).",
+          "title": "Beamendsteel"
+        },
+        "beamSpanSteel": {
+          "anyOf": [
+            {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "(ratio, c): As/(b h) in the span at least max(ratio, c ft/fy).",
+          "title": "Beamspansteel"
+        },
+        "beamEndDepth": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "x/h0 at the ends at most (the stress block's x).",
+          "title": "Beamenddepth"
+        },
+        "beamEndCompression": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "As'/As at the ends at least.",
+          "title": "Beamendcompression"
+        },
+        "beamHoopZone": {
+          "anyOf": [
+            {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                },
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "(a, mm): the end zone at least max(a hb, mm) long.",
+          "title": "Beamhoopzone"
+        },
+        "beamHoops": {
+          "anyOf": [
+            {
+              "maxItems": 3,
+              "minItems": 3,
+              "prefixItems": [
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                },
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                },
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "(a, b, mm): hoops in the end zone at most min(hb/a, b d, mm).",
+          "title": "Beamhoops"
+        },
+        "beamHoopDia": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "End zone hoops at least [mm].",
+          "title": "Beamhoopdia"
+        },
+        "columnSteel": {
+          "additionalProperties": {
+            "exclusiveMaximum": 1,
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "description": "Least total steel ratio of columns: 'interior' (and edge), 'corner'.",
+          "title": "Columnsteel",
+          "type": "object"
+        },
+        "columnSteelIncrease": {
+          "description": "(fyk from [MPa], ratio added) to the column steel by the bar grade: the last row whose fyk is at most the bars' (none: nothing added).",
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              },
+              {
+                "exclusiveMaximum": 1,
+                "minimum": 0,
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "title": "Columnsteelincrease",
+          "type": "array"
+        },
+        "columnHoopZone": {
+          "anyOf": [
+            {
+              "maxItems": 3,
+              "minItems": 3,
+              "prefixItems": [
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                },
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                },
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "(a, b, mm): the end zone at least max(a hc, Hn/b, mm).",
+          "title": "Columnhoopzone"
+        },
+        "columnHoops": {
+          "anyOf": [
+            {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                },
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "(a, mm): hoops in the end zone at most min(a d, mm).",
+          "title": "Columnhoops"
+        },
+        "columnHoopDia": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "End zone hoops at least [mm].",
+          "title": "Columnhoopdia"
+        },
+        "confinement": {
+          "description": "(μN, λv) points, linear between: ρv >= λv fc / fyv in the end zones.",
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "title": "Confinement",
+          "type": "array"
+        },
+        "confinementMin": {
+          "anyOf": [
+            {
+              "exclusiveMaximum": 1,
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "ρv in the end zones at least this.",
+          "title": "Confinementmin"
+        },
+        "confinementFckMin": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "fck at least this [MPa] in λv fc / fyv.",
+          "title": "Confinementfckmin"
+        },
+        "wallWebMin": {
+          "anyOf": [
+            {
+              "exclusiveMaximum": 1,
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Wall web steel ρ each way at least this.",
+          "title": "Wallwebmin"
+        }
+      },
+      "title": "GradeDetailing",
+      "type": "object"
+    },
+    "GravityShareVerticalRule": {
+      "additionalProperties": false,
+      "description": "Alpha 9 C20b: the vertical seismic action as a share of the gravity load by the seismic\nzone (method ``gravityShare``, GB 50011 5.3.3 type: 10 % / 15 % / 20 % of the\nrepresentative gravity load at intensity 8 / 8 (0.30g) / 9 for long spans and\ncantilevers): Ev / D = combinationShare × share of the zone (zones not listed: none),\napplied to every member (on the safe side) when the vertical component is on.",
+      "properties": {
+        "method": {
+          "const": "gravityShare",
+          "title": "Method",
+          "type": "string"
+        },
+        "shares": {
+          "additionalProperties": {
+            "exclusiveMaximum": 1,
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "description": "Seismic zone -> Ev / G (the vertical action over the gravity load).",
+          "title": "Shares",
+          "type": "object"
+        },
+        "combinationShare": {
+          "description": "The vertical action's factor in the combination (γEv).",
+          "exclusiveMinimum": 0,
+          "title": "Combinationshare",
+          "type": "number"
+        },
+        "members": {
+          "default": "",
+          "description": "Which members the code applies it to.",
+          "title": "Members",
+          "type": "string"
+        }
+      },
+      "required": [
+        "method",
+        "shares",
+        "combinationShare"
+      ],
+      "title": "GravityShareVerticalRule",
+      "type": "object"
+    },
     "HigherModeTable": {
       "additionalProperties": false,
       "description": "Alpha 9 C17: the higher mode factor Mv of one group of systems by the spectral ratio\n(the pack's ``higherModePeriods``) and the period, bilinear between the points, the end\nvalues outside.",
@@ -1799,9 +2178,65 @@
       "title": "RegularityCriteria",
       "type": "object"
     },
+    "ResistanceAdjustment": {
+      "additionalProperties": false,
+      "description": "Alpha 9 C20b: the seismic adjustment factors γRE of the resistances (GB 50011 Table\n5.4.2 type): S <= R / γRE, applied as γRE × the earthquake combinations' forces.",
+      "properties": {
+        "beamBending": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Beambending",
+          "type": "number"
+        },
+        "columnBending": {
+          "description": "Columns in compression and bending.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Columnbending",
+          "type": "number"
+        },
+        "wallBending": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Wallbending",
+          "type": "number"
+        },
+        "shear": {
+          "description": "Shear and torsion of every concrete member.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Shear",
+          "type": "number"
+        },
+        "steelStrength": {
+          "description": "Steel beams (strength).",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Steelstrength",
+          "type": "number"
+        },
+        "steelStability": {
+          "description": "Steel columns and braces (stability).",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Steelstability",
+          "type": "number"
+        }
+      },
+      "required": [
+        "beamBending",
+        "columnBending",
+        "wallBending",
+        "shear",
+        "steelStrength",
+        "steelStability"
+      ],
+      "title": "ResistanceAdjustment",
+      "type": "object"
+    },
     "SeismicGrade": {
       "additionalProperties": false,
-      "description": "Alpha 9 C20: one seismic (detailing) grade: its name, the detailing level it stands for\nin SAEngine's levels, and the design factors the code gives it (by key: strongColumn ηc,\ncolumnShear ηvc, beamShear ηvb, axialRatio μN, confinement λv ...).",
+      "description": "Alpha 9 C20: one seismic (detailing) grade: its name, the detailing level it stands for\nin SAEngine's levels, and the design factors the code gives it (by key: strongColumn ηc,\ncolumnShear ηvc, beamShear ηvb, wallShear ηvw, axialRatio μN, anchorage ζaE ...).",
       "properties": {
         "label": {
           "title": "Label",
@@ -1822,6 +2257,17 @@
           },
           "title": "Factors",
           "type": "object"
+        },
+        "detailing": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/GradeDetailing"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         }
       },
       "required": [
@@ -3466,6 +3912,38 @@
           "exclusiveMinimum": 0,
           "title": "Maxshare",
           "type": "number"
+        },
+        "cornerFactor": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Ft = 0 while T <= this × TC (none: periodFrom only).",
+          "title": "Cornerfactor"
+        },
+        "offsets": {
+          "description": "(TC up to [s], offset): Ft = (factor T + offset) V; the last row above.",
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "title": "Offsets",
+          "type": "array"
         }
       },
       "required": [
@@ -3936,10 +4414,14 @@
           "$ref": "#/$defs/VerticalComponentRule"
         },
         {
+          "$ref": "#/$defs/GravityShareVerticalRule"
+        },
+        {
           "type": "null"
         }
       ],
-      "default": null
+      "default": null,
+      "title": "Verticalcomponent"
     },
     "foundationCapacity": {
       "anyOf": [
@@ -4243,6 +4725,18 @@
       ],
       "default": null,
       "description": "Seismic grades by structure type, intensity and height; empty: none."
+    },
+    "gradeDesign": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/GradeDesignRule"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "The seismic grade's force factors and γRE in the member design; empty: not applied."
     }
   },
   "required": [

@@ -19,6 +19,43 @@
           "description": "May be used as a friction grip bolt.",
           "title": "Pretensioned",
           "type": "boolean"
+        },
+        "designShear": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "fv of the bolt [MPa] on the shank (none: the formula).",
+          "title": "Designshear"
+        },
+        "designTension": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "ft of the bolt [MPa] on An (none: the formula).",
+          "title": "Designtension"
+        },
+        "pretension": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "description": "P [kN] of a friction grip bolt by size ('M20'), in place of proofShare fub Anb (empty: that).",
+          "title": "Pretension",
+          "type": "object"
         }
       },
       "required": [
@@ -658,6 +695,35 @@
           ],
           "title": "Longjoint",
           "type": "array"
+        },
+        "bearingStrength": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "fcb / fu of the connected part (none: the kb formula).",
+          "title": "Bearingstrength"
+        },
+        "slipFactor": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Vdsf = this × μ ne Kh P in place of / γmf (none: γmf).",
+          "title": "Slipfactor"
         }
       },
       "required": [
@@ -2964,6 +3030,14 @@
           "minimum": 0,
           "title": "Rabove",
           "type": "number"
+        },
+        "gradeFrames": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Seismic grade id -> frame kind of 'frames' (empty: by the system).",
+          "title": "Gradeframes",
+          "type": "object"
         }
       },
       "required": [
@@ -3270,6 +3344,26 @@
           "description": "Field welds (γmw field) by default.",
           "title": "Field",
           "type": "boolean"
+        },
+        "filletStrengths": {
+          "description": "(electrode fu up to [MPa], ffw [MPa]) (empty: γmw).",
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              },
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "title": "Filletstrengths",
+          "type": "array"
         }
       },
       "required": [

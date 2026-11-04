@@ -1266,6 +1266,70 @@
       "title": "LateralTestRules",
       "type": "object"
     },
+    "LayerwiseSettlement": {
+      "additionalProperties": false,
+      "description": "Alpha 9 C20b: s = ψs Σ p0 / Esi (zi ᾱi - zi-1 ᾱi-1) (GB 50007 5.3.5 type,\n:func:`saengine.soil.characteristic_bearing.layerwise_settlement`): ᾱ the mean vertical\nstress coefficient under the centre (Boussinesq, four corner rectangles), Esi =\noedometricFactor × the layer's E, down to zn = b (a - c ln b) (``depthCoefficients``) or\nthe log's bottom; ψs by the equivalent Ēs (``psi``: (Ēs [MPa], ψs at p0 >= fak, ψs at p0\n<= 0.75 fak), linear between, the end values outside), the first column taken (p0 >= fak:\nSAEngine practice, on the safe side).",
+      "properties": {
+        "method": {
+          "const": "layerwiseSummation",
+          "title": "Method",
+          "type": "string"
+        },
+        "psi": {
+          "items": {
+            "maxItems": 3,
+            "minItems": 3,
+            "prefixItems": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              },
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              },
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "minItems": 2,
+          "title": "Psi",
+          "type": "array"
+        },
+        "depthCoefficients": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Depthcoefficients",
+          "type": "array"
+        },
+        "oedometricFactor": {
+          "exclusiveMinimum": 0,
+          "title": "Oedometricfactor",
+          "type": "number"
+        }
+      },
+      "required": [
+        "method",
+        "psi",
+        "depthCoefficients",
+        "oedometricFactor"
+      ],
+      "title": "LayerwiseSettlement",
+      "type": "object"
+    },
     "MachineAmplitude": {
       "additionalProperties": false,
       "description": "Permissible amplitudes [mm] for a range of operating speeds, as (low, high) ranges; the\nengine takes the low end.",
@@ -3103,6 +3167,30 @@
           ],
           "default": null,
           "description": "The shape, depth and inclination factors of the bearing capacity equation by method (``flowValue``); empty: SAEngine's Vesic / De Beer / Hansen set."
+        },
+        "widthDepthCorrection": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/WidthDepthCorrection"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "fa = fak + ηb γ (b - 3) + ηd γm (d - 0.5) of a qa given without a soil report (method ``widthDepthCorrection``); empty: qa as given."
+        },
+        "layerwiseSettlement": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LayerwiseSettlement"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The settlement of footings by the layer-wise summation with the empirical factor ψs (method ``layerwiseSummation``); empty: SAEngine's methods."
         }
       },
       "required": [
@@ -3546,6 +3634,80 @@
         "transientAnalysisSafety"
       ],
       "title": "UpliftTestRules",
+      "type": "object"
+    },
+    "WidthDepthCorrection": {
+      "additionalProperties": false,
+      "description": "Alpha 9 C20b: fa = fak + ηb γ (b - width[0]) + ηd γm (d - depthFrom) (GB 50007 5.2.4\ntype, :mod:`saengine.soil.characteristic_bearing`), b within ``width`` [m], d the founding\ndepth below the natural ground [m] (no depth term above depthFrom), (ηb, ηd) of the soil\nkind ``soil`` (a project's Code Value), γ = γm = ``unitWeight`` [kN/m³] (no soil report:\nSAEngine practice).",
+      "properties": {
+        "method": {
+          "const": "widthDepthCorrection",
+          "title": "Method",
+          "type": "string"
+        },
+        "factors": {
+          "additionalProperties": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "minimum": 0,
+                "type": "number"
+              },
+              {
+                "minimum": 0,
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "title": "Factors",
+          "type": "object"
+        },
+        "soil": {
+          "description": "The soil kind of ``factors`` taken.",
+          "title": "Soil",
+          "type": "string"
+        },
+        "width": {
+          "description": "b within (low, high) [m].",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Width",
+          "type": "array"
+        },
+        "depthFrom": {
+          "description": "[m]",
+          "minimum": 0,
+          "title": "Depthfrom",
+          "type": "number"
+        },
+        "unitWeight": {
+          "description": "γ and γm [kN/m³].",
+          "exclusiveMinimum": 0,
+          "title": "Unitweight",
+          "type": "number"
+        }
+      },
+      "required": [
+        "method",
+        "factors",
+        "soil",
+        "width",
+        "depthFrom",
+        "unitWeight"
+      ],
+      "title": "WidthDepthCorrection",
       "type": "object"
     }
   },

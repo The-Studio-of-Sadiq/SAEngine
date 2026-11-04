@@ -267,6 +267,13 @@ def settlement(
             "unknownConsolidation": [],
             "permissible": permissible(foundation, soil_column(profile, df, b)),
         }
+    from saengine.soil import characteristic_bearing
+
+    if characteristic_bearing.settlement_rule() is not None:
+        # Alpha 9 C20b: the pack's layer-wise summation with ψs (GB 50007 5.3.5 type).
+        return characteristic_bearing.layerwise_settlement(
+            profile, b, l_, df, q, permissible(foundation, soil_column(profile, df, b))
+        )
     s0 = max(profile.sigma_v_eff(df), 0.0)
     depth = influence_depth(profile, b, l_, df, q)
     if depth >= profile.bottom - df - 1e-9:
