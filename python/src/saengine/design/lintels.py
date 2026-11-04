@@ -81,8 +81,8 @@ from saengine.design.ductile_members import _row
 from saengine.design.rc import (
     Flexure,
     bar_area,
-    beta1,
     phi_axial_flexure,
+    stress_block,
 )
 from saengine.design.rc import value as rc_value
 from saengine.design.rc_detailing import concrete_modulus
@@ -225,11 +225,12 @@ def flexure_of(area: float, b: float, d: float, fc: float, fy: float, es: float 
         es = rc_value("STEEL_E")
     if area <= 0:
         return 0.0, 0.0, 0.9, math.inf
-    a = area * fy / (0.85 * fc * b)
-    c = a / beta1(fc)
-    eps_t = rc_value("EPS_CU") * (d - c) / c
+    bk = stress_block(fc, fy)  # Alpha 9 C5b: η fcd, λ, εcu3, fyd with partial factors
+    a = area * bk.fy / (bk.k * b)
+    c = a / bk.beta
+    eps_t = bk.eps_cu * (d - c) / c
     phi = phi_axial_flexure(eps_t, fy, es)
-    mn = area * fy * (d - a / 2)
+    mn = area * bk.fy * (d - a / 2)
     return phi * mn, mn, phi, eps_t
 
 

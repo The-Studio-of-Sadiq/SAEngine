@@ -1615,6 +1615,28 @@ def design_pile_cap(ctx: Any, foundation: Any) -> tuple[dict[str, Any], list[str
     )
     out["checks"] += extra
     out["notes"] += extra_notes
+    from saengine.substructure import limit_state_piles
+
+    if limit_state_piles.selected():
+        # Alpha 9 C5b: the piles' design resistance by the pack's correlation factors and
+        # resistance sets decides; the allowable pile load rows stay, reported only.
+        found = limit_state_piles.cap_rows(
+            ctx,
+            placed,
+            spec,
+            pile_type,
+            design.pileCapacity,
+            construction,
+            (pile_concrete.mechanical.density or 2400.0) * G / 1e3,
+            tests,
+        )
+        if found is not None:
+            for c in out["checks"]:
+                if c["name"] in ("Pile load, compression", "Pile load, uplift"):
+                    c["flag"] = True
+                    c["note"] += "; reported only: the limit state rows decide"
+            out["checks"] += found[0]
+            out["notes"] += found[1]
     available = (profile.bottom - head) * 1e3 - 3 * pile_type.diameter
     diameters, lengths = table_sizes(pile_type.diameter, pile_type.length, available)
     table = _capacity_table(

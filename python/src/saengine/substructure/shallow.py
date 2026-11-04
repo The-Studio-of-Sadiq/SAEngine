@@ -396,7 +396,14 @@ def size_factor(d: float) -> float:
 
 def one_way_shear_capacity(b: float, d: float, rho: float, fc: float, lam: float = 1.0) -> float:
     """φVc [N] of a footing strip without shear reinforcement: ACI 318-19 Table 22.5.5.1 (c),
-    0.66 λs λ ρw^(1/3) √f'c b d, at most 0.42 λ √f'c b d (√f'c <= 8.3 MPa)."""
+    0.66 λs λ ρw^(1/3) √f'c b d, at most 0.42 λ √f'c b d (√f'c <= 8.3 MPa). With the pack's
+    partial factors (alpha 9 C5b) VRd,c of the strip (:mod:`saengine.design.strut_shear`)."""
+    from saengine.design import method_selection
+
+    if method_selection.uses("shear", "variableStrut"):
+        from saengine.design import strut_shear
+
+        return strut_shear.concrete_resistance(b, d, max(rho, 0.0), fc)
     root = min(math.sqrt(fc), 8.3)
     vc = 0.66 * size_factor(d) * lam * max(rho, 0.0) ** (1 / 3) * root * b * d
     return rc.value("PHI_SHEAR") * min(vc, 0.42 * lam * root * b * d)
@@ -463,6 +470,13 @@ def strip_flexure(
         es = rc.value("STEEL_E")
     if as_per_m <= 0 or d <= 0:
         return StripFlexure(0.0, 0.9, math.inf)
+    if rc._partial_factors():
+        # Alpha 9 C5b: the pack's block on the design strengths (φ = 1).
+        bk = rc.stress_block(fc, fy)
+        a = as_per_m * bk.fy / (bk.k * 1000)
+        c = a / bk.beta
+        eps_t = bk.eps_cu * (d - c) / c
+        return StripFlexure(as_per_m * bk.fy * (d - a / 2), 1.0, eps_t)
     a = as_per_m * fy / (0.85 * fc * 1000)
     c = a / beta1(fc)
     eps_t = 0.003 * (d - c) / c
@@ -2059,6 +2073,36 @@ def summary(
     }
 
 
+def _limit_state_rows(
+    ctx: Any, placed: Placed, bearing: Bearing, checks: list[dict[str, Any]], notes: list[str]
+) -> None:
+    """Alpha 9 C5b: the footing's bearing and sliding resistance rows by limit states
+    (:mod:`saengine.substructure.limit_state_footings`) added to ``checks``; the allowable
+    bearing and service sliding rows then reported only. Without soil strength parameters at
+    the founding level the allowable rows stay and a note says so."""
+    from saengine.substructure import limit_state_footings
+
+    spec, foundation = placed.spec, ctx.settings.foundation
+    gamma = foundation.soilUnitWeight * 1e-6  # N/mm³, as design_footing
+    cover_depth = max(0.0, foundation.groundLevel - spec.elevation)
+    mean = spec.mean_thickness()
+    own_weight = spec.unit_weight * mean + gamma * (cover_depth + spec.thickness - mean)
+    found = limit_state_footings.footing_rows(ctx, foundation, placed, bearing, own_weight)
+    if found is None:
+        notes.append(
+            f"{spec.id}: no soil strength parameters at the founding level: the allowable "
+            "bearing pressure (the parent pack's method) decides"
+        )
+        return
+    rows, more = found
+    for c in checks:
+        if c["name"] == "Bearing (service)" or c["name"].startswith("Sliding (service)"):
+            c["flag"] = True
+            c["note"] += "; reported only: the limit state rows decide"
+    checks += rows
+    notes += more
+
+
 def design_shallow(ctx: Any, foundation: Any) -> tuple[dict[str, Any], list[str]]:
     """The checks of an isolated, combined or strip footing of the substructure: ``(result,
     notes)``, the result in the report's format (see
@@ -2094,6 +2138,12 @@ def design_shallow(ctx: Any, foundation: Any) -> tuple[dict[str, Any], list[str]
         spec, service, strength, ctx.settings.foundation, ctx.loads.dead, bearing, **extra
     )
     checks += footing_rule_checks(ctx, foundation, placed, strength, bearing)
+    from saengine.substructure import limit_state_footings
+
+    if limit_state_footings.selected():
+        # Alpha 9 C5b: bearing and sliding by the pack's limit states (EN 1997-1 design
+        # approach) decide; the allowable-pressure rows stay, reported only.
+        _limit_state_rows(ctx, placed, bearing, checks, notes)
     members = list(dict.fromkeys(c.id.split("#")[0] for c in spec.columns))
     bearing_check = next((c for c in checks if c["name"] == "Bearing (service)"), None)
     pressure = None

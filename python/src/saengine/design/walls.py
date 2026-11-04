@@ -145,6 +145,7 @@ from saengine.design.rc import (
     bar_area,
     beta1,
     phi_axial_flexure,
+    stress_block,
 )
 from saengine.design.rc import value as rc_value
 from saengine.library.objects import RectangleProfile
@@ -533,15 +534,17 @@ class PierInteraction:
         s = self.section
         depth, width, dist, area = self._geometry(axis, sense)
         c = np.atleast_1d(np.asarray(c, dtype=float))[:, None]
-        a = np.minimum(beta1(s.fc) * c, depth)
-        strain = rc_value("EPS_CU") * (c - dist[None, :]) / c
-        stress = np.clip(s.es * strain, -s.fy, s.fy)
-        stress = stress - np.where(dist[None, :] < a, 0.85 * s.fc, 0.0)
+        # Alpha 9 C5b: the pack's block (η fcd, λ, εcu3, fyd with partial factors).
+        bk = stress_block(s.fc, s.fy)
+        a = np.minimum(bk.beta * c, depth)
+        strain = bk.eps_cu * (c - dist[None, :]) / c
+        stress = np.clip(s.es * strain, -bk.fy, bk.fy)
+        stress = stress - np.where(dist[None, :] < a, bk.k, 0.0)
         force = stress * area[None, :]
-        conc = 0.85 * s.fc * width * a[:, 0]
+        conc = bk.k * width * a[:, 0]
         pn = conc + force.sum(axis=1)
         mn = conc * (depth / 2 - a[:, 0] / 2) + (force * (depth / 2 - dist[None, :])).sum(axis=1)
-        eps_t = rc_value("EPS_CU") * (dist.max() - c[:, 0]) / c[:, 0]
+        eps_t = bk.eps_cu * (dist.max() - c[:, 0]) / c[:, 0]
         return pn, mn, eps_t
 
     def _diagram(self, axis: str, sense: int) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -648,6 +651,13 @@ def nominal_bending(section: RcSection, pu: float, top: bool) -> tuple[float, fl
 
 def minimum_ratios(dia_vertical: float, dia_horizontal: float, fy: float) -> tuple[float, float]:
     """Least ρl and ρt of 6.6.3.2 / 6.6.3.3 (and 8.3.6.2(a)(i)/(ii)) by bar size and grade."""
+    if _pack_walls():  # Alpha 9 C5b: the pack's member steel
+        from saengine.design import limit_state_rows
+
+        m = limit_state_rows._table().memberSteel
+        return float(m.wallVerticalMin), float(
+            max(m.wallHorizontalMin, m.wallHorizontalShare * m.wallVerticalMin)
+        )
 
     small_max, small_fy = steel_limit("smallBarMax"), steel_limit("smallBarFy")
     small_bars, other_bars = least_ratios("rhoSmallBars"), least_ratios("rhoOtherBars")
@@ -837,6 +847,7 @@ def wall_checks(
     fyt: float | None = None,
     grade_beam: Any = None,
     wall_pier: WallPier | None = None,
+    ductility: str | None = None,
 ) -> WallDesign:
     """All checks of a wall pier (ordinary, and 8.3.6 when ``special``).
 
@@ -1152,10 +1163,28 @@ def wall_checks(
         boundary=boundary,
         pier=wall_pier,
     )
+    if _pack_walls():
+        # Alpha 9 C5b: the pack's wall steel, in-plane shear and ductile wall rows
+        # (saengine.design.limit_state_rows) take the place of the parent pack's.
+        from saengine.design import limit_state_rows
+
+        out.checks = limit_state_rows.wall_rows(
+            out.checks, geometry, bars, forces, fc, fy, ductility
+        )
     settle_informative(out.checks)
     strength = [c for c in out.checks if not c["flag"]]
     out.utilisation = max((c["utilisation"] for c in strength), default=0.0)
     return out
+
+
+def _pack_walls() -> bool:
+    """Alpha 9 C5b: True when the pack in force gives walls its partial-factor methods and
+    member steel."""
+    from saengine.design import limit_state_rows, method_selection
+
+    return (
+        limit_state_rows.partial_factors() and method_selection.concrete("memberSteel") is not None
+    )
 
 
 def settle_informative(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -1586,6 +1615,12 @@ def wall_need(
         layers = max(layers, bars.layers)
     s_max = steel_limit("spacingMax")
     s_v = s_h = min(3 * t, s_max)
+    if _pack_walls():  # Alpha 9 C5b: the pack's spacings
+        from saengine.design import limit_state_rows
+
+        m = limit_state_rows._table().memberSteel
+        s_v = min(m.wallVerticalSpacing[0] * t, m.wallVerticalSpacing[1], s_v)
+        s_h = min(m.wallHorizontalSpacing, s_h)
     base_l = base_t = 0.0
     eq71 = False
     if special:
@@ -2722,8 +2757,8 @@ def method_clause(key: str) -> str:
     text = (getattr(table, "clauses", None) or {}).get(key) if table is not None else None
     if not text:
         return ""
-    pack = code_context.current()
-    return f"{pack.edition or pack.name} {text}"
+    # Alpha 9 C5b: an inherited clause is named after the pack that wrote it.
+    return code_context.cite("wallMethods", key)
 
 
 @dataclass(frozen=True)

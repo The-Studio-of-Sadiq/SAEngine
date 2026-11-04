@@ -151,6 +151,17 @@ def _beam_label(reinforcement: dict[str, Any]) -> str:
     return ", ".join(parts)
 
 
+def _least_strain(fy: float) -> float:
+    """The least tensile strain a beam pick keeps: 0.004 (ACI 9.3.3.1, the default pack), or the
+    pack's neutral axis limit with partial factors (alpha 9 C5b,
+    :func:`saengine.design.limit_state_rows.strain_limit`)."""
+    from saengine.design import limit_state_rows
+
+    if limit_state_rows.partial_factors():
+        return limit_state_rows.strain_limit(fy)
+    return 0.004
+
+
 class BeamDesigner:
     """Proposes the bars of one beam type (its profile, cover and materials) for any demands,
     caching the checks of the arrangements it tries."""
@@ -283,7 +294,7 @@ class BeamDesigner:
                 continue
             if capacity.phi_mn <= 0 or round(demand / capacity.phi_mn, 3) > 1.0:
                 return None
-            if capacity.eps_t < 0.004:  # ACI 9.3.3.1
+            if capacity.eps_t < _least_strain(self.fy):  # ACI 9.3.3.1 (default pack)
                 return None
             result[name] = demand / capacity.phi_mn
         if round(loads.shear / resistance.phi_vn, 3) > 1.0 or not resistance.with_min_stirrups:
@@ -999,10 +1010,12 @@ def _joint_fails(case: _JointCase, sections: dict[str, Any], profile: Any = None
     beams = {b.id: sections[b.id] for b in case.joint.beams if b.id in sections}
     if not beams:
         return False
+    from saengine.design import capacity_design
+
+    # Alpha 9 C5b: the pack's joint shear (DCH) where it designs by ductility class.
+    joint_rows = capacity_design.joint_rows if capacity_design.selected() else dj.joint_checks
     try:
-        rows, _ = dj.joint_checks(
-            case.joint, beams, case.below, case.above, profile or case.profile
-        )
+        rows, _ = joint_rows(case.joint, beams, case.below, case.above, profile or case.profile)
     except DesignError:
         return False
     return any(r["name"].startswith("Joint shear") and not r["ok"] for r in rows)
@@ -1057,10 +1070,16 @@ def _strong_column_fails(
     column_above = case.above
     if column_above is not None and above is not None:
         column_above = dataclasses.replace(column_above, section=above)
+    from saengine.design import capacity_design
+
+    # Alpha 9 C5b: ΣMRc >= factor ΣMRb where the pack designs by ductility class.
+    strong_rows = (
+        capacity_design.strong_column_rows
+        if capacity_design.selected()
+        else dj.strong_column_checks
+    )
     try:
-        rows, _ = dj.strong_column_checks(
-            case.joint, beams, column_below, column_above, case.profile
-        )
+        rows, _ = strong_rows(case.joint, beams, column_below, column_above, case.profile)
     except DesignError:
         return False
     return any(not r["ok"] and not r["flag"] for r in rows)
@@ -2555,6 +2574,34 @@ def _with_seismic(
     if pick.reinforcement is None or not _seismic_members(members):
         return None
     first = members[0]
+    contexts = _seismic_members(members)
+    if any(c.get("method") == "curvatureDuctility" for c in contexts):
+        # Alpha 9 C5b: the hoops of the pack's ductility class (saengine.design.capacity_design).
+        from saengine.design import capacity_design
+
+        try:
+            section = section_of(
+                obj.profile,
+                LinearReinforcement.model_validate(pick.reinforcement),
+                first["fc"],
+                first["fy"],
+                first["es"],
+                first["aggregate"],
+            )
+            reinforcement, info = capacity_design.propose_transverse(
+                kind,
+                section,
+                pick.reinforcement,
+                [c for c in contexts if c.get("method") == "curvatureDuctility"],
+                opts.stirrup_diameters,
+                opts.min_stirrup_spacing,
+            )
+        except DesignError as error:
+            return {"zones": None, "sectionTooSmall": [], "notes": [f"seismic detailing: {error}"]}
+        pick.reinforcement = reinforcement
+        pick.label = label_of(reinforcement)
+        pick.notes = [*pick.notes, *info["notes"]]
+        return info
     try:
         reinforcement, info = seismic_transverse(
             kind,

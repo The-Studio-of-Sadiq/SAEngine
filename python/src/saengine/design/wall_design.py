@@ -415,6 +415,14 @@ def design_walls(
     additions = getattr(building, "additions", None)
     openings = list(getattr(additions, "wallOpenings", None) or [])
 
+    from saengine.design import capacity_design
+
+    pack_ductile = capacity_design.selected()
+    pack_class = None
+    if pack_ductile:
+        from saengine.design.check import _ductility_class
+
+        pack_class = _ductility_class(settings)
     infos: dict[str, dict[str, Any]] = {}
     for e, t, bars, concrete, steel in ready:
         piers = piers_of.get(e.id, [])
@@ -424,6 +432,12 @@ def design_walls(
         fc, fy = concrete.concrete.fc, steel.steel.fy
         es = steel.mechanical.E or 200_000.0
         special = W.special_applies(scope, t.structural)
+        ductility = None
+        if pack_ductile:
+            # Alpha 9 C5b: ductile walls of the pack's ductility class take the place of the
+            # parent pack's special structural walls (saengine.design.limit_state_rows).
+            ductility = pack_class if getattr(t, "structural", False) else None
+            special = False
         bottom, top, stack = stacks.get(e.id, (float(e.bottom), float(e.top), [e.id]))
         hw = top - bottom
         continuous = abs(bottom - base_level) <= 1.0
@@ -447,6 +461,7 @@ def design_walls(
             "continuous": continuous,
         }
         wall = _Wall(e, t, bars, fc, fy, es, special, drift, hw, options, earthquake, story_names)
+        wall.ductility = ductility
         wall.collect = collect["walls"] if collect is not None else None
         own_openings = [o for o in openings if o.host == e.id]
         for pier in piers:
@@ -911,6 +926,8 @@ class _Wall:
     checks: list[dict[str, Any]] = field(default_factory=list)
     members: set[int] = field(default_factory=set)
     layers_required: int = 1
+    #: Alpha 9 C5b: the pack's ductility class of a ductile wall (None: none, or not by class).
+    ductility: str | None = None
 
     def part(
         self,
@@ -942,6 +959,7 @@ class _Wall:
                 drift=self.drift,
                 grade_beam=getattr(self.object, "gradeBeam", None),
                 wall_pier=wall_pier,
+                ductility=self.ductility,
             )
         except DesignError as error:
             # Not checked is not passing: the pier stays in the wall with a failing row.
@@ -988,6 +1006,7 @@ class _Wall:
                     "fy": self.fy,
                     "es": self.es,
                     "special": self.special,
+                    "ductility": self.ductility,
                     "drift": self.drift,
                     "need": d.need,
                     "checks": d.checks,
@@ -1810,6 +1829,7 @@ def _recheck(
                 special=c["special"],
                 drift=c["drift"],
                 wall_pier=c.get("pier"),
+                ductility=c.get("ductility"),
             )
         except DesignError as error:
             problems.append(f"{c['id']}: not checked with these bars: {error}")

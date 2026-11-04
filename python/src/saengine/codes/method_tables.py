@@ -93,6 +93,9 @@ class UltimateRules(_Group):
     pureCompressionStrain: Literal["epsC2", "epsC3"] = Field(
         default="epsC2", description="The strain limit of a section under axial compression."
     )
+    #: Alpha 9 C5b: (k1, k2) of the redistribution rule δ >= k1 + k2 xu/d; with δ = 1 the
+    #: limit xu/d <= (1 - k1)/k2 of slabs and stairs designed from the elastic analysis.
+    neutralAxisLimit: tuple[Share, Positive] | None = None
 
 
 class StrutShearRules(_Group):
@@ -158,6 +161,10 @@ class ServiceStressRules(_Group):
     k3: Share = Field(description="σs at most k3 fyk, characteristic.")
     k4: Positive = Field(description="σs at most k4 fyk, imposed deformation.")
     k1Exposures: list[str] = Field(default_factory=list)
+    #: Alpha 9 C5b: ids of the pack's service combinations (``combinations.service``) of the
+    #: quasi-permanent and characteristic combinations.
+    quasiPermanent: str | None = None
+    characteristic: str | None = None
 
 
 class CrackRules(_Group):
@@ -340,6 +347,36 @@ class SeismicConcreteRules(_Group):
     )
 
 
+class SlendernessRules(_Group):
+    """Column slenderness by the slenderness limit and the nominal curvature method (method
+    ``nominalCurvature``; alpha 9 C5b)."""
+
+    method: Literal["nominalCurvature"] = "nominalCurvature"
+    limitCoefficient: Positive = Field(description="λlim = coefficient A B C / √n.")
+    creepShare: Positive = Field(
+        description="A = 1 / (1 + share φef) (A taken 1/(1 + share φef) from the given φef)."
+    )
+    mechanicalShare: Positive = Field(description="B = √(1 + share ω).")
+    momentRatioBase: Positive = Field(description="C = base - rm.")
+    unbracedRatio: float = Field(description="rm of unbraced members and transverse loads.")
+    creepCoefficient: float = Field(
+        ge=0, description="φ(∞, t0) of the columns (SAEngine practice, overridable)."
+    )
+    sustainedShare: Share = Field(
+        description="M0Eqp / M0Ed when the analysis gives no sustained share (φef = φ × share)."
+    )
+    curvatureDepthShare: Positive = Field(description="1/r0 = εyd / (share d).")
+    curvatureDistribution: Positive = Field(description="e2 = (1/r) l0² / c.")
+    balancedAxial: Positive = Field(description="nbal of Kr.")
+    betaBase: Positive = Field(description="β = base + fck / fckDivisor - λ / lambdaDivisor.")
+    betaFckDivisor: Positive
+    betaLambdaDivisor: Positive
+    equivalentMoment: tuple[Share, Share, Share] = Field(
+        description="M0e = a M02 + b M01 >= c M02 (braced members)."
+    )
+    curvatureShareEnd: Share = Field(description="MEd >= M01 + share M2 (braced members).")
+
+
 class ExposureClass(_Group):
     name: str
     fckMin: Positive | None = Field(default=None, description="Indicative least fck [MPa].")
@@ -361,6 +398,13 @@ class ConcreteMethodsTable(TableModel):
     exposureClasses: dict[str, ExposureClass] = Field(default_factory=dict)
     defaultExposure: str | None = None
     seismic: SeismicConcreteRules | None = None
+    # Alpha 9 C5b.
+    slenderness: SlendernessRules | None = None
+    parentMethods: list[str] = Field(
+        default_factory=list,
+        description="Areas (saengine.design.method_selection) a project designs by the default "
+        "method instead of the pack's (an override).",
+    )
 
 
 # ───────────────────────────── geotechnicalMethods ─────────────────────────────
@@ -429,6 +473,25 @@ class CorrelationFactors(_Group):
     stiffDivisor: Positive = Field(description="ξ ÷ this for stiff structures (ξ1 >= 1).")
 
 
+class FootingRules(_Group):
+    """How spread footings take the soil's strength when the bearing is by limit states (alpha
+    9 C5b): the characteristic soil parameters of the founding layer, the drained or undrained
+    case, and what the project's footing takes as the characteristic actions."""
+
+    drained: Literal["auto", "drained", "undrained"] = Field(
+        default="auto",
+        description="auto: undrained where the founding layer gives cu and no φ', both checked "
+        "where it gives both.",
+    )
+    castInPlace: bool = Field(default=True, description="Footings cast against the soil.")
+    waterAtInterface: bool = Field(
+        default=True, description="Water can reach the base (undrained sliding limit)."
+    )
+    phiCvShare: Share = Field(
+        default=1.0, description="φ'cv,k = share × φ'k where the soil gives no φ'cv."
+    )
+
+
 class GeotechnicalMethodsTable(TableModel):
     """Limit state geotechnical design (see the module notes)."""
 
@@ -443,3 +506,10 @@ class GeotechnicalMethodsTable(TableModel):
     bearing: BearingRules | None = None
     sliding: SlidingRules | None = None
     correlation: CorrelationFactors | None = None
+    # Alpha 9 C5b.
+    footings: FootingRules | None = None
+    parentMethods: list[str] = Field(
+        default_factory=list,
+        description="Areas (bearing, sliding, piles) a project designs by the default method "
+        "instead of the pack's (an override).",
+    )

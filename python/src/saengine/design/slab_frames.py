@@ -58,8 +58,8 @@ def clause(key: str) -> str:
     text = (getattr(table, "clauses", None) or {}).get(key) if table is not None else None
     if not text:
         return ""
-    pack = code_context.current()
-    return f"{pack.edition or pack.name} {text}"
+    # Alpha 9 C5b: an inherited clause is named after the pack that wrote it.
+    return code_context.cite("slabMethods", key)
 
 
 @dataclass(frozen=True)
@@ -706,6 +706,12 @@ def punching_checks(
         area = info.get("alongX", 0.0) * info.get("alongY", 0.0)
         mx = moment_of[id(fx)].get(jx, (0.0, None, ""))
         my = moment_of[id(fy_)].get(jy, (0.0, None, ""))
+        if slab._control_perimeter():
+            # Alpha 9 C5b: the pack's control perimeter method (saengine.design.limit_state_rows).
+            rows.append(
+                _control_perimeter_row(column_id, section, sx.c1, sy.c1, d, area, loads, layers, fc)
+            )
+            continue
         capacity = slab.punching_capacity(
             fc, d, section.b0, max(sx.c1, sy.c1) / min(sx.c1, sy.c1), section.alpha_s
         )
@@ -731,6 +737,49 @@ def punching_checks(
             )
         )
     return rows
+
+
+def _control_perimeter_row(
+    column_id: str,
+    section: Any,
+    c1: float,
+    c2: float,
+    d: float,
+    area: float,
+    loads: Loads,
+    layers: dict[str, Any],
+    fc: float,
+) -> dict[str, Any]:
+    """Alpha 9 C5b: punching at a column of a frame-method slab on the pack's control perimeter
+    (:func:`saengine.design.perimeter_punching.punching`): VEd = qd (the tributary area less the
+    area inside u1), β of the column's position for the unbalanced moments, ρl of the top bars."""
+    from saengine.design import limit_state_rows, perimeter_punching
+
+    top = [lay for lay in (layers["topX"], layers["topY"]) if lay is not None]
+    ratios = [lay.area / (1000.0 * lay.d) for lay in top]
+    rho = math.sqrt(ratios[0] * ratios[1]) if len(ratios) == 2 else ratios[0]
+    position = section.location if section.location in ("edge", "corner") else "interior"
+    reach = limit_state_rows._table().punching.perimeterDistance * d
+    inside = (c1 + 2 * reach) * (c2 + 2 * reach)
+    worst = None
+    for name, qd, ql in loads.factored():
+        ved = (qd + ql) * max(area - inside, 0.0)
+        if worst is None or ved > worst[0]:
+            worst = (ved, name)
+    ved, name = worst if worst is not None else (0.0, None)
+    p = perimeter_punching.punching(ved, d, c1, c2, fc, rho, position)
+    return limit_state_rows._row(
+        f"Punching at {column_id} ({section.location})",
+        p.v_ed,
+        p.v_rdc,
+        "MPa",
+        name,
+        f"VEd = qd (tributary {area / 1e6:.2f} m² less inside u1) = {ved / 1e3:.1f} kN, "
+        f"β = {p.beta:.2f}, u1 = {p.u1:.0f} mm, d = {d:.0f} mm, ρl = {rho:.4f}; vEd,0 = "
+        f"{p.v_ed0:.3f} against vRd,max = {p.v_rdmax:.3f} MPa",
+        "punching",
+        utilisation=p.utilisation,
+    )
 
 
 def corner_checks(

@@ -169,6 +169,15 @@ NO_DEMAND = 50.0
 LAYERS = ("bottomX", "bottomY", "topX", "topY")
 
 
+def _limit_state() -> bool:
+    """Alpha 9 C5b: True when the pack in force designs concrete with partial factors
+    (:mod:`saengine.design.method_selection`); the strips then take
+    :mod:`saengine.design.limit_state_rows`' resistances."""
+    from saengine.design import method_selection
+
+    return method_selection.concrete("ultimate") == "partialFactors"
+
+
 def _eps_t_min() -> float:
     """Least net tensile strain of a nonprestressed slab, the pack's ``concrete.slabStrainMin``
     (default pack BNBC 2020: 0.004, ACI 7.3.3.1, 8.3.3.1)."""
@@ -399,6 +408,10 @@ def layer_capacity(
 ) -> LayerCapacity:
     """φMn of a strip ``width`` wide with ``area`` of bars at depth ``d`` (ACI 22.2, the
     rectangular stress block; φ by ACI 21.2.2)."""
+    if _limit_state():  # Alpha 9 C5b: the pack's partial-factor method
+        from saengine.design import limit_state_rows
+
+        return limit_state_rows.layer_capacity(area, d, fc, fy, es, width)
     if es is None:
         es = rc_value("STEEL_E")
     if d <= 0:
@@ -416,6 +429,10 @@ def one_way_shear(rho: float, d: float, fc: float, lam: float = 1.0) -> tuple[fl
     """φVc per metre [N/m] of a slab without shear reinforcement (ACI Table 22.5.5.1 (c)) and
     its size effect factor λs: Vc = 0.66 λs λ ρ^(1/3) √f'c b d <= 0.42 λ √f'c b d,
     √f'c <= 8.3 MPa, λs = √(2 / (1 + 0.004 d)) <= 1, b = 1000 mm."""
+    if _limit_state():  # Alpha 9 C5b: VRd,c and its size factor k
+        from saengine.design import limit_state_rows
+
+        return limit_state_rows.one_way_shear(rho, d, fc)
     root = min(math.sqrt(fc), 8.3)
     lambda_s = min(1.0, math.sqrt(2 / (1 + 0.004 * d)))
     vc = 0.66 * lambda_s * lam * max(rho, 0.0) ** (1 / 3) * root * 1000 * d
@@ -442,6 +459,10 @@ def required_area(moment: float, d: float, fc: float, fy: float, width: float = 
     the steel at that limit: the contour then shows the section is too thin there."""
     if moment <= 0 or d <= 0:
         return 0.0
+    if _limit_state():  # Alpha 9 C5b: the pack's partial-factor method
+        from saengine.design import limit_state_rows
+
+        return limit_state_rows.required_area(moment, d, fc, fy, width)
     rn = moment / (rc_value("PHI_TENSION") * width * d**2)
     k = 0.85 * fc
     root = max(0.0, 1 - 2 * rn / k)
@@ -1683,7 +1704,7 @@ def slab_checks(
         name, worst = max(present.items(), key=lambda item: item[1].c_d)
         checks.append(
             _check(
-                "Net tensile strain c/d (ACI 7.3.3.1, 8.3.3.1)",
+                _strain_name("Net tensile strain c/d (ACI 7.3.3.1, 8.3.3.1)"),
                 worst.c_d,
                 worst.c_d_limit,
                 "",
@@ -1702,7 +1723,7 @@ def slab_checks(
                 capacity / 1e3,
                 "kN/m",
                 combination,
-                "φVc = 0.75 · 0.66 λs ρ^(1/3) √f'c b d (ACI 22.5.5.1 (c))"
+                _shear_note("φVc = 0.75 · 0.66 λs ρ^(1/3) √f'c b d (ACI 22.5.5.1 (c))")
                 + (
                     "; ribs: b = the webs per metre, x 1.1 (ACI 318-19 9.8.1.5)"
                     if ribs is not None
@@ -1715,15 +1736,23 @@ def slab_checks(
 
     if present:
         span = span_direction(system, {n: envelope[n][0] for n in LAYERS})
-        checks.append(_min_reinforcement_check(system, h, fy, capacities, envelope, span))
         # The bars in the ribs are given per metre: their spacing is the ribs'.
         spaced = {
             n: layer
             for n, layer in layers.items()
             if ribs is None or not (n.startswith("bottom") and n[-1] in ribs.directions)
         }
-        if any(spaced.values()):
-            checks.append(_max_spacing_check(system, h, spaced, span))
+        if _member_steel():
+            # Alpha 9 C5b: the pack's least steel and spacings (limit_state_rows).
+            from saengine.design import limit_state_rows
+
+            checks += limit_state_rows.slab_steel_rows(
+                system, h, fc, fy, capacities, envelope, spaced, span, NO_DEMAND
+            )
+        else:
+            checks.append(_min_reinforcement_check(system, h, fy, capacities, envelope, span))
+            if any(spaced.values()):
+                checks.append(_max_spacing_check(system, h, spaced, span))
         if ribs is not None:
             checks += _rib_min_reinforcement_checks(ribs, fc, fy, capacities)
 
@@ -1736,7 +1765,15 @@ def slab_checks(
             _check(f"Min. thickness (Table {t.table})", t.required, h, "mm", None, t.note, True)
         )
 
-    if system == "flat":
+    if system == "flat" and _control_perimeter() and (ribs is None or context.drop is not None):
+        # Alpha 9 C5b: punching by the pack's control perimeter method (limit_state_rows).
+        from saengine.design import limit_state_rows
+
+        punching_layers = layers if ribs is None else layers_of(reinforcement, h)
+        checks += limit_state_rows.slab_punching_rows(
+            punching_layers, fc, combinations, context, slab_systems.support_size, critical_section
+        )
+    elif system == "flat":
         punching_layers = layers if ribs is None else layers_of(reinforcement, h)
         checks += _punching_checks(
             punching_layers, fc, combinations, context, h=h, fy=fy, cover=reinforcement.cover
@@ -1821,6 +1858,39 @@ def span_direction(system: str, demands: dict[str, float]) -> str | None:
     x = max(demands.get("bottomX", 0.0), demands.get("topX", 0.0))
     y = max(demands.get("bottomY", 0.0), demands.get("topY", 0.0))
     return "Y" if y > x else "X"
+
+
+def _member_steel() -> bool:
+    """Alpha 9 C5b: True when the pack's ``memberSteel`` sets the slabs' least steel and
+    spacings."""
+    from saengine.design import method_selection
+
+    return method_selection.concrete("memberSteel") is not None
+
+
+def _control_perimeter() -> bool:
+    """Alpha 9 C5b: True when the pack checks punching on its control perimeter."""
+    from saengine.design import method_selection
+
+    return method_selection.concrete("punching") == "controlPerimeter"
+
+
+def _strain_name(default: str) -> str:
+    """Alpha 9 C5b: the ductility row's name: the pack's x/d limit, else ``default``."""
+    if _limit_state():
+        from saengine.design import limit_state_rows
+
+        return limit_state_rows.ductility_name()
+    return default
+
+
+def _shear_note(default: str) -> str:
+    """Alpha 9 C5b: the one-way shear row's note on the resistance, else ``default``."""
+    if _limit_state():
+        from saengine.design import limit_state_rows
+
+        return limit_state_rows.one_way_shear_note()
+    return default
 
 
 def _min_reinforcement_check(
@@ -3070,7 +3140,7 @@ def _coefficient_checks(
         name, worst = max(present.items(), key=lambda item: item[1].c_d)
         checks.append(
             _check(
-                "Net tensile strain c/d (ACI 7.3.3.1, 8.3.3.1)",
+                _strain_name("Net tensile strain c/d (ACI 7.3.3.1, 8.3.3.1)"),
                 worst.c_d,
                 worst.c_d_limit,
                 "",
@@ -3107,11 +3177,22 @@ def _coefficient_checks(
                 phi_vc / 1e3,
                 "kN/m",
                 combination,
-                f"φVc = 0.75 · 0.66 λs ρ^(1/3) √f'c b d (ACI 22.5.5.1 (c), no shear bars); {where}",
+                _shear_note(
+                    "φVc = 0.75 · 0.66 λs ρ^(1/3) √f'c b d (ACI 22.5.5.1 (c), no shear bars)"
+                )
+                + f"; {where}",
                 utilisation=ratio,
             )
         )
-    if present:
+    if present and _member_steel():
+        # Alpha 9 C5b: the pack's least steel and spacings (limit_state_rows).
+        from saengine.design import limit_state_rows
+
+        system = "twoWay" if method == "twoWay" else "oneWay"
+        checks += limit_state_rows.slab_steel_rows(
+            system, h, fc, fy, capacities, envelope, layers, span, NO_DEMAND
+        )
+    elif present:
         checks.append(_coefficient_min_steel(h, fy, capacities, envelope, brick_aggregate, span))
         checks.append(_coefficient_spacing(h, layers, method, span, spacing))
     if context.thickness is not None:

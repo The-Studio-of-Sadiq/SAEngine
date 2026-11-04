@@ -193,7 +193,9 @@ def clause(table: str, key: str) -> str:
     if not text:
         return ""
     pack = code_context.current()
-    return f"{pack.edition or pack.name} {text}"
+    # Alpha 9 C5b: an inherited clause is named after the pack that wrote it.
+    owner = pack.clause_code(table, key) if hasattr(pack, "clause_code") else None
+    return f"{owner or pack.edition or pack.name} {text}"
 
 
 def _not_covered(what: str) -> str:

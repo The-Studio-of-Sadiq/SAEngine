@@ -120,6 +120,14 @@ def phi_axial_flexure(
     default the code pack's Es."""
     if _partial_factors():
         return 1.0  # partial factors on the materials (saengine.design.design_strength)
+    return phi_strength(eps_t, fy, es, spiral)
+
+
+def phi_strength(eps_t: float, fy: float, es: float | None = None, spiral: bool = False) -> float:
+    """φ of the strength design from the net tensile strain (ACI Table 21.2.2) whatever the
+    pack (alpha 9 C5b): for the methods integrated on the characteristic strengths that a pack
+    with partial factors does not replace (prestressed strips, tank walls), which must keep
+    their φ; :func:`phi_axial_flexure` is this without partial factors."""
     eps_ty = fy / (value("STEEL_E") if es is None else es)
     low = value("PHI_SPIRAL") if spiral else value("PHI_TIED")
     if eps_t <= eps_ty:
@@ -135,6 +143,32 @@ def _partial_factors() -> bool:
     from saengine.design import design_strength
 
     return design_strength.partial_factors()
+
+
+@dataclass(frozen=True)
+class StressBlock:
+    """The rectangular stress block a section integration uses (alpha 9 C5b): ``k`` the block's
+    stress over ``beta`` x, ``eps_cu`` the extreme fibre strain and ``fy`` the bars' yield
+    stress: 0.85 f'c, β1, εcu and fy of the strength design, or η fcd, λ, εcu3 and fyd with the
+    pack's partial factors (φ is then 1)."""
+
+    k: float
+    beta: float
+    eps_cu: float
+    fy: float
+
+
+def stress_block(fc: float, fy: float) -> StressBlock:
+    """The stress block of concrete ``fc`` and bars ``fy`` for the pack in force."""
+    if _partial_factors():
+        from saengine.design import design_strength
+
+        r = design_strength.rules()
+        p = design_strength.properties(fc, r)
+        return StressBlock(
+            p.eta * design_strength.fcd(fc, r), p.lam, p.eps_cu3, design_strength.fyd(fy, r)
+        )
+    return StressBlock(0.85 * fc, beta1(fc), value("EPS_CU"), fy)
 
 
 def eps_cu(fc: float) -> float:

@@ -82,9 +82,28 @@ def min_stirrup_spacing() -> float:
     return float(code_context.table("concrete").minStirrupSpacing)
 
 
+def _limit_state() -> bool:
+    """Alpha 9 C5b: True when the pack in force sizes concrete by partial factors
+    (:mod:`saengine.design.method_selection`): the functions below then size by
+    :mod:`saengine.design.limit_state_rows` (the pack's resistances, least steel and spacings)."""
+    from saengine.design import method_selection
+
+    return method_selection.concrete("ultimate") == "partialFactors"
+
+
+def _member_steel() -> bool:
+    from saengine.design import method_selection
+
+    return _limit_state() and method_selection.concrete("memberSteel") is not None
+
+
 def column_rho() -> tuple[float, float]:
     """(least, largest) column steel ratio (ACI 10.6.1.1; the pack's ``concrete.columnRho``;
     the default pack's BNBC 2020: 0.01, 0.08)."""
+    if _member_steel():  # Alpha 9 C5b: the pack's member steel
+        from saengine.design import limit_state_rows
+
+        return limit_state_rows.column_rho()
     low, high = code_context.table("concrete").columnRho
     return float(low), float(high)
 
@@ -128,6 +147,10 @@ class FlexureNeed:
 def singly_area(mu: float, b: float, d: float, fc: float, fy: float, phi: float | None = None):
     """As [mm²] of a singly reinforced section for ``mu`` [N·mm] at φ (the stress block), or
     None when the concrete cannot carry it at all (the root goes negative)."""
+    if phi is None and _limit_state():  # Alpha 9 C5b: the rectangular block on fcd, fyd
+        from saengine.design import limit_state_rows
+
+        return limit_state_rows.singly_area(mu, b, d, fc, fy)
     if phi is None:
         phi = rc_value("PHI_TENSION")
     if mu <= 0:
@@ -158,6 +181,10 @@ def beam_flexure_need(
         return FlexureNeed(0.0, 0.0)
     if ratio_max is None:
         ratio_max = beam_ratio_max()
+    if _limit_state():  # Alpha 9 C5b: the pack's partial-factor method
+        from saengine.design import limit_state_rows
+
+        return limit_state_rows.beam_flexure_need(mu, b, d, d_comp, fc, fy, es, ratio_max, h)
     b1 = beta1(fc)
     c_tc = tension_controlled_depth(d, fy, es)
     a_tc = b1 * c_tc
@@ -195,12 +222,20 @@ def beam_flexure_need(
 
 def beam_min_area(b: float, d: float, fc: float, fy: float) -> float:
     """As,min of a beam (ACI 9.6.1.2): max(0.25 √f'c, 1.4) bw d / fy."""
+    if _member_steel():  # Alpha 9 C5b: the pack's member steel
+        from saengine.design import limit_state_rows
+
+        return limit_state_rows.beam_min_area(b, d, fc, fy)
     return max(0.25 * math.sqrt(fc), 1.4) * b * d / fy
 
 
 def with_minimum(required: float, minimum: float) -> float:
     """The flexural bars to provide: As,min, or 4/3 of the bars required where that is less
     (ACI 9.6.1.3); nothing where nothing is required."""
+    if _member_steel():  # Alpha 9 C5b: no 4/3 relief
+        from saengine.design import limit_state_rows
+
+        return limit_state_rows.with_minimum(required, minimum)
     if required <= 0:
         return 0.0
     return max(required, min(minimum, 4 / 3 * required))
@@ -219,6 +254,10 @@ def strip_capacity(area: float, d: float, fc: float, fy: float, es: float | None
 def slab_max_area(d: float, fc: float, fy: float, eps_t: float = EPS_T_SLAB) -> float:
     """The most bars per metre [mm²/m] a slab may have at ``d``: those that put the neutral
     axis at εt = 0.004 (ACI 7.3.3.1, 8.3.3.1)."""
+    if _limit_state():  # Alpha 9 C5b: the pack's partial-factor method
+        from saengine.design import limit_state_rows
+
+        return limit_state_rows.slab_max_area(d, fc, fy)
     c = rc_value("EPS_CU") * d / (rc_value("EPS_CU") + eps_t)
     return 0.85 * fc * 1000 * beta1(fc) * c / fy
 
@@ -266,6 +305,12 @@ class ShearNeed:
 def beam_shear_need(vu: float, b: float, d: float, fc: float, fyt: float, lam: float = 1.0):
     """Stirrups of a beam for ``vu`` [N] (see the module notes), as :func:`rc.shear` checks
     them: Vc of Table 22.5.5.1 (a) since at least Av,min is always provided."""
+    from saengine.design import method_selection
+
+    if _limit_state() and method_selection.concrete("shear") == "variableStrut":
+        from saengine.design import limit_state_rows  # Alpha 9 C5b
+
+        return limit_state_rows.beam_shear_need(vu, b, d, fc, fyt)
     root = min(math.sqrt(fc), 8.3)
     fyt = min(fyt, 420.0)
     vc = 0.17 * lam * root * b * d
@@ -291,6 +336,12 @@ def slab_shear_rho(q: float, d: float, fc: float, lam: float = 1.0) -> float | N
     """The tension steel ratio a slab without shear bars needs for one-way shear ``q`` [N/m]
     (ACI Table 22.5.5.1 (c): φ 0.66 λs λ ρ^(1/3) √f'c b d), or None when even the upper limit
     φ 0.42 λ √f'c b d does not carry it (the slab is too thin)."""
+    from saengine.design import method_selection
+
+    if _limit_state() and method_selection.concrete("shear") == "variableStrut":
+        from saengine.design import limit_state_rows  # Alpha 9 C5b
+
+        return limit_state_rows.slab_shear_rho(q, d, fc)
     root = min(math.sqrt(fc), 8.3)
     lambda_s = min(1.0, math.sqrt(2 / (1 + 0.004 * d)))
     if q > rc_value("PHI_SHEAR") * 0.42 * lam * root * 1000 * d:
@@ -551,6 +602,10 @@ def column_ties(
     ``diameters`` default: the pack's stirrup diameters."""
     if diameters is None:
         diameters = diameters_of("stirrup")
+    if _member_steel():  # Alpha 9 C5b: the pack's member steel
+        from saengine.design import limit_state_rows
+
+        return limit_state_rows.column_ties(layout, least_dimension, b, h, cover, diameters)
     notes: list[str] = []
     wanted = 10.0 if layout.dia <= 32 else 13.0
     usable = [d for d in diameters if d >= wanted]

@@ -628,8 +628,8 @@ def method_clause(key: str) -> str:
     text = (getattr(table, "clauses", None) or {}).get(key) if table is not None else None
     if not text:
         return ""
-    pack = code_context.current()
-    return f"{pack.edition or pack.name} {text}"
+    # Alpha 9 C5b: an inherited clause is named after the pack that wrote it.
+    return code_context.cite("stairMethods", key)
 
 
 def open_well_share(spec: StairSpec) -> float:
@@ -1003,9 +1003,35 @@ def thickness_rule(demand: Demand, fy: float) -> tuple[float, str]:
     return t.required, t.note
 
 
-def phi_vc(d: float, fc: float) -> float:
-    """φVc per metre [kN/m]: 0.75 x 0.17 √f'c b d (Sec 6.4.2.1.1, Eq. 6.6.49), λ = 1."""
+def phi_vc(d: float, fc: float, rho: float = 0.0) -> float:
+    """φVc per metre [kN/m]: 0.75 x 0.17 √f'c b d (Sec 6.4.2.1.1, Eq. 6.6.49), λ = 1. With the
+    pack's partial factors (alpha 9 C5b) VRd,c of the strip with the tension ratio ``rho``
+    (0: vmin, on the safe side)."""
+    from saengine.design import limit_state_rows
+
+    if limit_state_rows.partial_factors():
+        return limit_state_rows.one_way_shear(rho, d, fc)[0] / 1000
     return rc_value("PHI_SHEAR") * 0.17 * math.sqrt(fc) * 1000 * d / 1000
+
+
+def _pack_steel(
+    h: float, d: float, fc: float, fy: float
+) -> tuple[float, float, float, float] | None:
+    """Alpha 9 C5b: (As,min of the main bars, the distribution share, the main and the
+    distribution spacing limits) of the pack's member steel; None: the default pack's rules."""
+    from saengine.design import bar_rules, limit_state_rows, method_selection
+
+    if not limit_state_rows.partial_factors() or method_selection.concrete("memberSteel") is None:
+        return None
+    m = limit_state_rows._table().memberSteel
+    n1, mm1 = m.slabMaxSpacing
+    n2, mm2 = m.slabSecondarySpacing
+    return (
+        bar_rules.beam_min_steel(1000.0, d, fc, fy),
+        m.slabSecondaryShare,
+        min(n1 * h, mm1),
+        min(n2 * h, mm2),
+    )
 
 
 def part_checks(demand: Demand, bars: StairBars, material: StairMaterial) -> list[dict[str, Any]]:
@@ -1016,6 +1042,7 @@ def part_checks(demand: Demand, bars: StairBars, material: StairMaterial) -> lis
     main = bars.landing if demand.kind == "landing" and bars.landing else bars.main
     d = h - bars.cover - main.dia / 2
     capacity = slab_design.layer_capacity(main.area, d, fc, fy, material.es)
+    pack_steel = _pack_steel(h, d, fc, fy)  # Alpha 9 C5b
     checks = [
         _check(
             f"{p}: flexure (bottom)",
@@ -1060,6 +1087,11 @@ def part_checks(demand: Demand, bars: StairBars, material: StairMaterial) -> lis
                     f"{bars.top.label()}, d = {dt:.0f} mm",
                 )
             )
+    if pack_steel is not None:
+        # Alpha 9 C5b: the pack's resistances, least steel and spacings (limit_state_rows).
+        return checks[:1] + _pack_part_checks(
+            p, demand, bars, main, d, capacity, pack_steel, material
+        )
     checks.append(
         _check(
             f"{p}: one-way shear",
@@ -1130,6 +1162,75 @@ def part_checks(demand: Demand, bars: StairBars, material: StairMaterial) -> lis
     return checks
 
 
+def _pack_part_checks(
+    p: str,
+    demand: Demand,
+    bars: StairBars,
+    main: Any,
+    d: float,
+    capacity: Any,
+    pack_steel: tuple[float, float, float, float],
+    material: StairMaterial,
+) -> list[dict[str, Any]]:
+    """Alpha 9 C5b: the rows of a flight or landing after its bottom flexure by the pack's
+    partial-factor methods: x/d, top flexure, VRd,c, As,min, distribution share and spacings."""
+    from saengine.design import limit_state_rows
+
+    row = limit_state_rows._row
+    fc, fy, es = material.fc, material.fy, material.es
+    as_min, share, s_main, s_dist = pack_steel
+    checks = [
+        row(
+            f"{p}: {limit_state_rows.ductility_name()}",
+            capacity.c_d,
+            capacity.c_d_limit,
+            "x/d",
+            None,
+            f"x = {capacity.c:.1f} mm, d = {d:.0f} mm",
+        )
+    ]
+    if demand.mu_top > 0:
+        if bars.top is None:
+            checks.append(
+                row(f"{p}: flexure (top, supports)", demand.mu_top, 0.0, "kN·m/m", None,
+                    "no top bars entered for the support moment")
+            )  # fmt: skip
+        else:
+            dt = demand.h - bars.cover - bars.top.dia / 2
+            top = slab_design.layer_capacity(bars.top.area, dt, fc, fy, es)
+            checks.append(
+                row(f"{p}: flexure (top, supports)", demand.mu_top, top.phi_mn / 1e6, "kN·m/m",
+                    None, f"{bars.top.label()}, d = {dt:.0f} mm")
+            )  # fmt: skip
+    checks.append(
+        row(
+            f"{p}: one-way shear",
+            demand.vu,
+            phi_vc(d, fc, main.area / (1000 * d)),
+            "kN/m",
+            None,
+            limit_state_rows.one_way_shear_note() + " at the support reaction",
+        )
+    )
+    checks.append(
+        row(f"{p}: min. reinforcement", as_min, main.area, "mm²/m", None,
+            "As,min of beams per metre", "slabSteel")
+    )  # fmt: skip
+    checks.append(
+        row(f"{p}: max. spacing (main)", main.spacing, s_main, "mm", None,
+            f"{s_main:.0f} mm", "slabSteel")
+    )  # fmt: skip
+    checks.append(
+        row(f"{p}: distribution steel", share * main.area, bars.distribution.area, "mm²/m", None,
+            f"{bars.distribution.label()}; at least {share:g} of the main bars", "slabSteel")
+    )  # fmt: skip
+    checks.append(
+        row(f"{p}: max. spacing (distribution)", bars.distribution.spacing, s_dist, "mm", None,
+            f"{s_dist:.0f} mm", "slabSteel")
+    )  # fmt: skip
+    return checks
+
+
 # ─────────────────────────────────────── design mode ───────────────────────────────────────
 
 
@@ -1180,7 +1281,8 @@ def need_of(
     for demand in demands:
         h = demand.h
         as_min = ratio * 1000 * h
-        need.distribution = max(need.distribution, as_min)
+        if _pack_steel(h, h - cover, fc, fy) is None:  # Alpha 9 C5b: else per bar below
+            need.distribution = max(need.distribution, as_min)
         target = need.landing if demand.kind == "landing" else need.main
         if demand.kind == "landing":
             need.s_landing = min(need.s_landing, 3 * h)
@@ -1193,6 +1295,16 @@ def need_of(
             if flexure.too_small:
                 need.too_small.append(f"{demand.part}: {flexure.note}")
                 break
+            pack_steel = _pack_steel(h, d, fc, fy)  # Alpha 9 C5b: the pack's member steel
+            if pack_steel is not None:
+                as_min = pack_steel[0]
+                main_area = max(flexure.area, as_min)
+                need.distribution = max(need.distribution, pack_steel[1] * main_area)
+                if demand.kind == "landing":
+                    need.s_landing = min(need.s_landing, pack_steel[2])
+                else:
+                    need.s_main = min(need.s_main, pack_steel[2])
+                    need.s_dist = min(need.s_dist, pack_steel[3])
             target[dia] = max(target.get(dia, 0.0), flexure.area, as_min)
             if demand.mu_top > 0:
                 top = B.slab_flexure_need(demand.mu_top * 1e6, d, fc, fy, es)

@@ -67,6 +67,12 @@
     "groundTests": [[1, 1.40, 1.40], [2, 1.35, 1.27], [3, 1.33, 1.23], [4, 1.31, 1.20], [5, 1.29, 1.15], [7, 1.27, 1.12], [10, 1.25, 1.08]],
     "stiffDivisor": 1.1
   },
+  "footings": {
+    "drained": "auto",
+    "castInPlace": true,
+    "waterAtInterface": true,
+    "phiCvShare": 1.0
+  },
   "sources": {
     "designApproach": "EN 1997-1 2.4.7.3.4.1 (the approach is a National choice; DA1 here is SAEngine practice, overridable)",
     "actions": "EN 1997-1 Annex A Table A.3 (sets A1, A2)",
@@ -76,7 +82,8 @@
     "approaches": "EN 1997-1 2.4.7.3.4.2-2.4.7.3.4.4 (DA1 combinations 1 and 2, piles A2 + M1 + R4; DA2; DA3 with A1 on structural and A2 on geotechnical actions)",
     "bearing": "EN 1997-1 Annex D.3 (undrained), D.4 (drained): Nγ = 2 (Nq - 1) tan φ', sγ = 1 - 0.3 B'/L', sc = 1 + 0.2 B'/L'",
     "sliding": "EN 1997-1 6.5.3(8)-(12): δd = φ'cv,d cast in place, 2/3 φ'cv,d smooth precast; Rd <= 0.4 Vd undrained where water or air can reach the interface",
-    "correlation": "EN 1997-1 Annex A Tables A.9 (static load tests ξ1, ξ2), A.10 (ground tests ξ3, ξ4); 7.6.2.2(9), 7.6.2.3(9): ÷ 1.1 for structures stiff and strong enough"
+    "correlation": "EN 1997-1 Annex A Tables A.9 (static load tests ξ1, ξ2), A.10 (ground tests ξ3, ξ4); 7.6.2.2(9), 7.6.2.3(9): ÷ 1.1 for structures stiff and strong enough",
+    "footings": "SAEngine practice: the founding layer's characteristic φ', c', cu, γ of the nearest borehole; drained where it gives φ', undrained where it gives cu (both where both); cast in place; water may reach the base; φ'cv,k = φ'k where none is given (EN 1997-1 6.5.3(10) takes φ'cv,d); overridable"
   },
   "clauses": {
     "designApproach": "EN 1997-1 2.4.7.3.4",
@@ -84,6 +91,7 @@
     "sliding": "EN 1997-1 6.5.3",
     "pileLoadTests": "EN 1997-1 7.6.2.2",
     "pileGroundTests": "EN 1997-1 7.6.2.3",
-    "pileTension": "EN 1997-1 7.6.3"
+    "pileTension": "EN 1997-1 7.6.3",
+    "spreadFoundations": "EN 1997-1 6.5"
   }
 }
