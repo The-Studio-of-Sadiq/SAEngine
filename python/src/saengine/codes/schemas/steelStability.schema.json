@@ -220,6 +220,17 @@
           "exclusiveMinimum": 0,
           "title": "Firstorderminimum",
           "type": "number"
+        },
+        "swayImperfection": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SwayImperfection"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         }
       },
       "required": [
@@ -228,6 +239,56 @@
         "firstOrderMinimum"
       ],
       "title": "StabilityNotional",
+      "type": "object"
+    },
+    "SwayImperfection": {
+      "additionalProperties": false,
+      "description": "φ = φ0 αh αm: αh = 2 / √h within [heightMin, 1], αm = √(0.5 (1 + 1/m)) (m taken as 1:\nthe conservative value, SAEngine practice). The equivalent horizontal forces φ × the\nvertical loads in every combination.",
+      "properties": {
+        "phi0": {
+          "description": "Basic value φ0.",
+          "exclusiveMinimum": 0,
+          "title": "Phi0",
+          "type": "number"
+        },
+        "heightFactor": {
+          "description": "αh = this / √h, h the height [m] ...",
+          "exclusiveMinimum": 0,
+          "title": "Heightfactor",
+          "type": "number"
+        },
+        "heightMin": {
+          "description": "... at least this ...",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Heightmin",
+          "type": "number"
+        },
+        "heightMax": {
+          "description": "... and at most this.",
+          "exclusiveMinimum": 0,
+          "title": "Heightmax",
+          "type": "number"
+        },
+        "everyCombination": {
+          "default": true,
+          "description": "Applied in every combination (else gravity-only).",
+          "title": "Everycombination",
+          "type": "boolean"
+        },
+        "clause": {
+          "default": "",
+          "title": "Clause",
+          "type": "string"
+        }
+      },
+      "required": [
+        "phi0",
+        "heightFactor",
+        "heightMin",
+        "heightMax"
+      ],
+      "title": "SwayImperfection",
       "type": "object"
     }
   },

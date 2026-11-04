@@ -2002,6 +2002,93 @@
       "title": "InterfaceShearRules",
       "type": "object"
     },
+    "LeverArm": {
+      "additionalProperties": false,
+      "description": "z = coefficient (l + depthFactor D) for 1 <= l/D <= the deep limit, shortShare × l\nbelow l/D = 1.",
+      "properties": {
+        "coefficient": {
+          "exclusiveMinimum": 0,
+          "title": "Coefficient",
+          "type": "number"
+        },
+        "depthFactor": {
+          "exclusiveMinimum": 0,
+          "title": "Depthfactor",
+          "type": "number"
+        },
+        "shortShare": {
+          "exclusiveMinimum": 0,
+          "title": "Shortshare",
+          "type": "number"
+        }
+      },
+      "required": [
+        "coefficient",
+        "depthFactor",
+        "shortShare"
+      ],
+      "title": "LeverArm",
+      "type": "object"
+    },
+    "LeverArmDeepBeamRules": {
+      "additionalProperties": false,
+      "description": "Deep beams by the lever arm method (method ``leverArm``): a span is deep when l / D is\nbelow ``spanRatio`` (simply supported or continuous), l the smaller of the centre-to-centre\nspan and ``clearFactor`` × the clear span; the tension steel for Mu = fyd As z within\n``tensionZone`` (a D - b l) of the soffit; the side face steel at least the walls' least\nratios at most the walls' spacing.",
+      "properties": {
+        "method": {
+          "const": "leverArm",
+          "default": "leverArm",
+          "title": "Method",
+          "type": "string"
+        },
+        "spanRatio": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "description": "l/D below this: deep, by support.",
+          "title": "Spanratio",
+          "type": "object"
+        },
+        "clearFactor": {
+          "description": "l at most this × the clear span.",
+          "exclusiveMinimum": 0,
+          "title": "Clearfactor",
+          "type": "number"
+        },
+        "leverArm": {
+          "additionalProperties": {
+            "$ref": "#/$defs/LeverArm"
+          },
+          "description": "By support: simple, continuous.",
+          "title": "Leverarm",
+          "type": "object"
+        },
+        "tensionZone": {
+          "description": "(a, b): the zone a D - b l deep.",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Tensionzone",
+          "type": "array"
+        }
+      },
+      "required": [
+        "spanRatio",
+        "clearFactor",
+        "leverArm",
+        "tensionZone"
+      ],
+      "title": "LeverArmDeepBeamRules",
+      "type": "object"
+    },
     "MemberLimitRules": {
       "additionalProperties": false,
       "description": "Least and largest steel and the bar rules of beams, slabs and columns of codes that give\nthem as ratios (beams As/(b d) >= beamMin / fy ...).",
@@ -3891,6 +3978,33 @@
           "exclusiveMinimum": 0,
           "title": "Enhancement",
           "type": "number"
+        },
+        "axialFactor": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "δ = 1 + axialFactor Pu / (Ag fck) on τc of columns (none: δ = 1).",
+          "title": "Axialfactor"
+        },
+        "axialMax": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "δ at most this.",
+          "title": "Axialmax"
         }
       },
       "required": [
@@ -3903,6 +4017,62 @@
         "spacing"
       ],
       "title": "TabulatedShearRules",
+      "type": "object"
+    },
+    "TieCorbelRules": {
+      "additionalProperties": false,
+      "description": "Corbels by the tie at the root (method ``rootTie``): av / d at most ``spanRatio``, the\nouter edge at least ``edgeDepth`` × the depth at the face, the tie for Vu av + Nuc (h - d)\nby the design strengths with Nuc at least ``tensionShare`` Vu, shear at the face by the\ntabulated τc enhanced by ``enhancement`` d / av (at most τc,max) with the horizontal links,\nthe links Ah at least ``tiesShare`` As within ``tiesDepth`` d of the main bars, the bearing\nat most ``bearing`` × fck.",
+      "properties": {
+        "method": {
+          "const": "rootTie",
+          "default": "rootTie",
+          "title": "Method",
+          "type": "string"
+        },
+        "spanRatio": {
+          "exclusiveMinimum": 0,
+          "title": "Spanratio",
+          "type": "number"
+        },
+        "edgeDepth": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Edgedepth",
+          "type": "number"
+        },
+        "tensionShare": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Tensionshare",
+          "type": "number"
+        },
+        "tiesShare": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Tiesshare",
+          "type": "number"
+        },
+        "tiesDepth": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Tiesdepth",
+          "type": "number"
+        },
+        "bearing": {
+          "exclusiveMinimum": 0,
+          "title": "Bearing",
+          "type": "number"
+        }
+      },
+      "required": [
+        "spanRatio",
+        "edgeDepth",
+        "tensionShare",
+        "tiesShare",
+        "tiesDepth",
+        "bearing"
+      ],
+      "title": "TieCorbelRules",
       "type": "object"
     },
     "TieForceRules": {
@@ -4797,6 +4967,28 @@
       "anyOf": [
         {
           "$ref": "#/$defs/DetailingRules"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "deepBeams": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/LeverArmDeepBeamRules"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "corbels": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/TieCorbelRules"
         },
         {
           "type": "null"

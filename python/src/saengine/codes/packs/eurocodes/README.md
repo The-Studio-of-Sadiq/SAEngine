@@ -107,20 +107,63 @@ Still by the parent's method: the general strut-and-tie models of D-regions, the
 reinforcement of footings and rafts, Annex B's exceptional snow drifts and the snow on
 pitched roofs beside a step (μs = 0 taken).
 
+## Steel and the other materials (version 0.4, alpha 9 track C6)
+
+Steel is designed by the limit state steel table `steelLimitState` (the same table and selector
+as the IS pack's IS 800 method; each group names its method id):
+
+- `memberResistance` (method `crossSectionClasses`, `saengine.design.steel.buckling_curves`):
+  EN 1993-1-1 with γM0 1.00, γM1 1.00, γM2 1.25, E 210 000 and G 81 000 MPa, fy of thick plates
+  (Table 3.1); cross-section classes 1-4 (Table 5.2, the web by α and ψ under N + M), class 4 by
+  the effective widths of EN 1993-1-5 4.4 (Aeff; Weff of I-sections, channels and RHS); the
+  resistances of 6.2 (tension, compression, bending, shear with η and shear buckling, bending
+  with shear, bending with axial force by MN and the biaxial exponents); flexural, torsional and
+  flexural-torsional buckling with the curves a0-d of Table 6.2 (χ of the limit state method);
+  lateral-torsional buckling by the rolled case 6.3.2.3 (default) or the general case 6.3.2.2,
+  Mcr by the C1 formula with C1 from the moment diagram; the interaction 6.3.3 by Annex B
+  (default) or Annex A (`interaction.method`).
+- `connections` (method `partialFactors`, `saengine.design.steel.joint_resistances`): EN
+  1993-1-8 Table 3.4 bolts in shear, tension and both, bearing with αb and k1, the simplified
+  (default) or directional weld method of 4.5.3 with βw, block tearing 3.10.2, slip 3.9; holes
+  and edges of Table 3.3 in `steel.connections`; the plate checks of the shared connection
+  checks with the factors 1/γM (`steel.phi`).
+- `seismic` (method `dissipativeZones`, `saengine.design.steel.seismic_dissipative`): EN 1998-1
+  Section 6: γov 1.25, Ω of the dissipative members, the non-dissipative members under G +
+  1.1 γov Ω E, section classes by ductility class, MRF beam N and V limits, column shear, ΣMRc >=
+  1.3 ΣMRb, brace slenderness 1.3 < λ̄ <= 2.0, Ωmax <= 1.25 Ωmin, EBF links taken as short links.
+  The parent's AISC-type frame provisions are switched off (`steelSeismic.systems` emptied).
+- The global sway imperfection φ = φ0 αh αm of 5.3.2 as the notional loads of the second-order
+  method (`steelStability.notional.swayImperfection`, every combination), αcr from Δ2nd/Δ1st as
+  a column flag.
+
+The other materials: **composite** members by EN 1994-1-1 (`composite.partialFactors`: design
+strengths, headed studs PRd with γV, kt/kl of decks, Ecm, the least degree of shear connection,
+columns by χ with (EI)eff and the second-order moments with e0, αM μd); **timber** by EN 1995-1-1
+(`timber.method = "partialFactors"`: EN 338 and EN 14080 strength classes, kmod by service class
+and load duration, γM, kh, kcr, km, kc and kcrit; the material's `strengthClass`, the service
+class from its location of use); **masonry** by EN 1996-1-1 (`masonry.method = "partialFactors"`:
+fk = K fb^α fm^β, γM 2.0, Φ at the ends and mid-height, fvk, reinforced walls MRd = As fyd z);
+**aluminium** members by EN 1999-1-1 (the `aluminium` table and the material category
+`aluminium`: alloys with f0, fu and the heat-affected zone, buckling classes A/B, classes by β/ε,
+ρc, γM1 1.10, γM2 1.25). Every value is in VERIFY.md (rows 217-297).
+
+Not covered by the C6 methods (stated in the notes): torsion of steel members, the shift eN of
+class 4 sections, class 4 circular tubes (EN 1993-1-6), the stability bracing rules, timber
+joints and serviceability, aluminium joints and the plate buckling of slender aluminium webs.
+
 ## What falls back (not Eurocode yet)
 
-The pack `extends` BNBC 2020, so a project designs and runs. Until the EN 1993 to EN 1999 packs
-(track C6) exist, and for the concrete methods not covered above, these tables come from
-**BNBC 2020** and the report's design basis says so: `materials`, `factors`, `concrete`, `detailing`, `steel`, `steelSections`, `steelSeismic`,
-`steelStability`, `foundations`, `transfer`, `slabCoefficients`, `slabMethods`, `wallMethods`,
-`stairMethods`, `masonry`, `timber`, `composite`, `compositeConcrete`, `anchors`,
-`concreteTime`, `designLimits`, `designClauses`, `serviceability`, `siteInvestigation`,
-`fireResistance` and the services (`plumbing`, `hvac`, `electrical`, `fire`, `planning`,
-`accessibility`, `mepOpenings`). The load tables without a Eurocode counterpart here are the
+The pack `extends` BNBC 2020, so a project designs and runs. For the methods not covered above,
+these tables come from **BNBC 2020** and the report's design basis says so: `materials`,
+`factors`, `concrete`, `detailing`, `steelSections`, `foundations`, `transfer`,
+`slabCoefficients`, `slabMethods`, `wallMethods`, `stairMethods`, `compositeConcrete`,
+`anchors`, `concreteTime`, `designLimits`, `designClauses`, `serviceability`,
+`siteInvestigation`, `fireResistance` and the services (`plumbing`, `hvac`, `electrical`,
+`fire`, `planning`, `accessibility`, `mepOpenings`); the parts of `steel`, `composite`,
+`masonry` and `timber` the pack does not set (base plates, HSS joints, the masonry seismic
+detailing, the timber joints). The load tables without a Eurocode counterpart here are the
 parent's too: `deadLoads` (unit weights), `cranes`, `nonstructural`, `isolation`, `pushover`,
-`nonlinearHistory`, `fatigue` and the flood, rain, helipad and shelter parts of `flood`. The
-member design therefore applies BNBC's strength reduction factors φ to the EN 1990 design
-actions.
+`nonlinearHistory`, `fatigue` and the flood, rain, helipad and shelter parts of `flood`.
 
 Not covered by this version (stated in the results where they would apply): EN 1991-1-3
 local effects (overhangs, snow guards) and exceptional drifts; EN 1998-1 response history

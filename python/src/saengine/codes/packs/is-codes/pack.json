@@ -4,7 +4,7 @@
   "name": "Indian Standards (IS)",
   "edition": "Indian Standards",
   "country": "IN",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "extends": "bnbc2020",
   "covers": [
     "locations",
@@ -25,9 +25,11 @@
     "serviceability",
     "masonry",
     "timber",
-    "composite"
+    "composite",
+    "stairMethods",
+    "designClauses"
   ],
-  "description": "Indian Standards. Loads (alpha 9 track C7): unit weights (IS 875 Part 1), imposed loads and their reduction (Part 2), wind by Vz = Vb k1 k2 k3 k4 (Part 3:2015), load combinations (Part 5 with IS 456 Table 18 and IS 1893 6.3.4), earthquake to IS 1893 (Part 1):2016. Concrete and foundations (alpha 9 track C8): IS 456:2000 limit state design (design strengths 0.67 fck/1.5 and fy/1.15, the 0.36 fck xu block, xu,max, shear by τc of Table 19 and τc,max, least stirrups, torsion by the equivalent shear and moment, punching ks τc, columns with emin, the additional moments of slender columns and the αn load contour, deflection by span/depth with the modification factors and Annex C, crack width Annex F, cover and mix by exposure, development and lap lengths by τbd, member steel limits, two-way slabs by Annex D, flat slab end spans by αc, wall shear 32.4, footings 34), IS 13920:2016 ductile detailing (beams, columns with special confining reinforcement, strong column 1.4, joints, special shear walls, boundary elements, coupling beams), IS 6403 bearing capacity factors and IS 2911 (Part 1/Sec 2) static pile capacity. Steel and the other materials (alpha 9 track C9): IS 800:2007 limit state design of steel members (section classification Table 2, tension, compression by the buckling curves, flexure with lateral-torsional buckling, shear with web buckling, combined forces), connections (bolts in shear, bearing and tension, friction grip bolts, block shear, fillet welds, holes and edges) and the Section 12 seismic frame rules, the deflection limits of Table 6, the IS 808 section list (ISMB, ISMC, angles), IS 1905:1987 unreinforced masonry by permissible stresses, IS 883:1994 timber, IS 11384:1985 composite beams. Services and the tables not in covers come from BNBC 2020 (the pack this one extends). Every value names its clause; VERIFY.md lists them for checking against the printed codes.",
+  "description": "Indian Standards. Loads (alpha 9 track C7): unit weights (IS 875 Part 1), imposed loads and their reduction (Part 2), wind by Vz = Vb k1 k2 k3 k4 (Part 3:2015), load combinations (Part 5 with IS 456 Table 18 and IS 1893 6.3.4), earthquake to IS 1893 (Part 1):2016. Concrete and foundations (alpha 9 track C8): IS 456:2000 limit state design (design strengths 0.67 fck/1.5 and fy/1.15, the 0.36 fck xu block, xu,max, shear by τc of Table 19 and τc,max, least stirrups, torsion by the equivalent shear and moment, punching ks τc, columns with emin, the additional moments of slender columns and the αn load contour, deflection by span/depth with the modification factors and Annex C, crack width Annex F, cover and mix by exposure, development and lap lengths by τbd, member steel limits, two-way slabs by Annex D, flat slab end spans by αc, wall shear 32.4, footings 34), IS 13920:2016 ductile detailing (beams, columns with special confining reinforcement, strong column 1.4, joints, special shear walls, boundary elements, coupling beams), IS 6403 bearing capacity factors and IS 2911 (Part 1/Sec 2) static pile capacity. Steel and the other materials (alpha 9 track C9): IS 800:2007 limit state design of steel members (section classification Table 2, tension, compression by the buckling curves, flexure with lateral-torsional buckling, shear with web buckling, combined forces), connections (bolts in shear, bearing and tension, friction grip bolts, block shear, fillet welds, holes and edges) and the Section 12 seismic frame rules, the deflection limits of Table 6, the IS 808 section list (ISMB, ISMC, angles), IS 1905:1987 unreinforced masonry by permissible stresses, IS 883:1994 timber, IS 11384:1985 composite beams. Services and the tables not in covers come from BNBC 2020 (the pack this one extends). Every value names its clause; VERIFY.md lists them for checking against the printed codes. Remainder (alpha 9 track C9b): column shear with the axial factor δ (IS 456 40.2.2), the walls' empirical axial strength (32.2.5), corner torsion steel of restrained slabs (Annex D-1.8), deep beams by the lever arm (29), corbels (28), stairs by the slab rules (33), the torsion links in Design Reinforcement and the required steel (41), the IS 13920 joints in the joints view; IS 800 base plate bearing (7.4.1), the ISLB, ISWB and ISHB sections of IS 808, bolts of class 4.6; IS 1893 damping factors (Table 4) and the vertical motion (6.4.6), the cyclone-prone k4 and Kd of IS 875 (Part 3); the masonry earthquake strengthening by IS 4326 zones.",
   "sources": [
     {
       "id": "IS875-1",
@@ -112,6 +114,12 @@
       "title": "IS 11384 Code of practice for composite construction in structural steel and concrete",
       "edition": "1985",
       "publisher": "Bureau of Indian Standards"
+    },
+    {
+      "id": "IS4326",
+      "title": "IS 4326 Earthquake resistant design and construction of buildings - code of practice",
+      "edition": "2013",
+      "publisher": "Bureau of Indian Standards"
     }
   ],
   "clauses": {
@@ -162,22 +170,29 @@
       "IS 800:2007 Sections 3, 5-10, 12"
     ],
     "steel": [
-      "IS 800:2007 10.2, Tables 19, 21"
+      "IS 800:2007 7.4.1, 10.2, Tables 19, 21"
     ],
     "steelSections": [
-      "IS 808"
+      "IS 808:1989"
     ],
     "serviceability": [
       "IS 800:2007 5.6.1, Table 6"
     ],
     "masonry": [
-      "IS 1905:1987"
+      "IS 1905:1987",
+      "IS 4326:2013"
     ],
     "timber": [
       "IS 883:1994"
     ],
     "composite": [
       "IS 11384:1985"
+    ],
+    "stairMethods": [
+      "IS 456:2000 33"
+    ],
+    "designClauses": [
+      "IS 456:2000 33.1"
     ]
   },
   "basis": {

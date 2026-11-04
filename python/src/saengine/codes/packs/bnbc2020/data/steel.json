@@ -64,6 +64,7 @@
       "threadedX": {"FntOfFu": 0.75, "FnvOfFu": 0.5}
     },
     "boltAliases": {
+      "4.6": "A307",
       "8.8": "A325N",
       "8.8N": "A325N",
       "8.8X": "A325X",
@@ -236,7 +237,7 @@
     "slenderness": "BNBC 2020 Part 6 Sec 10.5.2 (KL/r), 10.4.1 (L/r)",
     "netAreaMax": "BNBC 2020 Part 6 Sec 10.10.4.1 Eq. 6.10.175",
     "boltGrades": "BNBC 2020 Part 6 Table 6.10.10 (part2 p. 127): Fnt, Fnv of A307, A325, A490 (N: threads in the shear planes, X: excluded) and threaded parts 0.75 Fu / 0.40 Fu / 0.50 Fu",
-    "boltAliases": "SAEngine practice, not BNBC: ISO property classes 8.8 and 10.9 (stocked in Bangladesh) taken as A325 and A490; Table 6.10.10 lists ASTM grades only",
+    "boltAliases": "SAEngine practice, not BNBC: ISO property classes 8.8 and 10.9 (stocked in Bangladesh) taken as A325 and A490, property class 4.6 as A307 (alpha 9 C9b); Table 6.10.10 lists ASTM grades only",
     "pretension": "BNBC 2020 Part 6 Table 6.10.9 (part2 p. 125): minimum bolt pretension Tb, kN",
     "slip": "BNBC 2020 Part 6 Sec 10.10.3.8 Eq 6.10.171, φ 1.00 serviceability / 0.85 strength, μ 0.35 / 0.50, Du 1.13, hsc 1.00 / 0.85 / 0.70 (part2 pp. 131-132); Sec 10.10.3.9 Eq 6.10.172a ks = 1 - Tu / (Du Tb Nb)",
     "holes": "BNBC 2020 Part 6 Table 6.10.11 (part2 p. 128): standard holes; >= M36 d + 3",

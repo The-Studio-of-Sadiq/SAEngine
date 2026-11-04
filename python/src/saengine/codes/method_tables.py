@@ -422,6 +422,12 @@ class TabulatedShearRules(_Group):
     enhancement: Positive = Field(
         default=2.0, description="τc × enhancement d / av within d of a support face."
     )
+    # Alpha 9 C9b: members in axial compression (columns), τc × δ.
+    axialFactor: float | None = Field(
+        default=None,
+        description="δ = 1 + axialFactor Pu / (Ag fck) on τc of columns (none: δ = 1).",
+    )
+    axialMax: Positive | None = Field(default=None, description="δ at most this.")
 
 
 class EquivalentTorsionRules(_Group):
@@ -837,6 +843,49 @@ def chosen(table: Any, group: str, method: str) -> Any | None:
     return found if getattr(found, "method", method) == method else None
 
 
+# ── Alpha 9 C9b: deep beams by the lever arm and corbels by the tie at the root (IS 456 type) ──
+
+
+class LeverArm(_Group):
+    """z = coefficient (l + depthFactor D) for 1 <= l/D <= the deep limit, shortShare × l
+    below l/D = 1."""
+
+    coefficient: Positive
+    depthFactor: Positive
+    shortShare: Positive
+
+
+class LeverArmDeepBeamRules(_Group):
+    """Deep beams by the lever arm method (method ``leverArm``): a span is deep when l / D is
+    below ``spanRatio`` (simply supported or continuous), l the smaller of the centre-to-centre
+    span and ``clearFactor`` × the clear span; the tension steel for Mu = fyd As z within
+    ``tensionZone`` (a D - b l) of the soffit; the side face steel at least the walls' least
+    ratios at most the walls' spacing."""
+
+    method: Literal["leverArm"] = "leverArm"
+    spanRatio: dict[str, Positive] = Field(description="l/D below this: deep, by support.")
+    clearFactor: Positive = Field(description="l at most this × the clear span.")
+    leverArm: dict[str, LeverArm] = Field(description="By support: simple, continuous.")
+    tensionZone: tuple[Positive, float] = Field(description="(a, b): the zone a D - b l deep.")
+
+
+class TieCorbelRules(_Group):
+    """Corbels by the tie at the root (method ``rootTie``): av / d at most ``spanRatio``, the
+    outer edge at least ``edgeDepth`` × the depth at the face, the tie for Vu av + Nuc (h - d)
+    by the design strengths with Nuc at least ``tensionShare`` Vu, shear at the face by the
+    tabulated τc enhanced by ``enhancement`` d / av (at most τc,max) with the horizontal links,
+    the links Ah at least ``tiesShare`` As within ``tiesDepth`` d of the main bars, the bearing
+    at most ``bearing`` × fck."""
+
+    method: Literal["rootTie"] = "rootTie"
+    spanRatio: Positive
+    edgeDepth: Share
+    tensionShare: Share
+    tiesShare: Share
+    tiesDepth: Share
+    bearing: Positive
+
+
 class ConcreteMethodsTable(TableModel):
     """Partial-factor design of reinforced concrete and its detailing (see the module notes)."""
 
@@ -876,6 +925,9 @@ class ConcreteMethodsTable(TableModel):
     footingPunching: FootingPunchingRules | None = None
     wallSlenderness: WallSlendernessRules | None = None
     barShapes: DetailingRules | None = None
+    # Alpha 9 C9b.
+    deepBeams: LeverArmDeepBeamRules | None = None
+    corbels: TieCorbelRules | None = None
 
 
 # ───────────────────────────── geotechnicalMethods ─────────────────────────────

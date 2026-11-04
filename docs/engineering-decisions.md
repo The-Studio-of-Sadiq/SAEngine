@@ -118,6 +118,56 @@ where the code leaves a gap (each overridable per project):
   `fem/derive.py`, `fem/loads.py`, `fem/peak_velocity_pressure.py`, `fem/snow_load.py`,
   `fem/irregularity.py`, `fem/seismic_design.py`, `report/build.py`, `settingsEditor.ts`.
 
+## 2026-11-04: Indian Standards remainder (alpha 9 track C9b)
+
+The `is-codes` pack now also covers the checks that fell back to BNBC 2020 under C7-C9 where
+SAEngine has the check (entries 294-330 of the pack's `VERIFY.md`, to be checked against the
+printed codes). Behaviour choices:
+
+- **Column shear by τc × δ (IS 456 40.2.2).** Per axis, τc at the ratio of the bars in the far
+  half; under net tension the line 1 + 3 Pu/(Ag fck) continued, not below 0 (IS gives no rule:
+  SAEngine practice, on the safe side); ties carrying shear at most min(0.75 d, 300 mm).
+- **Near-support enhancement (40.5): beams checked at d from the face, no enhancement.** The
+  2 d/av τc is used for corbels only (SAEngine reading, on the safe side).
+- **Walls: IS 456 32.2.5 in place of the parent's empirical method**, informative as the parent's
+  (the P-M3-M2 surface governs); Hwe/t <= 30 is a check; Hwe from SAEngine's bracing flags (0.75 H
+  braced and restrained, 1.0 H, 2.0 H unbraced).
+- **Corner steel of restrained slabs (D-1.8 to D-1.10)** replaces the parent's corner rows under
+  the restrained panel method; the panel's own meshes are taken as reaching the corners.
+- **Deep beams by the lever arm (IS 456 29)**, method `leverArm` of `concreteMethods.deepBeams`:
+  a beam of more than one span counts as continuous; the sectional shear rows stay the shear check
+  (IS 456 has no deep-beam shear method); the parent's strut-and-tie model is not run; the hogging
+  steel zones of 29.3.2 are not checked. SAEngine practice where noted.
+- **Corbels by the tie at the root (IS 456 28)**, method `rootTie`: the tie by the pack's stress
+  block at fy/1.15, shear at the face with 2 d/av τc plus the closed links, at most τc,max.
+- **Stairs by the slab rules (IS 456 33)**: k τc b d without shear bars, the slab steel rows,
+  span/d with kt; no 15 % stair increase (not in IS 456: SAEngine reading). Design Reinforcement
+  takes the IS spacings and shear for the stairs.
+- **Torsion links (IS 456 41).** Design Reinforcement puts the whole Asv/sv of 41.4.3 on the
+  closed links (not added to the shear's stirrups), at the IS spacing (not the parent's ph/8), and
+  asks for them wherever τve exceeds the least τc of the table, because the first pass runs on
+  assumed bars; the required steel report lists the links and their spacing. On the safe side.
+- **Joints view under IS 13920**: the design report's `joints` lists the IS joints (strong column
+  and joint shear rows), as the other packs do.
+- **Steel.** IS 800 7.4.1 base plate bearing 0.6 fck (no φ, no A2/A1 increase: SAEngine reading);
+  ISLB, ISWB and ISHB sections from IS 808 dimensions recalled and checked against the published
+  masses (one section per size, root radius derived from the mass: to verify); bolts of property
+  class 4.6 in the object library (A307 in the default pack, an additive alias). The column side
+  under flange forces, HSS joints, steel torsion, stability bracing, EBF, IS 801 cold-formed
+  members and the composite columns stay the parent's.
+- **Loads.** Damping factors of IS 1893 Table 4 by a tabulated damping correction (a new generic
+  method `table`); the vertical motion as Ev = 2/3 × Z/2 × D (6.4.6, the vertical response taken
+  rigid: SAEngine reading); a cyclone-prone site (`wind.speedFactors.cyclonic`, off by default, set
+  in Code Values) takes k4 1.30 for the 100-year risk class and Kd 1.0 (IS 875-3 6.3.4, 7.2.1).
+  The gust factor method, cladding and roof Cp, Annex C k3, 1.5 esi, the RC wall period form and
+  IS 16700 stay not covered.
+- **Masonry earthquake strengthening by IS 4326 zones**: the parent's arrangement rows read with
+  IS zones (III-V; zone V as the parent's highest group); IS 4326's building categories are not
+  modelled.
+- **Still the parent's**: the column construction joint (IS 456 13.4 has no shear-friction
+  rule; owner decision wanted), prestress (IS 1343), IS 8009 settlement, IS 2950 rafts, IS 3370
+  tanks (crack limit 0.2 mm already the IS 3370 (Part 2) value), reinforced masonry.
+
 ## 2026-11-04: the rest of the US pack (alpha 9, track C3b)
 
 SAEngine practice where the NDS 2018, TMS 402-22, AISC 360-22 or AISC 341-22 leave a gap or the
@@ -850,6 +900,31 @@ against the printed standard). Its behaviour choices:
     default method stays the allowable stress design of BNBC 2020 Chapter 7 (TMS 402-22 Chapter 8
     is not in the pack), named so. εmu 0.0025 (the clay masonry value) for all units, γg = 1.0.
   - Timber stays BNBC 2020 Chapter 11: the NDS needs its own reference values and method.
+
+## 2026-11-04: Eurocodes steel and the other materials (alpha 9, track C6)
+
+- **One selector for limit state steel.** The EN 1993 methods are method ids of the limit state
+  steel table `steelLimitState` that C9 (IS 800) introduced, not a second selector:
+  `memberResistance` (`crossSectionClasses`: classes 1-4 with effective widths, curves a0-d,
+  the rolled or general LTB case, Annex A or B), `connections` (`partialFactors`: EN 1993-1-8
+  bolts, bearing, welds, block tearing, slip) and `seismic` (`dissipativeZones`: EN 1998-1
+  Section 6). The IS groups of the table became optional when `memberResistance` is given;
+  χ of the buckling curves is shared. SAEngine practice (owner direction of the integrator).
+- **Pack defaults** (all overridable per project): LTB by the rolled case 6.3.2.3 with f = 1,
+  interaction factors by Annex B (Annex A an option), the simplified weld method, masonry
+  γM 2.0, timber service class from the location of use (inside 1, outside 2, wet 3), wind as
+  a short-term action for kmod. SAEngine practice.
+- **SAEngine practice where the codes leave it open or the model does not know**: C1 of Mcr from
+  the moment diagram's equivalent moment factor (load at the shear centre, k = kw = 1); Cm 1.0 for
+  diagrams with transverse load (Annex B); αm = 1 in the sway imperfection; αcr estimated from
+  Δ2nd/Δ1st; bearing k1 at 2.5 (the transverse edges not known to the bolt line); EBF links
+  taken as short links; the gravity and earthquake parts of the forces from each earthquake
+  combination and its opposite-sign partner; masonry unit group 1 (solid) / 2 (hollow); the
+  heat-affected zone over the whole section of a welded aluminium member; Weff = ρ Wel of class 4
+  shapes other than I, channel and RHS.
+- **Aluminium** is a material category (`aluminium`, the alloy and whether welded); its members
+  use the steel members' shapes, lengths and stations. Timber materials gain an optional
+  `strengthClass` for the limit state method.
 
 ## Earlier owner decisions
 

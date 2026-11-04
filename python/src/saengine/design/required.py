@@ -518,13 +518,73 @@ def beam_rows(member: dict[str, Any], demand: BeamDemand, assumed: bool) -> list
     return rows
 
 
+def _equivalent_torsion_rows(member: dict[str, Any], design: Any, assumed: bool) -> list[dict]:
+    """Alpha 9 C9b: the closed links of a beam in torsion by the equivalent shear method (the
+    pack's ``torsion`` method ``equivalentShear``, IS 456 41.4.3 type), from its
+    :class:`saengine.design.tabulated_shear.TorsionNeed`: Asv/sv of the two legs and the link
+    spacing. The longitudinal steel is the flexural design's for Me1 (no added Al row)."""
+    from saengine.design.tabulated_shear import cite, torsion_rules
+
+    t = torsion_rules()
+    if not design.asv_s or t is None:
+        return []
+    obj = member["object"]
+    transverse = obj.reinforcement.transverse
+    element, type_id = member["id"], member["type"]
+    provided = spacing = None
+    if transverse is not None and not assumed and transverse.spacing:
+        provided = 2 * bar_area(transverse.dia) / transverse.spacing * 1000
+        spacing = float(transverse.spacing)
+    clause = cite("torsionLinks")
+    where = f" ({clause})" if clause else ""
+    return [
+        _row(
+            element,
+            "beam",
+            type_id,
+            "torsion",
+            f"closed links Asv/sv, both legs (Tu/(b1 d1 fyd) + Vu/({t.depthDivisor:g} d1 fyd))",
+            design.tu / 1e6,
+            "kN·m",
+            design.asv_s * 1000,
+            design.asv_s_min * 1000,
+            provided,
+            "mm²/m",
+            design.combination,
+            [
+                f"Tu = {design.tu / 1e6:.1f} kN·m, Vu = {design.vu / 1e3:.1f} kN",
+                f"b1 = {design.b1:.0f} mm, d1 = {design.d1:.0f} mm; at least (τve - τc) b / fyd"
+                + where,
+            ],
+        ),
+        _row(
+            element,
+            "beam",
+            type_id,
+            "torsion",
+            "closed link spacing",
+            None,
+            "",
+            design.s_max,
+            None,
+            spacing,
+            "mm",
+            design.combination,
+            [f"sv <= min(x1, (x1 + y1)/{t.spacingDivisor:g}, {t.spacingMax:g} mm){where}"],
+            at_most=True,
+        ),
+    ]
+
+
 def torsion_rows(member: dict[str, Any], assumed: bool) -> list[dict[str, Any]]:
     """The closed stirrups and longitudinal steel a beam's torsion needs (default pack BNBC 2020 Part 6
     Sec 6.4.4), from the torsion design of its checks (``member["torsion"]``, saengine.design.
     torsion; none below the threshold)."""
     design = member.get("torsion")
-    if design is None or getattr(design, "tabulated", False):
-        return []  # C8: the equivalent shear method's links are in the design checks' rows
+    if design is None:
+        return []
+    if getattr(design, "tabulated", False):
+        return _equivalent_torsion_rows(member, design, assumed)
     obj = member["object"]
     transverse = obj.reinforcement.transverse
     element, type_id = member["id"], member["type"]

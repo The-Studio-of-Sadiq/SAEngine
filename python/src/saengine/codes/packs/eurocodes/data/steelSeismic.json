@@ -1,0 +1,9 @@
+{
+  "$schema": "../../../schemas/steelSeismic.schema.json",
+  "$sources": [
+    "EN 1998-1:2004 Section 6: the dissipative steel frames are designed by the limit state steel table's seismic method (steelLimitState.seismic, dissipativeZones)"
+  ],
+  "source": "EN 1998-1 Section 6 by steelLimitState.seismic; the moment and braced frame provisions of the parent pack (BNBC 2020 Part 6 Sec 10.20) do not apply to the pack's systems",
+  "systems": {"$replace": true},
+  "bracedSystems": {"$replace": true}
+}

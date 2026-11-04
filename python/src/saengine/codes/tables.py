@@ -546,15 +546,19 @@ class DriftLimit(_Row):
 
 class DampingCorrection(BaseModel):
     """The spectrum's damping correction η(ξ). ``squareRoot``: η = √(numerator / (offset +
-    100ξ)), at least ``minimum``; ``none``: η = dampingEta."""
+    100ξ)), at least ``minimum``; ``none``: η = dampingEta; ``table`` (alpha 9 C9b): η of
+    ``points`` (ξ, η), linear between, the end values outside."""
 
     model_config = ConfigDict(extra="forbid")
 
-    method: Literal["none", "squareRoot"] = "none"
+    method: Literal["none", "squareRoot", "table"] = "none"
     referenceDamping: float = Field(default=0.05, gt=0, lt=1)
     numerator: float = 10.0
     offset: float = 5.0
     minimum: float = 0.0
+    points: list[tuple[float, float]] = Field(
+        default_factory=list, description="(ξ, η) of the method 'table', ξ ascending."
+    )
 
 
 class SystemCombination(BaseModel):
@@ -1714,6 +1718,20 @@ class SpeedFactors(_Row):
     )
     combination: float = Field(default=1.0, gt=0, le=1, description="Kc.")
     minimumShare: float = Field(default=0.0, ge=0, le=1, description="Least Kd·Ka·Kc.")
+    # Alpha 9 C9b: sites in a cyclone-prone region (a project sets ``cyclonic``).
+    cyclonic: bool = Field(
+        default=False,
+        description="The site is in a cyclone-prone region: k4 by the occupancy's risk class "
+        "(cyclonicImportance) and Kd = cyclonicDirectionality.",
+    )
+    cyclonicImportance: dict[str, float] = Field(
+        default_factory=dict,
+        description="k4 by the id of the occupancy's riskCoefficients row ('other': the rest); "
+        "at least ``importance``.",
+    )
+    cyclonicDirectionality: float | None = Field(
+        default=None, gt=0, description="Kd in a cyclone-prone region (None: unchanged)."
+    )
 
 
 class CpHeightRow(_Row):
@@ -5713,18 +5731,23 @@ class TimberTable(TableModel):
     connectors: TimberConnectors
     clauses: dict[str, str] = Field(default_factory=dict)
     # Alpha 9 C3b: the design method (``referenceDesign``: reference values and adjustment
-    # factors, saengine.design.timber.reference) and its data.
-    method: Literal["permissibleStress", "referenceDesign"] = Field(
+    # factors, saengine.design.timber.reference) and its data. Alpha 9 C6: ``partialFactors``
+    # (limit state design with ``limitState``, saengine.design.timber.limit_state).
+    method: Literal["permissibleStress", "referenceDesign", "partialFactors"] = Field(
         default="permissibleStress",
-        description="Timber members by ``permissibleStress`` (the stresses above, K factors) or "
-        "``referenceDesign`` (the ``reference`` values times their adjustment factors).",
+        description="Timber members by ``permissibleStress`` (the stresses above, K factors), "
+        "``referenceDesign`` (the ``reference`` values times their adjustment factors) or "
+        "``partialFactors`` (strength classes, kmod and γM, the ``limitState`` data).",
     )
     reference: TimberReference | None = None
+    limitState: TimberLimitState | None = None
 
     @model_validator(mode="after")
     def _reference(self) -> TimberTable:
         if self.method == "referenceDesign" and self.reference is None:
             raise ValueError("method 'referenceDesign' needs the 'reference' data")
+        if self.method == "partialFactors" and self.limitState is None:
+            raise ValueError("method 'partialFactors' needs the 'limitState' data")
         return self
 
 
@@ -6353,10 +6376,12 @@ class MasonryTable(TableModel):
     the dimension rules, the reinforcement details and the values of the strength design and
     the earthquake provisions."""
 
-    method: Literal["allowableStress", "strength", "basicStress"] = Field(
+    method: Literal["allowableStress", "strength", "basicStress", "partialFactors"] = Field(
         description="The masonry design method: 'allowableStress' (working stress, linear "
-        "stress-strain), 'strength' (strength design of reinforced walls) or 'basicStress' "
-        "(C9: permissible stresses from a basic compressive stress, group basicStress)."
+        "stress-strain), 'strength' (strength design of reinforced walls), 'basicStress' "
+        "(C9: permissible stresses from a basic compressive stress, group basicStress) or "
+        "'partialFactors' (alpha 9 C6: fk, γM and the capacity reduction Φ, group "
+        "partialFactors)."
     )
     mortars: dict[str, MasonryMortar] = Field(min_length=1, description="Mortar grades by id.")
     quality: MasonryQuality
@@ -6381,6 +6406,7 @@ class MasonryTable(TableModel):
     highWind: MasonryHighWind | None = None
     anchorBolts: MasonryAnchorBolts | None = None
     confined: MasonryConfined | None = None
+    partialFactors: MasonryPartialFactors | None = None  # alpha 9 C6
     basicStress: MasonryBasicStress | None = None  # C9
 
     @model_validator(mode="after")
@@ -7188,6 +7214,8 @@ class StabilityNotional(_Row):
         description="Design by first-order analysis: Ni = this × (Δ/L) × Yi ..."
     )
     firstOrderMinimum: Positive = Field(description="... and at least this × Yi.")
+    #: Alpha 9 C6: the global sway imperfection φ0 αh αm in place of ``secondOrder``.
+    swayImperfection: SwayImperfection | None = None
 
 
 class StabilityLimits(_Row):
@@ -8367,6 +8395,9 @@ class CompositeTable(TableModel):
     column: CompositeColumnRules
     beam: CompositeBeamRules
     connections: CompositeConnections
+    #: Alpha 9 C6: partial factors, connectors by PRd, Ecm, the least degree of connection,
+    #: columns by χ (None: φ and the nominal strengths).
+    partialFactors: CompositePartialFactors | None = None
 
 
 # ─────────────────────── slab, wall, stair and composite methods (B33) ───────────────────────
@@ -9701,12 +9732,30 @@ class SnowTable(TableModel):
 
 
 # Alpha 9 C5: the partial-factor concrete and geotechnical methods (their own module).
+# Alpha 9 C6: the partial-factor composite, timber, masonry and aluminium groups, the sway
+# imperfection (and the steel groups of steelLimitState, in limit_state_tables).
 # Alpha 9 C9: steel by limit state design with partial factors and buckling curves.
 from saengine.codes.limit_state_tables import SteelLimitStateTable
+from saengine.codes.material_method_tables import (
+    AluminiumTable,
+    CompositePartialFactors,
+    MasonryPartialFactors,
+    SwayImperfection,
+    TimberLimitState,
+)
 from saengine.codes.method_tables import (
     ConcreteMethodsTable,
     GeotechnicalMethodsTable,
 )
+
+for _model in (  # alpha 9 C6: the groups above are defined after the tables that hold them
+    StabilityNotional,
+    SteelStabilityTable,
+    CompositeTable,
+    TimberTable,
+    MasonryTable,
+):
+    _model.model_rebuild()
 
 #: Table name -> model.
 TABLE_MODELS: dict[str, type[TableModel]] = {
@@ -9764,6 +9813,8 @@ TABLE_MODELS: dict[str, type[TableModel]] = {
     # Alpha 9 C5.
     "concreteMethods": ConcreteMethodsTable,
     "geotechnicalMethods": GeotechnicalMethodsTable,
+    # Alpha 9 C6.
+    "aluminium": AluminiumTable,
     # Alpha 9 C9.
     "steelLimitState": SteelLimitStateTable,
 }

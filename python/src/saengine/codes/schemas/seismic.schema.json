@@ -71,13 +71,14 @@
     },
     "DampingCorrection": {
       "additionalProperties": false,
-      "description": "The spectrum's damping correction η(ξ). ``squareRoot``: η = √(numerator / (offset +\n100ξ)), at least ``minimum``; ``none``: η = dampingEta.",
+      "description": "The spectrum's damping correction η(ξ). ``squareRoot``: η = √(numerator / (offset +\n100ξ)), at least ``minimum``; ``none``: η = dampingEta; ``table`` (alpha 9 C9b): η of\n``points`` (ξ, η), linear between, the end values outside.",
       "properties": {
         "method": {
           "default": "none",
           "enum": [
             "none",
-            "squareRoot"
+            "squareRoot",
+            "table"
           ],
           "title": "Method",
           "type": "string"
@@ -103,6 +104,24 @@
           "default": 0.0,
           "title": "Minimum",
           "type": "number"
+        },
+        "points": {
+          "description": "(ξ, η) of the method 'table', ξ ascending.",
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "title": "Points",
+          "type": "array"
         }
       },
       "title": "DampingCorrection",

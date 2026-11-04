@@ -3141,8 +3141,11 @@ def _corner_checks(
     """B33: corner reinforcement of a two-way panel at an exterior corner, where two
     discontinuous sides meet that are on walls or on edge beams with αf above the pack's
     ``slabMethods.corner.alphaMin`` (:func:`saengine.design.slab_frames.corner_rows`)."""
-    from saengine.design import slab_frames
+    from saengine.design import panel_coefficients, slab_frames
 
+    if panel_coefficients.rules() is not None:
+        # Alpha 9 C9b: the restrained panels' corner torsion steel (IS 456 D-1.8 type).
+        return panel_coefficients.corner_rows(panel, h, reinforcement, fc, fy, es, envelope)
     table = slab_frames.rules()
     corner = getattr(table, "corner", None) if table is not None else None
     if corner is None:

@@ -92,6 +92,7 @@ from __future__ import annotations
 import math
 from typing import Any
 
+from saengine.design.steel import joint_resistances as jr
 from saengine.design.steel_proposal import SteelMaterial, compression_capacity
 from saengine.library.objects import (  # the connection models live with the object types
     BraceGussetConnection,
@@ -274,7 +275,10 @@ def long_joint_factor(length: float, tension_splice: bool, d: float | None = Non
 
 
 def bolt_shear_capacity(grade: str, d: float, planes: int = 1, factor: float = 1.0) -> float:
-    """φRn of one bolt in shear [N], Rn = Fnv Ab (``factor``: the long-joint reduction)."""
+    """φRn of one bolt in shear [N], Rn = Fnv Ab (``factor``: the long-joint reduction); alpha
+    9 C6: Fv,Rd when the pack designs joints by partial factors."""
+    if jr.active():
+        return jr.shear(grade, d, planes, factor)
     if _ls() is not None:  # C9
         from saengine.design.steel import limit_state
 
@@ -285,6 +289,8 @@ def bolt_shear_capacity(grade: str, d: float, planes: int = 1, factor: float = 1
 def bolt_tension_capacity(grade: str, d: float, frv: float = 0.0) -> tuple[float, str]:
     """φRn of one bolt in tension [N] with the required shear stress ``frv`` [MPa]: Fnt Ab, or
     F'nt = 1.3 Fnt - Fnt / (φ Fnv) frv <= Fnt with shear; and the note."""
+    if jr.active():  # alpha 9 C6
+        return jr.tension(grade, d, frv)
     if _ls() is not None:  # C9
         from saengine.design.steel import limit_state
 
@@ -303,6 +309,9 @@ def slip_capacity(c: Any, d: float, planes: int = 1, tension: float = 0.0) -> tu
     """φRn of one pretensioned bolt against slip [N], Rn = μ Du hsc Tb Ns, times ks = 1 - Tu /
     (Du Tb) under the bolt's applied tension ``tension`` [N]; and the note. 0 when the grade is
     not pretensioned."""
+    if jr.active():  # alpha 9 C6
+        level = "strength" if c.slipCritical == "strength" else "serviceability"
+        return jr.slip(c.boltGrade, d, c.surfaceClass, c.holeType, level, planes, tension)
     if _ls() is not None:  # C9
         from saengine.design.steel import limit_state
 
@@ -372,6 +381,8 @@ def bearing_line(d, t, fu, rows, pitch, end) -> float:
     """Σ bearing of a line of bolts loaded towards the end distance ``end`` (None: no edge
     close by, the 2.4 d t Fu limit)."""
     dh = hole_diameter(d)
+    if jr.active():  # alpha 9 C6: Fb,Rd with αb by e1 and p1
+        return jr.bearing_line(d, t, fu, rows, pitch, end, dh)
     first = (
         bearing_capacity(d, t, fu, end - dh / 2, "end")
         if end is not None
@@ -381,7 +392,10 @@ def bearing_line(d, t, fu, rows, pitch, end) -> float:
 
 
 def block_shear(fy, fu, agv, anv, ant, ubs: float = 1.0) -> float:
-    """φRn, Eq 6.10.178, φ 0.75."""
+    """φRn, Eq 6.10.178, φ 0.75; alpha 9 C6: Veff,Rd when the pack designs joints by partial
+    factors (``ubs`` the share of the tension area)."""
+    if jr.active():
+        return jr.block(fy, fu, anv, ant, ubs)
     if _ls() is not None:  # C9
         from saengine.design.steel import limit_state
 
@@ -392,7 +406,10 @@ def block_shear(fy, fu, agv, anv, ant, ubs: float = 1.0) -> float:
 
 
 def fillet_capacity_per_mm(w: float, fexx: float, theta_deg: float = 0.0) -> float:
-    """φRn of a fillet weld per mm of length [N/mm], Eq 6.10.162-163, φ 0.75, throat 0.707 w."""
+    """φRn of a fillet weld per mm of length [N/mm], Eq 6.10.162-163, φ 0.75, throat 0.707 w;
+    alpha 9 C6: the pack's weld method by partial factors (fu of the parts joined)."""
+    if jr.active():
+        return jr.fillet_per_mm(w, theta_deg)[0]
     if _ls() is not None:  # C9: no directional increase
         from saengine.design.steel import limit_state
 

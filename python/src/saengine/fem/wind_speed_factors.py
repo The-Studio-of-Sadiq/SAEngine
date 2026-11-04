@@ -16,7 +16,9 @@ pressure (the form of IS 875 (Part 3)):
 - k3, topography: the wind table's ``topographic`` (a project overrides it in Project Settings
   > Wind, the field the default pack calls Kzt);
 - k4, cyclonic importance: ``speedFactors.importance`` (a project overrides it through Code
-  Values, ``wind.speedFactors.importance``);
+  Values, ``wind.speedFactors.importance``); alpha 9 C9b: on a cyclone-prone site
+  (``wind.speedFactors.cyclonic``) at least the pack's ``cyclonicImportance`` of the
+  occupancy's risk class, and Kd = ``cyclonicDirectionality``;
 - Kd, directionality: the wind table's ``directionality`` (or the project's override); Ka, area
   averaging of the main wind-force resisting system: ``speedFactors.areaAveraging``; Kc,
   combination: ``speedFactors.combination``.
@@ -72,6 +74,18 @@ def risk_coefficient(speed: float, importance: float) -> float:
     return float(importance)
 
 
+def cyclonic_importance(importance: float, table: Any | None = None) -> float:
+    """k4 of a cyclone-prone site for the occupancy of wind importance ``importance``: the
+    pack's ``cyclonicImportance`` of its risk class (``riskCoefficients`` row id), else its
+    'other' value, else 1."""
+    table = table or _table()
+    rows = table.cyclonicImportance
+    for row in table.riskCoefficients:
+        if abs(row.importance - importance) < 1e-9 and row.id in rows:
+            return float(rows[row.id])
+    return float(rows.get("other", 1.0))
+
+
 def factors(height: float, speed: float, exposure: str, importance: float) -> dict[str, float]:
     """Every factor of the design pressure at ``height``: k1, k2, k3, k4, Kd, Ka, Kc, the
     product K (at least the pack's minimum share), Vz [m/s], pz and pd [kN/m²]."""
@@ -83,6 +97,10 @@ def factors(height: float, speed: float, exposure: str, importance: float) -> di
     k3 = wind_factor("topographic")
     k4 = float(table.importance)
     kd = wind_factor("directionality")
+    if table.cyclonic:  # Alpha 9 C9b: a cyclone-prone site
+        k4 = max(k4, cyclonic_importance(importance, table))
+        if table.cyclonicDirectionality is not None:
+            kd = float(table.cyclonicDirectionality)
     ka, kc = float(table.areaAveraging), float(table.combination)
     k = max(kd * ka * kc, float(table.minimumShare))
     vz = float(speed) * k1 * k2 * k3 * k4

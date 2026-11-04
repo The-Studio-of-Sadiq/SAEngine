@@ -56,6 +56,26 @@ export const MATERIALS_SCHEMA: IJSONSchema = {
 			title: 'Admixture',
 			type: 'object',
 		},
+		AluminiumProperties: {
+			additionalProperties: false,
+			description: 'Structural aluminium (alpha 9 C6): the alloy and temper of the code pack\'s table.',
+			properties: {
+				alloy: {
+					description: 'Alloy and temper of the code pack\'s aluminium table (e.g. EN AW-6082 T6).',
+					title: 'Alloy',
+					type: 'string',
+				},
+				welded: {
+					default: false,
+					description: 'The member is welded: the heat-affected zone\'s reduced strengths apply (over the whole section, on the safe side).',
+					title: 'Welded',
+					type: 'boolean',
+				},
+			},
+			required: ['alloy'],
+			title: 'AluminiumProperties',
+			type: 'object',
+		},
 		BambooProperties: {
 			additionalProperties: false,
 			description: 'Round bamboo culms, designed with the code pack\'s ``bamboo`` table (B39).',
@@ -126,7 +146,7 @@ export const MATERIALS_SCHEMA: IJSONSchema = {
 			type: 'object',
 		},
 		Category: {
-			enum: ['concrete', 'rebar', 'steel', 'masonry', 'timber', 'mortar', 'bamboo', 'ferrocement', 'other'],
+			enum: ['concrete', 'rebar', 'steel', 'masonry', 'timber', 'mortar', 'bamboo', 'ferrocement', 'aluminium', 'other'],
 			title: 'Category',
 			type: 'string',
 		},
@@ -480,6 +500,18 @@ export const MATERIALS_SCHEMA: IJSONSchema = {
 					],
 					default: null,
 					title: 'Ferrocement',
+				},
+				aluminium: {
+					anyOf: [
+						{
+							$ref: '#/$defs/AluminiumProperties',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Aluminium',
 				},
 				composition: {
 					anyOf: [
@@ -861,6 +893,19 @@ export const MATERIALS_SCHEMA: IJSONSchema = {
 					default: null,
 					description: 'Ungraded timber with defects: the slope of grain 1 in this (K1); none: graded timber.',
 					title: 'Slope of grain (1 in)',
+				},
+				strengthClass: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Alpha 9 C6: the strength class of a code pack designing timber by limit states (e.g. C24, GL28h); none: the pack\'s default class.',
+					title: 'Strength class',
 				},
 				liveLoadDuration: {
 					default: 'continuous',
@@ -1788,7 +1833,7 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 				boltGrade: {
 					default: 'A325N',
 					description: 'Table 6.10.10 grade.',
-					enum: ['A307', 'A325N', 'A325X', 'A490N', 'A490X', '8.8', '10.9'],
+					enum: ['A307', 'A325N', 'A325X', 'A490N', 'A490X', '4.6', '8.8', '10.9'],
 					title: 'Bolt grade',
 					type: 'string',
 				},
@@ -3535,7 +3580,7 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 				boltGrade: {
 					default: 'A325N',
 					description: 'Table 6.10.10 grade.',
-					enum: ['A307', 'A325N', 'A325X', 'A490N', 'A490X', '8.8', '10.9'],
+					enum: ['A307', 'A325N', 'A325X', 'A490N', 'A490X', '4.6', '8.8', '10.9'],
 					title: 'Bolt grade',
 					type: 'string',
 				},
@@ -3834,7 +3879,7 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 				boltGrade: {
 					default: 'A325N',
 					description: 'Table 6.10.10 grade.',
-					enum: ['A307', 'A325N', 'A325X', 'A490N', 'A490X', '8.8', '10.9'],
+					enum: ['A307', 'A325N', 'A325X', 'A490N', 'A490X', '4.6', '8.8', '10.9'],
 					title: 'Bolt grade',
 					type: 'string',
 				},
@@ -3986,7 +4031,7 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 				boltGrade: {
 					default: 'A325N',
 					description: 'Table 6.10.10 grade.',
-					enum: ['A307', 'A325N', 'A325X', 'A490N', 'A490X', '8.8', '10.9'],
+					enum: ['A307', 'A325N', 'A325X', 'A490N', 'A490X', '4.6', '8.8', '10.9'],
 					title: 'Bolt grade',
 					type: 'string',
 				},
@@ -6368,7 +6413,7 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 				boltGrade: {
 					default: 'A325N',
 					description: 'Table 6.10.10 grade.',
-					enum: ['A307', 'A325N', 'A325X', 'A490N', 'A490X', '8.8', '10.9'],
+					enum: ['A307', 'A325N', 'A325X', 'A490N', 'A490X', '4.6', '8.8', '10.9'],
 					title: 'Bolt grade',
 					type: 'string',
 				},
@@ -17804,6 +17849,19 @@ export const TEMPLATES: { readonly [defName: string]: object } = {
 			fc: 35,
 		},
 	},
+	'Material:aluminium': {
+		id: 'AW6082T6',
+		name: 'Aluminium EN AW-6082 T6',
+		category: 'aluminium',
+		mechanical: {
+			E: 70000,
+			density: 2700,
+			nu: 0.3,
+		},
+		aluminium: {
+			alloy: 'EN AW-6082 T6',
+		},
+	},
 	'Material:other': {
 		id: 'MAT',
 		name: 'New material',
@@ -17835,6 +17893,9 @@ export const TEMPLATES: { readonly [defName: string]: object } = {
 	},
 	FerrocementProperties: {
 		fc: 35,
+	},
+	AluminiumProperties: {
+		alloy: 'EN AW-6082 T6',
 	},
 	BambooMember: {},
 	BambooJoint: {

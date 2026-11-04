@@ -71,6 +71,63 @@ def cite(table: Any, key: str) -> str:
     return str(table.sources.get(key, "")).split(" (", 1)[0]
 
 
+def partial_factors(table: Any) -> Any | None:
+    """Alpha 9 C6: the table's ``partialFactors`` (method ``partialFactors``), else None (φ and
+    the nominal strengths)."""
+    pf = getattr(table, "partialFactors", None) if table is not None else None
+    return pf if pf is not None and getattr(pf, "method", "") == "partialFactors" else None
+
+
+def stud_resistance(
+    diameter: float, height: float, fu: float, concrete: Concrete, pf: Any
+) -> tuple[float, str]:
+    """Alpha 9 C6: PRd [N] of one headed stud welded to the beam, the least of the shank,
+    studSteel fu π d²/4 / γV, and the concrete, studConcrete α d² √(fck Ecm) / γV, with
+    α = 0.2 (hsc/d + 1) for a <= hsc/d < b, else 1 (fu at most the pack's limit)."""
+    fu_used = min(fu, float(pf.studFuMax))
+    ratio = height / diameter
+    lo, hi = pf.studAspect
+    alpha = 0.2 * (ratio + 1) if lo <= ratio < hi else 1.0
+    if ratio < lo:
+        alpha = 0.2 * (lo + 1)
+    steel = float(pf.studSteel) * fu_used * math.pi * diameter**2 / 4 / float(pf.gammaV)
+    conc = (
+        float(pf.studConcrete)
+        * alpha
+        * diameter**2
+        * math.sqrt(concrete.fc * concrete.ec)
+        / float(pf.gammaV)
+    )
+    return min(steel, conc), (
+        f"PRd = min({float(pf.studSteel):g} fu π d²/4, {float(pf.studConcrete):g} α d² √(fck "
+        f"Ecm)) / γV = min({steel / 1e3:.1f}, {conc / 1e3:.1f}) kN, α = {alpha:.2f}"
+    )
+
+
+def deck_reduction(deck: Any, per_row: int, height: float, pf: Any) -> float:
+    """Alpha 9 C6: kt (ribs across the beam) or kl (along it) of studs in a deck."""
+    if deck is None:
+        return 1.0
+    b0, hp = deck.ribWidth, deck.ribHeight
+    shape = (b0 / hp) * max(height / hp - 1, 0.0)
+    if deck.orientation == "perpendicular":
+        one, two = pf.transverseRibs
+        cap = pf.transverseMax[0] if per_row <= 1 else pf.transverseMax[1]
+        factor = (one if per_row <= 1 else two) / math.sqrt(max(per_row, 1)) * shape
+        return float(min(factor, cap))
+    return float(min(float(pf.parallelRibs) * shape, 1.0))
+
+
+def minimum_connection(fy: float, span: float, pf: Any) -> float:
+    """Alpha 9 C6: the least degree of shear connection η of a beam of span ``span`` [mm]:
+    1 - (a / fy)(b - c Le) >= d (equal flanges, Le <= 25 m), 1 above."""
+    a, b, c, d = pf.minimumConnection
+    le = span / 1000.0
+    if le > 25:
+        return 1.0
+    return max(float(d), 1 - (float(a) / fy) * (float(b) - float(c) * le))
+
+
 def _row(
     name: str,
     demand: float,
@@ -118,7 +175,12 @@ class Concrete:
 
 
 def concrete_modulus(fc: float, wc: float, table: Any) -> float:
-    """Ec = coefficient × wc^exponent × √f'c (wc clamped to the table's range) [MPa]."""
+    """Ec = coefficient × wc^exponent × √f'c (wc clamped to the table's range) [MPa]; alpha 9
+    C6: the secant modulus Ecm = a ((fck + increment) / b)^c of the pack's partial factors."""
+    pf = partial_factors(table)
+    if pf is not None:
+        a, b, c = pf.modulus
+        return float(a) * ((fc + float(pf.fcmIncrement)) / float(b)) ** float(c)
     m = table.modulus
     w = min(max(wc, m.densityMin), m.densityMax)
     return float(m.concreteCoefficient) * w ** float(m.concreteExponent) * math.sqrt(fc)
@@ -458,6 +520,8 @@ def tabulated_stud(diameter: float, height: float, fc: float, rules: Any) -> flo
 
 def _connectors(beam: Any, concrete: Concrete, table: Any) -> _Connectors:
     c = beam.connectors
+    if c.kind == "channel" and partial_factors(table) is not None:
+        raise CompositeError("channel connectors are not covered by the code pack (studs only)")
     ls = getattr(table.beam, "limitState", None)
     if ls is not None and c.kind == "stud":  # C9: tabulated design strengths
         return _Connectors(
@@ -471,6 +535,11 @@ def _connectors(beam: Any, concrete: Concrete, table: Any) -> _Connectors:
     if c.kind == "channel":
         qn = channel_strength(c.channelFlange, c.channelWeb, c.channelLength, concrete, table)
         return _Connectors(qn, c.perRow, 1.0, 1.0, "channel", 0.0)
+    pf = partial_factors(table)
+    if pf is not None:  # alpha 9 C6: PRd with γV, kt / kl of the deck
+        prd, _note = stud_resistance(c.diameter, c.height, c.fu, concrete, pf)
+        k = deck_reduction(beam.deck, c.perRow, c.height, pf)
+        return _Connectors(prd * k, c.perRow, k, 1.0, "stud", c.diameter)
     rg, rp = stud_factors(beam.deck, c.perRow, c.eMidHeight, table)
     return _Connectors(
         stud_strength(c.diameter, c.fu, concrete, table, rg, rp),
@@ -524,7 +593,9 @@ def beam_checks(
     notes += list(concrete.notes)
     span = span_m * 1000.0
     ls = getattr(table.beam, "limitState", None)  # C9: design strengths, no φ
+    pf = partial_factors(table)  # alpha 9 C6: the partial factors of the pack
     alpha = None
+    fy_characteristic = fy
     if ls is not None:
         fy = fy / float(ls.steelGamma)
         alpha = float(ls.concreteShare)
@@ -533,9 +604,19 @@ def beam_checks(
             f"{float(ls.steelGamma):g}, studs by the tabulated design strength "
             f"({cite(table, 'limitState')})"
         )
+    elif pf is not None:
+        # The plastic resistances on the design strengths fyd = fy / γa and the block's
+        # share of fcd = fck / γc (φ = 1).
+        fy = fy / float(pf.gammaA)
+        alpha = float(table.stressBlock.concrete) / float(pf.gammaC)
+        notes.append(
+            f"partial factors: steel fy / {float(pf.gammaA):g}, concrete "
+            f"{float(table.stressBlock.concrete):g} fck / {float(pf.gammaC):g}, studs PRd with "
+            f"γV = {float(pf.gammaV):g} ({cite(table, 'partialFactors')})"
+        )
     geom = beam_geometry(shape, fy, steel.e, beam, span, table)
     notes += geom.notes
-    phi = table.phi.flexure if ls is None else 1.0
+    phi = table.phi.flexure if ls is None and pf is None else 1.0
     checks: list[dict[str, Any]] = []
     conn = _connectors(beam, concrete, table)
 
@@ -631,6 +712,21 @@ def beam_checks(
         summary["ratio"] = round(found["ratio"], 3)
         summary["sumQn"] = round(found["sumQn"] / 1e3, 1)
         summary["Mn"] = round(found["Mn"] / 1e6, 1)
+        if pf is not None and plastic:  # alpha 9 C6: the least degree of shear connection
+            eta_min = minimum_connection(fy_characteristic, span, pf)
+            checks.append(
+                _row(
+                    "degree of shear connection η",
+                    found["ratio"],
+                    eta_min,
+                    "",
+                    cite(table, "minimumConnection"),
+                    f"η = Nc / Nc,f = {found['ratio']:.2f} >= {eta_min:.2f} (Le = "
+                    f"{span / 1e3:.1f} m, fy = {fy_characteristic:g} MPa, equal flanges)",
+                    r[0].combination,
+                    upper=False,
+                )
+            )
     else:
         summary["ratio"] = 1.0
 
@@ -1249,6 +1345,10 @@ def column_checks(
     from saengine.design.steel import classify as cl
     from saengine.design.steel.members import Steel, amplifier_b1, moment_coefficient
 
+    if partial_factors(table) is not None:  # alpha 9 C6
+        return _column_checks_partial(
+            shape, material, concrete_material, col, stations, lengths, seismic, table
+        )
     steel = Steel.of(material)
     notes: list[str] = []
     fy = _fy(steel.fy, table, "steel", notes)
@@ -1374,6 +1474,177 @@ def column_checks(
         "Po": round(po / 1e3, 0),
         "Pn": round(pn / 1e3, 0),
         "phiPn": round(phi_c * pn / 1e3, 0),
+        "EIeffX": round(effective_stiffness(sec, concrete.ec, es, "x") / 1e9, 1),
+        "EIeffY": round(effective_stiffness(sec, concrete.ec, es, "y") / 1e9, 1),
+        "steelShare": round(sec.as_ / sec.ag, 4),
+        "barRatio": round(sec.asr / sec.ag, 4),
+    }
+    return {"checks": checks, "summary": summary, "notes": notes}
+
+
+def _column_checks_partial(
+    shape: Any,
+    material: Any,
+    concrete_material: Any,
+    col: Any,
+    stations: list[Any],
+    lengths: Any,
+    seismic: bool,
+    table: Any,
+) -> dict[str, Any]:
+    """Alpha 9 C6: the composite column by partial factors (``composite.partialFactors``):
+    Npl,Rd on the design strengths, χ of the column's buckling curve with λ̄ = √(Npl,Rk / Ncr)
+    and (EI)eff, the second-order moments k = β / (1 - NEd / Ncr,eff) with (EI)eff,II and the
+    member imperfection e0, and MEd <= αM μd Mpl,Rd from the design P-M curve (the imperfection
+    in the plane that gives the larger ratio). The scope and the load transfer as the table
+    gives them."""
+    from saengine.design.steel import classify as cl
+    from saengine.design.steel.buckling_curves import chi
+    from saengine.design.steel.members import Steel
+
+    pf = partial_factors(table)
+    steel = Steel.of(material)
+    notes: list[str] = []
+    fy = _fy(steel.fy, table, "steel", notes)
+    fyr = _fy(col.barFy, table, "bar", notes) if col.form == "encased" else 0.0
+    concrete = concrete_of(concrete_material, table, "column concrete")
+    notes += list(concrete.notes)
+    if col.form == "filled" and col.bars:
+        notes.append("bars inside the HSS are not counted")
+    sec = column_section(shape, col, fyr, table)
+    es = float(table.modulus.steel)
+    fc = concrete.fc
+    ga, gc, gs = float(pf.gammaA), float(pf.gammaC), float(pf.gammaS)
+    npl_rk = sec.as_ * fy + sec.asr * fyr + sec.alpha * sec.ac * fc
+    npl_rd = sec.as_ * fy / ga + sec.asr * fyr / gs + sec.alpha * sec.ac * fc / gc
+    length = lengths.length * 1000.0
+    from saengine.design.steel import buckling_curves as bc
+
+    alphas = (bc.table().imperfection if bc.table() is not None else {}) or {
+        "a": 0.21, "b": 0.34, "c": 0.49,
+    }  # fmt: skip
+    kl, ncr, chis, ncr_eff, e0 = {}, {}, {}, {}, {}
+    k_ii, share_ii = pf.secondOrderStiffness
+    for axis in ("x", "y"):
+        seg = getattr(lengths, axis)
+        kl[axis] = float(lengths.k.get(axis, 1.0)) * seg.longest() * 1000.0
+        ei = effective_stiffness(sec, concrete.ec, es, axis)
+        ncr[axis] = math.pi**2 * ei / kl[axis] ** 2 if kl[axis] > 0 else math.inf
+        key = (
+            "filled"
+            if col.form == "filled"
+            else ("encasedMajor" if axis == "x" else "encasedMinor")
+        )
+        curve = pf.columnCurves.get(key, "b")
+        lam = math.sqrt(npl_rk / ncr[axis]) if math.isfinite(ncr[axis]) else 0.0
+        chis[axis] = (chi(lam, float(alphas.get(curve, 0.34)), 0.2), lam, curve)
+        ei_ii = float(k_ii) * (
+            es * sec.is_[axis] + es * sec.isr[axis] + float(share_ii) * concrete.ec * sec.ic[axis]
+        )
+        ncr_eff[axis] = math.pi**2 * ei_ii / kl[axis] ** 2 if kl[axis] > 0 else math.inf
+        e0[axis] = length / float(pf.imperfection.get(key, 200.0))
+    governing_axis = min(chis, key=lambda a: chis[a][0])
+    x_min, lam_min, curve_min = chis[governing_axis]
+    nb_rd = x_min * npl_rd
+    nt_rd = sec.as_ * fy / ga + sec.asr * fyr / gs
+    alpha_m = next((float(a) for f, a in pf.alphaM if fy <= f + 1e-9), float(pf.alphaM[-1][1]))
+    curves = {
+        axis: plastic_curve(sec, fy / ga, fyr / gs if fyr else 0.0, fc / gc, axis)
+        for axis in ("x", "y")
+    }
+    b_a, b_b, b_min = pf.beta
+    checks: list[dict[str, Any]] = []
+    worst_c = worst_t = worst_i = None
+    for st in stations:
+        p_arr = np.asarray(st.P, dtype=float)
+        if not len(p_arr):
+            continue
+        pu, tu = float(p_arr.max()), float(-p_arr.min())
+        if pu > 0 and (worst_c is None or pu / nb_rd > worst_c[0]):
+            worst_c = (pu / nb_rd, pu, st.combination)
+        if tu > 0 and (worst_t is None or tu / nt_rd > worst_t[0]):
+            worst_t = (tu / nt_rd, tu, st.combination)
+        moments = {"x": np.asarray(st.Mx, dtype=float), "y": np.asarray(st.My, dtype=float)}
+        n_ed = max(pu, 0.0)
+        m2: dict[str, tuple[float, float]] = {}
+        for axis, mm in moments.items():
+            m1 = float(np.max(np.abs(mm))) if len(mm) else 0.0
+            ends = sorted((float(mm[0]), float(mm[-1])), key=abs) if len(mm) else (0.0, 0.0)
+            psi = ends[0] / ends[1] if abs(ends[1]) > 0 else 1.0
+            beta = max(float(b_min), float(b_a) + float(b_b) * psi)
+            ratio = n_ed / ncr_eff[axis] if math.isfinite(ncr_eff[axis]) else 0.0
+            if ratio >= 1:
+                m2[axis] = (math.inf, math.inf)
+                continue
+            k1 = max(1.0, beta / (1 - ratio))
+            k2 = max(1.0, 1.0 / (1 - ratio))
+            m2[axis] = (k1 * m1, k2 * n_ed * e0[axis])  # (end moments, imperfection)
+        for imperfect in ("x", "y"):
+            parts = []
+            for axis in ("x", "y"):
+                med = m2[axis][0] + (m2[axis][1] if axis == imperfect else 0.0)
+                if med <= 0:
+                    continue
+                p_d, m_d = curves[axis]
+                if n_ed > p_d.max():
+                    parts.append(math.inf)
+                    continue
+                cap = _capacity_at(p_d, m_d, n_ed if n_ed > 0 else -tu if tu > 0 else 0.0)
+                parts.append(med / (alpha_m * cap) if cap > 0 else math.inf)
+            u = max([sum(parts), *parts], default=0.0)
+            if worst_i is None or u > worst_i[0]:
+                worst_i = (u, st.combination, imperfect)
+    key = "encased" if col.form == "encased" else "filled"
+    if worst_c is not None:
+        checks.append(
+            _row(
+                "compression (flexural buckling)",
+                worst_c[1],
+                nb_rd,
+                "kN",
+                cite(table, f"{key}Compression"),
+                f"Nb,Rd = χ Npl,Rd, Npl,Rd = {npl_rd / 1e3:.0f} kN, Npl,Rk = {npl_rk / 1e3:.0f} kN, "
+                f"Ncr = {min(ncr.values()) / 1e3:.0f} kN ((EI)eff, Lcr {kl['x']:.0f} / "
+                f"{kl['y']:.0f} mm), λ̄ = {lam_min:.2f}, curve {curve_min}, χ = {x_min:.3f}",
+                worst_c[2],
+                scale=1e3,
+            )
+        )
+    if worst_t is not None:
+        checks.append(
+            _row(
+                "tension (yielding)",
+                worst_t[1],
+                nt_rd,
+                "kN",
+                cite(table, f"{key}Tension"),
+                combination=worst_t[2],
+                scale=1e3,
+            )
+        )
+    if worst_i is not None:
+        u, combination, imperfect = worst_i
+        checks.append(
+            _row(
+                "axial force and flexure (plastic P-M)",
+                u,
+                1.0,
+                "",
+                cite(table, "interaction"),
+                f"MEd = k (β M + NEd e0) <= αM μd Mpl,Rd, αM = {alpha_m:g}, e0 = L / "
+                f"{float(pf.imperfection.get('filled' if col.form == 'filled' else 'encasedMajor', 200)):g} "
+                f"in the plane about {imperfect}; (EI)eff,II = {float(k_ii):g} (Ea Ia + Es Is + "
+                f"{float(share_ii):g} Ecm Ic)",
+                combination,
+            )
+        )
+    checks += _column_scope(shape, sec, steel, fy, concrete, col, stations, table, cl)
+    checks += _column_transfer(sec, fy, npl_rk, col, concrete, stations, seismic, table)
+    summary = {
+        "form": col.form,
+        "Po": round(npl_rk / 1e3, 0),
+        "Pn": round(nb_rd / 1e3, 0),
+        "phiPn": round(nb_rd / 1e3, 0),
         "EIeffX": round(effective_stiffness(sec, concrete.ec, es, "x") / 1e9, 1),
         "EIeffY": round(effective_stiffness(sec, concrete.ec, es, "y") / 1e9, 1),
         "steelShare": round(sec.as_ / sec.ag, 4),
@@ -1689,6 +1960,12 @@ _COLUMN_REPLACED = (
     "Flexure about y (minor)",
     "Axial force and flexure (H1)",
     "Tension: yielding (gross section)",
+    # alpha 9 C6: the rows of the partial-factor member method
+    "Compression: cross-section",
+    "Axial force and flexure (cross-section)",
+    "Axial force and flexure: buckling, major axis",
+    "Axial force and flexure: buckling, minor axis",
+    "Lateral-torsional buckling",
     # C9: the combined force rows of the limit state steel method.
     "Axial force and flexure: section strength",
     "Axial force and flexure: member buckling",

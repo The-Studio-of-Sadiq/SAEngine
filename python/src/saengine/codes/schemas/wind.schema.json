@@ -3363,6 +3363,34 @@
           "minimum": 0,
           "title": "Minimumshare",
           "type": "number"
+        },
+        "cyclonic": {
+          "default": false,
+          "description": "The site is in a cyclone-prone region: k4 by the occupancy's risk class (cyclonicImportance) and Kd = cyclonicDirectionality.",
+          "title": "Cyclonic",
+          "type": "boolean"
+        },
+        "cyclonicImportance": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "description": "k4 by the id of the occupancy's riskCoefficients row ('other': the rest); at least ``importance``.",
+          "title": "Cyclonicimportance",
+          "type": "object"
+        },
+        "cyclonicDirectionality": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Kd in a cyclone-prone region (None: unchanged).",
+          "title": "Cyclonicdirectionality"
         }
       },
       "required": [

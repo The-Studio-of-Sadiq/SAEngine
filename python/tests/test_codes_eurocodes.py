@@ -46,8 +46,11 @@ def test_pack_is_listed_sound_and_extends_the_default():
     # Loads are the pack's own; materials fall back to the pack it extends.
     for table in ("combinations", "seismic", "wind", "areaLoads", "liveReduction", "snow"):
         assert pack.provided_by(table) == "eurocodes"
-    for table in ("concrete", "factors", "steel", "detailing", "foundations"):
+    for table in ("concrete", "factors", "detailing", "foundations"):
         assert pack.provided_by(table) == "bnbc2020"
+    # C6: the steel and other material tables are the pack's own (merged onto the parent's).
+    for table in ("steelLimitState", "steel", "timber", "masonry", "composite", "aluminium"):
+        assert pack.provided_by(table) == "eurocodes"
 
 
 def test_en1990_combinations_and_psi(ec):

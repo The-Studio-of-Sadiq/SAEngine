@@ -561,6 +561,10 @@ def _design_run(
         and getattr(stability_settings, "directAnalysisNotional", "allCombinations")
         != "gravityOnly"
     )
+    if stability_method == "secondOrder":  # alpha 9 C6: a pack's sway imperfection
+        from saengine.fem.notional_loads import every_combination
+
+        every = every or every_combination()
     by_notional = notional_combinations(formed, present, every)
     if by_notional is not None:
         pre_notes.append(
@@ -938,6 +942,35 @@ def _design_run(
                 (member_id, object_type, steel_material, own, _turned(element, exact))
             )
             continue
+        # Alpha 9 C6: aluminium beams, columns and braces under the ultimate combinations, by
+        # the code pack's aluminium table (saengine.design.aluminium).
+        from saengine.design import aluminium as aluminium_design
+
+        if isinstance(object_type, (Beam, Column, Brace)) and aluminium_design.is_aluminium(
+            steel_material
+        ):
+            if not own:
+                skip("not in the analysis results")
+                continue
+            if not combinations:
+                skip("no load combination could be formed")
+                continue
+            try:
+                checked.append(
+                    aluminium_design.design_member(
+                        member_id,
+                        object_type.kind,
+                        object_type,
+                        steel_material,
+                        own,
+                        combinations,
+                        _turned(element, exact),
+                        project,
+                    )
+                )
+            except aluminium_design.AluminiumDesignError as error:
+                skip(str(error))
+            continue
         # B39: bamboo beams, columns and braces, ferrocement beams and columns (designed after
         # this loop by saengine.design.bamboo / saengine.design.ferrocement).
         b39_kind = _b39_kind(object_type, steel_material)
@@ -1181,11 +1214,14 @@ def _design_run(
                             float(object_type.reinforcement.cover or 0.0),
                         )
                     checks += detail_rows
-                    if deep_rows:
+                    if deep_rows and deep_beams.lever_rules() is None:
+                        # The strut-and-tie model governs (the lever arm method of alpha 9 C9b
+                        # keeps the sectional shear as the shear check).
                         for row in checks:
                             if row["name"] == "Shear" or row["name"].startswith("Minimum stirrups"):
                                 row["flag"] = True
                                 row["note"] += f"; {deep_beams.REFERENCE_NOTE}"
+                    if deep_rows:
                         checks += deep_rows
                     notes.extend(deep_notes)
             else:
@@ -1229,6 +1265,11 @@ def _design_run(
                 if member_rules and strut_shear.rules() is not None:
                     # Alpha 9 C5: the pack's shear method (variable strut inclination).
                     checks += strut_shear.column_rows(
+                        section, object_type.reinforcement.transverse, points
+                    )
+                elif tabulated_shear.rules() is not None:
+                    # Alpha 9 C9b: τc with the axial force's δ (IS 456 40.2.2 type).
+                    checks += tabulated_shear.column_rows(
                         section, object_type.reinforcement.transverse, points
                     )
                 else:
@@ -1321,8 +1362,31 @@ def _design_run(
     # connection checks on the steel entries, the project's own checks with the seismic ones.
     steel_seismic_found = None
     from saengine.design.steel import limit_state as steel_limit_state
+    from saengine.design.steel import seismic_dissipative
 
-    if steel_members and steel_limit_state.seismic_rules() is not None:
+    if steel_members and seismic_dissipative.active():
+        # Alpha 9 C6: the pack's capacity design of dissipative steel frames (by Ω and γov,
+        # the limit state table's seismic method ``dissipativeZones``) in place of the steel
+        # seismic provisions and the braced frames of B35 / B38.
+        try:
+            found_dissipative = seismic_dissipative.apply(
+                project,
+                building,
+                types,
+                steel_members,
+                combinations,
+                seismic_detailing.earthquake_indices(extra, len(combinations)),
+                resolved,
+            )
+        except (ValueError, KeyError, AttributeError, TypeError) as error:
+            found_dissipative = None
+            notes.append(f"the steel capacity design could not be checked: {error}")
+        if found_dissipative is not None:
+            notes += found_dissipative["notes"]
+            if scope is not None:
+                scope["steelDissipative"] = found_dissipative
+                scope["checks"] = scope.get("checks", []) + found_dissipative["checks"]
+    elif steel_members and steel_limit_state.seismic_rules() is not None:
         # Alpha 9 C9: the pack's steel seismic frame rules (IS 800 Section 12) in place of
         # the steel seismic provisions and the braced frames of B35 / B38.
         try:
@@ -1639,17 +1703,24 @@ def _design_timber(
     pieces, turned)``) under the code pack's allowable stress combinations, formed from the
     analysis's per-case forces in ``service`` (:func:`_demands`' ``extra["service"]``); their
     entries go to ``checked``, the members that cannot be checked to ``skipped``. True when a
-    member was checked."""
+    member was checked. Alpha 9 C6: a pack whose timber method is ``partialFactors`` designs
+    them under its strength combinations formed the same way (each one's factors give kmod)."""
     from saengine.design import timber as timber_design
+    from saengine.design.timber import limit_state as timber_limit_state
 
     def skip(member_id: str, object_type: Any, reason: str) -> None:
         skipped.append(
             {"id": member_id, "kind": object_type.kind, "type": object_type.id, "reason": reason}
         )
 
-    # Alpha 9 C3b: a pack's timber method in the LRFD format takes the strength combinations.
+    # Alpha 9 C3b: a pack's timber method in the LRFD format takes the strength combinations;
+    # alpha 9 C6: so does the limit state method (partial factors, kmod by each combination).
+    by_limit_state = timber_limit_state.active()
     case_forces, names, factors, reason = _allowable_forces(
-        service, notes, "timber", timber_design.combination_set()
+        service,
+        notes,
+        "timber",
+        "strength" if by_limit_state else timber_design.combination_set(),
     )
     if reason:
         for member_id, object_type, *_ in todo:
@@ -1657,6 +1728,18 @@ def _design_timber(
         return False
     seen = False
     for member_id, object_type, material, own, turned in todo:
+        if by_limit_state:
+            try:
+                entry = timber_limit_state.design_member(
+                    member_id, object_type.kind, object_type, material,
+                    timber_design.asd_pieces(own, case_forces, factors), names, factors, turned,
+                )  # fmt: skip
+            except timber_design.TimberDesignError as error:
+                skip(member_id, object_type, str(error))
+                continue
+            checked.append(entry)
+            seen = True
+            continue
         try:
             entry = timber_design.design_timber_member(
                 member_id,
@@ -1984,14 +2067,28 @@ def _assemble(
             method += seismic_braced.method_lines(braced_found)
         if braced_found.get("composite"):
             method += seismic_composite.method_lines()
+        if ((scope or {}).get("steelDissipative") or {}).get("applies"):  # alpha 9 C6
+            from saengine.design.steel import seismic_dissipative
+
+            method += seismic_dissipative.method_lines()
     if walls_found.get("plateWalls"):  # B38
         from saengine.design.steel import seismic_walls
 
         method += seismic_walls.method_lines()
+    if any("aluminium" in e for e in checked):  # alpha 9 C6: the entries carry the block
+        from saengine.design import aluminium as aluminium_design
+
+        method += aluminium_design.method_lines()
     if timber_seen:
         from saengine.design import timber as timber_design
+        from saengine.design.timber import limit_state as timber_limit_state
 
-        method += timber_design.method()
+        # Alpha 9 C6: the pack's limit state timber method names its own basis.
+        method += (
+            timber_limit_state.method_lines()
+            if timber_limit_state.active()
+            else timber_design.method()
+        )
     for key in ("bamboo", "ferrocement"):  # B39: the entries carry their material's block
         if any(key in e for e in checked):
             from importlib import import_module
