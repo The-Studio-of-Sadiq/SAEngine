@@ -335,6 +335,9 @@ export interface IAdjoiningStructure {
 	underpinned?: boolean;
 	otherProperty?: boolean;
 	sensitive?: boolean;
+	/** Alpha 9 P1: its footing's pressure [kPa] and width [mm], a strip load on the excavation's wall. */
+	pressure?: number;
+	width?: number;
 	[key: string]: unknown;
 }
 
@@ -381,7 +384,99 @@ export interface IEmbeddedWall {
 	surcharge?: number;
 	momentCapacity?: number;
 	propSpacing?: number;
+	/** Alpha 9 P1: with a type, the wall is analysed stage by stage and its section and supports designed. */
+	wallType?: EmbeddedWallType;
+	section?: string;
+	material?: string;
+	pileDiameter?: number;
+	pileSpacing?: number;
+	allReinforced?: boolean;
+	thickness?: number;
+	rebar?: string;
+	barCount?: number;
+	barDia?: number;
+	barSpacing?: number;
+	linkDia?: number;
+	linkSpacing?: number;
+	cover?: number;
+	crackLimit?: number;
+	laggingThickness?: number;
+	length?: number;
+	stages?: IExcavationStage[];
+	supports?: IWallSupport[];
 	[key: string]: unknown;
+}
+
+/** Alpha 9 P1: the types of embedded walls the staged analysis designs. */
+export type EmbeddedWallType = 'sheetPile' | 'contiguous' | 'secant' | 'soldier' | 'diaphragm';
+
+export const EMBEDDED_WALL_TYPES: readonly EmbeddedWallType[] = ['sheetPile', 'contiguous', 'secant', 'soldier', 'diaphragm'];
+
+export function embeddedWallTypeLabel(type: EmbeddedWallType): string {
+	switch (type) {
+		case 'sheetPile': return localize('sub.wallType.sheetPile', "Steel sheet piles");
+		case 'contiguous': return localize('sub.wallType.contiguous', "Contiguous bored piles");
+		case 'secant': return localize('sub.wallType.secant', "Secant bored piles");
+		case 'soldier': return localize('sub.wallType.soldier', "Soldier piles and lagging");
+		case 'diaphragm': return localize('sub.wallType.diaphragm', "Diaphragm wall");
+	}
+}
+
+/** Alpha 9 P1: one construction stage: the supports placed and removed, then the dig (mm, project datum). */
+export interface IExcavationStage {
+	name?: string;
+	digLevel: number;
+	install?: string[];
+	remove?: string[];
+	surcharge?: number;
+	[key: string]: unknown;
+}
+
+/** Alpha 9 P1: a strut, ground anchor or raker of an embedded wall (mm, project datum; kN; degrees). */
+export interface IWallSupport {
+	id: string;
+	kind?: 'strut' | 'anchor' | 'raker';
+	level: number;
+	spacing?: number;
+	section?: string;
+	material?: string;
+	length?: number;
+	inclination?: number;
+	preload?: number;
+	stiffness?: number;
+	waler?: string;
+	tendonArea?: number;
+	tendonStrength?: number;
+	groutDiameter?: number;
+	freeLength?: number;
+	fixedLength?: number;
+	permanent?: boolean;
+	[key: string]: unknown;
+}
+
+/** Alpha 9 P1: the staged analysis of an excavation's wall as the backend reports it (m, kN, kN·m/m, mm). */
+export interface IExcavationSupportResult {
+	readonly wallType: EmbeddedWallType;
+	readonly section: string;
+	readonly length: number;
+	readonly toe: string;
+	readonly design: number;
+	readonly overdig: number;
+	readonly surcharge: number;
+	readonly runs: readonly string[];
+	readonly factors: readonly number[];
+	readonly stages: readonly {
+		readonly name: string; readonly dig: number; readonly Mmax: number; readonly Mmin: number;
+		readonly Vmax: number; readonly ymax: number; readonly mobilised: number; readonly forces: { readonly [id: string]: number };
+	}[];
+	/** Depths [m], the factored moment envelope (M+ the retained face in tension) [kN·m/m], |V| [kN/m], the deflection of the unfactored run [mm]. */
+	readonly envelope: { readonly z: readonly number[]; readonly Mpos: readonly number[]; readonly Mneg: readonly number[]; readonly V: readonly number[]; readonly y: readonly number[] };
+	/** The last stage's pressures behind and in front [kPa], with the water. */
+	readonly pressures: { readonly z: readonly number[]; readonly behind: readonly number[]; readonly front: readonly number[] };
+	readonly supports: readonly {
+		readonly id: string; readonly kind: string; readonly level: number; readonly perMetre: number; readonly working: number; readonly design: number;
+		readonly proof?: number; readonly lockOff?: number; readonly freeRequired?: number; readonly fixedRequired?: number | null; readonly axial?: number;
+	}[];
 }
 
 /** The slab formwork (mm, kPa). */
@@ -2279,6 +2374,8 @@ export interface IFoundationResult {
 	readonly requirements?: readonly string[];
 	/** A machine foundation's dynamics: natural frequency and frequency ratio ranges, damping, springs. */
 	readonly dynamics?: Readonly<Record<string, unknown>>;
+	/** Alpha 9 P1: an excavation's staged analysis (its wall has a type). */
+	readonly support?: IExcavationSupportResult;
 }
 
 export interface ISubstructureReport {

@@ -6,7 +6,8 @@ design embedded walls. The default pack's BNBC 2020 asks for retained excavation
 Sec 3.12) and gives no method: the method is SAEngine practice there, and the report says so.
 The sheet, contiguous and secant pile sections, the walers, the struts and the ground anchors
 of staged excavations are not designed here (the wall's bending capacity per metre is an
-input).
+input): alpha 9 P1 designs them in :mod:`saengine.substructure.excavation_support` when the
+wall has a type; a wall with supports is checked here as propped at its highest one.
 
 Per metre run of wall, depths z [m] below the retained ground: the soil of the nearest
 borehole (:func:`saengine.substructure.earth_pressure.soil_column`), the design dig level
@@ -259,9 +260,13 @@ def wall_checks(excavation: Any, ground: float, soil: Soil) -> tuple[list[dict],
     if height <= 0:
         return [], []
     prop = None if wall.propLevel is None else (ground - wall.propLevel) / 1e3
+    kind = wall.kind
+    supports = getattr(wall, "supports", None) or []
+    if prop is None and supports:  # alpha 9 P1: propped at its highest support
+        prop, kind = (ground - max(s.level for s in supports)) / 1e3, "propped"
     loads = [float(x.pressure) for x in excavation.loads if x.pressure is not None]
     surcharge = wall.surcharge if wall.surcharge is not None else max(loads, default=None)
-    found = design_wall(soil, height, wall.kind, wall.earthSupport, prop, surcharge)
+    found = design_wall(soil, height, kind, wall.earthSupport, prop, surcharge)
     ref = clause("method")
     if not found["ok"]:
         return [

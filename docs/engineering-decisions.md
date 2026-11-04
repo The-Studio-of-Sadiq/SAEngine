@@ -76,6 +76,49 @@ practice where BNBC 2020 is silent**, except the non-building structures, which 
   H up to 0.5 m; the Eurocodes pack uses EN 1997-1 M2 strengths and q × 1.3. Wall sections,
   walers, struts and anchors stay with track P1.
 
+## 2026-11-04: staged excavation support and shoring (alpha 9 track P1)
+
+The pack's new `excavationSupport` table holds the method ids and values; BNBC 2020 asks for
+retained excavation sides and names sheet piles with tie-back anchors (Part 6 Sec 3.12, 3.16)
+without a method, so in the default pack each item is **SAEngine practice where BNBC 2020 is
+silent** (the 1.6H factor on the effects is BNBC's Sec 2.7.3.1). Every value is overridable in
+Code Values. P7's limit-equilibrium embedment check stays as it is; P1 adds rows only when an
+excavation's wall has a *wall type*, so existing projects keep their results.
+
+- **Staged analysis (SAEngine practice).** The wall per metre on elastic-plastic springs (at
+  rest to active behind, to passive in front, kh by Schmitt 1995 from the borehole's E or the
+  pack's correlation), Coulomb pressures with δa = 2/3 φ' and δp = 1/3 φ' (Coulomb passive is
+  taken no further than φ'/3, where it stays near the curved-surface values), hydrostatic water
+  both sides (front dewatered to the dig level), adjoining footings as Boussinesq strip loads.
+  Each stage is solved on the total deflection from the at-rest state (no unloading memory of
+  the soil); a support placed in a stage starts from the wall's deflection at that moment, which
+  is what carries the staging. A support that would pull drops out. The last stage takes P7's
+  unplanned overdig. Bored and diaphragm walls use 0.7 × the uncracked EI.
+- **Runs and factors.** The default pack: one characteristic run, effects × the pack's factor on
+  earth pressure (1.6H); the Eurocodes pack: DA1 C1 (characteristic, × 1.35) and C2 (M2
+  strengths, × 1.0), enveloped. Anchors' working loads come from the characteristic run.
+- **Sections.** Sheet piles from a nominal per-metre table (JIS U types, generic Z types; VERIFY
+  with the supplier), W fy / γM0 or φb Fy W (elastic); bored piles by the pack's P-M surface per
+  reinforced pile (secant: every second pile unless all are reinforced), pile shear by the pile
+  section rule (ACI packs) or the pack's one-way shear on bw = D, d = 0.8 D (others); diaphragm
+  walls by the retaining walls' strip design both faces; soldier piles by the pack's steel
+  member checks (braced at the supports) with timber lagging against the formwork rules'
+  allowable stress, the soil below the dig acting on 3 × the flange width.
+- **Supports.** Struts and rakers by the pack's steel member checks with the temperature force
+  (ΔT 15 °C, half restrained, × 1.0) and the self weight (× 1.2); a strut's stiffness from half
+  its length (symmetric pit). Walers continuous: M = w s²/10, V = 0.6 w s. Ground anchors by the
+  pack's standard (BS 8081 in the default pack, EN 1997-1 8 / EN 1537 in the Eurocodes pack, PTI
+  DC35.1 / FHWA GEC 4 in the US pack): tendon and bond factors, proof and lock-off loads, the
+  free length beyond the active wedge from the dig level plus max(0.2 H, 1.5 m), the fixed length
+  by the bond integrated along it.
+- **Base.** Basal heave of a cohesive base by Bjerrum and Eide (needs the outline), piping at the
+  toe by Harr's exit gradient Δh / (π d) (one wall in deep uniform soil; a flow net decides for
+  layered ground), the wall's deflection reported against 0.5 % H.
+- **Quantities and drawings.** The bill measures sheet piles (kg), bored and diaphragm walls'
+  concrete and bars, soldier piles, lagging, struts (one per two spacings: a strut joins two
+  walls), rakers, walers and anchors (number and drilled length, given or the pack's least);
+  the drawings add a section of each typed wall with its stages, supports and water table.
+
 ## 2026-11-04: display units, SI or US customary (alpha 9 track C13)
 
 - **Stored and computed in SI only** (owner, alpha 9 plan). Project Settings › Units (`units`)

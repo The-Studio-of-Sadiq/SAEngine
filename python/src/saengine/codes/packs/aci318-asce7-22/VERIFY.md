@@ -661,3 +661,14 @@ The floor vibration and pile values are the default pack's (see bnbc2020/VERIFY.
 | P7U3 | nonBuilding.types.signBillboard | R 3, Ω0 1.75, Cd 3 | ASCE 7-22 Table 15.4-2 | Check |
 | P7U4 | nonBuilding other types | as bnbc2020 NB4-NB13 | ASCE 7-22 Tables 15.4-1/-2 | Check (unchanged since 7-05?) |
 | P7U5 | nonBuilding.minimumCoefficient | 0.044 SDS Ie ≥ 0.03 | ASCE 7-22 Eq 15.4-1 | Sure |
+
+## Alpha 9 P1: excavation support
+
+| # | Path | Value | Source | Sure? |
+|---|---|---|---|---|
+| P1U1 | excavationSupport.anchors.tendonFactor | 1/0.6 (design load ≤ 0.6 fpu A) | PTI DC35.1, FHWA GEC No. 4 | Check |
+| P1U2 | excavationSupport.anchors.groundFactor | 2.0 on the bond | PTI DC35.1, FHWA GEC No. 4 | Check |
+| P1U3 | excavationSupport.anchors.proofFactor (permanent) | 1.33 DL (1.33) | FHWA GEC No. 4 (from memory; PTI may test permanent anchors higher) | Unsure |
+| P1U4 | excavationSupport.anchors.lockOffShare | 1.0 × DL | FHWA GEC No. 4 (75-100 % DL) | Check |
+| P1U5 | excavationSupport.anchors.freeLengthMin, fixedLengthMin, fixedLengthMax | 4.5 m, 4.5 m, 12 m | FHWA GEC No. 4 (strand tendons) | Check |
+| P1U6 | excavationSupport (rest) | as bnbc2020 ES1-ES31 (1.6H of ASCE 7-22 2.3) | SAEngine practice | see bnbc2020 |
