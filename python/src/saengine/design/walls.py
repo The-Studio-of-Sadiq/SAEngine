@@ -1097,9 +1097,16 @@ def wall_checks(
 
     # In-plane shear.
     phi_v = rc_value("PHI_SHEAR")
-    from saengine.design import tabulated_shear
+    from saengine.design import simplified_walls, tabulated_shear
 
-    if vu_case is not None and tabulated_shear.wall_rules() is not None:
+    if vu_case is not None and simplified_walls.rules() is not None:
+        # Alpha 9 C18b: in-plane shear by the aspect ratio (AS 3600 11.6 type).
+        out.checks.append(
+            simplified_walls.shear_row(
+                vu, t, lw, geometry.aspect * lw, fc, fy, rho_l, rho_t, vu_name
+            )
+        )
+    elif vu_case is not None and tabulated_shear.wall_rules() is not None:
         # Alpha 9 C8: in-plane shear by the aspect ratio (IS 456 32.4, IS 13920 for special
         # walls with the same τc), the horizontal bars Ah/Sv = ρt t.
         out.checks.append(
@@ -1197,7 +1204,10 @@ def wall_checks(
 
     # Empirical method (informative alternative to 6.6.4) and its least thickness.
     p_case = _largest(forces, lambda f: f.P)
-    if tabulated_shear.wall_rules() is not None:
+    if simplified_walls.rules() is not None:
+        # Alpha 9 C18b: the simplified method (AS 3600 11.5 type) in place of 6.6.5.
+        out.checks += simplified_walls.axial_rows(geometry, forces, fc, _k_factor(geometry))
+    elif tabulated_shear.wall_rules() is not None:
         # Alpha 9 C9b: the pack's empirical wall method (IS 456 32.2 type) in place of 6.6.5.
         out.checks += tabulated_shear.wall_axial_rows(geometry, forces, fc, _k_factor(geometry))
     elif p_case is not None and p_case.P > 0:

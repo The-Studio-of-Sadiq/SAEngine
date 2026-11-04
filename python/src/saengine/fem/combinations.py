@@ -193,6 +193,14 @@ def allowable_combinations(
     return [(name, cases) for name, cases, _row in _formed("allowable", present, kind)]
 
 
+def allowable_combination_rows(
+    present: set[str] | frozenset[str] | None = None,
+) -> list[tuple[str, dict[str, float], Any]]:
+    """Alpha 9 C19: :func:`allowable_combinations` with each combination's pack row (its id
+    tells a long-term row from a short-term one, ``allowableStress.longTerm``)."""
+    return _formed("allowable", present, _FLOOD_KIND.get())
+
+
 def strength_combinations(
     present: set[str] | frozenset[str] | None = None,
     flood: str | None = None,

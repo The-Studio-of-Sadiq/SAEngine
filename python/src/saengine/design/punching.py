@@ -714,8 +714,18 @@ def _result(
     notes: list[str],
 ) -> PunchingResult:
     vu, direct, g_u, g_v, combination = worst
-    from saengine.design import tabulated_shear
+    from saengine.design import moment_punching, tabulated_shear
 
+    if moment_punching.rules() is not None:
+        # Alpha 9 C18b: fcv with the moment reduction of Vuo (AS 3600 9.3 type), no λs.
+        fcv, shape, cap = moment_punching.strength(fc, beta)
+        notes = [*notes, moment_punching.note(fc, beta)]
+        phi_fcv = rc_value("PHI_SHEAR") * fcv
+        return PunchingResult(
+            section.location, section.b0, section.d, section.alpha_s, beta, vu, direct,
+            (g_u, g_v), combination, fcv, (cap, shape, shape), 1.0, phi_fcv, vu / phi_fcv,
+            notes=notes,
+        )  # fmt: skip
     if tabulated_shear.punching_rules() is not None:
         # Alpha 9 C8: ks τc on the same section (IS 456 31.6.3), no φ, no λs.
         allowed = tabulated_shear.punching_stress(fc, 1.0, beta)
@@ -757,8 +767,14 @@ def _tabulated_punching(result: PunchingResult) -> bool:
     """Alpha 9 C8: with the pack's ``rootStress`` punching SAEngine does not lay out shear
     reinforcement (the studs' and stirrups' rules here are the strength design's): a section
     short of ks τc fails, with the limit of the reinforced section noted."""
-    from saengine.design import tabulated_shear
+    from saengine.design import moment_punching, tabulated_shear
 
+    if moment_punching.rules() is not None:  # Alpha 9 C18b
+        result.notes.append(
+            "closed fitments or shearheads may raise Vu (the code's Vu.max): not laid out by "
+            "SAEngine under this method, thicken the slab, add a drop panel or enlarge the column"
+        )
+        return True
     p = tabulated_shear.punching_rules()
     if p is None:
         return False
@@ -796,9 +812,19 @@ def slab_punching(
     if not section.pieces or not demands:
         return None
     beta = max(c1, c2) / min(c1, c2)
+    from saengine.design import moment_punching
+
+    transfer = moment_punching.rules()  # Alpha 9 C18b: the moment term M*v / (8 a d²)
     worst = None
     for demand in demands:
-        v, direct, g_u, g_v = section.stress(max(demand.vu, 0.0), demand.m_u, demand.m_v)
+        if transfer is not None:
+            v, direct = moment_punching.stress(
+                section.b0, section.d, section.widths, max(demand.vu, 0.0), demand.m_u,
+                demand.m_v, transfer,
+            )  # fmt: skip
+            g_u = g_v = 0.0
+        else:
+            v, direct, g_u, g_v = section.stress(max(demand.vu, 0.0), demand.m_u, demand.m_v)
         if worst is None or v > worst[0]:
             worst = (v, direct, g_u, g_v, demand.combination)
     assert worst is not None
@@ -889,9 +915,21 @@ def footing_punching(
     jc_v = d * b1v**3 / 6 + b1v * d**3 / 6 + d * b1u * b1v**2 / 2
     g_u = 1 - 1 / (1 + (2 / 3) * math.sqrt(b1u / b1v))
     g_v = 1 - 1 / (1 + (2 / 3) * math.sqrt(b1v / b1u))
+    from saengine.design import moment_punching
+
+    transfer = moment_punching.rules()  # Alpha 9 C18b: the moment term M*v / (8 a d²)
+    if transfer is not None:
+        g_u = g_v = 0.0
     worst = None
     for name, pu, m_about_u, m_about_v, relief in demands:
         vu = max(pu - relief(cu0, cu1, cv0, cv1), 0.0)
+        if transfer is not None:
+            stress = moment_punching.stress(b0, d, (b1u, b1v), vu, m_about_v, m_about_u, transfer)[
+                0
+            ]
+            if worst is None or stress > worst[0]:
+                worst = (stress, vu / (b0 * d), g_u, g_v, name)
+            continue
         # A moment about v bends the footing along u, as in design_footing.
         stress = vu / (b0 * d) + g_u * abs(m_about_v) * (b1u / 2) / jc_u
         stress += g_v * abs(m_about_u) * (b1v / 2) / jc_v

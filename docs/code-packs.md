@@ -751,6 +751,22 @@ The generic keys they add, open to any pack (a pack without them behaves as befo
 | `concreteMethods.ultimate.relations.<relation>.steps` | (fck up to, value) bands in place of base and the high relation (stress block depth, εcu, ...) |
 | `concreteMethods.ultimate.neutralAxisSteps` | (fck up to, xu/d) bands of the neutral axis limit where the grade is known |
 
+### Japan (alpha 9 C19)
+
+`japan-bsl` (Building Standard Law Enforcement Order Art. 82-91, MOC/MLIT Notifications 1454,
+1455, 1792, 1793, AIJ RC and steel standards) extends `aci318-asce7-22`; README and VERIFY.md
+in the pack. The generic keys it adds, open to any pack (a pack without them behaves as before):
+
+| Key | What |
+| --- | --- |
+| `seismic.designSpectrum.method` `standardShearCoefficient` with `shearCoefficient` | C = Z Rt C0 I / R (Rt of T and the site class's TC: plateau, parabolic transition, longFactor TC/T), C0 of the primary design and of the ultimate check (`fem/shear_coefficient.py`) |
+| `seismic.lateralForce.distribution` `shearCoefficientAi` | storey shears Qi = V Ai αi, Ai = 1 + (1/√αi - αi) k T / (1 + m T) |
+| `seismic.liveWeight` `byUse` with `areaLoads.uses[].seismicLive` | each use's live load counts in W as seismicLive / live |
+| `liveReduction.method` `frameValue` with `areaLoads.uses[].frameLive` | beams and columns take frameLive / live of the floor's use |
+| `wind.exposures.<id>.gustByHeight` | G by the building's height per exposure (`fem.loads.gust_factor`) |
+| table `allowableStress` (method `elasticSection`) | long-term / short-term allowable stress rows of RC beams and columns (cracked elastic section, allowable shear with α) and steel members, under `combinations.allowable`, `longTerm` naming the long-term rows (`design/allowable_stress.py`) |
+| table `horizontalCapacity` (method `requiredCapacity`) | Qu (pushover, at `capacityDrift`) >= Qun = Ds Fes Qud per storey; Ds by material, rank and βu; Fs, Fe of Rs, Re; member ranks and the mean shear strength (`fem/horizontal_capacity.py`, `design/member_rank.py`) |
+
 ### Canada and Mexico City (alpha 9 C17)
 
 | Pack | Extends | What it sets |

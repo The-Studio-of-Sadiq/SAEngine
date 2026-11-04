@@ -5,7 +5,7 @@
   "edition": "AS/NZS 1170 + NZS 1170.5:2004 + NZS 3101:2006 A3 + NZS 3404",
   "country": "NZ",
   "units": "SI",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "extends": "australia-as",
   "covers": [
     "locations",
@@ -15,7 +15,8 @@
     "materials",
     "factors",
     "concrete",
-    "steelLimitState"
+    "steelLimitState",
+    "designClauses"
   ],
   "description": "The New Zealand Standards (alpha 9 track C18), a pack that extends the Australian pack where the joint standards are equal: AS/NZS 1170.0, 1170.1 and 1170.2:2021 (the combinations, imposed actions and wind, the New Zealand wind regions NZ1-NZ4 in the towns) and the steel members (NZS 3404 Part 1 has the member rules of AS 4100: φ 0.9, αc with αb, αm αs). Its own: NZS 1170.5:2004 earthquake actions (Z of the towns, site subsoil classes A-E with the spectral shape factor Ch(T), the near-fault factor N(T,D), the return period factor R, Sp and kμ from the structural ductility factor μ, Cd(T) = C(T) Sp/kμ with its least values, the equivalent static method with Ft = 0.08 V and the modal method, the 2.5 % drift limit) and NZS 3101:2006 A3 concrete (φ 0.85 for flexure with or without axial force, shear and torsion 0.75, the axial cap 0.85 φ N0, the stress block α1 and β1, vc = (0.07 + 10 ρw) √f'c, Ec = 4700 √f'c, the 500E bars HD10-HD40, the overstrength factor λo 1.25 of 500E in the capacity design the program makes for ductile members). Not covered and taken from the parent packs (named so): the NZS 3101 ductile detailing and capacity design beyond the program's probable-moment rules (Appendix D dynamic magnification, the ductile wall rules of 11.4), NZS 3404 Section 12 seismic categories, punching, torsion, walls, footings, connections, masonry and timber. Every value names its clause; VERIFY.md lists them, with the uncertain ones.",
   "sources": [
@@ -37,7 +38,8 @@
     "materials": ["NZS 3101:2006 7.4.2.7, 10.3.4.2"],
     "factors": ["NZS 3101:2006 2.3.2.2, 10.3.4.2"],
     "concrete": ["NZS 3101:2006 5.2.3, 8.8.1, 9.3.9.3.4, 10.3.8.1; AS/NZS 4671"],
-    "steelLimitState": ["NZS 3404 Part 1 Sections 5-8 (the AS 4100 rules of the Australian pack)"]
+    "steelLimitState": ["NZS 3404 Part 1 Sections 5-8 (the AS 4100 rules of the Australian pack)"],
+    "designClauses": ["NZS 3101:2006 2.4.2, 4, 7.6, 10.3.10, 12.7; NZS 1170.5 5.3.1.2"]
   },
   "basis": {
     "general": "AS/NZS 1170.0, 1170.1, 1170.2:2021, NZS 1170.5:2004",
@@ -58,7 +60,9 @@
     "factors": "NZS 3101:2006",
     "concrete": "NZS 3101:2006",
     "concreteMethods": "NZS 3101:2006",
-    "steelLimitState": "NZS 3404"
+    "steelLimitState": "NZS 3404",
+    "designClauses": "NZS 3101:2006",
+    "designClauses.check.accidentalTorsion": "NZS 1170.5"
   },
   "author": "SAEngine contributors",
   "licence": "AGPL-3.0-only",

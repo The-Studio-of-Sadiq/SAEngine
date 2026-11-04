@@ -163,3 +163,52 @@ SAEngine practice (not a code value) is marked **P**.
 | 128 | Restraint force 2.5 % | 6.6.3 | U |
 
 128 entries.
+
+## Alpha 9 C18b (the remainder)
+
+| # | Value | Clause | |
+| --- | --- | --- | --- |
+| C18b-1 | Torsion: Jt = 0.33 x² y (rectangle, the slab not counted) | AS 3600:2018 8.3.3 | |
+| C18b-2 | Tuc = 0.3 Jt √f'c | 8.3.5 | U |
+| C18b-3 | Torsion neglected where T* < 0.25 φTuc | 8.3.4(a)(i) | |
+| C18b-4 | No torsion reinforcement where T*/(φTuc) + V*/(φVuc) <= 0.5 (the 1.0 of shallow members not used) | 8.3.4(a)(ii), (iii) | U |
+| C18b-5 | Web crushing T*/(φTu.max) + V*/(φVu.max) <= 1.0, Tu.max = 0.2 f'c Jt | 8.3.3 | |
+| C18b-6 | Tus = fsy.f (Asw/s) 2 At cot θv, At inside the corner bars' centres, cot θv 1.376 (θv 36°) | 8.3.5(b) | |
+| C18b-7 | Closed ties at most min(0.12 ut, 300 mm) apart | 8.3.8 | U |
+| C18b-8 | ΔAl = T* ut cot θv / (2 φ At fsy) (space truss form, informative) | 8.3.6 | U |
+| C18b-9 | The torsion links shared linearly with the shear beyond φVuc | 8.3.4(b) | P |
+| C18b-10 | φ torsion 0.75 (the shear's) | Table 2.2.2 | |
+| C18b-11 | Punching: fcv = 0.17 (1 + 2/βh) √f'c <= 0.34 √f'c, σcp = 0 | 9.3.3 | |
+| C18b-12 | Vuo = u dom fcv on the perimeter at dom/2 | 9.3.1, 9.3.3 | |
+| C18b-13 | Vu = Vuo / (1 + u M*v / (8 V* a dom)), both directions' moments added | 9.3.4(a) | P (the addition) |
+| C18b-14 | Closed fitments and shearheads not laid out (the slab fails, the note says so) | 9.3.4(b)-(d), 9.3.5 | P |
+| C18b-15 | Clause numbers 9.3 (punching), 8.3 (torsion) of the 2018 edition | 2018 numbering | U |
+| C18b-16 | Walls simplified: φNu = φ (tw - 1.2 e - 2 ea) 0.6 f'c, ea = Hwe²/(2500 tw), e >= 0.05 tw | 11.5.3 | |
+| C18b-17 | φ = 0.65 of the simplified wall method | Table 2.2.2 | U |
+| C18b-18 | Hwe/tw <= 30; Hwe = 0.75 Hw restrained at both ends, else SAEngine's bracing factor | 11.4, 11.5.1 | U |
+| C18b-19 | Wall shear: Vuc = (0.66 - 0.21 Hw/Lw) √f'c 0.8 Lw tw (Hw/Lw <= 1) | 11.6.3 | |
+| C18b-20 | Hw/Lw > 1: the lesser with (0.05 + 0.1/(Hw/Lw - 1)) √f'c 0.8 Lw tw, at least 0.17 √f'c 0.8 Lw tw | 11.6.3 | U |
+| C18b-21 | Vus = ρw fsy 0.8 Lw tw (ρw the lesser ratio for Hw/Lw <= 1, the horizontal one above); Vu <= 0.2 f'c 0.8 Lw tw; φ 0.75 | 11.6.2, 11.6.4 | |
+| C18b-22 | The simplified wall axial row informative (the P-M3-M2 surface governs) | 11.5.1 | P |
+| C18b-23 | Mh = 1.0 for H/(2Lu) < 0.05 | AS/NZS 1170.2:2021 4.4.2 | |
+| C18b-24 | Mh = 1 + H/(3.5 (z + L1)) (1 - abs(x)/L2) for 0.05 <= H/(2Lu) < 0.45 | 4.4.2 | |
+| C18b-25 | Mh = 1 + 0.71 (1 - abs(x)/L2) from H/(2Lu) 0.45, taken at every height (the separation zone's) | 4.4.2 | P (all heights) |
+| C18b-26 | L1 = max(0.36 Lu, 0.4 H); L2 = 4 L1 upwind and for hills and ridges, 10 L1 downwind of escarpments | 4.4.2 | |
+| C18b-27 | Mlee = 1, the elevation term 1 (Mt = Mh) | 4.4.1 | P |
+| C18b-28 | Cdyn = [1 + 2 Ih √(gv² Bs + Hs gR² S Et/ζ)] / (1 + 2 gv Ih), for n1 < 1 Hz | 6.2.2 | |
+| C18b-29 | gv = 3.7, Lh = 85 (h/10)^0.25, Bs with 0.26 h² + 0.46 b² (s = 0, Hs = 1) | 6.2.2 | |
+| C18b-30 | S = 1/((1 + 3.5 na h/V̄h)(1 + 4 na b/V̄h)), V̄h = Vdes,h/(1 + gv Ih) | 6.2.2 | |
+| C18b-31 | Et = π N/(1 + 70.8 N²)^(5/6), N = na Lh/V̄h, gR = √(2 ln(600 na)) | 6.2.2 | |
+| C18b-32 | Ih TC1 at 5, 10, 15, 20, 30, 40, 50, 75, 100, 150, 200 m: 0.165 0.157 0.152 0.147 0.140 0.133 0.128 0.118 0.108 0.095 0.085 | Table 6.1 | U (2011 table) |
+| C18b-33 | Ih TC2: 0.196 0.183 0.176 0.171 0.162 0.156 0.151 0.140 0.131 0.117 0.107 | Table 6.1 | U |
+| C18b-34 | Ih TC3: 0.271 0.239 0.225 0.215 0.203 0.195 0.188 0.176 0.166 0.150 0.139 | Table 6.1 | U |
+| C18b-35 | Ih TC4: 0.342 (to 20 m) 0.305 0.285 0.270 0.248 0.233 0.210 0.196 | Table 6.1 | U |
+| C18b-36 | ζ = 0.05 unless the project gives the damping | 6.2.2 | P |
+| C18b-37 | Cdyn (one value at h) on the design pressure of every level | 6.2.2 | P |
+| C18b-38 | EDC by height: IL1 I; IL2 to 12 m I, to 50 m II, above III; IL3 to 50 m II, above III; IL4 to 12 m II, above III | AS 1170.4 2.2, Table 2.1 | U (kp Z and the site class not entered) |
+| C18b-39 | EDC I: Fi = 0.1 Wi at each level in place of the equivalent static method | AS 1170.4 5.3 | U |
+| C18b-40 | EDC III: the dynamic analysis asked (a note where only the static cases ran) | AS 1170.4 2.2, 5.5, Section 7 | |
+| C18b-41 | The category by height where the analysis knows hn; the design checks and Project Settings keep the zone rows | - | P |
+| C18b-42 | Clause references: torsion 8.3, deflection 2.3.2 and 8.5.3, accidental eccentricity AS 1170.4 6.6, fire Section 5, punching 9.3 and 9.3.1; column shear, wind cases, pattern live load and Ω0 named without a clause (the parent's methods) | designClauses | U |
+
+42 more entries (170 in all).

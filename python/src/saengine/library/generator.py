@@ -80,7 +80,8 @@ def _live_in_w(settings: Any) -> str:
     the analysis model counts them, :func:`saengine.library.settings.seismic_weight_rule`)."""
     rule = seismic_weight_rule(settings)
     floor = next((a for a in settings.areaLoads if a.id == settings.floorLoad), None)
-    live = rule.live(floor.live if floor is not None else None)
+    # Alpha 9 C19: the share of the floor's use where the pack counts W by use.
+    live = rule.live(floor.live, floor.use) if floor is not None else rule.live(None)
     return f"{live:.0%} of the floor live load, {rule.partitions.words()}"
 
 
@@ -1499,9 +1500,9 @@ def _generate_building(s: BuildingSpec, settings: Any) -> dict[str, Any]:
     q_roof_partitions = roof_load.floor_live(part_case) - roof_load.live
     # The floor live load and partition allowance [kN/m²] in the seismic weight W beyond the
     # superimposed dead load counted in the levels' dead load (settings.seismic_weight_rule).
-    q_floor_weight = seismic_weight_rule(final).weight(floor_load.live, floor_load.partitions) - (
-        floor_load.partitions if part_case == "SD" else 0.0
-    )
+    q_floor_weight = seismic_weight_rule(final).weight(
+        floor_load.live, floor_load.partitions, floor_load.use
+    ) - (floor_load.partitions if part_case == "SD" else 0.0)
     notes.append(
         f"Seismic Design Category {sdc or '-'} (zone {zone or '-'}, site class "
         f"{final.site.siteClass}"

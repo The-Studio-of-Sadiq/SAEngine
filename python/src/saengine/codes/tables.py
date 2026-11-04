@@ -211,6 +211,19 @@ class AreaUse(_Row):
         description="The code's category of use (A, B, C1 ...), where the code groups the uses "
         "(the area-and-storeys reduction reads it); empty: none.",
     )
+    # Alpha 9 C19 (BSL Enforcement Order Art. 85: the floor live load for slabs, for frames and
+    # for the seismic force separately): the use's live load on the frames (beams, columns,
+    # foundations; liveReduction method frameValue) and in the seismic weight (seismic
+    # liveWeight byUse); empty: the live load.
+    frameLive: float | None = Field(
+        default=None, ge=0, description="Live load of the frames [kN/m²] (empty: live)."
+    )
+    seismicLive: float | None = Field(
+        default=None,
+        ge=0,
+        description="Live load in the seismic weight [kN/m²] (empty: by "
+        "the seismic table's liveShare).",
+    )
 
 
 class RoofLiveRow(_Row):
@@ -617,6 +630,28 @@ class DesignCategories(BaseModel):
     #: not numbered 1, 2, ... (a zone 0 without seismic action, more zones than columns);
     #: empty: zone n takes column n - 1.
     zoneColumns: dict[str, int] = Field(default_factory=dict)
+    # Alpha 9 C18b (AS 1170.4 Table 2.1 type: the earthquake design category by the
+    # structure's height hn): group -> (hn up to [m], category) rows, the first row whose
+    # height holds (None: any height), in place of the zone rows where the analysis knows hn.
+    byHeight: dict[str, list[tuple[float | None, str]]] = Field(default_factory=dict)
+    #: Categories designed by a simple static force Fi = share × Wi at every level (AS 1170.4
+    #: Section 5 type), in place of the equivalent static method: category -> share.
+    simpleStatic: dict[str, float] = Field(default_factory=dict)
+    #: Categories for which the code asks for the dynamic (modal) analysis: the run says so
+    #: where the equivalent static method was used (AS 1170.4 2.2 / Section 7 type).
+    dynamicRequired: list[str] = Field(default_factory=list)
+
+
+def height_category(table: DesignCategories, group: str, height: float) -> str | None:
+    """Alpha 9 C18b: the category of ``group`` at the structure's height ``height`` [m] by
+    the pack's ``byHeight`` rows; None when the pack gives none for the group."""
+    rows = table.byHeight.get(group)
+    if not rows:
+        return None
+    for up_to, category in rows:
+        if up_to is None or height <= float(up_to):
+            return category
+    return rows[-1][1]
 
 
 def category_column(table: DesignCategories, zone: Any, count: int) -> int:
@@ -1256,6 +1291,32 @@ class Ubc97Rule(BaseModel):
         return self
 
 
+class ShearCoefficientRule(BaseModel):
+    """Alpha 9 C19: the standard shear coefficient method (BSL Enforcement Order Art. 88, MLIT
+    Notification 1793 type): the storey shear Qi = Ci ΣWi, Ci = Z Rt Ai C0 (the design spectrum
+    method ``standardShearCoefficient``, :mod:`saengine.fem.shear_coefficient`).
+
+    Rt (the vibration characteristic factor) of the period T and the site class's corner TC:
+    1 while T < TC, 1 - ``transition`` (T/TC - 1)² up to ``transitionEnd`` TC, ``longFactor``
+    TC / T beyond. Ai (the distribution of the storey shear coefficient over the height) of
+    αi = the weight above storey i over the total: 1 + (1/√αi - αi) ``aiNumerator`` T / (1 +
+    ``aiDenominator`` T), when the lateral force distribution is ``shearCoefficientAi``. C0 the
+    standard shear coefficient of the primary design (``standardCoefficient``) and of the
+    required horizontal capacity (``ultimateCoefficient``)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    standardCoefficient: Positive = Field(description="C0 of the primary design.")
+    ultimateCoefficient: Positive = Field(description="C0 of the required horizontal capacity.")
+    transition: float = Field(ge=0)
+    transitionEnd: Positive = Field(description="× TC: the end of the parabolic transition.")
+    longFactor: Positive
+    least: float = Field(default=0.0, ge=0, description="Rt at least this.")
+    aiNumerator: Positive
+    aiDenominator: Positive
+    clauses: dict[str, str] = Field(default_factory=dict)
+
+
 class ShapeFactorsRule(BaseModel):
     """Alpha 9 C18: the terms of the method ``shapeFactors`` (AS 1170.4 Section 6, NZS 1170.5
     Section 5 type, :mod:`saengine.fem.spectra`): Cd(T) = (Z I) Ch(T) N(T, D) Sp / kμ, the
@@ -1375,6 +1436,7 @@ class DesignSpectrumRule(BaseModel):
         "mappedSpectral",
         "ubc97",
         "ductilityOverstrength",
+        "standardShearCoefficient",
         "shapeFactors",
         "influenceCoefficient",
     ] = "reducedElastic"
@@ -1447,6 +1509,8 @@ class DesignSpectrumRule(BaseModel):
     ordinates: SpectrumOrdinates | None = None
     # Alpha 9 C17: the method ductilityOverstrength (NTC-Sismo CDMX type).
     ductility: DuctilityOverstrength | None = None
+    # Alpha 9 C19: the method standardShearCoefficient (Ci = Z Rt Ai C0).
+    shearCoefficient: ShearCoefficientRule | None = None
     # Alpha 9 C18: the terms of the shapeFactors method.
     shapeFactors: ShapeFactorsRule | None = None
     # Alpha 9 C20: the terms of the influenceCoefficient method.
@@ -1461,6 +1525,10 @@ class DesignSpectrumRule(BaseModel):
             raise ValueError("the design spectrum method ubc97 needs its ubc97 block (Ca, Cv)")
         if self.method == "ductilityOverstrength" and self.ductility is None:
             raise ValueError("ductilityOverstrength: the method needs its 'ductility' block")
+        if self.method == "standardShearCoefficient" and self.shearCoefficient is None:
+            raise ValueError(
+                "standardShearCoefficient: the method needs its 'shearCoefficient' block"
+            )
         if self.method == "shapeFactors" and self.shapeFactors is None:
             raise ValueError("the design spectrum method shapeFactors needs its shapeFactors block")
         return self
@@ -1487,8 +1555,12 @@ class LateralForceRule(BaseModel):
     correction: float = Field(default=1.0, gt=0, le=1)
     periodTcFactor: float | None = Field(default=None, gt=0)
     minStoreys: int = Field(default=0, ge=0)
-    # C7: "heightSquared" (IS 1893 7.6.3, Qi ∝ Wi·hi² whatever the period).
-    distribution: Literal["heightPower", "linear", "heightSquared"] = "heightPower"
+    # C7: "heightSquared" (IS 1893 7.6.3, Qi ∝ Wi·hi² whatever the period). Alpha 9 C19:
+    # "shearCoefficientAi" (the storey shear Qi = V Ai αi, Ai of the design spectrum's
+    # shearCoefficient block, BSL Art. 88 type).
+    distribution: Literal["heightPower", "linear", "heightSquared", "shearCoefficientAi"] = (
+        "heightPower"
+    )
     minimumShare: dict[int, Annotated[float, Field(gt=0, lt=1)]] = Field(
         default_factory=dict,
         description="C7: least base shear V / W by seismic zone (IS 1893 Table 7); empty: none.",
@@ -1663,6 +1735,14 @@ class SeismicTable(TableModel):
     heavyLiveShare: float | None = Field(
         default=None, ge=0, le=1, description="Share of a heavy live load in the seismic weight."
     )
+    # Alpha 9 C19 (BSL Enforcement Order Art. 85: the floor live load for the seismic force):
+    # "byUse" counts each floor's live load in W as its use's seismicLive / live (areaLoads),
+    # liveShare where the use gives none; "share" (default) liveShare and the heavy rule.
+    liveWeight: Literal["share", "byUse"] = Field(
+        default="share",
+        description="share: liveShare (and the heavy-live rule); byUse: the share of each use's "
+        "seismicLive over its live load (areaLoads), liveShare where it gives none.",
+    )
     partitionWeight: Literal["full", "withLiveShare"] | None = Field(
         default=None,
         description="How the area loads' partition allowance counts in the seismic weight: "
@@ -1794,6 +1874,14 @@ class Exposure(_Row):
     # the table's kzFactor and kzMinHeight.
     kzFactor: float | None = Field(default=None, gt=0, description="Factor of Kz.")
     kzMinHeight: float | None = Field(default=None, gt=0, description="Kz below this [m].")
+    # Alpha 9 C19 (MLIT Notification 1454: Gf by terrain category and the building's height
+    # H, linear between H 10 m and 40 m): the gust factor of this exposure by height; empty:
+    # the table's gust.
+    gustByHeight: list[tuple[Annotated[float, Field(ge=0)], Positive]] | None = Field(
+        default=None,
+        description="(building height H [m], G) points, linear between, the end values "
+        "outside; empty: the table's gust.",
+    )
 
 
 class WindDesignCasesRow(_Row):
@@ -2389,6 +2477,31 @@ class SlopeTopography(_Row):
     )
 
 
+class HillShapeRules(_Row):
+    """Alpha 9 C18b: k3 by the hill-shape multiplier of a hill, ridge or escarpment at the
+    height z of each level (the AS/NZS 1170.2 4.4.2 form, :func:`saengine.fem.
+    wind_speed_factors.hill_shape_factor`), from the project's topography (H the feature's
+    height, Lu = the settings' half-height distance Lh, x the distance from the crest):
+
+    - H / (2 Lu) below ``flatRatio``: k3 = 1;
+    - up to ``steepRatio``: k3 = 1 + H / (divisor (z + L1)) (1 - |x| / L2);
+    - from ``steepRatio``: k3 = 1 + ``steepSpeedUp`` (1 - |x| / L2) (the separation zone's
+      value, taken at every height: on the safe side);
+
+    L1 = max(a Lu, b H) (``l1Shares``), L2 = ``upwindL2`` L1 upwind of the crest and for hills
+    and ridges, ``escarpmentDownwindL2`` L1 downwind of an escarpment; k3 = 1 beyond L2."""
+
+    flatRatio: float = Field(gt=0, description="H/(2 Lu) below this: no speed-up.")
+    steepRatio: float = Field(gt=0, description="H/(2 Lu) from this: the steep form.")
+    divisor: float = Field(gt=0, description="k3 = 1 + H / (divisor (z + L1)) (1 - |x|/L2).")
+    steepSpeedUp: float = Field(gt=0, description="k3 = 1 + this (1 - |x|/L2) when steep.")
+    l1Shares: tuple[float, float] = Field(description="L1 = max(a Lu, b H): (a, b).")
+    upwindL2: float = Field(gt=0, description="L2 = this × L1 (upwind; hills and ridges).")
+    escarpmentDownwindL2: float = Field(
+        gt=0, description="L2 = this × L1 downwind of an escarpment."
+    )
+
+
 class GustFactorRules(_Row):
     """The gust factor method of tall or flexible buildings (:mod:`saengine.fem.gust_response`):
     G = 1 + r √(gv² Bs (1 + φ)² + Hs gR² S E / β), the along-wind force F = Cf Ae p̄ G with the
@@ -2396,15 +2509,33 @@ class GustFactorRules(_Row):
 
     heightRatio: float = Field(gt=0, description="Applies when h / b exceeds this ...")
     frequencyLimit: float = Field(gt=0, description="... or the first frequency is below [Hz].")
-    meanFactors: dict[str, list[tuple[float, float]]] = Field(
-        description="k̄2: terrain -> (height [m], hourly mean speed factor) points."
+    # Alpha 9 C18b: the form of the factor. "gustFactor" (the default, IS 875 (Part 3) type):
+    # G on the hourly mean pressure as above. "dynamicResponse" (AS/NZS 1170.2 Section 6
+    # type): Cdyn = [1 + 2 Ih √(gv² Bs + Hs gR² S Et / ζ)] / (1 + 2 gv Ih) on the design
+    # (gust) pressure at every level, the mean speed V̄h = Vdes,h / (1 + gv Ih), Ih from
+    # ``turbulencePoints``; meanFactors, roughness, turbulence and terrainShares not used.
+    form: Literal["gustFactor", "dynamicResponse"] = Field(
+        default="gustFactor",
+        description="gustFactor (G on the mean pressure) or "
+        "dynamicResponse (Cdyn on the design pressure).",
     )
-    roughness: dict[str, float] = Field(description="z0 [m] by terrain.")
-    turbulence: tuple[float, float, float, float] = Field(
-        description="(a1, b1, a4, b4): I1 = a1 - b1 log10(z/z0,1), I4 = a4 - b4 log10(z/z0,4)."
+    turbulencePoints: dict[str, list[tuple[float, float]]] = Field(
+        default_factory=dict,
+        description="Iz: terrain -> (height [m], turbulence intensity) points, linear between, "
+        "constant outside (the dynamicResponse form).",
+    )
+    meanFactors: dict[str, list[tuple[float, float]]] = Field(
+        default_factory=dict,
+        description="k̄2: terrain -> (height [m], hourly mean speed factor) points.",
+    )
+    roughness: dict[str, float] = Field(default_factory=dict, description="z0 [m] by terrain.")
+    turbulence: tuple[float, float, float, float] | None = Field(
+        default=None,
+        description="(a1, b1, a4, b4): I1 = a1 - b1 log10(z/z0,1), I4 = a4 - b4 log10(z/z0,4).",
     )
     terrainShares: dict[str, float] = Field(
-        description="I = I1 + share (I4 - I1) by terrain (0 for the first, 1 for the last)."
+        default_factory=dict,
+        description="I = I1 + share (I4 - I1) by terrain (0 for the first, 1 for the last).",
     )
     peakFactor: float = Field(gt=0, description="gv, the peak factor of the upwind velocity.")
     scaleCoefficients: dict[str, float] = Field(
@@ -2468,6 +2599,8 @@ class SpeedFactors(_Row):
     # Alpha 9 C12: k3 from the site's slope, and the gust factor method of tall buildings.
     topography: SlopeTopography | None = None
     gustFactor: GustFactorRules | None = None
+    # Alpha 9 C18b: k3 by the hill-shape multiplier at each height (AS/NZS 1170.2 4.4.2 type).
+    hillShape: HillShapeRules | None = None
     # Alpha 9 C23: codes that tabulate the design pressure by height (the Hong Kong Code of
     # Practice on Wind Effects type) instead of a basic speed and k2.
     referencePressures: dict[str, list[tuple[float, Positive]]] | None = Field(
@@ -6034,7 +6167,9 @@ class LiveReductionTable(TableModel):
     or (C4, ``method`` areaAndStoreys) by the loaded area and the number of storeys, or (C7,
     ``floorCount``) by the number of floors carried."""
 
-    method: Literal["influenceArea", "areaAndStoreys", "floorCount"] = "influenceArea"
+    # Alpha 9 C19: "frameValue" (BSL Enforcement Order Art. 85: the beams and columns take
+    # the use's live load for frames, areaLoads.uses[].frameLive, in place of the slabs' one).
+    method: Literal["influenceArea", "areaAndStoreys", "floorCount", "frameValue"] = "influenceArea"
     areaAndStoreys: AreaAndStoreys | None = None
     floorCount: FloorCountReduction | None = None
     influenceMin: Positive | None = Field(
@@ -6085,6 +6220,8 @@ class LiveReductionTable(TableModel):
         if self.method == "floorCount":
             if self.floorCount is None:
                 raise ValueError("floorCount: the method needs its rows")
+            return self
+        if self.method == "frameValue":  # Alpha 9 C19: the uses' frameLive
             return self
         names = ("influenceMin", "constant", "coefficient", "minOneFloor", "minFloors")
         missing = [n for n in (*names, "heavyFactor", "kll") if getattr(self, n) is None]
@@ -11253,6 +11390,10 @@ class SnowTable(TableModel):
 # imperfection (and the steel groups of steelLimitState, in limit_state_tables).
 # Alpha 9 C9: steel by limit state design with partial factors and buckling curves.
 from saengine.codes.bar_schedule_tables import BarScheduleTable  # C14
+from saengine.codes.capacity_tables import (  # C19
+    AllowableStressTable,
+    HorizontalCapacityTable,
+)
 from saengine.codes.excavation_tables import ExcavationSupportTable  # P1: staged excavations
 from saengine.codes.limit_state_tables import SteelLimitStateTable
 from saengine.codes.material_method_tables import (
@@ -11355,6 +11496,9 @@ TABLE_MODELS: dict[str, type[TableModel]] = {
     "barSchedule": BarScheduleTable,
     # Alpha 9 P1: staged excavations, their walls and supports.
     "excavationSupport": ExcavationSupportTable,
+    # Alpha 9 C19: allowable stress design of members, the storeys' horizontal capacity.
+    "allowableStress": AllowableStressTable,
+    "horizontalCapacity": HorizontalCapacityTable,
 }
 
 

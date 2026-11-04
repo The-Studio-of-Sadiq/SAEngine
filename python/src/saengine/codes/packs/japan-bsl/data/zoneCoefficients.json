@@ -1,0 +1,9 @@
+{
+  "$schema": "../../../schemas/zoneCoefficients.schema.json",
+  "$replace": true,
+  "$sources": [
+    "MOC Notification No. 1793 of 1980 Art. 1: the seismic zone factor Z of the regions (1) to (4)"
+  ],
+  "source": "N1793 Art. 1: Z = 1.0, 0.9, 0.8 and 0.7 (Okinawa); SAEngine numbers the zones by severity (zone 4 the Z = 1.0 region), the towns carry the label 'Z = ...'",
+  "zones": {"1": 0.7, "2": 0.8, "3": 0.9, "4": 1.0}
+}

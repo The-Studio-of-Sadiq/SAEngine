@@ -251,9 +251,13 @@ def zone_of(z: float | None) -> int | None:
     return min(zones, key=lambda k: abs(zones[k] - z))
 
 
-def seismic_design_category(zone: int | None, site_class: str, occupancy: str) -> str | None:
+def seismic_design_category(
+    zone: int | None, site_class: str, occupancy: str, height: float | None = None
+) -> str | None:
     """Table 6.2.18 (p. 617): "B", "C" or "D"; None without a zone. From the code pack in
-    force (``seismic.designCategories``); a site class without a row takes the last row (SE)."""
+    force (``seismic.designCategories``); a site class without a row takes the last row (SE).
+    Alpha 9 C18b: with the structure's ``height`` hn [m] and the pack's ``byHeight`` rows of
+    the occupancy's group, the category of those rows."""
     if zone is None:
         return None
     table = code_context.table("seismic").designCategories
@@ -261,8 +265,12 @@ def seismic_design_category(zone: int | None, site_class: str, occupancy: str) -
     site = table.aliases.get(site_class, site_class)
     row = rows.get(site) or rows.get("SE") or list(rows.values())[-1]
     group = table.occupancyGroups.get(occupancy) or next(iter(row))
-    from saengine.codes.tables import category_column  # Alpha 9 C15
+    from saengine.codes.tables import category_column, height_category  # Alpha 9 C15, C18b
 
+    if height is not None:
+        by_height = height_category(table, group, float(height))
+        if by_height is not None:
+            return by_height
     return row[group][category_column(table, zone, len(row[group]))]
 
 

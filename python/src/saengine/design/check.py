@@ -37,11 +37,13 @@ import numpy as np
 
 from saengine.codes import context as code_context
 from saengine.design import (
+    allowable_stress,
     column_shear,
     compression_field_shear,
     deep_beams,
     design_strength,
     live_reduction,
+    member_rank,
     method_selection,
     rc_detailing,
     seismic_rules,
@@ -919,6 +921,11 @@ def _design_run(
                 continue
             if object_type.kind == "beam":
                 _steel_deflection(entry, own, service, project, object_type)  # B9
+            if object_type.kind in ("beam", "column") and (
+                allowable_stress.table() is not None or member_rank.tables() is not None
+            ):
+                # Alpha 9 C19: the pack's allowable stresses of steel and the member's rank.
+                _steel_allowable(entry, object_type, steel_material, own, service, element, exact)
             checked.append(entry)
             steel_seen = True
             if object_type.kind in ("beam", "column", "brace"):  # B35, B38 (braces)
@@ -1013,6 +1020,7 @@ def _design_run(
         # Integrator glue (T9): the floor live load reduced by the member's influence area
         # (saengine.design.live_reduction, the code pack's liveReduction), or by its overwrite.
         live_row = roof_row = None
+        live_factor = 1.0  # Alpha 9 C19: for the allowable stress combinations
         given_factor = (resolved_overwrites.get(member_id) or design_overwrites.Resolved()).get(
             "liveLoadReduction"
         )
@@ -1034,6 +1042,7 @@ def _design_run(
                 )
             if found_factor is not None:
                 own = live_reduction.reduced(own, found_factor[0])
+                live_factor = min(float(found_factor[0]), 1.0)
                 live_row = _check(
                     "Live load reduction L / L0",
                     found_factor[0],
@@ -1306,6 +1315,19 @@ def _design_run(
                         object_type.reinforcement.transverse,
                         object_type.reinforcement.cover,
                     )
+            # Alpha 9 C19: the pack's allowable stress design (allowableStress) and the member's
+            # rank for Ds (horizontalCapacity.memberRanks), from the per-case forces.
+            if allowable_stress.table() is not None or member_rank.tables() is not None:
+                kind_name = "beam" if isinstance(object_type, Beam) else "column"
+                checks += allowable_stress.rc_rows(
+                    section, object_type, joints_own, service, _turned(element, exact),
+                    kind_name, live_factor,
+                )  # fmt: skip
+                rank_row = member_rank.rc_row(
+                    section, object_type, joints_own, service, _turned(element, exact), kind_name
+                )
+                if rank_row is not None:
+                    checks.append(rank_row)
             if live_row is not None:
                 checks.append(live_row)
             if roof_row is not None:
@@ -1813,6 +1835,32 @@ def _steel_asd(
     return state["forces"]
 
 
+def _steel_allowable(
+    entry: dict[str, Any],
+    object_type: Any,
+    material: Any,
+    pieces: list[_Piece],
+    service: dict[str, Any],
+    element: Any,
+    exact: bool,
+) -> None:
+    """Alpha 9 C19: a steel member's allowable stress rows (the pack's ``allowableStress``)
+    and its width-thickness rank row added to its entry, its utilisation and result again."""
+    fy = float(getattr(getattr(material, "steel", None), "fy", 0.0) or 0.0)
+    if fy <= 0:
+        return
+    rows = allowable_stress.steel_rows(object_type, fy, pieces, service, _turned(element, exact))
+    rank = member_rank.steel_row(object_type, fy, object_type.kind)
+    if rank is not None:
+        rows.append(rank)
+    if not rows:
+        return
+    entry["checks"] = [*entry["checks"], *rows]
+    strength = [c for c in entry["checks"] if not c["flag"]]
+    entry["utilisation"] = max((c["utilisation"] for c in strength), default=0.0)
+    entry["ok"] = all(c["ok"] for c in strength)
+
+
 def _allowable_forces(
     service: dict[str, Any], notes: list[str], what: str, category: str = "allowable"
 ) -> tuple[dict[str, Any], list[str], list[dict[str, float]], str]:
@@ -2029,6 +2077,11 @@ def _assemble(
     members_failed = [e for e in members_checked if not e["ok"]]
     code = code_basis(settings).concrete
     method = [line.format(code=code, c=Clauses("check")) for line in METHOD]
+    from saengine.design import torsion_interaction
+
+    if torsion_interaction.rules() is not None and not design_strength.partial_factors():
+        # Alpha 9 C18b: the pack's torsion method (AS 3600 8.3 type) in place of the tube's line.
+        method[3] = f"Beam {torsion_interaction.method_line()}; the slab is not counted in Jt."
     if design_strength.partial_factors():
         # Alpha 9 C5: the pack's partial-factor method replaces the basis, flexure, beam and
         # column lines; the torsion and deflection lines stay (the parent pack's methods).
@@ -4645,7 +4698,10 @@ def _beam_torsion_checks(
     reinforcement = beam.reinforcement
     if reinforcement is None:
         return [], None
-    if tabulated_shear.torsion_rules() is not None:
+    from saengine.design import torsion_interaction
+
+    interaction = torsion_interaction.rules() is not None  # Alpha 9 C18b (AS 3600 8.3 type)
+    if tabulated_shear.torsion_rules() is not None or interaction:
         # Alpha 9 C8: torsion by the equivalent shear and moment (IS 456 41) in place of the
         # thin-walled tube; every station's (Tu, Vu, Mu).
         points: list[tuple[float, float, float, str, str]] = []
@@ -4671,6 +4727,16 @@ def _beam_torsion_checks(
             if transverse is not None and transverse.spacing
             else None
         )
+        if interaction:  # Alpha 9 C18b: Tuc, the interaction with shear and the links
+            try:
+                found = torsion_interaction.torsion_rows(
+                    section, reinforcement.cover, stirrups, points
+                )
+            except DesignError as error:
+                found = [
+                    _check("Torsion", 0.0, 0.0, "kN·m", None, f"not checked: {error}", flag=True)
+                ]
+            return found, None
         capacities = {hog: flexure(section, hog) for hog in (False, True)}
         return (
             tabulated_shear.torsion_rows(

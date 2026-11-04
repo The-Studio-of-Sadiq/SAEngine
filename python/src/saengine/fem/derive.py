@@ -1598,7 +1598,11 @@ def _derive_fem(
             return 1.0
         if case != "L":
             return 0.0
-        return weight_rule.live(None if pressure is None else pressure / 1e3)
+        # Alpha 9 C19: the area use of the load (use_at), for a pack that counts W by use.
+        return weight_rule.live(None if pressure is None else pressure / 1e3, use_at[0])
+
+    #: Alpha 9 C19: the area use whose loads are being applied (seismic liveWeight byUse).
+    use_at: list[str | None] = [None]
 
     def part_of(case: str) -> str:
         return case if case in ("D", "SD", "L", PARTITIONS) else "other"
@@ -1818,9 +1822,11 @@ def _derive_fem(
             continue
         own = {"SD": area_load.finish * 1e3, "L": area_load.live * 1e3}
         add_partitions(own, area_load.partitions * 1e3)
+        use_at[0] = area_load.use
         for shell in shells_of_source(source):
             for case, pressure in own.items():
                 shell_pressure(shell, case, pressure)
+        use_at[0] = None
     top = levels[-1] if levels else 0.0
     # B16: the rain load R on the roof and a helicopter landing area (saengine.fem.special_loads).
     from saengine.fem import special_loads as spl
@@ -1907,6 +1913,7 @@ def _derive_fem(
             else area_load.partitions
         )
         live_case = "Lr" if roof else "L"
+        use_at[0] = area_load.use if area_load is not None else None  # Alpha 9 C19
         finish = area_load.finish if area_load else 0.0
         live = area_load.live if area_load else 0.0
         # B16: a helicopter landing area's distributed live load L3 where it is larger.
@@ -2064,6 +2071,7 @@ def _derive_fem(
                         profile=edge,
                     )
         live_at[0] = None
+    use_at[0] = None  # Alpha 9 C19
 
     # ── equipment of 07 MEP: its weight, contents and impact on the slabs it stands on ──
     b.notes.extend(mep_notes)
@@ -2399,6 +2407,27 @@ def _derive_fem(
     eccentricity = float(getattr(seismic_table, "accidentalEccentricity", None) or 0.05)
     eccentric = bool(option(options, "accidentalEccentricity", False)) and bool(heights)
     period_method = option(options, "periodMethod", "approximate")
+    # Alpha 9 C18b: the pack's design category by the structure's height (AS 1170.4 Table 2.1
+    # type) and, for a category the pack designs by the simple static force, Fi = share × Wi.
+    category_rules = getattr(seismic_table, "designCategories", None)
+    height_sdc: str | None = None
+    if heights and values.get("Z") and category_rules is not None and category_rules.byHeight:
+        from saengine.fem.seismic_design import seismic_design_category as _height_sdc
+        from saengine.fem.seismic_design import zone_of as _zone_of
+        from saengine.library.settings import category_site_class as _site_of
+        from saengine.library.settings import soil_flags as _soil_flags
+
+        height_sdc = _height_sdc(
+            _zone_of(values["Z"]),
+            _site_of(settings, settings.site.siteClass, _soil_flags(settings)),
+            settings.occupancy.category,
+            height=hn,
+        )
+    simple_share = (
+        category_rules.simpleStatic.get(height_sdc)
+        if height_sdc is not None and category_rules is not None
+        else None
+    )
 
     def seismic_loads(
         periods: dict[str, float],
@@ -2444,6 +2473,10 @@ def _derive_fem(
             correction = fl.base_shear_correction(period, len(heights), settings.site.siteClass)
             shear = sa * sum(weights) * correction
             forces = fl.vertical_distribution(rel_levels, shear, period)
+            if simple_share is not None:  # Alpha 9 C18b: Fi = share × Wi at every level
+                sa, correction = float(simple_share), 1.0
+                shear = sa * sum(weights)
+                forces = [sa * w for w in weights]
             forces_of[case] = forces
             info[case] = {"period_s": period, "Sa_g": sa, "base_shear_kN": shear / 1e3}
             if correction != 1.0:
@@ -2453,6 +2486,19 @@ def _derive_fem(
             )
             if ordinate_terms is not None:  # Alpha 9 C17: S(T), Mv and the bounds
                 info[case]["ordinates"] = ordinate_terms
+            # Alpha 9 C19: Z, Rt, C0 and the storeys' αi, Ai, Ci (standardShearCoefficient).
+            from saengine.fem import shear_coefficient
+
+            shear_terms = shear_coefficient.summary(
+                rel_levels,
+                period,
+                settings.site.siteClass,
+                values["Z"],
+                values["seismicImportance"],
+                values.get(f"R{case[1]}", values["R"]),
+            )
+            if shear_terms is not None:
+                info[case]["shearCoefficient"] = shear_terms
             nodal = out.setdefault(case, {})
             for level, h in enumerate(heights):
                 for node_id, share in level_shares(h).items():
@@ -2610,10 +2656,27 @@ def _derive_fem(
             zone_of(values["Z"]),
             category_site_class(settings, settings.site.siteClass, flags),
             settings.occupancy.category,
+            height=hn if heights else None,  # Alpha 9 C18b: the pack's rows by height
         )
         height_note = height_limit_note(settings, sdc, hn)
         if height_note:
             b.notes.append(height_note)
+        if height_sdc is not None and category_rules is not None:  # Alpha 9 C18b
+            summary["designCategoryByHeight"] = {"category": height_sdc, "hn_m": hn}
+            where = code_context.cite("seismic", "designCategories")
+            where = f" ({where})" if where else ""
+            if simple_share is not None:
+                b.notes.append(
+                    f"seismic: category {height_sdc} at hn = {hn:.1f} m{where}: the simple "
+                    f"static force Fi = {simple_share:g} Wi at every level in place of the "
+                    "equivalent static method"
+                )
+            if height_sdc in category_rules.dynamicRequired:
+                b.notes.append(
+                    f"seismic: category {height_sdc} at hn = {hn:.1f} m{where}: the code asks "
+                    "for the dynamic analysis (the modal response spectrum); the equivalent "
+                    "static cases alone are not enough, run the response spectrum analysis"
+                )
     if heights and values["windSpeed"]:
         from saengine.fem.loads import wind_overrides
 
@@ -2757,6 +2820,18 @@ def _derive_fem(
                 "dead": part_factor["D"],
                 "superimposed": part_factor["SD"],
                 "liveShare": user_live_share if user_live_share is not None else live_share,
+                # Alpha 9 C19: the shares of the project's uses where the pack counts W by use.
+                **(
+                    {
+                        "useShares": {
+                            a.use: weight_rule.use_shares[a.use]
+                            for a in settings.areaLoads
+                            if a.use in weight_rule.use_shares
+                        }
+                    }
+                    if user_live_share is None and weight_rule.use_shares
+                    else {}
+                ),
                 "heavyLiveShare": heavy_share,
                 "heavyLiveLimit_kPa": heavy_limit_value,
                 "partitions": part_rule.mode,
@@ -4826,7 +4901,11 @@ def _gust_factor_method(
             f"{axis}: h/b = {height / breadth:.2f}, f0 = {n1:.3f} Hz from {source}, G = "
             f"{terms['G']:.3f} (Ih {terms['Ih']:.3f}, Bs {terms['Bs']:.3f}, S {terms['S']:.3f}, "
             f"E {terms['E']:.3f}, gR {terms['gR']:.2f}, β {terms['beta']:.3f}), the storey forces "
-            "× G (k̄2/k2)²"
+            + (
+                "× Cdyn (the dynamic response factor on the design pressure)"
+                if gust_response.dynamic_form()
+                else "× G (k̄2/k2)²"
+            )
         )
     wind["gust"] = gust
     notes.append(f"wind gust factor method ({cite}): " + "; ".join(texts))
@@ -4876,8 +4955,8 @@ def _wind_gust(
                 return
         frequencies = {axis: 1 / modal[axis]["period"] for axis in ("X", "Y")}
         source = "the modal analysis"
-    rigid = fl.wind_factor("gust")
     height = max(row["z"] for row in rows.get("WX") or rows["WY"]) - wind.get("base_m", 0.0)
+    rigid = fl.gust_factor(height, exposure)  # Alpha 9 C19: G by the height where given
     from saengine.fem import gust_response
 
     if gust_response.rules() is not None:  # C12: the pack's gust factor method
@@ -5027,6 +5106,13 @@ def _seismic_weight_summary(
         f"seismic weight W = {total / 1e3:.1f} kN ({code_context.cite('seismic', 'weight')}): "
         "dead load "
         f"x{source['dead']:g}, superimposed dead x{source['superimposed']:g}, live load x{live:g}"
+        + (  # Alpha 9 C19: by use
+            " (by use: "
+            + ", ".join(f"{k} x{v:.3g}" for k, v in source["useShares"].items())
+            + "; other uses as said)"
+            if source.get("useShares")
+            else ""
+        )
         + (
             f" (x{source['heavyLiveShare']:g} above {source['heavyLiveLimit_kPa']:g} kN/m²), "
             if source.get("heavyLiveLimit_kPa") is not None

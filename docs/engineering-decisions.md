@@ -41,6 +41,77 @@ here, newest first, with the date, the question, the decision, the reason and wh
 - **No unlicensed software.** ETABS, SAP2000 and STAAD are not used for cross-checks or cited.
   Open-source tools are used instead (2026-10-25).
 
+## 2026-11-05: Australia and New Zealand remainder (alpha 9 track C18b)
+
+`australia-as` 0.2 and `newzealand-nzs` 0.2 (VERIFY C18b-1 to C18b-42 and C18b-1 to C18b-4).
+New generic methods, chosen by id (no other pack sets them, so their results are unchanged):
+`concreteMethods.torsion` `torsionInteraction`, `concreteMethods.punching` `momentTransfer`,
+`concreteMethods.simplifiedWalls` `simplifiedWall`, `wind.speedFactors.hillShape`, the
+`dynamicResponse` form of `wind.speedFactors.gustFactor`, and `seismic.designCategories`
+`byHeight`, `simpleStatic`, `dynamicRequired`.
+
+- **SAEngine practice, torsion (AS 3600 8.3).** The slab cast with the beam is not counted in Jt
+  (on the safe side); the closed links carry the shear beyond φVuc and the torsion by a linear
+  sharing, (V* - φVuc)/φVus + T*/φTus <= 1; the longitudinal ΔAl is reported, not deducted from
+  the flexural capacity; every torsion is designed for the full T* (no compatibility torsion
+  reduction). Design Reinforcement does not add torsion links under this method: a beam short
+  of them fails its row.
+- **SAEngine practice, punching (AS 3600 9.3).** The moment term is written on stresses,
+  V*/(u d) + M*v/(8 a d²) <= φ fcv, both directions' moments added at once; closed fitments and
+  shearheads are not laid out (the slab fails with the note to thicken it, add a drop panel or
+  enlarge the column).
+- **SAEngine practice, walls (AS 3600 11.5, 11.6).** The simplified axial row is informative
+  (the P-M3-M2 surface governs, as for the parent's empirical method); Hwe = 0.75 Hw where
+  SAEngine's bracing factor says braced and restrained at both ends. The walls' minimum steel and
+  detailing rows stay the parent's.
+- **SAEngine practice, wind.** Mh's steep form (H/(2Lu) >= 0.45) is taken at every height, not
+  only in the separation zone (on the safe side); an escarpment's downwind L2 = 10 L1 applies
+  where the topography says downwind; Mlee and the elevation term are 1. Cdyn is one value at
+  the roof applied to the design pressure of every level, with ζ = 0.05 unless the project gives
+  the damping.
+- **SAEngine practice, earthquake design category.** The EDC by height (IL1 I; IL2 to 12 m I,
+  to 50 m II, above III; IL3 to 50 m II, above III; IL4 to 12 m II, above III) is used where the
+  analysis knows hn; the design checks and Project Settings keep the zone rows (their detailing
+  is "ordinary" for every EDC, so nothing in the design changes). The kp Z and site class
+  columns of AS 1170.4 Table 2.1 are not entered. EDC I takes Fi = 0.1 Wi at every level; EDC
+  III gets a note that the dynamic analysis is required.
+- **Clauses.** A `designClauses` group a pack gives is given whole; a key without a
+  counterpart in the pack's code is empty, so the row names the code without a clause, never
+  the parent's number. The NZ pack gives its own groups (NZS 3101 numbers) so the AS 3600 ones
+  are not inherited.
+- **Not covered (stated in the READMEs).** AS 3600 10.4 slender columns, Clause 14 / Appendix C
+  seismic detailing, 13.1-13.2 anchorage and laps, Chapters 7 and 12 strut-and-tie; NZS 3101
+  Appendix D capacity design, 11.4 ductile walls, coupling beams, Chapter 15 joints; NZS 3404
+  Section 12; AS 4100 Chapter 9 connections; AS 3700 masonry, AS 1720.1 and NZS 3603 timber
+  (they do not fit SAEngine's engines in this version). The bar schedule stays BS 8666 (no
+  separate AS/NZS shape code standard).
+
+## 2026-11-05: Japan pack (alpha 9 track C19)
+
+- **What was built.** `japan-bsl` (BSL Enforcement Order Art. 82-91, Notifications 1454, 1455,
+  1792, 1793, AIJ RC and steel standards) extending `aci318-asce7-22`, README and `VERIFY.md`
+  (81 entries). No code text was available: every value is from knowledge and listed to check.
+- **Generic mechanisms (unset in the existing packs: their results are unchanged):** the design
+  spectrum method `standardShearCoefficient`, the distribution `shearCoefficientAi`, the seismic
+  weight by use (`liveWeight` byUse, `seismicLive`), the live load method `frameValue`
+  (`frameLive`), the wind gust by height per exposure, the tables `allowableStress` and
+  `horizontalCapacity` (new, not in the default pack).
+- **SAEngine practice (not the law's), each overridable under Code Values:** the bars are sized by
+  the parent's strength method under sizing combinations (long-term × 1.5, short-term × 1.0); the
+  law's check is the allowable stress rows. Qu is read at a storey drift of 1/100 (or the largest
+  shear before it) of a pushover with the Ai pattern. One Ds for the building from its worst
+  member rank (FD without design ranks). Storey stiffness for Re by 12 E I / h³ of the columns and
+  the walls' in-plane stiffness with the beams rigid; the weights' centre that of the masses at
+  and above the storey. βu by system (frames 0, frame-walls 0.5, walls 1.0, braced 0.8).
+  R = Cd = 1, Ω0 = 2.0; seismic design categories C/D and ordinary detailing for the parent's
+  modules; W of uses without the law's seismic value at 50 %. The heavy-snow rows are formed
+  wherever a snow case exists.
+- **Fixed in passing.** `live_reduction.reduced` dropped the combinations formed after the live
+  parts (fewer parts than forces) and the slenderness check then failed; they now keep their
+  forces unreduced. It only showed with a live factor below 1 on columns.
+- **Not done.** Bar names in SI (the engine prints pack bar names only in US units), the column
+  live reduction by floors (Art. 85(2)), the braces' ranks, per-storey Ds, route 2 area ratios.
+
 ## 2026-11-05: nonlinear time history in design, record scaling and spectral matching (alpha 9 track P5)
 
 - **What was built.** The B36 nonlinear time history now reads everything that differs between

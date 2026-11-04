@@ -1,0 +1,405 @@
+{
+  "$defs": {
+    "ConcreteAllowable": {
+      "additionalProperties": false,
+      "description": "The allowable stresses of concrete as shares of the design strength Fc [MPa].",
+      "properties": {
+        "longShare": {
+          "description": "Long-term allowable compression = share × Fc.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Longshare",
+          "type": "number"
+        },
+        "shortShare": {
+          "description": "Short-term allowable compression = share × Fc.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Shortshare",
+          "type": "number"
+        },
+        "shearShare": {
+          "description": "Long-term allowable shear fs = min(share Fc, offset + slope Fc).",
+          "exclusiveMinimum": 0,
+          "title": "Shearshare",
+          "type": "number"
+        },
+        "shearOffset": {
+          "description": "[MPa]",
+          "minimum": 0,
+          "title": "Shearoffset",
+          "type": "number"
+        },
+        "shearSlope": {
+          "minimum": 0,
+          "title": "Shearslope",
+          "type": "number"
+        },
+        "shortShearFactor": {
+          "description": "Short-term fs = this × the long-term fs.",
+          "exclusiveMinimum": 0,
+          "title": "Shortshearfactor",
+          "type": "number"
+        },
+        "modularRatio": {
+          "description": "n = Es / Ec of the elastic section.",
+          "exclusiveMinimum": 0,
+          "title": "Modularratio",
+          "type": "number"
+        },
+        "leverArm": {
+          "description": "j = share × d.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Leverarm",
+          "type": "number"
+        }
+      },
+      "required": [
+        "longShare",
+        "shortShare",
+        "shearShare",
+        "shearOffset",
+        "shearSlope",
+        "shortShearFactor",
+        "modularRatio",
+        "leverArm"
+      ],
+      "title": "ConcreteAllowable",
+      "type": "object"
+    },
+    "RebarAllowable": {
+      "additionalProperties": false,
+      "properties": {
+        "grades": {
+          "additionalProperties": {
+            "$ref": "#/$defs/RebarGrade"
+          },
+          "minProperties": 1,
+          "title": "Grades",
+          "type": "object"
+        },
+        "largeFrom": {
+          "description": "Bars of this diameter [mm] and above are large.",
+          "exclusiveMinimum": 0,
+          "title": "Largefrom",
+          "type": "number"
+        }
+      },
+      "required": [
+        "grades",
+        "largeFrom"
+      ],
+      "title": "RebarAllowable",
+      "type": "object"
+    },
+    "RebarGrade": {
+      "additionalProperties": false,
+      "description": "A bar grade's allowable stresses [MPa].",
+      "properties": {
+        "fy": {
+          "description": "The grade's standard yield strength F (to find the grade).",
+          "exclusiveMinimum": 0,
+          "title": "Fy",
+          "type": "number"
+        },
+        "long": {
+          "description": "Long-term tension and compression of main bars.",
+          "exclusiveMinimum": 0,
+          "title": "Long",
+          "type": "number"
+        },
+        "longLarge": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Long-term of bars of largeFrom and above (empty: long).",
+          "title": "Longlarge"
+        },
+        "short": {
+          "description": "Short-term tension and compression of main bars.",
+          "exclusiveMinimum": 0,
+          "title": "Short",
+          "type": "number"
+        },
+        "shearLong": {
+          "description": "Long-term wft of shear reinforcement.",
+          "exclusiveMinimum": 0,
+          "title": "Shearlong",
+          "type": "number"
+        },
+        "shearShort": {
+          "description": "Short-term wft of shear reinforcement.",
+          "exclusiveMinimum": 0,
+          "title": "Shearshort",
+          "type": "number"
+        }
+      },
+      "required": [
+        "fy",
+        "long",
+        "short",
+        "shearLong",
+        "shearShort"
+      ],
+      "title": "RebarGrade",
+      "type": "object"
+    },
+    "ShearAllowable": {
+      "additionalProperties": false,
+      "description": "The allowable shear of beams and columns: Qa = b j (α fs + share wft (pw - offset)),\nα = numerator / (M/(Q d) + 1) within [alphaMin, alphaMax]; long-term without the bars\n(``longWithBars`` false).",
+      "properties": {
+        "alphaNumerator": {
+          "exclusiveMinimum": 0,
+          "title": "Alphanumerator",
+          "type": "number"
+        },
+        "alphaMin": {
+          "exclusiveMinimum": 0,
+          "title": "Alphamin",
+          "type": "number"
+        },
+        "beamAlphaMax": {
+          "exclusiveMinimum": 0,
+          "title": "Beamalphamax",
+          "type": "number"
+        },
+        "columnAlphaMax": {
+          "exclusiveMinimum": 0,
+          "title": "Columnalphamax",
+          "type": "number"
+        },
+        "reinforcementShare": {
+          "exclusiveMinimum": 0,
+          "title": "Reinforcementshare",
+          "type": "number"
+        },
+        "pwOffset": {
+          "minimum": 0,
+          "title": "Pwoffset",
+          "type": "number"
+        },
+        "pwMax": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Pwmax",
+          "type": "number"
+        },
+        "longWithBars": {
+          "default": false,
+          "title": "Longwithbars",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "alphaNumerator",
+        "alphaMin",
+        "beamAlphaMax",
+        "columnAlphaMax",
+        "reinforcementShare",
+        "pwOffset",
+        "pwMax"
+      ],
+      "title": "ShearAllowable",
+      "type": "object"
+    },
+    "SteelAllowable": {
+      "additionalProperties": false,
+      "properties": {
+        "longDivisor": {
+          "description": "Long-term allowable tension ft = F / divisor.",
+          "exclusiveMinimum": 0,
+          "title": "Longdivisor",
+          "type": "number"
+        },
+        "shortFactor": {
+          "description": "Short-term = this × long-term.",
+          "exclusiveMinimum": 0,
+          "title": "Shortfactor",
+          "type": "number"
+        },
+        "shearDivisor": {
+          "description": "fs = ft / divisor (√3).",
+          "exclusiveMinimum": 0,
+          "title": "Sheardivisor",
+          "type": "number"
+        },
+        "modulus": {
+          "description": "E [MPa].",
+          "exclusiveMinimum": 0,
+          "title": "Modulus",
+          "type": "number"
+        },
+        "compression": {
+          "$ref": "#/$defs/SteelCompression"
+        },
+        "bending": {
+          "$ref": "#/$defs/SteelBending"
+        }
+      },
+      "required": [
+        "longDivisor",
+        "shortFactor",
+        "shearDivisor",
+        "modulus",
+        "compression",
+        "bending"
+      ],
+      "title": "SteelAllowable",
+      "type": "object"
+    },
+    "SteelBending": {
+      "additionalProperties": false,
+      "description": "fb (long-term) the larger of F (base - slope (lb/i)² / (C Λ²)) and flangeConstant /\n(lb h / Af) [MPa], at most the allowable tension; C = momentGradient (1.0: uniform moment,\non the safe side).",
+      "properties": {
+        "base": {
+          "exclusiveMinimum": 0,
+          "title": "Base",
+          "type": "number"
+        },
+        "slope": {
+          "exclusiveMinimum": 0,
+          "title": "Slope",
+          "type": "number"
+        },
+        "flangeConstant": {
+          "exclusiveMinimum": 0,
+          "title": "Flangeconstant",
+          "type": "number"
+        },
+        "momentGradient": {
+          "default": 1.0,
+          "exclusiveMinimum": 0,
+          "title": "Momentgradient",
+          "type": "number"
+        }
+      },
+      "required": [
+        "base",
+        "slope",
+        "flangeConstant"
+      ],
+      "title": "SteelBending",
+      "type": "object"
+    },
+    "SteelCompression": {
+      "additionalProperties": false,
+      "description": "Λ = √(π² E / (limitShare F)); λ ≤ Λ: fc = (1 - parabola (λ/Λ)²) F / ν, ν = nuBase +\nnuSlope (λ/Λ)²; λ > Λ: fc = elastic F / (λ/Λ)².",
+      "properties": {
+        "limitShare": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Limitshare",
+          "type": "number"
+        },
+        "parabola": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Parabola",
+          "type": "number"
+        },
+        "nuBase": {
+          "exclusiveMinimum": 0,
+          "title": "Nubase",
+          "type": "number"
+        },
+        "nuSlope": {
+          "minimum": 0,
+          "title": "Nuslope",
+          "type": "number"
+        },
+        "elastic": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Elastic",
+          "type": "number"
+        }
+      },
+      "required": [
+        "limitShare",
+        "parabola",
+        "nuBase",
+        "nuSlope",
+        "elastic"
+      ],
+      "title": "SteelCompression",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Allowable stress design of members (``elasticSection``): see the module notes.",
+  "properties": {
+    "source": {
+      "default": "",
+      "description": "Clause (and page) the table comes from.",
+      "title": "Source",
+      "type": "string"
+    },
+    "sources": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Clause references of single entries: {key: clause}.",
+      "title": "Sources",
+      "type": "object"
+    },
+    "clauses": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Short clause references the results cite, by key, without the code's name (e.g. 'Part 6 Sec 2.5.7.3'); read by saengine.codes.context.cite. A key the pack does not give is not cited.",
+      "title": "Clauses",
+      "type": "object"
+    },
+    "method": {
+      "const": "elasticSection",
+      "default": "elasticSection",
+      "title": "Method",
+      "type": "string"
+    },
+    "longTerm": {
+      "description": "Ids of the allowable stress combination rows checked with the long-term allowable stresses; the others take the short-term ones.",
+      "items": {
+        "type": "string"
+      },
+      "title": "Longterm",
+      "type": "array"
+    },
+    "concrete": {
+      "$ref": "#/$defs/ConcreteAllowable"
+    },
+    "rebar": {
+      "$ref": "#/$defs/RebarAllowable"
+    },
+    "shear": {
+      "$ref": "#/$defs/ShearAllowable"
+    },
+    "steel": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/SteelAllowable"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    }
+  },
+  "required": [
+    "longTerm",
+    "concrete",
+    "rebar",
+    "shear"
+  ],
+  "title": "AllowableStressTable",
+  "type": "object",
+  "$id": "saengine.codePack.allowableStress/1"
+}

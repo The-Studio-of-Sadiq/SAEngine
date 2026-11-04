@@ -1,0 +1,545 @@
+{
+  "$defs": {
+    "BeamRankLimits": {
+      "additionalProperties": false,
+      "properties": {
+        "shearRatio": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "τu / Fc at most.",
+          "title": "Shearratio"
+        }
+      },
+      "title": "BeamRankLimits",
+      "type": "object"
+    },
+    "CapacitySystem": {
+      "additionalProperties": false,
+      "description": "A seismic system's material for Ds and its share βu of walls or braces.",
+      "properties": {
+        "material": {
+          "title": "Material",
+          "type": "string"
+        },
+        "betaU": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Betau",
+          "type": "number"
+        }
+      },
+      "required": [
+        "material",
+        "betaU"
+      ],
+      "title": "CapacitySystem",
+      "type": "object"
+    },
+    "ColumnRankLimits": {
+      "additionalProperties": false,
+      "description": "A reinforced concrete column's rank limits (each the most the rank allows; empty: no\nlimit): h0/D at least, σ0/Fc, pt and τu/Fc at most.",
+      "properties": {
+        "clearRatio": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "h0 / D at least.",
+          "title": "Clearratio"
+        },
+        "axialRatio": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "σ0 / Fc at most.",
+          "title": "Axialratio"
+        },
+        "tensionRatio": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "pt [%] at most.",
+          "title": "Tensionratio"
+        },
+        "shearRatio": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "τu / Fc at most.",
+          "title": "Shearratio"
+        }
+      },
+      "title": "ColumnRankLimits",
+      "type": "object"
+    },
+    "DsBand": {
+      "additionalProperties": false,
+      "description": "Ds of a member rank: (βu up to, Ds) bands, the last band's above.",
+      "properties": {
+        "bands": {
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "minItems": 1,
+          "title": "Bands",
+          "type": "array"
+        }
+      },
+      "required": [
+        "bands"
+      ],
+      "title": "DsBand",
+      "type": "object"
+    },
+    "DsMaterial": {
+      "additionalProperties": false,
+      "properties": {
+        "ranks": {
+          "additionalProperties": {
+            "$ref": "#/$defs/DsBand"
+          },
+          "minProperties": 1,
+          "title": "Ranks",
+          "type": "object"
+        }
+      },
+      "required": [
+        "ranks"
+      ],
+      "title": "DsMaterial",
+      "type": "object"
+    },
+    "MemberRanks": {
+      "additionalProperties": false,
+      "description": "The ranks in order (best first) and their limits; a member meeting none takes the\nlast rank.",
+      "properties": {
+        "order": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 2,
+          "title": "Order",
+          "type": "array"
+        },
+        "columns": {
+          "additionalProperties": {
+            "$ref": "#/$defs/ColumnRankLimits"
+          },
+          "title": "Columns",
+          "type": "object"
+        },
+        "beams": {
+          "additionalProperties": {
+            "$ref": "#/$defs/BeamRankLimits"
+          },
+          "title": "Beams",
+          "type": "object"
+        },
+        "steelColumns": {
+          "additionalProperties": {
+            "$ref": "#/$defs/SteelRankLimits"
+          },
+          "title": "Steelcolumns",
+          "type": "object"
+        },
+        "steelBeams": {
+          "additionalProperties": {
+            "$ref": "#/$defs/SteelRankLimits"
+          },
+          "title": "Steelbeams",
+          "type": "object"
+        },
+        "steelReference": {
+          "default": 235.0,
+          "description": "F of the ratios [MPa].",
+          "exclusiveMinimum": 0,
+          "title": "Steelreference",
+          "type": "number"
+        },
+        "shearFailureRank": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The rank of a concrete member whose mean shear strength is below the shear at its flexural strength (shear failure); empty: the last rank.",
+          "title": "Shearfailurerank"
+        }
+      },
+      "required": [
+        "order"
+      ],
+      "title": "MemberRanks",
+      "type": "object"
+    },
+    "ShapeFactors": {
+      "additionalProperties": false,
+      "description": "Fs of the stiffness ratio Rs and Fe of the eccentricity ratio Re: (ratio, factor) points,\nlinear between, the end values outside; ``rsLimit``, ``reLimit`` the primary design's\nlimits (Rs at least, Re at most).",
+      "properties": {
+        "stiffness": {
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "minItems": 1,
+          "title": "Stiffness",
+          "type": "array"
+        },
+        "eccentricity": {
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "minItems": 1,
+          "title": "Eccentricity",
+          "type": "array"
+        },
+        "rsLimit": {
+          "exclusiveMinimum": 0,
+          "title": "Rslimit",
+          "type": "number"
+        },
+        "reLimit": {
+          "exclusiveMinimum": 0,
+          "title": "Relimit",
+          "type": "number"
+        }
+      },
+      "required": [
+        "stiffness",
+        "eccentricity",
+        "rsLimit",
+        "reLimit"
+      ],
+      "title": "ShapeFactors",
+      "type": "object"
+    },
+    "ShearStrength": {
+      "additionalProperties": false,
+      "description": "The mean shear strength of a concrete member (``meanEmpirical``): Qsu = {coefficient\npt^ptExponent (Fc + offset) / (M/(Q d) + spanOffset) + bars √(pw σwy) + axial σ0} b j, pt\nin %, M/(Q d) within ``spanRange``, pw at most ``pwMax``; the flexural strengths Mu = beam\nat σy d (beams) and column at σy D + axialShare N D (1 - N / (b D Fc)) (columns), σy =\nyieldFactor × the bars' F.",
+      "properties": {
+        "method": {
+          "const": "meanEmpirical",
+          "default": "meanEmpirical",
+          "title": "Method",
+          "type": "string"
+        },
+        "coefficient": {
+          "exclusiveMinimum": 0,
+          "title": "Coefficient",
+          "type": "number"
+        },
+        "ptExponent": {
+          "exclusiveMinimum": 0,
+          "title": "Ptexponent",
+          "type": "number"
+        },
+        "offset": {
+          "title": "Offset",
+          "type": "number"
+        },
+        "spanOffset": {
+          "minimum": 0,
+          "title": "Spanoffset",
+          "type": "number"
+        },
+        "spanRange": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Spanrange",
+          "type": "array"
+        },
+        "bars": {
+          "exclusiveMinimum": 0,
+          "title": "Bars",
+          "type": "number"
+        },
+        "axial": {
+          "minimum": 0,
+          "title": "Axial",
+          "type": "number"
+        },
+        "pwMax": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Pwmax",
+          "type": "number"
+        },
+        "beam": {
+          "exclusiveMinimum": 0,
+          "title": "Beam",
+          "type": "number"
+        },
+        "column": {
+          "exclusiveMinimum": 0,
+          "title": "Column",
+          "type": "number"
+        },
+        "axialShare": {
+          "exclusiveMinimum": 0,
+          "title": "Axialshare",
+          "type": "number"
+        },
+        "yieldFactor": {
+          "default": 1.0,
+          "exclusiveMinimum": 0,
+          "title": "Yieldfactor",
+          "type": "number"
+        }
+      },
+      "required": [
+        "coefficient",
+        "ptExponent",
+        "offset",
+        "spanOffset",
+        "spanRange",
+        "bars",
+        "axial",
+        "pwMax",
+        "beam",
+        "column",
+        "axialShare"
+      ],
+      "title": "ShearStrength",
+      "type": "object"
+    },
+    "SteelRankLimits": {
+      "additionalProperties": false,
+      "description": "Width-thickness ratios at most, × √(reference / F).",
+      "properties": {
+        "flange": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Flange"
+        },
+        "web": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Web"
+        },
+        "tube": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Box: B/t at most.",
+          "title": "Tube"
+        },
+        "pipe": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Pipe: D/t at most × reference / F (not the root).",
+          "title": "Pipe"
+        }
+      },
+      "title": "SteelRankLimits",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "The required horizontal capacity of storeys (``requiredCapacity``): see the module\nnotes.",
+  "properties": {
+    "source": {
+      "default": "",
+      "description": "Clause (and page) the table comes from.",
+      "title": "Source",
+      "type": "string"
+    },
+    "sources": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Clause references of single entries: {key: clause}.",
+      "title": "Sources",
+      "type": "object"
+    },
+    "clauses": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Short clause references the results cite, by key, without the code's name (e.g. 'Part 6 Sec 2.5.7.3'); read by saengine.codes.context.cite. A key the pack does not give is not cited.",
+      "title": "Clauses",
+      "type": "object"
+    },
+    "method": {
+      "const": "requiredCapacity",
+      "default": "requiredCapacity",
+      "title": "Method",
+      "type": "string"
+    },
+    "capacityDrift": {
+      "description": "Qu is read at this storey drift ratio (or the largest storey shear before it).",
+      "exclusiveMinimum": 0,
+      "title": "Capacitydrift",
+      "type": "number"
+    },
+    "ds": {
+      "additionalProperties": {
+        "$ref": "#/$defs/DsMaterial"
+      },
+      "minProperties": 1,
+      "title": "Ds",
+      "type": "object"
+    },
+    "systems": {
+      "additionalProperties": {
+        "$ref": "#/$defs/CapacitySystem"
+      },
+      "title": "Systems",
+      "type": "object"
+    },
+    "defaultSystem": {
+      "$ref": "#/$defs/CapacitySystem"
+    },
+    "defaultRank": {
+      "description": "The rank where the members' ranks are not known.",
+      "title": "Defaultrank",
+      "type": "string"
+    },
+    "shapeFactors": {
+      "$ref": "#/$defs/ShapeFactors"
+    },
+    "memberRanks": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/MemberRanks"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "shearStrength": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ShearStrength"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    }
+  },
+  "required": [
+    "capacityDrift",
+    "ds",
+    "defaultSystem",
+    "defaultRank",
+    "shapeFactors"
+  ],
+  "title": "HorizontalCapacityTable",
+  "type": "object",
+  "$id": "saengine.codePack.horizontalCapacity/1"
+}

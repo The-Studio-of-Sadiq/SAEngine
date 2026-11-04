@@ -447,7 +447,7 @@ def _generate(s: BuildingSpec, settings: Any) -> dict[str, Any]:
             live = (
                 0.0
                 if k == n
-                else rule.weight(load.live, load.partitions)
+                else rule.weight(load.live, load.partitions, load.use)
                 - (load.partitions if part_case == "SD" else 0.0)
             )
             weights.append((q_dead[k] + live) * plan_area)
