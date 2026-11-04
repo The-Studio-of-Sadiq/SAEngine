@@ -1,0 +1,88 @@
+{
+  "$schema": "../../../schemas/concrete.schema.json",
+  "$sources": [
+    "PNS 49:2020 (deformed steel bars 10-36 mm, SAEngine's selection)"
+  ],
+  "barDiameters": {
+    "$replace": true,
+    "all": [
+      10,
+      12,
+      16,
+      20,
+      25,
+      28,
+      32,
+      36
+    ],
+    "main": [
+      12,
+      16,
+      20,
+      25,
+      28,
+      32,
+      36
+    ],
+    "column": [
+      16,
+      20,
+      25,
+      28,
+      32,
+      36
+    ],
+    "slab": [
+      10,
+      12,
+      16
+    ],
+    "stirrup": [
+      10,
+      12
+    ],
+    "wall": [
+      10,
+      12,
+      16,
+      20
+    ],
+    "boundary": [
+      16,
+      20,
+      25,
+      28,
+      32
+    ],
+    "hoop": [
+      10,
+      12
+    ],
+    "lintel": [
+      10,
+      12,
+      16,
+      20,
+      25
+    ],
+    "tank": [
+      10,
+      12,
+      16,
+      20,
+      25
+    ],
+    "foundation": [
+      12,
+      16,
+      20,
+      25
+    ]
+  },
+  "barNames": {
+    "$replace": true
+  },
+  "sources": {
+    "barDiameters": "SAEngine practice: PNS 49 deformed bars 10, 12, 16, 20, 25, 28, 32, 36 mm"
+  }
+}

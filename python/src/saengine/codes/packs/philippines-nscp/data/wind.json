@@ -1,0 +1,25 @@
+{
+  "$schema": "../../../schemas/wind.schema.json",
+  "$sources": [
+    "NSCP 2015 (Sec 207A.10, Table 207A.3-1): the ASCE 7-10 / 7-16 velocity pressure exposure constants"
+  ],
+  "kzFactor": 2.01,
+  "exposures": {
+    "B": {
+      "alpha": 7.0,
+      "zg": 365.76
+    },
+    "C": {
+      "alpha": 9.5,
+      "zg": 274.32
+    },
+    "D": {
+      "alpha": 11.5,
+      "zg": 213.36
+    }
+  },
+  "sources": {
+    "exposures": "NSCP 2015 Sec 207A.10, Table 207A.3-1: alpha 7.0, 9.5, 11.5 and zg 1200, 900, 700 ft (365.76, 274.32, 213.36 m), the ASCE 7-10 / 7-16 constants (ASCE 7-22 changed them); the gust constants as the base pack",
+    "kzFactor": "NSCP 2015: Kz = 2.01 (z/zg)^(2/alpha) (ASCE 7-10 / 7-16 Table 26.10-1 note)"
+  }
+}

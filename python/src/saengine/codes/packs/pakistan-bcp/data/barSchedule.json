@@ -1,0 +1,12 @@
+{
+  "$schema": "../../../schemas/barSchedule.schema.json",
+  "$sources": [
+    "ACI 315 bar types with metric lengths (SAEngine practice in Pakistan)"
+  ],
+  "standards": {
+    "aci315": {
+      "roundTo": 25.0,
+      "stockLength": 12000.0
+    }
+  }
+}

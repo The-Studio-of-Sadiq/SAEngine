@@ -340,6 +340,31 @@ class SpectralSite(_Model):
         description="(T [s], Sa [g]) points of the site's multi-period MCER spectrum: SDS and "
         "SD1 from it by the code pack's rule when they are not given.",
     )
+    # Alpha 9 C16: the near-source factors of packs whose spectrum is ubc97 (UBC-97 form).
+    sourceType: Literal["A", "B", "C"] | None = Field(
+        default=None,
+        title="Seismic source type",
+        description="Type of the nearest seismic source (A, B or C), for code packs with "
+        "near-source factors Na and Nv (the UBC 1997 form). Empty: not given.",
+    )
+    sourceDistance: float | None = Field(
+        default=None,
+        ge=0,
+        title="Distance to the seismic source",
+        description="Closest distance to the known seismic source [km], for Na and Nv.",
+    )
+    na: float | None = Field(
+        default=None,
+        gt=0,
+        title="Na",
+        description="Near-source factor Na (replaces the one from the source type and distance).",
+    )
+    nv: float | None = Field(
+        default=None,
+        gt=0,
+        title="Nv",
+        description="Near-source factor Nv (replaces the one from the source type and distance).",
+    )
 
 
 class SnowDrift(_Model):
@@ -2733,7 +2758,10 @@ def _choices(table: Any) -> dict[str, list[dict[str, str]]]:
         rows = []
         for key, v in locations.locations.items():
             z = zones.get(v.zone)
-            hazard = f"zone {v.zone}, Z {z:.2f}, " if z is not None else f"zone {v.zone}, "
+            label = v.zoneLabel or v.zone  # Alpha 9 C16: the code's name of the zone
+            hazard = f"zone {label}, Z {z:.2f}, " if z is not None else f"zone {label}, "
+            if v.ss is not None and v.s1 is not None:  # Alpha 9 C16: a town's mapped values
+                hazard = f"SS {v.ss:g} g, S1 {v.s1:g} g, "
             rows.append({"id": key, "label": f"{v.name} ({hazard}V {v.windSpeed:g} m/s)"})
         out["locations"] = [*rows, {"id": "custom", "label": "Custom (enter Z and V)"}]
     if area is not None:
@@ -3009,7 +3037,16 @@ def derived(settings: ProjectSettings) -> dict[str, Any]:
     from saengine.fem import spectral_hazard as sh
 
     if sh.uses_mapped(pack):
-        z = sh.site_hazard(settings.site.spectral, settings.site.siteClass, pack)
+        # Alpha 9 C16: the town's SS, S1, TL (siteCoefficients) and, for ubc97, Z and its zone.
+        given = settings.site.zoneCoefficient is not None
+        z = sh.site_hazard(
+            settings.site.spectral,
+            settings.site.siteClass,
+            pack,
+            location=location,
+            z=z,
+            zone=None if given else zone,
+        )
         zone = sh.band(z, pack) if z is not None else None
     speed = settings.site.windSpeed or (location.windSpeed if location else None)
     # Alpha 9 C15: a pack's altitude factor on the mapped speed (vb,0 = vb,map × calt).
@@ -3262,9 +3299,11 @@ def problems(settings: ProjectSettings) -> list[tuple[str, str]]:
 
 
 def _uses_mapped(pack: CodePack) -> bool:
-    from saengine.fem.spectral_hazard import uses_mapped
+    """Whether the pack takes the site's mapped values instead of Z (alpha 9 C16: a ubc97
+    pack takes Z)."""
+    from saengine.fem.spectral_hazard import takes_mapped_values
 
-    return uses_mapped(pack)
+    return takes_mapped_values(pack)
 
 
 def _pack_problems(settings: ProjectSettings, pack: CodePack) -> list[tuple[str, str]]:
@@ -3355,7 +3394,14 @@ def _mapped_problems(settings: ProjectSettings, pack: CodePack) -> list[tuple[st
 
     if not sh.uses_mapped(pack):
         return []
-    if sh.site_hazard(settings.site.spectral, settings.site.siteClass, pack) is not None:
+    if not sh.takes_mapped_values(pack):
+        return _ubc97_problems(settings, pack)
+    locations = pack.table("locations").locations if pack.has("locations") else {}
+    location = locations.get(settings.site.location)
+    hazard = sh.site_hazard(
+        settings.site.spectral, settings.site.siteClass, pack, location=location
+    )
+    if hazard is not None:
         return []
     edition = pack.edition or pack.name
     return [
@@ -3368,6 +3414,44 @@ def _mapped_problems(settings: ProjectSettings, pack: CodePack) -> list[tuple[st
             ),
         )
     ]
+
+
+def _ubc97_problems(settings: ProjectSettings, pack: CodePack) -> list[tuple[str, str]]:
+    """Alpha 9 C16: a ubc97 pack needs the near-source data where its factors apply and a soil
+    profile it gives Ca and Cv for."""
+    edition = pack.edition or pack.name
+    rule = pack.table("seismic").designSpectrum
+    ubc = rule.ubc97 if rule is not None else None
+    if ubc is None:
+        return []
+    out: list[tuple[str, str]] = []
+    site_class = settings.site.siteClass
+    if site_class not in ubc.ca:
+        assumed = f" (taken as {ubc.assumedClass} meanwhile)" if ubc.assumedClass else ""
+        text = (
+            f"{edition} gives no seismic coefficients Ca, Cv for soil profile {site_class}: "
+            f"a site-specific study is needed{assumed}"
+        )
+        out.append(("site.siteClass", text))
+    try:
+        z = getattr(derived(settings)["Z"], "zValue", None)
+    except (KeyError, ValueError):  # an unknown system or category: reported elsewhere
+        z = None
+    start = ubc.nearSourceFrom
+    if start is not None and z is not None and z >= float(start) - 1e-9:
+        spectral = settings.site.spectral
+        has = spectral is not None and (
+            (spectral.na is not None and spectral.nv is not None)
+            or (spectral.sourceType is not None and spectral.sourceDistance is not None)
+        )
+        if not has:
+            text = (
+                f"{edition}: the site is in the zone of the near-source factors: enter the "
+                "seismic source type and the distance to it (or Na and Nv); until then Na = "
+                "Nv = 1.0"
+            )
+            out.append(("site.spectral", text))
+    return out
 
 
 def _exception_problems(settings: ProjectSettings, pack: CodePack) -> list[tuple[str, str]]:

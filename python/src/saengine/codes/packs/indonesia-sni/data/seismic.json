@@ -1,0 +1,165 @@
+{
+  "$schema": "../../../schemas/seismic.schema.json",
+  "$sources": [
+    "SNI 1726:2019: Pasal 5-7 (the ASCE 7-16 form): site classes (Tabel 5), Fa and Fv (Tabel 6, 7), SMS = Fa SS, SM1 = Fv S1, SDS = 2/3 SMS, SD1 = 2/3 SM1; the rest of the seismic rules as the base pack (ASCE 7-22, the same numbers as SNI 1726:2019)"
+  ],
+  "defaultSiteClass": "SD",
+  "siteClasses": {
+    "$replace": true,
+    "SA": {
+      "description": "Site class A: hard rock (vs30 above 1500 m/s)",
+      "vs30": [
+        1500,
+        null
+      ]
+    },
+    "SB": {
+      "description": "Site class B: rock (vs30 750-1500 m/s)",
+      "vs30": [
+        750,
+        1500
+      ]
+    },
+    "SC": {
+      "description": "Site class C: very dense soil and soft rock (vs30 350-750 m/s)",
+      "vs30": [
+        350,
+        750
+      ]
+    },
+    "SD": {
+      "description": "Site class D: stiff soil (vs30 175-350 m/s)",
+      "vs30": [
+        175,
+        350
+      ]
+    },
+    "SE": {
+      "description": "Site class E: soft clay soil (vs30 below 175 m/s)",
+      "vs30": [
+        null,
+        175
+      ]
+    },
+    "SF": {
+      "description": "Site class F: soils needing a site response analysis"
+    }
+  },
+  "designSpectrum": {
+    "multiPeriod": null,
+    "siteCoefficients": {
+      "ssValues": [
+        0.25,
+        0.5,
+        0.75,
+        1.0,
+        1.25,
+        1.5
+      ],
+      "s1Values": [
+        0.1,
+        0.2,
+        0.3,
+        0.4,
+        0.5,
+        0.6
+      ],
+      "fa": {
+        "SA": [
+          0.8,
+          0.8,
+          0.8,
+          0.8,
+          0.8,
+          0.8
+        ],
+        "SB": [
+          0.9,
+          0.9,
+          0.9,
+          0.9,
+          0.9,
+          0.9
+        ],
+        "SC": [
+          1.3,
+          1.3,
+          1.2,
+          1.2,
+          1.2,
+          1.2
+        ],
+        "SD": [
+          1.6,
+          1.4,
+          1.2,
+          1.1,
+          1.0,
+          1.0
+        ],
+        "SE": [
+          2.4,
+          1.7,
+          1.3,
+          1.1,
+          0.9,
+          0.8
+        ]
+      },
+      "fv": {
+        "SA": [
+          0.8,
+          0.8,
+          0.8,
+          0.8,
+          0.8,
+          0.8
+        ],
+        "SB": [
+          0.8,
+          0.8,
+          0.8,
+          0.8,
+          0.8,
+          0.8
+        ],
+        "SC": [
+          1.5,
+          1.5,
+          1.5,
+          1.5,
+          1.5,
+          1.4
+        ],
+        "SD": [
+          2.4,
+          2.2,
+          2.0,
+          1.9,
+          1.8,
+          1.7
+        ],
+        "SE": [
+          4.2,
+          3.3,
+          2.8,
+          2.4,
+          2.2,
+          2.0
+        ]
+      },
+      "assumedClass": "SE",
+      "clause": "Pasal 6.2, Tabel 6 and 7"
+    },
+    "clauses": {
+      "spectrum": "Pasal 6.4, Gambar 3",
+      "design": "Pasal 6.2 and 6.3",
+      "sdc": "Pasal 6.5, Tabel 8 and 9",
+      "cs": "Pasal 7.8.1.1",
+      "coefficients": "Pasal 6.2, Tabel 6 and 7"
+    }
+  },
+  "siteSpecificStudy": {
+    "clause": "Pasal 6.10 and 5.3"
+  }
+}

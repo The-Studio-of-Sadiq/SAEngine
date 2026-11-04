@@ -3699,7 +3699,7 @@ def _mapped_site_rows(rows: list[list[str]], values: dict[str, Any]) -> list[lis
         return rows
     out = [r for r in rows if r[0] not in ("Seismic zone", "Seismic zone coefficient Z")]
     at = next((i for i, r in enumerate(out) if r[0] == "Basic wind speed V"), len(out))
-    out.insert(at, ["Mapped spectral values", describe(hazard)])
+    out.insert(at, [hazard.label.capitalize(), describe(hazard)])  # C16: ubc97 coefficients
     return out
 
 

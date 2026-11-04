@@ -1,0 +1,83 @@
+{
+  "$schema": "../../../schemas/locations.schema.json",
+  "$replace": true,
+  "$sources": [
+    "BCP SP-2007 seismic zoning map and its list of towns; the basic wind speed: SAEngine placeholder (see VERIFY.md P2)"
+  ],
+  "source": "BCP SP-2007: the seismic zone of each town (to be checked against the zoning map, VERIFY.md P1); the basic wind speed V (3-second gust, ASCE 7 form) is a placeholder to replace. Elsewhere a custom location: enter Z and V.",
+  "default": "islamabad",
+  "locations": {
+    "islamabad": {
+      "name": "Islamabad",
+      "zone": 3,
+      "zoneLabel": "2B",
+      "windSpeed": 45.0
+    },
+    "rawalpindi": {
+      "name": "Rawalpindi",
+      "zone": 3,
+      "zoneLabel": "2B",
+      "windSpeed": 45.0
+    },
+    "lahore": {
+      "name": "Lahore",
+      "zone": 2,
+      "zoneLabel": "2A",
+      "windSpeed": 45.0
+    },
+    "karachi": {
+      "name": "Karachi",
+      "zone": 3,
+      "zoneLabel": "2B",
+      "windSpeed": 50.0
+    },
+    "hyderabad": {
+      "name": "Hyderabad",
+      "zone": 2,
+      "zoneLabel": "2A",
+      "windSpeed": 47.0
+    },
+    "faisalabad": {
+      "name": "Faisalabad",
+      "zone": 2,
+      "zoneLabel": "2A",
+      "windSpeed": 45.0
+    },
+    "multan": {
+      "name": "Multan",
+      "zone": 2,
+      "zoneLabel": "2A",
+      "windSpeed": 45.0
+    },
+    "peshawar": {
+      "name": "Peshawar",
+      "zone": 3,
+      "zoneLabel": "2B",
+      "windSpeed": 45.0
+    },
+    "quetta": {
+      "name": "Quetta",
+      "zone": 4,
+      "zoneLabel": "3",
+      "windSpeed": 45.0
+    },
+    "muzaffarabad": {
+      "name": "Muzaffarabad",
+      "zone": 4,
+      "zoneLabel": "3",
+      "windSpeed": 45.0
+    },
+    "gilgit": {
+      "name": "Gilgit",
+      "zone": 4,
+      "zoneLabel": "3",
+      "windSpeed": 45.0
+    },
+    "gwadar": {
+      "name": "Gwadar",
+      "zone": 4,
+      "zoneLabel": "3",
+      "windSpeed": 50.0
+    }
+  }
+}

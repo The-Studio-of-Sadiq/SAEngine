@@ -11203,6 +11203,62 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 					title: 'Multi-period MCER spectrum',
 					type: 'array',
 				},
+				sourceType: {
+					anyOf: [
+						{
+							enum: ['A', 'B', 'C'],
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Type of the nearest seismic source (A, B or C), for code packs with near-source factors Na and Nv (the UBC 1997 form). Empty: not given.',
+					title: 'Seismic source type',
+				},
+				sourceDistance: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Closest distance to the known seismic source [km], for Na and Nv.',
+					title: 'Distance to the seismic source',
+				},
+				na: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Near-source factor Na (replaces the one from the source type and distance).',
+					title: 'Na',
+				},
+				nv: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Near-source factor Nv (replaces the one from the source type and distance).',
+					title: 'Nv',
+				},
 			},
 			title: 'SpectralSite',
 			type: 'object',

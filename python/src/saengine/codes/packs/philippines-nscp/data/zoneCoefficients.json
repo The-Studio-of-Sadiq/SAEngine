@@ -1,0 +1,12 @@
+{
+  "$schema": "../../../schemas/zoneCoefficients.schema.json",
+  "$replace": true,
+  "$sources": [
+    "NSCP 2015 Table 208-3: seismic zone factor Z (zone 2: 0.20, zone 4: 0.40)"
+  ],
+  "source": "NSCP 2015 Sec 208.4.4.1, Table 208-3",
+  "zones": {
+    "2": 0.2,
+    "4": 0.4
+  }
+}

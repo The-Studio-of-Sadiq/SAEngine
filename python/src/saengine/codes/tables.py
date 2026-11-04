@@ -71,6 +71,25 @@ class Location(_Row):
     name: str
     zone: int = Field(description="Seismic zone (index into zoneCoefficients).")
     windSpeed: float = Field(gt=0, description="Basic wind speed V [m/s].")
+    # Alpha 9 C16: the zone as the code names it, and a town's mapped spectral values (packs
+    # whose design spectrum is mappedSpectral with siteCoefficients). Empty: as before.
+    zoneLabel: str | None = Field(
+        default=None, description="The zone as the code names it (e.g. '2A'); empty: its number."
+    )
+    ss: float | None = Field(
+        default=None,
+        gt=0,
+        description="Mapped MCER spectral acceleration SS at short periods [g] of the town "
+        "(mappedSpectral packs); the project's entered value replaces it. Empty: none.",
+    )
+    s1: float | None = Field(
+        default=None,
+        gt=0,
+        description="Mapped MCER spectral acceleration S1 at 1 s [g] of the town; empty: none.",
+    )
+    tl: float | None = Field(
+        default=None, gt=0, description="Long-period transition period TL [s]; empty: none."
+    )
 
 
 class Town(_Row):
@@ -929,6 +948,86 @@ class MultiPeriodRule(BaseModel):
     softClasses: list[str] = Field(default_factory=list)
 
 
+class SiteCoefficients(BaseModel):
+    """Alpha 9 C16 (mappedSpectral, the ASCE 7-16 form): SMS = Fa·SS, SM1 = Fv·S1 with the site
+    coefficients Fa and Fv by site class, given at the mapped values ``ssValues`` /
+    ``s1Values`` (linear between them, held beyond). Used when the project gives neither SDS,
+    SD1 nor SMS, SM1 but SS and S1 (entered, or the town's). A class without a row (one that
+    needs a site response analysis) takes ``assumedClass``'s row where given, else gives no
+    hazard."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    ssValues: list[Positive] = Field(min_length=1, description="SS [g] of the Fa columns.")
+    s1Values: list[Positive] = Field(min_length=1, description="S1 [g] of the Fv columns.")
+    fa: dict[str, list[Positive]] = Field(description="Fa by site class, one per ssValues.")
+    fv: dict[str, list[Positive]] = Field(description="Fv by site class, one per s1Values.")
+    assumedClass: str | None = Field(
+        default=None, description="The row a class without one takes; empty: no hazard."
+    )
+    clause: str = ""
+
+    @model_validator(mode="after")
+    def _lengths(self) -> SiteCoefficients:
+        bad = [k for k, v in self.fa.items() if len(v) != len(self.ssValues)]
+        bad += [k for k, v in self.fv.items() if len(v) != len(self.s1Values)]
+        if bad:
+            raise ValueError(f"site coefficient rows of the wrong length: {sorted(set(bad))}")
+        return self
+
+
+class Ubc97Rule(BaseModel):
+    """Alpha 9 C16: the seismic coefficients Ca and Cv of the UBC-97 form (UBC 1997 Tables
+    16-Q, 16-R; adopted by NSCP 2015 Sec 208 and BCP SP-2007) by soil profile and Z, given at
+    the zone factors ``zValues`` (linear between them for an entered Z, held beyond). From
+    ``nearSourceFrom`` (Z) up, Ca × Na and Cv × Nv, the near-source factors by the seismic
+    source type and the distance to the source [km] (``na`` / ``nv``: (distance, factor)
+    points, linear between, held beyond; the project may enter Na and Nv instead; without
+    either they are 1.0 and the settings check says so). The spectrum is the two-period one
+    of ``mappedSpectral`` with the plateau 2.5 Ca and Cv/T (T0 = 0.2 TS, TS = Cv / 2.5 Ca, Ca
+    at T = 0), so V = Cv I W / (R T) ≤ 2.5 Ca I W / R (``csLimits.sdsFactor`` 0.044 gives the
+    least 0.11 Ca I W); from ``nearSourceFrom`` V ≥ ``nearSourceFactor`` Z Nv I W / R. The zone
+    of the town (or the zone nearest the entered Z) reads the category table."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    zValues: list[Positive] = Field(min_length=1, description="Z of the Ca / Cv columns.")
+    ca: dict[str, list[Positive]] = Field(description="Ca by soil profile, one per zValues.")
+    cv: dict[str, list[Positive]] = Field(description="Cv by soil profile, one per zValues.")
+    assumedClass: str | None = Field(
+        default=None,
+        description="The row a soil profile without one (SF: site-specific) takes meanwhile; "
+        "empty: no hazard.",
+    )
+    nearSourceFrom: Positive | None = Field(
+        default=None, description="Z from which the near-source factors apply; empty: never."
+    )
+    na: dict[str, list[tuple[float, Positive]]] = Field(
+        default_factory=dict, description="Na by seismic source type: (distance [km], Na)."
+    )
+    nv: dict[str, list[tuple[float, Positive]]] = Field(
+        default_factory=dict, description="Nv by seismic source type: (distance [km], Nv)."
+    )
+    nearSourceFactor: Positive | None = Field(
+        default=None, description="V ≥ this × Z Nv I W / R from nearSourceFrom; empty: none."
+    )
+    periodUpper: list[tuple[float, Positive]] = Field(
+        default_factory=list,
+        description="(Z from, Cu) steps: T from the structure's properties ≤ Cu·Ta, Cu of the "
+        "last step at or below the site's Z; empty: the pack's periodUpperFactor.",
+    )
+    clauses: dict[str, str] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def _lengths(self) -> Ubc97Rule:
+        rows = [*self.ca.items(), *self.cv.items()]
+        bad = [k for k, v in rows if len(v) != len(self.zValues)]
+        bad += [k for k in self.ca if k not in self.cv]
+        if bad:
+            raise ValueError(f"Ca / Cv rows of the wrong length or missing: {sorted(set(bad))}")
+        return self
+
+
 class DesignSpectrumRule(BaseModel):
     """The design spectrum: a method id the pack picks (C4, C1). Empty: ``reducedElastic``.
 
@@ -946,11 +1045,17 @@ class DesignSpectrumRule(BaseModel):
       Seismic Design Category read by the band of SDS and SD1 (``sdsBands``, ``sd1Bands``, the
       more severe; the band after the last where S1 ≥ ``s1Extreme``) as zone packs read it by
       zone; the period's upper limit Cu·Ta from ``periodUpper`` by SD1. The fields after
-      ``lowerBound`` are this method's."""
+      ``lowerBound`` are this method's. Alpha 9 C16: with ``siteCoefficients`` SMS, SM1 also
+      from SS, S1 by Fa, Fv (the ASCE 7-16 form), and a town may carry SS, S1, TL.
+    - ``ubc97`` (alpha 9 C16, UBC 1997 Sec 1629-1630 and the codes that adopt it): the same
+      two-period spectrum and Cs bounds with 2.5 Ca for SDS and Cv for SD1, Ca and Cv from the
+      zone's Z and the soil profile by ``ubc97`` (:class:`Ubc97Rule`)."""
 
     model_config = ConfigDict(extra="forbid")
 
-    method: Literal["reducedElastic", "behaviourFactor", "mappedSpectral"] = "reducedElastic"
+    method: Literal["reducedElastic", "behaviourFactor", "mappedSpectral", "ubc97"] = (
+        "reducedElastic"
+    )
     plateau: float = Field(default=2.5, gt=0, description="Spectral amplification of the plateau.")
     lowerBound: float = Field(default=0.0, ge=0, lt=1, description="β: least Sd / ag.")
     clause: str = ""
@@ -1012,7 +1117,16 @@ class DesignSpectrumRule(BaseModel):
         description="(SD1 [g], Cu) points: T ≤ Cu·Ta, Cu linear between, held beyond.",
     )
     multiPeriod: MultiPeriodRule | None = None
+    # Alpha 9 C16: SMS = Fa SS, SM1 = Fv S1 (mappedSpectral); Ca, Cv of the ubc97 method.
+    siteCoefficients: SiteCoefficients | None = None
+    ubc97: Ubc97Rule | None = None
     clauses: dict[str, str] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def _ubc97_block(self) -> DesignSpectrumRule:
+        if self.method == "ubc97" and self.ubc97 is None:
+            raise ValueError("the design spectrum method ubc97 needs its ubc97 block (Ca, Cv)")
+        return self
 
 
 class TopForce(BaseModel):

@@ -1,0 +1,394 @@
+{
+  "$schema": "../../../schemas/seismic.schema.json",
+  "$sources": [
+    "NSCP 2015: Section 208 (the UBC 1997 form): Z of zones 2 and 4, soil profiles SA-SF, Ca and Cv, near-source factors Na and Nv, R and Omega0"
+  ],
+  "source": "NSCP 2015 (the UBC 1997 form) on the base pack's seismic rules",
+  "defaultSiteClass": "SD",
+  "siteClasses": {
+    "$replace": true,
+    "SA": {
+      "description": "Soil profile SA: hard rock (vs above 1500 m/s)",
+      "vs30": [
+        1500,
+        null
+      ]
+    },
+    "SB": {
+      "description": "Soil profile SB: rock (vs 760-1500 m/s)",
+      "vs30": [
+        760,
+        1500
+      ]
+    },
+    "SC": {
+      "description": "Soil profile SC: very dense soil and soft rock (vs 360-760 m/s)",
+      "vs30": [
+        360,
+        760
+      ]
+    },
+    "SD": {
+      "description": "Soil profile SD: stiff soil (vs 180-360 m/s)",
+      "vs30": [
+        180,
+        360
+      ]
+    },
+    "SE": {
+      "description": "Soil profile SE: soft soil (vs below 180 m/s)",
+      "vs30": [
+        null,
+        180
+      ]
+    },
+    "SF": {
+      "description": "Soil profile SF: soils needing a site-specific evaluation"
+    }
+  },
+  "designSpectrum": {
+    "method": "ubc97",
+    "t0Share": 0.2,
+    "rampStart": 0.4,
+    "csLimits": {
+      "sdsFactor": 0.044,
+      "floor": 0.0,
+      "nearFaultS1": null,
+      "nearFaultFactor": null
+    },
+    "periodUpper": [],
+    "multiPeriod": null,
+    "ubc97": {
+      "zValues": [
+        0.2,
+        0.4
+      ],
+      "ca": {
+        "SA": [
+          0.16,
+          0.32
+        ],
+        "SB": [
+          0.2,
+          0.4
+        ],
+        "SC": [
+          0.24,
+          0.4
+        ],
+        "SD": [
+          0.28,
+          0.44
+        ],
+        "SE": [
+          0.34,
+          0.36
+        ]
+      },
+      "cv": {
+        "SA": [
+          0.16,
+          0.32
+        ],
+        "SB": [
+          0.2,
+          0.4
+        ],
+        "SC": [
+          0.32,
+          0.56
+        ],
+        "SD": [
+          0.4,
+          0.64
+        ],
+        "SE": [
+          0.64,
+          0.96
+        ]
+      },
+      "assumedClass": "SE",
+      "nearSourceFrom": 0.4,
+      "na": {
+        "A": [
+          [
+            2,
+            1.5
+          ],
+          [
+            5,
+            1.2
+          ],
+          [
+            10,
+            1.0
+          ]
+        ],
+        "B": [
+          [
+            2,
+            1.3
+          ],
+          [
+            5,
+            1.0
+          ],
+          [
+            10,
+            1.0
+          ]
+        ],
+        "C": [
+          [
+            2,
+            1.0
+          ]
+        ]
+      },
+      "nv": {
+        "A": [
+          [
+            2,
+            2.0
+          ],
+          [
+            5,
+            1.6
+          ],
+          [
+            10,
+            1.2
+          ],
+          [
+            15,
+            1.0
+          ]
+        ],
+        "B": [
+          [
+            2,
+            1.6
+          ],
+          [
+            5,
+            1.2
+          ],
+          [
+            10,
+            1.0
+          ],
+          [
+            15,
+            1.0
+          ]
+        ],
+        "C": [
+          [
+            2,
+            1.0
+          ]
+        ]
+      },
+      "nearSourceFactor": 0.8,
+      "periodUpper": [
+        [
+          0.0,
+          1.4
+        ],
+        [
+          0.4,
+          1.3
+        ]
+      ],
+      "clauses": {
+        "coefficients": "Sec 208.4.4, Tables 208-7 and 208-8 (Na, Nv: Tables 208-5 and 208-6)"
+      }
+    },
+    "clauses": {
+      "spectrum": "Sec 208.5.1, Figure 208-3",
+      "design": "Sec 208.5.2",
+      "sdc": "Sec 208.4.4.1 (seismic zones, Table 208-3)",
+      "cs": "Sec 208.5.2.1, Eqs 208-8 to 208-11",
+      "coefficients": "Sec 208.4.4, Tables 208-7 and 208-8 (Na, Nv: Tables 208-5 and 208-6)"
+    }
+  },
+  "periodCoefficients": {
+    "concreteMomentFrame": {
+      "Ct": 0.0731,
+      "m": 0.75
+    },
+    "steelMomentFrame": {
+      "Ct": 0.0853,
+      "m": 0.75
+    },
+    "eccentricallyBracedSteelFrame": {
+      "Ct": 0.0731,
+      "m": 0.75
+    },
+    "other": {
+      "Ct": 0.0488,
+      "m": 0.75
+    }
+  },
+  "designCategories": {
+    "bySiteClass": {
+      "$replace": true,
+      "all": {
+        "I-III": [
+          "C",
+          "D"
+        ],
+        "IV": [
+          "C",
+          "D"
+        ]
+      }
+    },
+    "zoneColumns": {
+      "2": 0,
+      "4": 1
+    }
+  },
+  "systems": {
+    "rcSmf": {
+      "R": 8.5,
+      "Omega0": 2.8,
+      "Cd": 5.95,
+      "row": "Tables 208-11A and 208-11B: concrete SMRF",
+      "heightLimits": {
+        "C": null,
+        "D": null
+      }
+    },
+    "rcImf": {
+      "R": 5.5,
+      "Omega0": 2.8,
+      "Cd": 3.85,
+      "row": "Tables 208-11A and 208-11B: concrete IMRF"
+    },
+    "rcOmf": {
+      "R": 3.5,
+      "Omega0": 2.8,
+      "Cd": 2.45,
+      "row": "Tables 208-11A and 208-11B: concrete OMRF"
+    },
+    "rcSpecialBearingWall": {
+      "R": 4.5,
+      "Omega0": 2.8,
+      "Cd": 3.15,
+      "row": "Tables 208-11A and 208-11B: bearing wall system, concrete shear walls",
+      "heightLimits": {
+        "C": null,
+        "D": 48.8
+      }
+    },
+    "rcSpecialWallFrame": {
+      "R": 5.5,
+      "Omega0": 2.8,
+      "Cd": 3.85,
+      "row": "Tables 208-11A and 208-11B: building frame system, concrete shear walls",
+      "heightLimits": {
+        "C": null,
+        "D": 73.2
+      }
+    },
+    "rcDualSpecial": {
+      "R": 8.5,
+      "Omega0": 2.8,
+      "Cd": 5.95,
+      "row": "Tables 208-11A and 208-11B: dual system, concrete shear walls with SMRF",
+      "heightLimits": {
+        "C": null,
+        "D": null
+      }
+    },
+    "rcDualIntermediateSpecialWalls": {
+      "R": 6.5,
+      "Omega0": 2.8,
+      "Cd": 4.55,
+      "row": "Tables 208-11A and 208-11B: dual system, concrete shear walls with concrete IMRF",
+      "heightLimits": {
+        "C": null,
+        "D": 48.8
+      }
+    },
+    "steelSmf": {
+      "R": 8.5,
+      "Omega0": 2.8,
+      "Cd": 5.95,
+      "row": "Tables 208-11A and 208-11B: steel SMRF",
+      "heightLimits": {
+        "C": null,
+        "D": null
+      }
+    },
+    "steelOmf": {
+      "R": 4.5,
+      "Omega0": 2.8,
+      "Cd": 3.15,
+      "row": "Tables 208-11A and 208-11B: steel OMRF",
+      "heightLimits": {
+        "C": null,
+        "D": 48.8
+      }
+    },
+    "steelEbf": {
+      "R": 7.0,
+      "Omega0": 2.8,
+      "Cd": 4.9,
+      "row": "Tables 208-11A and 208-11B: building frame system, steel EBF",
+      "heightLimits": {
+        "C": null,
+        "D": 73.2
+      }
+    },
+    "steelScbf": {
+      "R": 6.4,
+      "Omega0": 2.2,
+      "Cd": 4.48,
+      "row": "Tables 208-11A and 208-11B: building frame system, special concentrically braced frames",
+      "heightLimits": {
+        "C": null,
+        "D": 73.2
+      }
+    },
+    "steelOcbf": {
+      "R": 5.6,
+      "Omega0": 2.2,
+      "Cd": 3.92,
+      "row": "Tables 208-11A and 208-11B: building frame system, ordinary braced frames (steel)",
+      "heightLimits": {
+        "C": null,
+        "D": 48.8
+      }
+    }
+  },
+  "allowableDrift": {
+    "I": 0.02,
+    "II": 0.02,
+    "III": 0.02,
+    "IV": 0.02
+  },
+  "allowableDriftLabel": "All structures (the limit for T of 0.7 s or more)",
+  "driftLimits": [],
+  "driftRedundancyCategories": [],
+  "siteSpecificStudy": {
+    "classes": [
+      "SF"
+    ],
+    "assumedClass": "SE",
+    "clause": "Sec 208.4.3 (soil profile SF)",
+    "warning": "Soil profile {classes}: {code} {clause} requires a site-specific evaluation. Until one is made, Ca and Cv are those of profile {assumed}: an assumption, not a value of the code."
+  },
+  "clauses": {
+    "systems": "Tables 208-11A and 208-11B",
+    "drift": "Sec 208.6.5"
+  },
+  "sources": {
+    "designSpectrum": "NSCP 2015 Sec 208.4.4, Tables 208-7 and 208-8 (Na, Nv: Tables 208-5 and 208-6): Ca and Cv by soil profile and Z (the UBC 1997 Tables 16-Q and 16-R values), x Na and Nv in the zone of Z = 0.4 (near-source factors by the seismic source type and distance); Sec 208.5.2: V = Cv I W/(R T) <= 2.5 Ca I W/R, >= 0.11 Ca I W (0.044 x 2.5 Ca), and in Z = 0.4 V >= 0.8 Z Nv I W/R; the design spectrum 2.5 Ca from T0 = 0.2 Ts to Ts = Cv/(2.5 Ca), Cv/T beyond, Ca at T = 0; T from the structure at most 1.4 Ta (1.3 Ta in Z = 0.4)",
+    "periodCoefficients": "NSCP 2015: T = Ct hn^(3/4), Ct 0.0853 steel moment frames, 0.0731 concrete moment frames and eccentrically braced frames, 0.0488 others (hn in m)",
+    "systems": "NSCP 2015 Tables 208-11A and 208-11B: R and Omega0 of the UBC 1997 Table 16-N rows SAEngine designs; Cd = 0.7 R (SAEngine practice for Delta_M = 0.7 R Delta_S); the height limits of zones 3 and 4 in the category D column (160 ft = 48.8 m, 240 ft = 73.2 m)",
+    "designCategories": "SAEngine practice: UBC-form codes have no Seismic Design Category; the zone takes the category whose detailing the code asks (zones of Z below 0.15: B ordinary, Z 0.15-0.2: C intermediate, Z 0.3 and 0.4: D special)",
+    "allowableDrift": "NSCP 2015 Sec 208.6.5: Delta_M <= 0.020 h for T >= 0.7 s (the 0.025 h of shorter periods not used: SAEngine practice, on the safe side)"
+  }
+}

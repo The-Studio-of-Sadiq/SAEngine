@@ -41,6 +41,37 @@ here, newest first, with the date, the question, the decision, the reason and wh
 - **No unlicensed software.** ETABS, SAP2000 and STAAD are not used for cross-checks or cited.
   Open-source tools are used instead (2026-10-25).
 
+## 2026-11-04: packs that adopt the US codes with local values (alpha 9 track C16)
+
+- **What was built.** Four built-in packs that `extends: "aci318-asce7-22"`, start in SI units
+  and set only what the local code changes: `saudi-sbc` (SBC 301-2018 in the ASCE 7-16 form,
+  SBC 304 / 306), `pakistan-bcp` (BCP SP-2007, the UBC 1997 form), `philippines-nscp` (NSCP 2015
+  Vol 1: Section 208 in the UBC 1997 form, Section 207 ASCE 7-10, Chapter 4 numbered 4xx) and
+  `indonesia-sni` (SNI 1726:2019 in the ASCE 7-16 form, SNI 1727, 2847, 1729). Every value is in
+  the pack's `VERIFY.md`; no code text was available. UAE / Gulf was left to track C23.
+- **Generic keys the packs needed (any pack may use them; the existing packs do not set them,
+  so their results are unchanged):** `seismic.designSpectrum.siteCoefficients` (Fa, Fv by site
+  class over SS / S1: SMS = Fa SS, SM1 = Fv S1, used when the project gives neither SDS, SD1 nor
+  SMS, SM1), a town's `ss`, `s1`, `tl` and `zoneLabel` in `locations` (the town's mapped values
+  are used where the project enters none), and the design spectrum method `ubc97`
+  (`seismic.designSpectrum.ubc97`: Ca, Cv by soil profile and Z, the near-source factors Na, Nv
+  from Site > Mapped spectral values > seismic source type and distance, or Na, Nv entered; the
+  least 0.8 Z Nv I W / R; Cu by Z). `ubc97` draws the same two-period spectrum and Cs bounds as
+  `mappedSpectral` with 2.5 Ca for SDS and Cv for SD1 (UBC 1997 Figure 16-3 and Eqs 30-4 to 30-7
+  are that form), and the zone of the town reads the category table.
+- **SAEngine practice.** UBC-form codes have no Seismic Design Category: the zone takes the
+  category whose detailing the code asks (Z below 0.15 B, 0.15-0.2 C, 0.3-0.4 D); Cd = 0.7 R
+  (ΔM = 0.7 R ΔS); the drift limit 0.020 h for every period (the 0.025 h of T < 0.7 s not used);
+  near-source factors 1.0 until the source is entered (the settings check warns in zone 4) and
+  no Na ≤ 1.1 cap; SF takes SE's Ca, Cv (or Fa, Fv) with the site-specific warning. Occupancy
+  category III takes I = 1.25 under BCP and NSCP (hazardous; special occupancies have 1.0 in the
+  code). The town wind speeds of Saudi Arabia and Pakistan and Indonesia's 30 m/s are
+  placeholders to replace; the bar sizes (SASO 8-32 mm, PNS 49 10-36 mm, SNI D10-D36, US #3-#11
+  in Pakistan) and bar schedules (BS 8666 in Saudi Arabia, ACI 315 with 12 m stock elsewhere)
+  are SAEngine's choice. SBC 304, NSCP Chapter 4 and SNI 2847 adopt ACI 318-14; the base pack's
+  ACI 318-19 rules apply (the ACI 318-14 forms are not built in) and the clause references are
+  named after the local code (NSCP renumbered 4xx).
+
 ## 2026-11-04: National Annex packs on the Eurocodes (alpha 9 track C15)
 
 - **What was built.** Four built-in packs that `extends: "eurocodes"` and set only Nationally

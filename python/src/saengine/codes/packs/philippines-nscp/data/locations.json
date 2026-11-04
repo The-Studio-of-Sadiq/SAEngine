@@ -1,0 +1,91 @@
+{
+  "$schema": "../../../schemas/locations.schema.json",
+  "$replace": true,
+  "$sources": [
+    "NSCP 2015 Sec 208.4.4.1 (zone 2: Palawan except Busuanga, Sulu and Tawi-Tawi; zone 4 the rest) and Table 207A.5-1 (basic wind speed by province)"
+  ],
+  "source": "NSCP 2015: the seismic zone of each province (2 or 4) and the basic wind speed V of the province (risk category II; to be checked against Table 207A.5-1, VERIFY.md N2). Elsewhere a custom location: enter Z and V.",
+  "default": "metroManila",
+  "locations": {
+    "metroManila": {
+      "name": "Metro Manila",
+      "zone": 4,
+      "windSpeed": 69.4
+    },
+    "batanes": {
+      "name": "Batanes",
+      "zone": 4,
+      "windSpeed": 80.6
+    },
+    "cagayan": {
+      "name": "Cagayan (Tuguegarao)",
+      "zone": 4,
+      "windSpeed": 80.6
+    },
+    "isabela": {
+      "name": "Isabela (Ilagan)",
+      "zone": 4,
+      "windSpeed": 80.6
+    },
+    "benguet": {
+      "name": "Benguet (Baguio)",
+      "zone": 4,
+      "windSpeed": 75.0
+    },
+    "pampanga": {
+      "name": "Pampanga (San Fernando)",
+      "zone": 4,
+      "windSpeed": 69.4
+    },
+    "batangas": {
+      "name": "Batangas",
+      "zone": 4,
+      "windSpeed": 69.4
+    },
+    "albay": {
+      "name": "Albay (Legazpi)",
+      "zone": 4,
+      "windSpeed": 80.6
+    },
+    "iloilo": {
+      "name": "Iloilo",
+      "zone": 4,
+      "windSpeed": 55.6
+    },
+    "cebu": {
+      "name": "Cebu",
+      "zone": 4,
+      "windSpeed": 55.6
+    },
+    "leyte": {
+      "name": "Leyte (Tacloban)",
+      "zone": 4,
+      "windSpeed": 80.6
+    },
+    "davaoDelSur": {
+      "name": "Davao del Sur (Davao City)",
+      "zone": 4,
+      "windSpeed": 41.7
+    },
+    "zamboangaDelSur": {
+      "name": "Zamboanga del Sur",
+      "zone": 4,
+      "windSpeed": 41.7
+    },
+    "palawan": {
+      "name": "Palawan (Puerto Princesa)",
+      "zone": 2,
+      "windSpeed": 55.6
+    },
+    "sulu": {
+      "name": "Sulu (Jolo)",
+      "zone": 2,
+      "windSpeed": 41.7
+    },
+    "tawiTawi": {
+      "name": "Tawi-Tawi (Bongao)",
+      "zone": 2,
+      "windSpeed": 41.7
+    }
+  }
+}

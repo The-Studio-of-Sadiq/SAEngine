@@ -178,7 +178,7 @@ def design_acceleration(
             rule.plateau,
             rule.lowerBound,
         )
-    if rule is not None and rule.method == "mappedSpectral":
+    if rule is not None and rule.method in ("mappedSpectral", "ubc97"):  # C16: ubc97 the same
         return importance / r * normalized_spectrum(period, site_class, damping, z)
     factor = rule.factor if rule is not None and rule.factor is not None else 2 / 3
     sa = (

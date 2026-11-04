@@ -2564,7 +2564,7 @@ def _derive_fem(
             summary.pop("Cs", None)
             summary["spectral"] = sh.describe(values["Z"])
             b.notes.append(
-                f"seismic: the site's mapped spectral values {summary['spectral']}; Cs = "
+                f"seismic: the site's {values['Z'].label} {summary['spectral']}; Cs = "
                 f"{info['EX']['Sa_g']:.4f} in X ({code_context.cite('seismic', 'elf')})"
             )
         # ── B2: the site-specific study warning (S1, S2 flagged by the soil report) and the
