@@ -792,6 +792,23 @@ The generic keys they add, open to any pack (a pack without them behaves as befo
 | `steelLimitState.compression.slendernessReduction` | αc by λn = (KL/r) √kf √(fy/fref), αa, αb of the curve, η and ξ (AS 4100 6.3.3 form) in place of χ |
 | `steelLimitState.flexure.slendernessReduction` | Mb = c1 αs Ms <= Ms, αs = share [√((Ms/Mo)² + offset) - Ms/Mo] (AS 4100 5.6.1.1 form) in place of χLT |
 
+### China (alpha 9 C20)
+
+| Pack | Extends | What it sets |
+| --- | --- | --- |
+| `china-gb` | `bnbc2020` | GB 55001-2021 combinations (1.3G + 1.5Q, ψc 0.7 / 0.6) and GB 55002-2021 1.3(G + 0.5Q) + 1.4E; GB 50009-2012 live loads (2021 values), the reduction by floors, wk = βz μs μz w0 with μz of A-D, μs 0.8/-0.5, βz >= 1.2, roof snow μr s0, 37 cities with w0, s0, intensity and design group; GB 50011-2010 αmax frequent and rare, Tg by group and site class I0-IV, the influence coefficient spectrum with η1, η2, γ, Geq = 0.85 GE, Fi ∝ Gi Hi, λ, drift 1/550-1/1000, the rare earthquake's elasto-plastic drift by ηp, seismic grades 一-四; GB 50010-2010 fc = fck/1.4 C20-C80, α1 β1 εcu, 0.9(fc A + fy' As'), 0.7 ft b h0 + fyv Asv h0/s, bars Φ6-Φ40; GB 50017-2017 f = fy/γR, S1-S5, φ of classes a-d, γx 1.05; SI |
+
+The generic keys it adds, open to any pack (a pack without them behaves as before):
+
+| Key | What it does |
+| --- | --- |
+| `seismic.designSpectrum.method` `influenceCoefficient` (`influence`) | Sa = Z I/R × α(T)/αmax with Z holding αmax: riseStart at T = 0 to η2 at risePeriod, η2 to Tg (the class's TC), η2 (Tg/T)^γ to tailFrom Tg, η2 (1/tailFrom)^γ - η1 (T - tailFrom Tg) to longest; γ, η1, η2 = base + (ref - ζ)/(a + b ζ) >= least; the rare earthquake's αmax by zone and its Tg increase |
+| `locations.*.spectrumType` | The town's `seismic.spectra` id (GB's design earthquake group), applied as `seismic.spectrumType` unless the project overrides it |
+| `seismic.driftLimits[].groups` | A drift row for the systems of these groups (`systems.*.group`) |
+| `seismic.rareDrift` (`amplifiedElastic`) | Δup = ηp Δue, Δue = the response spectrum drift × α_rare(T1)/α(T1), ηp by group, storeys and ξy, at most [θp] h by group; in the seismic design summary (`rareDrift`) and its notes |
+| `seismic.seismicGrades` | The grade by the zone's intensity column (raised by occupancy category), the system's group and the height; its level and factors in the summary (`seismicGrade`) and notes |
+| `steelLimitState.compression.perry` | A buckling curve by its Perry constants: φ = 1 - a1 λn² to the plateau, else [(a2 + a3 λn + λn²) - √((a2 + a3 λn + λn²)² - 4 λn²)] / (2 λn²) |
+
 ## Other package kinds
 
 The same `pack.json` and the same registry hold the other packages of the marketplace

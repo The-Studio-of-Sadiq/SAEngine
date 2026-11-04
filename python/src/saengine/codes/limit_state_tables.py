@@ -103,6 +103,20 @@ class ModifiedSlenderness(_Group):
     alphaB: dict[str, float] = Field(description="αb by curve id (the curves' names).")
 
 
+class PerryCurve(_Group):
+    """Alpha 9 C20: a buckling curve by its Perry constants (GB 50017-2017 Appendix D type) on
+    the relative slenderness λn: φ = 1 - a1 λn² up to ``plateau``; above it φ = [(a2 + a3 λn +
+    λn²) - √((a2 + a3 λn + λn²)² - 4 λn²)] / (2 λn²), with (a2, a3) of ``high`` from
+    ``split`` on where given."""
+
+    a1: Positive
+    a2: Positive
+    a3: Positive
+    plateau: Positive = 0.215
+    split: Positive | None = None
+    high: tuple[Positive, Positive] | None = None
+
+
 class SteelCompression(_Group):
     """Flexural buckling by buckling curves (method ``bucklingCurves``): fcd = χ fy / γm0, χ =
     1 / (φ + √(φ² - λ²)) ≤ 1, φ = 0.5 [1 + α (λ - plateau) + λ²], λ = √(fy / fcc), fcc = π² E /
@@ -115,6 +129,11 @@ class SteelCompression(_Group):
     )
     plateau: Positive = Field(default=0.2, description="λ0 of the plateau (χ = 1 below it).")
     slendernessReduction: ModifiedSlenderness | None = None
+    # Alpha 9 C20: the curves by Perry constants (GB 50017 Appendix D); a curve listed here
+    # takes its φ in place of χ of ``alpha``.
+    perry: dict[str, PerryCurve] = Field(
+        default_factory=dict, description="Buckling curves by Perry constants (a1, a2, a3)."
+    )
     rolledI: list[tuple[float, Positive, str, str]] = Field(
         description="Rolled I and H sections: (h/bf above, tf up to [mm], major curve, minor "
         "curve); the first row that matches."

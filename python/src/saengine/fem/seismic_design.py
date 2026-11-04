@@ -408,6 +408,9 @@ def drift_limit(
             and candidate.driftTolerantFinishes != tolerant
         ):
             continue
+        # Alpha 9 C20: a row of the systems of some groups (GB 50011 Table 5.5.1).
+        if candidate.groups is not None and (entry is None or entry.group not in candidate.groups):
+            continue
         limits, row, label = candidate.limits, candidate.id, candidate.label
         break
     ratio = limits.get(occupancy, limits.get("II", next(iter(limits.values()))))
@@ -2112,6 +2115,11 @@ def _seismic_design(
             "response spectrum is used"
         )
     notes += _c5c_notes(settings, options, spectra)
+    # Alpha 9 C20: the pack's two-level design (the rare earthquake's elasto-plastic drift and
+    # the seismic grade); {} for a pack without it.
+    from saengine.fem.two_level_seismic import summary_block
+
+    two_level = summary_block(settings, values, drift, spectra, storeys, notes)
 
     summary = {
         "schema": SUMMARY_SCHEMA,
@@ -2148,6 +2156,7 @@ def _seismic_design(
         "notes": notes,
         "clauses": clauses(),
     }
+    summary.update(two_level)
     if run_info is not None:
         summary["run"] = run_info
         folder.mkdir(parents=True, exist_ok=True)
