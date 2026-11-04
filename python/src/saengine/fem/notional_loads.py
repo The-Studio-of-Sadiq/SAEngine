@@ -29,6 +29,7 @@ load of 1.2D + 1.6L is 0.002 (1.2 YD + 1.6 YL). Loads in N, coordinates in m (th
 
 from __future__ import annotations
 
+import math
 from typing import Any
 
 import numpy as np
@@ -70,14 +71,44 @@ NOTIONAL_CASES = (
 )
 
 
-def coefficient(method: str, drift: float = 0.0, tau: str = "additive") -> float:
+def sway_imperfection() -> Any | None:
+    """Alpha 9 C6: the pack's global sway imperfection (``notional.swayImperfection``), None
+    when it gives a fixed notional coefficient."""
+    table = stability_table()
+    return getattr(table.notional, "swayImperfection", None) if table is not None else None
+
+
+def sway_coefficient(height: float) -> float:
+    """φ = φ0 αh αm of a structure ``height`` m high: αh = factor / √h within the pack's
+    bounds, αm = 1 (SAEngine practice: the number of columns in a row is not counted, the
+    largest value)."""
+    rule = sway_imperfection()
+    if rule is None:
+        return 0.0
+    ah = float(rule.heightFactor) / math.sqrt(height) if height > 0 else float(rule.heightMax)
+    ah = min(max(ah, float(rule.heightMin)), float(rule.heightMax))
+    return float(rule.phi0) * ah
+
+
+def every_combination() -> bool:
+    """Alpha 9 C6: whether the pack's sway imperfection acts in every combination."""
+    rule = sway_imperfection()
+    return bool(rule is not None and rule.everyCombination)
+
+
+def coefficient(
+    method: str, drift: float = 0.0, tau: str = "additive", height: float | None = None
+) -> float:
     """Ni / Yi of ``method`` ("secondOrder", "firstOrder" or "directAnalysis", with ``tau``
     "additive": τb = 1 for every member and the additive notional load); 0 for "none" or a
-    method the code pack does not cover."""
+    method the code pack does not cover. Alpha 9 C6: by second-order analysis under a pack
+    with a sway imperfection, φ of the structure ``height`` m high."""
     table = stability_table()
     if table is None:
         return 0.0
     if method == "secondOrder":
+        if sway_imperfection() is not None and height is not None:
+            return sway_coefficient(height)
         return float(table.notional.secondOrder)
     if method == "firstOrder":
         return max(
@@ -143,7 +174,9 @@ def add_notional_cases(
     Returns the notes (empty when ``method`` is "none")."""
     if method in (None, "", "none"):
         return []
-    k = coefficient(method, drift, tau)
+    zs = [float(n["coords"][2]) for n in project.get("nodes", []) if len(n.get("coords", [])) > 2]
+    height = (max(zs) - min(zs)) if zs else None
+    k = coefficient(method, drift, tau, height)
     if k <= 0:
         return [f"notional loads: the code pack does not cover the method '{method}'"]
     clause = _clause(method)
@@ -200,8 +233,14 @@ def add_notional_cases(
         totals[code] = k * sum(gravity.values())
     if not added:
         return [f"notional loads: no gravity case to form them from ({clause})"]
+    sway = sway_imperfection()
     rule = {
-        "secondOrder": f"Ni = {k:g} Yi (design by second-order analysis)",
+        "secondOrder": (
+            f"Ni = φ Yi, φ = φ0 αh αm = {k:.5f} (global sway imperfection, h = {height or 0:.1f} "
+            f"m, αm = 1; {sway.clause or clause})"
+            if sway is not None and method == "secondOrder"
+            else f"Ni = {k:g} Yi (design by second-order analysis)"
+        ),
         "firstOrder": f"Ni = {k:g} Yi (design by first-order analysis, Δ/L = {drift:g})",
         DIRECT_ANALYSIS: f"Ni = {k:g} Yi (direct analysis method"
         + (", τb = 1 with the additive notional load)" if tau == "additive" else ")"),

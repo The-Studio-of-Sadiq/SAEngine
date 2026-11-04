@@ -1,0 +1,207 @@
+{
+  "$schema": "../../../schemas/steelLimitState.schema.json",
+  "$sources": [
+    "EN 1993-1-1:2005 (+AC:2009, A1:2014) Sections 5, 6; Annexes A, B (recommended values)",
+    "EN 1993-1-5:2006 Section 4 (effective widths of class 4 plates)",
+    "EN 1993-1-8:2005 Sections 3, 4 (bolts, welds, block tearing)",
+    "EN 1998-1:2004 Section 6 (steel buildings, dissipative design)"
+  ],
+  "source": "EN 1993-1-1 members (method crossSectionClasses), EN 1993-1-8 joints (method partialFactors), EN 1998-1 Section 6 (method dissipativeZones), recommended values; see VERIFY.md",
+  "nominalHollowWall": true,
+  "memberResistance": {
+    "method": "crossSectionClasses",
+    "gammaM0": 1.0,
+    "gammaM1": 1.0,
+    "gammaM2": 1.25,
+    "modulus": 210000,
+    "shearModulus": 81000,
+    "netTension": 0.9,
+    "thickPlates": [[235, 40, 215], [275, 40, 255], [355, 40, 335], [440, 40, 410]],
+    "classes": {
+      "epsilonReference": 235,
+      "internalCompression": [33, 38, 42],
+      "internalBending": [72, 83, 124],
+      "webClass1": [396, 13, 1, 36],
+      "webClass2": [456, 13, 1, 41.5],
+      "webClass3": [42, 0.67, 0.33, 62],
+      "outstandCompression": [9, 10, 14],
+      "tubes": [50, 70, 90],
+      "angle": [15, 11.5]
+    },
+    "plates": {
+      "plateFactor": 28.4,
+      "internal": [0.055, 3],
+      "internalLimit": [0.5, 0.085],
+      "outstand": 0.188,
+      "outstandLimit": 0.748,
+      "kSigmaUniform": 4.0,
+      "kSigmaBending": 23.9,
+      "kSigmaPositive": [8.2, 1.05],
+      "kSigmaNegative": [7.81, 6.29, 9.78],
+      "kSigmaOutstand": 0.43,
+      "kSigmaOutstandTip": 0.57
+    },
+    "imperfection": {"a0": 0.13, "a": 0.21, "b": 0.34, "c": 0.49, "d": 0.76},
+    "plateau": 0.2,
+    "highFrom": 460,
+    "curves": [
+      {"family": "rolledI", "depthWidthAbove": 1.2, "flangeMax": 40, "y": "a", "z": "b", "yHigh": "a0", "zHigh": "a0"},
+      {"family": "rolledI", "depthWidthAbove": 1.2, "flangeAbove": 40, "flangeMax": 100, "y": "b", "z": "c", "yHigh": "a", "zHigh": "a"},
+      {"family": "rolledI", "depthWidthMax": 1.2, "flangeMax": 100, "y": "b", "z": "c", "yHigh": "a", "zHigh": "a"},
+      {"family": "rolledI", "depthWidthMax": 1.2, "flangeAbove": 100, "y": "d", "z": "d", "yHigh": "c", "zHigh": "c"},
+      {"family": "rolledI", "depthWidthAbove": 1.2, "flangeAbove": 100, "y": "d", "z": "d", "yHigh": "c", "zHigh": "c"},
+      {"family": "weldedI", "flangeMax": 40, "y": "b", "z": "c"},
+      {"family": "weldedI", "flangeAbove": 40, "y": "c", "z": "d"},
+      {"family": "hotHollow", "y": "a", "z": "a", "yHigh": "a0", "zHigh": "a0"},
+      {"family": "coldHollow", "y": "c", "z": "c"},
+      {"family": "channel", "y": "c", "z": "c"},
+      {"family": "tee", "y": "c", "z": "c"},
+      {"family": "solid", "y": "c", "z": "c"},
+      {"family": "angle", "y": "b", "z": "b"}
+    ],
+    "lateralTorsional": {
+      "method": "rolled",
+      "general": [
+        {"family": "rolledI", "depthWidthMax": 2, "curve": "a"},
+        {"family": "rolledI", "curve": "b"},
+        {"family": "weldedI", "depthWidthMax": 2, "curve": "c"},
+        {"family": "weldedI", "curve": "d"},
+        {"family": "other", "curve": "d"}
+      ],
+      "rolled": [
+        {"family": "rolledI", "depthWidthMax": 2, "curve": "b"},
+        {"family": "rolledI", "curve": "c"},
+        {"family": "weldedI", "depthWidthMax": 2, "curve": "c"},
+        {"family": "weldedI", "curve": "d"},
+        {"family": "other", "curve": "d"}
+      ],
+      "plateauGeneral": 0.2,
+      "plateauRolled": 0.4,
+      "beta": 0.75,
+      "c1Max": 2.7,
+      "modification": "none",
+      "fA": 0.5,
+      "fB": 0.8
+    },
+    "interaction": {
+      "method": "annexB",
+      "annexB": {
+        "cmMin": 0.4,
+        "plasticYY": [0.2, 0.8],
+        "plasticZZ": [2.0, 0.6, 1.4],
+        "plasticYZ": 0.6,
+        "plasticZY": 0.6,
+        "plasticZYTorsional": [0.1, 0.25],
+        "elasticYY": [0.6, 0.6],
+        "elasticYZ": 1.0,
+        "elasticZY": 0.8,
+        "elasticZYTorsional": [0.05, 0.25]
+      },
+      "annexA": {
+        "cm0": [0.79, 0.21, 0.36, 0.33],
+        "wMax": 1.5,
+        "elasticShare": 0.6,
+        "cyy": [1.6, 1.6],
+        "cyz": [14, 5],
+        "bLT": 0.5,
+        "cLT": [10, 5],
+        "dLT": [2, 0.1],
+        "eLT": [1.7, 0.1],
+        "lateralLimit": 0.2
+      }
+    },
+    "shear": {
+      "eta": 1.2,
+      "bucklingLimit": 72,
+      "plateFactor": 37.4,
+      "kTau": 5.34,
+      "chiW": 0.83,
+      "reductionFrom": 0.5
+    },
+    "globalAnalysis": {"firstOrder": 10, "amplified": 3}
+  },
+  "connections": {
+    "method": "partialFactors",
+    "gammaM0": 1.0,
+    "gammaM2": 1.25,
+    "bolts": {
+      "4.6": {"fyb": 240, "fub": 400, "alphaV": 0.6},
+      "4.8": {"fyb": 320, "fub": 400, "alphaV": 0.5},
+      "5.6": {"fyb": 300, "fub": 500, "alphaV": 0.6},
+      "5.8": {"fyb": 400, "fub": 500, "alphaV": 0.5},
+      "6.8": {"fyb": 480, "fub": 600, "alphaV": 0.5},
+      "8.8": {"fyb": 640, "fub": 800, "alphaV": 0.6},
+      "10.9": {"fyb": 900, "fub": 1000, "alphaV": 0.5}
+    },
+    "gradeOf": {"A307": "4.6", "A325N": "8.8", "A325X": "8.8", "A490N": "10.9", "A490X": "10.9"},
+    "tensileArea": {"12": 84.3, "14": 115, "16": 157, "18": 192, "20": 245, "22": 303, "24": 353, "27": 459, "30": 561, "33": 694, "36": 817},
+    "k2": 0.9,
+    "combinedTension": 1.4,
+    "bearing": {"endDistance": 3, "innerPitch": 3, "innerOffset": 0.25, "k1Max": 2.5},
+    "weld": {"method": "simplified", "betaW": [[360, 0.8], [430, 0.85], [510, 0.9], [9999, 1.0]], "perpendicularShare": 0.9},
+    "blockShear": 1.0,
+    "slip": {
+      "preload": 0.7,
+      "mu": {"A": 0.5, "B": 0.4},
+      "ks": {"standard": 1.0, "oversized": 0.85, "shortSlot": 0.85, "longSlot": 0.7},
+      "gammaM3": {"strength": 1.25, "serviceability": 1.1},
+      "tensionReduction": 0.8
+    }
+  },
+  "seismic": {
+    "method": "dissipativeZones",
+    "gammaOv": 1.25,
+    "capacityFactor": 1.1,
+    "beamShear": 0.5,
+    "beamAxial": 0.15,
+    "columnShear": 0.5,
+    "strongColumn": 1.3,
+    "braceOmegaSpread": 1.25,
+    "systems": {
+      "steelSmf": {"kind": "moment", "ductility": "DCH", "classMax": 1},
+      "steelImf": {"kind": "moment", "ductility": "DCM", "classMax": 2},
+      "steelOmf": {"kind": "moment", "ductility": "DCL", "classMax": 3},
+      "steelScbf": {"kind": "concentric", "ductility": "DCH", "classMax": 1, "braceSlenderness": [1.3, 2.0]},
+      "steelOcbf": {"kind": "concentric", "ductility": "DCM", "classMax": 2, "braceSlenderness": [1.3, 2.0]},
+      "steelEbf": {"kind": "eccentric", "ductility": "DCH", "classMax": 1, "linkShear": 1.6},
+      "steelDualSmfScbf": {"kind": "moment", "ductility": "DCH", "classMax": 1},
+      "steelNotDetailed": {"kind": "moment", "ductility": "DCL", "classMax": 3}
+    },
+    "clauses": {
+      "general": "EN 1998-1 Sec 6.1-6.5",
+      "classes": "EN 1998-1 6.5.3, Table 6.3",
+      "beams": "EN 1998-1 6.6.2(2)-(3), Eqs 6.2-6.5",
+      "columns": "EN 1998-1 6.6.3(1)-(4), Eq 6.6",
+      "nonDissipative": "EN 1998-1 6.6.3(1), 6.7.4(1), 6.8.3(1): NEd,G + 1.1 γov Ω NEd,E (6.2(3) γov)",
+      "strongColumn": "EN 1998-1 4.4.2.3(4), Eq 4.29",
+      "braceSlenderness": "EN 1998-1 6.7.3(1)-(4)",
+      "braceOmega": "EN 1998-1 6.7.3(8)"
+    }
+  },
+  "clauses": {
+    "code": "EN 1993-1-1",
+    "material": "3.2.2, Table 3.1",
+    "classes": "5.5, Table 5.2",
+    "effectiveWidth": "6.2.2.5, EN 1993-1-5 4.4",
+    "resistances": "6.2",
+    "tension": "6.2.3",
+    "compression": "6.2.4",
+    "bending": "6.2.5",
+    "shear": "6.2.6",
+    "shearBuckling": "6.2.6(6), EN 1993-1-5 5.2-5.3",
+    "bendingShear": "6.2.8",
+    "bendingAxial": "6.2.9",
+    "buckling": "6.3.1, Tables 6.1, 6.2",
+    "lateralTorsional": "6.3.2.2-6.3.2.3, Tables 6.3-6.5",
+    "interaction": "6.3.3, Annexes A, B",
+    "interactionMajor": "6.3.3(4), Eq 6.61",
+    "interactionMinor": "6.3.3(4), Eq 6.62",
+    "globalAnalysis": "5.2.1(3), Eq 5.1",
+    "imperfections": "5.3.2, Eq 5.5"
+  },
+  "sources": {
+    "memberResistance": "EN 1993-1-1 2.4.1, 6.1 (γM0 1.00, γM1 1.00, γM2 1.25 recommended); 3.2.6 (E, G); Tables 3.1, 5.2, 6.1-6.5; 6.2-6.3; Annexes A, B; EN 1993-1-5 4.4 (ρ, kσ of Tables 4.1, 4.2), 5.2-5.3 (η 1.20, χw)",
+    "connections": "EN 1993-1-8 2.2 Table 2.1 (γM2 1.25, γM3 1.25 / 1.10); 3.1.1 Table 3.1 (fyb, fub); 3.6.1 Table 3.4 (αv, k1, αb, k2, the 1.4 of the interaction); 3.9 (Fp,C = 0.7 fub As, ks, μ of Table 3.7); 3.10.2 (block tearing); 4.5.3 (welds, βw of Table 4.1); As of the bolt standards",
+    "seismic": "EN 1998-1 6.2(3) γov 1.25; 6.5.3 Table 6.3; 6.6.2-6.6.3; 6.7.3-6.7.4; 6.8; 4.4.2.3(4)"
+  }
+}

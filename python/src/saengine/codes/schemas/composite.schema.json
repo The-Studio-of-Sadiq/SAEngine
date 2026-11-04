@@ -810,6 +810,269 @@
       "title": "CompositeModulus",
       "type": "object"
     },
+    "CompositePartialFactors": {
+      "additionalProperties": false,
+      "description": "Alpha 9 C6, ``composite.partialFactors``: the partial factors of composite members and\nthe methods of the shear connectors, the concrete modulus, the degree of connection and\nthe columns' buckling.",
+      "properties": {
+        "method": {
+          "const": "partialFactors",
+          "default": "partialFactors",
+          "title": "Method",
+          "type": "string"
+        },
+        "gammaA": {
+          "description": "Structural steel (γM0).",
+          "exclusiveMinimum": 0,
+          "title": "Gammaa",
+          "type": "number"
+        },
+        "gammaC": {
+          "exclusiveMinimum": 0,
+          "title": "Gammac",
+          "type": "number"
+        },
+        "gammaS": {
+          "exclusiveMinimum": 0,
+          "title": "Gammas",
+          "type": "number"
+        },
+        "gammaV": {
+          "exclusiveMinimum": 0,
+          "title": "Gammav",
+          "type": "number"
+        },
+        "studSteel": {
+          "description": "PRd = this fu π d²/4 / γV ...",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Studsteel",
+          "type": "number"
+        },
+        "studConcrete": {
+          "description": "... or this α d² √(fck Ecm) / γV.",
+          "exclusiveMinimum": 0,
+          "title": "Studconcrete",
+          "type": "number"
+        },
+        "studAspect": {
+          "description": "α = 0.2 (hsc/d + 1) for a <= hsc/d <= b, else 1: [a, b].",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Studaspect",
+          "type": "array"
+        },
+        "studFuMax": {
+          "description": "fu of the stud at most this [MPa].",
+          "exclusiveMinimum": 0,
+          "title": "Studfumax",
+          "type": "number"
+        },
+        "transverseRibs": {
+          "description": "kt = a / √nr (b0/hp) (hsc/hp - 1), a = [one stud, two studs] ...",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Transverseribs",
+          "type": "array"
+        },
+        "transverseMax": {
+          "description": "... kt at most [nr = 1, nr = 2].",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            }
+          ],
+          "title": "Transversemax",
+          "type": "array"
+        },
+        "parallelRibs": {
+          "description": "kl = this (b0/hp)(hsc/hp - 1) <= 1.",
+          "exclusiveMinimum": 0,
+          "title": "Parallelribs",
+          "type": "number"
+        },
+        "modulus": {
+          "description": "Ecm = a (fcm / b)^c [MPa], fcm = fck + increment.",
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Modulus",
+          "type": "array"
+        },
+        "fcmIncrement": {
+          "exclusiveMinimum": 0,
+          "title": "Fcmincrement",
+          "type": "number"
+        },
+        "minimumConnection": {
+          "description": "η >= 1 - (a / fy)(b - c Le), at least d (equal flanges, Le <= 25 m).",
+          "maxItems": 4,
+          "minItems": 4,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            }
+          ],
+          "title": "Minimumconnection",
+          "type": "array"
+        },
+        "columnCurves": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Buckling curve by column: encasedMajor, encasedMinor, filled.",
+          "title": "Columncurves",
+          "type": "object"
+        },
+        "imperfection": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "description": "Member imperfection e0 = L / this by column (encasedMajor, encasedMinor, filled).",
+          "title": "Imperfection",
+          "type": "object"
+        },
+        "secondOrderStiffness": {
+          "description": "(EI)eff,II = a (Ea Ia + Es Is + b Ecm Ic): [a, b].",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Secondorderstiffness",
+          "type": "array"
+        },
+        "beta": {
+          "description": "β of the end moments = a + b ψ >= c (the imperfection's β = 1).",
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Beta",
+          "type": "array"
+        },
+        "alphaM": {
+          "description": "[fy up to [MPa], αM] of MEd <= αM μd Mpl,Rd.",
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              },
+              {
+                "exclusiveMinimum": 0,
+                "maximum": 1,
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "minItems": 1,
+          "title": "Alpham",
+          "type": "array"
+        }
+      },
+      "required": [
+        "gammaA",
+        "gammaC",
+        "gammaS",
+        "gammaV",
+        "studSteel",
+        "studConcrete",
+        "studAspect",
+        "studFuMax",
+        "transverseRibs",
+        "transverseMax",
+        "parallelRibs",
+        "modulus",
+        "fcmIncrement",
+        "minimumConnection",
+        "columnCurves",
+        "imperfection",
+        "secondOrderStiffness",
+        "beta",
+        "alphaM"
+      ],
+      "title": "CompositePartialFactors",
+      "type": "object"
+    },
     "CompositeSlab": {
       "additionalProperties": false,
       "properties": {
@@ -1120,6 +1383,17 @@
     },
     "connections": {
       "$ref": "#/$defs/CompositeConnections"
+    },
+    "partialFactors": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/CompositePartialFactors"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
     }
   },
   "required": [

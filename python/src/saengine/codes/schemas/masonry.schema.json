@@ -1704,6 +1704,206 @@
       "title": "MasonryOpenings",
       "type": "object"
     },
+    "MasonryPartialFactors": {
+      "additionalProperties": false,
+      "description": "Alpha 9 C6, ``masonry.method = \"partialFactors\"``: unreinforced (and reinforced) walls by\nthe characteristic compressive strength fk, γM, the capacity reduction Φ at the top,\nbottom and mid-height and the shear strength fvk.",
+      "properties": {
+        "gammaM": {
+          "description": "γM of masonry (class of execution as the pack sets).",
+          "exclusiveMinimum": 0,
+          "title": "Gammam",
+          "type": "number"
+        },
+        "gammaS": {
+          "description": "γS of reinforcing steel.",
+          "exclusiveMinimum": 0,
+          "title": "Gammas",
+          "type": "number"
+        },
+        "unitGroups": {
+          "additionalProperties": {
+            "$ref": "#/$defs/MasonryUnitGroup"
+          },
+          "description": "K, α, β by '<unit kind>.<group>' (clay.1, concrete.2 ...).",
+          "title": "Unitgroups",
+          "type": "object"
+        },
+        "groupOf": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Unit group by the material's units (solid, hollow): SAEngine practice.",
+          "title": "Groupof",
+          "type": "object"
+        },
+        "defaultMortar": {
+          "description": "fm [MPa] when the material's mortar grade is not known (the safe side).",
+          "exclusiveMinimum": 0,
+          "title": "Defaultmortar",
+          "type": "number"
+        },
+        "shapeFactor": {
+          "default": 1.0,
+          "description": "fb = this × the unit's mean compressive strength (δ).",
+          "exclusiveMinimum": 0,
+          "title": "Shapefactor",
+          "type": "number"
+        },
+        "fbMax": {
+          "description": "fb taken at most this [MPa] ...",
+          "exclusiveMinimum": 0,
+          "title": "Fbmax",
+          "type": "number"
+        },
+        "fmMax": {
+          "description": "... fm at most this, and at most fmShare fb.",
+          "exclusiveMinimum": 0,
+          "title": "Fmmax",
+          "type": "number"
+        },
+        "fmShare": {
+          "exclusiveMinimum": 0,
+          "title": "Fmshare",
+          "type": "number"
+        },
+        "fvk0": {
+          "additionalProperties": {
+            "items": {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            "type": "array"
+          },
+          "description": "fvk0 [MPa] by unit kind: [[mortar fm from [MPa], fvk0], ...] ascending.",
+          "title": "Fvk0",
+          "type": "object"
+        },
+        "shearCompression": {
+          "description": "fvk = fvk0 + this σd ...",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Shearcompression",
+          "type": "number"
+        },
+        "shearMax": {
+          "description": "... <= this fb.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Shearmax",
+          "type": "number"
+        },
+        "eccentricityMin": {
+          "description": "ei >= this t.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Eccentricitymin",
+          "type": "number"
+        },
+        "heightEccentricity": {
+          "description": "einit = hef / this.",
+          "exclusiveMinimum": 0,
+          "title": "Heighteccentricity",
+          "type": "number"
+        },
+        "endReduction": {
+          "description": "Φi = 1 - this ei / t.",
+          "exclusiveMinimum": 0,
+          "title": "Endreduction",
+          "type": "number"
+        },
+        "slendernessMax": {
+          "description": "hef / tef at most this.",
+          "exclusiveMinimum": 0,
+          "title": "Slendernessmax",
+          "type": "number"
+        },
+        "restraint": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "description": "ρn of the effective height: 'braced' (restrained top and bottom), 'unbraced' (a free top).",
+          "title": "Restraint",
+          "type": "object"
+        },
+        "creep": {
+          "description": "φ∞ of ek = 0.002 φ∞ (hef/tef) √(t em).",
+          "exclusiveMinimum": 0,
+          "title": "Creep",
+          "type": "number"
+        },
+        "creepFrom": {
+          "description": "ek = 0 while hef/tef <= this.",
+          "exclusiveMinimum": 0,
+          "title": "Creepfrom",
+          "type": "number"
+        },
+        "elasticModulus": {
+          "description": "E = this fk.",
+          "exclusiveMinimum": 0,
+          "title": "Elasticmodulus",
+          "type": "number"
+        },
+        "stressBlock": {
+          "description": "Reinforced: the rectangular block fd over a x: [a, ε_mu (per mille)].",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Stressblock",
+          "type": "array"
+        },
+        "clauses": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Clauses",
+          "type": "object"
+        }
+      },
+      "required": [
+        "gammaM",
+        "gammaS",
+        "unitGroups",
+        "groupOf",
+        "defaultMortar",
+        "fbMax",
+        "fmMax",
+        "fmShare",
+        "fvk0",
+        "shearCompression",
+        "shearMax",
+        "eccentricityMin",
+        "heightEccentricity",
+        "endReduction",
+        "slendernessMax",
+        "restraint",
+        "creep",
+        "creepFrom",
+        "elasticModulus",
+        "stressBlock"
+      ],
+      "title": "MasonryPartialFactors",
+      "type": "object"
+    },
     "MasonryPlainWallShear": {
       "additionalProperties": false,
       "properties": {
@@ -2679,6 +2879,34 @@
       ],
       "title": "MasonryStrengthening",
       "type": "object"
+    },
+    "MasonryUnitGroup": {
+      "additionalProperties": false,
+      "description": "K, α, β of fk = K fb^α fm^β for one unit group and mortar kind.",
+      "properties": {
+        "K": {
+          "exclusiveMinimum": 0,
+          "title": "K",
+          "type": "number"
+        },
+        "alpha": {
+          "exclusiveMinimum": 0,
+          "title": "Alpha",
+          "type": "number"
+        },
+        "beta": {
+          "exclusiveMinimum": 0,
+          "title": "Beta",
+          "type": "number"
+        }
+      },
+      "required": [
+        "K",
+        "alpha",
+        "beta"
+      ],
+      "title": "MasonryUnitGroup",
+      "type": "object"
     }
   },
   "additionalProperties": false,
@@ -2707,11 +2935,12 @@
       "type": "object"
     },
     "method": {
-      "description": "The masonry design method: 'allowableStress' (working stress, linear stress-strain), 'strength' (strength design of reinforced walls) or 'basicStress' (C9: permissible stresses from a basic compressive stress, group basicStress).",
+      "description": "The masonry design method: 'allowableStress' (working stress, linear stress-strain), 'strength' (strength design of reinforced walls), 'basicStress' (C9: permissible stresses from a basic compressive stress, group basicStress) or 'partialFactors' (alpha 9 C6: fk, γM and the capacity reduction Φ, group partialFactors).",
       "enum": [
         "allowableStress",
         "strength",
-        "basicStress"
+        "basicStress",
+        "partialFactors"
       ],
       "title": "Method",
       "type": "string"
@@ -2805,6 +3034,17 @@
       "anyOf": [
         {
           "$ref": "#/$defs/MasonryConfined"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "partialFactors": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/MasonryPartialFactors"
         },
         {
           "type": "null"

@@ -84,14 +84,35 @@ def rules() -> Any | None:
 
 
 def connection_rules() -> Any | None:
-    """The table's ``connections`` group; None without the table or the group."""
+    """The table's ``connections`` group; None without the table or the group (alpha 9 C6:
+    or when the group is another method's, :mod:`saengine.design.steel.joint_resistances`)."""
+    from saengine.codes.limit_state_tables import SteelConnectionRules
+
     t = rules()
-    return getattr(t, "connections", None) if t is not None else None
+    found = getattr(t, "connections", None) if t is not None else None
+    return found if isinstance(found, SteelConnectionRules) else None
 
 
 def seismic_rules() -> Any | None:
+    """The table's ``seismic`` group of the method ``prescriptiveFrames`` (alpha 9 C6: the
+    method ``dissipativeZones`` is :mod:`saengine.design.steel.seismic_dissipative`'s)."""
     t = rules()
-    return getattr(t, "seismic", None) if t is not None else None
+    found = getattr(t, "seismic", None) if t is not None else None
+    if found is None or getattr(found, "method", None) != "prescriptiveFrames":
+        return None
+    return found
+
+
+def member_resistance() -> Any | None:
+    """Alpha 9 C6: the table's ``memberResistance`` group (method ``crossSectionClasses``:
+    cross-section classes 1-4 with effective widths, the buckling curves incl. a0, the
+    lateral-torsional buckling cases and the interaction factors of Annex A or B,
+    :mod:`saengine.design.steel.buckling_curves`); None: this module's members."""
+    t = rules()
+    found = getattr(t, "memberResistance", None) if t is not None else None
+    if found is None or getattr(found, "method", None) != "crossSectionClasses":
+        return None
+    return found
 
 
 def erw(default: bool = True) -> bool:
@@ -785,10 +806,17 @@ def check_member(
     in the steel member's report format (forces in kN and kN·m). ``options``:
     :class:`saengine.design.steel.members.SteelOptions` (its net ratio, shear lag share,
     lengths, stiffener spacing and the stability method's K are used)."""
-    from saengine.design.steel.members import SteelOptions
+    from saengine.design.steel.members import SteelDesignError, SteelOptions
 
-    t = _t(None)
     options = SteelOptions.of(options)
+    if member_resistance() is not None:  # alpha 9 C6: the method's own member checks
+        from saengine.design.steel import buckling_curves
+
+        try:
+            return buckling_curves.check_member(shape, steel, stations, lengths, kind, options)
+        except ValueError as error:
+            raise SteelDesignError(str(error)) from error
+    t = _t(None)
     g0 = float(t.partialFactors.gammaM0)
     nd = shape.area * steel.fy / g0
     ty = tension_yielding(shape, steel, t)
@@ -1022,6 +1050,10 @@ def member_notes(stations: Sequence[Any]) -> list[str]:
 
 def section_summary(shape: ShapeProperties, steel: Steel) -> tuple[str, list[str]]:
     """The section's class in bending about x and its elements' descriptions (the report)."""
+    if member_resistance() is not None:  # alpha 9 C6
+        from saengine.design.steel import buckling_curves
+
+        return buckling_curves.section_summary(shape, steel.fy)
     elements = classify(shape, steel.fy, 0.0, "bending")
     return section_class(elements), [e.describe() for e in elements]
 
@@ -1031,6 +1063,10 @@ def section_summary(shape: ShapeProperties, steel: Steel) -> tuple[str, list[str
 
 def method_lines(table: Any | None = None) -> list[str]:
     """The design report's method paragraphs of the limit state steel members."""
+    if table is None and member_resistance() is not None:  # alpha 9 C6
+        from saengine.design.steel import buckling_curves
+
+        return buckling_curves.method_lines()
     t = _t(table)
     pf = t.partialFactors
     return [

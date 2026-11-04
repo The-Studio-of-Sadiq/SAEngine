@@ -15,8 +15,13 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import Field
+from pydantic import Field, model_validator
 
+from saengine.codes.material_method_tables import (
+    SteelDissipative,
+    SteelJointResistances,
+)
+from saengine.codes.material_method_tables import SteelMemberResistance as MemberResistance
 from saengine.codes.tables import Positive, Share, TableModel, _Group
 
 # ───────────────────────────────────── steelLimitState ─────────────────────────────────────
@@ -268,18 +273,47 @@ class SteelLimitStateTable(TableModel):
     """Steel by limit state design with partial safety factors and buckling curves (module
     :mod:`saengine.design.steel.limit_state`)."""
 
-    partialFactors: SteelPartialFactors
-    classification: SteelClassification
-    compression: SteelCompression
-    tension: SteelTension
-    flexure: SteelFlexure
-    shear: SteelShear
-    interaction: SteelInteraction
-    slenderness: SteelSlendernessLimits
-    shearModulus: Positive = Field(description="G [MPa].")
+    # Alpha 9 C6: the member groups below are those of the method of C9; a pack whose members
+    # follow the method ``crossSectionClasses`` (``memberResistance``) needs none of them.
+    partialFactors: SteelPartialFactors | None = None
+    classification: SteelClassification | None = None
+    compression: SteelCompression | None = None
+    tension: SteelTension | None = None
+    flexure: SteelFlexure | None = None
+    shear: SteelShear | None = None
+    interaction: SteelInteraction | None = None
+    slenderness: SteelSlendernessLimits | None = None
+    shearModulus: Positive | None = Field(default=None, description="G [MPa].")
     welded: bool = Field(default=False, description="Members taken as welded (else rolled).")
     nominalHollowWall: bool = Field(
         default=True, description="Hollow sections on the nominal wall (no ERW reduction)."
     )
-    connections: SteelConnectionRules | None = None
-    seismic: SteelSeismicRules | None = None
+    #: Alpha 9 C6: the members by cross-section classes 1-4 (effective widths), the buckling
+    #: curves incl. a0, the lateral-torsional buckling cases and Annex A / B interaction
+    #: factors (saengine.design.steel.buckling_curves).
+    memberResistance: MemberResistance | None = None
+    #: The connection strengths: bolts by C9's rules (``partialFactorBolts``) or (alpha 9 C6)
+    #: bolts, bearing, welds and block tearing with γM2 (``partialFactors``,
+    #: saengine.design.steel.joint_resistances).
+    connections: SteelConnectionRules | SteelJointResistances | None = None
+    #: The seismic frames: prescriptive rules (``prescriptiveFrames``) or (alpha 9 C6) the
+    #: capacity design of dissipative frames (``dissipativeZones``,
+    #: saengine.design.steel.seismic_dissipative).
+    seismic: SteelSeismicRules | SteelDissipative | None = None
+
+    @model_validator(mode="after")
+    def _members(self) -> SteelLimitStateTable:
+        if self.memberResistance is None:
+            missing = [
+                k
+                for k in (
+                    "partialFactors", "classification", "compression", "tension", "flexure",
+                    "shear", "interaction", "slenderness", "shearModulus",
+                )
+                if getattr(self, k) is None
+            ]  # fmt: skip
+            if missing:
+                raise ValueError(
+                    f"the limit state members need {', '.join(missing)} (or memberResistance)"
+                )
+        return self

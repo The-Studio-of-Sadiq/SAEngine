@@ -1057,6 +1057,203 @@
       "title": "TimberK7",
       "type": "object"
     },
+    "TimberLimitState": {
+      "additionalProperties": false,
+      "description": "Alpha 9 C6, ``timber.method = \"partialFactors\"``: limit state design of timber members\nby the strength classes, kmod by service class and load duration, γM, kdef and the member\nchecks (bending, shear, axial, combined, buckling, lateral-torsional stability).",
+      "properties": {
+        "classes": {
+          "additionalProperties": {
+            "$ref": "#/$defs/TimberStrengthClass"
+          },
+          "minProperties": 1,
+          "title": "Classes",
+          "type": "object"
+        },
+        "gammaM": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "description": "γM by kind (solid, glulam).",
+          "title": "Gammam",
+          "type": "object"
+        },
+        "kmod": {
+          "additionalProperties": {
+            "additionalProperties": {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            "type": "object"
+          },
+          "description": "kmod by kind -> service class (1, 2, 3) and load duration -> value: keys '<service class>.<duration>'.",
+          "title": "Kmod",
+          "type": "object"
+        },
+        "kdef": {
+          "additionalProperties": {
+            "additionalProperties": {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            "type": "object"
+          },
+          "description": "kdef by kind -> service class.",
+          "title": "Kdef",
+          "type": "object"
+        },
+        "durations": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Analysis case code -> load-duration class (permanent, long, medium, short, instantaneous); a case not listed: permanent (the conservative class).",
+          "title": "Durations",
+          "type": "object"
+        },
+        "durationOrder": {
+          "description": "Load-duration classes from the longest to the shortest.",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Durationorder",
+          "type": "array"
+        },
+        "defaultClass": {
+          "description": "Strength class when the material names none.",
+          "title": "Defaultclass",
+          "type": "string"
+        },
+        "defaultServiceClass": {
+          "default": "1",
+          "enum": [
+            "1",
+            "2",
+            "3"
+          ],
+          "title": "Defaultserviceclass",
+          "type": "string"
+        },
+        "kcr": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "maximum": 1,
+            "type": "number"
+          },
+          "description": "kcr of the shear width by kind.",
+          "title": "Kcr",
+          "type": "object"
+        },
+        "depthFactor": {
+          "additionalProperties": {
+            "maxItems": 3,
+            "minItems": 3,
+            "prefixItems": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              },
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              },
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "description": "kh = min((reference / h)^exponent, max) by kind: [reference, exponent, max].",
+          "title": "Depthfactor",
+          "type": "object"
+        },
+        "km": {
+          "description": "km of rectangular sections (biaxial bending).",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Km",
+          "type": "number"
+        },
+        "betaC": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "maximum": 1,
+            "type": "number"
+          },
+          "description": "βc of the straightness by kind.",
+          "title": "Betac",
+          "type": "object"
+        },
+        "relativeSlenderness": {
+          "description": "λrel,m <= this: kcrit = 1 ...",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Relativeslenderness",
+          "type": "number"
+        },
+        "lateralTorsional": {
+          "description": "kcrit = a - b λrel,m up to c, then 1 / λrel,m².",
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Lateraltorsional",
+          "type": "array"
+        },
+        "columnPlateau": {
+          "description": "λrel <= this: no buckling reduction.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Columnplateau",
+          "type": "number"
+        },
+        "criticalBending": {
+          "description": "σm,crit = this b² E0,05 / (h lef) (rectangular softwood).",
+          "exclusiveMinimum": 0,
+          "title": "Criticalbending",
+          "type": "number"
+        },
+        "clauses": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Clauses",
+          "type": "object"
+        }
+      },
+      "required": [
+        "classes",
+        "gammaM",
+        "kmod",
+        "kdef",
+        "durations",
+        "durationOrder",
+        "defaultClass",
+        "kcr",
+        "depthFactor",
+        "km",
+        "betaC",
+        "relativeSlenderness",
+        "lateralTorsional",
+        "columnPlateau",
+        "criticalBending"
+      ],
+      "title": "TimberLimitState",
+      "type": "object"
+    },
     "TimberLowDurability": {
       "additionalProperties": false,
       "properties": {
@@ -2088,6 +2285,85 @@
       "title": "TimberSpecies",
       "type": "object"
     },
+    "TimberStrengthClass": {
+      "additionalProperties": false,
+      "description": "Characteristic values of a strength class [MPa; E and G in GPa; kg/m³].",
+      "properties": {
+        "fmk": {
+          "exclusiveMinimum": 0,
+          "title": "Fmk",
+          "type": "number"
+        },
+        "ft0k": {
+          "exclusiveMinimum": 0,
+          "title": "Ft0K",
+          "type": "number"
+        },
+        "ft90k": {
+          "exclusiveMinimum": 0,
+          "title": "Ft90K",
+          "type": "number"
+        },
+        "fc0k": {
+          "exclusiveMinimum": 0,
+          "title": "Fc0K",
+          "type": "number"
+        },
+        "fc90k": {
+          "exclusiveMinimum": 0,
+          "title": "Fc90K",
+          "type": "number"
+        },
+        "fvk": {
+          "exclusiveMinimum": 0,
+          "title": "Fvk",
+          "type": "number"
+        },
+        "E0mean": {
+          "exclusiveMinimum": 0,
+          "title": "E0Mean",
+          "type": "number"
+        },
+        "E005": {
+          "exclusiveMinimum": 0,
+          "title": "E005",
+          "type": "number"
+        },
+        "Gmean": {
+          "exclusiveMinimum": 0,
+          "title": "Gmean",
+          "type": "number"
+        },
+        "rhok": {
+          "exclusiveMinimum": 0,
+          "title": "Rhok",
+          "type": "number"
+        },
+        "kind": {
+          "enum": [
+            "solid",
+            "glulam"
+          ],
+          "title": "Kind",
+          "type": "string"
+        }
+      },
+      "required": [
+        "fmk",
+        "ft0k",
+        "ft90k",
+        "fc0k",
+        "fc90k",
+        "fvk",
+        "E0mean",
+        "E005",
+        "Gmean",
+        "rhok",
+        "kind"
+      ],
+      "title": "TimberStrengthClass",
+      "type": "object"
+    },
     "TimberTemperatureRow": {
       "additionalProperties": false,
       "description": "Ct up to a service temperature [°C], dry and wet, by value.",
@@ -2340,10 +2616,11 @@
     },
     "method": {
       "default": "permissibleStress",
-      "description": "Timber members by ``permissibleStress`` (the stresses above, K factors) or ``referenceDesign`` (the ``reference`` values times their adjustment factors).",
+      "description": "Timber members by ``permissibleStress`` (the stresses above, K factors), ``referenceDesign`` (the ``reference`` values times their adjustment factors) or ``partialFactors`` (strength classes, kmod and γM, the ``limitState`` data).",
       "enum": [
         "permissibleStress",
-        "referenceDesign"
+        "referenceDesign",
+        "partialFactors"
       ],
       "title": "Method",
       "type": "string"
@@ -2352,6 +2629,17 @@
       "anyOf": [
         {
           "$ref": "#/$defs/TimberReference"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "limitState": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/TimberLimitState"
         },
         {
           "type": "null"

@@ -674,7 +674,9 @@ def _pack_value(module: str, name: str):
 
 
 #: Tables of other codes' packs the default pack does not cover (BNBC 2020 has no snow).
-NOT_IN_DEFAULT = {"snow", "concreteMethods", "geotechnicalMethods", "steelLimitState"}
+NOT_IN_DEFAULT = {
+    "snow", "concreteMethods", "geotechnicalMethods", "steelLimitState", "aluminium",
+}  # fmt: skip
 
 
 def test_every_table_file_validates_and_is_registered():

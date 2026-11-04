@@ -1,0 +1,49 @@
+{
+  "$schema": "../../../schemas/aluminium.schema.json",
+  "$sources": [
+    "EN 1999-1-1:2007 (+A1:2009, A2:2013) Sections 3, 6; Tables 3.2b, 3.4, 6.2, 6.3, 6.6 (recommended values)"
+  ],
+  "source": "EN 1999-1-1 members (method partialFactors); the alloys' f0, fu and heat-affected zone values of extrusions as SAEngine reads Table 3.2b (VERIFY.md)",
+  "method": "partialFactors",
+  "gammaM1": 1.1,
+  "gammaM2": 1.25,
+  "modulus": 70000,
+  "shearModulus": 27000,
+  "density": 2700,
+  "alloys": {
+    "EN AW-6082 T6": {"label": "EN AW-6082 T6 extrusions, t <= 5 mm", "f0": 250, "fu": 290, "thicknessMax": 5, "rhoHazProof": 0.5, "rhoHazUltimate": 0.64, "bucklingClass": "A"},
+    "EN AW-6082 T6 (t 5-15)": {"label": "EN AW-6082 T6 extrusions, 5 < t <= 15 mm", "f0": 260, "fu": 310, "thicknessMax": 15, "rhoHazProof": 0.48, "rhoHazUltimate": 0.6, "bucklingClass": "A"},
+    "EN AW-6061 T6": {"label": "EN AW-6061 T6 extrusions, t <= 20 mm", "f0": 240, "fu": 260, "thicknessMax": 20, "rhoHazProof": 0.48, "rhoHazUltimate": 0.67, "bucklingClass": "A"},
+    "EN AW-6063 T6": {"label": "EN AW-6063 T6 extrusions, t <= 10 mm", "f0": 170, "fu": 215, "thicknessMax": 10, "rhoHazProof": 0.38, "rhoHazUltimate": 0.51, "bucklingClass": "A"},
+    "EN AW-6005A T6": {"label": "EN AW-6005A T6 extrusions, t <= 5 mm", "f0": 225, "fu": 270, "thicknessMax": 5, "rhoHazProof": 0.51, "rhoHazUltimate": 0.61, "bucklingClass": "A"},
+    "EN AW-7020 T6": {"label": "EN AW-7020 T6 extrusions, t <= 15 mm", "f0": 290, "fu": 350, "thicknessMax": 15, "rhoHazProof": 0.71, "rhoHazUltimate": 0.8, "bucklingClass": "A"},
+    "EN AW-5083 O": {"label": "EN AW-5083 O/H111 extrusions", "f0": 110, "fu": 270, "rhoHazProof": 1.0, "rhoHazUltimate": 1.0, "bucklingClass": "B"}
+  },
+  "classes": {
+    "epsilonReference": 250,
+    "internal": {"A": [11, 16, 22], "A.welded": [9, 13, 18], "B": [13, 16.5, 18], "B.welded": [10, 13.5, 15]},
+    "outstand": {"A": [3, 4.5, 6], "A.welded": [2.5, 4, 5], "B": [3.5, 4.5, 5], "B.welded": [3, 3.5, 4]}
+  },
+  "localBuckling": {
+    "internal": {"A": [32, 220], "A.welded": [29, 198], "B": [29, 198], "B.welded": [25, 150]},
+    "outstand": {"A": [10, 24], "A.welded": [9, 20], "B": [9, 20], "B.welded": [8, 16]}
+  },
+  "buckling": {
+    "flexural": {"A": [0.2, 0.1], "B": [0.32, 0.0]},
+    "lateralTorsional": {"12": [0.1, 0.6], "34": [0.2, 0.4]},
+    "interaction": [0.8, 0.8, 0.8]
+  },
+  "netTension": 0.9,
+  "shearSlenderness": 39,
+  "clauses": {
+    "chapter": "EN 1999-1-1 Sections 3, 6",
+    "tension": "EN 1999-1-1 6.2.3",
+    "compression": "EN 1999-1-1 6.2.4, 6.1.4-6.1.5",
+    "bending": "EN 1999-1-1 6.2.5",
+    "shear": "EN 1999-1-1 6.2.6",
+    "combined": "EN 1999-1-1 6.2.9",
+    "buckling": "EN 1999-1-1 6.3.1, Table 6.6",
+    "lateralTorsional": "EN 1999-1-1 6.3.2",
+    "interaction": "EN 1999-1-1 6.3.3"
+  }
+}
