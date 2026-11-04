@@ -1,4 +1,4 @@
-# Indian Standards (IS): loads
+# Indian Standards (IS): loads, concrete and foundations
 
 Code pack `is-codes`, built in. Alpha 9 track C7 covers the loads:
 
@@ -23,11 +23,33 @@ the wall coefficients `wind.cpByHeight`), `seismic.designSpectrum` (`reducedElas
 "floorCount"`. A new project starts from `locations.default`, `seismic.defaultSiteClass`,
 `seismic.defaultSystem` and `wind.defaultExposure`, each changeable in Project Settings.
 
+## Concrete and foundations (track C8)
+
+| Table | What it holds | Code |
+| --- | --- | --- |
+| `concreteMethods` | Design strengths (0.67 fck/1.5, fy/1.15, the 0.36 fck xu block, xu,max), the axial cap 0.4 fck Ac + 0.67 fy Asc, emin, shear by τc (Table 19) and τc,max (Table 20), least stirrups, torsion by Ve and Me1, punching ks τc, columns (additional moments, αn load contour), deflection (span/depth with kt, kc, kf; Annex C), crack width (Annex F), cover and mix by exposure (Tables 16, 5), Ld by τbd and laps, member steel limits, two-way slabs (Annex D), flat slab end spans (αc), wall shear, footings, IS 13920 ductile detailing | IS 456:2000, IS 13920:2016 |
+| `concrete` | Ec = 5000 √fck | IS 456 6.2.3.1 |
+| `detailing` | The ductile frame values Design Reinforcement reads (0.08 fck Ag, 200 mm beams, 0.8-4 % columns, 300 mm legs, 1.4 strong column, joint γ) | IS 13920:2016 |
+| `foundations` | Bearing capacity factors (`bearingFactors.method: "flowValue"`), the column base 0.45 fck √(A1/A2), static pile capacity (`piles.staticMethod: "earthPressure"`), FS 2.5 | IS 6403, IS 2911 (Part 1/Sec 2), IS 456 34.4 |
+
+The methods by id, each a generic SAEngine module: `ultimate.method: "partialFactors"`
+(C5's `design_strength`, with the grade names, the axial shares and emin with l/500),
+`shear.method: "tabulatedStress"`, `torsion: "equivalentShear"`, `punching: "rootStress"`
+(`design/tabulated_shear.py`), `columns` (`design/additional_moment.py`), `deflection:
+"spanDepthModification"` and `cracking: "strainSpacing"` (`design/span_depth_factors.py`),
+`cover: "exposureCondition"`, `anchorage: "bondStressTable"`, `memberLimits`
+(`design/member_limits.py`), `twoWaySlabs: "restrainedPanel"`, `flatSlabs: "columnStiffness"`
+(`design/panel_coefficients.py`), `seismic: "ductileDetailing"` (`design/ductile_detailing.py`,
+in place of the parent's Sec 8.3 rows). The project's concrete `fc` is read as fck; the exposure
+condition is `concreteMethods.defaultExposure` (moderate), changeable in Code values.
+
 ## Not covered yet (falls back)
 
 The pack `extends` BNBC 2020: every table not in `covers` comes from BNBC 2020 until the IS
-material packs exist (tracks C8 and C9). That is: concrete (`concrete`, `factors`,
-`detailing`, `materials`, `slabCoefficients`, `transfer` ...), steel (`steel`, `steelSeismic`,
+material packs exist (track C9). That is: the concrete tables C8 does not replace (`factors`,
+`materials`, `slabCoefficients` shear shares, `transfer` ...) for the checks the IS methods do not
+cover (column shear, construction joints, corbels, deep beams, stairs, prestress, the walls'
+axial capacity), steel (`steel`, `steelSeismic`,
 `steelStability`, `steelSections`), masonry, timber, foundations, site investigation, flood,
 fire, the building services, the nonstructural components and serviceability (deflection and
 wind drift limits). The report names the pack as "BNBC 2020 (bnbc2020), modified by: Indian

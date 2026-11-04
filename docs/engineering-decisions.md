@@ -41,6 +41,64 @@ here, newest first, with the date, the question, the decision, the reason and wh
 - **No unlicensed software.** ETABS, SAP2000 and STAAD are not used for cross-checks or cited.
   Open-source tools are used instead (2026-10-25).
 
+## 2026-11-04: Indian Standards concrete and foundations (alpha 9 track C8)
+
+The `is-codes` pack now covers IS 456:2000, IS 13920:2016, IS 6403 and IS 2911 (Part 1/Sec 2);
+every value is in the pack's `VERIFY.md` with its clause and a confidence, to be checked against
+the printed codes. Behaviour choices:
+
+- **One mechanism with C5, chosen by method id.** The groups of `concreteMethods` hold one
+  method each, named by its id (`shear.method` `variableStrut` (EN) or `tabulatedStress` (IS),
+  `torsion`, `punching`, `deflection`, `cracking`, `cover`, `anchorage`, `seismic`); C8 adds the
+  groups with no EN counterpart (`memberLimits`, `columns`, `twoWaySlabs`, `flatSlabs`, `walls`,
+  `footings`). The design strengths are C5's `partialFactors` method with the IS values. SAEngine
+  practice (the mechanism).
+- **The IS stress block as a rectangle (read as).** 0.36 fck xu at 0.42 xu (Annex G) as η fcd
+  over λ x with fcd = 0.67 fck/1.5, λ = 0.84, η = 0.9595: the same force and centroid as the
+  parabola-rectangle, with the sections' closed-form integration. The parabola-rectangle is the
+  pack's other choice (`ultimate.stressBlock`). The bars are elastic-perfectly plastic at fy/1.15
+  (Fig. 23A's curve is not modelled). The 3/7 D pivot of sections wholly in compression is not
+  modelled; the axial force is capped at 0.4 fck Ac + 0.67 fy Asc (39.3) with the minimum
+  eccentricity also applied (on the safe side). SAEngine practice.
+- **fc is fck.** Under the pack the project's concrete strength is read as the characteristic
+  cube strength. A new building under the pack takes the weakest default concrete that meets
+  the least grade of the pack's exposure (moderate: M25, IS 456 Table 5), so the generator's
+  C24.1 becomes C27.6. SAEngine practice; the exposure is `concreteMethods.defaultExposure`,
+  overridable in Code values.
+- **Least stirrups where τv > τc/2 (read as).** IS 456 26.5.1.6 allows them to be left out in
+  members of minor importance below half τc; SAEngine applies that to every beam.
+- **Slenderness by the additional moments (IS 39.7).** lex = k lu with SAEngine's alignment-chart
+  k (Annex E's charts are of the same kind); Ma is added at every station (the braced columns'
+  0.4 M1 + 0.6 M2 initial moment is not used). Biaxial bending by the load contour (39.6) with
+  Mux1, Muy1 from the interaction surface at Pu; `columns.biaxial.method: "surface"` keeps the
+  surface's own utilisation. SAEngine practice (on the safe side).
+- **Deflection.** Span/depth with the curve fits of Fig. 4 and 5 (As,req/As,prov taken 1), a
+  span continuous at one end counted as continuous; the calculation scales the analysis
+  deflection to Ieff of Annex C with creep (θ at 28 days) and shrinkage. Crack widths by Annex F
+  at the soffit's corner bar under the service moment. SAEngine practice where noted.
+- **Punching.** ks τc on the parent's critical section (with its moment transfer); SAEngine does
+  not lay out punching shear reinforcement under the pack (a failing section says so).
+- **Ductile detailing replaces Sec 8.3.** Where the detailing level is special (IS 1893 zones
+  III-V) the IS 13920 rows of beams, columns, joints and special walls take the place of the
+  parent's earthquake-resistant detailing; special walls are checked by the ordinary wall rows
+  plus the IS rows; coupling beams by the IS rule. The capacity design shear and the joint
+  shear take 1.4 × the beams' design moment capacities (read as: the bars at 1.4 fy with the
+  design strengths in Design Reinforcement). Design Reinforcement sizes the hoops by the
+  parent's need functions with the IS coefficients (Ash 0.18 / 0.05, the legs' factor taken at
+  2, on the safe side) and caps the zones at the IS spacings, never below the least spacing
+  offered (a shortfall then shows in the checks). SAEngine practice.
+- **Design Reinforcement runs under the project's pack** when the project names a pack other
+  than the default (it ran under the default pack before; the default pack's projects are
+  unchanged).
+- **Foundations.** IS 6403 factors (`foundations.shallow.bearingFactors.method: "flowValue"`)
+  in place of Vesic / De Beer / Hansen, vertical loads only; IS 2911 static capacity
+  (`piles.staticMethod: "earthPressure"`) with K = 1.5 in the code's 1-2 range, δ = φ, the
+  critical depth 15 D, FS 2.5. IS 8009 settlement, IS 2950 rafts and IS 3370 tanks keep the
+  parent's methods (placeholder; the tank crack width 0.2 mm is stored).
+- **Not covered by the IS methods** (the parent's, named in their rows): column shear and the
+  construction joint, corbels, deep beams, stairs, prestress, the walls' axial capacity (32.2.5
+  stored), the near-support shear enhancement (40.5 stored), the slab corner steel of D-1.8.
+
 ## 2026-11-04: Indian Standards loads pack (alpha 9 track C7)
 
 - **The IS loads pack extends BNBC 2020 until the IS material packs exist.**
