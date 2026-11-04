@@ -5,7 +5,9 @@ bnbc2020 pack, BNBC 2020 Part 6 Chapter 11), laid out like :mod:`saengine.design
   durability, the modification factors, flexural members, solid, box and spaced columns,
   combined stresses, bearing and deflection, and the design report entry of a member
   (:func:`.members.design_timber_member`);
-- :mod:`.connections`: nailed, bolted, split-ring and disc-dowel joints at the member ends.
+- :mod:`.connections`: nailed, bolted, split-ring and disc-dowel joints at the member ends;
+- :mod:`.reference` (alpha 9 C3b): the ``referenceDesign`` method, reference design values and
+  their adjustment factors (ASD or LRFD), bolts and nails by the yield limit equations.
 """
 
 from __future__ import annotations
@@ -48,6 +50,7 @@ from saengine.design.timber.members import (
     spaced_compression_stress,
     uniform_shear,
 )
+from saengine.design.timber.reference import combination_set
 
 __all__ = [
     "Section",
@@ -66,6 +69,7 @@ __all__ = [
     "clause",
     "code_name",
     "combination_durations",
+    "combination_set",
     "compression_stress",
     "concentrated_reduction",
     "concentrated_shear",

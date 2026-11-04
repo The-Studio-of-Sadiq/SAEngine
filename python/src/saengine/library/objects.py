@@ -1170,6 +1170,12 @@ class TimberMember(_Model):
         default=False, description="Square section loaded in the direction of its diagonal."
     )
     spaced: TimberSpaced | None = None
+    repetitive: bool = Field(
+        default=False,
+        description="Alpha 9 C3b: one of three or more members at most 610 mm apart joined by "
+        "a load-distributing floor or roof (the repetitive member factor of a code pack that "
+        "designs timber by reference design values).",
+    )
 
 
 class _TimberJointBase(_Model):

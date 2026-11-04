@@ -5235,6 +5235,224 @@ class TimberConnectors(_Group):
     dowelEndCompression: Positive
 
 
+# ── Alpha 9 C3b: timber by reference design values and adjustment factors (the
+# ``referenceDesign`` method, saengine.design.timber.reference; e.g. NDS 2018) ──
+
+TimberValueKey = Literal["Fb", "Ft", "Fv", "Fcp", "Fc", "E", "Emin"]
+TimberSizeClass = Literal["dimension", "beamsStringers", "postsTimbers", "glulam"]
+
+
+class TimberReferenceValues(BaseModel):
+    """Reference design values of one grade and size class, in the table's ``units``: Fb
+    bending (glulam: tension zone stressed in tension), Ft tension and Fc compression parallel
+    to the grain, Fv shear, Fcp compression perpendicular to the grain, E and Emin."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    Fb: Positive
+    Ft: Positive
+    Fv: Positive
+    Fcp: Positive
+    Fc: Positive
+    E: Positive
+    Emin: Positive
+    FbNegative: Positive | None = Field(
+        default=None, description="Glulam: Fb with the compression zone stressed in tension."
+    )
+    Fby: Positive | None = Field(default=None, description="Bending about the weak axis.")
+
+
+class TimberReferenceSpecies(BaseModel):
+    """A species combination (sawn lumber) or a glued laminated timber stress class."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str
+    product: Literal["sawn", "glulam"] = "sawn"
+    G: Positive = Field(description="Specific gravity (connections).")
+    grades: dict[str, dict[TimberSizeClass, TimberReferenceValues]] = Field(min_length=1)
+    source: str = ""
+
+
+class TimberSizeFactorRow(BaseModel):
+    """CF of dimension lumber up to a depth (wide face) [mm]: Fb by thickness (up to
+    ``thinMax``, above), Ft, Fc."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    depthMax: float | None = Field(gt=0, description="[mm]; null: any deeper.")
+    Fb: tuple[Positive, Positive]
+    Ft: Positive
+    Fc: Positive
+
+
+class TimberFlatUseRow(BaseModel):
+    """Cfu of dimension lumber on its wide face up to a width [mm], by thickness."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    widthMax: float | None = Field(gt=0, description="[mm]; null: any wider.")
+    factor: tuple[Positive, Positive]
+
+
+class TimberTemperatureRow(BaseModel):
+    """Ct up to a service temperature [°C], dry and wet, by value."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    tMax: Positive
+    dry: dict[TimberValueKey, Positive]
+    wet: dict[TimberValueKey, Positive]
+
+
+class TimberWetService(BaseModel):
+    """CM of one size class by value, and the thresholds below which CM of Fb and Fc is 1
+    (dimension lumber: Fb CF and Fc CF in the table's units)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    factors: dict[TimberValueKey, Positive]
+    fbExempt: float | None = Field(default=None, gt=0)
+    fcExempt: float | None = Field(default=None, gt=0)
+
+
+class TimberVolumeFactor(_Group):
+    """Glulam CV = (length/L)^(1/x) (depth/d)^(1/x) (width/b)^(1/x) <= 1 [mm]."""
+
+    length: Positive
+    depth: Positive
+    width: Positive
+    exponent: Positive
+
+
+class TimberSizeClasses(_Group):
+    """How a sawn section's size class is found [mm]: thickness up to ``dimensionMax`` is
+    dimension lumber; thicker, beams and stringers when the depth exceeds the thickness by more
+    than ``beamsExcess``, else posts and timbers."""
+
+    dimensionMax: Positive
+    beamsExcess: Positive
+    thinMax: Positive = Field(description="Dimension lumber up to this thick: the first CF of Fb.")
+    timberDepth: Positive = Field(description="Timbers deeper than this: CF = (this/d)^(1/x).")
+    timberExponent: Positive = Field(description="x of the timbers' CF.")
+
+
+class TimberBeamStability(_Group):
+    """CL: le from lu (the generic rule for any load), RB = √(le d / b²) <= rbMax, FbE = fbe
+    Emin' / RB², CL = (1 + α)/a - √(((1 + α)/a)² - α/b), α = FbE / Fb*."""
+
+    shortRatio: Positive = Field(description="lu/d below this: le = shortFactor lu.")
+    shortFactor: Positive
+    longRatio: Positive = Field(description="lu/d up to this: le = midFactor lu + midDepth d.")
+    midFactor: Positive
+    midDepth: Positive
+    longFactor: Positive = Field(description="Above longRatio: le = longFactor lu.")
+    rbMax: Positive
+    fbe: Positive
+    a: Positive
+    b: Positive
+
+
+class TimberColumnStability(_Group):
+    """CP = (1 + α)/(2c) - √(((1 + α)/(2c))² - α/c), α = FcE / Fc*, FcE = fce Emin' /
+    (le/d)²; c by product; le/d at most maxSlenderness."""
+
+    fce: Positive
+    c: dict[Literal["sawn", "glulam"], Positive]
+    maxSlenderness: Positive
+
+
+class TimberLrfd(_Group):
+    """The LRFD format: KF and φ by value; connections KF, φz; the time effect factor λ."""
+
+    KF: dict[TimberValueKey, Positive]
+    phi: dict[TimberValueKey, Positive]
+    connectionKF: Positive
+    connectionPhi: Positive
+    timeEffect: dict[str, Positive] = Field(
+        description="λ: ``dead`` (dead load alone), ``roof`` (roof live, snow, rain governing), "
+        "``lateral`` (wind or earthquake), and per live load duration (continuous, twoMonths, "
+        "sevenDays, impact) when the live load governs."
+    )
+
+
+class TimberDowels(_Group):
+    """Dowel-type fasteners (yield limit equations): dowel bearing strengths Fe = parallel × G
+    (D >= ``smallDiameter``), perpendicular × G^perpendicularExponent / √D (D in in.), small
+    dowels small × G^smallExponent; Fyb by fastener; the reduction terms Rd; steel side plates
+    Fe = steelShare × Fu; group action γ; the geometry factor by end distance."""
+
+    smallDiameter: Positive = Field(description="[mm]")
+    parallel: Positive
+    perpendicular: Positive
+    perpendicularExponent: Positive
+    small: Positive
+    smallExponent: Positive
+    boltFyb: Positive = Field(description="In the table's units.")
+    nailFyb: list[tuple[Positive, Positive]] = Field(
+        description="[[diameter up to (mm), Fyb], ...]."
+    )
+    rdLarge: dict[str, Positive] = Field(
+        description="Rd / Kθ of D >= smallDiameter by mode group: I, II, III (III and IV)."
+    )
+    kTheta: Positive = Field(description="Kθ = 1 + this × θ/90°.")
+    rdSmall: tuple[Positive, Positive, Positive] = Field(
+        description="KD of small dowels: [up to (mm), KD there, a] with KD = a D (in.) + 0.5 above."
+    )
+    groupGamma: Positive = Field(description="Load/slip modulus γ = this × D^1.5 (lb/in, in.).")
+    endFull: dict[str, Positive] = Field(
+        description="End distance for CΔ = 1, in diameters: tensionSoftwood, tensionHardwood, "
+        "compression."
+    )
+    endMin: dict[str, Positive] = Field(description="End distance for CΔ = 0.5 (the least).")
+    spacingFull: Positive = Field(description="Spacing in a row for CΔ = 1, in diameters.")
+    spacingMin: Positive = Field(description="Least spacing in a row, in diameters.")
+    wetService: Positive = Field(description="CM of the lateral values in wet service.")
+
+
+class TimberReference(_Group):
+    """Reference design values and their adjustment factors (the ``referenceDesign`` method)."""
+
+    units: str = Field(description="The unit of the stresses below, e.g. psi.")
+    toMPa: Positive = Field(description="× this gives MPa.")
+    format: Literal["ASD", "LRFD"] = Field(
+        default="ASD",
+        description="ASD (allowable stress combinations, CD) or LRFD (strength "
+        "combinations, KF, φ, λ).",
+    )
+    defaultSpecies: str
+    defaultGrade: str
+    species: dict[str, TimberReferenceSpecies] = Field(min_length=1)
+    sizeClasses: TimberSizeClasses
+    sizeFactors: dict[str, list[TimberSizeFactorRow]] = Field(
+        description="CF of dimension lumber by grade group: ``default`` and the groups of "
+        "``sizeFactorGroups``."
+    )
+    sizeFactorGroups: dict[str, str] = Field(
+        default_factory=dict, description="Grade -> its CF group (else ``default``)."
+    )
+    flatUse: list[TimberFlatUseRow]
+    volume: TimberVolumeFactor
+    wetService: dict[TimberSizeClass, TimberWetService]
+    temperature: list[TimberTemperatureRow] = Field(min_length=1)
+    incising: dict[TimberValueKey, Positive]
+    repetitive: Positive
+    duration: dict[str, float | str] = Field(
+        description="CD by load case (the longest prefix of the case's name): a number, or "
+        "``live`` (the material's live load duration, ``liveDuration``)."
+    )
+    liveDuration: dict[str, Positive] = Field(
+        description="CD of the live load by the material's live load duration."
+    )
+    lrfd: TimberLrfd
+    beamStability: TimberBeamStability
+    columnStability: TimberColumnStability
+    bearingArea: tuple[Positive, Positive] = Field(
+        description="Cb = (lb + a) / lb for bearings shorter than b [mm]: [a, b]."
+    )
+    dowels: TimberDowels
+
+
 class TimberTable(TableModel):
     """Permissible stress design of structural timber: stresses by strength group, species and
     location, grade, durability, slope-of-grain and duration factors, form factors, the column
@@ -5261,6 +5479,20 @@ class TimberTable(TableModel):
     bolts: TimberBolts
     connectors: TimberConnectors
     clauses: dict[str, str] = Field(default_factory=dict)
+    # Alpha 9 C3b: the design method (``referenceDesign``: reference values and adjustment
+    # factors, saengine.design.timber.reference) and its data.
+    method: Literal["permissibleStress", "referenceDesign"] = Field(
+        default="permissibleStress",
+        description="Timber members by ``permissibleStress`` (the stresses above, K factors) or "
+        "``referenceDesign`` (the ``reference`` values times their adjustment factors).",
+    )
+    reference: TimberReference | None = None
+
+    @model_validator(mode="after")
+    def _reference(self) -> TimberTable:
+        if self.method == "referenceDesign" and self.reference is None:
+            raise ValueError("method 'referenceDesign' needs the 'reference' data")
+        return self
 
 
 # ───────────────────────────────────────── masonry ─────────────────────────────────────────

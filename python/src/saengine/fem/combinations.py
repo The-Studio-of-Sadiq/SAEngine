@@ -192,6 +192,17 @@ def allowable_combinations(
     return [(name, cases) for name, cases, _row in _formed("allowable", present, kind)]
 
 
+def strength_combinations(
+    present: set[str] | frozenset[str] | None = None,
+    flood: str | None = None,
+) -> list[tuple[str, dict[str, float]]]:
+    """Alpha 9 C3b: the code pack's strength combinations (``combinations.strength``) as
+    ``(name, {analysis case: factor})``, formed as :func:`allowable_combinations` forms its
+    rows (for members designed from the per-case forces, e.g. timber in an LRFD format)."""
+    kind = flood if flood is not None else _FLOOD_KIND.get()
+    return [(name, cases) for name, cases, _row in _formed("strength", present, kind)]
+
+
 def service_combinations(
     present: set[str] | frozenset[str] | None = None, row_id: str | None = None
 ) -> list[tuple[str, dict[str, float], Any]]:

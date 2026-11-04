@@ -56,13 +56,26 @@ def code_name() -> str:
 
 
 def clause(key: str) -> str:
-    """The pack's clause of check ``key`` after the pack's name ("<code> Part 6 Sec ...")."""
+    """The pack's clause of check ``key`` after the name of the code it comes from ("<code>
+    Part 6 Sec ..."): the pack's ``tableCodes`` of the timber table (alpha 9 C3b), else its
+    edition."""
     text = (getattr(_table(), "clauses", None) or {}).get(key, "")
-    return f"{code_name()} {text}".strip()
+    name = None
+    if text:
+        try:
+            name = code_context.current().clause_code("timber", key)
+        except Exception:  # noqa: BLE001 - no pack chain: the edition
+            name = None
+    return f"{name or code_name()} {text}".strip()
 
 
 def method() -> list[str]:
-    """The design report's method paragraph of timber members, with the pack's clauses."""
+    """The design report's method paragraph of timber members, with the pack's clauses (alpha
+    9 C3b: the reference design value method's when the pack chooses it)."""
+    from saengine.design.timber import reference
+
+    if reference.active():
+        return reference.method()
     text = (
         "Timber members: permissible stress design to "
         f"{clause('chapter')}, under the allowable stress combinations formed from the "
@@ -889,6 +902,25 @@ def design_timber_member(
     if not pieces:
         raise TimberDesignError("not in the analysis results")
     section = Section.of(object_type.profile)
+    from saengine.design.timber import reference
+
+    if reference.active():
+        # Alpha 9 C3b: reference design values and adjustment factors (the pack's method).
+        s, _ = positions(pieces, 2)
+        return reference.design_entry(
+            member_id,
+            kind,
+            object_type,
+            material,
+            section,
+            member_stations(pieces, combinations, turned),
+            float(s[-1] - s[0]) * 1000.0,
+            factors if isinstance(factors, list | tuple) else None,
+            combinations,
+            profiles,
+            e_analysis,
+            pieces,
+        )
     timber = Timber.of_material(material)
     options = getattr(object_type, "timber", None)
     s, _ = positions(pieces, 2)
