@@ -19,6 +19,7 @@ import { IContextViewService } from '../../../../platform/contextview/browser/co
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { defaultButtonStyles, defaultCheckboxStyles, defaultInputBoxStyles, defaultSelectBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { createValidator } from '../../../services/preferences/common/preferencesValidation.js';
+import { displayUnit, inputText, isConverted, kindOfUnit, parseQuantity, UNIT_KINDS } from '../../../services/saengineProject/common/displayUnits.js';
 
 export type JsonValue = string | number | boolean | null | JsonObject | JsonValue[];
 export interface JsonObject { [key: string]: JsonValue }
@@ -91,10 +92,23 @@ const WIDE_TABLE_COLUMNS = 8;
 /** Below this width [px] even a wide table stacks its rows. */
 const WIDE_TABLE_MIN_WIDTH = 420;
 
-/** A table column's heading: the field's title with the unit from its description, "Elevation (mm)". */
-function columnHeading(title: string, description: string | undefined): string {
+/**
+ * The SI unit a field stores its value in: the "[mm]" of its description, else the SI unit of
+ * the quantity kind its schema names (`unitKind`, C13); undefined for a field without a unit.
+ */
+export function fieldUnit(description: string | undefined, schema?: IJSONSchema): string | undefined {
+	const kind = (schema as { unitKind?: unknown } | undefined)?.unitKind;
+	if (typeof kind === 'string' && UNIT_KINDS[kind]) {
+		return UNIT_KINDS[kind].si;
+	}
 	const unit = description?.match(UNIT)?.[1];
-	return unit && unit !== '-' ? `${title} (${unit})` : title;
+	return unit && unit !== '-' ? unit : undefined;
+}
+
+/** A table column's heading: the field's title with its unit as shown (C13: the display units), "Elevation (mm)". */
+function columnHeading(title: string, description: string | undefined, schema?: IJSONSchema): string {
+	const unit = fieldUnit(description, schema);
+	return unit ? `${title} (${displayUnit(unit)})` : title;
 }
 
 /** Engineering names of IFC profile shapes, which the schema stores as short codes. */
@@ -624,16 +638,19 @@ export class SchemaForm {
 			return;
 		}
 
-		const unit = description?.match(UNIT)?.[1];
-		const suffix = unit && unit !== '-' && !this.inlineCells ? unit : undefined;
+		const unit = fieldUnit(description, schema);
+		const suffix = unit && !this.inlineCells ? displayUnit(unit) : undefined;
 		const wrap = suffix ? append(row.control, $('.form-input-unit')) : row.control;
-		this.input(wrap, schema, value === undefined || value === null ? '' : String(value), optional, path, title, parsed => {
+		// C13: a number with a unit is shown and typed in the display units, stored in SI.
+		const numericUnit = unit && (schema.type === 'number' || schema.type === 'integer') && kindOfUnit(unit) ? unit : undefined;
+		const initial = value === undefined || value === null ? '' : numericUnit && typeof value === 'number' ? inputText(value, numericUnit) : String(value);
+		this.input(wrap, schema, initial, optional, path, title, parsed => {
 			if (parsed === undefined) {
 				delete owner[key];
 			} else {
 				owner[key] = parsed;
 			}
-		});
+		}, numericUnit);
 		if (suffix) {
 			// A muted suffix inside the field, so fields with and without units line up.
 			append(wrap, $('span.form-unit', { 'aria-hidden': 'true' }, suffix));
@@ -668,8 +685,16 @@ export class SchemaForm {
 	 * A text input that applies a value only when it is valid for `schema`; invalid input shows
 	 * the validation message and leaves the stored value unchanged.
 	 */
-	private input(container: HTMLElement, schema: IJSONSchema, initial: string, optional: boolean, path: string, title: string, apply: (value: JsonValue | undefined) => void): void {
+	private input(container: HTMLElement, schema: IJSONSchema, initial: string, optional: boolean, path: string, title: string, apply: (value: JsonValue | undefined) => void, siUnit?: string): void {
 		const numeric = schema.type === 'number' || schema.type === 'integer';
+		// C13: in US customary units a field with a unit reads what is typed in them (or with a unit of its
+		// own: "300 mm", `12'-6"`) and stores it in its SI unit; the rules below check the SI value. SI: as typed.
+		const converted = !!siUnit && isConverted(siUnit);
+		// An integer field (a size in whole mm) takes the nearest whole SI value of a converted entry.
+		const parse = (trimmed: string): number => {
+			const value = converted ? parseQuantity(trimmed, siUnit) ?? NaN : Number(trimmed);
+			return converted && schema.type === 'integer' ? Math.round(value) : value;
+		};
 		// Empty optional fields are handled below, so the leaf is validated as non-nullable.
 		const leaf: IConfigurationPropertySchema = { ...schema };
 		const validator = createValidator(leaf);
@@ -682,13 +707,15 @@ export class SchemaForm {
 			if (empty && trimmed === '') {
 				return undefined;
 			}
-			if (numeric && trimmed !== '' && !isFinite(Number(trimmed))) {
+			if (numeric && trimmed !== '' && !isFinite(parse(trimmed))) {
 				return localize('schemaForm.number', "Enter a number.");
 			}
-			if (schema.type === 'integer' && trimmed !== '' && !Number.isInteger(Number(trimmed))) {
+			if (schema.type === 'integer' && trimmed !== '' && !Number.isInteger(parse(trimmed))) {
 				return localize('schemaForm.integer', "Enter a whole number.");
 			}
-			return this.ctx.validate(path, trimmed) || validator(numeric && trimmed !== '' ? Number(trimmed) : trimmed) || undefined;
+			// The editors' own rules and the schema's limits read the stored (SI) value.
+			const stored = numeric && trimmed !== '' && converted ? String(parse(trimmed)) : trimmed;
+			return this.ctx.validate(path, stored) || validator(numeric && trimmed !== '' ? parse(trimmed) : trimmed) || undefined;
 		};
 		const box = this.disposables.add(new InputBox(container, this.contextViewService, {
 			inputBoxStyles: defaultInputBoxStyles,
@@ -707,7 +734,8 @@ export class SchemaForm {
 			// override, the value it overrides: show it greyed in the field. Set on the element, not
 			// as the InputBox placeholder, which would also show it as the hover of a field that has a value.
 			const own = this.ctx.placeholder?.(path);
-			box.inputElement.placeholder = own ?? (schema.default !== undefined && schema.default !== null && typeof schema.default !== 'object' ? String(schema.default) : '');
+			const fallback = typeof schema.default === 'number' && converted && siUnit ? inputText(schema.default, siUnit) : String(schema.default);
+			box.inputElement.placeholder = own ?? (schema.default !== undefined && schema.default !== null && typeof schema.default !== 'object' ? fallback : '');
 		};
 		placeholder();
 		// The problem stays written below the field (not only in a popup while it has focus), and
@@ -741,7 +769,7 @@ export class SchemaForm {
 				return;
 			}
 			const trimmed = text.trim();
-			apply(empty && trimmed === '' ? undefined : numeric ? Number(trimmed) : trimmed);
+			apply(empty && trimmed === '' ? undefined : numeric ? parse(trimmed) : trimmed);
 			this.ctx.changed(path, false);
 			note();
 		}));

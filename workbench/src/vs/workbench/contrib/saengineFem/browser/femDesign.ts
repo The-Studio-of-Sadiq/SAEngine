@@ -9,6 +9,7 @@ import { IFileService } from '../../../../platform/files/common/files.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { basename, dirname, joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
+import { displayUnit, isConverted, significantText, toDisplay } from '../../../services/saengineProject/common/displayUnits.js';
 import { formatNumber } from '../../../services/saengineProject/common/formatting.js';
 
 /**
@@ -563,6 +564,10 @@ export function describeSteelRatio(row: IFemSteelRequirement): string | undefine
 
 /** A steel quantity in its unit: "1,257 mm²", "524 mm²/m", "150 mm". */
 export function formatSteel(value: number, unit: string): string {
+	if (unit && isConverted(unit)) {
+		// C13: in the display units (mm² → in², mm → in), three significant figures
+		return localize('femDesign.steelValue', "{0} {1}", significantText(toDisplay(value, unit)), displayUnit(unit));
+	}
 	const text = formatNumber(value);
 	return unit ? localize('femDesign.steelValue', "{0} {1}", text, unit) : text;
 }
@@ -839,6 +844,10 @@ export function formatCheckValues(check: IFemDesignCheck): string {
 		return localize('femDesign.checkSlenderLimit', "k lu / r {0} against {1} (slenderness may be neglected)", check.demand.toFixed(2), slenderness.limit.toFixed(2));
 	}
 	// Ratios (c/d, slenderness) keep two decimals: one would round a slab's c/d of 0.11 to 0.1.
+	if (check.unit && isConverted(check.unit)) {
+		// C13: the demand and capacity in the display units (the check is made in SI)
+		return localize('femDesign.checkValues', "{0} of {1} {2}", significantText(toDisplay(check.demand, check.unit)), significantText(toDisplay(check.capacity, check.unit)), displayUnit(check.unit));
+	}
 	return check.unit
 		? localize('femDesign.checkValues', "{0} of {1} {2}", check.demand.toFixed(1), check.capacity.toFixed(1), check.unit)
 		: localize('femDesign.checkRatio', "{0} against {1}", ...formatRatios(check.demand, check.capacity));

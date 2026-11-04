@@ -19,6 +19,7 @@ from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, WithJsonSchema, model_validator
 
+from saengine import units as units_lib
 from saengine.codes import context as code_context
 from saengine.codes.manifest import PACK_ID_PATTERN
 from saengine.codes.registry import DEFAULT_PACK, CodePack, CodePackError
@@ -2520,6 +2521,57 @@ class Report(_Model):
     )
 
 
+# ── C13: display units (saengine.units); stored values stay SI ──
+def _unit_choice(kind: str, title: str) -> Any:
+    """A per-quantity unit choice: one of the kind's US customary units, or None (its first)."""
+    options = units_lib.KINDS[kind].options
+    return Annotated[
+        Literal[options] | None,  # type: ignore[valid-type]
+        Field(title=title, description=f"US customary only; empty: {options[0]}."),
+    ]
+
+
+_UnitLength = _unit_choice("length", "Lengths and levels")
+_UnitDimension = _unit_choice("dimension", "Member sizes and spacings")
+_UnitForce = _unit_choice("force", "Forces")
+_UnitStress = _unit_choice("stress", "Stresses")
+_UnitPressure = _unit_choice("pressure", "Area loads and pressures")
+_UnitMoment = _unit_choice("moment", "Moments")
+_UnitLineLoad = _unit_choice("lineLoad", "Line loads")
+_UnitUnitWeight = _unit_choice("unitWeight", "Unit weights")
+_UnitVolume = _unit_choice("volume", "Volumes")
+_UnitVelocity = _unit_choice("velocity", "Speeds")
+
+
+class DisplayUnits(_Model):
+    """How the project shows its numbers (alpha 9, C13). Every value is stored and computed
+    in SI; switching the system changes only what the editors, the report, the drawings, the
+    bar bending schedule, the BOQ and the CSV files print, never a stored value."""
+
+    system: Literal["SI", "USCustomary"] = Field(
+        default="SI",
+        title="Unit system",
+        description="SI (mm, m, kN, MPa, kN/m²) or US customary (in, ft, kip, ksi, psf). A new "
+        "project takes the code pack's suggestion (the US pack: US customary).",
+        json_schema_extra=_labels(["SI", "US customary"]),
+    )
+    length: _UnitLength = None
+    dimension: _UnitDimension = None
+    force: _UnitForce = None
+    stress: _UnitStress = None
+    pressure: _UnitPressure = None
+    moment: _UnitMoment = None
+    lineLoad: _UnitLineLoad = None
+    unitWeight: _UnitUnitWeight = None
+    volume: _UnitVolume = None
+    velocity: _UnitVelocity = None
+
+    def is_default(self) -> bool:
+        return self.system == "SI" and all(
+            getattr(self, k) is None for k in type(self).model_fields if k != "system"
+        )
+
+
 class ProjectSettings(_Model):
     schema_: Literal["saengine.projectSettings/1"] = Field(default=SCHEMA_ID, alias="schema")
     project: ProjectInfo
@@ -2574,6 +2626,12 @@ class ProjectSettings(_Model):
         default_factory=Report,
         title="Design report",
         description="The printed design report (11 Exports).",
+    )
+    units: DisplayUnits = Field(
+        default_factory=DisplayUnits,
+        exclude_if=lambda value: value.is_default(),
+        title="Units",
+        description="The units the project is shown in; values are stored in SI.",
     )
     codeOverrides: dict[str, Any] = Field(
         default_factory=dict,
@@ -2868,6 +2926,10 @@ def settings_for_pack(
             c.model_dump(mode="json", by_alias=True, exclude_none=True)
             for c in strength_combinations(pack=pack)
         ]
+    # C13: the units the pack suggests, for settings that chose none (a new project's).
+    suggested = getattr(pack.info, "units", None)
+    if suggested and suggested != "SI" and not data.get("units"):
+        data["units"] = {"system": suggested}
     return ProjectSettings.model_validate(data)
 
 

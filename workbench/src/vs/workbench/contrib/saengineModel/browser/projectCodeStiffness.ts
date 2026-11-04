@@ -11,6 +11,7 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { DEFAULT_CODE_PACK_ID, setActiveCodePack } from '../../../services/saengineProject/common/activeCodePack.js';
+import { setActiveDisplayUnits } from '../../../services/saengineProject/common/displayUnits.js';
 import { ISaengineProjectService } from '../../../services/saengineProject/common/saengineProject.js';
 import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
 import { flushModifierFields } from './modifiersPanel.js';
@@ -73,9 +74,14 @@ export class ProjectCodeStiffnessContribution extends Disposable implements IWor
 		if (!root) {
 			setProjectCode({});
 			setActiveCodePack(undefined, undefined);
+			setActiveDisplayUnits(undefined);
 			return;
 		}
 		const settings = await this.json(partFile(root, 'settings'));
+		if (generation === this.generation) {
+			// C13: the editors show and read numbers in the project's display units (displayUnits.ts).
+			setActiveDisplayUnits(isObject(settings) ? settings.units : undefined);
+		}
 		const packId = isObject(settings) && typeof settings.codePack === 'string' ? settings.codePack : DEFAULT_PACK;
 		let crackedTable: Json | undefined;
 		let packName: string | undefined;

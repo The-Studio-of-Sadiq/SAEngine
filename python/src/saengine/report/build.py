@@ -197,8 +197,14 @@ def build_report(
             return {"problems": data["problems"]}
         data["warnings"].extend(template_problems)
         # The project's language (Project Settings › Project › Language): labels and digits.
+        # C13: the project's display units (Project Settings › Units), before the language so
+        # the labels translated are the converted ones; SI leaves the document as it is.
+        from saengine.units import convert_document, pack_bar_names, units_of
+
+        units = units_of(project_settings, pack_bar_names())
         document = localize_document(
-            report_document(data, chosen), project_language(project_settings)
+            convert_document(report_document(data, chosen), units),
+            project_language(project_settings),
         )
     target = Path(out_pdf) if out_pdf else root / DEFAULT_OUTPUTS[format]
     try:

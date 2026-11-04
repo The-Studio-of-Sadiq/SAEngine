@@ -4,6 +4,7 @@
   "name": "ACI 318-19 + ASCE 7-22",
   "edition": "ASCE 7-22",
   "country": "US",
+  "units": "USCustomary",
   "version": "0.5.0",
   "extends": "bnbc2020",
   "covers": [

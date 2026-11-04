@@ -44,6 +44,7 @@ import { appendPlannedChips, FemPlanned } from './femPlannedFeatures.js';
 import { errorSummary, FEM_RESULT_LIST_COMMAND, IFemRunTracker } from './femResultsBar.js';
 import { formatNumber } from '../../../services/saengineProject/common/formatting.js';
 import { activeCodeName, defaultCodeName } from '../../../services/saengineProject/common/activeCodePack.js';
+import { activeDisplayUnits, displayUnit, IDisplayUnits, SI_UNITS_SETTING, toDisplay } from '../../../services/saengineProject/common/displayUnits.js';
 
 const chartsIcon = registerIcon('saengine-fem-results-label-icon', Codicon.graph, localize('femResultsLabelIcon', "Icon of the analysis charts and member pages."));
 
@@ -139,12 +140,18 @@ export interface IChartUnits {
 	readonly acceleration: IUnit;
 }
 
-export function chartUnits(units: string | undefined): IChartUnits {
+/**
+ * The chart units of a model's unit system; `display` (C13): the project's display units the
+ * charts, legends and readouts show (SI: mm, kN, kN·m). Tables that convert their columns
+ * themselves (femChartData.inDisplayUnits) take the SI units (the default).
+ */
+export function chartUnits(units: string | undefined, display: IDisplayUnits = SI_UNITS_SETTING): IChartUnits {
 	if (units?.startsWith('SI')) {
+		const shown = (scale: number, unit: string): IUnit => ({ scale: scale * toDisplay(1, unit, display), unit: displayUnit(unit, display) });
 		return {
-			length: { scale: 1000, unit: 'mm' },
-			force: { scale: 1e-3, unit: 'kN' },
-			moment: { scale: 1e-3, unit: 'kN·m' },
+			length: shown(1000, 'mm'),
+			force: shown(1e-3, 'kN'),
+			moment: shown(1e-3, 'kN·m'),
 			acceleration: { scale: 1 / 9.80665, unit: 'g' },
 		};
 	}
@@ -204,6 +211,8 @@ export class FemResultsEditor extends EditorPane {
 	private directionGroup!: HTMLElement;
 
 	private units = chartUnits(undefined);
+	/** The model's units in SAEngine's SI (mm, kN, kN·m), for the tables that convert to the display units themselves. */
+	private siUnits = chartUnits(undefined);
 	private response: IFemStoryResponse | undefined;
 	private member: IFemMemberForces | undefined;
 	private interaction: IFemColumnDiagram | undefined;
@@ -404,7 +413,8 @@ export class FemResultsEditor extends EditorPane {
 		this.render();
 		try {
 			const meta = await this.readUnits(input.model);
-			this.units = chartUnits(meta);
+			this.units = chartUnits(meta, activeDisplayUnits());
+			this.siUnits = chartUnits(meta);
 			// The 3D view's list: the same order in both pickers, and whether the results are stale.
 			const list = await this.commandService.executeCommand<IFemResultList>(FEM_RESULT_LIST_COMMAND, input.model).catch(() => undefined);
 			this.listKeys = list?.results.map(r => r.key) ?? [];
@@ -821,7 +831,7 @@ export class FemResultsEditor extends EditorPane {
 		if (response.spectrum) {
 			this.renderSpectrum(response);
 		}
-		const reactions = baseReactionTable(response, { force: v => v * this.units.force.scale, moment: v => v * this.units.moment.scale });
+		const reactions = baseReactionTable(response, { force: v => v * this.siUnits.force.scale, moment: v => v * this.siUnits.moment.scale });
 		if (reactions.rows.length) {
 			const section = this.section(localize('femResults.baseHeading', "Base Reactions"), localize('femResults.baseHelp', "The support reactions of each static case and combination (the supports push on the structure): forces summed, moments about the supports' centroid at the base."));
 			renderSheet(section, reactions);

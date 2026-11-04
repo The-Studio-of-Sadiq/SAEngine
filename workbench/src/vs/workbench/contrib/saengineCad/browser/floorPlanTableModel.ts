@@ -6,6 +6,7 @@
 import { compareFileNames } from '../../../../base/common/comparers.js';
 import { localize } from '../../../../nls.js';
 import { csvText } from '../../../../platform/saengine/common/csv.js';
+import { headingWithUnit, isConverted, significantText, toDisplay } from '../../../services/saengineProject/common/displayUnits.js';
 import { location, onPlanOf, rises, storiesOf } from '../../../services/saengineProject/common/floorPlanMembers.js';
 import { MemberGroup, sectionLabel } from './floorPlanDrawing.js';
 import { footingsOwnedMessage, resolvePoint, setMembersType, TOOL_GROUP, TOOL_KINDS } from './floorPlanEdits.js';
@@ -270,11 +271,16 @@ export function setRowsStory(layout: unknown, refs: readonly IRowRef[], story: s
 	return { ok: true, layout: next, changed, skipped };
 }
 
+/** A member's length [mm] as the table and its CSV show it: as stored in SI, in the display unit (C13) otherwise. */
+export function lengthCell(length: number): string {
+	return isConverted('mm') ? significantText(toDisplay(length, 'mm'), 4) : String(length);
+}
+
 /** The rows as CSV (RFC 4180), as the table shows them. */
 export function membersCsv(rows: readonly IMemberRow[], storyName: (id: string) => string): string {
-	const lines = [['ID', 'Kind', 'Object Type', 'Section (mm)', 'Length (mm)', 'Story', 'Base', 'Location']];
+	const lines = [['ID', 'Kind', 'Object Type', 'Section (mm)', headingWithUnit('Length (mm)'), 'Story', 'Base', 'Location']];
 	for (const row of rows) {
-		lines.push([row.id, GROUP_LABELS[row.group], row.type, row.section, row.length === undefined ? '' : String(row.length), storyName(row.story), row.base !== undefined ? storyName(row.base) : '', row.location]);
+		lines.push([row.id, GROUP_LABELS[row.group], row.type, row.section, row.length === undefined ? '' : lengthCell(row.length), storyName(row.story), row.base !== undefined ? storyName(row.base) : '', row.location]);
 	}
 	return csvText(lines);
 }

@@ -5,6 +5,7 @@
 
 import { localize } from '../../../../nls.js';
 import { formatUtilisation, IFemDesignCheck, IFemDesignElement, IFemDesignReport } from './femDesign.js';
+import { formatQuantity, isConverted } from '../../../services/saengineProject/common/displayUnits.js';
 import { formatNumber } from '../../../services/saengineProject/common/formatting.js';
 import { defaultCodeName } from '../../../services/saengineProject/common/activeCodePack.js';
 
@@ -166,15 +167,24 @@ function groupLabel(group: FemDetailingGroup): string {
 
 /** A value in a detailing unit: whole mm, mm², legs and bars, one decimal in other units, three digits for ratios (ρ 0.0105). */
 function formatValue(value: number, unit: string): string {
+	if (isConverted(unit)) {
+		return formatQuantity(value, unit); // C13: the display units
+	}
 	const text = /^(mm|mm²|legs|bars)$/.test(unit) ? formatNumber(value) : unit ? value.toFixed(1) : String(Number(value.toPrecision(3)));
 	return unit ? localize('femDetailing.valueUnit', "{0} {1}", text, unit) : text;
 }
 
 function formatKilonewtons(value: number): string {
+	if (isConverted('kN')) {
+		return formatQuantity(value, 'kN');
+	}
 	return localize('femDetailing.kN', "{0} kN", formatNumber(value, { decimals: 1 }));
 }
 
 function formatMillimetres(value: number): string {
+	if (isConverted('mm')) {
+		return formatQuantity(value, 'mm');
+	}
 	return localize('femDetailing.mm', "{0} mm", formatNumber(value));
 }
 

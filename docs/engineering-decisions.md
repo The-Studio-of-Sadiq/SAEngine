@@ -75,6 +75,30 @@ practice where BNBC 2020 is silent**, except the non-building structures, which 
   pressures with the passive divided by 2.0, the least surcharge 10 kPa and an overdig of 10 % of
   H up to 0.5 m; the Eurocodes pack uses EN 1997-1 M2 strengths and q × 1.3. Wall sections,
   walers, struts and anchors stay with track P1.
+## 2026-11-04: display units, SI or US customary (alpha 9 track C13)
+
+- **Stored and computed in SI only** (owner, alpha 9 plan). Project Settings › Units (`units`)
+  chooses how numbers are shown: `system` SI (default; the files, results and printouts exactly
+  as before, and the setting is not written) or US customary, with per-quantity choices
+  (lengths ft/in, member sizes in/ft, forces kip/lbf, stresses ksi/psi, pressures psf/ksf,
+  moments kip·ft/kip·in, line loads kip/ft or plf, unit weights pcf/kcf, volumes ft³/yd³,
+  speeds mph/ft/s). Switching converts nothing stored: the editors convert where a value is
+  shown and typed, the backend where it prints. Factors from the exact definitions (NIST SP 811).
+- **A pack suggests the units of a new project** (`units` in pack.json; the US pack:
+  USCustomary). It applies only when a project is created with the pack (settings_for_pack of
+  settings that chose none); changing the pack later keeps the project's choice. SAEngine practice.
+- **The quantity of a field is its SI unit** as the descriptions already write it ("[mm]",
+  "[kN/m²]"), so no field is tagged twice; a field without one can name its kind (`unitKind`).
+  SAEngine practice.
+- **Not converted, SAEngine practice:** temperatures (°C; an absolute temperature and a change
+  convert differently and the fields do not say which), the expressions of the calculation
+  worksheets (written in the code's SI form; their values, checks and units are converted, and
+  the report says so), the costing (rates stay in the units of the schedule of rates), and the
+  BOQ's cft, cement bags, litres and counts.
+- **US bar names from the pack** (`concrete.barNames`): the US pack names its soft-metric bars
+  #3–#11 (ASTM A615). Drawings and the bar bending schedule print dimensions in feet and inches
+  to 1/8" (DXF architectural units, the geometry stays in mm) and levels in feet; the BBS's
+  lengths in ft-in, totals in ft and masses in lb.
 
 ## 2026-11-04: bar bending schedules by the pack's standard (alpha 9 track C14)
 
@@ -95,7 +119,8 @@ practice where BNBC 2020 is silent**, except the non-building structures, which 
   pack's `barSchedule.shapeKey` is true: on for EN ISO 3766, IS 2502 and ACI 315, off for the
   default pack so its drawings stay as they were (owner to decide whether to turn it on).
 - **Units seam.** Lengths stay in mm; `bbs.length_display()` is the one place the project's
-  display units (track C13) are to be applied.
+  display units (track C13) are to be applied. C13 applies them there (feet and inches in US
+  customary units); the cutting lengths handed to the drawings stay in mm.
 
 ## 2026-11-04: the legacy packs BS 8110 and BNBC 2006 (alpha 9 track C10)
 

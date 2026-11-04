@@ -1102,11 +1102,15 @@ def drawing_set(
     fill_from_detailing(data, detailing, bim, objects, substructure)
     if data.undesigned:
         data.title.status = NOT_FOR_CONSTRUCTION
+    # C13: the display units of the sheets (Project Settings › Units, in the title info)
+    from saengine.units import csv_heading, units_from_json
+
+    units = units_from_json(data.title.units)
     if schedule is None and detailing.get("elements"):
         from saengine.drawings import bbs
 
         try:
-            schedule = bbs.sheet_table(bbs.bar_schedule(detailing))
+            schedule = bbs.sheet_table(bbs.bar_schedule(detailing), units)
         except (ValueError, TypeError, KeyError) as error:
             data.problems.append(f"The bar bending schedule could not be made: {error}")
     if schedule:
@@ -1114,13 +1118,19 @@ def drawing_set(
         apply_bbs_lengths(data, data.bbs[0], schedule.get("cuttingLengths"))
         totals = schedule.get("totals")
         if totals:
-            data.bbs.append(Table.from_dict(totals, "Bar masses by size and element (kg)"))
+            title_text = csv_heading("Bar masses by size and element (kg)", units)
+            data.bbs.append(Table.from_dict(totals, title_text))
         if schedule.get("shapeKey"):  # alpha 9 C14: the sketches of the standard's shapes
             from saengine.drawings import bbs
 
             data.bbs_shapes = [dict(s) for s in schedule["shapeKey"]]
             data.bbs_shapes_title = bbs.standard().shapeTerm
     data.notes = general_notes(objects, materials, detailing)
+    if not units.si and data.notes:
+        data.notes[0] = (
+            "All dimensions are in feet and inches and levels in feet unless noted. Do not scale "
+            "from the drawings; work to the figured dimensions."
+        )
     from saengine.substructure.excavation import construction_notes
 
     data.notes += construction_notes(substructure)
