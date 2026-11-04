@@ -751,6 +751,27 @@ The generic keys they add, open to any pack (a pack without them behaves as befo
 | `concreteMethods.ultimate.relations.<relation>.steps` | (fck up to, value) bands in place of base and the high relation (stress block depth, εcu, ...) |
 | `concreteMethods.ultimate.neutralAxisSteps` | (fck up to, xu/d) bands of the neutral axis limit where the grade is known |
 
+### Canada and Mexico City (alpha 9 C17)
+
+| Pack | Extends | What it sets |
+| --- | --- | --- |
+| `canada-nbcc` | `aci318-asce7-22` | NBCC 2020 Part 4: companion-load combinations, IE / IW / IS, the towns' Ss, Sr, q1/50 and (four cities) Sa(T); S = Is [Ss Cb Cw Cs + Sr]; Ce, Cg 2.0, Cp by H/D; V = S(Ta) Mv IE W / (Rd Ro) with its bounds, Ft, Ta, Rd / Ro and height limits; CSA A23.3-19 φc / φs, α1 / β1, Pr,max, the simplified (and general) shear method; CSA S16-19 column curve n = 1.34 and lateral-torsional buckling by Mu; bars 10M-55M; SI |
+| `mexico-ntc` | `aci318-asce7-22` | NTC-CDMX 2017: 1.3 / 1.5 and 1.1 combinations, Wm, Group A × 1.5; the Mexico City zone spectra (I-IIId) reduced by Q' (and the 2017 site form with k and R); drifts Q × elastic; 1.5 es ± 0.1 b; CFE wind Frz by terrain category and the barometric G; NTC-Concreto FR; NTC-Acero column curve n = 1.4 and Mu; bars #2.5-#12; SI |
+
+The generic keys they add, open to any pack (a pack without them behaves as before):
+
+| Key | What it does |
+| --- | --- |
+| `seismic.designSpectrum.ordinates` | Under `mappedSpectral`: S(T) from the site's (or town's) uniform hazard spectrum with the plateau max Sa(shortPeriods); SDS, SD1 of the bands = S(bandPeriods); V/W = S(T) Mv I/R, at least S(minimumPeriod of the system's higherModeGroup) Mv I/R, at most max(share S(T)) I/R of capShares for Rd >= capFromRd; Mv bilinear in higherMode by S(a)/S(b) and T |
+| `seismic.designSpectrum.method` `ductilityOverstrength` (`ductility`) | Spectra by site class (a0, c, Ta, Tb, r; or k) reduced by Q' (system R = Q), the regularity factor and, with k, R = k1 R0(Q) + k2 |
+| `seismic.systems.*.Rd`, `Ro`, `higherModeGroup` | A code's R as Rd Ro, the group of the higher mode table and the least period |
+| `locations.*.spectrum`, `groundSnow`, `rainLoad`, `pressureFactor` | A town's Sa(T) points, ground snow, rain load and a factor on the velocity pressure (the speed × √factor) |
+| `snow.rainShare` | Sr × share × Is added to the roof snow |
+| `wind.exposures.*.kzFactor`, `kzMinHeight` | The power law's factor and least height of one exposure |
+| `concreteMethods.shear` method `compressionField` | Vr = φc λ β √f'c bw dv + φs Av fy dv cot θ / s <= share φc f'c bw dv, β and θ simplified (or general from εx) |
+| `steel.memberMethods.columnCurve` `powerCurve`, `curveExponent` | Fcr = Fy (1 + λ^2n)^(-1/n) with n by section family |
+| `steel.memberMethods.lateralTorsional` `criticalMoment`, `ltbCurve`, `omega2Max` | Mu = ω2 π/L √(E Iy G J + (π E/L)² Iy Cw); a Mp (1 - b Mp/Mu) <= Mp above c Mp, else Mu |
+
 ## Other package kinds
 
 The same `pack.json` and the same registry hold the other packages of the marketplace

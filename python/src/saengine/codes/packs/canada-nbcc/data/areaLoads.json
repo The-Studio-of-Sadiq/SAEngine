@@ -1,0 +1,32 @@
+{
+  "$schema": "../../../schemas/areaLoads.schema.json",
+  "$sources": [
+    "NBCC 2020 Table 4.1.5.3 (specified uniformly distributed live loads on an area of floor or roof) and 4.1.4.1(3) (partitions)"
+  ],
+  "source": "NBCC 2020 Table 4.1.5.3 for the uses below; the other uses keep the parent's ASCE 7-22 Table 4.3-1 values (named in their rows) until checked",
+  "uses": {
+    "residential": {"live": 1.9, "source": "NBCC 2020 Table 4.1.5.3, residential areas within dwelling units"},
+    "residentialPublic": {"live": 4.8, "source": "NBCC 2020 Table 4.1.5.3, residential areas: lobbies and corridors serving the public"},
+    "dwelling": {"live": 1.9, "source": "NBCC 2020 Table 4.1.5.3, residential areas within dwelling units"},
+    "office": {"live": 2.4, "source": "NBCC 2020 Table 4.1.5.3, office areas not located in the basement and first storey"},
+    "officeLobby": {"live": 4.8, "source": "NBCC 2020 Table 4.1.5.3, office areas in the basement and first storey, lobbies"},
+    "officeCorridor": {"live": 4.8, "source": "NBCC 2020 Table 4.1.5.3, corridors, lobbies and aisles"},
+    "corridorFirst": {"live": 4.8, "source": "NBCC 2020 Table 4.1.5.3, corridors, lobbies and aisles"},
+    "corridorAbove": {"live": 4.8, "source": "NBCC 2020 Table 4.1.5.3, corridors, lobbies and aisles"},
+    "classroom": {"live": 2.4, "source": "NBCC 2020 Table 4.1.5.3, classrooms with or without fixed seats"},
+    "assemblyFixed": {"live": 2.4, "source": "NBCC 2020 Table 4.1.5.3, assembly areas with fixed seats that have backs over at least 80 % of the area"},
+    "assemblyMovable": {"live": 4.8, "source": "NBCC 2020 Table 4.1.5.3, assembly areas: other (movable seats, lobbies)"},
+    "retailGround": {"live": 4.8, "source": "NBCC 2020 Table 4.1.5.3, retail and wholesale areas"},
+    "retailUpper": {"live": 4.8, "source": "NBCC 2020 Table 4.1.5.3, retail and wholesale areas"},
+    "storageLight": {"live": 4.8, "source": "NBCC 2020 Table 4.1.5.3, storage areas (at least)"},
+    "parking": {"live": 2.4, "source": "NBCC 2020 Table 4.1.5.3, garages for passenger cars"},
+    "stairs": {"live": 4.8, "source": "NBCC 2020 Table 4.1.5.3, exits and fire escapes"},
+    "balcony": {"live": 4.8, "note": "NBCC 2020: exterior balconies 4.8 kPa.", "source": "NBCC 2020 Table 4.1.5.3, balconies, exterior"},
+    "roof": {"live": 1.0, "source": "NBCC 2020 Table 4.1.5.3, roofs (at least 1.0 kPa, or the snow load where larger)"}
+  },
+  "partitions": {"minimum": 1.0},
+  "sources": {
+    "uses": "NBCC 2020 Table 4.1.5.3 (the rows above; see VERIFY.md)",
+    "partitions": "NBCC 2020 4.1.4.1(3): partitions at least 1.0 kPa where their location is not known (SAEngine keeps the parent's live load case for them: on the safe side, 1.5 in place of 1.25)"
+  }
+}

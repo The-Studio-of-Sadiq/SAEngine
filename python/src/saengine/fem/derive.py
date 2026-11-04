@@ -2411,6 +2411,11 @@ def _derive_fem(
         forces_of: dict[str, list[float]] = {}
         for axis, case in ((0, "EX"), (1, "EY")):
             period = periods[case[1]]
+            # Alpha 9 C17: the direction's system row (its higher mode group and Rd, for a
+            # pack whose base shear comes from the spectrum's ordinates).
+            direction_system = seismic_table.systems.get(
+                (settings.seismic.systemY if case[1] == "Y" else None) or settings.seismic.system
+            )
             # The pack's equivalent static coefficient (C1: Cs with its bounds from mapped values).
             sa = fl.elf_coefficient(
                 period,
@@ -2420,6 +2425,7 @@ def _derive_fem(
                 values.get(f"R{case[1]}", values["R"]),  # each direction its own R (B2)
                 settings.seismic.damping,
                 static=True,
+                system=direction_system,
             )
             # C7: the pack's least base shear V / W of the zone (IS 1893 Table 7), where given.
             from saengine.fem.seismic_design import zone_of
@@ -2442,6 +2448,11 @@ def _derive_fem(
             info[case] = {"period_s": period, "Sa_g": sa, "base_shear_kN": shear / 1e3}
             if correction != 1.0:
                 info[case]["correction"] = correction
+            ordinate_terms = _ordinate_terms(
+                period, values, values.get(f"R{case[1]}", values["R"]), direction_system
+            )
+            if ordinate_terms is not None:  # Alpha 9 C17: S(T), Mv and the bounds
+                info[case]["ordinates"] = ordinate_terms
             nodal = out.setdefault(case, {})
             for level, h in enumerate(heights):
                 for node_id, share in level_shares(h).items():
@@ -2567,6 +2578,20 @@ def _derive_fem(
                 f"seismic: the site's {values['Z'].label} {summary['spectral']}; Cs = "
                 f"{info['EX']['Sa_g']:.4f} in X ({code_context.cite('seismic', 'elf')})"
             )
+            terms = info["EX"].get("ordinates")
+            if terms is not None:  # Alpha 9 C17: the base shear from the spectrum's ordinates
+                b.notes.append(
+                    f"seismic X: V/W = S(T) Mv I / R = {terms['S']:.4f} × {terms['Mv']:.3f} × I / R"
+                    + (f", at least {terms['least']:.4f}" if terms["least"] is not None else "")
+                    + (f", at most {terms['cap']:.4f}" if terms["cap"] is not None else "")
+                    + f" = {terms['value']:.4f}"
+                    + (
+                        f" (Mv = 1: the code pack gives no higher mode table of the group "
+                        f"'{terms['group']}'; J = 1)"
+                        if not terms.get("table")
+                        else ""
+                    )
+                )
         # ── B2: the site-specific study warning (S1, S2 flagged by the soil report) and the
         # height limit of the systems in the Seismic Design Category ──
         from saengine.fem.seismic_design import height_limit_note, seismic_design_category, zone_of
@@ -2627,6 +2652,13 @@ def _derive_fem(
                 f"{altitude.factor:g} A, site altitude A = {settings.site.altitude or 0.0:g} m"
                 + (f"; {altitude.clause}" if altitude.clause else "")
                 + ")"
+            )
+        if values.get("windPressureFactor") is not None:  # Alpha 9 C17
+            b.notes.append(
+                f"wind: the town's factor on the velocity pressure {values['windPressureFactor']:g}"
+                f" (code pack's locations table): V = {values['windSpeedMap']:g} × "
+                f"√{values['windPressureFactor']:g} = {values['windSpeed']:.2f} m/s in the "
+                "velocity pressure"
             )
         b.notes.extend(wind_notes)
     # ── B16: flood and surge (cases FaX, FaY; saengine.fem.flood) ──
@@ -3489,6 +3521,26 @@ def _derive_fem(
         faces=faces if faces and faces["elements"] else None,
         isolation=isolation_json,
     )
+
+
+def _ordinate_terms(
+    period: float, values: dict[str, Any], r: float, system: Any
+) -> dict[str, Any] | None:
+    """Alpha 9 C17: S(T), Mv and the least and largest V/W of a pack whose base shear comes
+    from the spectrum's ordinates (``seismic.designSpectrum.ordinates``), for the summary;
+    None for every other pack."""
+    from saengine.fem import spectral_hazard as sh
+
+    hazard = values.get("Z")
+    rule = sh.rule()
+    if rule is None or rule.ordinates is None or not isinstance(hazard, sh.SpectralHazard):
+        return None
+    if not hazard.spectrum:
+        return None
+    terms = sh.ordinate_coefficient(
+        period, hazard, float(values["seismicImportance"]), float(r), system
+    )
+    return {k: (round(v, 5) if isinstance(v, float) else v) for k, v in terms.items()}
 
 
 def _analysis_period(

@@ -1,0 +1,23 @@
+{
+  "$schema": "../../../schemas/steel.schema.json",
+  "$sources": [
+    "CSA S16-19 13.1 (φ = 0.90), 13.3.1 (axial compression: Cr = φ A Fy (1 + λ^2n)^(-1/n), n = 1.34; 2.24 for class H hollow sections), 13.6 (laterally unsupported members: Mu, ω2, Mr)"
+  ],
+  "source": "CSA S16-19 for the member resistances it sets; connections, bolts, welds and the other member limit states are the parent's AISC 360-22 values",
+  "designMethod": "LRFD",
+  "omega": {"$replace": true},
+  "omegaFromPhi": null,
+  "memberMethods": {
+    "columnCurve": "powerCurve",
+    "curveExponent": {"default": 1.34},
+    "lateralTorsional": "criticalMoment",
+    "ltbCurve": [1.15, 0.28, 0.67],
+    "omega2Max": 2.5
+  },
+  "sources": {
+    "phi": "CSA S16-19 13.1: φ = 0.90 for yielding, buckling and flexure (the parent's values are the same); φu = 0.75 for net section rupture (the same); the bolt, weld and bearing factors stay the parent's (they go with AISC 360-22's nominal equations)",
+    "memberMethods.columnCurve": "CSA S16-19 13.3.1: Cr = φ A Fy (1 + λ^2n)^(-1/n), λ = √(Fy / Fe), n = 1.34 (rolled, welded and class C hollow sections; class H hollow sections n = 2.24: override curveExponent rhs/chs)",
+    "memberMethods.lateralTorsional": "CSA S16-19 13.6(a): Mu = ω2 π / L √(E Iy G J + (π E / L)² Iy Cw); Mr = 1.15 φ Mp (1 - 0.28 Mp / Mu) <= φ Mp where Mu > 0.67 Mp, else φ Mu (My for class 3 flanges); ω2 the program's moment gradient factor Cb, at most 2.5 (S16's ω2 = 4 Mmax / √(Mmax² + 4 Ma² + 7 Mb² + 4 Mc²) <= 2.5: the program's Cb taken for it, SAEngine practice)",
+    "designMethod": "CSA S16 is limit states design only: no allowable stress design (omegaFromPhi none)"
+  }
+}

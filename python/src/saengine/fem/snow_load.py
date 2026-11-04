@@ -203,6 +203,10 @@ def roof_snow(settings: Any) -> dict[str, Any] | None:
     if not ground and pack.has("snow"):  # Alpha 9 C15: sk by the pack's zone and altitude
         mapped = ground_snow(settings, code_context.table("snow"))
         ground = mapped["sk_kPa"] if mapped else None
+    town = _town(settings, pack)
+    from_town = False
+    if not ground and town is not None and getattr(town, "groundSnow", None):
+        ground, from_town = float(town.groundSnow), True  # Alpha 9 C17: the town's Ss
     if not ground:
         return None
     if not pack.has("snow"):
@@ -230,6 +234,8 @@ def roof_snow(settings: Any) -> dict[str, Any] | None:
     }
     if mapped is not None:
         out["groundZone"] = mapped
+    if from_town:
+        out["groundFromTown"] = town.name
     if table.method == "slopeFactor":
         cs = slope_factor(table, ct, angle, bool(getattr(snow, "slippery", False)))
         pf = table.factor * ce * ct * importance * ground
@@ -241,6 +247,13 @@ def roof_snow(settings: Any) -> dict[str, Any] | None:
     else:
         mu1 = shape_coefficient(angle, list(table.shape))
         out.update(mu1=mu1, s_kPa=table.factor * mu1 * ce * ct * importance * ground)
+        if table.factor != 1.0:  # Alpha 9 C17: a basic roof factor (NBCC 2020 Cb)
+            out["factor"] = table.factor
+    # Alpha 9 C17: the town's associated rain load, Sr × share × Is on the roof snow.
+    rain = getattr(town, "rainLoad", None) if town is not None else None
+    if table.rainShare is not None and rain:
+        added = table.rainShare * importance * float(rain)
+        out.update(rain_kPa=float(rain), s_kPa=out["s_kPa"] + added)
     rule = getattr(table, "drift", None)
     if getattr(rule, "method", None) == "shapeCoefficient":  # Alpha 9 C5c
         parapet = getattr(getattr(settings, "wind", None), "parapetHeight", None)
@@ -250,6 +263,14 @@ def roof_snow(settings: Any) -> dict[str, Any] | None:
     if found is not None:
         out["drift"] = found
     return out
+
+
+def _town(settings: Any, pack: Any) -> Any:
+    """Alpha 9 C17: the project's town of the pack's ``locations`` (None: custom or none)."""
+    if not pack.has("locations"):
+        return None
+    site = getattr(settings, "site", None)
+    return pack.table("locations").locations.get(getattr(site, "location", None) or "")
 
 
 def describe(snow: dict[str, Any]) -> str:
@@ -262,12 +283,24 @@ def describe(snow: dict[str, Any]) -> str:
             + (f", pm = {snow['pm_kPa']:.2f}" if snow.get("pm_kPa") is not None else "")
             + f"; {snow['source']}; roof {snow['angle_deg']:g}°, exposure {snow['exposure']})"
         )
+    elif snow.get("factor") is not None:  # Alpha 9 C17
+        text = (
+            f"snow s = factor·μ1·Ce·Ct·Is·sk = {snow['factor']:g} × {snow['mu1']:.2f} × "
+            f"{snow['Ce']:g} × {snow['Ct']:g} × {snow['Is']:g} × {snow['sk_kPa']:g}"
+            + (" + Sr·Is" if snow.get("rain_kPa") is not None else "")
+            + f" = {snow['s_kPa']:.2f} kN/m² on the roof slabs ({snow['source']}; roof "
+            f"{snow['angle_deg']:g}°, exposure {snow['exposure']})"
+        )
     else:
         text = (
             f"snow s = μ1·Ce·Ct·sk = {snow['mu1']:.2f} × {snow['Ce']:g} × {snow['Ct']:g} × "
             f"{snow['sk_kPa']:g} = {snow['s_kPa']:.2f} kN/m² on the roof slabs ({snow['source']}; "
             f"roof {snow['angle_deg']:g}°, exposure {snow['exposure']})"
         )
+    if snow.get("rain_kPa") is not None:  # Alpha 9 C17
+        text += f", with the associated rain load Sr = {snow['rain_kPa']:g} kN/m² × Is"
+    if snow.get("groundFromTown"):
+        text += f"; ground snow of {snow['groundFromTown']} (the pack's town table)"
     zone = snow.get("groundZone")
     if zone is not None:  # Alpha 9 C15
         text += (

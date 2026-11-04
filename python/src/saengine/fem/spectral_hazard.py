@@ -215,9 +215,23 @@ def site_hazard(
             source = "SDS, SD1 from the multi-period MCER spectrum"
         except ValueError:
             pass
+    design = getattr(spectral, "designSpectrum", None) or None
+    ordinates = getattr(hazard, "ordinates", None)  # Alpha 9 C17: the uniform hazard spectrum
+    if (sds is None or sd1 is None) and ordinates is not None and design:
+        points = _ordinate_points(design, ordinates)
+        lo, hi = ordinates.bandPeriods
+        sds, sd1 = _interp(points, lo), _interp(points, hi)
+        source = f"the uniform hazard spectrum's S({lo:g}) and S({hi:g})"
+        if getattr(spectral, "spectrumFromTown", False):
+            source += " of the town"
+            reference = ordinates.referenceClass
+            if reference is not None and site_class != reference:
+                source += (
+                    f" for site class {reference} (the site is class {site_class}: enter the "
+                    "site's own Sa(T) under Site > Mapped spectral values)"
+                )
     if sds is None or sd1 is None or sds <= 0:
         return None
-    design = getattr(spectral, "designSpectrum", None) or None
     return SpectralHazard(sds, sd1, get("s1"), get("tl"), design, source)
 
 
@@ -254,7 +268,9 @@ def with_location(spectral: Any, location: Any) -> Any:
     the project gives none; ``spectral`` itself when the town has none."""
     names = ("ss", "s1", "tl")
     town = {n: getattr(location, n, None) for n in names} if location is not None else {}
-    if not any(v is not None for v in town.values()):
+    # Alpha 9 C17: the town's uniform hazard spectrum (NBCC 2020 Appendix C type).
+    town_spectrum = getattr(location, "spectrum", None) if location is not None else None
+    if not any(v is not None for v in town.values()) and not town_spectrum:
         return spectral
     if spectral is None:
         merged: dict[str, Any] = {}
@@ -265,6 +281,9 @@ def with_location(spectral: Any, location: Any) -> Any:
     for name in names:
         if merged.get(name) is None and town.get(name) is not None:
             merged[name] = town[name]
+    if town_spectrum and not merged.get("designSpectrum"):
+        merged["designSpectrum"] = [tuple(p) for p in town_spectrum]
+        merged["spectrumFromTown"] = True
     return SimpleNamespace(**merged)
 
 
@@ -374,20 +393,106 @@ def two_period(period: float, hazard: SpectralHazard, pack: Any = None) -> float
     return sd1 * hazard.tl / period**2
 
 
+def _ordinate_points(spectrum: Any, ordinates: Any) -> list[tuple[float, float]]:
+    """Alpha 9 C17: the design spectrum S(T) of a uniform hazard spectrum ((T, Sa) points): at
+    and below the first of ``ordinates.shortPeriods`` the largest Sa of those periods, the
+    ordinates above it, linear between, held at the ends."""
+    pts = sorted((float(t), float(a)) for t, a in spectrum)
+    short = sorted(float(t) for t in ordinates.shortPeriods)
+    plateau = max(_interp(pts, t) for t in short)
+    return [(short[0], plateau), *((t, a) for t, a in pts if t > short[0] + 1e-9)]
+
+
 def spectral_acceleration(period: float, hazard: SpectralHazard, pack: Any = None) -> float:
     """Sa [g] at ``period``: the site's multi-period design spectrum where given (linear
-    between its points, held at its ends), else the two-period spectrum."""
+    between its points, held at its ends), else the two-period spectrum. Alpha 9 C17: with
+    the pack's ``ordinates`` the short-period plateau of S(T) (:func:`_ordinate_points`)."""
     if hazard.spectrum:
+        ordinates = getattr(rule(pack), "ordinates", None)
+        if ordinates is not None:
+            return _interp(_ordinate_points(hazard.spectrum, ordinates), period)
         return _interp(hazard.spectrum, period)
     return two_period(period, hazard, pack)
 
 
+def higher_mode_factor(
+    period: float, hazard: SpectralHazard, group: str | None, pack: Any = None
+) -> float:
+    """Alpha 9 C17: Mv of the pack's ``ordinates.higherMode`` table of ``group`` at the
+    spectral ratio S(a)/S(b) (``higherModePeriods``) and ``period``, bilinear between the
+    points, the end values outside; 1 without a table of the group or a spectrum."""
+    ordinates = getattr(rule(pack), "ordinates", None)
+    if ordinates is None or not hazard.spectrum:
+        return 1.0
+    table = ordinates.higherMode.get(group or "default") or ordinates.higherMode.get("default")
+    if table is None:
+        return 1.0
+    a, b = ordinates.higherModePeriods
+    long = spectral_acceleration(b, hazard, pack)
+    ratio = spectral_acceleration(a, hazard, pack) / long if long > 0 else max(table.ratios)
+    rows = [_along(list(table.periods), list(row), period) for row in table.values]
+    return _along(list(table.ratios), rows, ratio)
+
+
+def ordinate_coefficient(
+    period: float,
+    hazard: SpectralHazard,
+    importance: float,
+    r: float,
+    system: Any = None,
+    pack: Any = None,
+) -> dict[str, Any]:
+    """Alpha 9 C17: V/W of the equivalent static force by the spectrum's ordinates (the
+    pack's ``ordinates``, NBCC 2020 4.1.8.11 type): S(T) Mv I/R, at least S(Tmin) Mv I/R of
+    the system's group, for systems with Rd at least ``capFromRd`` at most the largest
+    share·S(period) of ``capShares`` × I/R. ``{"value", "S", "Mv", "least", "cap",
+    "group"}``; ``system`` a ``seismic.systems`` row (None: the 'default' group, no cap)."""
+    ordinates = rule(pack).ordinates
+    group = getattr(system, "higherModeGroup", None) or "default"
+    s_t = spectral_acceleration(period, hazard, pack)
+    mv = higher_mode_factor(period, hazard, group, pack)
+    ratio = importance / r
+    value = s_t * mv * ratio
+    out: dict[str, Any] = {
+        "S": s_t,
+        "Mv": mv,
+        "group": group,
+        "least": None,
+        "cap": None,
+        "table": group in ordinates.higherMode or "default" in ordinates.higherMode,
+    }
+    least_t = ordinates.minimumPeriod.get(group, ordinates.minimumPeriod.get("default"))
+    if least_t is not None:
+        least = spectral_acceleration(float(least_t), hazard, pack) * mv * ratio
+        out["least"] = least
+        value = max(value, least)
+    rd = getattr(system, "Rd", None)
+    applies = ordinates.capFromRd is None or (rd is not None and rd >= ordinates.capFromRd - 1e-9)
+    if ordinates.capShares and system is not None and applies:
+        cap = max(
+            share * spectral_acceleration(t, hazard, pack) for t, share in ordinates.capShares
+        )
+        cap *= ratio
+        out["cap"] = cap
+        value = min(value, cap)
+    out["value"] = value
+    return out
+
+
 def response_coefficient(
-    period: float, hazard: SpectralHazard, importance: float, r: float, pack: Any = None
+    period: float,
+    hazard: SpectralHazard,
+    importance: float,
+    r: float,
+    pack: Any = None,
+    system: Any = None,
 ) -> float:
     """The equivalent lateral force coefficient Cs = SDS/(R/Ie), at most SD1/(T R/Ie) up to TL
-    and SD1·TL/(T² R/Ie) beyond, at least the pack's ``csLimits``."""
+    and SD1·TL/(T² R/Ie) beyond, at least the pack's ``csLimits``. Alpha 9 C17: with the
+    pack's ``ordinates`` and the site's spectrum, :func:`ordinate_coefficient` instead."""
     h = rule(pack)
+    if h is not None and h.ordinates is not None and hazard.spectrum:
+        return ordinate_coefficient(period, hazard, importance, r, system, pack)["value"]
     ratio = r / importance
     sds, sd1 = float(hazard), hazard.sd1
     cs = sds / ratio
@@ -457,6 +562,10 @@ def describe(hazard: SpectralHazard) -> str:
         )
         return f"{words} ({hazard.source})" if hazard.source else words
     parts = [f"SDS = {float(hazard):.3f} g", f"SD1 = {hazard.sd1:.3f} g"]
+    ordinates = getattr(rule(), "ordinates", None)
+    if ordinates is not None and hazard.spectrum:  # Alpha 9 C17: S(T) of the spectrum
+        lo, hi = ordinates.bandPeriods
+        parts = [f"S({lo:g}) = {float(hazard):.3f} g", f"S({hi:g}) = {hazard.sd1:.3f} g"]
     if hazard.s1 is not None:
         parts.append(f"S1 = {hazard.s1:.3f} g")
     if hazard.tl is not None:

@@ -38,6 +38,7 @@ import numpy as np
 from saengine.codes import context as code_context
 from saengine.design import (
     column_shear,
+    compression_field_shear,
     deep_beams,
     design_strength,
     live_reduction,
@@ -4116,6 +4117,9 @@ def _beam_checks(
                     # C8: the tabulated method asks for them where τv > τc / 2.
                     "stirrups below the least Asv: Vu must not exceed Vc / 2 (τc / 2)"
                     if tabulated_shear.rules() is not None
+                    # Alpha 9 C17: the compression field method where Vf > Vc.
+                    else "stirrups below Av,min: Vf must not exceed Vc"
+                    if compression_field_shear.rules() is not None
                     else "links below ρw,min: beams need at least the least links whatever the shear"
                 )
                 + (f"; {shear_demand[2]}" if shear_demand[2] else ""),
