@@ -49,7 +49,7 @@ import numpy as np
 
 from saengine.design import rc
 from saengine.design.check import _check
-from saengine.design.rc import beta1, phi_axial_flexure
+from saengine.design.rc import alpha1, beta1, phi_axial_flexure
 from saengine.library.objects import BarMesh
 from saengine.library.settings import Foundation
 from saengine.substructure.loads import column_action
@@ -510,7 +510,7 @@ def strip_flexure(
         c = a / bk.beta
         eps_t = bk.eps_cu * (d - c) / c
         return StripFlexure(as_per_m * bk.fy * (d - a / 2), 1.0, eps_t)
-    a = as_per_m * fy / (0.85 * fc * 1000)
+    a = as_per_m * fy / (alpha1(fc) * fc * 1000)  # Alpha 9 C18: the pack's block
     c = a / beta1(fc)
     eps_t = 0.003 * (d - c) / c
     phi = phi_axial_flexure(eps_t, fy, es)

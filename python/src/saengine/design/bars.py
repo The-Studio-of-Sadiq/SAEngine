@@ -37,7 +37,7 @@ import math
 from dataclasses import dataclass, field
 
 from saengine.codes import context as code_context
-from saengine.design.rc import bar_area, beta1
+from saengine.design.rc import alpha1, bar_area, beta1
 from saengine.design.rc import value as rc_value
 
 EPS_T_SLAB = 0.004
@@ -124,7 +124,14 @@ def round_down(value: float, step: float | None = None) -> float:
 
 
 def tension_controlled_depth(d: float, fy: float, es: float | None = None) -> float:
-    """Neutral-axis depth [mm] at which εt = εty + 0.003 (ACI 21.2.2): φ = 0.90 above it."""
+    """Neutral-axis depth [mm] at which εt = εty + 0.003 (ACI 21.2.2): φ = 0.90 above it;
+    alpha 9 C18: with the pack's ``factors.phiTransition`` the depth kuo d at which φ reaches
+    the tension value (AS 3600:2018 Table 2.2.2: kuo = 0.36)."""
+    from saengine.design.rc import _phi_rules
+
+    transition = _phi_rules()[0]
+    if transition is not None:
+        return (transition.intercept - rc_value("PHI_TENSION")) / transition.slope * d
     if es is None:
         es = rc_value("STEEL_E")
     return rc_value("EPS_CU") * d / (2 * rc_value("EPS_CU") + fy / es)
@@ -155,10 +162,11 @@ def singly_area(mu: float, b: float, d: float, fc: float, fy: float, phi: float 
         phi = rc_value("PHI_TENSION")
     if mu <= 0:
         return 0.0
-    k = 1 - 2 * mu / (phi * 0.85 * fc * b * d**2)
+    block = alpha1(fc) * fc  # Alpha 9 C18: the pack's block stress (0.85 f'c by default)
+    k = 1 - 2 * mu / (phi * alpha1(fc) * fc * b * d**2)  # the default's operation order
     if k < 0:
         return None
-    return 0.85 * fc * b * d / fy * (1 - math.sqrt(k))
+    return block * b * d / fy * (1 - math.sqrt(k))
 
 
 def beam_flexure_need(
@@ -188,7 +196,8 @@ def beam_flexure_need(
     b1 = beta1(fc)
     c_tc = tension_controlled_depth(d, fy, es)
     a_tc = b1 * c_tc
-    as_tc = 0.85 * fc * b * a_tc / fy
+    block = alpha1(fc) * fc  # Alpha 9 C18
+    as_tc = block * b * a_tc / fy
     mn_tc = as_tc * fy * (d - a_tc / 2)
     limit = ratio_max * b * (h if h else d)
     if mu <= rc_value("PHI_TENSION") * mn_tc:
@@ -200,7 +209,7 @@ def beam_flexure_need(
     mn2 = mu / rc_value("PHI_TENSION") - mn_tc
     strain = rc_value("EPS_CU") * (c_tc - d_comp) / c_tc
     fs = min(es * strain, fy)
-    if fs <= 0.85 * fc or d <= d_comp:
+    if fs <= block or d <= d_comp:
         return FlexureNeed(
             mu,
             as_tc,
@@ -208,8 +217,8 @@ def beam_flexure_need(
             True,
             "compression bars would not work (they lie near the neutral axis): section too small",
         )
-    compression = mn2 / ((fs - 0.85 * fc) * (d - d_comp))
-    area = as_tc + compression * (fs - 0.85 * fc) / fy
+    compression = mn2 / ((fs - block) * (d - d_comp))
+    area = as_tc + compression * (fs - block) / fy
     note = (
         f"compression bars: beyond the tension-controlled limit c = {c_tc:.0f} mm "
         f"(εt = εty + 0.003, ACI 21.2.2), f's = {fs:.0f} MPa"
@@ -267,7 +276,7 @@ def slab_max_area(d: float, fc: float, fy: float, eps_t: float | None = None) ->
     if eps_t is None:
         eps_t = slab_strain_min()
     c = rc_value("EPS_CU") * d / (rc_value("EPS_CU") + eps_t)
-    return 0.85 * fc * 1000 * beta1(fc) * c / fy
+    return alpha1(fc) * fc * 1000 * beta1(fc) * c / fy
 
 
 def slab_flexure_need(

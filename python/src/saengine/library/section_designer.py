@@ -550,7 +550,7 @@ class DesignedRcSection:
         from sectionproperties.pre.geometry import CompoundGeometry, Geometry
 
         from saengine.design import rc
-        from saengine.design.rc import beta1
+        from saengine.design.rc import alpha1, beta1
 
         geoms = []
         for region, m in zip(self.section.regions, self.region_mats, strict=True):
@@ -562,7 +562,7 @@ class DesignedRcSection:
                     stress_strain_profile=ConcreteLinear(elastic_modulus=m.E),
                     ultimate_stress_strain_profile=RectangularStressBlock(
                         compressive_strength=fc,
-                        alpha=0.85,
+                        alpha=alpha1(fc),  # Alpha 9 C18: the pack's block
                         gamma=beta1(fc),
                         ultimate_strain=rc.value("EPS_CU"),
                     ),
@@ -610,12 +610,15 @@ class DesignedRcSection:
         concrete less the bars in it, fy on the bars and plates."""
         from shapely.geometry import Point as ShapelyPoint
 
+        from saengine.design.rc import squash_share
+
         p0 = 0.0
         for region, m in zip(self.section.regions, self.region_mats, strict=True):
             polygon = _polygon(region)
             if m.category == "concrete":
                 inside = sum(b.area for b in self.bars if polygon.contains(ShapelyPoint(b.x, b.y)))
-                p0 += 0.85 * (m.fc or 0.0) * (polygon.area - inside)
+                fc = m.fc or 0.0  # Alpha 9 C18: the pack's squash share (0.85 by default)
+                p0 += squash_share(fc) * fc * (polygon.area - inside)
             else:
                 p0 += (m.fy or 0.0) * polygon.area
         p0 += sum(b.area * (m.fy or 0.0) for b, m in zip(self.bars, self.bar_mats, strict=True))

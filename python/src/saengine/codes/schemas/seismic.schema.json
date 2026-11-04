@@ -197,7 +197,7 @@
     },
     "DesignSpectrumRule": {
       "additionalProperties": false,
-      "description": "The design spectrum: a method id the pack picks (C4, C1). Empty: ``reducedElastic``.\n\n- ``reducedElastic`` (the default pack's): Sa = pgaFactor·Z·I/R·Cs(T), Cs the elastic shape\n  of the site class (S, TB, TC, TD; :func:`saengine.fem.loads.design_acceleration`).\n- ``behaviourFactor`` (EN 1998-1 3.2.2.5): ag = Z·I, Sd = ag·S·[2/3 + T/TB·(2.5/q - 2/3)] up\n  to TB, ag·S·2.5/q to TC, ·TC/T to TD, ·TC·TD/T² beyond, at least ``lowerBound``·ag from TC\n  (:mod:`saengine.fem.spectra`); R stands for q.\n- ``mappedSpectral`` (ASCE 7-22 Ch 11-12, :mod:`saengine.fem.spectral_hazard`): the site's\n  SDS and SD1 (and S1, TL) entered from the code's hazard tool (Site > Mapped spectral\n  values) instead of a zone: a two-period spectrum (T0 = ``t0Share``·TS, TS = SD1/SDS;\n  ``rampStart``·SDS at T = 0 up to SDS at T0, SDS to TS, SD1/T to TL, SD1·TL/T² beyond) or\n  the site's multi-period design spectrum, × I/R; the equivalent lateral force coefficient\n  Cs = SDS/(R/Ie) ≤ SD1/(T R/Ie) (SD1 TL/(T² R/Ie) beyond TL) within ``csLimits``; the\n  Seismic Design Category read by the band of SDS and SD1 (``sdsBands``, ``sd1Bands``, the\n  more severe; the band after the last where S1 ≥ ``s1Extreme``) as zone packs read it by\n  zone; the period's upper limit Cu·Ta from ``periodUpper`` by SD1. The fields after\n  ``lowerBound`` are this method's. Alpha 9 C23: with ``siteCoefficients`` SMS, SM1 also\n  from SS, S1 by Fa, Fv, and a town may carry SS, S1, TL.\n- ``ubc97`` (alpha 9 C16, UBC 1997 Sec 1629-1630 and the codes that adopt it): the same\n  two-period spectrum and Cs bounds with 2.5 Ca for SDS and Cv for SD1, Ca and Cv from the\n  zone's Z and the soil profile by ``ubc97`` (:class:`Ubc97Rule`).",
+      "description": "The design spectrum: a method id the pack picks (C4, C1). Empty: ``reducedElastic``.\n\n- ``reducedElastic`` (the default pack's): Sa = pgaFactor·Z·I/R·Cs(T), Cs the elastic shape\n  of the site class (S, TB, TC, TD; :func:`saengine.fem.loads.design_acceleration`).\n- ``behaviourFactor`` (EN 1998-1 3.2.2.5): ag = Z·I, Sd = ag·S·[2/3 + T/TB·(2.5/q - 2/3)] up\n  to TB, ag·S·2.5/q to TC, ·TC/T to TD, ·TC·TD/T² beyond, at least ``lowerBound``·ag from TC\n  (:mod:`saengine.fem.spectra`); R stands for q.\n- ``mappedSpectral`` (ASCE 7-22 Ch 11-12, :mod:`saengine.fem.spectral_hazard`): the site's\n  SDS and SD1 (and S1, TL) entered from the code's hazard tool (Site > Mapped spectral\n  values) instead of a zone: a two-period spectrum (T0 = ``t0Share``·TS, TS = SD1/SDS;\n  ``rampStart``·SDS at T = 0 up to SDS at T0, SDS to TS, SD1/T to TL, SD1·TL/T² beyond) or\n  the site's multi-period design spectrum, × I/R; the equivalent lateral force coefficient\n  Cs = SDS/(R/Ie) ≤ SD1/(T R/Ie) (SD1 TL/(T² R/Ie) beyond TL) within ``csLimits``; the\n  Seismic Design Category read by the band of SDS and SD1 (``sdsBands``, ``sd1Bands``, the\n  more severe; the band after the last where S1 ≥ ``s1Extreme``) as zone packs read it by\n  zone; the period's upper limit Cu·Ta from ``periodUpper`` by SD1. The fields after\n  ``lowerBound`` are this method's. Alpha 9 C23: with ``siteCoefficients`` SMS, SM1 also\n  from SS, S1 by Fa, Fv, and a town may carry SS, S1, TL.\n- ``ubc97`` (alpha 9 C16, UBC 1997 Sec 1629-1630 and the codes that adopt it): the same\n  two-period spectrum and Cs bounds with 2.5 Ca for SDS and Cv for SD1, Ca and Cv from the\n  zone's Z and the soil profile by ``ubc97`` (:class:`Ubc97Rule`).\n- ``shapeFactors`` (alpha 9 C18, AS 1170.4 / NZS 1170.5): the site class's spectral shape\n  factor Ch(T) (its ``shape`` branches), Cd(T) = (Z I) Ch(T) N Sp / kμ with R standing for μ\n  (:class:`ShapeFactorsRule`, :mod:`saengine.fem.spectra`); ``factor`` is not used.",
       "properties": {
         "method": {
           "default": "reducedElastic",
@@ -206,7 +206,8 @@
             "behaviourFactor",
             "mappedSpectral",
             "ubc97",
-            "ductilityOverstrength"
+            "ductilityOverstrength",
+            "shapeFactors"
           ],
           "title": "Method",
           "type": "string"
@@ -461,6 +462,17 @@
           "anyOf": [
             {
               "$ref": "#/$defs/DuctilityOverstrength"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "shapeFactors": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ShapeFactorsRule"
             },
             {
               "type": "null"
@@ -1438,6 +1450,279 @@
       "title": "Separation",
       "type": "object"
     },
+    "ShapeBranch": {
+      "additionalProperties": false,
+      "description": "Alpha 9 C18: one branch of a site class's spectral shape factor Ch(T) (AS 1170.4 Table\n6.4, NZS 1170.5 Table 3.1 type): Ch = a + b T + c (t0 / T)^n, at most ``most``, for T up\nto ``upTo`` [s] (empty: the last branch, beyond).",
+      "properties": {
+        "upTo": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Upto"
+        },
+        "a": {
+          "default": 0.0,
+          "title": "A",
+          "type": "number"
+        },
+        "b": {
+          "default": 0.0,
+          "title": "B",
+          "type": "number"
+        },
+        "c": {
+          "default": 0.0,
+          "title": "C",
+          "type": "number"
+        },
+        "n": {
+          "default": 1.0,
+          "title": "N",
+          "type": "number"
+        },
+        "t0": {
+          "default": 1.0,
+          "exclusiveMinimum": 0,
+          "title": "T0",
+          "type": "number"
+        },
+        "most": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Most"
+        }
+      },
+      "title": "ShapeBranch",
+      "type": "object"
+    },
+    "ShapeFactorsRule": {
+      "additionalProperties": false,
+      "description": "Alpha 9 C18: the terms of the method ``shapeFactors`` (AS 1170.4 Section 6, NZS 1170.5\nSection 5 type, :mod:`saengine.fem.spectra`): Cd(T) = (Z I) Ch(T) N(T, D) Sp / kμ, the\nsystem's R standing for the structural ductility factor μ.",
+      "properties": {
+        "performance": {
+          "description": "(μ, Sp) points: Sp linear between, the end values beyond.",
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              },
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "minItems": 1,
+          "title": "Performance",
+          "type": "array"
+        },
+        "ductilityPeriod": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "kμ = μ from this period [s] on, (μ - 1) T / this + 1 below; empty: kμ = μ.",
+          "title": "Ductilityperiod"
+        },
+        "ductilityMinPeriod": {
+          "default": 0.0,
+          "description": "T of kμ at least [s].",
+          "minimum": 0,
+          "title": "Ductilityminperiod",
+          "type": "number"
+        },
+        "softClasses": {
+          "description": "Site classes of soft.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Softclasses",
+          "type": "array"
+        },
+        "softPeriod": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "kμ = μ from T [s] (soft).",
+          "title": "Softperiod"
+        },
+        "softDuctility": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Soft: kμ = μ below this μ, else (μ - this) T/softPeriod + this.",
+          "title": "Softductility"
+        },
+        "hazardMin": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Z I at least.",
+          "title": "Hazardmin"
+        },
+        "hazardMax": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Z I at most.",
+          "title": "Hazardmax"
+        },
+        "leastZShare": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Cd at least (this Z + leastOffset) I.",
+          "title": "Leastzshare"
+        },
+        "leastOffset": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Leastoffset"
+        },
+        "leastFloor": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Cd at least this × I.",
+          "title": "Leastfloor"
+        },
+        "faultDistance": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "D [km] of the site to the nearest major fault (a project's value); empty: N = 1.",
+          "title": "Faultdistance"
+        },
+        "nearFault": {
+          "description": "(T [s], Nmax) points of the near-fault factor.",
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              },
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "title": "Nearfault",
+          "type": "array"
+        },
+        "nearFaultFull": {
+          "default": 2.0,
+          "description": "N = Nmax up to D [km].",
+          "minimum": 0,
+          "title": "Nearfaultfull",
+          "type": "number"
+        },
+        "nearFaultNone": {
+          "default": 20.0,
+          "description": "N = 1 from D [km].",
+          "exclusiveMinimum": 0,
+          "title": "Nearfaultnone",
+          "type": "number"
+        },
+        "clauses": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Clauses",
+          "type": "object"
+        }
+      },
+      "required": [
+        "performance"
+      ],
+      "title": "ShapeFactorsRule",
+      "type": "object"
+    },
     "SiteClass": {
       "additionalProperties": false,
       "properties": {
@@ -1457,6 +1742,14 @@
         "description": {
           "title": "Description",
           "type": "string"
+        },
+        "shape": {
+          "description": "Branches of the spectral shape factor Ch(T), in period order; empty: the shape of S, TB, TC, TD.",
+          "items": {
+            "$ref": "#/$defs/ShapeBranch"
+          },
+          "title": "Shape",
+          "type": "array"
         },
         "S": {
           "default": 1.0,

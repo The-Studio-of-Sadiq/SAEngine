@@ -245,6 +245,104 @@
       "title": "DissipativeLinks",
       "type": "object"
     },
+    "LtbSlenderness": {
+      "additionalProperties": false,
+      "description": "Alpha 9 C18: the slenderness reduction factor αs of lateral-torsional buckling.",
+      "properties": {
+        "share": {
+          "exclusiveMinimum": 0,
+          "title": "Share",
+          "type": "number"
+        },
+        "offset": {
+          "exclusiveMinimum": 0,
+          "title": "Offset",
+          "type": "number"
+        }
+      },
+      "required": [
+        "share",
+        "offset"
+      ],
+      "title": "LtbSlenderness",
+      "type": "object"
+    },
+    "ModifiedSlenderness": {
+      "additionalProperties": false,
+      "description": "Alpha 9 C18: the member slenderness reduction factor αc of the curves by αb (AS 4100\n6.3.3, NZS 3404 6.3.3 type): λn = (KL/r) √kf √(fy / referenceFy), αa = a1 (λn - a2) /\n(λn² - a3 λn + a4), λ = λn + αa αb, η = e1 (λ - e2) >= 0, ξ = ((λ/s)² + 1 + η) / (2 (λ/s)²),\nαc = ξ [1 - √(1 - (s / (ξ λ))²)] <= 1; kf the effective over the gross area.",
+      "properties": {
+        "referenceFy": {
+          "exclusiveMinimum": 0,
+          "title": "Referencefy",
+          "type": "number"
+        },
+        "alphaA": {
+          "description": "(a1, a2, a3, a4).",
+          "maxItems": 4,
+          "minItems": 4,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Alphaa",
+          "type": "array"
+        },
+        "eta": {
+          "description": "(e1, e2).",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Eta",
+          "type": "array"
+        },
+        "scale": {
+          "description": "s.",
+          "exclusiveMinimum": 0,
+          "title": "Scale",
+          "type": "number"
+        },
+        "alphaB": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "description": "αb by curve id (the curves' names).",
+          "title": "Alphab",
+          "type": "object"
+        }
+      },
+      "required": [
+        "referenceFy",
+        "alphaA",
+        "eta",
+        "scale",
+        "alphaB"
+      ],
+      "title": "ModifiedSlenderness",
+      "type": "object"
+    },
     "SeismicFrameRules": {
       "additionalProperties": false,
       "description": "The rules of one steel seismic frame kind (None or empty: not required).",
@@ -1066,7 +1164,7 @@
     },
     "SteelCompression": {
       "additionalProperties": false,
-      "description": "Flexural buckling by buckling curves (method ``bucklingCurves``): fcd = χ fy / γm0, χ =\n1 / (φ + √(φ² - λ²)) ≤ 1, φ = 0.5 [1 + α (λ - plateau) + λ²], λ = √(fy / fcc), fcc = π² E /\n(KL/r)².",
+      "description": "Flexural buckling by buckling curves (method ``bucklingCurves``): fcd = χ fy / γm0, χ =\n1 / (φ + √(φ² - λ²)) ≤ 1, φ = 0.5 [1 + α (λ - plateau) + λ²], λ = √(fy / fcc), fcc = π² E /\n(KL/r)². Alpha 9 C18: with ``slendernessReduction`` χ is the αc of those curves instead\n(``alpha`` and ``plateau`` are then not read).",
       "properties": {
         "method": {
           "const": "bucklingCurves",
@@ -1084,10 +1182,22 @@
           "type": "object"
         },
         "plateau": {
+          "default": 0.2,
           "description": "λ0 of the plateau (χ = 1 below it).",
           "exclusiveMinimum": 0,
           "title": "Plateau",
           "type": "number"
+        },
+        "slendernessReduction": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ModifiedSlenderness"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         },
         "rolledI": {
           "description": "Rolled I and H sections: (h/bf above, tf up to [mm], major curve, minor curve); the first row that matches.",
@@ -1183,8 +1293,6 @@
         }
       },
       "required": [
-        "alpha",
-        "plateau",
         "rolledI",
         "weldedI",
         "families",
@@ -1505,6 +1613,18 @@
           "description": "``alphaLT`` holds BS type constants: α = αLT π √(E / fy) / 1000.",
           "title": "Robertson",
           "type": "boolean"
+        },
+        "slendernessReduction": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LtbSlenderness"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Lateral-torsional buckling by αs = share [√((Ms/Mo)² + offset) - Ms/Mo] with Mo at c1 = 1 and αm = c1 (empty: χLT of λLT)."
         }
       },
       "required": [

@@ -772,6 +772,26 @@ The generic keys they add, open to any pack (a pack without them behaves as befo
 | `steel.memberMethods.columnCurve` `powerCurve`, `curveExponent` | Fcr = Fy (1 + λ^2n)^(-1/n) with n by section family |
 | `steel.memberMethods.lateralTorsional` `criticalMoment`, `ltbCurve`, `omega2Max` | Mu = ω2 π/L √(E Iy G J + (π E/L)² Iy Cw); a Mp (1 - b Mp/Mu) <= Mp above c Mp, else Mu |
 
+### Australia and New Zealand (alpha 9 C18)
+
+| Pack | Extends | What it sets |
+| --- | --- | --- |
+| `australia-as` | `bnbc2020` | AS/NZS 1170.0 importance levels and combinations (1.35G, 1.2G + 1.5Q, 1.2G + ψc Q + Wu, 0.9G + Wu, G + ψE Q + Eu), AS/NZS 1170.1 imposed actions and ψa; AS/NZS 1170.2:2021 VR by region and annual probability, Mz,cat TC1-TC4, Md, Ms, Mt; AS 1170.4 Z of the towns, kp, classes Ae-Ee with Ch(T), μ and Sp, V = kp Z Ch(T1) Sp/μ W, T1 = 1.25 kt hn^0.75, 1.5 % drift; AS 3600:2018 φ by kuo, α2 and γ, α1, beam shear by kv and θv, Ec, deflection, bars N10-N40; AS 4100:2020 φ 0.9, λe classes, αc with αb, αm αs; SI |
+| `newzealand-nzs` | `australia-as` | NZS 1170.5 Z of the towns, R by importance level, classes A-E with Ch(T), N(T,D), Sp and kμ from μ, the least Cd, Ft = 0.08 V, 2.5 % drift; NZS 3101:2006 A3 φ 0.85 / 0.75, the axial cap 0.85 φ N0, α1 and β1, vc = (0.07 + 10 ρw) √f'c, Ec 4700 √f'c, bars HD10-HD40; NZS 3404 members as AS 4100; wind regions NZ1-NZ4; SI |
+
+The generic keys they add, open to any pack (a pack without them behaves as before):
+
+| Key | What it does |
+| --- | --- |
+| `seismic.designSpectrum.method` `shapeFactors` (`shapeFactors`) and `seismic.siteClasses.*.shape` | Cd(T) = (Z I) Ch(T) N(T,D) Sp / kμ with R standing for μ: Ch(T) from the class's branches (a + b T + c (t0/T)^n <= most), Sp of (μ, Sp) points, kμ = μ or (μ - 1) T / ductilityPeriod + 1 (soft classes their own), Z I within hazardMin / hazardMax, least (leastZShare Z + leastOffset, leastFloor) × I, Nmax(T) within faultDistance |
+| `materials.stressBlock` (`alpha`, `gamma`, `squash`) | The strength design's block stress α f'c over γ c and the squash share of P0, each linear in f'c within bounds (empty: 0.85 f'c over β1 c) |
+| `factors.phiTransition` `neutralAxisDepth` | φ = intercept - slope kuo within the compression and tension φ (empty: ACI's interpolation by εt) |
+| `factors.axialCap` | φPn,max = share φ P0, tied and spiral (empty: 0.80 / 0.85) |
+| `concrete.shearStress` | vc = min(max(base + ratioFactor ρw, least), most) λ √f'c of beams (empty: ACI 318 Table 22.5.5.1) |
+| `concreteMethods.shear.betaNoStirrupsMax` | The compression field method's β without the least links at most this |
+| `steelLimitState.compression.slendernessReduction` | αc by λn = (KL/r) √kf √(fy/fref), αa, αb of the curve, η and ξ (AS 4100 6.3.3 form) in place of χ |
+| `steelLimitState.flexure.slendernessReduction` | Mb = c1 αs Ms <= Ms, αs = share [√((Ms/Mo)² + offset) - Ms/Mo] (AS 4100 5.6.1.1 form) in place of χLT |
+
 ## Other package kinds
 
 The same `pack.json` and the same registry hold the other packages of the marketplace

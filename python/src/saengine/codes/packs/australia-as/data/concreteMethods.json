@@ -1,0 +1,73 @@
+{
+  "$schema": "../../../schemas/concreteMethods.schema.json",
+  "$sources": [
+    "AS 3600:2018 8.2.1-8.2.6, 8.2.8 (shear of beams)"
+  ],
+  "source": "AS 3600:2018 8.2: beam shear Vu = Vuc + Vus by the general method's kv and θv (8.2.4.2) with the simplified kv and θv (8.2.4.3) in the design run; φ = 0.75 on both terms; the rest of the concrete design is the strength design with φ (no ultimate group: AS 3600 designs by capacity reduction factors on the members)",
+  "shear": {
+    "method": "compressionField",
+    "variant": "simplified",
+    "phiC": 0.75,
+    "phiS": 0.75,
+    "depthShares": [
+      0.9,
+      0.72
+    ],
+    "rootMax": 8.0,
+    "betaWithStirrups": 0.15,
+    "betaNoStirrups": [
+      153.846,
+      769.231
+    ],
+    "betaNoStirrupsMax": 0.1,
+    "thetaDeg": 36.0,
+    "general": {
+      "beta": [
+        0.4,
+        1500.0,
+        1300.0,
+        1000.0
+      ],
+      "theta": [
+        29.0,
+        7000.0
+      ],
+      "crackSpacing": [
+        32.0,
+        16.0,
+        0.8
+      ],
+      "stirrupSpacingParameter": 300.0
+    },
+    "strainLimits": [
+      -0.0002,
+      0.003
+    ],
+    "aggregate": 20.0,
+    "vrMaxShare": 0.2615,
+    "minCoefficient": 0.08,
+    "fyMax": 500.0,
+    "simplifiedFyMax": 500.0,
+    "spacing": [
+      0.9,
+      500.0
+    ],
+    "closeSpacing": [
+      0.6,
+      300.0
+    ],
+    "closeShare": 0.1
+  },
+  "clauses": {
+    "shear": "8.2.4",
+    "shearMinimum": "8.2.1.7, 8.2.8",
+    "shearSpacing": "8.2.12.2"
+  },
+  "sources": {
+    "shear": "AS 3600:2018 8.2.4.1: Vuc = kv √f'c bv dv (√f'c <= 8 MPa), dv = max(0.9 d, 0.72 D); 8.2.5: Vus = Asv fsy.f dv cot θv / s; 8.2.3.3: Vu.max = 0.55 f'c bv dv (cot θv + cot αv)/(1 + cot² θv) = 0.2615 f'c bv dv at θv 36°, αv 90°; φ = 0.75 (Table 2.2.2)",
+    "shear.simplified": "AS 3600:2018 8.2.4.3: θv = 36°, kv = 0.15 with at least Asv.min, else 200/(1000 + 1.3 dv) <= 0.10 (written 153.846/(769.231 + dv)); valid for f'c <= 65 MPa, fsy <= 500 MPa, aggregate >= 10 mm",
+    "shear.general": "AS 3600:2018 8.2.4.2: kv = 0.4/(1 + 1500 εx) × 1300/(1000 + kdg dv), kdg = 32/(16 + dg) >= 0.8 (written sze = 32 dv/(16 + dg) >= 0.8 dv), 300 with at least Asv.min; θv = 29 + 7000 εx; εx = (M*/dv + V* + 0.5 N*)/(2 Es Ast) within -0.2e-3 and 3e-3 (the general method needs M* at the section: its terms are reported by saengine.design.compression_field_shear.general_terms; the design run uses the simplified values)",
+    "shear.minCoefficient": "AS 3600:2018 8.2.1.7: Asv.min = 0.08 √f'c bv s / fsy.f",
+    "shear.spacing": "AS 3600:2018 8.2.12.2: s <= min(0.75 D, 500 mm), min(0.5 D, 300 mm) where V* > φVu.min; SAEngine writes them on dv (0.9 dv, 0.6 dv) and takes the close spacing where V* > 0.1 φ f'c bv dv (SAEngine practice for φVu.min)"
+  }
+}

@@ -1,0 +1,42 @@
+{
+  "$schema": "../../../schemas/materials.schema.json",
+  "$sources": [
+    "AS 3600:2018 3.1, 3.2, 8.1.3, 10.6.2.2; AS 4100:2020 2.2.4 (G)"
+  ],
+  "source": "AS 3600:2018 and AS/NZS 4671 (D500N bars)",
+  "stressBlock": {
+    "alpha": {
+      "base": 0.85,
+      "slope": -0.0015,
+      "least": 0.67,
+      "most": 0.85
+    },
+    "gamma": {
+      "base": 0.97,
+      "slope": -0.0025,
+      "least": 0.67,
+      "most": 0.85
+    },
+    "squash": {
+      "base": 1.0,
+      "slope": -0.003,
+      "least": 0.72,
+      "most": 0.85
+    },
+    "clause": "AS 3600:2018 8.1.3 (α2, γ), 10.6.2.2 (α1)"
+  },
+  "concreteStrain": 0.003,
+  "steelE": 200000.0,
+  "steelShearModulus": 80000.0,
+  "seismicRebarFy": [
+    500.0
+  ],
+  "seismicRebarFyMax": 500.0,
+  "sources": {
+    "stressBlock": "AS 3600:2018 8.1.3: the rectangular block α2 f'c over γ ku d with α2 = 0.85 - 0.0015 f'c >= 0.67 and γ = 0.97 - 0.0025 f'c >= 0.67 (at most 0.85, as below 48 MPa); 10.6.2.2: the squash load Nuo = α1 f'c Ag + As fsy with α1 = 1.0 - 0.003 f'c within 0.72-0.85",
+    "concreteStrain": "AS 3600:2018 8.1.3: εcu = 0.003",
+    "steelE": "AS 3600:2018 3.2.2: Es = 200 000 MPa",
+    "steelShearModulus": "AS 4100:2020 2.2.4: G = 80 000 MPa",
+    "seismicRebarFy": "AS/NZS 4671: D500N (Class N, fsy 500 MPa); Class L bars not offered"
+  }
+}

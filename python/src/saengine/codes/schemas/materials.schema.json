@@ -1,4 +1,72 @@
 {
+  "$defs": {
+    "LinearInStrength": {
+      "additionalProperties": false,
+      "description": "Alpha 9 C18: a factor linear in f'c within bounds: min(max(base + slope f'c, least),\nmost).",
+      "properties": {
+        "base": {
+          "title": "Base",
+          "type": "number"
+        },
+        "slope": {
+          "default": 0.0,
+          "title": "Slope",
+          "type": "number"
+        },
+        "least": {
+          "exclusiveMinimum": 0,
+          "title": "Least",
+          "type": "number"
+        },
+        "most": {
+          "exclusiveMinimum": 0,
+          "title": "Most",
+          "type": "number"
+        }
+      },
+      "required": [
+        "base",
+        "least",
+        "most"
+      ],
+      "title": "LinearInStrength",
+      "type": "object"
+    },
+    "StressBlockRule": {
+      "additionalProperties": false,
+      "description": "Alpha 9 C18: the rectangular stress block of the strength design by f'c (AS 3600 8.1.3,\nNZS 3101 7.4.2.7 type): the stress ``alpha`` f'c over the depth ``gamma`` c, and the squash\nload P0 = ``squash`` f'c (Ag - Ast) + fy Ast (empty: ``alpha``). A pack without it keeps\nACI 318's 0.85 f'c over β1 c (:mod:`saengine.design.rc`).",
+      "properties": {
+        "alpha": {
+          "$ref": "#/$defs/LinearInStrength"
+        },
+        "gamma": {
+          "$ref": "#/$defs/LinearInStrength"
+        },
+        "squash": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LinearInStrength"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "clause": {
+          "default": "",
+          "title": "Clause",
+          "type": "string"
+        }
+      },
+      "required": [
+        "alpha",
+        "gamma"
+      ],
+      "title": "StressBlockRule",
+      "type": "object"
+    }
+  },
   "additionalProperties": false,
   "properties": {
     "source": {
@@ -22,6 +90,18 @@
       "description": "Short clause references the results cite, by key, without the code's name (e.g. 'Part 6 Sec 2.5.7.3'); read by saengine.codes.context.cite. A key the pack does not give is not cited.",
       "title": "Clauses",
       "type": "object"
+    },
+    "stressBlock": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/StressBlockRule"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "The rectangular stress block's factors by f'c; empty: 0.85 f'c over β1 c."
     },
     "concreteStrain": {
       "description": "εcu at the extreme compression fibre.",

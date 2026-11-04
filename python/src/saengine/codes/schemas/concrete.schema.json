@@ -1171,6 +1171,45 @@
       "title": "PrestressTransferBonded",
       "type": "object"
     },
+    "ShearStressRule": {
+      "additionalProperties": false,
+      "description": "Alpha 9 C18: the concrete's shear stress of beams by the tension steel ratio (NZS 3101\n9.3.9.3.4 type): vc = min(max(base + ratioFactor ρw, least), most) λ √f'c, with or without\nthe least links. A pack without it keeps ACI 318 Table 22.5.5.1.",
+      "properties": {
+        "base": {
+          "minimum": 0,
+          "title": "Base",
+          "type": "number"
+        },
+        "ratioFactor": {
+          "minimum": 0,
+          "title": "Ratiofactor",
+          "type": "number"
+        },
+        "least": {
+          "exclusiveMinimum": 0,
+          "title": "Least",
+          "type": "number"
+        },
+        "most": {
+          "exclusiveMinimum": 0,
+          "title": "Most",
+          "type": "number"
+        },
+        "clause": {
+          "default": "",
+          "title": "Clause",
+          "type": "string"
+        }
+      },
+      "required": [
+        "base",
+        "ratioFactor",
+        "least",
+        "most"
+      ],
+      "title": "ShearStressRule",
+      "type": "object"
+    },
     "ShrinkageSteel": {
       "additionalProperties": false,
       "description": "Shrinkage and temperature steel of slabs (ratios of the gross area).",
@@ -1446,6 +1485,17 @@
     "barDiameters": {
       "$ref": "#/$defs/BarDiameters",
       "description": "Bar size sets [mm] by use."
+    },
+    "shearStress": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ShearStressRule"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
     },
     "barNames": {
       "anyOf": [

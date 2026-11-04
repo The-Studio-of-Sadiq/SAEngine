@@ -1,0 +1,43 @@
+{
+  "$schema": "../../../schemas/liveReduction.schema.json",
+  "$replace": true,
+  "$sources": [
+    "AS/NZS 1170.1:2002 Clause 3.4.2"
+  ],
+  "source": "AS/NZS 1170.1:2002 3.4.2: the area reduction factor ψa = 0.3 + 3/√A (A the sum of the tributary areas supported [m²]), 0.5 <= ψa <= 1.0; not for the occupancies of crowds and storage, nor for loads above 5 kPa",
+  "method": "influenceArea",
+  "influenceMin": 15.0,
+  "constant": 0.3,
+  "coefficient": 3.0,
+  "minOneFloor": 0.5,
+  "minFloors": 0.5,
+  "heavyLive": 5.0,
+  "heavyFactor": 1.0,
+  "notReduced": [
+    "assemblyFixed",
+    "assemblyMovable",
+    "gymnasium",
+    "storageLight",
+    "libraryStacks",
+    "parking",
+    "roof",
+    "roofGarden"
+  ],
+  "twoFloorsOnly": [],
+  "kll": {
+    "interiorColumn": 1,
+    "exteriorColumn": 1,
+    "edgeColumnCantilever": 1,
+    "cornerColumnCantilever": 1,
+    "interiorBeam": 1,
+    "edgeBeam": 1,
+    "other": 1
+  },
+  "sources": {
+    "constant": "AS/NZS 1170.1 3.4.2: ψa = 0.3 + 3/√A",
+    "influenceMin": "AS/NZS 1170.1 3.4.2: no reduction while ψa >= 1 (A up to about 13 m²; SAEngine starts at 15 m²)",
+    "minOneFloor": "AS/NZS 1170.1 3.4.2: ψa >= 0.5",
+    "kll": "AS/NZS 1170.1 sums the tributary areas: no live load element factor (all 1)",
+    "notReduced": "AS/NZS 1170.1 3.4.2: not for areas of crowds (C3-C5), storage (E), vehicles and roofs (uncertain: check the clause's list)"
+  }
+}
