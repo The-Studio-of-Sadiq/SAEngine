@@ -212,7 +212,7 @@
   "basis": {
     "general": "IS 875 (Parts 1-3, 5), IS 1893 (Part 1):2016",
     "concrete": "IS 456:2000 (limit state) and IS 13920:2016 (ductile detailing), foundations by IS 6403 (bearing capacity), IS 2911 (Part 1/Sec 2) (piles) and IS 456 Clause 34 (footings); other concrete and foundation methods from BNBC 2020 Part 6 Chapters 3 and 6 until covered",
-    "steel": "IS 800:2007 (limit state, method steelLimitState); connection rules the method does not cover, the composite columns and the steel stability bracing from BNBC 2020 Part 6 Chapters 10 and 13",
+    "steel": "IS 800:2007 (limit state, method steelLimitState; Section 16 fire), IS 801:1975 (cold-formed members); the connection rules the method does not cover, HSS joints and the composite columns from BNBC 2020 Part 6 Chapters 10 and 13",
     "method": "Limit state design (IS 456)"
   },
   "author": "SAEngine contributors",

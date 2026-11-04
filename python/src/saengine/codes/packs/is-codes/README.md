@@ -87,6 +87,18 @@ Also: Design Reinforcement sizes the closed links of beams in torsion by IS 456 
 and the required steel lists them; the IS 13920 joints are listed in the design report's
 `joints` (the joints view); bolts of property class 4.6 are in the object library's grade list.
 
+## Steel remainder (track C12, steel half)
+
+| Table | What it adds | Code |
+| --- | --- | --- |
+| `steelLimitState.torsion` | torsion by the elastic St. Venant and warping stresses with γm0 (IS 800 has no torsion clause: SAEngine practice) | IS 800:2007 5.4.1 |
+| `steelLimitState.bracing` | lateral restraints for 2.5 % of the flange (or axial) force | IS 800:2007 |
+| `steelLimitState.columnSide` | web bearing and web buckling under the beam flange forces, the panel as web shear | IS 800:2007 8.7.4, 8.7.3.1, 8.4 |
+| `coldFormed` | lipped C and Z members by permissible stresses (limiting widths, the lip's least depth, compression, bending, shear, combined; working forces = factored / 1.5) | IS 801:1975 |
+| `steelFire` | the variation of fy and E with temperature, the limiting temperature 905 - 690 rf for every member, the heating by the lumped heat capacity (SAEngine practice) | IS 800:2007 Section 16 |
+
+Values: VERIFY.md rows S1-S16.
+
 ## Not covered yet (falls back)
 
 The pack `extends` BNBC 2020: every table not in `covers` comes from BNBC 2020. That is: the
@@ -96,9 +108,8 @@ concrete tables C8 does not replace (`factors`, `materials`, `slabCoefficients` 
 method's K = 1 of the direct analysis), site investigation, flood, fire, the building services,
 the nonstructural components and the storey drift and sway limits. Inside the covered tables the
 parent's rules stay where IS has no counterpart in SAEngine's checks, named after the parent in
-the notes: the column side under flange forces, HSS joints, ponding, torsion of steel members,
-the stability bracing forces, eccentrically braced frames, IS 801 cold-formed members, the
-composite columns and deck rules, reinforced masonry, IS 8009 settlement, IS 2950 rafts and the
+the notes: HSS joints, ponding, eccentrically braced frames, the composite columns and deck
+rules (IS 800:2007 and IS 11384:1985 have none), reinforced masonry, IS 8009 settlement, IS 2950 rafts and the
 IS 3370 tanks (their crack limit 0.2 mm is the IS 3370 (Part 2) value). The report names the pack
 as "BNBC 2020 (bnbc2020), modified by: Indian Standards (IS)".
 

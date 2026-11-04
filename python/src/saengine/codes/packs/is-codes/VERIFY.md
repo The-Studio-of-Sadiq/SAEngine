@@ -448,12 +448,34 @@ strengthening since C9b, 330).
 | 329 | wind.speedFactors.cyclonicDirectionality | Kd = 1.0 | IS 875 (Part 3):2015 7.2.1 | Cyclone-affected regions | Check |
 | 330 | masonry.seismic.zones / strengthening / bands.rows | zones III-V, zone V as the parent's highest group | IS 4326:2013 | The parent's bars and arrangements by IS zone | Uncertain (IS 4326 building categories A-E and its tables not modelled) |
 
+## Alpha 9 C12 (steel half): torsion, bracing, column side, IS 801 cold-formed, Section 16 fire
+
+Rows numbered S1-S16 (their own series, so the parallel tracks do not collide).
+
+| # | Path | Value | Clause | What | Confidence |
+| --- | --- | --- | --- | --- | --- |
+| S1 | steelLimitState.torsion | (σ/fd)² + 3 (τ/fd)² <= 1, fd = fy/γm0 (1.10); Vd reduced by √(1 - τt/(1.25 fd/√3)) | IS 800 has no member torsion clause | Torsion by the elastic St. Venant and warping stresses (the EN 1993-1-1 6.2.7 form) | Uncertain (SAEngine practice) |
+| S2 | steelLimitState.bracing.share | 0.025 of the compression flange force (beams), of the axial force (columns) | IS 800:2007 lateral restraint (clause to find) | Restraint force | Uncertain (the clause and the column share) |
+| S3 | steelLimitState.columnSide (dispersion) | Fw = (b1 + n2) tw fyw/γm0, n2 = 2 × 2.5 (tf + r) | IS 800:2007 8.7.4 | Web bearing under a flange force | Check |
+| S4 | steelLimitState.columnSide | (b1 + n1) tw fcd, n1 = D (45° to mid-depth both ways), λ = 2.5 d/t, curve c | IS 800:2007 8.7.3.1 | Web buckling | Check (n1 for a load through the column) |
+| S5 | steelLimitState.columnSide | panel Av fy/(√3 γm0), Av = dc tw; flange: the parent's 6.25 tf² Fy | IS 800:2007 8.4.1 | Panel as web shear; no IS column flange rule (the default pack's named) | Uncertain (SAEngine practice) |
+| S6 | coldFormed.effectiveWidth | (w/t)lim = 1435/√f; be/t = 2120/√f (1 - 465/((w/t)√f)), f in kgf/cm² | IS 801:1975 5.2.1.1 | Stiffened elements | Check |
+| S7 | coldFormed.effectiveWidth.factors[3] | unstiffened lip fully effective up to 530 t/√f | IS 801:1975 6.2 | The lip counted to 530 t/√f (the stress reduction of 6.2 as a width: SAEngine practice) | Uncertain |
+| S8 | coldFormed.distortional (lipAdequacy) | dmin = 2.8 t ⁶√((w/t)² - 281 200/fy) >= 4.8 t | IS 801:1975 5.2.2.1 | The lip's least depth (else the flange unstiffened) | Check |
+| S9 | coldFormed.resistance | 0.60 fy tension and bending, Fa1 = 12/23 Q fy - 3 (Q fy)² (KL/r)²/(23 π² E), 12 π² E/(23 (KL/r)²) beyond Cc/√Q | IS 801:1975 6.1, 6.6.1.1 | Permissible stresses (KL/r of the elastic buckling stress incl. torsional-flexural: SAEngine practice) | Check |
+| S10 | coldFormed.resistance | Fb = 0.6 fy; 2/3 fy - fy²/(5.4 π² E Cb) (L² Sxc/(d Iyc)) to 1.8 π² E Cb/fy; 0.6 π² E Cb d Iyc/(L² Sxc) beyond; Z: d Iyc/2 | IS 801:1975 6.3 | Lateral buckling of C and Z | Check |
+| S11 | coldFormed.resistance | Fv = 1275 √fy/(h/t) <= 0.40 fy; 5 850 000/(h/t)² above h/t = 4590/√fy (kgf/cm²) | IS 801:1975 6.4.1 | Web shear | Check |
+| S12 | coldFormed.resistance | fa/Fa1 + Cm fb/((1 - fa/F'e) Fb) <= 1, Cm 0.85, F'e = 12 π² E/(23 (KLb/rb)²); working forces = factored / 1.5 | IS 801:1975 6.7.2 | Combined; the load factor 1.5: SAEngine practice | Check / Uncertain (1.5) |
+| S13 | coldFormed | E = 2 074 000 kgf/cm² (203 395 MPa); w/t web 150, flange 60, lip 60; t <= 25 mm | IS 801:1975 5.2.3, 5.2.4 | Limits | Uncertain (t) |
+| S14 | steelFire.retention (formula) | fy(T)/fy = 1 to 215 °C, (905 - T)/690 to 905 °C; E(T)/E = 1 + T/(2000 ln(T/1100)) to 600 °C, 690 (1 - T/1000)/(T - 53.5) to 1000 °C | IS 800:2007 16.2 | Variation of fy and E with temperature | Check |
+| S15 | steelFire.critical (linear) | Tl = 905 - 690 rf | IS 800:2007 16.3 | Limiting steel temperature, every member (compression too) | Check |
+| S16 | steelFire | rf = 0.6 × the ambient utilisation; heating by the lumped heat capacity in the ISO 834 curve (IS 3809), αc 25, εm 0.7, ca 600, ρa 7850 | IS 800:2007 16.4-16.6 | The load ratio and the steel temperature (IS 800's own time-temperature formulas not used) | Uncertain (SAEngine practice) |
+
 Still the parent's after C9b (named after it in the notes): the column construction joint (shear
 friction; IS 456 13.4 only places the joints), prestressed concrete (IS 1343), IS 8009 settlement,
 IS 2950 rafts and IS 3370 tanks (the tank crack limit is 0.2 mm, the IS 3370 (Part 2) value, by the
-parent's crack width formula), reinforced masonry, the column side under flange forces, HSS joints,
-steel torsion, the stability bracing forces, eccentrically braced frames, IS 801 cold-formed
-members, the composite columns and deck rules, the hogging steel zones of continuous deep beams
+parent's crack width formula), reinforced masonry, HSS joints, eccentrically braced frames, the
+composite columns and deck rules (C12: not in IS 800:2007 / IS 11384:1985), the hogging steel zones of continuous deep beams
 (29.3.2); in the loads the gust factor method (IS 875-3 Clause 10), cladding and roof pressure
 coefficients, k3 by Annex C (enter it as the topographic factor), the 1.5 esi of the design
 eccentricity, the RC wall-building period form (7.6.2 (b)) and the IS 16700 tall-building limits.

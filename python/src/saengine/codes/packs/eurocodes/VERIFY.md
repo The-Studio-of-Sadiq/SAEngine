@@ -365,3 +365,46 @@ Tables `steelLimitState` (groups `memberResistance`, `connections`, `seismic`), 
 | 295 | ρc = C1/(β/ε) - C2/(β/ε)²: internal A 32/220, A welded 29/198, B 29/198, B welded 25/150; outstand A 10/24, A welded 9/20, B 9/20, B welded 8/16 | Table 6.3 | Weff = ρc Wel: SAEngine practice | unsure (each value) |
 | 296 | Flexural buckling class A α 0.20, λ̄0 0.10; class B 0.32, 0.00; LTB α 0.10, λ̄0 0.6 (class 1-2), 0.20, 0.4 (3-4) | Table 6.6, 6.3.2.2 | | unsure |
 | 297 | Combined: exponents ξ 0.8 (the conservative values); section linear; shear Av f0/(√3 γM1) while hw/tw <= 39 ε | 6.3.3, 6.2.9, 6.5.5 | HAZ over the whole section of welded members (on the safe side) | unsure (exponent form) |
+
+## Alpha 9 C12 (steel half): torsion, bracing, joints, EBF links, cold-formed, fire, deck
+
+Rows numbered S1-S36 (their own series, so the parallel tracks do not collide).
+
+| # | Value | Clause | Description | Confidence |
+| --- | --- | --- | --- | --- |
+| S1 | steelLimitState.torsion: γ = γM0 1.0, (σ/fd)² + 3 (τ/fd)² <= 1 | EN 1993-1-1 6.2.7(5), 6.2.1(5) Eq 6.1 | Torsion by the elastic St. Venant and warping stresses (σz = 0 in members) | sure |
+| S2 | Vpl,T,Rd = √(1 - τt,Ed / (1.25 fy/(√3 γM0))) Vpl,Rd (I, H); channels less τw,Ed / (fy/(√3 γM0)); hollow (1 - τt,Ed / (fy/(√3 γM0))) Vpl,Rd | EN 1993-1-1 6.2.7(9) Eqs 6.26-6.28 | Shear with torsion | sure |
+| S3 | torsion.neglect 0.05 of the St. Venant resistance: rows flagged | — | SAEngine practice | SAEngine practice |
+| S4 | bracing: e0 = αm L / 500, αm = √(0.5 (1 + 1/m)), q = Σ NEd 8 (e0 + δq) / L² | EN 1993-1-1 5.3.3(1) Eqs 5.12-5.13 | Equivalent stabilising force of bracing systems | sure |
+| S5 | δq taken at L / 2500 | EN 1993-1-1 5.3.3(2) | The bracing deflection (the system to be checked for it): SAEngine practice | unsure (the limit's value) |
+| S6 | NEd = MEd / h of beam compression flanges; αm NEd / 100 at splices | EN 1993-1-1 5.3.3(3), (4) | Beams; splices and brace points | sure |
+| S7 | beff,c,wc = tfb + 2√2 ab + 5 (tfc + s), s = rc; ab = 0.707 × the weld leg | EN 1993-1-8 6.2.6.2 Eq 6.10 | Web in transverse compression (welded joint) | sure |
+| S8 | ω1 = 1/√(1 + 1.3 (beff twc/Avc)²) (β = 1), ω2 = 1/√(1 + 5.2 (...)²) (β = 2) | EN 1993-1-8 Table 6.3 | Shear interaction of the web; β = 2 for beams on both flanges (SAEngine: the sway case) | sure |
+| S9 | kwc = 1 for σcom,Ed <= 0.7 fy, else 1.7 - σ/fy; λp = 0.932 √(beff dwc fy / (E twc²)), ρ = 1 (λp <= 0.72) else (λp - 0.2)/λp² | EN 1993-1-8 6.2.6.2(2), Eqs 6.13-6.14 | Web buckling under transverse compression | sure |
+| S10 | Ft,wc,Rd = ω beff,t,wc twc fy / γM0 | EN 1993-1-8 6.2.6.3 Eq 6.15 | Web in transverse tension | sure |
+| S11 | beff = twc + 2 s + 7 k tfc, k = (tfc/tp)(fy,c/fy,p) <= 1 | EN 1993-1-8 4.10 Eqs 4.6-4.7 | Unstiffened column flange of a welded joint (the plate's fy taken as the column's) | sure |
+| S12 | Avc = A - 2 b tf + (tw + 2 r) tf; Vwp,Rd = 0.9 fy Avc / (√3 γM0); a supplementary web plate adds bs twc | EN 1993-1-8 6.2.6.1 Eq 6.7, (6); EN 1993-1-1 6.2.6(3) | Column web panel in shear | sure |
+| S13 | CHS T/Y γ^0.2 kp fy0 t0² (2.8 + 14.2 β²) / sinθ1; X kp fy0 t0² 5.2 / ((1 - 0.81 β) sinθ1); K kg kp fy0 t0² (1.8 + 10.2 d1/d0) / sinθ1; all / γM5 | EN 1993-1-8 Table 7.2 | Chord face failure | sure |
+| S14 | kp = 1 - 0.3 np (1 + np) <= 1 (np > 0), kg = γ^0.2 (1 + 0.024 γ^1.2 / (1 + exp(0.5 g/t0 - 1.33))) | EN 1993-1-8 7.4.2(2) | Chord stress and gap factors (np read as the joint's chord utilisation: SAEngine practice) | sure (the 2005 form) |
+| S15 | Punching fy0 t0 π di (1 + sinθ) / (2 √3 sin²θ γM5) when di <= d0 - 2 t0 | EN 1993-1-8 Table 7.2 | CHS punching shear | sure |
+| S16 | RHS (β <= 0.85) kn fy0 t0² (2η/sinθ + 4√(1 - β)) / ((1 - β) sinθ γM5); kn = 1.3 - 0.4 n/β <= 1 (n > 0) | EN 1993-1-8 Table 7.10 | Chord face failure of T, Y, X joints | sure |
+| S17 | Brace failure fyi ti (2hi - 4ti + 2beff) / γM5, beff = 10/(b0/t0) fy0 t0/(fyi ti) bi <= bi; punching fy0 t0 (2hi/sinθ + 2be,p) / (√3 sinθ γM5), be,p = 10/(b0/t0) bi (0.85 <= β <= 1 - 1/γ) | EN 1993-1-8 Table 7.10 | RHS β > 0.85 | sure |
+| S18 | K with gap 8.9 kn fy0 t0² √γ (b1 + b2 + h1 + h2) / (4 b0 sinθ γM5); brace fyi ti (2hi - 4ti + bi + beff) / γM5 | EN 1993-1-8 Table 7.12 | RHS K joints | check (the brace failure term) |
+| S19 | Validity: CHS 0.2 <= di/d0 <= 1.0, 10 <= d0/t0 <= 50 (X: 40), di/ti <= 50; RHS b0/t0, h0/t0 <= 35, bi/ti <= 35, bi/b0 >= 0.25 (K: 0.35 and 0.1 + 0.01 b0/t0), g >= t1 + t2; γM5 = 1.0 | EN 1993-1-8 7.1.2, Tables 7.1, 7.8; 2.2 Table 2.1 | Limits of the joint rules | check (each limit) |
+| S20 | Links: Vp,link = (fy/√3) tw (d - tf), Mp,link = fy b tf (d - tf) | EN 1998-1 6.8.2(3) Eqs 6.13-6.14 (numbering to check) | Link resistances | sure (formulas) / unsure (equation numbers) |
+| S21 | short e < 1.6 Mp,link/Vp,link, long e > 3.0 Mp,link/Vp,link | EN 1998-1 6.8.2(8)-(9) | Link classes | sure |
+| S22 | θp <= 0.08 rad (short), 0.02 rad (long), linear between | EN 1998-1 6.8.2(10) | Link rotation (θp from the drift limit: SAEngine practice, the whole drift as plastic) | sure (values) |
+| S23 | NEd/Npl,Rd > 0.15: Vp,link,r = Vp,link √(1 - (NEd/Npl)²), Mp,link,r = Mp,link (1 - NEd/Npl); R = NEd tw (d - 2tf)/(VEd A): e <= 1.6 Mp/Vp (R < 0.3), (1.15 - 0.5 R) 1.6 Mp/Vp (R >= 0.3) | EN 1998-1 6.8.2(5)-(7) Eqs 6.15-6.20 | Links with axial force | check |
+| S24 | Ωi = 1.5 Vp,link,i / VEd,i (short), 1.5 Mp,link,i / MEd,i (intermediate, long); Ωmax <= 1.25 Ωmin | EN 1998-1 6.8.3(1), 6.8.2(7) | Overstrength of the links | check (the homogeneity clause) |
+| S25 | Composite deck: hp <= 85 mm, stud d <= 20 mm through the deck, studs 2d = 40 mm above the deck, hc >= 50 mm | EN 1994-1-1 6.6.4.1(1), 6.6.4.2, 6.6.5.8(1), 9.2.1(2) | The deck rules (the other deck values stay the parent's) | check (d 19 / 20 mm; 2d read at d = 20) |
+| S26 | coldFormed: E 210 000, G 81 000 MPa | EN 1993-1-3 3.2.6 (EN 1993-1-1 3.2.6) | Moduli | sure |
+| S27 | Internal ρ = (λp - 0.055 (3 + ψ))/λp² above 0.5 + √(0.085 - 0.055 ψ), outstand ρ = (λp - 0.188)/λp² above 0.748, λp = (b/t)/(28.4 ε √kσ), kσ 4 / 0.43 / 23.9 (ψ = -1) | EN 1993-1-5 4.4 Tables 4.1, 4.2 (via EN 1993-1-3 5.5.2) | Effective widths (at fy) | sure |
+| S28 | χd = 1 (λd <= 0.65), 1.47 - 0.723 λd (< 1.38), 0.66/λd; σcr,s = 2√(K E Is)/As; K = E t³/(4(1 - ν²)) / (b1² hw + b1³ + 0.5 b1 b2 hw kf) | EN 1993-1-3 5.5.3.1(7) Eq 5.12, 5.5.3.2 Eqs 5.10b, 5.15 | Distortional buckling of the edge stiffener (the stiffener taken as the lip and half the flange: SAEngine practice; As reduced by χd, no iteration) | check |
+| S29 | γM0 = γM1 = 1.0; buckling curve b (α 0.34) for lipped C and Z, χLT curve b | EN 1993-1-3 2(3), Table 6.3, 6.2.4 | Member resistances | sure |
+| S30 | (NEd/Nb,Rd)^0.8 + (MEd/Mb,Rd)^0.8 <= 1 | EN 1993-1-3 6.3 Eq 6.36 | Combined compression and bending | sure |
+| S31 | fbv = 0.58 fyb (λ̄w <= 0.83), 0.48 fyb/λ̄w (< 1.40), 0.67 fyb/λ̄w²; λ̄w = 0.346 (sw/t)√(fyb/E) | EN 1993-1-3 6.1.5 Table 6.1, Eq 6.10a | Shear buckling (no stiffening at the support) | sure |
+| S32 | b/t <= 60, c/t <= 50, h/t <= 500; t <= 15 mm | EN 1993-1-3 5.2 Table 5.1; 1.1(3) | Limits | check (the thickness range) |
+| S33 | steelFire.retention: ky,θ / kE,θ at 20-1200 °C: 1/1, 1/1, 1/0.9, 1/0.8, 1/0.7, 0.78/0.6, 0.47/0.31, 0.23/0.13, 0.11/0.09, 0.06/0.0675, 0.04/0.045, 0.02/0.0225, 0/0 | EN 1993-1-2 3.2.1 Table 3.1 | Reduction factors (linear between) | sure |
+| S34 | θa,cr = 39.19 ln(1/(0.9674 μ0^3.833) - 1) + 482; ηfi = 0.65 | EN 1993-1-2 4.2.4 Eq 4.22; 2.4.2(3) | Critical temperature; the load ratio (μ0 = ηfi × the ambient utilisation, γM,fi = γM: SAEngine reading) | sure |
+| S35 | Nb,fi,t,Rd = χfi A ky,θ fy / γM,fi, λ̄θ = λ̄ √(ky,θ/kE,θ), α = 0.65 √(235/fy), γM,fi = 1.0 | EN 1993-1-2 4.2.3.2 Eqs 4.5-4.7, 2.3 | Compression members in fire | sure |
+| S36 | Heating: Δθa = ksh (Am/V) hnet Δt / (ca ρa), ksh = 0.9 [Am/V]b/[Am/V] (I-sections), αc 25 W/m²K, εm 0.7, εf 1.0, ca 600 J/kgK, ρa 7850 kg/m³; protected Eq 4.27 with φ = cp ρp dp (Ap/V)/(ca ρa); θg = 20 + 345 log10(8t + 1) | EN 1993-1-2 4.2.5.1 Eqs 4.25-4.26a, 4.2.5.2 Eq 4.27, 2.2(2), 3.4.1.2(2); EN 1991-1-2 3.2.1 Eq 3.4, 3.1(6) | Steel temperature (the protection is a project value, default none) | sure |

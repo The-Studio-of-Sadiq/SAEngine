@@ -118,9 +118,28 @@ fk = K fb^α fm^β, γM 2.0, Φ at the ends and mid-height, fvk, reinforced wall
 `aluminium`: alloys with f0, fu and the heat-affected zone, buckling classes A/B, classes by β/ε,
 ρc, γM1 1.10, γM2 1.25). Every value is in VERIFY.md (rows 217-297).
 
-Not covered by the C6 methods (stated in the notes): torsion of steel members, the shift eN of
-class 4 sections, class 4 circular tubes (EN 1993-1-6), the stability bracing rules, timber
-joints and serviceability, aluminium joints and the plate buckling of slender aluminium webs.
+Added in track C12 (steel half; VERIFY.md rows S1-S36), each a method id the pack picks:
+
+- `steelLimitState.torsion` (`elasticStresses`): EN 1993-1-1 6.2.7, the St. Venant and
+  warping stresses by the yield criterion 6.2.1(5), Vpl,T,Rd (Eqs 6.26-6.28);
+- `steelLimitState.bracing` (`equivalentImperfection`): EN 1993-1-1 5.3.3, the brace forces of
+  columns and beam compression flanges from q = Σ NEd 8 (e0 + δq) / L²;
+- `steelLimitState.columnSide` (`effectiveWidth`): EN 1993-1-8 6.2.6.1-6.2.6.3 and 4.10, the
+  column web in transverse compression and tension, the flange and the web panel;
+- `steelLimitState.hssJoints` (`chordFace`): EN 1993-1-8 Section 7, CHS and RHS T, Y, X and
+  gapped K joints (overlapped K joints not covered);
+- `steelLimitState.seismic.links`: EN 1998-1 6.8.2-6.8.3, the EBF links by class (short,
+  intermediate, long), their shear, moment, rotation and Ω;
+- `coldFormed` (EN 1993-1-3): lipped C and Z members (effective widths of EN 1993-1-5 4.4,
+  distortional buckling by χd, members, the 0.8 power interaction);
+- `steelFire` (EN 1993-1-2): ky,θ, kE,θ, the steel temperature (unprotected with ksh, protected
+  by `steelFire.protection`), θcr by Eq 4.22 and compression members by χfi;
+- `composite.beam.deck`: the EN 1994-1-1 deck limits (hp 85 mm, studs 20 mm and 2d above the
+  deck, hc 50 mm).
+
+Not covered (stated in the notes): the shift eN of class 4 sections, class 4 circular tubes
+(EN 1993-1-6), overlapped hollow section joints, timber joints and serviceability, aluminium
+joints and the plate buckling of slender aluminium webs.
 
 ## What falls back (not Eurocode yet)
 

@@ -467,6 +467,31 @@ Stresses of the NDS tables are entered in psi as printed (`reference.toMPa` conv
 | G1 | Steel moment frames: steel not specifically detailed (R 3, row H), OMF (C.4), IMF (C.3), SMF (C.1); braced frames: steel not specifically detailed, OCBF (B.3), SCBF (B.2): the first the category and height permit | ASCE 7-22 Table 12.2-1 | SAEngine practice (the order) | PRACTICE |
 | G2 | Preliminary sizes: beams Zx ≥ Mu/(0.9 Fy) (w l²/8, moment frames w l²/10 × 1.5), live deflection l/360, depth ≥ l/24; columns A ≥ Pu/(0.5 Fy), moment frames Zx ≥ 1.2 × the beams'; X braces for the storey shear (φc Pn of the full diagonal); every member within the system's width-thickness limits | — | Rules of thumb; Design mode sizes the members | PRACTICE |
 
+### Alpha 9 C12 (steel half): cold-formed members, steel in fire, bracing rows — `coldFormed.json`, `steelFire.json`, `steel.json`
+
+Rows numbered S1-S18 (their own series, so the parallel tracks do not collide).
+
+| # | Value | Clause | Description | Status |
+|---|---|---|---|---|
+| S1 | E = 203 000 MPa (29 500 ksi), G = 78 000 MPa (11 300 ksi) | AISI S100-16 A3 | Steel moduli of the cold-formed members | OK? |
+| S2 | ρ = 1 for λ <= 0.673, else (1 - 0.22/λ)/λ; λ = (1.052/√k)(w/t)√(f/E) | S100-16 1.1 (effective width of stiffened elements) | Winter's effective width of every flat element | OK? (the S100-16 section number: UNSURE) |
+| S3 | k = 4.0 stiffened, 0.43 unstiffened (the lips); webs k = 4 + 2(1-ψ)³ + 2(1-ψ) at ψ = -1 | S100-16 1.1, 1.2 | Plate buckling coefficients; the lipped flange taken as fully stiffened (the distortional mode carries the lip's weakness: SAEngine practice) | OK? / PRACTICE |
+| S4 | Pnd = Py for λd <= 0.561, else (1 - 0.25 (Pcrd/Py)^0.6)(Pcrd/Py)^0.6 Py; Mnd = My for λd <= 0.673, else (1 - 0.22 (Mcrd/My)^0.5)(Mcrd/My)^0.5 My | S100-16 E4, F4 | Distortional buckling by the direct strength curves | OK? |
+| S5 | Fcrd = 2 √(K E Is) / As of the lip and half the flange on the spring of the web and flange plates | (EN 1993-1-3 5.5.3.2 model) | The distortional critical stress: SAEngine practice (S100 gives its own formulas) | PRACTICE |
+| S6 | φt 0.90, φc 0.85, φb 0.90, φv 0.95 | S100-16 D2, E1, F1, G1 | LRFD resistance factors (cold-formed members stay LRFD when the project picks ASD) | OK? |
+| S7 | Fn = 0.658^(λc²) Fy for λc <= 1.5, else 0.877 Fy / λc²; Fe the least of flexural (x, y, the least principal axis of a Z), torsional and flexural-torsional buckling | S100-16 E2 | Compression on the effective area at Fn | OK? |
+| S8 | Fcre = Cb r0 A √(σey σt) / Sf (channels), Cb π² E d Iyc / (2 Sf (Ky Ly)²) (Z); Fn = Fy (Fcre >= 2.78 Fy), 10/9 Fy (1 - 10 Fy / (36 Fcre)), Fcre (<= 0.56 Fy); Cb = 1 | S100-16 F2.1 | Lateral-torsional buckling; Mn = Se Fn with Se at Fy (on the safe side), Cb = 1: PRACTICE | OK? |
+| S9 | Vn = 0.6 Fy Aw (h/t <= √(E kv/Fy)), 0.6 t² √(kv Fy E) (<= 1.51 √(E kv/Fy)), 0.904 E kv t³ / h; kv = 5.34 | S100-16 G2.1 | Web shear (unreinforced web) | OK? |
+| S10 | P/Pa + Mx/Max + My/May <= 1 | S100-16 H1.2 | Combined forces | OK? |
+| S11 | w/t: web 200, flange (simple lip) 60, lip 60; t <= 25.4 mm | S100-16 B4.1, A1.1 | Largest ratios and thickness covered | UNSURE |
+| S12 | ky / kE at 68, 200, 400, 600, 750, 800, 1000, 1200, 1400, 1600, 1800, 2000, 2200 °F: 1.00/1.00, 1.00/1.00, 1.00/0.90, 1.00/0.78, 1.00/0.70, 0.94/0.67, 0.66/0.49, 0.35/0.22, 0.16/0.11, 0.07/0.07, 0.04/0.05, 0.02/0.02, 0/0 (entered in °C) | AISC 360-22 App 4.2.3b, Table A-4.2.1 | Retention factors of Fy and E | UNSURE (each value) |
+| S13 | Fn(T) = 0.42^√(Fy(T)/Fe(T)) Fy(T) | App 4.2.4d(b) (Eq A-4-9 in 360-16) | Compression at elevated temperature | OK? |
+| S14 | φ = 0.90 in fire (gammaFire 1.111) | App 4.1.4 | Resistance factor of the simple method | UNSURE |
+| S15 | μ0 = 0.6 × the ambient utilisation | (ASCE 7-22 2.5: 1.2 D + 0.5 L over the strength combinations) | The load ratio in fire | PRACTICE |
+| S16 | Lumped heat capacity, the ISO 834 curve θg = 20 + 345 log10(8t + 1) for ASTM E119, αc 25 W/m²K, εm 0.7, ca 600 J/kgK, ρa 7850 kg/m³, no shadow factor | App 4.2.2 | Steel temperature at the rating | PRACTICE |
+| S17 | θcr: the temperature at which ky = μ0 | App 4.2.4c | Members without compression | PRACTICE |
+| S18 | `steel.bracing.rows` true: the Appendix 6 brace strength and stiffness as flagged rows of the member | App 6.2, 6.3 | Reported, not a new value | PRACTICE |
+
 ## Not covered in this version (fall back or absent)
 
 - Timber: the NDS species and grades not listed (Southern Pine, the machine stress rated
@@ -475,8 +500,8 @@ Stresses of the NDS tables are entered in psi as printed (`reference.toMPa` conv
   members (flagged not covered under this method); round timber poles, I-joists and SCL.
 - Masonry: the masonry rules not listed above (empirical design, seismic detailing, slender
   walls of the strength method): BNBC 2020's, named so.
-- AISC 360-22 Appendix 4 (structural design for fire conditions): no home in SAEngine's steel
-  engine; planned.
+- AISC 360-22 Appendix 4: the simple method only (rows S12-S17); the advanced method of
+  analysis and the qualification testing are not covered.
 - The geotechnical foundation tables and the remaining material tables: inherited from BNBC 2020
   (the report names them as the BNBC tables).
 - The seismic detailing rows of special, intermediate and ordinary frames (ductile members and

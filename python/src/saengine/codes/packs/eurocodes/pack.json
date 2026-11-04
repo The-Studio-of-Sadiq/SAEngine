@@ -218,7 +218,7 @@
   "basis": {
     "general": "EN 1990, EN 1991, EN 1998-1 (recommended values)",
     "concrete": "EN 1992-1-1 (partial factors: members, slabs, stairs, walls, punching, slenderness, serviceability, detailing) and EN 1998-1 Section 5 (DCM, DCH capacity design); deep beams, corbels and the methods listed in the design report from BNBC 2020 Part 6 Chapter 6",
-    "steel": "EN 1993-1-1 (members), EN 1993-1-8 (joints), EN 1998-1 Section 6 (dissipative frames), EN 1994-1-1 (composite); the stability bracing, torsion and the detailing rules the codes leave open from BNBC 2020 Part 6 Chapters 10 and 13",
+    "steel": "EN 1993-1-1 (members, torsion, bracing forces), EN 1993-1-8 (joints, the column side, hollow section joints), EN 1993-1-3 (cold-formed members), EN 1993-1-2 (fire), EN 1998-1 Section 6 (dissipative frames, EBF links), EN 1994-1-1 (composite); the detailing rules the codes leave open from BNBC 2020 Part 6 Chapters 10 and 13",
     "method": "Limit state design (EN 1990); timber EN 1995-1-1, masonry EN 1996-1-1, aluminium EN 1999-1-1"
   },
   "author": "SAEngine",

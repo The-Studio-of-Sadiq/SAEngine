@@ -78,6 +78,16 @@ wet service), incising and service temperature, and the member type's restraint 
 repetitive option, set the factors. Bolted and nailed joints are checked by the yield limit
 equations; split rings and disc-dowels are flagged not covered under this method.
 
+### Cold-formed members, steel in fire, bracing rows (C12, steel half)
+
+| File | What it holds | Clauses |
+| --- | --- | --- |
+| `coldFormed.json` | lipped C and Z members (04 Objects profiles `C` and `Z`): Winter's effective widths, distortional buckling by the direct strength curves, compression, flexure with lateral-torsional buckling, web shear, the linear interaction; LRFD φ | AISI S100-16 1.1, B4, D-H |
+| `steelFire.json` | steel members at their fire rating: Table A-4.2.1 retention factors, the steel temperature by the lumped heat capacity (SAEngine practice), the critical temperature where ky = μ0, compression by Eq A-4-9 | AISC 360-22 Appendix 4 |
+| `steel.json` `bracing.rows` | the Appendix 6 brace strength and stiffness listed as flagged rows of the members (they were notes) | AISC 360-22 Appendix 6 |
+
+The protection of the steel (thickness, conductivity, density, specific heat; default none) is set under Code Values (`steelFire.protection`). Values: VERIFY.md rows S1-S18.
+
 The New Building wizard's "Steel moment frame" and "Steel braced frame" generate steel columns
 (HEB), beams (IPE), X braces (SHS, BIM inclined members) and RC slabs, with the first system of
 `generatorSystems` the Seismic Design Category and height permit (steel not specifically

@@ -849,6 +849,36 @@ against the printed standard). Its behaviour choices:
   use the steel members' shapes, lengths and stations. Timber materials gain an optional
   `strengthClass` for the limit state method.
 
+## 2026-11-04: steel remainder of the US, Eurocodes and IS packs (alpha 9, track C12, steel half)
+
+- **Method ids, one place each.** The new steel methods are groups of the existing selectors:
+  `steelLimitState.torsion` (`elasticStresses`), `.bracing` (`equivalentImperfection`,
+  `forceShare`), `.columnSide` (`effectiveWidth`, `dispersion`), `.hssJoints` (`chordFace`),
+  `steelLimitState.seismic.links` (the EBF links of `dissipativeZones`); two new tables,
+  `coldFormed` (method `effectiveSection` with the effective width, distortional and resistance
+  methods by id) and `steelFire`. The default pack has none of them: its results are unchanged.
+  The US pack keeps its AISC paths (H3 torsion, Chapter K joints, J10, F3 links) and lists the
+  Appendix 6 brace requirements as flagged rows (`steel.bracing.rows`).
+- **Cold-formed sections** are two new 04 Objects profiles, `C` (IfcCShapeProfileDef, a lipped
+  channel) and `Z` (a lipped Z, exported to IFC as IfcZShapeProfileDef without the lips),
+  computed geometrically (A, I, S, Z of square-cornered plates, J, Cw and the shear centre on the
+  centreline). Any steel member of such a profile is checked by the pack's `coldFormed` table;
+  a pack without it says the section is not covered.
+- **Steel in fire** uses the members' fire ratings of Project Settings (the same ratings as the
+  least-size checks), the protection as a project value (`steelFire.protection`, default none),
+  μ0 = ηfi × the ambient utilisation, the steel temperature by the lumped heat capacity in the
+  standard fire (ISO 834 for ASTM E119 and IS 3809 as well), the critical temperature for members
+  without compression and the buckling resistance at temperature for compression members (IS:
+  the limiting temperature for every member). A pack with the table checks its steel members by
+  it instead of the least-size rows.
+- **SAEngine practice** (all overridable): torsion of IS members by the EN 1993-1-1 6.2.7 form
+  with γm0 (IS 800 has no rule); δq of EN 5.3.3 at its limit L/2500; the IS restraint share 2.5 %
+  also for columns; the IS column panel as web shear and the parent's flange local bending; the
+  distortional critical stress of the AISI and IS methods by the EN 1993-1-3 edge-stiffener spring
+  model; Cb = 1 of cold-formed LTB; the IS 801 working forces as the factored ones / 1.5; the fire
+  load ratio 0.6 (US, IS) and 0.65 (EN); ca constant 600 J/kgK; the EBF link rotation from the
+  drift limit (the whole drift as plastic).
+
 ## Earlier owner decisions
 
 - **2026-10-28, piling.** Typical foundations are bored piles with pile caps, on a pile grid of
