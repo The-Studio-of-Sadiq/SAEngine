@@ -1,0 +1,67 @@
+{
+  "$schema": "../../../schemas/liveReduction.schema.json",
+  "$replace": true,
+  "$sources": [
+    "GB 50009-2012 Clause 5.1.2, Table 5.1.2"
+  ],
+  "source": "GB 50009-2012 5.1.2: the floor live load on columns, walls and foundations reduced by the number of floors above (Table 5.1.2: 1 floor 1.00, 2-3 0.85, 4-5 0.70, 6-8 0.65, 9-20 0.60, over 20 0.55); floor beams of use 1(1) with a tributary area over 25 m² 0.9",
+  "method": "floorCount",
+  "floorCount": {
+    "rows": [
+      [
+        1,
+        0.0
+      ],
+      [
+        3,
+        0.15
+      ],
+      [
+        5,
+        0.3
+      ],
+      [
+        8,
+        0.35
+      ],
+      [
+        20,
+        0.4
+      ],
+      [
+        1000,
+        0.45
+      ]
+    ],
+    "beamArea": 25.0,
+    "beamShare": 0.1,
+    "beamMax": 0.1
+  },
+  "heavyLive": 10.0,
+  "heavyFactor": 1.0,
+  "notReduced": [
+    "storageLight",
+    "libraryStacks",
+    "parking",
+    "roof",
+    "roofGarden",
+    "manufacturingLight"
+  ],
+  "twoFloorsOnly": [],
+  "kll": {
+    "interiorColumn": 1,
+    "exteriorColumn": 1,
+    "edgeColumnCantilever": 1,
+    "cornerColumnCantilever": 1,
+    "interiorBeam": 1,
+    "edgeBeam": 1,
+    "other": 1
+  },
+  "sources": {
+    "floorCount.rows": "GB 50009-2012 Table 5.1.2 (uses 1(1); the other uses have their own rules in 5.1.2 2): 1 - factor by the floors above the member",
+    "floorCount.beamArea": "GB 50009-2012 5.1.2 1(1): floor beams of tributary area over 25 m², factor 0.9 (one step, at most 0.1)",
+    "notReduced": "SAEngine practice: storage, machine rooms, parking (GB 5.1.2 has factors of its own for garages, not applied) and roofs not reduced",
+    "heavyLive": "Not a GB value: no heavy-load rule (10 kN/m² taken)",
+    "kll": "Not a GB value: the floor-count rule has no element factor (all 1)"
+  }
+}

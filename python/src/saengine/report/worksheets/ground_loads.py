@@ -645,6 +645,8 @@ def _acceleration_formula() -> str:
     rule = getattr(code_context.table("seismic"), "designSpectrum", None)
     if rule is not None and rule.method == "behaviourFactor":
         return "Sd(T) of ag = Z I with the behaviour factor q = R"
+    if rule is not None and rule.method == "influenceCoefficient":  # Alpha 9 C20
+        return "α(T) = (α(T)/αmax) Z I / R, Z = αmax (η2, γ, η1 by the damping)"
     factor = rule.factor if rule is not None and rule.factor is not None else None
     if factor is None or math.isclose(factor, 2 / 3):
         return "(2/3) Z I / R Cs"

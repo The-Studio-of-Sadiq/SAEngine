@@ -1,0 +1,30 @@
+{
+  "$schema": "../../../schemas/occupancyCategories.schema.json",
+  "$replace": true,
+  "$sources": [
+    "GB 50223-2008 (seismic fortification categories 甲 乙 丙 丁)"
+  ],
+  "source": "GB 50223-2008: the seismic fortification categories in SAEngine's slots I-IV (丁 I, 丙 II, 乙 III, 甲 IV). GB 50011 does not raise the earthquake forces by category (乙 and 丙 take the site's intensity; 乙 raises the measures by one degree, see seismic.seismicGrades.raise; 甲 takes a site-specific study, not covered): the seismic importance is 1.0 for all; wind importance 1.0 (GB 50009 8.1.2: tall buildings sensitive to wind take 1.1 w0, a project override).",
+  "categories": {
+    "I": {
+      "description": "丁类 (Category D): minor buildings",
+      "seismicImportance": 1.0,
+      "windImportance": 1.0
+    },
+    "II": {
+      "description": "丙类 (Category C): standard buildings",
+      "seismicImportance": 1.0,
+      "windImportance": 1.0
+    },
+    "III": {
+      "description": "乙类 (Category B): key buildings (schools, hospitals, large public buildings)",
+      "seismicImportance": 1.0,
+      "windImportance": 1.0
+    },
+    "IV": {
+      "description": "甲类 (Category A): special buildings (site-specific study needed)",
+      "seismicImportance": 1.0,
+      "windImportance": 1.0
+    }
+  }
+}

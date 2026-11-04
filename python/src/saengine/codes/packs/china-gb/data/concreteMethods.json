@@ -1,0 +1,224 @@
+{
+  "$schema": "../../../schemas/concreteMethods.schema.json",
+  "$sources": [
+    "GB 50010-2010 (2015 edition) 4.1, 4.2, 6.2.6, 6.2.15, 6.3.1, 6.3.4, 9.2.9"
+  ],
+  "source": "GB 50010-2010: design strengths fc = fck/γc (γc 1.4) of the prism strength fck of grade C (the cube strength fcu,k; the project's concrete takes fck), fy = fyk/γs, the rectangular stress block α1 fc over x = β1 xc (6.2.6), εcu = 0.0033 - (fcu,k - 50) 10⁻⁵, the axial capacity 0.9 (fc A + fy' As') (6.2.15), beam shear V <= 0.7 ft b h0 + fyv Asv h0 / s (6.3.4) within 0.25 βc fc b h0 (6.3.1)",
+  "ultimate": {
+    "method": "partialFactors",
+    "stressBlock": "rectangular",
+    "gammaC": 1.4,
+    "gammaS": 1.15,
+    "alphaCC": 1.0,
+    "alphaCT": 1.0,
+    "steelE": 200000.0,
+    "strengthClasses": [
+      [
+        13.4,
+        20
+      ],
+      [
+        16.7,
+        25
+      ],
+      [
+        20.1,
+        30
+      ],
+      [
+        23.4,
+        35
+      ],
+      [
+        26.8,
+        40
+      ],
+      [
+        29.6,
+        45
+      ],
+      [
+        32.4,
+        50
+      ],
+      [
+        35.5,
+        55
+      ],
+      [
+        38.5,
+        60
+      ],
+      [
+        41.5,
+        65
+      ],
+      [
+        44.5,
+        70
+      ],
+      [
+        47.4,
+        75
+      ],
+      [
+        50.2,
+        80
+      ]
+    ],
+    "relations": {
+      "highFrom": 32.4,
+      "fcmIncrement": 0.0,
+      "fctmCoefficient": 0.322,
+      "fctmExponent": 0.61,
+      "fctmHighCoefficient": 1.312,
+      "fctmHighDivisor": 5.0,
+      "fctkShares": [
+        1.0,
+        1.3
+      ],
+      "ecmCoefficient": 23620.0,
+      "ecmDivisor": 10.0,
+      "ecmExponent": 0.342,
+      "epsC2": {
+        "base": 2.0,
+        "highBase": 2.0,
+        "highCoefficient": 0.15,
+        "divisor": 17.8
+      },
+      "epsCu2": {
+        "base": 3.3,
+        "highBase": 3.3,
+        "highCoefficient": -0.3,
+        "divisor": 17.8
+      },
+      "n": {
+        "base": 2.0,
+        "highBase": 2.0,
+        "highCoefficient": -0.5,
+        "divisor": 17.8
+      },
+      "epsC3": {
+        "base": 2.0,
+        "highBase": 2.0,
+        "highCoefficient": 0.15,
+        "divisor": 17.8
+      },
+      "epsCu3": {
+        "base": 3.3,
+        "highBase": 3.3,
+        "highCoefficient": -0.3,
+        "divisor": 17.8
+      },
+      "eta": {
+        "base": 1.0,
+        "highBase": 1.0,
+        "highCoefficient": -0.06,
+        "divisor": 17.8
+      },
+      "lambda": {
+        "base": 0.8,
+        "highBase": 0.8,
+        "highCoefficient": -0.06,
+        "divisor": 17.8
+      }
+    },
+    "eccentricityDivisor": 30.0,
+    "eccentricityMin": 20.0,
+    "pureCompressionStrain": "epsC2",
+    "axialShares": [
+      0.642857,
+      0.782609
+    ]
+  },
+  "shear": {
+    "method": "tabulatedStress",
+    "grades": [
+      13.4,
+      16.7,
+      20.1,
+      23.4,
+      26.8,
+      29.6,
+      32.4,
+      35.5,
+      38.5,
+      41.5,
+      44.5,
+      47.4,
+      50.2
+    ],
+    "steelRatios": [
+      0.15,
+      3.0
+    ],
+    "tauC": [
+      [
+        0.77,
+        0.889,
+        1.001,
+        1.099,
+        1.197,
+        1.26,
+        1.323,
+        1.372,
+        1.428,
+        1.463,
+        1.498,
+        1.526,
+        1.554
+      ],
+      [
+        0.77,
+        0.889,
+        1.001,
+        1.099,
+        1.197,
+        1.26,
+        1.323,
+        1.372,
+        1.428,
+        1.463,
+        1.498,
+        1.526,
+        1.554
+      ]
+    ],
+    "maxStress": [
+      2.4,
+      2.975,
+      3.575,
+      4.175,
+      4.775,
+      5.275,
+      5.775,
+      6.1142,
+      6.4167,
+      6.6825,
+      6.89,
+      7.0417,
+      7.18
+    ],
+    "minStirrupStress": 0.3432,
+    "fyMax": 400.0,
+    "spacing": [
+      0.5,
+      300.0
+    ],
+    "enhancement": 1.0
+  },
+  "sources": {
+    "ultimate.gammaC": "GB 50010-2010 4.1.4 (fc = fck / 1.4, the tabulated fc rounded)",
+    "ultimate.gammaS": "GB 50010-2010 4.2.3: fy = 360 (HRB400, fyk 400: 1.11), 435 (HRB500, fyk 500: 1.15); SAEngine takes 1.15 for every grade (on the safe side for HRB400: 348 in place of 360 MPa)",
+    "ultimate.strengthClasses": "GB 50010-2010 Table 4.1.3-1: fck of C20-C80 (13.4 ... 50.2 MPa) with fcu,k",
+    "ultimate.relations": "GB 50010-2010 Table 4.1.3-2 ftk and Table 4.1.5 Ec as SAEngine fits on fck (ftk = 0.322 fck^0.61 to C50, 1.312 ln(1 + fck/5) above; Ec = 23 620 (fck/10)^0.342); 6.2.1: ε0 = 0.002 + 0.5 (fcu,k - 50) 10⁻⁵, εcu = 0.0033 - (fcu,k - 50) 10⁻⁵, n = 2 - (fcu,k - 50)/60; 6.2.6: α1 1.0 to C50, 0.94 at C80, β1 0.8 to 0.74 (linear in fck between C50 32.4 and C80 50.2 MPa)",
+    "ultimate.axialShares": "GB 50010-2010 6.2.15: N <= 0.9 φ (fc A + fy' As') with fc = fck/1.4 and fy' = fyk/1.15 (φ of the slenderness from the parent's method)",
+    "ultimate.eccentricityMin": "GB 50010-2010 6.2.5: ea = max(20 mm, h/30)",
+    "shear.tauC": "GB 50010-2010 6.3.4: Vc = 0.7 ft b h0 (αcv 0.7 of general beams; the concentrated-load αcv = 1.75/(λ + 1) is not covered), ft of Table 4.1.4-2 by grade, independent of the steel ratio",
+    "shear.maxStress": "GB 50010-2010 6.3.1: V <= 0.25 βc fc b h0 (hw/b <= 4), βc 1.0 to C50, 0.8 at C80",
+    "shear.minStirrupStress": "GB 50010-2010 9.2.9: ρsv >= 0.24 ft/fyv where V > 0.7 ft b h0, at ft of C30 (1.43 MPa; SAEngine practice, one value)",
+    "shear.fyMax": "GB 50010-2010 4.2.3: fyv at most 360 MPa (fyk 400 here)",
+    "shear.spacing": "GB 50010-2010 Table 9.2.9 (200-300 mm by depth): SAEngine takes min(0.5 d, 300 mm)",
+    "shear.enhancement": "GB 50010 has no enhancement near supports (1.0; corbels only)"
+  }
+}

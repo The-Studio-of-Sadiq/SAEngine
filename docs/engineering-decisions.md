@@ -183,6 +183,35 @@ New generic methods, chosen by id (no other pack sets them, so their results are
 - **Where:** `fem/records.py`, `fem/spectral_matching.py`, `fem/nonlinear_history.py`,
   `fem/hinges.py` (P5 section), `fem/nonlinear.py` (`history_model`), the packs' `VERIFY.md`.
 
+## 2026-11-05: China pack (alpha 9 track C20)
+
+Pack `china-gb` (extends `bnbc2020`), values entered from knowledge of the standards (no text on
+this PC); `VERIFY.md` lists every value with its clause and marks the uncertain ones. Nothing was
+run this week (owner, 2026-11-05): the tests are written, not run.
+
+- **SAEngine practice, slots.** The intensities 6 (0.05g), 7 (0.10g), 7 (0.15g), 8 (0.20g),
+  8 (0.30g), 9 (0.40g) sit in zone slots 1-6 with Z = αmax of the frequent earthquake; the
+  fortification categories 丁 丙 乙 甲 in the slots I-IV with importance 1.0 (GB raises the
+  measures, not the forces); the categories B (6), C (7), D (8, 9) carry the height limits and
+  the required detailing level (the D limits are 8 (0.20g)'s; 8 (0.30g) and 9 are lower).
+- **SAEngine practice, earthquake.** R = Ω0 = Cd = 1 (elastic design for the frequent
+  earthquake, drift as computed: `driftAmplification` designForces). The design earthquake group
+  is the town's (`locations.*.spectrumType`), group 3 for a custom site. λ is applied to the
+  static base shear only and taken at its T1 < 3.5 s value; the response spectrum is not scaled
+  to the static shear (`minimumScale` 0). The vertical earthquake and γRE are not applied.
+- **SAEngine practice, two-level design.** The rare earthquake's elasto-plastic drift is the
+  simplified method's on the response spectrum drift: ξy = 0.5 for every storey (a Code Value;
+  the storeys' yield shears are not computed), checked at every 7-9 degree site; structures the
+  simplified method does not cover take ηp 2.2 and should be checked by pushover or time history.
+  The seismic grade and its factors (ηc, ηvc, ηvb, ηvw, μN, λv) are reported with the seismic
+  design; the member design keeps the parent's detailing rules by the category's level.
+- **SAEngine practice, materials.** γs = 1.15 for every bar grade (HRB400 then 348 MPa, not 360);
+  steel γR = 1.164 for every grade (Q355's 355/305; Q235 then on the safe side); lateral-torsional
+  buckling by χLT of curves b / c on Mcr in place of GB's φb.
+- **Generic mechanisms (no existing pack sets them):** the spectrum method
+  `influenceCoefficient`, `locations.*.spectrumType`, `seismic.driftLimits[].groups`,
+  `seismic.rareDrift`, `seismic.seismicGrades`, `steelLimitState.compression.perry`.
+
 ## 2026-11-05: Australia and New Zealand packs (alpha 9 track C18)
 
 Packs `australia-as` (extends `bnbc2020`) and `newzealand-nzs` (extends `australia-as`). The

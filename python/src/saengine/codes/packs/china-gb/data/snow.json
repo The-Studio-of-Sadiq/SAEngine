@@ -1,0 +1,42 @@
+{
+  "$schema": "../../../schemas/snow.schema.json",
+  "$replace": true,
+  "$sources": [
+    "GB 50009-2012 7.1.1, Table 7.2.1 item 1, 7.1.2"
+  ],
+  "source": "GB 50009-2012 7.1.1: sk = μr s0 with s0 the town's basic snow pressure (locations groundSnow, 50 years) and μr of a single or double slope roof (Table 7.2.1 item 1: 1.0 up to 25°, 0 from 50°, linear between); the uneven and drift distributions are not covered",
+  "method": "shapeCoefficient",
+  "factor": 1.0,
+  "shape": [
+    [
+      0.0,
+      1.0
+    ],
+    [
+      25.0,
+      1.0
+    ],
+    [
+      50.0,
+      0.0
+    ]
+  ],
+  "exposures": {
+    "normal": {
+      "description": "Roof (no exposure factor in GB 50009)",
+      "Ce": 1.0
+    }
+  },
+  "defaultExposure": "normal",
+  "thermal": 1.0,
+  "importance": {},
+  "loadCase": "Lr",
+  "withRoofLive": "envelope",
+  "seismicShare": 0.5,
+  "seismicThreshold": 0.001,
+  "sources": {
+    "shape": "GB 50009-2012 Table 7.2.1 item 1: μr 1.0 (α <= 25°), 0 (α >= 50°)",
+    "loadCase": "GB 50009-2012 5.3.3: the roof live load is not combined with snow: the larger of the two (the envelope)",
+    "seismicShare": "GB 50011-2010 5.1.3: 0.5 of the snow load in the representative gravity load"
+  }
+}

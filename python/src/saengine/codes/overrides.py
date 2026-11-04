@@ -80,6 +80,30 @@ def of(settings: Any) -> dict[str, Any]:
     return dict(value) if isinstance(value, dict) else {}
 
 
+def with_town(pack: Any, settings: Any) -> dict[str, Any]:
+    """The project's overrides (:func:`of`) after the values its town gives (alpha 9 C20: a
+    town of the pack's ``locations`` with a ``spectrumType``, GB 50011's design earthquake
+    group, sets ``seismic.spectrumType``; a project's own override of it wins). Just
+    :func:`of` for a town without one (every pack before C20)."""
+    given = of(settings)
+    if settings is None or "seismic.spectrumType" in given:
+        return given
+    site = settings.get("site") if isinstance(settings, dict) else getattr(settings, "site", None)
+    location = site.get("location") if isinstance(site, dict) else getattr(site, "location", None)
+    if not location:
+        return given
+    try:
+        if not pack.has("locations") or not pack.has("seismic"):
+            return given
+        town = pack.table("locations").locations.get(location)
+    except Exception:  # noqa: BLE001 - a pack that cannot give its towns keeps the overrides
+        return given
+    kind = getattr(town, "spectrumType", None) if town is not None else None
+    if not kind:
+        return given
+    return {"seismic.spectrumType": kind, **given}
+
+
 def table_of(path: str) -> str | None:
     """The table an override's path names ("factors.phi.shear" -> "factors"); None when it is
     not a path."""

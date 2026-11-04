@@ -343,6 +343,77 @@
       "title": "ModifiedSlenderness",
       "type": "object"
     },
+    "PerryCurve": {
+      "additionalProperties": false,
+      "description": "Alpha 9 C20: a buckling curve by its Perry constants (GB 50017-2017 Appendix D type) on\nthe relative slenderness λn: φ = 1 - a1 λn² up to ``plateau``; above it φ = [(a2 + a3 λn +\nλn²) - √((a2 + a3 λn + λn²)² - 4 λn²)] / (2 λn²), with (a2, a3) of ``high`` from\n``split`` on where given.",
+      "properties": {
+        "a1": {
+          "exclusiveMinimum": 0,
+          "title": "A1",
+          "type": "number"
+        },
+        "a2": {
+          "exclusiveMinimum": 0,
+          "title": "A2",
+          "type": "number"
+        },
+        "a3": {
+          "exclusiveMinimum": 0,
+          "title": "A3",
+          "type": "number"
+        },
+        "plateau": {
+          "default": 0.215,
+          "exclusiveMinimum": 0,
+          "title": "Plateau",
+          "type": "number"
+        },
+        "split": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Split"
+        },
+        "high": {
+          "anyOf": [
+            {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                },
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "High"
+        }
+      },
+      "required": [
+        "a1",
+        "a2",
+        "a3"
+      ],
+      "title": "PerryCurve",
+      "type": "object"
+    },
     "SeismicFrameRules": {
       "additionalProperties": false,
       "description": "The rules of one steel seismic frame kind (None or empty: not required).",
@@ -1402,6 +1473,14 @@
             }
           ],
           "default": null
+        },
+        "perry": {
+          "additionalProperties": {
+            "$ref": "#/$defs/PerryCurve"
+          },
+          "description": "Buckling curves by Perry constants (a1, a2, a3).",
+          "title": "Perry",
+          "type": "object"
         },
         "rolledI": {
           "description": "Rolled I and H sections: (h/bf above, tf up to [mm], major curve, minor curve); the first row that matches.",
