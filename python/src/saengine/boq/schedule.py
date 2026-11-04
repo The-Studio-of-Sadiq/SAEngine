@@ -3,8 +3,8 @@
 A quantity lives in one place: the bars of a member are those the drawings detail
 (:func:`saengine.drawings.detailing.detailing_model`, the code pack's detailing: laps at their
 permitted places, hooks and bends, cut-off bars, the stirrups of each zone at its spacing) and
-schedule (:func:`saengine.drawings.bbs.bar_schedule`: number × BS 8666 cutting length per bar
-mark). The bill takes them for every element the drawings detail, so that the bill and the bar
+schedule (:func:`saengine.drawings.bbs.bar_schedule`: number × cutting length per bar mark,
+by the code pack's schedule standard, BS 8666 in the default pack). The bill takes them for every element the drawings detail, so that the bill and the bar
 bending schedule agree per bar size (:func:`take_from_schedule`). The estimating rules of
 :mod:`saengine.boq.quantities` (full member lengths, 40 d per 12 m stock bar, links at their
 centre line with two 10 d hooks, ``length / spacing + 1`` at one spacing, meshes as area /
@@ -41,9 +41,26 @@ TAKEN_NOTE = (
     "Reinforcement of the elements the drawings detail: measured from their detailed bars, the "
     "bars of the bar bending schedule (11 Exports, Drawings): number × cutting length per bar "
     "mark, with the code's laps at their places, the hooks and bends, cut-off bars and the "
-    "stirrups and ties of each zone at its spacing (BS 8666 cutting lengths rounded up to 25 mm), "
-    "so that this bill and the schedule agree per bar size."
+    "stirrups and ties of each zone at its spacing ({standard} cutting lengths rounded {round} "
+    "mm), so that this bill and the schedule agree per bar size."
 )
+
+
+def _standard(schedule: Any) -> Any:
+    """The schedule standard the schedule follows (the pack in force's when it names none)."""
+    from saengine.drawings import bbs
+
+    std = getattr(schedule, "standard", None)
+    return std if std is not None else bbs.standard()
+
+
+def taken_note(schedule: Any) -> str:
+    """:data:`TAKEN_NOTE` with the schedule's standard and rounding (the default pack: "BS 8666
+    cutting lengths rounded up to 25 mm")."""
+    std = _standard(schedule)
+    how = "up to" if std.rounding == "up" else "to the nearest"
+    return TAKEN_NOTE.replace("{standard}", std.name).replace("{round}", f"{how} {std.roundTo:g}")
+
 
 #: Element kinds of the detailing model as the notes name them (one, more).
 KINDS = {"beam": ("beam line", "beam lines"), "column": ("column", "columns"),
@@ -218,7 +235,7 @@ def reconcile_notes(document: Any, schedule: Any, kept: list[str] | None = None)
             f"{n} {KINDS.get(k, (k, k))[0 if n == 1 else 1]}" for k, n in counts.items()
         )
         lines = [
-            TAKEN_NOTE,
+            taken_note(schedule),
             f"Measured from the detailed bars: {parts} ({', '.join(e for _, e in detailed)}).",
         ]
         if kept:
@@ -233,15 +250,17 @@ def reconcile_notes(document: Any, schedule: Any, kept: list[str] | None = None)
     parts_dia = []
     for r in rec.rows:
         pct = "" if r.percent is None else f", {r.percent:+.1f} %"
+        size = rec.size_format.replace("{d}", f"{r.dia:g}")
         parts_dia.append(
-            f"Ø{r.dia:g} {r.bbs:.1f} kg against {r.boq:.1f} kg ({r.difference:+.1f} kg{pct})"
+            f"{size} {r.bbs:.1f} kg against {r.boq:.1f} kg ({r.difference:+.1f} kg{pct})"
         )
     only = sorted({e or "?" for r in rec.rows for e in r.only_boq})
     text = (
         "Reinforcement against the bar bending schedule of the drawings (BBS against this bill, "
         f"per bar size): {'; '.join(parts_dia)}; in total {rec.bbs:.1f} kg against "
         f"{rec.boq:.1f} kg. The schedule cuts the detailed bars (the code's laps and hooks, "
-        "cut-off bars, BS 8666 cutting lengths); this bill measures by the estimating rules above."
+        f"cut-off bars, {_standard(schedule).name} cutting lengths); this bill measures by the "
+        "estimating rules above."
     )
     if only:
         text += f" Not detailed in the drawings: {', '.join(only)}."

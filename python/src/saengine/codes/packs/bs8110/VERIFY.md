@@ -195,3 +195,19 @@ Concrete torsion (BS 8110-2 2.4), flat slab moment coefficients (Table 3.12 / 3.
 bases (3.11), the notional horizontal loads, the fire covers of Table 3.4; BS 5950 connections
 (bolts Table 30, welds), the composite and the steel seismic rules; BS 5628 masonry and BS 5268
 timber (SAEngine's masonry and timber engines keep the parent's methods).
+
+## BS 8666:2020 bar schedules (alpha 9 C14; the parent's barSchedule, inherited)
+
+The default pack's schedule standard, which this pack keeps. Moved from code constants into the
+default pack's `barSchedule` table unchanged (written from memory before code packs).
+
+| # | Path | Value | Clause | What | Confidence |
+|---|---|---|---|---|---|
+| BB1 | barSchedule.standards.bs8666.radius.bySize | 6:12, 8:16, 10:20, 12:24, 16:32, 20:70, 25:87, 32:112, 40:140, 50:175 mm | BS 8666:2020 Table 2 | Minimum scheduling radius r (B500) | Uncertain (from memory) |
+| BB2 | barSchedule.standards.bs8666.radius.steps | 2 d up to 16 mm, 3.5 d (rounded up) above | BS 8666:2020 Table 2 | r of other sizes | Uncertain |
+| BB3 | barSchedule.standards.bs8666.endProjection | 6:110, 8:115, 10:130, 12:160, 16:210, 20:290, 25:365, 32:465, 40:585, 50:725 mm; else r + 11 d to 5 mm | BS 8666:2020 Table 2 | Minimum end projection P | Uncertain (from memory) |
+| BB4 | barSchedule.standards.bs8666.shapes.11 / 21 / 23 | A + B - 0.5r - d; A + B + C - r - 2d | BS 8666:2020 Table 3 | Shapes 11, 21, 23 | Check |
+| BB5 | barSchedule.standards.bs8666.shapes.12 / 13 / 15 / 26 | A + B - 0.43R - 1.2d; A + 0.57B + C - 1.6d; A + C; A + B + C | BS 8666:2020 Table 3 | Shapes 12, 13, 15, 26 | Uncertain |
+| BB6 | barSchedule.standards.bs8666.shapes.22 / 31 / 33 / 41 | A+B+C+D - 1.5r - 3d; 2A + 1.7B + 2(C - 4d); A+B+C+D+E - 2r - 4d | BS 8666:2020 Table 3 | Shapes 22, 31, 33, 41 | Uncertain |
+| BB7 | barSchedule.standards.bs8666.shapes.51 / 63 / 77 | 2(A+B+C) - 2.5r - 5d; 2A + 3B + 2C - 3r - 6d; C π (A - d) | BS 8666:2020 Table 3 | Links and helix | Check |
+| BB8 | barSchedule.standards.bs8666.roundTo, linkHook | 25 mm up; hook end = code's 135° extension + r + d, to 5 mm, >= P | BS 8666:2020 (rounding), SAEngine practice (hook) | Rounding and link hooks | Check |

@@ -631,3 +631,20 @@ checked before the pack is used for an assessment.
   columns controlled by inadequate splices, coupling beams, the knowledge factor and the
   linear procedures are not covered.
 - The ground loads worksheet of the report covers zone-factor packs only.
+
+## ACI 315 / CRSI bar lists (alpha 9 C14)
+
+`barSchedule.standard` = `aci315`: a "Bar list" with the bar types of the ACI detailing manual
+(ACI 315, SP-66) and the CRSI Manual of Standard Practice. Lengths are kept in mm (the soft-metric
+bar designations as diameters); the project's display units (feet and inches, track C13) are to
+be applied through `bbs.length_display`.
+
+| # | Path | Value | Clause | What | Confidence |
+|---|---|---|---|---|---|
+| BA1 | barSchedule.standards.aci315.shapes (types) | STR, 1 (one 90° bend), 2 (U), 3 (offset), 4 (truss), T1 (closed tie, 135° hooks), SP (spiral), 99 | ACI 315 / CRSI "typical bar bends" | Bar type ids | Uncertain (the type numbers are from memory; check each against the CRSI figure) |
+| BA2 | barSchedule.standards.aci315.shapes.* .length | sum of the out-to-out detailing dimensions | CRSI Manual of Standard Practice | Bar length | Check |
+| BA3 | barSchedule.standards.aci315.shapes.T1, linkHook | 2(A + B) + 2C, C = code's 135° extension (ACI 318 25.3.2: 6 db >= 75 mm) + r + d | CRSI hook dimensions | Ties and stirrups | Uncertain (CRSI tabulates the hook allowances) |
+| BA4 | barSchedule.standards.aci315.roundTo | 25.4 mm (1 in), up | CRSI (lengths to the inch) / SAEngine practice (up) | Rounding | Check |
+| BA5 | barSchedule.standards.aci315.stockLength | 18288 mm (60 ft) | US mill practice | Longest stock bar | Check |
+| BA6 | barSchedule.standards.aci315.sizeLabel | No. {d} | ASTM A615M / A706M soft-metric designations | Size label | Sure |
+| BA7 | barSchedule.standards.aci315 bar mass | d²/162 kg/m of the designation | SAEngine practice | Mass (ASTM nominal masses differ: No. 10 0.560 kg/m) | Practice (kept so that BOQ = BBS) |

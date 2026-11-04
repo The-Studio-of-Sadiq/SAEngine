@@ -1,0 +1,630 @@
+{
+  "$schema": "../../../schemas/barSchedule.schema.json",
+  "$sources": [
+    "IS 2502:1963 shapes, bend deductions and cutting lengths, see VERIFY.md"
+  ],
+  "source": "IS 2502:1963 shapes, bend deductions and cutting lengths, see VERIFY.md",
+  "standard": "is2502",
+  "shapeKey": true,
+  "standards": {
+    "is2502": {
+      "name": "IS 2502",
+      "edition": "IS 2502:1963",
+      "title": "Bar bending schedule",
+      "shapeTerm": "Shape codes",
+      "roundTo": 10.0,
+      "rounding": "up",
+      "stockLength": 12000.0,
+      "linkHook": "ext + r + d",
+      "linkHookRound": 5.0,
+      "deductions": {
+        "45": 1.0,
+        "90": 2.0,
+        "135": 3.0,
+        "180": 4.0
+      },
+      "sizeLabel": "Ø{d}",
+      "special": "99",
+      "shapes": {
+        "00": {
+          "name": "straight",
+          "letters": "A",
+          "length": "A",
+          "sketch": {
+            "paths": [
+              [
+                [
+                  0,
+                  0.5
+                ],
+                [
+                  1.6,
+                  0.5
+                ]
+              ]
+            ],
+            "labels": {
+              "A": [
+                0.8,
+                0.62
+              ]
+            }
+          },
+          "kind": "straight"
+        },
+        "11": {
+          "name": "one 90° bend",
+          "letters": "AB",
+          "length": "A + B - b90",
+          "sketch": {
+            "paths": [
+              [
+                [
+                  0,
+                  1
+                ],
+                [
+                  0,
+                  0
+                ],
+                [
+                  1.6,
+                  0
+                ]
+              ]
+            ],
+            "labels": {
+              "A": [
+                0.8,
+                -0.14
+              ],
+              "B": [
+                -0.14,
+                0.5
+              ]
+            }
+          },
+          "bends": 1,
+          "formula": "L = A + B - 2d"
+        },
+        "13": {
+          "name": "one 180° bend",
+          "letters": "ABC",
+          "length": "A + B + C - b180",
+          "sketch": {
+            "paths": [
+              [
+                [
+                  1.6,
+                  1
+                ],
+                [
+                  0.5,
+                  1
+                ],
+                [
+                  0.15,
+                  0.85
+                ],
+                [
+                  0,
+                  0.5
+                ],
+                [
+                  0.15,
+                  0.15
+                ],
+                [
+                  0.5,
+                  0
+                ],
+                [
+                  1.6,
+                  0
+                ]
+              ]
+            ],
+            "labels": {
+              "A": [
+                1.0,
+                1.12
+              ],
+              "B": [
+                -0.16,
+                0.5
+              ],
+              "C": [
+                1.0,
+                -0.14
+              ]
+            }
+          },
+          "bends": 1,
+          "formula": "L = A + B + C - 4d"
+        },
+        "21": {
+          "name": "two 90° bends (U)",
+          "letters": "ABC",
+          "length": "A + B + C - 2 * b90",
+          "sketch": {
+            "paths": [
+              [
+                [
+                  0,
+                  1
+                ],
+                [
+                  0,
+                  0
+                ],
+                [
+                  1.6,
+                  0
+                ],
+                [
+                  1.6,
+                  1
+                ]
+              ]
+            ],
+            "labels": {
+              "A": [
+                -0.14,
+                0.5
+              ],
+              "B": [
+                0.8,
+                -0.14
+              ],
+              "C": [
+                1.74,
+                0.5
+              ]
+            }
+          },
+          "bends": 2,
+          "formula": "L = A + B + C - 2 × 2d"
+        },
+        "23": {
+          "name": "two 90° bends, opposite (Z)",
+          "letters": "ABC",
+          "length": "A + B + C - 2 * b90",
+          "sketch": {
+            "paths": [
+              [
+                [
+                  0,
+                  1
+                ],
+                [
+                  0,
+                  0.5
+                ],
+                [
+                  1.6,
+                  0.5
+                ],
+                [
+                  1.6,
+                  0
+                ]
+              ]
+            ],
+            "labels": {
+              "A": [
+                -0.14,
+                0.75
+              ],
+              "B": [
+                0.8,
+                0.62
+              ],
+              "C": [
+                1.74,
+                0.25
+              ]
+            }
+          },
+          "bends": 2,
+          "formula": "L = A + B + C - 2 × 2d"
+        },
+        "26": {
+          "name": "cranked bar (two bends of about 45°)",
+          "letters": "ABC",
+          "length": "A + B + C - 2 * b45",
+          "sketch": {
+            "paths": [
+              [
+                [
+                  0,
+                  0
+                ],
+                [
+                  0.5,
+                  0
+                ],
+                [
+                  1.1,
+                  0.7
+                ],
+                [
+                  1.6,
+                  0.7
+                ]
+              ]
+            ],
+            "labels": {
+              "A": [
+                0.25,
+                -0.14
+              ],
+              "B": [
+                0.68,
+                0.45
+              ],
+              "C": [
+                1.35,
+                0.82
+              ]
+            }
+          },
+          "bends": 2,
+          "formula": "L = A + B + C - 2 × 1d"
+        },
+        "31": {
+          "name": "three 90° bends",
+          "letters": "ABCD",
+          "length": "A + B + C + D - 3 * b90",
+          "sketch": {
+            "paths": [
+              [
+                [
+                  0.6,
+                  1
+                ],
+                [
+                  0,
+                  1
+                ],
+                [
+                  0,
+                  0
+                ],
+                [
+                  1.6,
+                  0
+                ],
+                [
+                  1.6,
+                  0.6
+                ]
+              ]
+            ],
+            "labels": {
+              "A": [
+                0.3,
+                1.12
+              ],
+              "B": [
+                -0.14,
+                0.5
+              ],
+              "C": [
+                0.8,
+                -0.14
+              ],
+              "D": [
+                1.74,
+                0.3
+              ]
+            }
+          },
+          "bends": 3,
+          "formula": "L = A + B + C + D - 3 × 2d"
+        },
+        "41": {
+          "name": "four 90° bends",
+          "letters": "ABCDE",
+          "length": "A + B + C + D + E - 4 * b90",
+          "sketch": {
+            "paths": [
+              [
+                [
+                  0,
+                  0.3
+                ],
+                [
+                  0.4,
+                  0.3
+                ],
+                [
+                  0.4,
+                  1
+                ],
+                [
+                  1.2,
+                  1
+                ],
+                [
+                  1.2,
+                  0.3
+                ],
+                [
+                  1.6,
+                  0.3
+                ]
+              ]
+            ],
+            "labels": {
+              "A": [
+                0.2,
+                0.18
+              ],
+              "B": [
+                0.28,
+                0.65
+              ],
+              "C": [
+                0.8,
+                1.12
+              ],
+              "D": [
+                1.32,
+                0.65
+              ],
+              "E": [
+                1.4,
+                0.18
+              ]
+            }
+          },
+          "bends": 4,
+          "formula": "L = A + B + C + D + E - 4 × 2d"
+        },
+        "51": {
+          "name": "closed stirrup, 135° hooks",
+          "letters": "ABC",
+          "length": "2 * (A + B) + 2 * C - 3 * b90 - 2 * b135",
+          "sketch": {
+            "paths": [
+              [
+                [
+                  0,
+                  0
+                ],
+                [
+                  1.6,
+                  0
+                ],
+                [
+                  1.6,
+                  1
+                ],
+                [
+                  0,
+                  1
+                ],
+                [
+                  0,
+                  0
+                ]
+              ],
+              [
+                [
+                  0,
+                  1
+                ],
+                [
+                  0.3,
+                  0.7
+                ]
+              ],
+              [
+                [
+                  0.0,
+                  0.92
+                ],
+                [
+                  0.3,
+                  0.62
+                ]
+              ]
+            ],
+            "labels": {
+              "A": [
+                0.8,
+                -0.14
+              ],
+              "B": [
+                1.74,
+                0.5
+              ],
+              "C": [
+                0.46,
+                0.62
+              ]
+            }
+          },
+          "transverse": true,
+          "bends": 5,
+          "hook": "C",
+          "formula": "L = 2(A + B) + 2C - 3 × 2d - 2 × 3d"
+        },
+        "77": {
+          "name": "helix",
+          "letters": "ABC",
+          "length": "C * sqrt((pi * (A - d)) ** 2 + B ** 2)",
+          "sketch": {
+            "paths": [
+              [
+                [
+                  0,
+                  0
+                ],
+                [
+                  0.27,
+                  1
+                ],
+                [
+                  0.53,
+                  0
+                ],
+                [
+                  0.8,
+                  1
+                ],
+                [
+                  1.07,
+                  0
+                ],
+                [
+                  1.33,
+                  1
+                ],
+                [
+                  1.6,
+                  0
+                ]
+              ]
+            ],
+            "labels": {
+              "A": [
+                0.8,
+                1.14
+              ],
+              "B": [
+                1.74,
+                0.5
+              ]
+            }
+          },
+          "transverse": true,
+          "counts": "C",
+          "remarks": "C = turns",
+          "formula": "L = C √((π(A - d))² + B²)"
+        },
+        "99": {
+          "name": "special (as sketched)",
+          "letters": "",
+          "length": "L",
+          "sketch": {
+            "paths": [
+              [
+                [
+                  0,
+                  0.2
+                ],
+                [
+                  0.5,
+                  0.9
+                ],
+                [
+                  1.0,
+                  0.1
+                ],
+                [
+                  1.6,
+                  0.8
+                ]
+              ]
+            ],
+            "labels": {
+              "L": [
+                0.8,
+                1.0
+              ]
+            }
+          },
+          "kind": "special",
+          "formula": "L as detailed"
+        }
+      },
+      "aliases": {
+        "straight": "00",
+        "bar": "00",
+        "l": "11",
+        "lbar": "11",
+        "u": "21",
+        "ubar": "21",
+        "z": "23",
+        "crank": "26",
+        "cranked": "26",
+        "link": "51",
+        "stirrup": "51",
+        "tie": "51",
+        "hoop": "51",
+        "closedlink": "51",
+        "helix": "77",
+        "spiral": "77",
+        "special": "99"
+      },
+      "columns": [
+        {
+          "key": "member",
+          "title": "Member"
+        },
+        {
+          "key": "mark",
+          "title": "Bar\nmark"
+        },
+        {
+          "key": "size",
+          "title": "Type and\ndia"
+        },
+        {
+          "key": "shape",
+          "title": "Shape\ncode"
+        },
+        {
+          "key": "A",
+          "title": "A\n({len})"
+        },
+        {
+          "key": "B",
+          "title": "B\n({len})"
+        },
+        {
+          "key": "C",
+          "title": "C\n({len})"
+        },
+        {
+          "key": "D",
+          "title": "D\n({len})"
+        },
+        {
+          "key": "E",
+          "title": "E/R\n({len})"
+        },
+        {
+          "key": "members",
+          "title": "No. of\nmbrs"
+        },
+        {
+          "key": "per_member",
+          "title": "No. in\neach"
+        },
+        {
+          "key": "total_count",
+          "title": "Total\nno."
+        },
+        {
+          "key": "cutting_length",
+          "title": "Cutting\nlength ({len})"
+        },
+        {
+          "key": "total_length",
+          "title": "Total\nlength (m)"
+        },
+        {
+          "key": "mass",
+          "title": "Mass\n(kg)"
+        },
+        {
+          "key": "remarks",
+          "title": "Remarks"
+        }
+      ],
+      "note": "Bar shapes and cutting lengths after {name}: the outside dimensions less the bend deductions (45° 1 d, 90° 2 d, 135° 3 d, 180° 4 d), links with the code's hooks; bend radii not less than {bend}; lengths rounded up to {round} mm; mass d²/162 kg/m."
+    }
+  }
+}

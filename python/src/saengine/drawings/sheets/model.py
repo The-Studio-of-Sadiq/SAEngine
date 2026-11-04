@@ -629,6 +629,11 @@ class DrawingSet:
     walls: list[WallDetail] = field(default_factory=list)
     stairs: list[StairDetail] = field(default_factory=list)
     bbs: list[Table] = field(default_factory=list)  # the bar schedule, then its totals
+    # the sketches of the schedule's shape codes (saengine.drawings.bbs.shape_key; alpha 9 C14),
+    # drawn after the schedule when the code pack's barSchedule.shapeKey asks for them, under
+    # the title bbs_shapes_title (the standard's term: "Shape codes", "Bar types")
+    bbs_shapes: list[dict[str, Any]] = field(default_factory=list)
+    bbs_shapes_title: str = "Shape codes"
     pile_caps: Table | None = None  # the pile cap schedule
     notes: list[str] = field(default_factory=list)  # general notes
     tables: list[Table] = field(default_factory=list)  # notes tables (lap and development, ...)

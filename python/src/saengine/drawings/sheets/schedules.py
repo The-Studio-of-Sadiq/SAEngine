@@ -219,6 +219,78 @@ def _draw_table(
         y -= heights[i]
 
 
+SHAPE_CELL = (62.0, 44.0)  # paper mm of one shape in the shape key
+
+
+def shape_key_specs(
+    shapes: Sequence[dict], max_height: float, max_width: float, title: str = "Shape codes"
+) -> list[ViewSpec]:
+    """The sketches of the schedule's shape codes (:func:`saengine.drawings.bbs.shape_key`:
+    ``{"code", "name", "formula", "sketch": {"paths", "labels"}}``), in cells of
+    :data:`SHAPE_CELL`, as views no wider than ``max_width`` and no taller than ``max_height``
+    (paper mm): each cell the code and its name, the bar with its dimension letters, and the
+    cutting-length formula."""
+    cw, ch = SHAPE_CELL
+    per_row = max(1, int((max_width - 4.0) // cw))
+    rows_per_view = max(1, int((max_height - 2 - 14 - 8) // ch))
+    per_view = per_row * rows_per_view
+    chunks = [list(shapes[i : i + per_view]) for i in range(0, len(shapes), per_view)]
+    specs = []
+    for n, chunk in enumerate(chunks):
+        cols = min(per_row, len(chunk))
+        rows = math.ceil(len(chunk) / per_row)
+        width, height = cols * cw, rows * ch
+        name = title if len(chunks) == 1 else f"{title} ({n + 1} of {len(chunks)})"
+
+        def draw(view: View, chunk: list[dict] = chunk, height: float = height) -> None:
+            for i, shape in enumerate(chunk):
+                x0 = (i % per_row) * cw
+                y1 = height - (i // per_row) * ch
+                _draw_shape(view, shape, x0, y1 - ch, cw, ch)
+
+        specs.append(
+            ViewSpec(
+                name, 1, (0, 0, width, height), draw, pad=(2, 2, 2, 2), subtitle=" ",
+                key=f"shapes:{n + 1}",
+            )
+        )  # fmt: skip
+    return specs
+
+
+def _draw_shape(view: View, shape: dict, x0: float, y0: float, w: float, h: float) -> None:
+    """One cell of the shape key: its frame, the code and name on top, the sketch scaled into
+    the middle with its letters, the formula at the bottom."""
+    view.rect(x0, y0, x0 + w, y0 + h, "S-TABLE")
+    head = f"{shape.get('code', '')}  {shape.get('name', '')}"
+    view.text(_wrap(head, w - 3, TEXT, 1), (x0 + 1.5, y0 + h - 1.5), TEXT, "TL", "S-TABLE",
+              reserve=False)  # fmt: skip
+    formula = str(shape.get("formula") or "")
+    view.text(_wrap(formula, w - 3, TEXT, 2), (x0 + 1.5, y0 + 1.5 + LINE), TEXT, "BL",
+              "S-TABLE", reserve=False)  # fmt: skip
+    sketch = shape.get("sketch")
+    if not sketch:
+        return
+    points = [p for path in sketch.get("paths") or [] for p in path]
+    points += list((sketch.get("labels") or {}).values())
+    if not points:
+        return
+    xs, ys = [float(p[0]) for p in points], [float(p[1]) for p in points]
+    span_x, span_y = max(max(xs) - min(xs), 1e-6), max(max(ys) - min(ys), 1e-6)
+    box_w, box_h = w - 12, h - 6 - 3 * LINE - 6  # the room between the name and the formula
+    k = min(box_w / span_x, box_h / span_y)
+    cx = x0 + w / 2 - k * (min(xs) + max(xs)) / 2
+    cy = y0 + 2 + 2 * LINE + 3 + box_h / 2 - k * (min(ys) + max(ys)) / 2 + 1
+
+    def at(p: Sequence[float]) -> tuple[float, float]:
+        return cx + k * float(p[0]), cy + k * float(p[1])
+
+    for path in sketch.get("paths") or []:
+        if len(path) > 1:
+            view.polyline([at(p) for p in path], "S-REBAR-MAIN")
+    for letter, p in (sketch.get("labels") or {}).items():
+        view.text(str(letter), at(p), TEXT, "MC", "S-TABLE", reserve=False)
+
+
 def notes_spec(
     notes: Sequence[str], width: float = 180.0, title: str = "General notes"
 ) -> ViewSpec:

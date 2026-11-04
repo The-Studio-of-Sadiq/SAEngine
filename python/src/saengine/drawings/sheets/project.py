@@ -1111,10 +1111,15 @@ def drawing_set(
             data.problems.append(f"The bar bending schedule could not be made: {error}")
     if schedule:
         data.bbs.append(Table.from_dict(schedule))
-        apply_bbs_lengths(data, data.bbs[0])
+        apply_bbs_lengths(data, data.bbs[0], schedule.get("cuttingLengths"))
         totals = schedule.get("totals")
         if totals:
             data.bbs.append(Table.from_dict(totals, "Bar masses by size and element (kg)"))
+        if schedule.get("shapeKey"):  # alpha 9 C14: the sketches of the standard's shapes
+            from saengine.drawings import bbs
+
+            data.bbs_shapes = [dict(s) for s in schedule["shapeKey"]]
+            data.bbs_shapes_title = bbs.standard().shapeTerm
     data.notes = general_notes(objects, materials, detailing)
     from saengine.substructure.excavation import construction_notes
 
@@ -1162,9 +1167,19 @@ def drawing_set(
     return data
 
 
-def apply_bbs_lengths(data: DrawingSet, table: Table) -> None:
+def apply_bbs_lengths(
+    data: DrawingSet, table: Table, given: dict[str, float] | None = None
+) -> None:
     """The cutting length the bar bending schedule lists for each bar mark (its column
-    ``cutting_length``) onto the beam bars, so that the drawing's bar data reads as the BBS."""
+    ``cutting_length``) onto the beam bars, so that the drawing's bar data reads as the BBS.
+    ``given``: the lengths [mm] by mark (:func:`saengine.drawings.bbs.sheet_table`'s
+    ``cuttingLengths``, whatever unit the cells show), read in place of the column."""
+    if given:
+        for beam in data.beams:
+            for bar in beam.bars:
+                if bar.mark in given:
+                    bar.bbs_length = float(given[bar.mark])
+        return
     keys = [str(c.get("key")) for c in table.columns]
     if "mark" not in keys or "cutting_length" not in keys:
         return
@@ -1299,6 +1314,18 @@ def undesigned_members(elements: list[dict[str, Any]]) -> dict[str, dict[str, in
     return out
 
 
+def _schedule_note() -> str:
+    """The general note on the bar marks, by the code pack's schedule standard (the default
+    pack: "... refer to the bar bending schedule; shape codes to BS 8666.")."""
+    from saengine.drawings import bbs
+
+    std = bbs.standard()
+    return (
+        f"Bar marks (e.g. B1-T2) refer to the {std.title.lower()}; "
+        f"{std.shapeTerm.lower()} to {std.name}."
+    )
+
+
 def general_notes(objects: Any, materials: Any, detailing: dict[str, Any]) -> list[str]:
     """The general notes of the drawing set."""
     notes = [
@@ -1339,7 +1366,7 @@ def general_notes(objects: Any, materials: Any, detailing: dict[str, Any]) -> li
             "drawing shows a length; laps where the elevations show them (class B), none in "
             "beam-column joints; no laps of 36 mm bars and larger: mechanical couplers."
         ),
-        "Bar marks (e.g. B1-T2) refer to the bar bending schedule; shape codes to BS 8666.",
+        _schedule_note(),
     ]
     for n in detailing.get("notes", []):
         text = str(n)

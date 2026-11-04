@@ -41,6 +41,27 @@ here, newest first, with the date, the question, the decision, the reason and wh
 - **No unlicensed software.** ETABS, SAP2000 and STAAD are not used for cross-checks or cited.
   Open-source tools are used instead (2026-10-25).
 
+## 2026-11-04: bar bending schedules by the pack's standard (alpha 9 track C14)
+
+- **Where.** The schedule standard is the code pack's `barSchedule` table: `standard` picks one
+  of `standards` (shape codes, dimension letters, cutting-length formulas as expressions, minimum
+  radii, end projections, rounding, size label, columns, sheet title, sketches). Override per
+  project with `barSchedule.standard`; a standard the pack lacks is taken from the built-in pack
+  that gives it (stated in the schedule notes).
+- **Defaults.** BNBC 2020 and BS 8110: BS 8666 (unchanged output); Eurocodes: EN ISO 3766 (a UK
+  National Annex pack sets `bs8666`); IS: IS 2502; US: ACI 315 / CRSI bar list.
+- **SAEngine practice.** EN ISO 3766 gives no length formulas: lengths along the centre line
+  from the outside dimensions with the code's mandrel. IS 2502 shapes keep the BS 8666 / ISO
+  numbers as references, sketched on the sheets. Rounding: ISO 25 mm, IS 10 mm, US 1 in, all up.
+  Link hooks in every standard: the code's 135° seismic extension + r + d. Bar mass stays
+  d²/162 kg/m for every standard (US: of the soft-metric designation), so the BOQ keeps taking
+  the schedule's bars unchanged (BOQ = BBS).
+- **Shape key.** The sketches of the shape codes used are drawn on the schedule sheets when the
+  pack's `barSchedule.shapeKey` is true: on for EN ISO 3766, IS 2502 and ACI 315, off for the
+  default pack so its drawings stay as they were (owner to decide whether to turn it on).
+- **Units seam.** Lengths stay in mm; `bbs.length_display()` is the one place the project's
+  display units (track C13) are to be applied.
+
 ## 2026-11-04: the legacy packs BS 8110 and BNBC 2006 (alpha 9 track C10)
 
 Two built-in packs that extend BNBC 2020 (owner: wanted after all, gaps CD-4): `bs8110` (BS 8110,
@@ -615,6 +636,12 @@ against the printed standard). Its behaviour choices:
   packs for the codes that adopt ACI/ASCE (Saudi Arabia, Pakistan, the Philippines, Indonesia),
   Canada, Mexico, Australia and New Zealand, Japan, China, Turkey, Nepal and Sri Lanka, and an
   opt-in hazard lookup by site coordinates. Report and drawing languages come with i18n.
+  Owner, later still: packs for Myanmar, Bhutan, Malaysia, Singapore, Qatar and the Gulf, Hong
+  Kong, Korea, Iran, Egypt, South Africa, Brazil, Chile, Peru and Russia; SAEngine must work with
+  any country's code (a readiness audit, a conformance test every pack passes, and pack
+  authoring an office can do itself). Eurocode foundation capacity design computes Ω from the
+  dissipative members with q as the cap; under the IS pack, column construction joints keep
+  the shear-friction check, labelled SAEngine practice (IS 456 has no such rule).
   The US pack's steel shapes come from SAEngine's own shape list, not the AISC shapes
   database, whose redistribution terms are not checked (owner).
 - **Eurocodes pack, loads and seismic (alpha 9 track C4).** The built-in pack `eurocodes`
