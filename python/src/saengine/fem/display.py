@@ -621,7 +621,23 @@ def result_view(
             )
             item["stress"] = _round(np.append(stress, von_mises(stress)), 1)
         view_solids.append(item)
+    extra: dict[str, Any] = {}
+    if push is not None:
+        # P3: the hinges' state at this step, where the project's code pack checks hinges.
+        from saengine.fem.acceptance import analysis_settings, hinge_ratios
+
+        results, step, analysis_id = push
+        analysis = next(a for a in project["analyses"] if a["id"] == analysis_id)
+        try:
+            states = hinge_ratios(
+                project, analysis, results, analysis_settings(project_path), step, project_path
+            )
+        except Exception:  # noqa: BLE001 - the view shows without the hinge states
+            states = None
+        if states is not None:
+            extra["hinges"] = states
     return {
+        **extra,
         "label": label,
         "kind": kind,
         "nodes": [[n, *_round(v, 9)] for n, v in disp.items()],

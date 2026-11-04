@@ -124,13 +124,14 @@ def test_bbs_csv_si_unchanged_and_us():
     schedule = bbs.bar_schedule({"elements": [beam()]})
     assert bbs.schedule_csv(schedule) == bbs.schedule_csv(schedule, u.SI)
     us = bbs.schedule_csv(schedule, US)
-    assert "Length of each (ft-in)" in us
+    assert "(ft-in)" in us
     assert "Mass (lb)" in us
     # the 300x500 beam's stirrup: 1450 mm -> 4'-9 1/8", Ø10 -> #3
     assert "B420DWR #3" in us
     assert "4'-9 1/8\"" in us
-    table = bbs.sheet_table(schedule)
-    assert bbs.display_table(table, u.SI) is table
-    shown = bbs.display_table(table, US)
-    assert shown["columns"][4]["title"] == "A\n(ft-in)"
+    assert bbs.sheet_table(schedule) == bbs.sheet_table(schedule, u.SI)
+    shown = bbs.sheet_table(schedule, US)
+    assert "(ft-in)" in shown["columns"][4]["title"]
     assert shown["totals"]["columns"][-1]["title"] == "Total\n(lb)"
+    # the drawings' bar data keep the cutting lengths in mm
+    assert shown["cuttingLengths"] == bbs.sheet_table(schedule)["cuttingLengths"]

@@ -508,3 +508,21 @@ C9b), HSS joints, eccentrically braced frames, the composite columns and deck ru
 Tables 5-8: SAEngine's components and cladding check is built on the area-dependent (GCp) form,
 not the local Cpe zones), the across-wind response and the IS 16700 slenderness and acceleration
 limits (SAEngine has no such checks).
+
+## IS 2502:1963 bar bending schedules (alpha 9 C14)
+
+`barSchedule.standard` = `is2502`. IS 2502 schedules show each shape as a sketch; SAEngine keeps
+the BS 8666 / ISO 3766 numbers as each shape's reference (the sheets draw the sketches,
+`shapeKey`). The bend radii are the code's (this pack has no IS 456 bend rule of its own yet:
+the parent's), with no IS 2502 minimum radius.
+
+| # | Path | Value | Clause | What | Confidence |
+|---|---|---|---|---|---|
+| BS1 | barSchedule.standards.is2502.deductions | 45° 1 d, 90° 2 d, 135° 3 d, 180° 4 d | IS 2502:1963 (bend deductions), SP 34:1987 | Bend deductions | Uncertain (from memory; the values commonly used with IS 2502) |
+| BS2 | barSchedule.standards.is2502.shapes.11 / 21 / 23 / 31 / 41 | outside dimensions less n × 2 d | IS 2502:1963 | Bent bars | Check |
+| BS3 | barSchedule.standards.is2502.shapes.26 | A + B + C - 2 × 1 d | IS 2502 (45° deduction) | Cranked bar (the stair crank is not 45°) | Uncertain |
+| BS4 | barSchedule.standards.is2502.shapes.13 | A + B + C - 4 d | IS 2502 | One 180° bend | Uncertain |
+| BS5 | barSchedule.standards.is2502.shapes.51, linkHook | 2(A + B) + 2C - 3 × 2d - 2 × 3d, C = code's 135° extension + r + d | IS 2502 / SAEngine practice | Closed stirrup | Uncertain (the hook allowance IS 2502 tabulates is not used) |
+| BS6 | barSchedule.standards.is2502.shapes.77 | C √((π(A - d))² + B²) | geometry | Helix | Sure (geometry) |
+| BS7 | barSchedule.standards.is2502.shapes (codes) | 00, 11, 13, 21, 23, 26, 31, 41, 51, 77, 99 | SAEngine practice | Shape references | Practice (IS 2502's own designations not used) |
+| BS8 | barSchedule.standards.is2502.roundTo | 10 mm, up | SAEngine practice | Rounding | Practice |

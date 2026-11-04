@@ -2004,9 +2004,26 @@ def _pushover(folder: Path, warnings: list[str]) -> list[dict[str, Any]]:
                 clauses.get("noDrop", ""),
             ],
         ]
+        if target.get("method", "coefficient") != "coefficient":
+            # P3: the other target methods' values.
+            section["target"] = _pushover_target_rows(target, yes)
+        if target.get("hazards"):  # P3: the hazard levels
+            section["hazards"] = [
+                [
+                    h.get("label") or h["id"],
+                    h["level"],
+                    fmt(h["scale"], 2),
+                    f"{fmt(1e3 * h['target'], 1)} mm"
+                    + (" (beyond the curve)" if h["beyondCurve"] else ""),
+                ]
+                for h in target.get("hazards", [])
+            ]
         section["ok"] = bool(target.get("ok"))
         section["notes"] = [*target.get("notes", []), target.get("note", "")]
-        if accepted.get("available"):
+        if accepted.get("available") and accepted.get("method") == "hingeRotation":
+            section.update(_pushover_hinges(accepted, item["label"], warnings))
+            section["notes"] += [*accepted.get("notes", []), accepted.get("note", "")]
+        elif accepted.get("available"):
             rows = accepted["rows"]
             section["acceptance"] = [
                 [
@@ -2042,6 +2059,149 @@ def _pushover(folder: Path, warnings: list[str]) -> list[dict[str, Any]]:
         section["notes"] = [n for n in section["notes"] if n]
         sections.append(section)
     return sections
+
+
+def _pushover_target_rows(target: dict[str, Any], yes: dict[Any, str]) -> list[list[str]]:
+    """P3: the report rows of a target displacement found by another method than
+    ``coefficient`` (displacementCoefficient, equivalentLinearization, n2)."""
+    clauses = target.get("clauses", {})
+    method = target["method"]
+    rows = [["Period of the first increment T1", f"{fmt(target['T1'], 3)} s", ""]]
+    if method == "n2":
+        rows += [
+            ["Transformation factor Γ", fmt(target["Gamma"], 3), clauses.get("sdof", "")],
+            ["Equivalent mass m*", f"{fmt(target['mStar'] / 1e3, 1)} t", clauses.get("sdof", "")],
+            [
+                "Yield force Fy*",
+                f"{fmt(target['FyStar'] / 1e3, 0)} kN",
+                clauses.get("idealisation", ""),
+            ],
+            [
+                "Yield displacement dy*",
+                f"{fmt(1e3 * target['dyStar'], 1)} mm",
+                clauses.get("idealisation", ""),
+            ],
+            ["Period T*", f"{fmt(target['Tstar'], 3)} s", clauses.get("period", "")],
+            ["Se(T*)", f"{fmt(target['Se'], 3)} g", ""],
+            [
+                "Elastic displacement det*",
+                f"{fmt(1e3 * target['det'], 1)} mm",
+                clauses.get("target", ""),
+            ],
+            ["qu", fmt(target["qu"], 2), clauses.get("target", "")],
+            ["dt*", f"{fmt(1e3 * target['dtStar'], 1)} mm", clauses.get("target", "")],
+        ]
+    else:
+        rows += [
+            ["Effective yield strength Vy", f"{fmt(target['Vy'] / 1e3, 0)} kN", ""],
+            ["Effective yield displacement δy", f"{fmt(1e3 * target['dy'], 1)} mm", ""],
+            ["Effective period Te", f"{fmt(target['Te'], 3)} s", clauses.get("period", "")],
+            ["Sa(Te)", f"{fmt(target['Sa'], 3)} g", ""],
+        ]
+        if method == "displacementCoefficient":
+            rows += [
+                ["C0", fmt(target["C0"], 3), clauses.get("c0", "")],
+                ["μstrength", fmt(target["mu"], 2), clauses.get("rd", "")],
+                [
+                    "C1 (site factor a = " + fmt(target["a"], 0) + ")",
+                    fmt(target["C1"], 3),
+                    clauses.get("c1", ""),
+                ],
+                ["C2", fmt(target["C2"], 3), clauses.get("c2", "")],
+                ["Cm", fmt(target["Cm"], 2), ""],
+            ]
+        else:
+            rows += [
+                ["Initial period T0", f"{fmt(target['T0'], 3)} s", clauses.get("damping", "")],
+                ["Ductility μ", fmt(target["mu"], 2), clauses.get("damping", "")],
+                [
+                    "Effective damping βeff",
+                    f"{fmt(target['beta'], 1)} %",
+                    clauses.get("damping", ""),
+                ],
+                ["Spectral reduction B", fmt(target["B"], 3), clauses.get("damping", "")],
+                [
+                    "PF, α1",
+                    f"{fmt(target['PF'], 3)}, {fmt(target['alpha1'], 3)}",
+                    clauses.get("sdof", ""),
+                ],
+            ]
+    rows += [
+        [
+            "Target displacement δt",
+            f"{fmt(1e3 * target['target'], 1)} mm",
+            clauses.get("target", ""),
+        ],
+        [
+            f"Pushed to (at least {fmt(1e3 * target['required'], 1)} mm)",
+            f"{fmt(1e3 * target['pushedTo'], 1)} mm, {yes[bool(target['reached'])]}",
+            clauses.get("pushTo", ""),
+        ],
+    ]
+    if target.get("noDropTo") is not None:
+        rows.append(
+            [
+                f"No drop of the base shear up to {fmt(1e3 * target['noDropTo'], 1)} mm",
+                yes[target["noDrop"]],
+                clauses.get("noDrop", ""),
+            ]
+        )
+    return rows
+
+
+def _pushover_hinges(accepted: dict[str, Any], label: str, warnings: list[str]) -> dict[str, Any]:
+    """P3: the report rows of the hinges (``saengine.fem.hinges``) at the target displacement:
+    the governing ones by their ratio to the checked level, and the hazard levels' counts."""
+    rows = [r for r in accepted["rows"] if r.get("covered")]
+    level = accepted["checkedLevel"]
+    shown = rows[:MAX_PUSHOVER_MEMBERS]
+
+    def limit_of(r: dict[str, Any]) -> str:
+        value = r["limits"].get(level)
+        return "–" if value is None else f"{value:.4g}"
+
+    out: dict[str, Any] = {
+        "hinges": [
+            [
+                r["hinge"],
+                r["component"],
+                r["state"],
+                r.get("backbone") or "–",
+                f"{r['demand']:.4g}",
+                limit_of(r),
+                "–" if r["ratio"] is None else fmt(r["ratio"], 2),
+                "OK" if r["ok"] else "FAIL",
+            ]
+            for r in shown
+        ],
+        "hingeFails": [not r["ok"] for r in shown],
+        "hingeText": (
+            f"Hinges at the target displacement against {level} "
+            f"({sum(1 for r in rows if not r['ok'])} of {len(rows)} exceed it; the "
+            f"{len(shown)} with the largest ratios are listed; {accepted.get('clause', '')}). "
+            "Demand and limit are in the hinge's own measure: plastic or chord rotation [rad] "
+            "for concrete, multiples of θy (or of the yield or buckling deformation of a "
+            "brace) for steel, the storey drift ratio for walls controlled by shear."
+        ),
+        "hingeHazards": [
+            [
+                h.get("label") or h["id"],
+                h["level"],
+                "not reached" if not h.get("available") else str(h["failed"]),
+                "–" if h.get("worst") is None else fmt(h["worst"], 2),
+                "–" if h.get("ok") is None else ("OK" if h["ok"] else "FAIL"),
+            ]
+            for h in accepted.get("hazards", [])
+        ],
+    }
+    failed = [h for h in accepted.get("hazards", []) if h.get("ok") is False]
+    if failed or (not accepted.get("hazards") and not accepted.get("ok")):
+        warnings.append(
+            f"Pushover {label}: hinges exceed their performance level "
+            + (", ".join(f"{h['level']} at {h['id']}" for h in failed) or level)
+            + "."
+        )
+    return out
 
 
 #: Members listed in the pushover acceptance table of the report (the largest ratios).

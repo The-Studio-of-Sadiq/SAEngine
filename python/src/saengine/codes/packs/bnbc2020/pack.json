@@ -58,7 +58,8 @@
     "designClauses",
     "designLimits",
     "citations",
-    "mepOpenings"
+    "mepOpenings",
+    "barSchedule"
   ],
   "description": "Bangladesh National Building Code 2020: Part 6 (Structural Design: loads, wind and earthquake, load combinations, reinforced concrete, seismic detailing, structural steel and foundations), Part 8 (plumbing, air-conditioning, electrical services), Part 4 (fire protection) and the standard steel sections SAEngine designs with. The values SAEngine used before code packs, transcribed from its modules; every table names its clauses and pages.",
   "sources": [
@@ -292,6 +293,9 @@
       ],
     "mepOpenings": [
       "BNBC 2020 Part 6 Sec 5.16.3, 6.4.1.1.1, 6.4.10.6, 6.5.2.1, 6.5.4 and 6.6.3.4-6.6.3.7 (pp. 863-969): openings and sleeves through beams, slabs and walls"
+    ],
+    "barSchedule": [
+      "BS 8666:2020 (not part of BNBC 2020; SAEngine practice for schedules in Bangladesh): shape codes, cutting-length formulas, minimum scheduling radii and end projections of the bar bending schedule"
     ]
   },
   "basis": {

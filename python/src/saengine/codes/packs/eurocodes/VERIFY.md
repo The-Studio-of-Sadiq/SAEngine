@@ -508,3 +508,41 @@ Rows numbered S1-S36 (their own series, so the parallel tracks do not collide).
 | S34 | θa,cr = 39.19 ln(1/(0.9674 μ0^3.833) - 1) + 482; ηfi = 0.65 | EN 1993-1-2 4.2.4 Eq 4.22; 2.4.2(3) | Critical temperature; the load ratio (μ0 = ηfi × the ambient utilisation, γM,fi = γM: SAEngine reading) | sure |
 | S35 | Nb,fi,t,Rd = χfi A ky,θ fy / γM,fi, λ̄θ = λ̄ √(ky,θ/kE,θ), α = 0.65 √(235/fy), γM,fi = 1.0 | EN 1993-1-2 4.2.3.2 Eqs 4.5-4.7, 2.3 | Compression members in fire | sure |
 | S36 | Heating: Δθa = ksh (Am/V) hnet Δt / (ca ρa), ksh = 0.9 [Am/V]b/[Am/V] (I-sections), αc 25 W/m²K, εm 0.7, εf 1.0, ca 600 J/kgK, ρa 7850 kg/m³; protected Eq 4.27 with φ = cp ρp dp (Ap/V)/(ca ρa); θg = 20 + 345 log10(8t + 1) | EN 1993-1-2 4.2.5.1 Eqs 4.25-4.26a, 4.2.5.2 Eq 4.27, 2.2(2), 3.4.1.2(2); EN 1991-1-2 3.2.1 Eq 3.4, 3.1(6) | Steel temperature (the protection is a project value, default none) | sure |
+
+## EN 1998-1 Annex B and EN 1998-3 (pushover.json, alpha 9 track P3)
+
+| # | Value | Clause | Description | Confidence |
+| --- | --- | --- | --- | --- |
+| N1 | Push to 150 % of the target displacement; no no-drop rule | EN 1998-1 4.3.3.4.2.3(2) | Two patterns (modal, uniform) are required; SAEngine runs the chosen one | sure |
+| N2 | Γ = Σmφ/Σmφ², m* = Σmφ, F* = Fb/Γ, d* = dn/Γ (φ = 1 at the roof) | Annex B.2, B.3, Eqs B.1-B.3 | | sure |
+| N3 | Fy* the force at the plastic mechanism (the largest force up to dm*), dy* = 2(dm* − Em*/Fy*) | Annex B.3, Eq B.6 | | sure |
+| N4 | T* = 2π √(m* dy*/Fy*) | Annex B.4, Eq B.7 | | sure |
+| N5 | det* = Se(T*)(T*/2π)²; T* ≥ TC: dt* = det*; T* < TC and Fy*/m* < Se: dt* = det*/qu (1 + (qu − 1) TC/T*) ≥ det*, qu = Se m*/Fy* | Annex B.5, Eqs B.8-B.12 | | sure |
+| N6 | dt* ≤ 3 det* | Annex B.5 Note | | unsure |
+| N7 | Iteration with dm* = dt* (optional) | Annex B.6 | SAEngine iterates until it settles | sure |
+| N8 | Limit states SD (design action, 475 years, main), NC (2475 years, spectrum × 1.73), DL (225 years, × 0.78) | EN 1998-3 2.1(3); scale (TLR/TL)^(1/3) by EN 1998-1 2.1(4) Note, k = 3 | The scales are SAEngine practice where the National Annex gives no spectra | unsure |
+| N9 | θum = (1/γel) 0.016 (0.3^ν) [max(0.01, ω')/max(0.01, ω) fc]^0.225 (LV/h)^0.35 25^(α ρsx fyw/fc) 1.25^(100 ρd), γel = 1.5 (primary) | EN 1998-3 A.3.2.2(1), Eq A.1 | ρ over b·h; ρd = 0; members with seismic detailing; no laps in the hinge | sure |
+| N10 | Walls: θum × 0.58 | EN 1998-3 A.3.2.2(1) | | unsure |
+| N11 | α = (1 − sh/2bo)(1 − sh/2ho)(1 − Σbi²/6hobo); every bar held by a tie corner or cross-tie | EN 1998-3 A.3.2.2(1) | The held bars are SAEngine practice | sure |
+| N12 | SD = 3/4 θum, NC = θum, DL = θy (the chord rotation at the first yield of the tension bars in the analysis) | EN 1998-3 A.3.2.3, A.3.2.4 | θy from the analysis instead of Eq A.10: SAEngine practice | sure |
+| N13 | Steel beams and columns (× θy): class 1 DL 1.0 SD 6.0 NC 8.0; class 2 DL 0.25 SD 2.0 NC 3.0; columns only up to N/Npl = 0.3 | EN 1998-3 B.5.2 | | unsure |
+| N14 | Braces (× ΔT, Δc): tension DL 0.25 SD 7 NC 9; compression DL 0.25 SD 4 NC 6 | EN 1998-3 B.5.3 | | unsure |
+| N15 | Class 1 / 2 by EN 1993-1-1 Table 5.2: flange c/tf 9ε / 10ε, web 72ε / 83ε, as √(E/fy) multiples 0.301 / 0.334 and 2.41 / 2.78 (E = 210 GPa) | EN 1993-1-1 Table 5.2 | Flange c taken as bf/2 | sure |
+
+## EN ISO 3766:2003 bar schedules (alpha 9 C14)
+
+`barSchedule.standard` = `iso3766`. EN ISO 3766 gives the shape codes and how they are
+dimensioned (outside dimensions); it gives no cutting-length formulas, so SAEngine computes the
+length along the bar's centre line (SAEngine practice), with the mandrel diameters of EN
+1992-1-1 8.3 (`concreteMethods.barShapes`). A UK National Annex pack sets `standard` back to
+`bs8666` (inherited from the default pack).
+
+| # | Path | Value | Clause | What | Confidence |
+|---|---|---|---|---|---|
+| BI1 | barSchedule.standards.iso3766.shapes (codes) | 00, 11, 12, 13, 21, 23, 26, 31, 41, 51, 77, 99 and their dimension letters | EN ISO 3766:2003 shape code table | Shape codes and letters | Uncertain (the codes are taken as BS 8666 numbers them; check each code's meaning, and whether 51 is the closed link with 135° hooks) |
+| BI2 | barSchedule.standards.iso3766.shapes.11 / 21 / 31 / 41 | sum of A.. less n [2(r + d) - π/2 (r + d/2)] for n 90° bends | geometry (SAEngine practice) | Centre-line length | Sure (geometry) |
+| BI3 | barSchedule.standards.iso3766.shapes.13 | A + C - B + π (B - d)/2 | geometry (SAEngine practice) | 180° bend of outside width B | Check (that B is the bend's outside width) |
+| BI4 | barSchedule.standards.iso3766.shapes.51 | 2(A + B) + 2C - 10(r + d) + 3π (r + d/2) | geometry (SAEngine practice) | Closed link, C = ext + r + d | Check |
+| BI5 | barSchedule.standards.iso3766.shapes.77 | C √((π(A - d))² + B²) | geometry | Helix of C turns, pitch B | Sure (geometry) |
+| BI6 | barSchedule.standards.iso3766.shapes.26 | A + B + C | SAEngine practice | Crank, kinks neglected | Check |
+| BI7 | barSchedule.standards.iso3766.roundTo | 25 mm, up | SAEngine practice (not in the standard) | Rounding | Practice |

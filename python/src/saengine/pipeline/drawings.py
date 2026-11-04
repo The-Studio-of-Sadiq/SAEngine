@@ -580,7 +580,7 @@ def _generate(
     data = drawing_set(
         root,
         detailing=model,
-        schedule=bbs.sheet_table(schedule),
+        schedule=bbs.sheet_table(schedule, units_from_json(title.get("units"))),
         title=title,
         design_report=design_report,  # the steel connections' utilisation on their details
     )

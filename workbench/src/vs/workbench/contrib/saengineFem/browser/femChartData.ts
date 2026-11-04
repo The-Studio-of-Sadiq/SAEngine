@@ -138,13 +138,78 @@ export interface IFemPushoverTarget {
 	readonly pushedTo?: number;
 	readonly required?: number;
 	readonly reached?: boolean;
-	readonly noDropTo?: number;
+	readonly noDropTo?: number | null;
 	readonly noDrop?: boolean | null;
 	readonly targetStep?: number | null;
 	readonly ok?: boolean;
 	readonly clauses?: { readonly [key: string]: string };
 	readonly note?: string;
 	readonly notes?: readonly string[];
+	/** P3, `displacementCoefficient`: C2, the strength ratio μ, the site factor a and Cm. */
+	readonly C2?: number;
+	readonly mu?: number;
+	readonly a?: number;
+	readonly Cm?: number;
+	/** P3, `equivalentLinearization` (FEMA 440): T0, βeff [%], B, M, PF and α1. */
+	readonly T0?: number;
+	readonly beta?: number;
+	readonly B?: number;
+	readonly M?: number;
+	readonly PF?: number;
+	readonly alpha1?: number;
+	/** P3, `n2` (EN 1998-1 Annex B): Γ, m*, Fy*, dy*, T*, Se, det*, qu, dt*. */
+	readonly Gamma?: number;
+	readonly mStar?: number;
+	readonly FyStar?: number;
+	readonly dyStar?: number;
+	readonly Tstar?: number;
+	readonly Se?: number;
+	readonly det?: number;
+	readonly qu?: number;
+	readonly dtStar?: number;
+	/** P3: the target of each hazard level, the first the main one. */
+	readonly hazards?: readonly IFemPushoverHazard[];
+	/** P3: the performance point (displacement [m], base shear [N]) on the capacity curve. */
+	readonly performancePoint?: readonly number[];
+}
+
+/** P3: one hazard level of a pushover's target displacement (`fem/pushover_target.py`). */
+export interface IFemPushoverHazard {
+	readonly id: string;
+	readonly label: string;
+	readonly level: string;
+	readonly scale: number;
+	readonly target: number;
+	readonly beyondCurve: boolean;
+	readonly targetStep: number | null;
+	/** With the hinges: how many exceed the hazard's performance level, and the largest ratio. */
+	readonly available?: boolean;
+	readonly failed?: number | null;
+	readonly worst?: number | null;
+	readonly ok?: boolean | null;
+}
+
+/** P3: one hinge at the target displacement (`fem/hinges.py`). */
+export interface IFemHingeRow {
+	readonly hinge: string;
+	readonly member: string;
+	readonly end: string;
+	readonly element: number;
+	readonly elements: readonly number[];
+	readonly component: string;
+	readonly yielded: boolean;
+	readonly demand: number;
+	readonly covered: boolean;
+	readonly reason?: string;
+	readonly a?: number | null;
+	readonly b?: number | null;
+	readonly c?: number | null;
+	readonly limits?: { readonly [level: string]: number };
+	readonly state?: string;
+	readonly backbone?: string | null;
+	readonly ratio: number | null;
+	readonly ok: boolean;
+	readonly clause?: string;
 }
 
 /** One member's governing fibre at the target displacement (`fem/acceptance.py`). */
@@ -163,8 +228,15 @@ export interface IFemAcceptanceRow {
 export interface IFemPushoverAcceptance {
 	readonly available: boolean;
 	readonly reason?: string;
+	/** `fibreStrain` (rows: IFemAcceptanceRow) or, P3, `hingeRotation` (hingeRows). */
+	readonly method?: string;
 	readonly step?: number;
 	readonly rows?: readonly IFemAcceptanceRow[];
+	/** P3, `hingeRotation`: the performance levels, the level checked and each hazard's check. */
+	readonly levels?: readonly { readonly id: string; readonly label: string }[];
+	readonly checkedLevel?: string;
+	readonly hazards?: readonly IFemPushoverHazard[];
+	readonly counts?: { readonly [state: string]: number };
 	readonly failed?: number;
 	readonly ok?: boolean;
 	readonly share?: number;
@@ -172,6 +244,11 @@ export interface IFemPushoverAcceptance {
 	readonly clause?: string;
 	readonly note?: string;
 	readonly notes?: readonly string[];
+}
+
+/** P3: the hinge rows of an acceptance by method `hingeRotation`; undefined otherwise. */
+export function hingeRowsOf(acceptance: IFemPushoverAcceptance | undefined): readonly IFemHingeRow[] | undefined {
+	return acceptance?.available && acceptance.method === 'hingeRotation' ? (acceptance.rows ?? []) as unknown as readonly IFemHingeRow[] : undefined;
 }
 
 export interface IFemPushoverCurve {

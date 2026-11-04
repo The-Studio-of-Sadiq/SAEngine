@@ -19,10 +19,8 @@ export const FemPlanned = {
 	stagedConstructionLoads: 'fem.stagedConstructionLoads',
 	creepShrinkageForces: 'fem.creepShrinkageForces',
 	wallShortening: 'fem.wallShortening',
-	/** T21 / B20: what stays planned of the pushover: performance levels, other target methods, walls with openings. */
-	pushoverHinges: 'fem.pushoverHinges',
+	/** T21 / B20 / P3: what stays planned of the pushover: walls with openings. */
 	fibreWalls: 'fem.fibreWalls',
-	performancePoint: 'fem.performancePoint',
 	/** T22: existing RC buildings. */
 	existingAssessment: 'fem.existingAssessment',
 	retrofit: 'fem.retrofit',

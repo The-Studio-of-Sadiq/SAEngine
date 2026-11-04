@@ -1102,27 +1102,29 @@ def drawing_set(
     fill_from_detailing(data, detailing, bim, objects, substructure)
     if data.undesigned:
         data.title.status = NOT_FOR_CONSTRUCTION
+    # C13: the display units of the sheets (Project Settings › Units, in the title info)
+    from saengine.units import csv_heading, units_from_json
+
+    units = units_from_json(data.title.units)
     if schedule is None and detailing.get("elements"):
         from saengine.drawings import bbs
 
         try:
-            schedule = bbs.sheet_table(bbs.bar_schedule(detailing))
+            schedule = bbs.sheet_table(bbs.bar_schedule(detailing), units)
         except (ValueError, TypeError, KeyError) as error:
             data.problems.append(f"The bar bending schedule could not be made: {error}")
-    # C13: the display units of the sheets (Project Settings › Units, in the title info)
-    from saengine.drawings import bbs as bbs_lib
-    from saengine.units import csv_heading, units_from_json
-
-    units = units_from_json(data.title.units)
     if schedule:
-        # the bars take the cutting lengths in mm; the schedule prints in the display units
-        apply_bbs_lengths(data, Table.from_dict(schedule))
-        shown = bbs_lib.display_table(schedule, units)
-        data.bbs.append(Table.from_dict(shown))
-        totals = shown.get("totals")
+        data.bbs.append(Table.from_dict(schedule))
+        apply_bbs_lengths(data, data.bbs[0], schedule.get("cuttingLengths"))
+        totals = schedule.get("totals")
         if totals:
             title_text = csv_heading("Bar masses by size and element (kg)", units)
             data.bbs.append(Table.from_dict(totals, title_text))
+        if schedule.get("shapeKey"):  # alpha 9 C14: the sketches of the standard's shapes
+            from saengine.drawings import bbs
+
+            data.bbs_shapes = [dict(s) for s in schedule["shapeKey"]]
+            data.bbs_shapes_title = bbs.standard().shapeTerm
     data.notes = general_notes(objects, materials, detailing)
     if not units.si and data.notes:
         data.notes[0] = (
@@ -1175,9 +1177,19 @@ def drawing_set(
     return data
 
 
-def apply_bbs_lengths(data: DrawingSet, table: Table) -> None:
+def apply_bbs_lengths(
+    data: DrawingSet, table: Table, given: dict[str, float] | None = None
+) -> None:
     """The cutting length the bar bending schedule lists for each bar mark (its column
-    ``cutting_length``) onto the beam bars, so that the drawing's bar data reads as the BBS."""
+    ``cutting_length``) onto the beam bars, so that the drawing's bar data reads as the BBS.
+    ``given``: the lengths [mm] by mark (:func:`saengine.drawings.bbs.sheet_table`'s
+    ``cuttingLengths``, whatever unit the cells show), read in place of the column."""
+    if given:
+        for beam in data.beams:
+            for bar in beam.bars:
+                if bar.mark in given:
+                    bar.bbs_length = float(given[bar.mark])
+        return
     keys = [str(c.get("key")) for c in table.columns]
     if "mark" not in keys or "cutting_length" not in keys:
         return
@@ -1312,6 +1324,18 @@ def undesigned_members(elements: list[dict[str, Any]]) -> dict[str, dict[str, in
     return out
 
 
+def _schedule_note() -> str:
+    """The general note on the bar marks, by the code pack's schedule standard (the default
+    pack: "... refer to the bar bending schedule; shape codes to BS 8666.")."""
+    from saengine.drawings import bbs
+
+    std = bbs.standard()
+    return (
+        f"Bar marks (e.g. B1-T2) refer to the {std.title.lower()}; "
+        f"{std.shapeTerm.lower()} to {std.name}."
+    )
+
+
 def general_notes(objects: Any, materials: Any, detailing: dict[str, Any]) -> list[str]:
     """The general notes of the drawing set."""
     notes = [
@@ -1352,7 +1376,7 @@ def general_notes(objects: Any, materials: Any, detailing: dict[str, Any]) -> li
             "drawing shows a length; laps where the elevations show them (class B), none in "
             "beam-column joints; no laps of 36 mm bars and larger: mechanical couplers."
         ),
-        "Bar marks (e.g. B1-T2) refer to the bar bending schedule; shape codes to BS 8666.",
+        _schedule_note(),
     ]
     for n in detailing.get("notes", []):
         text = str(n)

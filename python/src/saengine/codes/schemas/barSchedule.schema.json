@@ -1,0 +1,474 @@
+{
+  "$defs": {
+    "BarScheduleColumn": {
+      "additionalProperties": false,
+      "description": "A column of the schedule: ``key`` (member, mark, size, shape, a letter, members,\nper_member, total_count, cutting_length, total_length, mass, remarks) and its title; the\ntitle's ``{len}`` is the display unit of lengths (mm).",
+      "properties": {
+        "key": {
+          "title": "Key",
+          "type": "string"
+        },
+        "title": {
+          "title": "Title",
+          "type": "string"
+        }
+      },
+      "required": [
+        "key",
+        "title"
+      ],
+      "title": "BarScheduleColumn",
+      "type": "object"
+    },
+    "BarScheduleStandard": {
+      "additionalProperties": false,
+      "description": "One standard of bar scheduling.",
+      "properties": {
+        "name": {
+          "description": "The standard as the notes name it (e.g. 'BS 8666').",
+          "title": "Name",
+          "type": "string"
+        },
+        "edition": {
+          "default": "",
+          "description": "Its edition (e.g. 'BS 8666:2020').",
+          "title": "Edition",
+          "type": "string"
+        },
+        "title": {
+          "default": "Bar bending schedule",
+          "description": "The sheet title.",
+          "title": "Title",
+          "type": "string"
+        },
+        "shapeTerm": {
+          "default": "Shape codes",
+          "description": "What it calls its shape codes.",
+          "title": "Shapeterm",
+          "type": "string"
+        },
+        "roundTo": {
+          "default": 25.0,
+          "description": "Cutting lengths rounded to this [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Roundto",
+          "type": "number"
+        },
+        "rounding": {
+          "default": "up",
+          "description": "How they are rounded.",
+          "enum": [
+            "up",
+            "nearest"
+          ],
+          "title": "Rounding",
+          "type": "string"
+        },
+        "stockLength": {
+          "default": 12000.0,
+          "description": "Longest bar delivered [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Stocklength",
+          "type": "number"
+        },
+        "radius": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MinimumRadius"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The standard's minimum scheduling radius; the bend radius is the larger of it and half the code's least bend diameter (None: the code's alone)."
+        },
+        "endProjection": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/EndProjection"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Minimum end projection P (None: not checked)."
+        },
+        "linkHook": {
+          "default": "ext + r + d",
+          "description": "The outside dimension of a link's hooked end (expression in ext, r, d).",
+          "title": "Linkhook",
+          "type": "string"
+        },
+        "linkHookRound": {
+          "default": 5.0,
+          "description": "... rounded up to this [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Linkhookround",
+          "type": "number"
+        },
+        "deductions": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "description": "Bend deductions by angle ('45', '90', '135', '180') × d: b45, b90, ... in the formulas.",
+          "title": "Deductions",
+          "type": "object"
+        },
+        "sizeLabel": {
+          "default": "Ø{d}",
+          "description": "A bar size as printed ({d}: its size).",
+          "title": "Sizelabel",
+          "type": "string"
+        },
+        "shapes": {
+          "additionalProperties": {
+            "$ref": "#/$defs/BarShape"
+          },
+          "description": "Shape code -> shape.",
+          "title": "Shapes",
+          "type": "object"
+        },
+        "aliases": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Shape names of the detailing model -> shape code.",
+          "title": "Aliases",
+          "type": "object"
+        },
+        "special": {
+          "default": "99",
+          "description": "The code of a special (as sketched) bar.",
+          "title": "Special",
+          "type": "string"
+        },
+        "columns": {
+          "description": "The schedule's columns, in order.",
+          "items": {
+            "$ref": "#/$defs/BarScheduleColumn"
+          },
+          "title": "Columns",
+          "type": "array"
+        },
+        "note": {
+          "default": "",
+          "description": "The schedule's note: {name}, {bend} (the code's bend clause), {round} and {unit} are filled in.",
+          "title": "Note",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "shapes",
+        "columns"
+      ],
+      "title": "BarScheduleStandard",
+      "type": "object"
+    },
+    "BarShape": {
+      "additionalProperties": false,
+      "description": "A shape code: its dimension letters and its cutting length.",
+      "properties": {
+        "name": {
+          "description": "What the shape is (straight, L bar, closed link, ...).",
+          "title": "Name",
+          "type": "string"
+        },
+        "letters": {
+          "default": "",
+          "description": "The dimension letters scheduled, in order.",
+          "title": "Letters",
+          "type": "string"
+        },
+        "length": {
+          "description": "Cutting length: an expression in the letters, d, r, ext, pi, the standard's deductions (b45, b90, b135, b180) and max, min, sqrt, ceil.",
+          "title": "Length",
+          "type": "string"
+        },
+        "formula": {
+          "default": "",
+          "description": "The formula as printed (default 'L = ...').",
+          "title": "Formula",
+          "type": "string"
+        },
+        "defaults": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Letters that may be left out -> expression of them.",
+          "title": "Defaults",
+          "type": "object"
+        },
+        "transverse": {
+          "default": false,
+          "description": "A link, tie or helix.",
+          "title": "Transverse",
+          "type": "boolean"
+        },
+        "bends": {
+          "default": 0,
+          "description": "Number of bends.",
+          "minimum": 0,
+          "title": "Bends",
+          "type": "integer"
+        },
+        "endCheck": {
+          "default": false,
+          "description": "Check the first and last letters against the end projection.",
+          "title": "Endcheck",
+          "type": "boolean"
+        },
+        "hook": {
+          "default": "",
+          "description": "Letter the schedule fills with the link hook when not given.",
+          "title": "Hook",
+          "type": "string"
+        },
+        "radius": {
+          "default": "",
+          "description": "Letter of a scheduled bend radius (noted if low).",
+          "title": "Radius",
+          "type": "string"
+        },
+        "counts": {
+          "default": "",
+          "description": "Letters that are counts, not mm (turns).",
+          "title": "Counts",
+          "type": "string"
+        },
+        "remarks": {
+          "default": "",
+          "description": "Remark printed with the bar (e.g. 'C = turns').",
+          "title": "Remarks",
+          "type": "string"
+        },
+        "kind": {
+          "default": "bent",
+          "description": "straight: a bar with only a length is scheduled as A; special: as detailed.",
+          "enum": [
+            "bent",
+            "straight",
+            "special"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "sketch": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ShapeSketch"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "name",
+        "length"
+      ],
+      "title": "BarShape",
+      "type": "object"
+    },
+    "EndProjection": {
+      "additionalProperties": false,
+      "description": "The standard's minimum straight end projection P [mm]: ``bySize``, else r + ``radiusDb``\n× d rounded up to ``roundTo``.",
+      "properties": {
+        "bySize": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "description": "P [mm] by bar size.",
+          "title": "Bysize",
+          "type": "object"
+        },
+        "radiusDb": {
+          "description": "P = r + this × d for other sizes.",
+          "exclusiveMinimum": 0,
+          "title": "Radiusdb",
+          "type": "number"
+        },
+        "roundTo": {
+          "default": 5.0,
+          "description": "... rounded up to this [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Roundto",
+          "type": "number"
+        }
+      },
+      "required": [
+        "radiusDb"
+      ],
+      "title": "EndProjection",
+      "type": "object"
+    },
+    "MinimumRadius": {
+      "additionalProperties": false,
+      "description": "The standard's minimum scheduling radius r [mm]: ``bySize`` (bar size [mm] as text ->\nr), else the first of ``steps`` that holds the bar.",
+      "properties": {
+        "bySize": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "description": "r [mm] by bar size.",
+          "title": "Bysize",
+          "type": "object"
+        },
+        "steps": {
+          "description": "r for other sizes.",
+          "items": {
+            "$ref": "#/$defs/RadiusStep"
+          },
+          "title": "Steps",
+          "type": "array"
+        }
+      },
+      "title": "MinimumRadius",
+      "type": "object"
+    },
+    "RadiusStep": {
+      "additionalProperties": false,
+      "description": "Bars up to ``upTo`` [mm] (None: every larger bar): a radius of ``factor`` × d, rounded up\nto a whole millimetre when ``ceil``.",
+      "properties": {
+        "upTo": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Bar size up to [mm]; None: above.",
+          "title": "Upto"
+        },
+        "factor": {
+          "description": "Minimum radius as a multiple of d.",
+          "exclusiveMinimum": 0,
+          "title": "Factor",
+          "type": "number"
+        },
+        "ceil": {
+          "default": false,
+          "description": "Round the radius up to a whole mm.",
+          "title": "Ceil",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "factor"
+      ],
+      "title": "RadiusStep",
+      "type": "object"
+    },
+    "ShapeSketch": {
+      "additionalProperties": false,
+      "description": "A shape's sketch for the drawing set's shape key: polylines in a box of about 1 × 1\n(``paths``, each a list of (x, y)), and where each dimension letter is written.",
+      "properties": {
+        "paths": {
+          "description": "Polylines of the bar.",
+          "items": {
+            "items": {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            "type": "array"
+          },
+          "title": "Paths",
+          "type": "array"
+        },
+        "labels": {
+          "additionalProperties": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "description": "Dimension letter -> (x, y) of its label.",
+          "title": "Labels",
+          "type": "object"
+        }
+      },
+      "required": [
+        "paths"
+      ],
+      "title": "ShapeSketch",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "The bar bending schedule's standard (:mod:`saengine.drawings.bbs`): ``standard`` picks\none of ``standards`` (or of a built-in pack's); ``shapeKey`` draws the sketches of the shape\ncodes used on the schedule's sheets.",
+  "properties": {
+    "source": {
+      "default": "",
+      "description": "Clause (and page) the table comes from.",
+      "title": "Source",
+      "type": "string"
+    },
+    "sources": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Clause references of single entries: {key: clause}.",
+      "title": "Sources",
+      "type": "object"
+    },
+    "clauses": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Short clause references the results cite, by key, without the code's name (e.g. 'Part 6 Sec 2.5.7.3'); read by saengine.codes.context.cite. A key the pack does not give is not cited.",
+      "title": "Clauses",
+      "type": "object"
+    },
+    "standard": {
+      "description": "The standard the schedules follow (a key of standards).",
+      "title": "Standard",
+      "type": "string"
+    },
+    "shapeKey": {
+      "default": false,
+      "description": "Draw the shape key (sketches) on the schedule's sheets.",
+      "title": "Shapekey",
+      "type": "boolean"
+    },
+    "standards": {
+      "additionalProperties": {
+        "$ref": "#/$defs/BarScheduleStandard"
+      },
+      "description": "The standards this pack gives, by id.",
+      "title": "Standards",
+      "type": "object"
+    }
+  },
+  "required": [
+    "standard"
+  ],
+  "title": "BarScheduleTable",
+  "type": "object",
+  "$id": "saengine.codePack.barSchedule/1"
+}

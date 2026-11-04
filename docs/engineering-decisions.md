@@ -66,6 +66,28 @@ here, newest first, with the date, the question, the decision, the reason and wh
   to 1/8" (DXF architectural units, the geometry stays in mm) and levels in feet; the BBS's
   lengths in ft-in, totals in ft and masses in lb.
 
+## 2026-11-04: bar bending schedules by the pack's standard (alpha 9 track C14)
+
+- **Where.** The schedule standard is the code pack's `barSchedule` table: `standard` picks one
+  of `standards` (shape codes, dimension letters, cutting-length formulas as expressions, minimum
+  radii, end projections, rounding, size label, columns, sheet title, sketches). Override per
+  project with `barSchedule.standard`; a standard the pack lacks is taken from the built-in pack
+  that gives it (stated in the schedule notes).
+- **Defaults.** BNBC 2020 and BS 8110: BS 8666 (unchanged output); Eurocodes: EN ISO 3766 (a UK
+  National Annex pack sets `bs8666`); IS: IS 2502; US: ACI 315 / CRSI bar list.
+- **SAEngine practice.** EN ISO 3766 gives no length formulas: lengths along the centre line
+  from the outside dimensions with the code's mandrel. IS 2502 shapes keep the BS 8666 / ISO
+  numbers as references, sketched on the sheets. Rounding: ISO 25 mm, IS 10 mm, US 1 in, all up.
+  Link hooks in every standard: the code's 135° seismic extension + r + d. Bar mass stays
+  d²/162 kg/m for every standard (US: of the soft-metric designation), so the BOQ keeps taking
+  the schedule's bars unchanged (BOQ = BBS).
+- **Shape key.** The sketches of the shape codes used are drawn on the schedule sheets when the
+  pack's `barSchedule.shapeKey` is true: on for EN ISO 3766, IS 2502 and ACI 315, off for the
+  default pack so its drawings stay as they were (owner to decide whether to turn it on).
+- **Units seam.** Lengths stay in mm; `bbs.length_display()` is the one place the project's
+  display units (track C13) are to be applied. C13 applies them there (feet and inches in US
+  customary units); the cutting lengths handed to the drawings stay in mm.
+
 ## 2026-11-04: the legacy packs BS 8110 and BNBC 2006 (alpha 9 track C10)
 
 Two built-in packs that extend BNBC 2020 (owner: wanted after all, gaps CD-4): `bs8110` (BS 8110,
@@ -549,6 +571,33 @@ defaults (`codes/generic/data`), named "generic default (SAEngine practice), not
     - Quantities: the bill measures the chord bars along each slab's free edges (no parallel
       beam within 1 m). The drawings don't detail them yet.
 
+## 2026-11-04: pushover hinges, performance levels and the performance point (alpha 9, track P3)
+
+- **Target displacement by method id** (`pushover.targetDisplacement.method`): `coefficient`
+  (the default pack's, unchanged), `displacementCoefficient` (ASCE 41-17 Eqs 7-28 to 7-31, the
+  US pack's), `equivalentLinearization` (FEMA 440 performance point, selectable in the US pack
+  by an override) and `n2` (EN 1998-1 Annex B, the Eurocodes pack's). A pack may list hazard
+  levels (`hazards`: BSE-1N/BSE-2N, SD/NC/DL) with a spectrum scale and the performance level
+  checked there; the first is the main target. Code values (the formulas); the hazard scales of
+  the Eurocodes pack (NC × 1.73, DL × 0.78 by (TLR/TL)^(1/3)) are SAEngine practice.
+- **Hinges are assigned, not modelled.** The pushover stays the fibre model it was: the hinges
+  (`fem/hinges.py`) sit at every frame member end and fibre wall storey segment and are read
+  from the run. The plastic rotation of a concrete end is its chord rotation beyond the one at
+  the first yield of its tension bars in the analysis; steel uses θy = Z·Fy·L/(6EI) (× (1 −
+  P/Pye) for columns); braces their axial deformation beyond yield or buckling; walls with
+  hw/lw ≤ 1.5 their storey drift. The modelling parameters a, b, c and the limits per level come
+  from the pack's tables (`table`, `columnRegression`, `chordRotationCapacity` models) with the
+  variables at the target displacement. SAEngine practice (the assignment), code values (the
+  tables). Results of the default pack are unchanged: it has no hinges and keeps `fibreStrain`.
+- **Safe-side fallbacks:** ties not readable (no 04 Objects) count as not conforming, profiles
+  other than I shapes as noncompact, ASCE 7-22 site classes BC/CD/DE take the softer
+  neighbour's C1 factor, Cm = 1.0. SAEngine practice.
+- **The pushover results follow the project's code pack** (with its overrides): until now they
+  were worked out under the default pack whatever the project chose. Projects on the default
+  pack see the same results.
+- Where: `fem/pushover_target.py`, `fem/hinges.py`, `fem/acceptance.py`, the packs'
+  `data/pushover.json` (values in their `VERIFY.md`).
+
 ## 2026-11-04: the US loads pack (alpha 9, track C1)
 
 The built-in pack `aci318-asce7-22` (ASCE 7-22 loads; values in its `VERIFY.md`, to be checked
@@ -613,6 +662,12 @@ against the printed standard). Its behaviour choices:
   packs for the codes that adopt ACI/ASCE (Saudi Arabia, Pakistan, the Philippines, Indonesia),
   Canada, Mexico, Australia and New Zealand, Japan, China, Turkey, Nepal and Sri Lanka, and an
   opt-in hazard lookup by site coordinates. Report and drawing languages come with i18n.
+  Owner, later still: packs for Myanmar, Bhutan, Malaysia, Singapore, Qatar and the Gulf, Hong
+  Kong, Korea, Iran, Egypt, South Africa, Brazil, Chile, Peru and Russia; SAEngine must work with
+  any country's code (a readiness audit, a conformance test every pack passes, and pack
+  authoring an office can do itself). Eurocode foundation capacity design computes Ω from the
+  dissipative members with q as the cap; under the IS pack, column construction joints keep
+  the shear-friction check, labelled SAEngine practice (IS 456 has no such rule).
   The US pack's steel shapes come from SAEngine's own shape list, not the AISC shapes
   database, whose redistribution terms are not checked (owner).
 - **Eurocodes pack, loads and seismic (alpha 9 track C4).** The built-in pack `eurocodes`
