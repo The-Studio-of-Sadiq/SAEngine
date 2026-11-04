@@ -280,3 +280,127 @@ capacity (32.2.5, stored), the near-support shear enhancement (40.5, stored), IS
 settlement (the parent's methods), IS 2950 rafts (the parent's raft design; no IS rigidity
 criterion yet), IS 3370 tanks (the 0.2 mm width stored, the tank design is the parent's),
 precast, prestress, corbels, deep beams, stairs.
+
+
+## Alpha 9 C9: IS 800:2007 steel (steelLimitState, steel, steelSections, serviceability)
+
+Entered from knowledge of IS 800:2007 (no copy of the code on the PC, 2026-11-04). IS 800 names
+the major axis z-z and the minor y-y; SAEngine's x is the major axis.
+
+| # | Path | Value | Clause | What | Confidence |
+| --- | --- | --- | --- | --- | --- |
+| 200 | steelLimitState.partialFactors.gammaM0 / gammaM1 | 1.10 / 1.25 | 5.4.1, Table 5 | Yielding and buckling / ultimate stress | Sure |
+| 201 | partialFactors.gammaMb | 1.25 | Table 5 | Bolts, bearing type | Sure |
+| 202 | partialFactors.gammaMf / gammaMfService | 1.25 / 1.10 | Table 5 | Friction grip slip at ultimate / service load | Sure |
+| 203 | partialFactors.gammaMw / gammaMwField | 1.25 / 1.50 | Table 5 | Welds, shop / field | Sure |
+| 204 | classification.referenceFy | 250 | 3.7.2, Table 2 | ε = √(250/fy) | Sure |
+| 205 | classification.outstandRolled | 9.4, 10.5, 15.7 ε | Table 2 | Outstand of a compression flange, rolled (b = bf/2) | Sure |
+| 206 | classification.outstandWelded | 8.4, 9.4, 13.6 ε | Table 2 | The same, welded | Sure |
+| 207 | classification.internalFlange / internalAxial | 29.3, 33.5, 42 ε / 42 ε | Table 2 | Internal element of a flange in bending / axial (RHS walls) | Sure |
+| 208 | classification.web | 84, 105, 126 ε | Table 2 | Web, neutral axis at mid-depth (d = clear web depth) | Sure |
+| 209 | classification.webAxialFactors, webAxial | ÷ (1 + r1), (1 + 1.5 r1), (1 + 2 r2), ≥ 42 ε | Table 2 | Web with axial compression; SAEngine takes r1 = r2 = P / (A fy / γm0) | Check (r1 is of the web alone in the code) |
+| 210 | classification.channelWeb | 42 ε (all classes) | Table 2 | Web of a channel | Check |
+| 211 | classification.angleBending, angleAxial | 9.4, 10.5, 15.7 ε; 15.7 ε and (b + d)/t 25 ε | Table 2 | Single angles | Sure |
+| 212 | classification.teeStem | 8.4, 9.4, 18.9 ε | Table 2 | Stem of a tee (the table prints D/tf; SAEngine uses D/tw) | Uncertain (D/tf as printed?) |
+| 213 | classification.circularBending / circularAxial | 42, 52, 146 ε² / 88 ε² | Table 2 | Circular hollow sections | Sure |
+| 214 | compression.alpha | a 0.21, b 0.34, c 0.49, d 0.76 | 7.1.2.1, Table 7 | Imperfection factor | Sure |
+| 215 | compression.plateau | 0.2 | 7.1.2.1 | φ = 0.5 [1 + α (λ − 0.2) + λ²] | Sure |
+| 216 | compression.rolledI | h/b > 1.2: tf ≤ 40 a/b, ≤ 100 b/c; h/b ≤ 1.2: tf ≤ 100 b/c, above d/d | 7.1.2.2, Table 10 | Buckling class of rolled I-sections (z-z / y-y) | Sure |
+| 217 | compression.weldedI | tf ≤ 40 b/c, above c/d | Table 10 | Welded I-sections | Sure |
+| 218 | compression.families | channels, angles, tees, solid c; hollow b | Table 10 | Hollow sections: hot rolled a, cold formed b; SAEngine's tubes are cold formed (b) | Check |
+| 219 | compression.angleConstants | ≥ 2 bolts fixed 0.20, 0.35, 20; hinged 0.70, 0.60, 5; 1 bolt fixed 0.75, 0.35, 20; hinged 1.25, 0.50, 60 | 7.5.1.2, Table 12 | k1, k2, k3 of λe | Check |
+| 220 | compression.angleCondition | twoBoltsHinged | 7.5.1.2 | SAEngine practice (the end is not known to the member) | SAEngine choice |
+| 221 | (slender sections) | each slender element counted up to its semi-compact width | 7.3.2 | SAEngine's reading of the effective area | Check |
+| 222 | tension.ruptureShare | 0.9 | 6.3.1 | Tdn = 0.9 An fu / γm1; An = Ag (welded ends) unless the member's net ratio is set | Sure |
+| 223 | tension.angleAlpha, angleBolts | α 0.6 / 0.7 / 0.8 for 2 / 3 / ≥ 4 bolts; 2 bolts taken | 6.3.3 | Single angles (the alternative to the β formula) | Check |
+| 224 | flexure.elasticCap / elasticCapCantilever | 1.2 / 1.5 | 8.2.1.2 | Md ≤ 1.2 Ze fy / γm0 (1.5 cantilever) | Sure |
+| 225 | flexure.alphaLT | 0.21 rolled / 0.49 welded | 8.2.2 | Imperfection factor of LTB | Sure |
+| 226 | flexure.ltbPlateau | 0.4 | 8.2.2 | No LTB check while λLT ≤ 0.4 | Sure |
+| 227 | flexure.highShare | 0.6 | 8.2.1.3 | High shear V > 0.6 Vd: Mdv = Md − β (Md − Mfd), β = (2V/Vd − 1)² | Sure |
+| 228 | (Mcr) | c1 √[(π² E Iy / L²)(G It + π² E Iw / L²)], c1 = SAEngine's Cb of the moment diagram | 8.2.2.1, Annex E | Load at the shear centre, K = Kw = 1; tees and angles with Iw of SAEngine (0) | Check (c1 of Table 42 vs the Cb SAEngine computes) |
+| 229 | shear.bucklingLimit | 67 ε | 8.4.2.1 | Unstiffened webs | Sure |
+| 230 | shear.kvUnstiffened / kvStiffened | 5.35; 4 + 5.35/(c/d)², 5.35 + 4/(c/d)² | 8.4.2.2(a) | kv | Sure |
+| 231 | shear.lambdaLimits / lambdaSlope | 0.8, 1.2 / 0.8 | 8.4.2.2(a) | τb by λw (simple post-critical method) | Sure |
+| 232 | (shear areas) | h tw (rolled), d tw (welded), 2 bf tf, A h/(b + h), 2A/π | 8.4.1.1 | Av by shape; angles and tees: the leg / stem (SAEngine practice) | Check |
+| 233 | interaction.alphaMinor / alphaMajor | 5 n ≥ 1 / 2 | 9.3.1.1 | Plastic and compact I-sections | Sure |
+| 234 | interaction.flangeShare / majorReduction | a ≤ 0.5 / Mndz = Mdz (1 − n)/(1 − 0.5 a) | 9.3.1.1 | | Sure |
+| 235 | interaction (linear) | N/Nd + Mz/Mdz + My/Mdy ≤ 1 | 9.3.1.3 | Other sections (and the cap of the plastic form) | Sure |
+| 236 | interaction.kCap / minorShare | Ky, Kz ≤ 1 + 0.8 n; 0.6 | 9.3.2.2 | The two member equations | Sure |
+| 237 | interaction.ltbFactor / ltbOffset | KLT = 1 − 0.1 λLT ny/(CmLT − 0.25) ≥ 1 − 0.1 ny/(CmLT − 0.25) | 9.3.2.2 | | Sure |
+| 238 | interaction.cmMin | 0.4 | Table 18 | Cm = 0.6 + 0.4 ψ ≥ 0.4; transverse loads: SAEngine takes 1.0 (conservative) | Check |
+| 239 | interaction.tensionPsi | 0.8 | 9.3.2.1 | Meff = M − ψ T Zec / A (T and M independent) | Sure |
+| 240 | slenderness.compression / tension | 180 / 400 | 3.8, Table 3 | Members in compression / always in tension | Sure |
+| 241 | shearModulus | 76 900 MPa | 2.2.4.1 | G | Sure |
+| 242 | nominalHollowWall | true | (IS 4923) | Hollow sections on the nominal wall (no ERW 0.93 t) | SAEngine choice |
+| 243 | connections.bolts.grades | 4.6: 400/240, 8.8: 800/640, 10.9: 1000/900 | IS 1367 | fub / fyb; 8.8 and 10.9 friction grip | Sure |
+| 244 | connections.bolts.aliases | A307 → 4.6, A325 → 8.8, A490 → 10.9 | | The object library's grade names (SAEngine practice) | SAEngine choice |
+| 245 | connections.bolts.netShare | 0.78 | 10.3.3 | Anb at the threads; threads taken in every shear plane | Check |
+| 246 | connections.bolts.tensionShare | 0.9 | 10.3.5 | Tnb = 0.9 fub An ≤ fyb Asb γmb/γm0 | Sure |
+| 247 | connections.bolts.bearing* | 2.5 kb d t fu / γmb, kb = min(e/3d0, p/3d0 − 0.25, fub/fu, 1) | 10.3.4 | fub/fu not known in the shared check (taken ≥ 1) | Check |
+| 248 | connections.bolts.proofShare | 0.7 | 10.4.3 | F0 = 0.7 fub Anb | Sure |
+| 249 | connections.bolts.slipMu | A 0.20, B 0.50 | Table 20 | Surfaces not treated / blasted (the object library's classes A and B) | Check (mapping) |
+| 250 | connections.bolts.holeKh | 1.0 / 0.85 / 0.85 / 0.70 | 10.4.3 | Clearance, oversized, short slot, long slot | Sure |
+| 251 | connections.bolts.longJoint | βlj = 1.075 − 0.005 lj/d, 0.75-1.0, lj > 15 d | 10.3.3.1 | βlg and βpk taken 1 (grip and packing not known) | Sure |
+| 252 | connections.welds.throatShare | 0.7 | 10.5.3.2 | Throat of 60-90° fillets | Sure |
+| 253 | (fillet strength) | fu / (√3 γmw); fu of the electrode | 10.5.7.1.1 | The smaller of weld and parent fu in the code; the parent is not known in the shared check | Check |
+| 254 | connections.blockShear | 0.9, 0.9 | 6.4.1 | Tdb; Atg taken as Atn (on the safe side) | Sure |
+| 255 | steel.connections.holes | d + 1 (12-14), d + 2 (16-24), d + 3 (above) | 10.2.1, Table 19 | Standard clearance holes | Check |
+| 256 | steel.connections.edgeRolled / edgeSheared | 1.5 d0 / 1.7 d0 | 10.2.4.2 | Least edge and end distance | Sure |
+| 257 | steel.connections.minSpacing | 2.5 d | 10.2.2 | | Sure |
+| 258 | steel.connections.maxEdge* | 12 t (ε = 1) | 10.2.4.3 | 12 t ε in the code: less strict for fy > 250 | Check |
+| 259 | steel.connections.filletMin | 3 / 5 / 6 / 8 mm up to 10 / 20 / 32 / above | 10.5.2.3, Table 21 | By the thicker part in the code; SAEngine's check gives the thinner | Check |
+| 260 | steel.connections.filletMax* | t − 1.5 mm | 10.5.8.1 | Along a square edge | Check |
+| 261 | steel.phi (connection elements) | 0.9091, 0.72, 0.8748, 0.6928 | 6.2, 6.3.1, 8.4.1, 6.4.1 | 1/γm0, 0.9/γm1, 1/(0.6 √3 γm0), 0.9/(0.6 √3 γm1) as factors of the shared 0.6 fy / 0.6 fu forms | Sure (arithmetic) |
+| 262 | serviceability.deflection.uses | floors 300 / 360; purlins 150 / 180; industrial 240 / 300; rafters 180 / 240; gantry 500 / 750 / 1000 | 5.6.1, Table 6 | Live (and wind) load deflection; cantilevers by cantileverSpan 2 (150 / 180) | Check (the rows) |
+| 263 | steelSections | ISMB, ISMC, equal angles, SHS / RHS / CHS | IS 808, IS 4923 | The parent table's IS 808 rows; ISLB, ISWB, ISHB not entered | Check (the angle list is the shared EN 10056 / IS 808 one) |
+
+## IS 800:2007 Section 12 (steelLimitState.seismic)
+
+| # | Path | Value | Clause | What | Confidence |
+| --- | --- | --- | --- | --- | --- |
+| 264 | seismic.systems | steelSmf → SMF, steelOmf → OMF, steelScbf → SCBF | IS 1893 Table 9 | IS 1893's "concentric braced frame" taken as SCBF (stricter); EBF not covered | SAEngine choice |
+| 265 | frames.ocbf.braceSlenderness / braceCompressionShare | 120 / 0.8 Pd | 12.7.2 | OCBF braces | Check |
+| 266 | frames.ocbf/scbf.tensionShare | 30-70 % | 12.7.2, 12.8.2 | Tension braces' share along a line (a flag; SAEngine groups braces by plan direction) | Check |
+| 267 | frames.*.kBracing | false | 12.7, 12.8 | K bracing not permitted (a note: not detected) | Check |
+| 268 | frames.scbf.braceSlenderness / plasticMembers | 160 / braces plastic | 12.8.2 | SCBF braces | Check |
+| 269 | frames.omf/smf.connectionMoment | 1.2 Mp | 12.10, 12.11 | Beam-to-column connections (a flag) | Check |
+| 270 | frames.smf.driftAngle | 0.04 rad | 12.11 | Connection rotation capacity (a flag) | Uncertain |
+| 271 | frames.smf.strongColumn | ΣMpc ≥ 1.2 ΣMpb | 12.11 | Mpc = Zp (fy − P/A) | Check |
+| 272 | frames.smf.plasticMembers | beams and columns plastic | 12.11 | | Check |
+| 273 | seismic.columnAmplified | the Ω0 (2.5) combinations | 12.2.2, 12.5 | Columns' axial strength under 1.2 DL + 0.5 LL ± 2.5 EL; SAEngine uses its Ω0 combinations of the pack (Ω0 2.5) | Check (the combination itself) |
+| 274 | seismic.rAbove | 0 | 12.1 | Applied whenever a steel frame system is in use (the code ties Section 12 to the zones) | SAEngine choice |
+
+## IS 1905:1987 masonry (masonry.basicStress)
+
+| # | Path | Value | Clause | What | Confidence |
+| --- | --- | --- | --- | --- | --- |
+| 275 | masonry.method | basicStress | 5.4 | Unreinforced masonry by permissible stresses | Sure |
+| 276 | basicStress.mortars, unitStrengths | fb rows H1, H2, M1, M2, M3 (1:3 to 1:7) by unit strength 3.5-40 MPa | Table 8 | Basic compressive stress | Uncertain (every number from memory; L1, L2 not entered) |
+| 277 | basicStress.reduction | ks by SR 6-27 and e/t 0-1/3 | Table 9 | Stress reduction factor | Uncertain (every number from memory) |
+| 278 | basicStress.areaBelow / areaBase / areaSlope | 0.2 m², 0.7 + 1.5 A | 5.4.1.2 | Area reduction factor | Sure |
+| 279 | basicStress.shapeFactor | 1.0 | 5.4.1.3, Table 10 | kp of bricks (h/w ≤ 0.75); other units: override | SAEngine choice |
+| 280 | basicStress.effectiveHeight | 0.75 H | 4.3.1, Table 4 | Walls with RC slabs or floors at both ends; 2 H free top | Check (SAEngine applies it to every braced wall) |
+| 281 | basicStress.slendernessMax | 27 | 4.6.1 | Cement mortar walls | Check |
+| 282 | basicStress.eccentricityIncrease | e/t > 1/24: face stress ≤ 1.25 fc | 5.4.1.4 | | Check |
+| 283 | basicStress.tension / tensionMix | 0.07 / 0.14 MPa, mortar M1 (1:5) or richer | 5.4.2 | Normal to / parallel to the bed joints | Check |
+| 284 | basicStress.shear | 0.1 + fd/6 ≤ 0.5 MPa | 5.4.3 | | Check |
+| 285 | basicStress.lateralIncrease | 1.25 | 5.4.1 | With wind or earthquake | Uncertain (25 % or 33 %) |
+| 286 | combinations.allowable | D, D + L, D + W, D + E, D + L + W, D + L + E | IS 875 (Part 5) 8.1 | Working stress combinations at full factors (masonry, timber) | Check |
+
+## IS 883:1994 timber (timber) and IS 11384:1985 composite beams (composite)
+
+| # | Path | Value | Clause | What | Confidence |
+| --- | --- | --- | --- | --- | --- |
+| 287 | timber.groups, grades, duration, column, depthFactor | the parent's values (BNBC 2020 Chapter 11 follows IS 883) | IS 883 5-7 | Groups A, B, C; 1.16 / 0.84; K2; K3; K8 | Check (equal to IS 883 as SAEngine reads it) |
+| 288 | timber.clauses | clause groups of IS 883 | IS 883 5-10 | The clause numbers are given at the section level | Uncertain (numbers) |
+| 289 | timber.species | the parent's species list | IS 883 Table 1 | Indian species not listed: design by strength group | SAEngine choice |
+| 290 | composite.beam.limitState.concreteShare | 0.4286 (0.36 fck over 0.84 xu) | IS 11384 App. B | The concrete of the plastic moment | Uncertain |
+| 291 | composite.beam.limitState.steelGamma | 1.15 (0.87 fy) | IS 11384 App. B | | Uncertain |
+| 292 | composite.beam.limitState.studs | 12×62: 26-31; 16×75: 44-55; 20×75: 60-75; 20×100: 63-79; 22×100: 77-101; 25×100: 86-113 kN for M20-M40 | IS 11384 Table 1 | Design strength of headed studs | Uncertain (every number from memory) |
+| 293 | composite.materials.concreteMin | 20 MPa | IS 11384 | Slab concrete at least M20 | Check |
+
+Not covered yet (the parent pack's method and values, named after the parent in the notes): the
+connection rules IS 800 has no counterpart for in SAEngine's checks (the column side under flange
+forces, HSS truss and moment joints, the base plate bearing on concrete), torsion, the stability
+bracing forces, IS 800 eccentrically braced frames, fatigue and fire, IS 801 cold-formed steel,
+the composite columns and deck rules, IS 4326 masonry earthquake detailing, reinforced masonry.

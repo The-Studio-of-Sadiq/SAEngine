@@ -328,10 +328,13 @@ def _steel_part(steel: _Layers, area: float, from_top: bool) -> tuple[float, flo
     return a, bottom - centroid
 
 
-def plastic_positive(geom: BeamGeometry, fc: float, sum_qn: float, table: Any) -> dict[str, Any]:
+def plastic_positive(
+    geom: BeamGeometry, fc: float, sum_qn: float, table: Any, alpha: float | None = None
+) -> dict[str, Any]:
     """The plastic positive moment [N·mm] with ``sum_qn`` of connection: C = min(0.85 f'c Ac,
-    As Fy, ΣQn) in the slab, the rest of the steel split at the plastic neutral axis."""
-    alpha = table.stressBlock.concrete
+    As Fy, ΣQn) in the slab, the rest of the steel split at the plastic neutral axis; ``alpha``
+    the concrete's share of f'c (default: the table's stress block)."""
+    alpha = table.stressBlock.concrete if alpha is None else alpha
     ac = geom.slab.area()
     as_fy = geom.steel_area * geom.fy
     cc = alpha * fc * ac
@@ -430,8 +433,41 @@ class _Connectors:
         return self.qn * self.per_row
 
 
+def tabulated_stud(diameter: float, height: float, fc: float, rules: Any) -> float:
+    """C9: the design strength [N] of a headed stud from the pack's table: the largest row not
+    larger than the stud (diameter, then height), linear between the concrete grades (the end
+    values outside), × the table's share; CompositeError when the stud is below every row."""
+    rows = [r for r in rules.studs if r.diameter <= diameter + 1e-9 and r.height <= height + 1e-9]
+    if not rows:
+        raise CompositeError(
+            f"stud {diameter:g} × {height:g} mm is smaller than every stud of the code pack's table"
+        )
+    row = max(rows, key=lambda r: (r.diameter, r.height))
+    grades = [float(g) for g in rules.grades]
+    values = [float(v) for v in row.strengths]
+    if fc <= grades[0]:
+        q = values[0]
+    elif fc >= grades[-1]:
+        q = values[-1]
+    else:
+        k = next(i for i in range(1, len(grades)) if fc <= grades[i])
+        f = (fc - grades[k - 1]) / (grades[k] - grades[k - 1])
+        q = values[k - 1] + f * (values[k] - values[k - 1])
+    return q * 1e3 * float(rules.studShare)
+
+
 def _connectors(beam: Any, concrete: Concrete, table: Any) -> _Connectors:
     c = beam.connectors
+    ls = getattr(table.beam, "limitState", None)
+    if ls is not None and c.kind == "stud":  # C9: tabulated design strengths
+        return _Connectors(
+            tabulated_stud(c.diameter, float(c.height), concrete.fc, ls),
+            c.perRow,
+            1.0,
+            1.0,
+            "stud",
+            c.diameter,
+        )
     if c.kind == "channel":
         qn = channel_strength(c.channelFlange, c.channelWeb, c.channelLength, concrete, table)
         return _Connectors(qn, c.perRow, 1.0, 1.0, "channel", 0.0)
@@ -487,9 +523,19 @@ def beam_checks(
     concrete = concrete_of(concrete_material, table, "slab concrete")
     notes += list(concrete.notes)
     span = span_m * 1000.0
+    ls = getattr(table.beam, "limitState", None)  # C9: design strengths, no φ
+    alpha = None
+    if ls is not None:
+        fy = fy / float(ls.steelGamma)
+        alpha = float(ls.concreteShare)
+        notes.append(
+            f"limit state: concrete {alpha:g} × the grade over the block, steel fy / "
+            f"{float(ls.steelGamma):g}, studs by the tabulated design strength "
+            f"({cite(table, 'limitState')})"
+        )
     geom = beam_geometry(shape, fy, steel.e, beam, span, table)
     notes += geom.notes
-    phi = table.phi.flexure
+    phi = table.phi.flexure if ls is None else 1.0
     checks: list[dict[str, Any]] = []
     conn = _connectors(beam, concrete, table)
 
@@ -521,7 +567,7 @@ def beam_checks(
         n_rows = math.floor(row[2] / s + 1e-9)
         sum_qn = n_rows * conn.row()
         if plastic:
-            found = plastic_positive(geom, concrete.fc, sum_qn, table)
+            found = plastic_positive(geom, concrete.fc, sum_qn, table, alpha)
         else:
             found = _elastic_positive(geom, concrete, m_pre, table)
             found["ratio"] = 1.0
@@ -1643,6 +1689,9 @@ _COLUMN_REPLACED = (
     "Flexure about y (minor)",
     "Axial force and flexure (H1)",
     "Tension: yielding (gross section)",
+    # C9: the combined force rows of the limit state steel method.
+    "Axial force and flexure: section strength",
+    "Axial force and flexure: member buckling",
 )
 
 

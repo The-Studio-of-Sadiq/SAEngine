@@ -31,6 +31,11 @@ KINDS = {"beam": "beam", "column": "column", "brace": "brace"}
 def _method() -> list[str]:
     """``METHOD``: the method text of the design report, with the clauses of the code pack in
     force (read as a module attribute)."""
+    from saengine.design.steel import limit_state
+
+    connections = limit_state.connection_method_lines()  # C9: the pack's bolt and weld rules
+    if connections:
+        return [*steel_members.METHOD, *connections, *composite_design.METHOD]
     return [
         *steel_members.METHOD,
         (

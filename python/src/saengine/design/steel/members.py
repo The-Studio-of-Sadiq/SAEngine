@@ -1638,6 +1638,11 @@ def check_member(
     """The strength checks of one steel member, enveloping its combinations and stations, in
     the design report's format (``{name, demand, capacity, unit, utilisation, combination, ok,
     note, flag, clause}``, forces in kN and kN·m)."""
+    from saengine.design.steel import limit_state
+
+    if limit_state.rules() is not None:
+        # Alpha 9 C9: the pack designs steel by limit state with partial factors (IS 800).
+        return limit_state.check_member(shape, steel, stations, lengths, kind, options)
     options = SteelOptions.of(options)
     e = steel.e
     tension_y = tension_yielding(shape, steel)
@@ -2291,11 +2296,14 @@ def design_steel_member(
     elements with their combined forces (:func:`saengine.design.check._demands`), ``project``:
     the OpenSees Studio model they come from (for the bracing; without it the member is braced
     at its ends only). Raises :class:`SteelDesignError` when it cannot be checked."""
+    from saengine.design.steel import limit_state
+
     options = SteelOptions.of(options)
+    ls = limit_state.rules() is not None  # C9: the pack's limit state steel method
     if not pieces:
         raise SteelDesignError("not in the analysis results")
     try:
-        shape = shape_properties(object_type.profile, options.erw)
+        shape = shape_properties(object_type.profile, limit_state.erw(options.erw))
     except ValueError as error:
         raise SteelDesignError(str(error)) from error
     steel = Steel.of(material)
@@ -2308,18 +2316,27 @@ def design_steel_member(
         )
     stations = member_stations(pieces, combinations, turned)
     checks = check_member(shape, steel, stations, lengths, kind, options)
-    if kind == "brace":
+    if kind == "brace" and not ls:
         slender = brace_slenderness_check(shape, lengths)
         if slender is not None:
             checks.append(slender)
-    bracing = bracing_requirements(shape, stations, lengths, kind)
-    extra = _b31_notes(shape, stations, checks, options)
+    # C9: the stability bracing and B31 rules are the LRFD pack's; the limit state method
+    # names what it does not check.
+    bracing = [] if ls else bracing_requirements(shape, stations, lengths, kind)
+    if ls:
+        extra = limit_state.member_notes(stations)
+    else:
+        extra = _b31_notes(shape, stations, checks, options)
     for note in (*shape.notes, *steel.notes):
         for c in checks:
             if c["name"].startswith(("Tension", "Compression")):
                 c["note"] = f"{c['note']}; {note}" if c["note"] else note
     strength = [c for c in checks if not c["flag"]]
-    elements = cl.compression_elements(shape, steel.fy, steel.e)
+    if ls:
+        section_class, described = limit_state.section_summary(shape, steel)
+    else:
+        elements = cl.compression_elements(shape, steel.fy, steel.e)
+        section_class, described = cl.section_class(elements), [e.describe() for e in elements]
     return {
         "id": member_id,
         "kind": kind,
@@ -2332,8 +2349,8 @@ def design_steel_member(
             "family": shape.family,
             "label": shape.label,
             "area": round(shape.area, 1),
-            "class": cl.section_class(elements),
-            "elements": [el.describe() for el in elements],
+            "class": section_class,
+            "elements": described,
             "massPerMetre": _mass_per_metre(object_type.profile, material),
             "notes": [
                 *shape.notes,
@@ -2355,5 +2372,7 @@ def design_steel_member(
 def __getattr__(name: str) -> list[str]:
     # The method text names the clauses of the pack in force: built when it is read.
     if name == "METHOD":
-        return _method()
+        from saengine.design.steel import limit_state
+
+        return limit_state.method_lines() if limit_state.rules() is not None else _method()
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

@@ -157,6 +157,11 @@ TABLE_HELP: dict[str, str] = {
     "perimeter, the service stress, crack width and span/depth checks, cover by exposure class, "
     "anchorage and laps, the least and largest steel of members, and the curvature-ductility "
     "detailing by ductility class (seismic). A pack without it designs concrete with phi.",
+    "steelLimitState": "Steel by limit state design with partial safety factors on the "
+    "materials (alpha 9 C9): section classification, tension, compression by buckling curves, "
+    "flexure with lateral-torsional buckling by Mcr, shear with web buckling, combined forces, "
+    "the bolt and weld strengths of the connections and the seismic frame rules. A pack without "
+    "it designs steel by its steel table (LRFD with phi).",
     "geotechnicalMethods": "Limit state geotechnical design (alpha 9 C5): the partial factor "
     "sets of actions, soil parameters and resistances, the design approaches combining them, "
     "the bearing resistance on the effective base, sliding and the correlation factors of pile "

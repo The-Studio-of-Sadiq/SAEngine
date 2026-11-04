@@ -1220,7 +1220,29 @@ def _design_run(
     # B35: the steel seismic provisions (saengine.design.steel.seismic): member, joint and
     # connection checks on the steel entries, the project's own checks with the seismic ones.
     steel_seismic_found = None
-    if steel_members:
+    from saengine.design.steel import limit_state as steel_limit_state
+
+    if steel_members and steel_limit_state.seismic_rules() is not None:
+        # Alpha 9 C9: the pack's steel seismic frame rules (IS 800 Section 12) in place of
+        # the steel seismic provisions and the braced frames of B35 / B38.
+        try:
+            ls_found = steel_limit_state.seismic_apply(
+                building,
+                types,
+                steel_members,
+                combinations,
+                seismic_detailing.earthquake_indices(extra, len(combinations)),
+                resolved,
+            )
+        except (ValueError, KeyError, AttributeError, TypeError) as error:
+            ls_found = None
+            notes.append(f"the steel seismic rules could not be checked: {error}")
+        if ls_found is not None:
+            notes += ls_found["notes"]
+            if scope is not None:
+                scope["steelLimitStateSeismic"] = ls_found
+                scope["checks"] = scope.get("checks", []) + ls_found["checks"]
+    elif steel_members:
         try:
             steel_seismic_found = steel_seismic.apply(
                 project,
@@ -1782,6 +1804,10 @@ def _assemble(
         from saengine.design.steel.stability import method_lines
 
         method += steel_design.METHOD + method_lines(steel_stability)
+        if ((scope or {}).get("steelLimitStateSeismic") or {}).get("applies"):  # C9
+            from saengine.design.steel import limit_state as steel_limit_state
+
+            method += steel_limit_state.seismic_method_lines()
         if ((scope or {}).get("steelSeismic") or {}).get("applies"):  # B35
             from saengine.design.steel import seismic as steel_seismic
 
@@ -3194,14 +3220,20 @@ def _steel_amplified_columns(
 ) -> set[str]:
     """B35: the steel column elements of a steel seismic system (not marked gravity) when the
     steel seismic provisions apply (:func:`saengine.design.steel.seismic.provisions`)."""
+    from saengine.design.steel import limit_state as steel_limit_state  # C9
     from saengine.design.steel import seismic as steel_seismic
     from saengine.design.steel import seismic_braced  # B38: braced frames' columns too
 
     try:
-        if building is None or not (
-            steel_seismic.provisions(settings).applies
-            or seismic_braced.braced_provisions(settings).applies
-        ):
+        ls_rules = steel_limit_state.seismic_rules()
+        if ls_rules is not None:
+            applies = bool(ls_rules.columnAmplified and steel_limit_state.seismic_frames(settings))
+        else:
+            applies = (
+                steel_seismic.provisions(settings).applies
+                or seismic_braced.braced_provisions(settings).applies
+            )
+        if building is None or not applies:
             return set()
     except (ValueError, KeyError, AttributeError, TypeError):
         return set()

@@ -287,8 +287,10 @@ def steel_member_checker(
     else:
         t_lengths = lengths
         length = lengths.length
+    from saengine.design.steel import limit_state
+
     profile = TypeAdapter(Profile).validate_python(section.profile())
-    shape = shape_properties(profile)
+    shape = shape_properties(profile, limit_state.erw())  # C9: the pack's wall thickness
     steel = Steel(material.fy, material.fu, material.E, material.name)
     stations = to_stations(forces, length)
     return check_member(shape, steel, stations, t_lengths, kind, options)

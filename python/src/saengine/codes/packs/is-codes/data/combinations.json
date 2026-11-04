@@ -134,6 +134,14 @@
       }
     }
   ],
+  "allowable": [
+    {"id": "1", "name": "D", "factors": {"D": 1.0, "F": 1.0}, "source": "IS 875 (Part 5):1987 Clause 8.1 (a): DL"},
+    {"id": "2", "name": "D + L", "factors": {"D": 1.0, "F": 1.0, "H": 1.0, "L": 1.0, "Lr": 1.0}, "source": "IS 875 (Part 5):1987 Clause 8.1 (b): DL + IL"},
+    {"id": "3W", "name": "D + W", "factors": {"D": 1.0, "F": 1.0, "H": 1.0, "W": 1.0}, "source": "IS 875 (Part 5):1987 Clause 8.1 (c): DL + WL"},
+    {"id": "3E", "name": "D + E", "factors": {"D": 1.0, "F": 1.0, "H": 1.0, "E": 1.0}, "source": "IS 875 (Part 5):1987 Clause 8.1 (d): DL + EL"},
+    {"id": "4W", "name": "D + L + W", "factors": {"D": 1.0, "F": 1.0, "H": 1.0, "L": 1.0, "Lr": 1.0, "W": 1.0}, "source": "IS 875 (Part 5):1987 Clause 8.1 (f): DL + IL + WL"},
+    {"id": "4E", "name": "D + L + E", "factors": {"D": 1.0, "F": 1.0, "H": 1.0, "L": 1.0, "E": 1.0}, "source": "IS 875 (Part 5):1987 Clause 8.1 (g): DL + IL + EL"}
+  ],
   "temperature": [],
   "seismicDeadUpper": 1.2,
   "seismicDeadLower": 0.9,
@@ -146,6 +154,7 @@
   "sources": {
     "strength": "IS 875 (Part 5):1987 Clause 8.4 and IS 1893 (Part 1):2016 Clause 6.3.4",
     "service": "IS 456:2000 Table 18 (limit state of serviceability)",
+    "allowable": "IS 875 (Part 5):1987 Clause 8.1: the working stress combinations of the permissible stress methods (IS 1905 masonry, IS 883 timber) at full factors; the methods raise their permissible stresses with wind or earthquake as their code says",
     "seismicDeadUpper": "IS 1893 (Part 1):2016 Clause 6.3.4.1: 1.2 (DL + IL ± EL)",
     "seismicDeadLower": "IS 1893 (Part 1):2016 Clause 6.3.4.1: 0.9 DL ± 1.5 EL"
   },

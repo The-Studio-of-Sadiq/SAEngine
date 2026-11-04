@@ -470,6 +470,207 @@
       "title": "MasonryBasementRow",
       "type": "object"
     },
+    "MasonryBasicStress": {
+      "additionalProperties": false,
+      "description": "C9: unreinforced masonry by permissible stresses from a basic compressive stress (method\n``basicStress``, :mod:`saengine.design.masonry_basic_stress`): fc = fb ks ka kp with fb by\nthe unit strength and the mortar (``mortars``: IS grade -> (sand parts per cement part, fb\nby ``unitStrengths``), the mix of the wall's mortar picks the row), ks by the slenderness\nratio and the eccentricity ratio (``reduction``: a row per ``eccentricities`` e/t, a column\nper ``slenderness``; null: not permitted), ka = areaBase + areaSlope A below areaBelow m²,\nkp the units' shape factor.",
+      "properties": {
+        "method": {
+          "const": "basicStress",
+          "default": "basicStress",
+          "title": "Method",
+          "type": "string"
+        },
+        "unitStrengths": {
+          "description": "[MPa]",
+          "items": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "minItems": 2,
+          "title": "Unitstrengths",
+          "type": "array"
+        },
+        "mortars": {
+          "additionalProperties": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              },
+              {
+                "items": {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                },
+                "type": "array"
+              }
+            ],
+            "type": "array"
+          },
+          "description": "Grade -> (sand parts per cement part, fb [MPa] by unitStrengths).",
+          "title": "Mortars",
+          "type": "object"
+        },
+        "slenderness": {
+          "items": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "minItems": 2,
+          "title": "Slenderness",
+          "type": "array"
+        },
+        "eccentricities": {
+          "description": "e/t of the rows.",
+          "items": {
+            "type": "number"
+          },
+          "minItems": 2,
+          "title": "Eccentricities",
+          "type": "array"
+        },
+        "reduction": {
+          "description": "ks; null: not permitted.",
+          "items": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "array"
+          },
+          "title": "Reduction",
+          "type": "array"
+        },
+        "areaBelow": {
+          "description": "[m²]",
+          "exclusiveMinimum": 0,
+          "title": "Areabelow",
+          "type": "number"
+        },
+        "areaBase": {
+          "exclusiveMinimum": 0,
+          "title": "Areabase",
+          "type": "number"
+        },
+        "areaSlope": {
+          "exclusiveMinimum": 0,
+          "title": "Areaslope",
+          "type": "number"
+        },
+        "shapeFactor": {
+          "description": "kp of the units.",
+          "exclusiveMinimum": 0,
+          "title": "Shapefactor",
+          "type": "number"
+        },
+        "effectiveHeight": {
+          "description": "× the clear height, supported top and bottom.",
+          "exclusiveMinimum": 0,
+          "title": "Effectiveheight",
+          "type": "number"
+        },
+        "slendernessMax": {
+          "description": "SR of walls at most.",
+          "exclusiveMinimum": 0,
+          "title": "Slendernessmax",
+          "type": "number"
+        },
+        "eccentricityIncrease": {
+          "description": "(e/t above, factor): the face stress at most factor × fc.",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Eccentricityincrease",
+          "type": "array"
+        },
+        "tension": {
+          "description": "Flexural tension [MPa]: normal to the bed joints, parallel to them.",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Tension",
+          "type": "array"
+        },
+        "tensionMix": {
+          "description": "Tension only with mortars of at most this sand.",
+          "exclusiveMinimum": 0,
+          "title": "Tensionmix",
+          "type": "number"
+        },
+        "shear": {
+          "description": "fs = a + fd / b, at most c [MPa].",
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Shear",
+          "type": "array"
+        },
+        "lateralIncrease": {
+          "description": "× with wind or earthquake.",
+          "minimum": 1,
+          "title": "Lateralincrease",
+          "type": "number"
+        }
+      },
+      "required": [
+        "unitStrengths",
+        "mortars",
+        "slenderness",
+        "eccentricities",
+        "reduction",
+        "areaBelow",
+        "areaBase",
+        "areaSlope",
+        "shapeFactor",
+        "effectiveHeight",
+        "slendernessMax",
+        "eccentricityIncrease",
+        "tension",
+        "tensionMix",
+        "shear",
+        "lateralIncrease"
+      ],
+      "title": "MasonryBasicStress",
+      "type": "object"
+    },
     "MasonryBeamShear": {
       "additionalProperties": false,
       "properties": {
@@ -2247,10 +2448,11 @@
       "type": "object"
     },
     "method": {
-      "description": "The masonry design method: 'allowableStress' (working stress, linear stress-strain) or 'strength' (strength design of reinforced walls).",
+      "description": "The masonry design method: 'allowableStress' (working stress, linear stress-strain), 'strength' (strength design of reinforced walls) or 'basicStress' (C9: permissible stresses from a basic compressive stress, group basicStress).",
       "enum": [
         "allowableStress",
-        "strength"
+        "strength",
+        "basicStress"
       ],
       "title": "Method",
       "type": "string"
@@ -2310,7 +2512,8 @@
       "items": {
         "enum": [
           "allowableStress",
-          "strength"
+          "strength",
+          "basicStress"
         ],
         "type": "string"
       },
@@ -2343,6 +2546,17 @@
       "anyOf": [
         {
           "$ref": "#/$defs/MasonryConfined"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "basicStress": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/MasonryBasicStress"
         },
         {
           "type": "null"

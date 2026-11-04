@@ -1,0 +1,1211 @@
+{
+  "$defs": {
+    "BoltGradeStrength": {
+      "additionalProperties": false,
+      "properties": {
+        "fub": {
+          "description": "Ultimate tensile stress of the bolt [MPa].",
+          "exclusiveMinimum": 0,
+          "title": "Fub",
+          "type": "number"
+        },
+        "fyb": {
+          "description": "Yield stress of the bolt [MPa].",
+          "exclusiveMinimum": 0,
+          "title": "Fyb",
+          "type": "number"
+        },
+        "pretensioned": {
+          "description": "May be used as a friction grip bolt.",
+          "title": "Pretensioned",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "fub",
+        "fyb",
+        "pretensioned"
+      ],
+      "title": "BoltGradeStrength",
+      "type": "object"
+    },
+    "BucklingCurveRule": {
+      "additionalProperties": false,
+      "description": "The buckling curves of a shape family about its major and minor axes.",
+      "properties": {
+        "major": {
+          "title": "Major",
+          "type": "string"
+        },
+        "minor": {
+          "title": "Minor",
+          "type": "string"
+        }
+      },
+      "required": [
+        "major",
+        "minor"
+      ],
+      "title": "BucklingCurveRule",
+      "type": "object"
+    },
+    "ClassLimits": {
+      "additionalProperties": false,
+      "description": "Width-thickness limits of one element in units of ε (``squared``: of ε², circular hollow\nsections): plastic (class 1), compact (class 2), semi-compact (class 3); above them slender.\nNone: the class has no limit of its own for the element (the next one applies).",
+      "properties": {
+        "plastic": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Plastic"
+        },
+        "compact": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Compact"
+        },
+        "semiCompact": {
+          "exclusiveMinimum": 0,
+          "title": "Semicompact",
+          "type": "number"
+        },
+        "squared": {
+          "default": false,
+          "title": "Squared",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "semiCompact"
+      ],
+      "title": "ClassLimits",
+      "type": "object"
+    },
+    "SeismicFrameRules": {
+      "additionalProperties": false,
+      "description": "The rules of one steel seismic frame kind (None or empty: not required).",
+      "properties": {
+        "braceSlenderness": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "KL/r of braces at most.",
+          "title": "Braceslenderness"
+        },
+        "braceCompressionShare": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Brace compression at most this × Pd.",
+          "title": "Bracecompressionshare"
+        },
+        "tensionShare": {
+          "anyOf": [
+            {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "exclusiveMinimum": 0,
+                  "maximum": 1,
+                  "type": "number"
+                },
+                {
+                  "exclusiveMinimum": 0,
+                  "maximum": 1,
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Each brace line: its tension braces' share of the shear.",
+          "title": "Tensionshare"
+        },
+        "kBracing": {
+          "default": true,
+          "description": "K bracing permitted.",
+          "title": "Kbracing",
+          "type": "boolean"
+        },
+        "plasticMembers": {
+          "description": "Member kinds whose sections must be plastic.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Plasticmembers",
+          "type": "array"
+        },
+        "connectionMoment": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Beam-to-column connections designed for this × Mp (a flag).",
+          "title": "Connectionmoment"
+        },
+        "strongColumn": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "ΣMpc ≥ this × ΣMpb at each joint.",
+          "title": "Strongcolumn"
+        },
+        "driftAngle": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Connection rotation capacity [rad] (a flag).",
+          "title": "Driftangle"
+        },
+        "note": {
+          "default": "",
+          "title": "Note",
+          "type": "string"
+        }
+      },
+      "title": "SeismicFrameRules",
+      "type": "object"
+    },
+    "SteelBoltRules": {
+      "additionalProperties": false,
+      "description": "Bolts (method ``partialFactorBolts``): shear fub / (√3 γmb) Anb per plane (the threads in\nevery plane), bearing ``bearingFactor`` kb d t fu / γmb, tension ``tensionShare`` fub An /\nγmb ≤ fyb Asb γmb / γm0 / γmb, the interaction (V/Vd)² + (T/Td)² ≤ 1; friction grip slip\nμf ne Kh F0 / γmf with F0 = proofShare fub Anb; long joints βlj.",
+      "properties": {
+        "method": {
+          "const": "partialFactorBolts",
+          "default": "partialFactorBolts",
+          "title": "Method",
+          "type": "string"
+        },
+        "grades": {
+          "additionalProperties": {
+            "$ref": "#/$defs/BoltGradeStrength"
+          },
+          "title": "Grades",
+          "type": "object"
+        },
+        "aliases": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Other names -> grade.",
+          "title": "Aliases",
+          "type": "object"
+        },
+        "netShare": {
+          "description": "Anb = share × the shank area (at the threads).",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Netshare",
+          "type": "number"
+        },
+        "tensionShare": {
+          "description": "Tnb = share × fub An.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Tensionshare",
+          "type": "number"
+        },
+        "bearingFactor": {
+          "description": "Vnpb = factor × kb d t fu.",
+          "exclusiveMinimum": 0,
+          "title": "Bearingfactor",
+          "type": "number"
+        },
+        "bearingEnd": {
+          "description": "kb ≤ e / (this × d0).",
+          "exclusiveMinimum": 0,
+          "title": "Bearingend",
+          "type": "number"
+        },
+        "bearingPitch": {
+          "description": "kb ≤ p / (a d0) - b.",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            }
+          ],
+          "title": "Bearingpitch",
+          "type": "array"
+        },
+        "proofShare": {
+          "description": "F0 = share × fub Anb.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Proofshare",
+          "type": "number"
+        },
+        "slipMu": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "description": "μf by the connection's surface class.",
+          "title": "Slipmu",
+          "type": "object"
+        },
+        "holeKh": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "description": "Kh by the connection's hole type.",
+          "title": "Holekh",
+          "type": "object"
+        },
+        "longJoint": {
+          "description": "(a, b, c, least): βlj = a - b lj / d for lj > c d, at least the least.",
+          "maxItems": 4,
+          "minItems": 4,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            }
+          ],
+          "title": "Longjoint",
+          "type": "array"
+        }
+      },
+      "required": [
+        "grades",
+        "netShare",
+        "tensionShare",
+        "bearingFactor",
+        "bearingEnd",
+        "bearingPitch",
+        "proofShare",
+        "slipMu",
+        "holeKh",
+        "longJoint"
+      ],
+      "title": "SteelBoltRules",
+      "type": "object"
+    },
+    "SteelClassification": {
+      "additionalProperties": false,
+      "description": "Section classification by width-thickness limits in ε = √(referenceFy / fy) (method\n``epsilonLimits``).",
+      "properties": {
+        "method": {
+          "const": "epsilonLimits",
+          "default": "epsilonLimits",
+          "title": "Method",
+          "type": "string"
+        },
+        "referenceFy": {
+          "description": "ε = √(referenceFy / fy) [MPa].",
+          "exclusiveMinimum": 0,
+          "title": "Referencefy",
+          "type": "number"
+        },
+        "outstandRolled": {
+          "$ref": "#/$defs/ClassLimits",
+          "description": "Outstand of a compression flange, rolled."
+        },
+        "outstandWelded": {
+          "$ref": "#/$defs/ClassLimits",
+          "description": "Outstand of a compression flange, welded."
+        },
+        "internalFlange": {
+          "$ref": "#/$defs/ClassLimits",
+          "description": "Internal element of a flange in bending."
+        },
+        "internalAxial": {
+          "description": "Internal element in axial compression (class 3).",
+          "exclusiveMinimum": 0,
+          "title": "Internalaxial",
+          "type": "number"
+        },
+        "web": {
+          "$ref": "#/$defs/ClassLimits",
+          "description": "Web, neutral axis at mid-depth (d/tw)."
+        },
+        "webAxial": {
+          "description": "Web in axial compression, class 3 (and the floor).",
+          "exclusiveMinimum": 0,
+          "title": "Webaxial",
+          "type": "number"
+        },
+        "webAxialFactors": {
+          "description": "With axial compression the web limits ÷ (1 + k r), k for the plastic, compact and semi-compact limits (r: the axial stress over the design yield stress), at least webAxial.",
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Webaxialfactors",
+          "type": "array"
+        },
+        "channelWeb": {
+          "$ref": "#/$defs/ClassLimits",
+          "description": "Web of a channel."
+        },
+        "angleBending": {
+          "$ref": "#/$defs/ClassLimits",
+          "description": "Angle legs b/t and d/t in bending."
+        },
+        "angleAxial": {
+          "description": "Angle in axial compression, class 3: b/t and d/t, (b + d)/t.",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Angleaxial",
+          "type": "array"
+        },
+        "teeStem": {
+          "$ref": "#/$defs/ClassLimits",
+          "description": "Stem of a tee, D/tf."
+        },
+        "circularBending": {
+          "$ref": "#/$defs/ClassLimits",
+          "description": "Circular hollow section D/t in bending (ε²)."
+        },
+        "circularAxial": {
+          "description": "Circular hollow section D/t in axial (ε²).",
+          "exclusiveMinimum": 0,
+          "title": "Circularaxial",
+          "type": "number"
+        }
+      },
+      "required": [
+        "referenceFy",
+        "outstandRolled",
+        "outstandWelded",
+        "internalFlange",
+        "internalAxial",
+        "web",
+        "webAxial",
+        "webAxialFactors",
+        "channelWeb",
+        "angleBending",
+        "angleAxial",
+        "teeStem",
+        "circularBending",
+        "circularAxial"
+      ],
+      "title": "SteelClassification",
+      "type": "object"
+    },
+    "SteelCompression": {
+      "additionalProperties": false,
+      "description": "Flexural buckling by buckling curves (method ``bucklingCurves``): fcd = χ fy / γm0, χ =\n1 / (φ + √(φ² - λ²)) ≤ 1, φ = 0.5 [1 + α (λ - plateau) + λ²], λ = √(fy / fcc), fcc = π² E /\n(KL/r)².",
+      "properties": {
+        "method": {
+          "const": "bucklingCurves",
+          "default": "bucklingCurves",
+          "title": "Method",
+          "type": "string"
+        },
+        "alpha": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "description": "Imperfection factor α by curve (a, b, c, d).",
+          "title": "Alpha",
+          "type": "object"
+        },
+        "plateau": {
+          "description": "λ0 of the plateau (χ = 1 below it).",
+          "exclusiveMinimum": 0,
+          "title": "Plateau",
+          "type": "number"
+        },
+        "rolledI": {
+          "description": "Rolled I and H sections: (h/bf above, tf up to [mm], major curve, minor curve); the first row that matches.",
+          "items": {
+            "maxItems": 4,
+            "minItems": 4,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "type": "array"
+          },
+          "title": "Rolledi",
+          "type": "array"
+        },
+        "weldedI": {
+          "description": "Welded I sections: (tf up to [mm], major curve, minor curve).",
+          "items": {
+            "maxItems": 3,
+            "minItems": 3,
+            "prefixItems": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "type": "array"
+          },
+          "title": "Weldedi",
+          "type": "array"
+        },
+        "families": {
+          "additionalProperties": {
+            "$ref": "#/$defs/BucklingCurveRule"
+          },
+          "description": "The other families: channel, tee, angle, rhs, chs, bar, round.",
+          "title": "Families",
+          "type": "object"
+        },
+        "angleConstants": {
+          "additionalProperties": {
+            "maxItems": 3,
+            "minItems": 3,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "description": "Single angles: (k1, k2, k3) of λe = √(k1 + k2 λvv² + k3 λφ²) by end condition.",
+          "title": "Angleconstants",
+          "type": "object"
+        },
+        "angleCondition": {
+          "description": "The end condition taken (an id of angleConstants).",
+          "title": "Anglecondition",
+          "type": "string"
+        },
+        "angleCurve": {
+          "description": "The buckling curve of single angles on λe.",
+          "title": "Anglecurve",
+          "type": "string"
+        }
+      },
+      "required": [
+        "alpha",
+        "plateau",
+        "rolledI",
+        "weldedI",
+        "families",
+        "angleConstants",
+        "angleCondition",
+        "angleCurve"
+      ],
+      "title": "SteelCompression",
+      "type": "object"
+    },
+    "SteelConnectionRules": {
+      "additionalProperties": false,
+      "description": "The connection strengths of the limit state method, in the shared connection checks\n(:mod:`saengine.design.steel_connections`).",
+      "properties": {
+        "bolts": {
+          "$ref": "#/$defs/SteelBoltRules"
+        },
+        "welds": {
+          "$ref": "#/$defs/SteelWeldRules"
+        },
+        "blockShear": {
+          "description": "Tdb rupture term shares (net tension, net shear).",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            }
+          ],
+          "title": "Blockshear",
+          "type": "array"
+        },
+        "clauseMap": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Clause texts of the parent pack in the connection notes -> this pack's.",
+          "title": "Clausemap",
+          "type": "object"
+        },
+        "parentCode": {
+          "default": "",
+          "description": "Put before a parent clause the map does not give.",
+          "title": "Parentcode",
+          "type": "string"
+        }
+      },
+      "required": [
+        "bolts",
+        "welds",
+        "blockShear"
+      ],
+      "title": "SteelConnectionRules",
+      "type": "object"
+    },
+    "SteelFlexure": {
+      "additionalProperties": false,
+      "description": "Flexure (method ``elasticCriticalMoment``): laterally supported Md = βb Zp fy / γm0 ≤\n``elasticCap`` Ze fy / γm0; lateral-torsional buckling Md = βb Zp χLT fy / γm0 with λLT =\n√(βb Zp fy / Mcr) and Mcr of the member.",
+      "properties": {
+        "method": {
+          "const": "elasticCriticalMoment",
+          "default": "elasticCriticalMoment",
+          "title": "Method",
+          "type": "string"
+        },
+        "elasticCap": {
+          "description": "Md at most this × Ze fy / γm0 (simple spans).",
+          "exclusiveMinimum": 0,
+          "title": "Elasticcap",
+          "type": "number"
+        },
+        "elasticCapCantilever": {
+          "description": "The same of cantilevers.",
+          "exclusiveMinimum": 0,
+          "title": "Elasticcapcantilever",
+          "type": "number"
+        },
+        "alphaLT": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "description": "αLT: rolled, welded.",
+          "title": "Alphalt",
+          "type": "object"
+        },
+        "ltbPlateau": {
+          "description": "No lateral-torsional buckling while λLT ≤ this.",
+          "exclusiveMinimum": 0,
+          "title": "Ltbplateau",
+          "type": "number"
+        },
+        "ltbBase": {
+          "description": "λ0 of φLT = 0.5 [1 + αLT (λLT - λ0) + λLT²].",
+          "exclusiveMinimum": 0,
+          "title": "Ltbbase",
+          "type": "number"
+        },
+        "highShare": {
+          "description": "High shear above this × Vd (the reduced Mdv).",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Highshare",
+          "type": "number"
+        }
+      },
+      "required": [
+        "elasticCap",
+        "elasticCapCantilever",
+        "alphaLT",
+        "ltbPlateau",
+        "ltbBase",
+        "highShare"
+      ],
+      "title": "SteelFlexure",
+      "type": "object"
+    },
+    "SteelInteraction": {
+      "additionalProperties": false,
+      "description": "Combined forces (method ``sectionMember``): the section by the plastic interaction of\nplastic and compact I sections (``plastic``) or linearly; members in compression by the\nfactors Ky, Kz and KLT on the equivalent uniform moments Cm.",
+      "properties": {
+        "method": {
+          "const": "sectionMember",
+          "default": "sectionMember",
+          "title": "Method",
+          "type": "string"
+        },
+        "plastic": {
+          "description": "Plastic and compact I sections by Mnd (else linear).",
+          "title": "Plastic",
+          "type": "boolean"
+        },
+        "alphaMinor": {
+          "description": "α1 = c n, at least 1 (I sections).",
+          "exclusiveMinimum": 0,
+          "title": "Alphaminor",
+          "type": "number"
+        },
+        "alphaMajor": {
+          "description": "α2 (I sections).",
+          "exclusiveMinimum": 0,
+          "title": "Alphamajor",
+          "type": "number"
+        },
+        "flangeShare": {
+          "description": "a = (A - 2 b tf) / A at most this.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Flangeshare",
+          "type": "number"
+        },
+        "majorReduction": {
+          "description": "Mndz = Mdz (1 - n) / (1 - share a) ≤ Mdz.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Majorreduction",
+          "type": "number"
+        },
+        "minorShare": {
+          "description": "Equation (b): this × Ky Cmy My / Mdy.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Minorshare",
+          "type": "number"
+        },
+        "kCap": {
+          "description": "Ky, Kz at most 1 + cap × n.",
+          "exclusiveMinimum": 0,
+          "title": "Kcap",
+          "type": "number"
+        },
+        "ltbFactor": {
+          "description": "KLT = 1 - f λLT ny / (CmLT - offset).",
+          "exclusiveMinimum": 0,
+          "title": "Ltbfactor",
+          "type": "number"
+        },
+        "ltbOffset": {
+          "exclusiveMinimum": 0,
+          "title": "Ltboffset",
+          "type": "number"
+        },
+        "cmMin": {
+          "description": "Cm at least this.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Cmmin",
+          "type": "number"
+        },
+        "tensionPsi": {
+          "description": "ψ of Meff = M - ψ T Zec / A (T and M varying independently).",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Tensionpsi",
+          "type": "number"
+        }
+      },
+      "required": [
+        "plastic",
+        "alphaMinor",
+        "alphaMajor",
+        "flangeShare",
+        "majorReduction",
+        "minorShare",
+        "kCap",
+        "ltbFactor",
+        "ltbOffset",
+        "cmMin",
+        "tensionPsi"
+      ],
+      "title": "SteelInteraction",
+      "type": "object"
+    },
+    "SteelPartialFactors": {
+      "additionalProperties": false,
+      "description": "Partial safety factors of the materials (design resistance = characteristic / γ).",
+      "properties": {
+        "gammaM0": {
+          "description": "γm0: resistance governed by yielding or buckling.",
+          "exclusiveMinimum": 0,
+          "title": "Gammam0",
+          "type": "number"
+        },
+        "gammaM1": {
+          "description": "γm1: resistance governed by the ultimate stress.",
+          "exclusiveMinimum": 0,
+          "title": "Gammam1",
+          "type": "number"
+        },
+        "gammaMb": {
+          "description": "γmb: bolts of bearing type connections.",
+          "exclusiveMinimum": 0,
+          "title": "Gammamb",
+          "type": "number"
+        },
+        "gammaMf": {
+          "description": "γmf: slip of friction grip bolts at the ultimate load.",
+          "exclusiveMinimum": 0,
+          "title": "Gammamf",
+          "type": "number"
+        },
+        "gammaMfService": {
+          "description": "γmf: slip designed at the service load.",
+          "exclusiveMinimum": 0,
+          "title": "Gammamfservice",
+          "type": "number"
+        },
+        "gammaMw": {
+          "description": "γmw: welds, shop fabrication.",
+          "exclusiveMinimum": 0,
+          "title": "Gammamw",
+          "type": "number"
+        },
+        "gammaMwField": {
+          "description": "γmw: welds, field fabrication.",
+          "exclusiveMinimum": 0,
+          "title": "Gammamwfield",
+          "type": "number"
+        }
+      },
+      "required": [
+        "gammaM0",
+        "gammaM1",
+        "gammaMb",
+        "gammaMf",
+        "gammaMfService",
+        "gammaMw",
+        "gammaMwField"
+      ],
+      "title": "SteelPartialFactors",
+      "type": "object"
+    },
+    "SteelSeismicRules": {
+      "additionalProperties": false,
+      "description": "Steel seismic frames by prescriptive member and joint rules (method\n``prescriptiveFrames``), the columns under the amplified seismic load.",
+      "properties": {
+        "method": {
+          "const": "prescriptiveFrames",
+          "default": "prescriptiveFrames",
+          "title": "Method",
+          "type": "string"
+        },
+        "systems": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Structural system id -> frame kind.",
+          "title": "Systems",
+          "type": "object"
+        },
+        "frames": {
+          "additionalProperties": {
+            "$ref": "#/$defs/SeismicFrameRules"
+          },
+          "title": "Frames",
+          "type": "object"
+        },
+        "columnAmplified": {
+          "description": "Columns' axial strength under the Ω0 combinations.",
+          "title": "Columnamplified",
+          "type": "boolean"
+        },
+        "rAbove": {
+          "description": "The rules apply when R is above this.",
+          "minimum": 0,
+          "title": "Rabove",
+          "type": "number"
+        }
+      },
+      "required": [
+        "systems",
+        "frames",
+        "columnAmplified",
+        "rAbove"
+      ],
+      "title": "SteelSeismicRules",
+      "type": "object"
+    },
+    "SteelShear": {
+      "additionalProperties": false,
+      "description": "Shear (method ``postCritical``): Vd = Av fyw / (√3 γm0); above ``bucklingLimit`` ε the\nweb's shear buckling by the simple post-critical method, Vcr = Av τb.",
+      "properties": {
+        "method": {
+          "const": "postCritical",
+          "default": "postCritical",
+          "title": "Method",
+          "type": "string"
+        },
+        "bucklingLimit": {
+          "description": "d/tw above this × ε (unstiffened): buckling.",
+          "exclusiveMinimum": 0,
+          "title": "Bucklinglimit",
+          "type": "number"
+        },
+        "poisson": {
+          "description": "μ of τcr,e = kv π² E / (12 (1 - μ²) (d/tw)²).",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Poisson",
+          "type": "number"
+        },
+        "kvUnstiffened": {
+          "description": "kv with transverse stiffeners at supports only.",
+          "exclusiveMinimum": 0,
+          "title": "Kvunstiffened",
+          "type": "number"
+        },
+        "kvStiffened": {
+          "description": "(a, b): kv = a + b / (c/d)² for c/d < 1, b + a / (c/d)² for c/d ≥ 1.",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Kvstiffened",
+          "type": "array"
+        },
+        "lambdaLimits": {
+          "description": "λw: τb = fyw/√3 up to the first, (1 - slope (λw - first)) fyw/√3 up to the second, fyw / (√3 λw²) above.",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Lambdalimits",
+          "type": "array"
+        },
+        "lambdaSlope": {
+          "description": "The slope of the middle range.",
+          "exclusiveMinimum": 0,
+          "title": "Lambdaslope",
+          "type": "number"
+        }
+      },
+      "required": [
+        "bucklingLimit",
+        "poisson",
+        "kvUnstiffened",
+        "kvStiffened",
+        "lambdaLimits",
+        "lambdaSlope"
+      ],
+      "title": "SteelShear",
+      "type": "object"
+    },
+    "SteelSlendernessLimits": {
+      "additionalProperties": false,
+      "properties": {
+        "compression": {
+          "description": "KL/r of members carrying compression at most.",
+          "exclusiveMinimum": 0,
+          "title": "Compression",
+          "type": "number"
+        },
+        "tension": {
+          "description": "L/r of members always in tension at most.",
+          "exclusiveMinimum": 0,
+          "title": "Tension",
+          "type": "number"
+        }
+      },
+      "required": [
+        "compression",
+        "tension"
+      ],
+      "title": "SteelSlendernessLimits",
+      "type": "object"
+    },
+    "SteelTension": {
+      "additionalProperties": false,
+      "description": "Tension (method ``yieldRupture``): yielding of the gross section Ag fy / γm0, rupture of\nthe net section ``ruptureShare`` An fu / γm1; single angles α An fu / γm1 by their bolts.",
+      "properties": {
+        "method": {
+          "const": "yieldRupture",
+          "default": "yieldRupture",
+          "title": "Method",
+          "type": "string"
+        },
+        "ruptureShare": {
+          "description": "Tdn = share × An fu / γm1 (plates, whole sections).",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Ruptureshare",
+          "type": "number"
+        },
+        "angleAlpha": {
+          "description": "Single angles: (bolts up to, α) of Tdn = α An fu / γm1; above the last row its α.",
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "integer"
+              },
+              {
+                "exclusiveMinimum": 0,
+                "maximum": 1,
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "title": "Anglealpha",
+          "type": "array"
+        },
+        "angleBolts": {
+          "description": "The bolts taken in a single angle's end.",
+          "minimum": 1,
+          "title": "Anglebolts",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "ruptureShare",
+        "angleAlpha",
+        "angleBolts"
+      ],
+      "title": "SteelTension",
+      "type": "object"
+    },
+    "SteelWeldRules": {
+      "additionalProperties": false,
+      "description": "Fillet welds (method ``throatShear``): fwd = fu / (√3 γmw) on the throat share × size.",
+      "properties": {
+        "method": {
+          "const": "throatShear",
+          "default": "throatShear",
+          "title": "Method",
+          "type": "string"
+        },
+        "throatShare": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Throatshare",
+          "type": "number"
+        },
+        "field": {
+          "description": "Field welds (γmw field) by default.",
+          "title": "Field",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "throatShare",
+        "field"
+      ],
+      "title": "SteelWeldRules",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Steel by limit state design with partial safety factors and buckling curves (module\n:mod:`saengine.design.steel.limit_state`).",
+  "properties": {
+    "source": {
+      "default": "",
+      "description": "Clause (and page) the table comes from.",
+      "title": "Source",
+      "type": "string"
+    },
+    "sources": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Clause references of single entries: {key: clause}.",
+      "title": "Sources",
+      "type": "object"
+    },
+    "clauses": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Short clause references the results cite, by key, without the code's name (e.g. 'Part 6 Sec 2.5.7.3'); read by saengine.codes.context.cite. A key the pack does not give is not cited.",
+      "title": "Clauses",
+      "type": "object"
+    },
+    "partialFactors": {
+      "$ref": "#/$defs/SteelPartialFactors"
+    },
+    "classification": {
+      "$ref": "#/$defs/SteelClassification"
+    },
+    "compression": {
+      "$ref": "#/$defs/SteelCompression"
+    },
+    "tension": {
+      "$ref": "#/$defs/SteelTension"
+    },
+    "flexure": {
+      "$ref": "#/$defs/SteelFlexure"
+    },
+    "shear": {
+      "$ref": "#/$defs/SteelShear"
+    },
+    "interaction": {
+      "$ref": "#/$defs/SteelInteraction"
+    },
+    "slenderness": {
+      "$ref": "#/$defs/SteelSlendernessLimits"
+    },
+    "shearModulus": {
+      "description": "G [MPa].",
+      "exclusiveMinimum": 0,
+      "title": "Shearmodulus",
+      "type": "number"
+    },
+    "welded": {
+      "default": false,
+      "description": "Members taken as welded (else rolled).",
+      "title": "Welded",
+      "type": "boolean"
+    },
+    "nominalHollowWall": {
+      "default": true,
+      "description": "Hollow sections on the nominal wall (no ERW reduction).",
+      "title": "Nominalhollowwall",
+      "type": "boolean"
+    },
+    "connections": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/SteelConnectionRules"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "seismic": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/SteelSeismicRules"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    }
+  },
+  "required": [
+    "partialFactors",
+    "classification",
+    "compression",
+    "tension",
+    "flexure",
+    "shear",
+    "interaction",
+    "slenderness",
+    "shearModulus"
+  ],
+  "title": "SteelLimitStateTable",
+  "type": "object",
+  "$id": "saengine.codePack.steelLimitState/1"
+}

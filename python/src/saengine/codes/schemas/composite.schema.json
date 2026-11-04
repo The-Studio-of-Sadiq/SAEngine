@@ -1,5 +1,64 @@
 {
   "$defs": {
+    "CompositeBeamLimitState": {
+      "additionalProperties": false,
+      "description": "C9: the plastic positive moment of composite beams with design strengths (method\n``partialFactors``): the concrete at ``concreteShare`` × the grade over the block depth,\nthe steel at fy / ``steelGamma``, no φ; headed studs by their tabulated design strength\n(``studs``: rows by size, columns by ``grades``, linear between the grades; a stud takes\nthe largest row not larger than it) × ``studShare``.",
+      "properties": {
+        "method": {
+          "const": "partialFactors",
+          "default": "partialFactors",
+          "title": "Method",
+          "type": "string"
+        },
+        "concreteShare": {
+          "description": "Design concrete stress of the block / the grade.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Concreteshare",
+          "type": "number"
+        },
+        "steelGamma": {
+          "description": "γ of the steel beam's yield stress.",
+          "exclusiveMinimum": 0,
+          "title": "Steelgamma",
+          "type": "number"
+        },
+        "grades": {
+          "description": "Concrete grade [MPa].",
+          "items": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "minItems": 2,
+          "title": "Grades",
+          "type": "array"
+        },
+        "studs": {
+          "items": {
+            "$ref": "#/$defs/CompositeStudRow"
+          },
+          "minItems": 1,
+          "title": "Studs",
+          "type": "array"
+        },
+        "studShare": {
+          "description": "× the tabulated strength.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Studshare",
+          "type": "number"
+        }
+      },
+      "required": [
+        "concreteShare",
+        "steelGamma",
+        "grades",
+        "studs",
+        "studShare"
+      ],
+      "title": "CompositeBeamLimitState",
+      "type": "object"
+    },
     "CompositeBeamRules": {
       "additionalProperties": false,
       "properties": {
@@ -57,6 +116,17 @@
         },
         "slab": {
           "$ref": "#/$defs/CompositeSlab"
+        },
+        "limitState": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CompositeBeamLimitState"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         }
       },
       "required": [
@@ -872,6 +942,39 @@
         "strainLimit"
       ],
       "title": "CompositeStressBlock",
+      "type": "object"
+    },
+    "CompositeStudRow": {
+      "additionalProperties": false,
+      "properties": {
+        "diameter": {
+          "description": "[mm]",
+          "exclusiveMinimum": 0,
+          "title": "Diameter",
+          "type": "number"
+        },
+        "height": {
+          "description": "[mm]",
+          "exclusiveMinimum": 0,
+          "title": "Height",
+          "type": "number"
+        },
+        "strengths": {
+          "description": "Design strength [kN] by the table's grades.",
+          "items": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "title": "Strengths",
+          "type": "array"
+        }
+      },
+      "required": [
+        "diameter",
+        "height",
+        "strengths"
+      ],
+      "title": "CompositeStudRow",
       "type": "object"
     },
     "CompositeStuds": {

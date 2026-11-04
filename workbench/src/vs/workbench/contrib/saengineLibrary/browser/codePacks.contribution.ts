@@ -15,7 +15,7 @@ import { IEditorService } from '../../../services/editor/common/editorService.js
 import { PROJECT_MENU } from '../../saengineProject/browser/projectMenu.js';
 import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
 import { PACKAGES_SHOW_COMMAND } from '../common/packageIndex.js';
-import { PLANNED_CODE_PACK_EUROCODES, PLANNED_CODE_PACK_INDIA, PLANNED_CODE_PACK_US } from '../common/plannedCodePacks.js';
+import { PLANNED_CODE_PACK_EUROCODES, PLANNED_CODE_PACK_US } from '../common/plannedCodePacks.js';
 import { registerPlannedFeature } from '../../../services/saengineProject/common/plannedFeatures.js';
 import { CodePacksEditor, IInstallCodePackArgs, INewCodePackArgs, IShowPackagesArgs } from './codePacksEditor.js';
 import { CodePacksEditorInput, CodePacksEditorInputSerializer } from './codePacksEditorInput.js';
@@ -137,25 +137,5 @@ registerPlannedFeature({
 	references: ['EN 1990 to EN 1998 (Eurocodes)', 'The National Annexes of each CEN member country'],
 });
 
-registerPlannedFeature({
-	id: PLANNED_CODE_PACK_INDIA,
-	part: 'settings',
-	title: localize('codePacks.planned.india', "Code Pack: Indian Standards steel and other materials (IS 800, IS 1905, IS 883)"),
-	summary: localize('codePacks.planned.indiaSummary', "The rest of the Indian Standards pack. Covered now, in the built-in pack Indian Standards (IS) (is-codes): the loads (IS 875 Parts 1, 2, 3:2015 and 5, IS 1893 (Part 1):2016), the concrete design (IS 456:2000 limit state design: flexure, shear, torsion, punching, columns, deflection, crack width, cover and durability, development lengths, slabs, walls, footings), the ductile detailing of IS 13920:2016 and the foundations (IS 6403 bearing capacity, IS 2911 piles). Steel (IS 800), masonry (IS 1905), timber (IS 883) and the concrete methods not yet covered still come from {0}.", activeCodeName()),
-	steps: [
-		localize('codePacks.planned.india0', "Covered: choose Indian Standards (IS) in Project Settings or the New Building wizard; it lists its cities (zone and basic wind speed), soil types I-III and terrain categories 1-4, and designs the concrete members by IS 456 and IS 13920 (exposure condition in Code values, concreteMethods.defaultExposure)."),
-		localize('codePacks.planned.india1', "Install the pack from the Packages page."),
-		localize('codePacks.planned.india2', "Choose it as the project's design code in Project Settings or in the New Building wizard."),
-		localize('codePacks.planned.india3', "Loads, combinations, member design and detailing read the pack instead of {0}.", activeCodeName()),
-	],
-	inputs: [
-		{ label: localize('codePacks.planned.indiaZone', "Seismic zone"), example: 'III' },
-		{ label: localize('codePacks.planned.indiaSoil', "Soil type"), example: 'II' },
-		{ label: localize('codePacks.planned.indiaImportance', "Importance factor"), example: localize('codePacks.planned.indiaImportanceExample', "by building use") },
-	],
-	outputs: [
-		localize('codePacks.planned.indiaOut1', "Coverage still to come: steel members and connections (IS 800), masonry (IS 1905), timber (IS 883)"),
-		localize('codePacks.planned.indiaOut2', "The same reports and drawings as {0}, citing the IS clauses", activeCodeName()),
-	],
-	references: ['IS 800:2007 General Construction in Steel', 'IS 1905:1987 Structural Use of Unreinforced Masonry', 'IS 883:2016 Design of Structural Timber'],
-});
+// Alpha 9 C9: the Indian Standards page left: the built-in is-codes pack covers the loads,
+// concrete, foundations, steel (IS 800), masonry (IS 1905), timber (IS 883) and composite beams.
