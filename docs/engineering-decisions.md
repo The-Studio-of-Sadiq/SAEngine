@@ -41,6 +41,40 @@ here, newest first, with the date, the question, the decision, the reason and wh
 - **No unlicensed software.** ETABS, SAP2000 and STAAD are not used for cross-checks or cited.
   Open-source tools are used instead (2026-10-25).
 
+## 2026-11-05: composite beams, columns and slabs on deck (alpha 9 track P8)
+
+- **Composite slabs on steel deck are a new pack table.** A slab type's `compositeDeck` makes it
+  a composite slab, checked by the pack's `compositeSlab` table (only the Eurocodes pack, EN
+  1994-1-1 Section 9). A pack without it reports the deck as not checked and designs the slab as
+  concrete; the default pack's results are unchanged. With the table, the slab's own concrete
+  checks become advisories and the composite slab's rows decide.
+- **SAEngine practice: one way, simply supported, per metre.** The slab spans along the ribs
+  between its supports (the slab's extent along them unless the span is given), designed simply
+  supported (the bars over the supports are crack control). The deck's section values come from
+  its trapezoidal geometry (gross, no embossments or effective widths) unless the manufacturer's
+  are given; without the manufacturer's MRd the construction stage bending row is an advisory.
+  The longitudinal shear needs the deck's test values (m and k, or τu,Rk); without them the row is
+  an advisory asking for them. The working area of the construction load is placed at mid-span.
+  The service deflection limit is L/250 overall (the code gives none).
+- **SAEngine practice: the camber of unshored composite beams** (US and Eurocodes packs): 80 %
+  of the steel beam's deflection under the wet concrete, in 5 mm steps, none below 20 mm.
+  Reported in the summary and the drawings' notes, not checked.
+- **The slab's longitudinal shear of composite beams** (Eurocodes pack, EN 1994-1-1 6.6.6): the
+  planes beside the beam (top and bottom bars) and, in solid slabs, round the studs (bottom bars
+  twice); the deck's own contribution is not counted (safe side).
+- **SAEngine practice: composite floors' vibration.** The analysis carries the steel beams
+  alone, so a floor on composite beams has its deflection scaled by Is / It,dyn of its composite
+  beams (full interaction, Ec × the pack's `compositeDynamicModulus`: 1.35 US, 1.1 Eurocodes);
+  the default pack has none and is unchanged.
+- **The design mode checks composite types as composite.** The lightest section is found with
+  the composite checks (and the studs designed when the type gives no spacing); the proposal
+  notes the studs.
+- **BOQ.** Shear studs (number, from the type's spacing) and the steel deck (m², the slab's
+  soffit) are a new group, "Composite" (SC), kept out of the structural steel's kg. A composite
+  slab's concrete is the volume over and in the ribs; the deck replaces the soffit formwork.
+- **Planned.** The fire resistance of composite members (EN 1994-1-2, AISC 360 Appendix 4) stays
+  a planned feature; the US pack's composite slabs (ANSI/SDI C-2017) are not entered.
+
 ## 2026-11-05: online hazard lookup by site coordinates (alpha 9 track C22)
 
 - **Opt-in and asked every time (owner).** A global setting "Allow online hazard lookups"

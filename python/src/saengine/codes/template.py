@@ -234,6 +234,11 @@ TABLE_HELP: dict[str, str] = {
     "composite": "Composite steel-concrete members: the design method, material limits, "
     "modulus and stress block, phi and Omega factors, and the rules of composite columns, "
     "beams and their shear connectors. A pack without it does not cover composite members.",
+    "compositeSlab": "Composite slabs on profiled steel deck (alpha 9 P8): the partial factors, "
+    "the plastic block, the construction load and ponding on the deck, the deflection limits, "
+    "the least depths, the methods of the longitudinal shear the pack allows (m-k, partial "
+    "connection), the modular ratio of the deflections and the anti-crack bars. A pack without "
+    "it does not check composite slabs.",
     "cranes": "Crane loads: the vertical impact allowance and the lateral and longitudinal "
     "forces of crane runways by kind of crane, and how they combine. A pack without it does not "
     "cover cranes.",

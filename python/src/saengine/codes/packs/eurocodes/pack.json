@@ -24,6 +24,7 @@
     "steelStability",
     "steelSeismic",
     "composite",
+    "compositeSlab",
     "timber",
     "masonry",
     "aluminium",
@@ -220,6 +221,9 @@
     "composite": [
       "EN 1994-1-1 Sections 2-6"
     ],
+    "compositeSlab": [
+      "EN 1994-1-1 Section 9"
+    ],
     "timber": [
       "EN 1995-1-1 Sections 2, 3, 6; EN 338; EN 14080"
     ],
@@ -266,6 +270,7 @@
     "steelStability": "EN 1993-1-1",
     "steelSeismic": "EN 1998-1",
     "composite": "EN 1994-1-1",
+    "compositeSlab": "EN 1994-1-1",
     "timber": "EN 1995-1-1",
     "masonry": "EN 1996-1-1",
     "aluminium": "EN 1999-1-1",

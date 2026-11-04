@@ -15,7 +15,12 @@
     "encased": {"c1Base": 0.6, "c1Slope": 0.0001, "c1Max": 0.6, "barStiffnessShare": 1.0},
     "filled": {"c2Rectangular": 1.0, "c2Circular": 1.0, "c3Base": 0.6, "c3Slope": 0.0001, "c3Max": 0.6}
   },
-  "beam": {"webCompact": 2.78, "deck": {"ribHeightMax": 85.0, "studDiameterMax": 20.0, "studAboveDeck": 40.0, "slabAboveDeck": 50.0}},
+  "beam": {
+    "webCompact": 2.78,
+    "deck": {"ribHeightMax": 85.0, "studDiameterMax": 20.0, "studAboveDeck": 40.0, "slabAboveDeck": 50.0},
+    "longitudinalShear": {"method": "flangeStrut", "cotTheta": [1.0, 2.0], "nu": [0.6, 250], "aroundStuds": true},
+    "camber": {"share": 0.8, "minimum": 20, "step": 5}
+  },
   "partialFactors": {
     "method": "partialFactors",
     "gammaA": 1.0,
@@ -48,6 +53,8 @@
     "encasedTension": "EN 1994-1-1 6.7.3.2",
     "filledTension": "EN 1994-1-1 6.7.3.2",
     "interaction": "EN 1994-1-1 6.7.3.4 ((EI)eff,II, k = β / (1 - NEd/Ncr,eff), e0 of Table 6.5), 6.7.3.6-6.7.3.7 (αM, μd)",
+    "longitudinalShear": "EN 1994-1-1 6.6.6.1-6.6.6.4 (shear planes a-a and b-b; EN 1992-1-1 6.2.4(4): Asf fyd / sf >= vEd hf / cot θf, vEd <= ν fcd sin θf cos θf, 1.0 <= cot θf <= 2.0 for a compression flange, ν of 6.2.2(6))",
+    "camber": "SAEngine practice: 80 % of the steel beam's deflection under the wet concrete, in 5 mm steps, none below 20 mm (EN 1994-1-1 gives no camber rule)",
     "deck": "EN 1994-1-1 6.6.4.1(1) and 6.6.4.2 (hp <= 85 mm, d <= 20 mm through the deck), 6.6.5.8(1) (studs at least 2d = 40 mm above the deck for d = 20), 9.2.1(2) (hc >= 50 mm of composite slabs acting with a beam)"
   }
 }

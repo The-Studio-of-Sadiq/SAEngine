@@ -772,3 +772,12 @@ live answer before release.
 | C22-11 | decimals, timeout | 4 decimals (about 10 m), 30 s | SAEngine practice | PRACTICE |
 | C22-12 | terms | USGS information is US public domain; the service page calls the software provisional | usgs.gov copyrights and credits page | Owner to confirm |
 | C22-13 | wind (Ch 26), snow (Ch 7) | not covered | the ASCE Hazard Tool's programmatic access needs a subscription key; no public API | Not covered |
+
+## Alpha 9 P8: the camber of composite beams (composite.beam.camber) and composite floors' vibration (floorVibration)
+
+| # | Key | Value | Clause | Confidence |
+|---|---|---|---|---|
+| P8U1 | composite.beam.camber | 80 % of the wet-concrete deflection on the steel alone, 5 mm steps, none below 20 mm | none (AISC 360-22 gives no camber rule) | SAEngine practice (common US practice cambers about 75-85 % of it; short beams are not cambered) |
+| P8U2 | floorVibration.compositeDynamicModulus | Ec,dyn = 1.35 Ec, full interaction | AISC Design Guide 11 2nd ed. Sec 3.2 (the dynamic modulus, the transformed moment of inertia with full composite action) | Check |
+
+Not covered by this pack: composite slabs on steel deck (the compositeSlab table; the ANSI/SDI C-2017 values are not entered). A slab type's composite deck is reported as not checked.

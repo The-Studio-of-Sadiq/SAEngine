@@ -513,7 +513,54 @@ def _design_member(
         else None,
         "checks": entry["checks"],
     }
+    if getattr(object_type, "composite", None) is not None:
+        # Alpha 9 P8: the design mode checks a composite type's candidates as composite.
+        collected["mats"] = mats
+        collected["combinations"] = list(combinations)
     return entry, collected
+
+
+def composite_checker(
+    object_type: Any,
+    material: Any,
+    mats: dict[str, Any],
+    combinations: list[str],
+    summaries: dict[str, dict[str, Any]],
+) -> Any:
+    """Alpha 9 P8: the design mode's member checker of a composite type: the steel member's
+    checks of the candidate section (:func:`saengine.design.steel_proposal.
+    steel_member_checker`) with the composite checks added (:func:`saengine.design.steel.
+    composite.apply`: the composite section's rows replace the steel alone's, the connector
+    spacing designed when the type gives none). ``summaries`` collects, per candidate section,
+    the composite summary with the most connectors (the studs of the proposal)."""
+    from pydantic import TypeAdapter
+
+    from saengine.design.steel_proposal import steel_member_checker
+    from saengine.library.objects import Profile
+
+    def checker(
+        forces: Any,
+        section: Any,
+        steel: Any,
+        lengths: Any,
+        kind: str = "member",
+        options: Any = None,
+    ) -> list[dict[str, Any]]:
+        checks = steel_member_checker(forces, section, steel, lengths, kind, options)
+        profile = TypeAdapter(Profile).validate_python(section.profile())
+        candidate = object_type.model_copy(update={"profile": profile})
+        entry: dict[str, Any] = {"checks": [dict(c) for c in checks], "section": {"notes": []}}
+        composite_design.apply(
+            entry, kind, candidate, material, mats, list(forces), lengths, combinations
+        )
+        found = entry.get("composite")
+        if found is not None:
+            best = summaries.get(section.name)
+            if best is None or found.get("connectors", 0) > best.get("connectors", 0):
+                summaries[section.name] = found
+        return entry["checks"]
+
+    return checker
 
 
 def proposal_entries(
@@ -533,13 +580,26 @@ def proposal_entries(
         return [], []
     demands: dict[str, list[SteelMemberDemand]] = {}
     materials: dict[str, SteelMaterial] = {}
+    checkers: dict[str, Any] = {}
+    summaries: dict[str, dict[str, dict[str, Any]]] = {}
     for m in collected:
         demands.setdefault(m["type"], []).append(
             SteelMemberDemand(m["id"], m["lengths"], m["stations"], m["kind"], m.get("options"))
         )
         materials[m["material"].id] = SteelMaterial.from_material(m["material"])
+        if "mats" in m and m["type"] not in checkers:  # alpha 9 P8: a composite type
+            summaries[m["type"]] = {}
+            checkers[m["type"]] = composite_checker(
+                m["object"], m["material"], m["mats"], m["combinations"], summaries[m["type"]]
+            )
     types = [originals[t] for t in demands if t in originals]
-    found = steel_design_proposal(types, materials, demands)
+    found = steel_design_proposal(types, materials, demands, checkers=checkers)
+    for entry in found["types"]:  # alpha 9 P8: the studs of the proposed composite section
+        proposed = (entry.get("proposed") or {}).get("section")
+        summary = summaries.get(entry["type"], {}).get(proposed or "")
+        if summary is not None:
+            entry["composite"] = summary
+            entry["notes"].append(f"checked as composite: {composite_design.describe(summary)}")
     notes = [f"{s['type']}: {s['reason']}" for s in found.get("skipped", [])]
     return found["types"], notes
 

@@ -624,3 +624,29 @@ length along the bar's centre line (SAEngine practice), with the mandrel diamete
 | P4E13 | existing.frp.confinement.rotationFactor | θum's confinement exponent + α ρf ff,e/fc, α = 1.0, ff,e = Ef × 0.5 εfu | EN 1998-3 A.4.4.3 | Unsure |
 | P4E14 | existing.frp.environment | 1.0 (EN 1998-3 gives none) | none | SAEngine practice |
 | P4E15 | existing.nonlinear | θum with fc and fy over CF (× CF^-0.225 × 0.3^(ν (CF - 1))), shear by Eq A.12 at the target | EN 1998-3 Sec 3.5, A.3.2.2, A.3.3.1 | Check |
+
+## Alpha 9 P8: composite slabs on steel deck (compositeSlab), the slab's longitudinal shear and the camber of composite beams (composite.beam), composite floors' vibration (floorVibration)
+
+| # | Key | Value | Clause | Confidence |
+|---|---|---|---|---|
+| P8E1 | compositeSlab.gammaC, gammaAp, gammaVs | 1.5, 1.0 (γM0 of the sheeting), 1.25 | EN 1994-1-1 2.4.1.2; EN 1993-1-3 2(3) | Sure (γVs: check the recommended value) |
+| P8E2 | compositeSlab.gammaG, gammaQ | 1.35, 1.5 (construction stage) | EN 1990 Table A1.2(B) | Sure |
+| P8E3 | compositeSlab.concreteShare | 0.85 fcd in the plastic block | EN 1994-1-1 9.7.2(5) | Sure |
+| P8E4 | compositeSlab.plasticReduction | Mpr = 1.25 Mpa (1 - Ncf / (Ape fyp,d)) <= Mpa | EN 1994-1-1 9.7.2(6), Eq 9.6 | Sure |
+| P8E5 | compositeSlab.shearSpanShare | Ls = L/4 for a uniform load | EN 1994-1-1 9.7.3(5) | Sure |
+| P8E6 | compositeSlab.longitudinalShear | m-k (Eq 9.7) and the partial connection method (τu,Rd = τu,Rk / γVs) | EN 1994-1-1 9.7.3(4)-(8) | Sure; the end anchorage and the overhang L0 of 9.7.3(9)-(10) are not counted (safe side) |
+| P8E7 | compositeSlab.wetIncrement | fresh concrete + 1 kN/m³ | EN 1991-1-1 Table A.1 (note on unhardened concrete) | Check |
+| P8E8 | compositeSlab.constructionLoad | 10 % of the concrete's weight within 0.75-1.5 kN/m² over a 3 m working area, 0.75 kN/m² outside | EN 1991-1-6 4.11.1, Table 4.1 (recommended) | Check (the working area at mid-span is SAEngine's placing) |
+| P8E9 | compositeSlab.ponding | δ > h/10: the concrete 0.7 δ deeper | EN 1994-1-1 9.3.2(2) | Sure |
+| P8E10 | compositeSlab.deflection.construction | δs,max = L/180 | EN 1994-1-1 9.6(2) (recommended) | Sure |
+| P8E11 | compositeSlab.deflection.service | L/250 overall | EN 1990 A1.4, EN 1992-1-1 7.4.1(4) | SAEngine practice (no limit in EN 1994-1-1 9.8.2) |
+| P8E12 | compositeSlab.thickness | h >= 80, hc >= 40; as a beam's flange h >= 90, hc >= 50 mm | EN 1994-1-1 9.2.1(2)-(3) | Sure |
+| P8E13 | compositeSlab.modularFactor | n = 2 Ea / Ecm (short and long term together) | EN 1994-1-1 5.4.2.2(11) | Check (buildings: the simplified n) |
+| P8E14 | compositeSlab.antiCrack | 0.2 % (unpropped), 0.4 % (propped) of the concrete above the ribs | EN 1994-1-1 9.8.1(2) | Sure |
+| P8E15 | compositeSlab.meshMinimum | 80 mm²/m each way above the ribs | EN 1994-1-1 9.2.1(4)-(5) | Unsure (the clause number and value: check) |
+| P8E16 | vertical shear | VRd,c of concreteMethods.shear (EN 1992-1-1 6.2.2) on the ribs' mean width and dp | EN 1994-1-1 9.7.5 | Sure |
+| P8E17 | deck moments of the construction stage | one span: γG g L²/8 + γQ (q_out L²/8 + (q_in - q_out) a (2L - a)/8); continuous: 0.125 w L² over the support, 0.070 g L² + 0.096 q L² in the span; deflection 5/384 (one span), 1/185 (continuous) w L⁴ / EI | elastic beam coefficients | SAEngine practice |
+| P8E18 | composite.beam.longitudinalShear | flangeStrut: cot θf 1.0-2.0 (compression flange), ν = 0.6 (1 - fck/250); planes a-a (beside the beam, top + bottom bars) and b-b (round the studs, 2 hsc + the studs' spread + d, the bottom bars twice) | EN 1994-1-1 6.6.6.1-6.6.6.3, Figure 6.15; EN 1992-1-1 6.2.4(4), 6.2.2(6) | Check (the b-b perimeter with the shank diameter; the deck's contribution Ape fyp,d of 6.6.6.4(4) is not counted) |
+| P8E19 | composite.beam.camber | 80 % of the wet-concrete deflection on the steel alone, 5 mm steps, none below 20 mm | none (EN 1994-1-1 gives no camber rule) | SAEngine practice |
+| P8E20 | floorVibration.compositeDynamicModulus | Ec,dyn = 1.1 Ecm, full interaction | SCI P354 (the dynamic modulus of normal-weight concrete) | Unsure (check the factor of SCI P354) |
+| P8E21 | deck profiles | DECK_PROFILES: generic trapezoidal 46/150, 60/300, 80/300 (geometry only) | none (not a product's) | SAEngine practice: replace by the product's data |

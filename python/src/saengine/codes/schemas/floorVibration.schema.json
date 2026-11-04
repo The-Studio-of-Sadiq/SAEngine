@@ -339,6 +339,20 @@
       "description": "The fit-out (damping key) of a floor that sets none.",
       "title": "Defaultfitout",
       "type": "string"
+    },
+    "compositeDynamicModulus": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Alpha 9 P8: a steel floor on composite beams vibrates on the composite section with the concrete's modulus × this (full interaction): the panel's deflection (the analysis carries the steel beams alone) × Is / It,dyn of its composite beams. None: the analysis deflection as it is.",
+      "title": "Compositedynamicmodulus"
     }
   },
   "required": [

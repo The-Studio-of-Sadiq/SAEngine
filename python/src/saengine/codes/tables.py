@@ -10233,6 +10233,10 @@ class CompositeBeamRules(_Group):
     slab: CompositeSlab
     # C9: composite beams by limit state with partial factors on the materials (IS 11384).
     limitState: CompositeBeamLimitState | None = None
+    # Alpha 9 P8 (saengine.codes.composite_slab_tables): the slab's longitudinal shear and the
+    # transverse bars (None: not checked), the camber proposed when unshored (None: none).
+    longitudinalShear: CompositeLongitudinalShear | None = None
+    camber: CompositeCamber | None = None
 
 
 class CompositeConnections(_Group):
@@ -11715,6 +11719,11 @@ from saengine.codes.capacity_tables import (  # C19
     AllowableStressTable,
     HorizontalCapacityTable,
 )
+from saengine.codes.composite_slab_tables import (  # P8: composite slabs, beam groups
+    CompositeCamber,
+    CompositeLongitudinalShear,
+    CompositeSlabTable,
+)
 from saengine.codes.excavation_tables import ExcavationSupportTable  # P1: staged excavations
 from saengine.codes.existing_tables import ExistingTable  # P4: existing buildings
 from saengine.codes.hazard_tables import HazardLookupTable  # C22: online hazard lookup
@@ -11741,6 +11750,7 @@ from saengine.codes.steel_remainder_tables import ColdFormedTable, SteelFireTabl
 for _model in (  # alpha 9 C6: the groups above are defined after the tables that hold them
     StabilityNotional,
     SteelStabilityTable,
+    CompositeBeamRules,  # alpha 9 P8: its longitudinalShear and camber groups
     CompositeTable,
     TimberTable,
     MasonryTable,
@@ -11826,6 +11836,8 @@ TABLE_MODELS: dict[str, type[TableModel]] = {
     "existing": ExistingTable,
     # Alpha 9 C22: the hazard services by site coordinates.
     "hazardLookup": HazardLookupTable,
+    # Alpha 9 P8: composite slabs on profiled steel deck.
+    "compositeSlab": CompositeSlabTable,
 }
 
 

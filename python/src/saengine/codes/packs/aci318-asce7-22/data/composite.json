@@ -39,7 +39,8 @@
   "beam": {
     "studs": {
       "rpDirect": 0.75
-    }
+    },
+    "camber": {"share": 0.8, "minimum": 20, "step": 5}
   },
   "sources": {
     "method": "AISC 360-22 Sec I1.2a: plastic stress distribution",
@@ -87,6 +88,7 @@
     "seismicReduction": "BNBC 2020 Part 6 Sec 13.4.2.2, the default pack's rule (BNBC 2020 Part 6 Sec 13.4.2.2 (part 2 p. 389))",
     "faceBearingPlates": "BNBC 2020 Part 6 Sec 13.4.2.3, the default pack's rule (BNBC 2020 Part 6 Sec 13.4.2.3 (part 2 p. 389))",
     "panelZone": "BNBC 2020 Part 6 Sec 13.4.2.4, the default pack's rule (BNBC 2020 Part 6 Sec 13.4.2.4 (part 2 p. 389))",
+    "camber": "SAEngine practice: 80 % of the steel beam's deflection under the wet concrete, in 5 mm steps, none below 20 mm (AISC 360-22 gives no camber rule; the AISC Code of Standard Practice sets the tolerances only)",
     "compositeCompression": "BNBC 2020 Part 6 Sec 6.3.13.1-6.3.13.4, the default pack's rule (BNBC 2020 Part 6 Sec 6.3.13.1-6.3.13.4 (part 1 p. 916))"
   }
 }

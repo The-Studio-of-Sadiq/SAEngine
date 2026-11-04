@@ -2179,6 +2179,10 @@ def _assemble(
             method += import_module(f"saengine.design.{key}").method()
     if "shells" in slabs_seen:
         method += slab.METHOD
+    if any("compositeSlab" in e for e in checked):  # alpha 9 P8: slabs on steel deck
+        from saengine.design import composite_slab
+
+        method += composite_slab.METHOD
     if "coefficients" in slabs_seen:
         method.append(slab.COEFFICIENT_METHOD)
         # B33: slab systems designed by the pack's frame methods.
@@ -2601,6 +2605,11 @@ def _design_slabs(
                 skip(found)
                 continue
             entry, collected = found
+            # Alpha 9 P8: a composite slab on steel deck (saengine.design.composite_slab).
+            _composite_deck(
+                entry, object_type, elements_by_id.get(slab_id), outline, axes, level,
+                top_level, concrete, settings, notes,
+            )  # fmt: skip
             checked.append(entry)
             if collect is not None:
                 collect.append(collected)
@@ -2762,21 +2771,25 @@ def _design_slabs(
                     "checks": checks,
                 }
             )
-        checked.append(
-            {
-                "id": slab_id,
-                "kind": "slab",
-                "type": type_id,
-                "members": [e["id"] for e in own],
-                "checks": checks,
-                "utilisation": max((c["utilisation"] for c in strength), default=0.0),
-                "ok": all(c["ok"] for c in strength),
-                "strips": [_strip_outline(strip, axes) for strip in context.strips],
-                # The rebar contours: per analysis shell id, the steel [mm²/m] each layer
-                # needs (bottomX, bottomY, topX, topY), strength only.
-                "rebar": {str(k): v for k, v in context.contours.items()},
-            }
-        )
+        slab_entry = {
+            "id": slab_id,
+            "kind": "slab",
+            "type": type_id,
+            "members": [e["id"] for e in own],
+            "checks": checks,
+            "utilisation": max((c["utilisation"] for c in strength), default=0.0),
+            "ok": all(c["ok"] for c in strength),
+            "strips": [_strip_outline(strip, axes) for strip in context.strips],
+            # The rebar contours: per analysis shell id, the steel [mm²/m] each layer
+            # needs (bottomX, bottomY, topX, topY), strength only.
+            "rebar": {str(k): v for k, v in context.contours.items()},
+        }
+        # Alpha 9 P8: a composite slab on steel deck (saengine.design.composite_slab).
+        _composite_deck(
+            slab_entry, object_type, elements_by_id.get(slab_id), outline, axes, level,
+            top_level, concrete, settings, notes,
+        )  # fmt: skip
+        checked.append(slab_entry)
         notes += [f"{slab_id}: {note}" for note in context.notes]
     if plain is not None and start is not None:
         plain.take(start, checked, skipped, notes)
@@ -2896,6 +2909,80 @@ def _coefficient_slab(
         "coefficients": design,
     }
     return entry, collected
+
+
+def _composite_deck(
+    entry: dict[str, Any],
+    object_type: Slab,
+    element: Any,
+    outline: list[tuple[float, float]],
+    axes: Any,
+    level: float,
+    top_level: float,
+    concrete: Any,
+    settings: ProjectSettings | None,
+    notes: list[str],
+) -> None:
+    """Alpha 9 P8: the composite slab's checks of a slab type with a ``compositeDeck`` added to
+    its ``entry`` (:func:`saengine.design.composite_slab.apply`), from its own loads as
+    :func:`_coefficient_slab` takes them (the area load's finishes and live load, the gravity
+    strength combinations); nothing for a concrete slab."""
+    deck = getattr(object_type, "compositeDeck", None)
+    if deck is None:
+        return
+    from saengine.design import composite_slab
+
+    slab_id = entry["id"]
+    if settings is None:
+        notes.append(f"{slab_id}: composite deck not checked: no project settings")
+        return
+    roof = level >= top_level - 1.0
+    area_loads = {a.id: a for a in settings.areaLoads}
+    load_id = getattr(element, "areaLoad", None) or (
+        settings.roofLoad if roof else settings.floorLoad
+    )
+    area_load = area_loads.get(load_id) if load_id else None
+    case = partition_case(settings)
+    superimposed = area_load.superimposed(case) if area_load else 0.0
+    live = area_load.floor_live(case) if area_load else 0.0
+    span = deck.span
+    if span is None:
+        frame = slab.PlanFrame(axes)
+        along = 0 if deck.direction == "x" else 1
+        values = [frame.local(p)[along] for p in outline]
+        span = max(values) - min(values)
+    density = concrete.mechanical.density
+    extra: list[str] = []
+    if not density:
+        density = 2400.0
+        extra.append("the concrete gives no density: 2400 kg/m³ taken")
+    reinforcement = object_type.reinforcement
+
+    def per_metre(mesh: Any) -> float | None:
+        if mesh is None:
+            return None
+        return math.pi * mesh.dia**2 / 4 * 1000.0 / mesh.spacing
+
+    top = (
+        (per_metre(reinforcement.topX), per_metre(reinforcement.topY))
+        if reinforcement is not None
+        else (None, None)
+    )
+    inputs = composite_slab.SlabInputs(
+        h=float(object_type.thickness),
+        fck=float(concrete.concrete.fc),
+        ecm=float(slenderness_design.concrete_modulus(concrete)),
+        density=float(density) * 9.80665 / 1e3,
+        span=float(span),
+        superimposed=float(superimposed),
+        live=float(live),
+        combinations=[
+            (c.name, c.dead, c.live) for c in slab.gravity_combinations(settings.combinations, roof)
+        ],
+        top=top,
+        notes=extra,
+    )
+    composite_slab.apply(entry, deck, inputs, notes)
 
 
 def _line_supports(

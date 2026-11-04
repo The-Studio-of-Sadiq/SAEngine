@@ -1041,6 +1041,15 @@ class SlabShrinkage(_Model):
     creep: float = Field(ge=0, description="Creep coefficient φ [-].")
 
 
+class SlabTransverseBars(_Model):
+    """The slab bars across a composite beam that carry the slab's longitudinal shear (alpha 9
+    P8, the pack's ``composite.beam.longitudinalShear``)."""
+
+    top: float = Field(default=0, ge=0, description="Top bars across the beam [mm²/m].")
+    bottom: float = Field(default=0, ge=0, description="Bottom bars across the beam [mm²/m].")
+    fy: float = Field(default=500, gt=0, description="Their yield strength [MPa].")
+
+
 class CompositeBeam(_Model):
     """A steel beam acting with the concrete slab through shear connectors."""
 
@@ -1089,6 +1098,12 @@ class CompositeBeam(_Model):
     embeddedEnds: bool = Field(
         default=False,
         description="The beam ends are embedded in reinforced concrete columns or walls.",
+    )
+    transverseBars: SlabTransverseBars | None = Field(
+        default=None,
+        title="Transverse bars",
+        description="The slab bars across the beam for the longitudinal shear (where the code "
+        "pack checks it); none: the bars needed are reported.",
     )
 
 
@@ -1859,6 +1874,103 @@ class Brace(_ObjectBase):
     )
 
 
+class CompositeSlabDeck(_Model):
+    """Alpha 9 P8: the profiled steel deck of a composite slab spanning one way along its ribs
+    (:mod:`saengine.design.composite_slab`, the code pack's ``compositeSlab``). The geometry is
+    the product's (or a generic profile's); the deck's section values are computed from it
+    unless the manufacturer's are given. The longitudinal shear needs the deck's test values
+    (m and k, or τu,Rk)."""
+
+    profile: str | None = Field(
+        default=None,
+        description="A generic profile of saengine.design.composite_slab.DECK_PROFILES (its "
+        "geometry replaces the one below); none: the geometry below.",
+    )
+    direction: Literal["x", "y"] = Field(
+        default="x", description="The ribs (and the slab's span) along the slab's local x or y."
+    )
+    span: float | None = Field(
+        default=None,
+        gt=0,
+        description="Span of the deck between its supports [mm]; none: the slab's extent along "
+        "the ribs.",
+    )
+    spans: int = Field(
+        default=1,
+        ge=1,
+        description="Spans the deck sheet is continuous over while the concrete is wet (the "
+        "composite slab is designed as simply supported).",
+    )
+    propped: bool = Field(
+        default=False, description="Props carry the wet concrete (else the deck)."
+    )
+    ribHeight: float = Field(default=60, gt=0, description="Height of the deck hp [mm].")
+    pitch: float = Field(default=300, gt=0, description="Centres of the ribs [mm].")
+    ribTopWidth: float = Field(
+        default=180, gt=0, description="Width of a concrete rib at the top of the deck [mm]."
+    )
+    ribBottomWidth: float = Field(
+        default=120, gt=0, description="Width of a concrete rib at its bottom [mm]."
+    )
+    thickness: float = Field(
+        default=0.9, gt=0, lt=5, description="Design (core) thickness of the sheet [mm]."
+    )
+    fyp: float = Field(default=350, gt=0, description="Yield strength of the deck [MPa].")
+    E: float = Field(default=210000, gt=0, description="Modulus of the deck [MPa].")
+    m: float | None = Field(
+        default=None, gt=0, description="m of the shear bond from the deck's tests [N/mm²]."
+    )
+    k: float | None = Field(
+        default=None, ge=0, description="k of the shear bond from the deck's tests [N/mm²]."
+    )
+    tauU: float | None = Field(
+        default=None,
+        gt=0,
+        title="τu,Rk",
+        description="Longitudinal shear strength of the partial connection method from the "
+        "deck's tests [N/mm²].",
+    )
+    momentResistance: float | None = Field(
+        default=None,
+        gt=0,
+        description="The deck's design sagging resistance per metre width (its effective "
+        "section) from the manufacturer [kN·m/m]; none: the gross section's (reported).",
+    )
+    hoggingResistance: float | None = Field(
+        default=None,
+        gt=0,
+        description="The deck's design resistance over an inner support [kN·m/m] (continuous "
+        "sheets); none: the sagging one.",
+    )
+    inertia: float | None = Field(
+        default=None,
+        gt=0,
+        description="The deck's effective second moment of area per metre [mm⁴/m]; none: the "
+        "gross section's.",
+    )
+    area: float | None = Field(
+        default=None, gt=0, description="Ap per metre [mm²/m]; none: from the geometry."
+    )
+    centroid: float | None = Field(
+        default=None,
+        gt=0,
+        description="e, the deck's centroid above its bottom [mm]; none: from the geometry.",
+    )
+    plasticMoment: float | None = Field(
+        default=None,
+        gt=0,
+        description="Mpa, the deck's plastic moment per metre at its design strength "
+        "[kN·m/m]; none: from the geometry.",
+    )
+    weight: float | None = Field(
+        default=None, ge=0, description="Self weight of the deck [kN/m²]; none: from the steel."
+    )
+    beamFlange: bool = Field(
+        default=False,
+        description="The slab is the flange of composite beams (its least depths are larger).",
+    )
+
+
 class Slab(_ObjectBase):
     kind: Literal["slab"] = "slab"
     thickness: Length = Field(description="[mm]; with ribs: the topping over them.")
@@ -1891,6 +2003,12 @@ class Slab(_ObjectBase):
         title="Stiffness modifiers",
         description="Factors on the analysis shell stiffness, mass and weight (empty: the "
         "code's cracked factors for concrete and masonry, else 1).",
+    )
+    compositeDeck: CompositeSlabDeck | None = Field(
+        default=None,
+        title="Composite deck",
+        description="A composite slab on profiled steel deck (thickness: the overall depth, "
+        "over the ribs); empty: a concrete slab.",
     )
 
 

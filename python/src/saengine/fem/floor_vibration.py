@@ -244,12 +244,22 @@ def evaluate(
     stories = {round(float(s.elevation)): s.name for s in building.stories}
     top = max(stories, default=0)
     steel_beams = []
+    # Alpha 9 P8: Is / It,dyn of each composite beam (the pack's compositeDynamicModulus).
+    dynamic = getattr(rules, "compositeDynamicModulus", None)
+    stiffening: dict[int, float] = {}
     for element in building.elements:
         if isinstance(element, BeamElement):
             t = types.get(element.type)
             m = mats.get(getattr(t, "material", None)) if t else None
             if m is not None and m.category == Category.STEEL:
                 mid = (np.asarray(element.start[:2]) + np.asarray(element.end[:2])) / 2
+                if dynamic is not None and getattr(t, "composite", None) is not None:
+                    from saengine.design.steel import composite as composite_design
+
+                    span = float(np.linalg.norm(np.subtract(element.end[:2], element.start[:2])))
+                    factor = composite_design.dynamic_stiffening(t, mats, span / 1e3, dynamic)
+                    if factor is not None:
+                        stiffening[len(steel_beams)] = factor
                 steel_beams.append((round(element.elevation), mid))
     rows: list[dict[str, Any]] = []
     notes: list[str] = []
@@ -289,12 +299,22 @@ def evaluate(
         extent = tuple(points[:, a].max() - points[:, a].min() for a in (0, 1))
         held_points = points[held] if held else np.zeros((0, 3))
         lx, ly = _bay(points[k], held_points, extent)
-        fn = natural_frequency(delta, rules.frequencyConstant)
         outline = [(float(x) / 1e3, float(y) / 1e3) for x, y in element.boundary]
-        steel = any(
-            level == round(element.elevation) and _inside(mid / 1e3, outline)
-            for level, mid in steel_beams
-        )
+        inside = [
+            i
+            for i, (level, mid) in enumerate(steel_beams)
+            if level == round(element.elevation) and _inside(mid / 1e3, outline)
+        ]
+        steel = bool(inside)
+        composite_factors = [stiffening[i] for i in inside if i in stiffening]
+        if composite_factors:  # alpha 9 P8: the composite beams' dynamic stiffness
+            factor = float(np.mean(composite_factors))
+            notes.append(
+                f"{element.id}: on composite beams, Δ × {factor:.2f} (Is / It,dyn, Ec × "
+                f"{dynamic:g}, full interaction; the analysis carries the steel beams alone)"
+            )
+            delta *= factor
+        fn = natural_frequency(delta, rules.frequencyConstant)
         method = rules.steelMethod if steel else rules.concreteMethod
         found = check_panel(method, fn, w, lx * ly, max(lx, ly), occupancy, rules)
         rows.append(

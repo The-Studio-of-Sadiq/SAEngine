@@ -127,6 +127,28 @@
             }
           ],
           "default": null
+        },
+        "longitudinalShear": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CompositeLongitudinalShear"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "camber": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CompositeCamber"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         }
       },
       "required": [
@@ -174,6 +196,38 @@
         "elastic"
       ],
       "title": "CompositeBuckling",
+      "type": "object"
+    },
+    "CompositeCamber": {
+      "additionalProperties": false,
+      "description": "The camber proposed for an unshored composite beam: ``share`` × the deflection of the\nsteel alone under the wet concrete, the deck and the beam (5 w L⁴ / 384 E Is), rounded down\nto ``step``; none below ``minimum``. Reported, not checked.",
+      "properties": {
+        "share": {
+          "description": "Of the wet-concrete deflection.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Share",
+          "type": "number"
+        },
+        "minimum": {
+          "description": "No camber below this [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Minimum",
+          "type": "number"
+        },
+        "step": {
+          "description": "Rounded down to this [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Step",
+          "type": "number"
+        }
+      },
+      "required": [
+        "share",
+        "minimum",
+        "step"
+      ],
+      "title": "CompositeCamber",
       "type": "object"
     },
     "CompositeChannel": {
@@ -704,6 +758,64 @@
         "connectorLength"
       ],
       "title": "CompositeFilled",
+      "type": "object"
+    },
+    "CompositeLongitudinalShear": {
+      "additionalProperties": false,
+      "description": "``flangeStrut``: the slab's longitudinal shear per unit length through each shear plane,\nvEd = ΔFd / (hf Δx), ΔFd the share of the slab's compression force beyond the plane over\nΔx (the largest positive moment to the nearest zero moment), against the transverse bars\ncrossing the plane, Asf fyd / sf >= vEd hf / cot θf, and the struts, vEd <= ν fcd sin θf\ncos θf with ν = nu[0] (1 - fck / nu[1]).",
+      "properties": {
+        "method": {
+          "const": "flangeStrut",
+          "default": "flangeStrut",
+          "title": "Method",
+          "type": "string"
+        },
+        "cotTheta": {
+          "description": "Range of cot θf of a flange in compression (the largest is used unless the struts crush, then the smallest).",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Cottheta",
+          "type": "array"
+        },
+        "nu": {
+          "description": "(a, b) of ν = a (1 - fck / b).",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Nu",
+          "type": "array"
+        },
+        "aroundStuds": {
+          "default": true,
+          "description": "Also the plane round the connectors (solid slabs): its length 2 hsc + the studs' spread + d, the bottom bars counted twice.",
+          "title": "Aroundstuds",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "cotTheta",
+        "nu"
+      ],
+      "title": "CompositeLongitudinalShear",
       "type": "object"
     },
     "CompositeMaterials": {
