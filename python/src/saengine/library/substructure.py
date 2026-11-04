@@ -962,11 +962,60 @@ class ExcavationLoad(_Model):
     )
 
 
+class EmbeddedWall(_Model):
+    """Alpha 9 P7: the embedded wall round an excavation (sheet, contiguous or secant piles,
+    a diaphragm wall), designed per metre run by the code pack's ``embeddedWalls`` method
+    (:mod:`saengine.substructure.embedded_wall`): its embedment, bending moment and prop force.
+    The wall sections, walers, struts and anchors are designed separately."""
+
+    kind: Literal["cantilever", "propped"] = Field(
+        default="cantilever",
+        description="Cantilevered from the ground, or propped (strut or anchor) near the top.",
+        json_schema_extra=_labels(["Cantilever", "Propped"]),
+    )
+    earthSupport: Literal["free", "fixed"] = Field(
+        default="free",
+        title="Earth support",
+        description="A propped wall: free earth support (the toe may rotate) or fixed earth "
+        "support (Blum's equivalent beam, a longer wall).",
+        json_schema_extra=_labels(["Free earth support", "Fixed earth support"]),
+    )
+    propLevel: float | None = Field(
+        default=None,
+        title="Prop level",
+        description="Level of the strut or anchor of a propped wall [mm, project datum].",
+    )
+    toeLevel: float | None = Field(
+        default=None,
+        title="Toe level",
+        description="Toe of the wall as built [mm, project datum]; empty: the required toe is "
+        "reported.",
+    )
+    surcharge: float | None = Field(
+        default=None,
+        ge=0,
+        description="On the retained ground [kPa]; empty: the largest load beside the "
+        "excavation, at least the code pack's least surcharge.",
+    )
+    momentCapacity: float | None = Field(
+        default=None,
+        gt=0,
+        title="Moment capacity",
+        description="Design bending resistance of the wall per metre run [kN·m/m] (the sheet "
+        "pile's, or the piles' over their spacing); empty: the moment is reported only.",
+    )
+    propSpacing: Length | None = Field(
+        default=None,
+        title="Prop spacing",
+        description="Spacing of the struts or anchors along the wall [mm]; empty: per metre.",
+    )
+
+
 class Excavation(_Model):
     """An excavation for the foundations or a basement: its depth, how its sides are kept, the
     loads and buildings beside it and the ground water at its base. The checks are the
-    code pack's rules of excavation work; the design of an embedded wall and its supports is a
-    separate (planned) feature."""
+    code pack's rules of excavation work and, with ``wall``, the design of its embedded wall
+    (alpha 9 P7); the walers, struts and anchors are designed separately."""
 
     id: Id
     outline: list[Point2] | None = Field(
@@ -1045,6 +1094,11 @@ class Excavation(_Model):
     )
     adjoining: list[AdjoiningStructure] = Field(
         default_factory=list, title="Adjoining structures", description="Buildings next to it."
+    )
+    wall: EmbeddedWall | None = Field(
+        default=None,
+        title="Embedded wall",
+        description="The embedded wall of its sides, designed by the code pack's method.",
     )
     note: str | None = None
 

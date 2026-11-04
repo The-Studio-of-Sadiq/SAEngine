@@ -155,6 +155,21 @@ class Equipment(_Model):
         description="On vibration isolators: the nominal air gap to its bumper restraints or "
         "snubbers [mm] (a larger gap than the code pack's limit doubles the design force).",
     )
+    # Alpha 9 P7: a non-building structure (saengine.design.nonbuilding).
+    nonBuilding: str | None = Field(
+        default=None,
+        title="Non-building structure",
+        description="Its type in the code pack's non-building structure table (e.g. "
+        "elevatedTankBraced, trussedTower, steelStorageRack): a tank on legs, a tower or rack "
+        "designed with R, Ω0 and Cd of its type; empty: a component only.",
+    )
+    period: float | None = Field(
+        default=None,
+        gt=0,
+        title="Own period",
+        description="Fundamental period of the non-building structure itself [s]; empty: the "
+        "plateau of the design spectrum (on the safe side).",
+    )
 
     @model_validator(mode="after")
     def _weights(self) -> Equipment:

@@ -936,6 +936,32 @@ def _column_shortening_blocks(cs: dict[str, Any]) -> list[Block]:
     return out
 
 
+def _comfort_blocks(title: str, found: dict[str, Any] | None) -> list[Block]:
+    """Alpha 9 P7: the floor vibration or wind comfort section (the rows of
+    :func:`saengine.fem.floor_vibration.report_rows` / :func:`saengine.fem.wind_comfort.
+    report_rows`)."""
+    if not found:
+        return []
+    out: list[Block] = [h(2, title)]
+    if not found.get("available"):
+        return [*out, empty(str(found.get("reason") or "Not available."))]
+    out.append(p(str(found.get("clause") or "")))
+    if found.get("rows"):
+        n = len(found["columns"])
+        out.append(
+            table(
+                found["columns"],
+                found["rows"],
+                ["auto"] * n,
+                "l" * n,
+                bad=found.get("fails"),
+            )
+        )
+    if found.get("notes"):
+        out.append(bullets([str(x) for x in found["notes"]], 8.5))
+    return out
+
+
 def _nonstructural_blocks(ns: dict[str, Any]) -> list[Block]:
     """B15: seismic forces on nonstructural components and the anchorage of structural walls."""
     if not ns:
@@ -951,6 +977,18 @@ def _nonstructural_blocks(ns: dict[str, Any]) -> list[Block]:
         out.append(
             table(ns["anchorageHeaders"], ns["anchorage"], ["1fr"] + ["auto"] * (n - 1), "l" * n)
         )
+    if ns.get("nonBuilding"):  # Alpha 9 P7: non-building structures
+        out.append(h(3, "Non-building structures"))
+        n = len(ns["nonBuildingHeaders"])
+        out.append(
+            table(
+                ns["nonBuildingHeaders"],
+                ns["nonBuilding"],
+                ["auto"] * (n - 1) + ["1fr"],
+                "lll" + "r" * (n - 4) + "l",
+            )
+        )
+        out.append(bullets([str(x) for x in ns.get("nonBuildingNotes") or []], 8.5))
     if ns.get("notes"):
         out.append(bullets([str(n) for n in ns["notes"]], 8.5))
     return out
@@ -1153,6 +1191,8 @@ def _results(data: dict[str, Any], ctx: Context) -> dict[str, Any]:
     if results["notes"]:
         out.append(bullets(results["notes"], 8.5))
     out += _serviceability_blocks(results.get("serviceability") or {})
+    out += _comfort_blocks("Floor vibration from walking", results.get("floorVibration"))  # P7
+    out += _comfort_blocks("Wind-induced motion and comfort", results.get("windComfort"))  # P7
     out += _irregularity_blocks(results.get("irregularity") or {})
     out += _nonstructural_blocks(results.get("nonstructural") or {})
     out += _isolation_blocks(results.get("isolation"))  # B37

@@ -135,6 +135,8 @@
     "piles.detailing.concrete": "BNBC 2020 Part 6 Sec 3.6.1 and Table 6.3.5 (p. 715): Table 6.3.5 prints 18 MPa for cast-in-situ piles against 21 MPa in Sec 3.10.4.1, and 25 MPa for driven piles against 21 MPa in Sec 3.10.1.31: the larger of each pair is the least f'c checked",
     "piles.lateral.allowableDeflection": "SAEngine practice, not BNBC: BNBC 2020 Part 6 Sec 3.10.1.21 (p. 752) asks the least of soil failure, structure and head deflection, and Sec 3.10.6.15 (p. 779) leaves the tolerable movement to the designer; without the pile type's own limit, the head deflection of the analysis is held to the 5 mm of the load-test criterion (ii) of Sec 3.10.1.21",
     "piles.lateral.groupRatio": "BNBC 2020 Part 6 Sec 3.10.6.15 and Table 6.3.16 (p. 778): shafts act individually at c/c > 2.5B normal to the load and > 8B parallel to it; in-line ratios 1.00 at 8B, 0.70 at 6B, 0.40 at 4B, 0.25 at 3B (interpolated; 0.25 below 3B)",
+    "piles.lateral.soilFailure": "SAEngine practice, Broms (1964) where BNBC 2020 is silent: Part 6 Sec 3.10.1.21 (p. 752) asks the lateral capacity on the basis of soil failure and gives no method; Broms (1964a, 1964b, ASCE JSMFD 90 SM2, SM3): cohesive soil 9 cu D below 1.5 D, granular 3 Kp γ' D z, short or long pile, free or fixed head, the soil averaged over the top 10 D, allowable Hu / 2.5 (Broms' suggested load factor range, SAEngine practice)",
+    "piles.lateral.pyAnalysis": "SAEngine practice, p-y springs where BNBC 2020 is silent: Part 6 Sec 3.10.1.21 (p. 752) asks the head deflection and gives no method; Matlock (1970) soft clay, Welch and Reese (1972) stiff clay without free water, API RP 2GEO (2011) / Reese, Cox and Koop (1974) sand with the API initial modulus k by φ'; ε50 by cu after Reese and Van Impe (2001); a beam on nonlinear springs solved by finite elements",
     "piles.lateral.unbracedCu": "BNBC 2020 Part 6 Secs 3.10.1.21 and 3.10.1.31 (pp. 752, 756): piles standing unbraced in air, water or soils not capable of lateral support designed as columns; Sec 3.10.1.31 (p. 756): fully embedded piles are not long columns where cu > 10 kPa",
     "piles.loadTests.compression": "BNBC 2020 Part 6 Secs 3.10.1.17 and 3.11.1-3.11.2.1 (pp. 749, 789-794): Sec 3.10.1.17: test pile to 2 x the design load, working pile 1.5 x; safe load of a single pile the lesser of 2/3 of the load at 12 mm and 1/2 of the load at 10 % of D (7.5 % of the bulb of under-reamed piles); of a group, the load at 25 mm and 2/3 of the load at 40 mm. Sec 3.11.2 (p. 791): at least 2 % of the piles tested, at least one bored pile per project, not earlier than 4 weeks. Sec 3.11.2.1 (pp. 793-794): Davisson offset 0.15 in + D/120 (driven precast piles), BS 8004 10 % of D (allowable 50 % of it), IS 2911 (10 % of D or 12 mm; allowable 2/3 at 12 mm, 1/2 at 10 % D), Butler-Hoy (tangent at 1.27 mm/ton), Brinch Hansen 90 %; ultimate / FS 2.0-2.5 where failure occurs (2.0, Sec 3.10.1.18). Sec 3.11.1 (p. 789): integrity tests on 100 % of the piles. Sec 3.11.2.1 refers working-pile tests to 'Sec 3.10.1.16', an evident misprint for Sec 3.10.1.17",
     "piles.loadTests.compression.butlerHoyTon": "BNBC 2020 Part 6 Sec 3.11.2.1(f) (p. 794) prints 1.27 mm/ton without saying which ton; the metric tonne (9.81 kN: the smaller slope per kN, so the earlier and lower failure load) is taken as the conservative reading",
@@ -1457,7 +1459,27 @@
           1.0
         ]
       ],
-      "unbracedCu": 10
+      "unbracedCu": 10,
+      "soilFailure": {
+        "method": "broms",
+        "factorOfSafety": 2.5,
+        "passiveCohesive": 9.0,
+        "cohesiveGap": 1.5,
+        "passiveGranular": 3.0,
+        "averagingDepth": 10.0
+      },
+      "pyAnalysis": {
+        "method": "nonlinearSprings",
+        "softClay": "matlockSoftClay",
+        "stiffClay": "stiffClayNoWater",
+        "sand": "apiSand",
+        "stiffClayCu": 96.0,
+        "clayJ": 0.5,
+        "strain50": [[24.0, 0.02], [48.0, 0.01], [96.0, 0.007], [192.0, 0.005], [383.0, 0.004]],
+        "sandModulus": [[28.0, 6.8, 5.4], [32.0, 24.4, 16.3], [36.0, 61.0, 34.0], [40.0, 81.0, 45.0]],
+        "sandCoefficient": [3.0, 0.8],
+        "inertiaFactor": 1.0
+      }
     },
     "loadTests": {
       "compression": {

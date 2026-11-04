@@ -1,0 +1,206 @@
+{
+  "additionalProperties": false,
+  "description": "The peak acceleration of the top occupied floor under the wind of ``returnPeriod``\nyears (see the module notes). The speed of that wind is the project's basic wind speed ×\nthe ratio of ``speedRatio``: ``logarithmicMri`` V_T / V_50 = a + b·ln(12 T)\n(``mriTerms``), divided by ``referenceToFifty`` (V_ref / V_50 of the pack's basic speed);\n``probabilityFactor`` cprob = ((1 - K ln(-ln(1 - p))) / (1 - K ln(-ln(1 - p_ref))))^n with\np = 1 - exp(-1/T) (``probabilityTerms`` (K, n), p_ref of ``referencePeriod``).",
+  "properties": {
+    "source": {
+      "default": "",
+      "description": "Clause (and page) the table comes from.",
+      "title": "Source",
+      "type": "string"
+    },
+    "sources": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Clause references of single entries: {key: clause}.",
+      "title": "Sources",
+      "type": "object"
+    },
+    "clauses": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Clauses",
+      "type": "object"
+    },
+    "response": {
+      "description": "alongWindGust: the wind table's terrain constants (c, ℓ, ε̄, b̄, ᾱ) and its flexible gust factor's resonant part; turbulenceSpectrum: the wind table's peak velocity pressure and detailed structural factor constants.",
+      "enum": [
+        "alongWindGust",
+        "turbulenceSpectrum"
+      ],
+      "title": "Response",
+      "type": "string"
+    },
+    "returnPeriod": {
+      "description": "Of the comfort wind [years].",
+      "exclusiveMinimum": 0,
+      "title": "Returnperiod",
+      "type": "number"
+    },
+    "referencePeriod": {
+      "description": "Of the pack's basic wind speed [years].",
+      "exclusiveMinimum": 0,
+      "title": "Referenceperiod",
+      "type": "number"
+    },
+    "speedRatio": {
+      "enum": [
+        "logarithmicMri",
+        "probabilityFactor"
+      ],
+      "title": "Speedratio",
+      "type": "string"
+    },
+    "mriTerms": {
+      "anyOf": [
+        {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "(a, b).",
+      "title": "Mriterms"
+    },
+    "referenceToFifty": {
+      "default": 1.0,
+      "description": "V_ref / V_50 of the basic wind speed (logarithmicMri).",
+      "exclusiveMinimum": 0,
+      "title": "Referencetofifty",
+      "type": "number"
+    },
+    "probabilityTerms": {
+      "anyOf": [
+        {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "(K, n).",
+      "title": "Probabilityterms"
+    },
+    "airDensity": {
+      "description": "ρ [kg/m³].",
+      "exclusiveMinimum": 0,
+      "title": "Airdensity",
+      "type": "number"
+    },
+    "duration": {
+      "description": "T of the peak factor [s].",
+      "exclusiveMinimum": 0,
+      "title": "Duration",
+      "type": "number"
+    },
+    "peakConstant": {
+      "description": "g = √(2 ln νT) + this/√(2 ln νT) (0.5772 or 0.6).",
+      "exclusiveMinimum": 0,
+      "title": "Peakconstant",
+      "type": "number"
+    },
+    "damping": {
+      "additionalProperties": {
+        "exclusiveMinimum": 0,
+        "maximum": 1,
+        "type": "number"
+      },
+      "description": "Damping ratio by structure (concrete, steel).",
+      "title": "Damping",
+      "type": "object"
+    },
+    "acceptance": {
+      "enum": [
+        "occupancyLimits",
+        "frequencyCurve"
+      ],
+      "title": "Acceptance",
+      "type": "string"
+    },
+    "limits": {
+      "additionalProperties": {
+        "exclusiveMinimum": 0,
+        "type": "number"
+      },
+      "description": "occupancyLimits: occupancy -> peak [milli-g].",
+      "title": "Limits",
+      "type": "object"
+    },
+    "curves": {
+      "additionalProperties": {
+        "items": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "type": "array"
+        },
+        "type": "array"
+      },
+      "description": "frequencyCurve: occupancy -> (f [Hz], peak [milli-g]) points, linear in log-log between them, the end values outside.",
+      "title": "Curves",
+      "type": "object"
+    },
+    "areaUses": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Area use id -> occupancy id (others: the default).",
+      "title": "Areauses",
+      "type": "object"
+    },
+    "defaultOccupancy": {
+      "title": "Defaultoccupancy",
+      "type": "string"
+    }
+  },
+  "required": [
+    "response",
+    "returnPeriod",
+    "referencePeriod",
+    "speedRatio",
+    "airDensity",
+    "duration",
+    "peakConstant",
+    "damping",
+    "acceptance",
+    "defaultOccupancy"
+  ],
+  "title": "WindComfortTable",
+  "type": "object",
+  "$id": "saengine.codePack.windComfort/1"
+}

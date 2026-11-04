@@ -1770,6 +1770,8 @@ def _results(
         )
     # B9: storey drift and sway under the service wind, overturning of the whole building.
     out["serviceability"] = _serviceability(model_path, results_dir, warnings)
+    # Alpha 9 P7: floor vibration and wind comfort (the storey response's, one computation).
+    out["floorVibration"], out["windComfort"] = _comfort(model_path, results_dir, warnings)
     out["seismicDesign"] = _seismic_design(model_path, results_dir, settings, warnings)
     # B12: building irregularities, dynamic analysis, soft storeys, diaphragm connections.
     out["irregularity"] = _irregularity(model_path, results_dir, settings, warnings)
@@ -2275,6 +2277,25 @@ def _serviceability(model_path: Path, results_dir: Path, warnings: list[str]) ->
         "overturningNote": over.get("note", ""),
         "notes": list(wind.get("notes") or []),
     }
+
+
+def _comfort(
+    model_path: Path, results_dir: Path, warnings: list[str]
+) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
+    """Alpha 9 P7: the floor vibration and wind comfort rows of the storey response
+    (:mod:`saengine.fem.floor_vibration`, :mod:`saengine.fem.wind_comfort`)."""
+    from saengine.fem import floor_vibration, wind_comfort
+    from saengine.fem.story_response import story_response
+
+    try:
+        found = story_response(results_dir, model_path) or {}
+    except Exception as error:  # noqa: BLE001 - the report goes on without these checks
+        warnings.append(f"Floor vibration and wind comfort could not be worked out: {error}")
+        return None, None
+    return (
+        floor_vibration.report_rows(found.get("floorVibration")),
+        wind_comfort.report_rows(found.get("windComfort")),
+    )
 
 
 def _nonstructural(root: Path, warnings: list[str]) -> dict[str, Any] | None:

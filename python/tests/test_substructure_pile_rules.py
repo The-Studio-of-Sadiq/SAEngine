@@ -228,7 +228,8 @@ def test_head_deflection_check() -> None:
     # 100 kN per pile / (0.5 × 20 kN/mm) = 10 mm > 5 mm (the pack's)
     deflection = checks[0]
     assert deflection["demand"] == pytest.approx(10.0) and deflection["capacity"] == 5
-    assert any("Broms" in n for n in notes)
+    # Alpha 9 P7: Broms and p-y are checked now (pile_lateral_soil), not noted as planned.
+    assert not any("planned" in n for n in notes)
 
 
 def test_unbraced_pile_is_a_column() -> None:

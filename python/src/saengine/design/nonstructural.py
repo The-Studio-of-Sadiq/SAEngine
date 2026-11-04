@@ -657,6 +657,7 @@ def project_components(root: str | Path, pack: Any = None) -> dict[str, Any]:
     notes += ground.notes
     elevations = {s.id: float(s.elevation) for s in getattr(building, "stories", []) or []}
     equipment: list[dict[str, Any]] = []
+    nonbuilding: list[dict[str, Any]] = []
     walls: list[dict[str, Any]] = []
     structural: list[dict[str, Any]] = []
     materials = objects = None
@@ -678,6 +679,11 @@ def project_components(root: str | Path, pack: Any = None) -> dict[str, Any]:
 
             mep = parse_mep(mep_text)
             equipment, more = seismic_components(mep, ground, elevations, materials, pack)
+            notes += more
+            # Alpha 9 P7: the equipment that is a non-building structure.
+            from saengine.design.nonbuilding import structures
+
+            nonbuilding, more = structures(root, mep, settings, ground, elevations, pack)
             notes += more
         except ValueError as error:
             notes.append(f"07 MEP not read: {str(error).splitlines()[0]}")
@@ -707,6 +713,7 @@ def project_components(root: str | Path, pack: Any = None) -> dict[str, Any]:
             "groundFactor": table.force.groundFactor,
         },
         "equipment": equipment,
+        "nonBuilding": nonbuilding,
         "walls": walls,
         "structuralWalls": structural,
         "notes": notes,
@@ -755,7 +762,8 @@ def report_section(root: str | Path, pack: Any = None) -> dict[str, Any] | None:
             "clauses": [],
         }
     items = [*found["equipment"], *found["walls"]]
-    if not items and not found["structuralWalls"]:
+    nonbuilding = found.get("nonBuilding") or []
+    if not items and not found["structuralWalls"] and not nonbuilding:
         return None
     g = found["ground"]
     table = (pack or _pack_of(root)).table(TABLE)
@@ -836,6 +844,31 @@ def report_section(root: str | Path, pack: Any = None) -> dict[str, Any] | None:
             "Governs",
         ],
         "anchorage": anchorage_rows,
+        # Alpha 9 P7: non-building structures (saengine.design.nonbuilding).
+        "nonBuildingHeaders": [
+            "Structure",
+            "Type",
+            "Story",
+            "W (kN)",
+            "R / Ω0 / Cd",
+            "Cs",
+            "V (kN)",
+            "Governs",
+        ],
+        "nonBuilding": [
+            [
+                str(r["name"]),
+                str(r["type"]),
+                str(r["story"]),
+                _f(r["W"]),
+                f"{r['R']:g} / {r['omega0']:g} / {r['Cd']:g}",
+                _f(r["Cs"], 4),
+                _f(r["V"]),
+                str(r["governs"]),
+            ]
+            for r in nonbuilding
+        ],
+        "nonBuildingNotes": [f"{r['name']}: {r['basis']}" for r in nonbuilding],
         "notes": notes,
         "clauses": clauses,
     }

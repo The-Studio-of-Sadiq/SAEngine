@@ -1,0 +1,16 @@
+{
+  "$schema": "../../../schemas/embeddedWalls.schema.json",
+  "$sources": [
+    "EN 1997-1 Section 9 (9.7.4 embedded walls, 9.3.2.2 unplanned excavation 10 % of the retained height ≤ 0.5 m) with the materials set M2 and the variable action factor 1.3 of A2 (Design Approach 1, Combination 2); the embedment increase of fixed earth support SAEngine practice (Blum); see VERIFY.md"
+  ],
+  "source": "EN 1997-1 Section 9: embedded walls by limit equilibrium with the factored soil strengths (M2) and the variable surcharge × 1.3 (DA1 Combination 2), free and fixed earth support",
+  "method": "partialFactors",
+  "passiveFactor": 1.0,
+  "materials": "M2",
+  "variableFactor": 1.3,
+  "clauses": {
+    "required": "EN 1997-1 9.7.4 (embedded walls: rotational, vertical and structural failure)",
+    "method": "EN 1997-1 9.7.4 with Annex A Tables A.3-A.4 (A2, M2): limit equilibrium on factored strengths; embedment × 1.2 for fixed earth support (SAEngine practice, Blum)",
+    "overdig": "EN 1997-1 9.3.2.2(2): unplanned excavation 10 % of the retained height, at most 0.5 m"
+  }
+}

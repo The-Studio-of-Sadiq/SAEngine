@@ -4009,6 +4009,46 @@ class PileDetailing(_Group):
     concrete: list[FoundationConcrete]
 
 
+class PileSoilFailure(_Group):
+    """Alpha 9 P7, method ``broms``: the ultimate lateral load of a single pile against soil
+    failure by Broms (1964), short or long, free or fixed head, from the soil averaged over
+    ``averagingDepth`` × D below the head: cohesive 9 cu D below ``cohesiveGap`` × D
+    (``passiveCohesive``), granular ``passiveGranular`` Kp γ' D z; allowed Hu /
+    ``factorOfSafety`` × the group ratio (:mod:`saengine.substructure.pile_lateral_soil`)."""
+
+    method: Literal["broms"] = "broms"
+    factorOfSafety: Positive = Field(description="Allowable lateral load = Hu / this.")
+    passiveCohesive: Positive = Field(description="Cohesive: the soil reaction × cu D.")
+    cohesiveGap: float = Field(ge=0, description="Cohesive: no reaction over this × D.")
+    passiveGranular: Positive = Field(description="Granular: the reaction × Kp γ' D z.")
+    averagingDepth: Positive = Field(description="Soil averaged over this × D below the head.")
+
+
+class PilePyAnalysis(_Group):
+    """Alpha 9 P7, method ``nonlinearSprings``: the pile a beam on nonlinear p-y springs
+    (:mod:`saengine.substructure.pile_lateral_soil`): soft clay (cu below ``stiffClayCu``) by
+    ``softClay``, stiff clay by ``stiffClay``, sand by ``sand``; ε50 by cu bands, the initial
+    modulus k of sand by φ', above and below the water table; EI × ``inertiaFactor``."""
+
+    method: Literal["nonlinearSprings"] = "nonlinearSprings"
+    softClay: Literal["matlockSoftClay"] = "matlockSoftClay"
+    stiffClay: Literal["stiffClayNoWater", "matlockSoftClay"] = "stiffClayNoWater"
+    sand: Literal["apiSand"] = "apiSand"
+    stiffClayCu: Positive = Field(description="cu at or above this [kPa]: stiff clay.")
+    clayJ: Positive = Field(description="J of the clay's ultimate resistance.")
+    strain50: list[tuple[float, float]] = Field(
+        min_length=1, description="(cu up to [kPa], ε50) bands; the last for larger cu."
+    )
+    sandModulus: list[tuple[float, float, float]] = Field(
+        min_length=1,
+        description="(φ' [°], k above, k below the water table [MN/m³]), linear between.",
+    )
+    sandCoefficient: tuple[float, float] = Field(
+        description="A = max(a - b z/D, 0.9) of static loading: (a, b)."
+    )
+    inertiaFactor: Share = Field(description="EI of the analysis × this.")
+
+
 class PileLateral(_Group):
     """Lateral load on piles: the head deflection, the group ratios, unbraced piles."""
 
@@ -4019,6 +4059,9 @@ class PileLateral(_Group):
         description="[in-line c/c × B, ratio of the lateral resistance in the group]."
     )
     unbracedCu: Positive = Field(description="Soil below this cu [kPa] gives no lateral support.")
+    # Alpha 9 P7: lateral soil failure (Broms) and the p-y analysis; None: not covered.
+    soilFailure: PileSoilFailure | None = None
+    pyAnalysis: PilePyAnalysis | None = None
 
 
 class TestLoadFactors(_Group):
@@ -10212,6 +10255,12 @@ from saengine.codes.method_tables import (
     ConcreteMethodsTable,
     GeotechnicalMethodsTable,
 )
+from saengine.codes.practice_tables import (  # P7: checks the code gives no method for
+    EmbeddedWallsTable,
+    FloorVibrationTable,
+    NonBuildingTable,
+    WindComfortTable,
+)
 from saengine.codes.steel_remainder_tables import ColdFormedTable, SteelFireTable  # C12
 
 for _model in (  # alpha 9 C6: the groups above are defined after the tables that hold them
@@ -10286,6 +10335,11 @@ TABLE_MODELS: dict[str, type[TableModel]] = {
     # Alpha 9 C12: cold-formed members and steel in fire.
     "coldFormed": ColdFormedTable,
     "steelFire": SteelFireTable,
+    # Alpha 9 P7: floor vibration, wind comfort, non-building structures, embedded walls.
+    "floorVibration": FloorVibrationTable,
+    "windComfort": WindComfortTable,
+    "nonBuilding": NonBuildingTable,
+    "embeddedWalls": EmbeddedWallsTable,
 }
 
 

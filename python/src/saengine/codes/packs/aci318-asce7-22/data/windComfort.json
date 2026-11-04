@@ -1,0 +1,15 @@
+{
+  "$schema": "../../../schemas/windComfort.schema.json",
+  "$sources": [
+    "ASCE/SEI 7-22 Appendix C (serviceability: building motion under wind) and Commentary C26.11 (along-wind peak acceleration of flexible buildings); the conversion from the Risk Category II wind (700-year) by V_700 / V_50 = √1.6 (ASCE 7-10 Commentary C26.5.1); see VERIFY.md"
+  ],
+  "source": "ASCE/SEI 7-22 Appendix C and Commentary C26.11: along-wind peak acceleration of the top floor under the 10-year wind",
+  "referencePeriod": 700,
+  "referenceToFifty": 1.265,
+  "clauses": {
+    "required": "Appendix C, Sec C.2: building motion within acceptable limits for the occupants",
+    "response": "Commentary C26.11: along-wind peak acceleration σ = 0.85 φ ρ B h Cfx V̄z̄² Iz̄ K R / m1, g = √(2 ln n1T) + 0.5772/√(2 ln n1T)",
+    "speed": "SAEngine practice: V_T = V × (0.36 + 0.10 ln 12T) / √1.6 from the Risk Category II speed (ASCE 7-05 Commentary C6.5.5, ASCE 7-10 Commentary C26.5.1)",
+    "limits": "SAEngine practice: 10-year peak acceleration 15 milli-g residential, 18 hotels, 25 offices (Isyumov 1993; CTBUH practice); ASCE 7 gives no single limit"
+  }
+}

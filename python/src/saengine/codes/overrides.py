@@ -302,6 +302,8 @@ SECTIONS: tuple[tuple[str, tuple[str, ...]], ...] = (
             "detailing",
             "designLimits",
             "serviceability",
+            "floorVibration",
+            "windComfort",
             "slabCoefficients",
             "slabMethods",
             "wallMethods",
@@ -345,10 +347,14 @@ SECTIONS: tuple[tuple[str, tuple[str, ...]], ...] = (
             "pushover",
             "nonlinearHistory",
             "nonstructural",
+            "nonBuilding",
             "occupancyCategories",
         ),
     ),
-    ("Foundations and site", ("foundations", "siteInvestigation", "construction", "materials")),
+    (
+        "Foundations and site",
+        ("foundations", "siteInvestigation", "construction", "embeddedWalls", "materials"),
+    ),
     (
         "Fire, services and planning",
         (
