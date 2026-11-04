@@ -1,0 +1,49 @@
+{
+  "$schema": "../../../schemas/combinations.schema.json",
+  "$sources": [
+    "NTC-Criterios y Acciones 2017 Sec 2.3 (combinaciones de acciones) and Sec 3.4 (factores de carga FC)"
+  ],
+  "source": "NTC-Criterios 2017: permanent and variable actions with FC = 1.3 (dead) and 1.5 (live) for Group B; the accidental combinations (wind or earthquake) with FC = 1.1 on every action; FC = 0.9 where an action is favourable. The live load of the accidental combinations is the instantaneous Wa; SAEngine takes the maximum Wm (on the safe side). The allowable stress combinations stay the parent's (ASCE 7-22 Sec 2.4), for the materials the parent designs by allowable stresses only.",
+  "strength": [
+    {"id": "1", "name": "1.3D + 1.5L + 1.5Lr", "factors": {"D": 1.3, "F": 1.3, "L": 1.5, "Lr": 1.5, "H": 1.5}, "source": "NTC-Criterios Secs 2.3(a), 3.4(a): permanent and variable actions, Group B"},
+    {"id": "2W", "name": "1.1D + 1.1L + 1.1W", "factors": {"D": 1.1, "F": 1.1, "L": 1.1, "W": 1.1, "H": 1.1}, "source": "NTC-Criterios Secs 2.3(b), 3.4(b): accidental combination with wind", "note": "L at Wm in place of Wa (SAEngine practice, on the safe side)"},
+    {"id": "2E", "name": "1.1D + 1.1L + 1.1E", "factors": {"D": 1.1, "F": 1.1, "L": 1.1, "E": 1.1, "H": 1.1}, "source": "NTC-Criterios Secs 2.3(b), 3.4(b): accidental combination with earthquake", "note": "L at Wm in place of Wa (SAEngine practice, on the safe side)"},
+    {"id": "3W", "name": "0.9D + 1.1W", "factors": {"D": 0.9, "W": 1.1, "H": 1.1}, "source": "NTC-Criterios Sec 3.4(c): FC 0.9 for the favourable dead load, with the accidental wind"},
+    {"id": "3E", "name": "0.9D + 1.1E", "factors": {"D": 0.9, "E": 1.1, "H": 1.1}, "source": "NTC-Criterios Sec 3.4(c): FC 0.9 for the favourable dead load, with the accidental earthquake"}
+  ],
+  "gravity": [
+    {"name": "1.3D", "factors": {"D": 1.3}},
+    {"name": "1.3D + 1.5L", "factors": {"D": 1.3, "L": 1.5}}
+  ],
+  "service": [
+    {"id": "1", "name": "D + L", "factors": {"D": 1.0, "L": 1.0, "Lr": 1.0}, "source": "NTC-Criterios Sec 4 (estados límite de servicio): deflections under the unfactored actions", "note": "L at Wm"},
+    {"id": "2", "name": "D + 0.4L", "factors": {"D": 1.0, "L": 0.4}, "source": "NTC-Criterios Sec 6.1: the mean live load Wmed for the long-term deflections, taken as 0.4 Wm (office ratio: SAEngine practice)"},
+    {"id": "3", "name": "D + 0.4L + 0.7W", "factors": {"D": 1.0, "L": 0.4, "W": 0.7}, "source": "Service wind 0.7W (SAEngine practice; CFE Viento leaves the service return period to the designer)"}
+  ],
+  "temperature": [
+    {"name": "1.1D + 1.1T + 1.1L", "factors": {"D": 1.1, "T": 1.1, "L": 1.1}},
+    {"name": "1.1D - 1.1T + 1.1L", "factors": {"D": 1.1, "T": -1.1, "L": 1.1}}
+  ],
+  "seismicDeadUpper": 1.1,
+  "seismicDeadLower": 0.9,
+  "overstrength": "NTC-Sismo 2017: the capacity-design rules of NTC-Concreto Ch 7 and NTC-Acero Ch 12; SAEngine's Em = Ω0 E uses Ω0 = R0 of the system (SAEngine practice)",
+  "optionalCases": ["F", "H", "T", "R", "S"],
+  "alternates": {"$replace": true, "Lr": ["S"]},
+  "exceptions": {"$replace": true},
+  "pDeltaPreload": {"$replace": true, "D": 1.1, "SD": 1.1, "F": 1.1, "L": 1.1},
+  "$remove": ["flood", "cantileverUplift"],
+  "sources": {
+    "$replace": true,
+    "strength": "NTC-Criterios 2017 Secs 2.3 and 3.4 (Group B; Group A takes FC 1.5 / 1.7 in the first combination: not formed, raise the factors under Code Values)",
+    "service": "NTC-Criterios Sec 4 and SAEngine practice (Wmed, service wind)",
+    "temperature": "NTC-Criterios Sec 2.3(b): T as an accidental action at 1.1 (SAEngine reading)",
+    "pDeltaPreload": "The gravity part of the accidental earthquake combination, 1.1D + 1.1L",
+    "allowable": "ASCE 7-22 Sec 2.4 (the parent's), for the parent's allowable stress materials only"
+  },
+  "clauses": {
+    "$replace": true,
+    "strength": "Secs 2.3, 3.4",
+    "temperature": "Sec 2.3(b)",
+    "settlement": "Sec 2.3, T including differential settlement"
+  }
+}

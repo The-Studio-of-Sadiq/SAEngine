@@ -319,6 +319,287 @@
       "title": "ColumnMethodRules",
       "type": "object"
     },
+    "CompressionFieldGeneral": {
+      "additionalProperties": false,
+      "description": "The general variant's constants: β = g1 / (1 + g2 εx) × g3 / (g4 + sze), θ = t1 + t2 εx\n[°], sze = c1 dv / (c2 + ag) at least c3 dv without the least links, else\n``stirrupSpacingParameter`` [mm].",
+      "properties": {
+        "beta": {
+          "maxItems": 4,
+          "minItems": 4,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Beta",
+          "type": "array"
+        },
+        "theta": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Theta",
+          "type": "array"
+        },
+        "crackSpacing": {
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Crackspacing",
+          "type": "array"
+        },
+        "stirrupSpacingParameter": {
+          "exclusiveMinimum": 0,
+          "title": "Stirrupspacingparameter",
+          "type": "number"
+        }
+      },
+      "required": [
+        "beta",
+        "theta",
+        "crackSpacing",
+        "stirrupSpacingParameter"
+      ],
+      "title": "CompressionFieldGeneral",
+      "type": "object"
+    },
+    "CompressionFieldShearRules": {
+      "additionalProperties": false,
+      "description": "Alpha 9 C17: shear by the compression field method with β and θ (method\n``compressionField``, CSA A23.3-19 11.3 type, :mod:`saengine.design.compression_field_shear`):\nmaterial resistance factors on each term, dv = max(a d, b h).",
+      "properties": {
+        "method": {
+          "const": "compressionField",
+          "title": "Method",
+          "type": "string"
+        },
+        "variant": {
+          "default": "simplified",
+          "enum": [
+            "simplified",
+            "general"
+          ],
+          "title": "Variant",
+          "type": "string"
+        },
+        "phiC": {
+          "description": "φc on the concrete term.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Phic",
+          "type": "number"
+        },
+        "phiS": {
+          "description": "φs on the links.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Phis",
+          "type": "number"
+        },
+        "depthShares": {
+          "description": "dv = max(a d, b h).",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            }
+          ],
+          "title": "Depthshares",
+          "type": "array"
+        },
+        "rootMax": {
+          "description": "√f'c at most [MPa].",
+          "exclusiveMinimum": 0,
+          "title": "Rootmax",
+          "type": "number"
+        },
+        "betaWithStirrups": {
+          "description": "β with at least Av,min (simplified).",
+          "exclusiveMinimum": 0,
+          "title": "Betawithstirrups",
+          "type": "number"
+        },
+        "betaNoStirrups": {
+          "description": "β = a / (b + dv) without Av,min (simplified).",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Betanostirrups",
+          "type": "array"
+        },
+        "thetaDeg": {
+          "description": "θ [°] (simplified).",
+          "exclusiveMinimum": 0,
+          "title": "Thetadeg",
+          "type": "number"
+        },
+        "general": {
+          "$ref": "#/$defs/CompressionFieldGeneral"
+        },
+        "strainLimits": {
+          "description": "εx within (least, largest).",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Strainlimits",
+          "type": "array"
+        },
+        "aggregate": {
+          "description": "ag [mm] of sze where the project gives none.",
+          "exclusiveMinimum": 0,
+          "title": "Aggregate",
+          "type": "number"
+        },
+        "vrMaxShare": {
+          "description": "Vr at most share φc f'c bw dv.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Vrmaxshare",
+          "type": "number"
+        },
+        "minCoefficient": {
+          "description": "Av,min = c √f'c bw s / fy.",
+          "exclusiveMinimum": 0,
+          "title": "Mincoefficient",
+          "type": "number"
+        },
+        "fyMax": {
+          "description": "fy of the links at most [MPa].",
+          "exclusiveMinimum": 0,
+          "title": "Fymax",
+          "type": "number"
+        },
+        "simplifiedFyMax": {
+          "description": "The simplified variant holds for fy of the bars up to this [MPa].",
+          "exclusiveMinimum": 0,
+          "title": "Simplifiedfymax",
+          "type": "number"
+        },
+        "spacing": {
+          "description": "s <= min(share dv, mm).",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Spacing",
+          "type": "array"
+        },
+        "closeSpacing": {
+          "description": "s <= min(share dv, mm) where Vf > closeShare λ φc f'c bw dv.",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Closespacing",
+          "type": "array"
+        },
+        "closeShare": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Closeshare",
+          "type": "number"
+        }
+      },
+      "required": [
+        "method",
+        "phiC",
+        "phiS",
+        "depthShares",
+        "rootMax",
+        "betaWithStirrups",
+        "betaNoStirrups",
+        "thetaDeg",
+        "general",
+        "strainLimits",
+        "aggregate",
+        "vrMaxShare",
+        "minCoefficient",
+        "fyMax",
+        "simplifiedFyMax",
+        "spacing",
+        "closeSpacing",
+        "closeShare"
+      ],
+      "title": "CompressionFieldShearRules",
+      "type": "object"
+    },
     "CoverRules": {
       "additionalProperties": false,
       "description": "Nominal cover from the exposure and structural classes (method ``exposureClass``).",
@@ -4942,6 +5223,9 @@
         },
         {
           "$ref": "#/$defs/TabulatedShearRules"
+        },
+        {
+          "$ref": "#/$defs/CompressionFieldShearRules"
         },
         {
           "type": "null"

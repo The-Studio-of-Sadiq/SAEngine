@@ -1,0 +1,40 @@
+{
+  "$schema": "../../../schemas/concrete.schema.json",
+  "$sources": [
+    "CSA G30.18 bar designations 10M-55M (nominal diameters 11.3, 16.0, 19.5, 25.2, 29.9, 35.7, 43.7, 56.4 mm); CSA A23.3-19 7.8 (shrinkage and temperature reinforcement)"
+  ],
+  "barDiameters": {
+    "$replace": true,
+    "all": [11.3, 16.0, 19.5, 25.2, 29.9, 35.7, 43.7, 56.4],
+    "main": [16.0, 19.5, 25.2, 29.9, 35.7],
+    "column": [19.5, 25.2, 29.9, 35.7, 43.7],
+    "slab": [11.3, 16.0, 19.5],
+    "stirrup": [11.3, 16.0],
+    "wall": [11.3, 16.0, 19.5],
+    "boundary": [19.5, 25.2, 29.9, 35.7],
+    "hoop": [11.3, 16.0],
+    "lintel": [11.3, 16.0, 19.5, 25.2],
+    "tank": [11.3, 16.0, 19.5, 25.2],
+    "foundation": [16.0, 19.5, 25.2, 29.9]
+  },
+  "barNames": {
+    "$replace": true,
+    "11.3": "10M", "16": "15M", "19.5": "20M", "25.2": "25M",
+    "29.9": "30M", "35.7": "35M", "43.7": "45M", "56.4": "55M"
+  },
+  "shrinkage": {
+    "ratioLow": 0.002,
+    "referenceFy": 400.0,
+    "ratioReference": 0.002,
+    "ratioMin": 0.002
+  },
+  "clauses": {
+    "shrinkage": "7.8.1",
+    "shrinkageBrick": "7.8.1 (no brick aggregate rule)"
+  },
+  "sources": {
+    "barDiameters": "CSA G30.18: the metric bar sizes 10M to 55M by their nominal diameters (SAEngine's sets by use: SAEngine practice)",
+    "barNames": "CSA G30.18 bar designations (shown in US customary display units; SI shows the diameter)",
+    "shrinkage": "CSA A23.3-19 7.8.1: 0.002 Ag of shrinkage and temperature reinforcement in each direction, every grade"
+  }
+}

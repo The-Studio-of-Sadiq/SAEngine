@@ -1,0 +1,99 @@
+{
+  "schema": "saengine.codePack/1",
+  "id": "mexico-ntc",
+  "name": "NTC-CDMX 2017 (Normas Técnicas Complementarias, Mexico City)",
+  "edition": "NTC-CDMX 2017",
+  "country": "MX",
+  "units": "SI",
+  "version": "0.1.0",
+  "extends": "aci318-asce7-22",
+  "covers": [
+    "locations",
+    "zoneCoefficients",
+    "occupancyCategories",
+    "areaLoads",
+    "combinations",
+    "seismic",
+    "wind",
+    "factors",
+    "concrete",
+    "steel",
+    "designClauses"
+  ],
+  "description": "The Mexico City pack (alpha 9 track C17): the Normas Técnicas Complementarias of the Mexico City building regulations. NTC-Criterios y Acciones 2017: the load factors 1.3 (dead) and 1.5 (live) of Group B structures, 1.1 for the accidental combinations with wind or earthquake, 0.9 where the dead load is favourable, the maximum live loads Wm. NTC-Sismo: the zone spectra of Mexico City (zones I, II, IIIa-IIId: a0, c, Ta, Tb, r) reduced by the seismic behaviour factor Q' (Q of the system, 1 + (Q - 1) T / Ta below Ta) and the regularity factor; the site-specific form with k, β and the overstrength R = k1 R0 + k2 of the 2017 edition where the project enters the site's parameters (SASID); Group A importance 1.5; drifts of Q × the elastic ones, 0.006 (0.012 with separated finishes); the static method's linear distribution and the design eccentricity 1.5 es ± 0.1 b. Wind by the CFE Manual de Diseño de Obras Civiles, Diseño por Viento: VD = Frz VR with Frz = c (z/10)^α of the terrain categories 1-4, qz with the barometric factor G of the city's altitude. Concrete NTC-Concreto 2017 in the ACI 318 form of its parent (FR 0.9 flexure, 0.75 shear, 0.65 / 0.75 compression), Mexican bars #3-#12 (NMX-B-506); steel NTC-Acero 2017: the column curve (1 + λ^2n)^(-1/n) with n = 1.4 and the lateral-torsional buckling by Mu (FR 0.9). Clause names in short Spanish form only. What this version does not set (the NTC shear and torsion equations of concrete, the NTC detailing values, connections, timber, masonry, irregularity checks) is the parent pack's (ACI 318-19, AISC 360-22, ASCE 7-22) and the report names it. Only Mexico City is covered as a town; other cities take a custom location with the CFE site values. Every value is listed in VERIFY.md, to be checked against the printed norms.",
+  "sources": [
+    {
+      "id": "NTC-Criterios",
+      "title": "Normas Técnicas Complementarias sobre Criterios y Acciones para el Diseño Estructural de las Edificaciones",
+      "edition": "2017",
+      "publisher": "Gobierno de la Ciudad de México"
+    },
+    {
+      "id": "NTC-Sismo",
+      "title": "Normas Técnicas Complementarias para Diseño por Sismo",
+      "edition": "2017 (zone spectra of the 2004 edition, Sec 3)",
+      "publisher": "Gobierno de la Ciudad de México"
+    },
+    {
+      "id": "NTC-Concreto",
+      "title": "Normas Técnicas Complementarias para Diseño y Construcción de Estructuras de Concreto",
+      "edition": "2017",
+      "publisher": "Gobierno de la Ciudad de México"
+    },
+    {
+      "id": "NTC-Acero",
+      "title": "Normas Técnicas Complementarias para Diseño y Construcción de Estructuras de Acero",
+      "edition": "2017",
+      "publisher": "Gobierno de la Ciudad de México"
+    },
+    {
+      "id": "CFE-Viento",
+      "title": "Manual de Diseño de Obras Civiles, Diseño por Viento",
+      "edition": "2008",
+      "publisher": "Comisión Federal de Electricidad"
+    },
+    {
+      "id": "NMX-B-506",
+      "title": "NMX-B-506 Varilla corrugada de acero para refuerzo de concreto",
+      "edition": "2011",
+      "publisher": "Secretaría de Economía"
+    }
+  ],
+  "clauses": {
+    "locations": ["CFE Viento (VR of Mexico City) and NTC-Sismo (zoning)"],
+    "zoneCoefficients": ["NTC-Sismo Sec 3 (the zone spectra: Z only scales them, 1.0)"],
+    "occupancyCategories": ["Reglamento de Construcciones Art. 139 (Groups A and B); NTC-Sismo Sec 3 (factor 1.5 of Group A)"],
+    "areaLoads": ["NTC-Criterios Tabla 6.1.1 (Wm)"],
+    "combinations": ["NTC-Criterios Secs 2.3 and 3.4"],
+    "seismic": ["NTC-Sismo Secs 3-9"],
+    "wind": ["CFE Viento Secs 4.2-4.3"],
+    "factors": ["NTC-Concreto Sec 3.7"],
+    "concrete": ["NMX-B-506 bar sizes"],
+    "steel": ["NTC-Acero Secs 3.2 and 3.3"],
+    "designClauses": ["NTC-Acero (the member checks the pack sets; the rest the parent's AISC 360-22)"]
+  },
+  "basis": {
+    "general": "NTC-CDMX 2017 (Criterios y Acciones, Sismo) and the CFE wind manual",
+    "concrete": "NTC-Concreto 2017 (in the parent's ACI 318-19 form where it sets no own method)",
+    "steel": "NTC-Acero 2017 (members; connections and seismic provisions the parent's AISC 360-22 and AISC 341-22)",
+    "method": "Limit states design (load factors FC, resistance factors FR)"
+  },
+  "tableCodes": {
+    "locations": "CFE Viento",
+    "zoneCoefficients": "NTC-Sismo",
+    "occupancyCategories": "NTC-Sismo",
+    "areaLoads": "NTC-Criterios",
+    "combinations": "NTC-Criterios",
+    "seismic": "NTC-Sismo",
+    "seismic.combinations": "NTC-Criterios",
+    "seismic.weight": "NTC-Criterios",
+    "wind": "CFE Viento",
+    "factors": "NTC-Concreto",
+    "designClauses.steelMembers": "AISC 360-22",
+    "designClauses.steelMembers.compressionFlexural": "NTC-Acero",
+    "designClauses.steelMembers.flexureLtb": "NTC-Acero"
+  },
+  "author": "SAEngine contributors",
+  "licence": "AGPL-3.0-only",
+  "hooks": null
+}

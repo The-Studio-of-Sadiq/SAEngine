@@ -1,0 +1,23 @@
+{
+  "$schema": "../../../schemas/steel.schema.json",
+  "$sources": [
+    "NTC-Acero 2017 Sec 3.2 (FR), Sec 5.2 (compression: Rc = χ Fy A FR, χ = (1 + λ^2n)^(-1/n)), Sec 6.3 (lateral-torsional buckling by Mu)"
+  ],
+  "source": "NTC-Acero 2017 for the member resistances it sets; connections, bolts, welds and the other member limit states are the parent's AISC 360-22 values",
+  "designMethod": "LRFD",
+  "omega": {"$replace": true},
+  "omegaFromPhi": null,
+  "memberMethods": {
+    "columnCurve": "powerCurve",
+    "curveExponent": {"default": 1.4},
+    "lateralTorsional": "criticalMoment",
+    "ltbCurve": [1.15, 0.28, 0.6667],
+    "omega2Max": 2.5
+  },
+  "sources": {
+    "phi": "NTC-Acero 2017 Sec 3.2: FR = 0.9 for yielding, buckling and flexure, 0.75 for rupture (the parent's values are the same); the bolt, weld and bearing factors stay the parent's",
+    "memberMethods.columnCurve": "NTC-Acero 2017 Sec 5.2: χ = (1 + λ^2n)^(-1/n), λ = √(Fy / Fe), n = 1.4 (SAEngine reading for every section; check n of the section types)",
+    "memberMethods.lateralTorsional": "NTC-Acero 2017 Sec 6.3: Mu of the elastic critical moment with the moment gradient factor C (the program's Cb, at most 2.5: SAEngine practice); MR = 1.15 FR Mp (1 - 0.28 Mp / Mu) <= FR Mp where Mu > 2/3 Mp, else FR Mu",
+    "designMethod": "NTC-Acero is limit states design only: no allowable stress design (omegaFromPhi none)"
+  }
+}

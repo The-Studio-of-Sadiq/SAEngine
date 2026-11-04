@@ -1,0 +1,102 @@
+{
+  "$schema": "../../../schemas/locations.schema.json",
+  "$replace": true,
+  "$sources": [
+    "NBCC 2020 Appendix C, Table C-2 (climatic design data: ground snow load Ss, associated rain load Sr, hourly wind pressure q1/50) and the seismic hazard values of Appendix C (Sa(T), site class C)"
+  ],
+  "source": "NBCC 2020 Appendix C (values to be checked against the printed table: VERIFY.md). windSpeed is the speed whose velocity pressure 0.000613 V² [kPa] is the town's q1/50 (the program's power law takes V; NBCC gives q). spectrum: Sa(T) at 0.2, 0.5, 1.0, 2.0, 5.0 and 10.0 s for site class C, given only where SAEngine had a value; other towns and other site classes: enter the site's Sa(T) from the NRCan 2020 seismic hazard calculator (Site > Mapped spectral values > design spectrum). zone is not used (1 everywhere).",
+  "default": "toronto",
+  "locations": {
+    "vancouver": {
+      "name": "Vancouver",
+      "zone": 1,
+      "windSpeed": 27.09,
+      "groundSnow": 1.8,
+      "rainLoad": 0.2,
+      "spectrum": [[0.2, 0.848], [0.5, 0.751], [1.0, 0.425], [2.0, 0.257], [5.0, 0.08], [10.0, 0.029]]
+    },
+    "calgary": {
+      "name": "Calgary",
+      "zone": 1,
+      "windSpeed": 27.98,
+      "groundSnow": 1.1,
+      "rainLoad": 0.1
+    },
+    "edmonton": {
+      "name": "Edmonton",
+      "zone": 1,
+      "windSpeed": 27.09,
+      "groundSnow": 1.7,
+      "rainLoad": 0.1
+    },
+    "winnipeg": {
+      "name": "Winnipeg",
+      "zone": 1,
+      "windSpeed": 27.09,
+      "groundSnow": 1.9,
+      "rainLoad": 0.2
+    },
+    "toronto": {
+      "name": "Toronto",
+      "zone": 1,
+      "windSpeed": 26.79,
+      "groundSnow": 0.9,
+      "rainLoad": 0.4,
+      "spectrum": [[0.2, 0.249], [0.5, 0.126], [1.0, 0.063], [2.0, 0.029], [5.0, 0.0071], [10.0, 0.0026]]
+    },
+    "ottawa": {
+      "name": "Ottawa",
+      "zone": 1,
+      "windSpeed": 25.86,
+      "groundSnow": 2.4,
+      "rainLoad": 0.4,
+      "spectrum": [[0.2, 0.439], [0.5, 0.237], [1.0, 0.118], [2.0, 0.056], [5.0, 0.015], [10.0, 0.0055]]
+    },
+    "montreal": {
+      "name": "Montréal",
+      "zone": 1,
+      "windSpeed": 26.18,
+      "groundSnow": 2.6,
+      "rainLoad": 0.4,
+      "spectrum": [[0.2, 0.595], [0.5, 0.311], [1.0, 0.148], [2.0, 0.068], [5.0, 0.018], [10.0, 0.0062]]
+    },
+    "quebec": {
+      "name": "Québec",
+      "zone": 1,
+      "windSpeed": 25.86,
+      "groundSnow": 3.6,
+      "rainLoad": 0.6
+    },
+    "halifax": {
+      "name": "Halifax",
+      "zone": 1,
+      "windSpeed": 29.13,
+      "groundSnow": 1.9,
+      "rainLoad": 0.6
+    }
+  },
+  "towns": {
+    "area": "Canada",
+    "bounds": [41.7, -141.0, 83.1, -52.6],
+    "zClause": "NBCC 2020 Appendix C (Sa(T) of site class C, where the pack gives them)",
+    "windClause": "NBCC 2020 Appendix C, Table C-2 (q1/50 as the speed of the same velocity pressure)",
+    "governs": "the site's own values from the NRCan hazard calculator and Appendix C govern over the nearest town",
+    "towns": [
+      {"name": "Vancouver", "latitude": 49.2827, "longitude": -123.1207, "windSpeed": 27.09, "location": "vancouver"},
+      {"name": "Calgary", "latitude": 51.0447, "longitude": -114.0719, "windSpeed": 27.98, "location": "calgary"},
+      {"name": "Edmonton", "latitude": 53.5461, "longitude": -113.4938, "windSpeed": 27.09, "location": "edmonton"},
+      {"name": "Winnipeg", "latitude": 49.8951, "longitude": -97.1384, "windSpeed": 27.09, "location": "winnipeg"},
+      {"name": "Toronto", "latitude": 43.6532, "longitude": -79.3832, "windSpeed": 26.79, "location": "toronto"},
+      {"name": "Ottawa", "latitude": 45.4215, "longitude": -75.6972, "windSpeed": 25.86, "location": "ottawa"},
+      {"name": "Montréal", "latitude": 45.5019, "longitude": -73.5674, "windSpeed": 26.18, "location": "montreal"},
+      {"name": "Québec", "latitude": 46.8139, "longitude": -71.208, "windSpeed": 25.86, "location": "quebec"},
+      {"name": "Halifax", "latitude": 44.6488, "longitude": -63.5752, "windSpeed": 29.13, "location": "halifax"}
+    ]
+  },
+  "sources": {
+    "groundSnow": "NBCC 2020 Table C-2, Ss (1-in-50-year ground snow load) [kPa]",
+    "rainLoad": "NBCC 2020 Table C-2, Sr (associated 1-in-50-year rain load) [kPa]",
+    "windSpeed": "NBCC 2020 Table C-2, q1/50 [kPa]: Vancouver 0.45, Calgary 0.48, Edmonton 0.45, Winnipeg 0.45, Toronto 0.44, Ottawa 0.41, Montréal 0.42, Québec 0.41, Halifax 0.52; V = √(q / 0.000613)",
+    "spectrum": "NBCC Appendix C seismic hazard values, site class C (SAEngine entered the 2015 edition's values as remembered: replace with the 2020 values; see VERIFY.md)"
+  }
+}

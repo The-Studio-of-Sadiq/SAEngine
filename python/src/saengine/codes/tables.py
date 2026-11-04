@@ -81,6 +81,29 @@ class Location(_Row):
     tl: float | None = Field(
         default=None, gt=0, description="Long-period transition period TL [s]."
     )
+    # Alpha 9 C17: a town table that gives the uniform hazard spectrum itself (NBCC 2020
+    # Appendix C: Sa(T) at 0.2, 0.5, 1, 2, 5, 10 s of its reference site class), the ground
+    # snow and rain loads and a factor on the velocity pressure (CFE MDOC-Viento: the
+    # barometric G of the town's altitude). Empty: none (the project enters them).
+    spectrum: list[tuple[Annotated[float, Field(ge=0)], Annotated[float, Field(ge=0)]]] | None = (
+        Field(
+            default=None,
+            description="(T [s], Sa [g]) of the town's 5 % damped uniform hazard spectrum, for "
+            "the reference site class of the pack's designSpectrum.ordinates.",
+        )
+    )
+    groundSnow: float | None = Field(
+        default=None, gt=0, description="Ground snow load Ss [kN/m²] of the town."
+    )
+    rainLoad: float | None = Field(
+        default=None, ge=0, description="Associated rain load Sr [kN/m²] of the town."
+    )
+    pressureFactor: float | None = Field(
+        default=None,
+        gt=0,
+        description="Factor on the velocity pressure of the town's wind speed (the speed is "
+        "taken × √factor); empty: 1.",
+    )
     # Alpha 9 C16: the zone as the code names it (zones 2A, 2B numbered 2, 3 in the data).
     zoneLabel: str | None = Field(
         default=None, description="The zone as the code names it (e.g. '2A'); empty: its number."
@@ -528,6 +551,14 @@ class StructuralSystem(_Row):
     periodFamily: str | None = None
     group: str | None = Field(
         default=None, description="Group of the code's system table (bearingWall, dualSpecial...)."
+    )
+    # Alpha 9 C17: a code that gives R as a product of a ductility and an overstrength factor
+    # (NBCC 2020 Rd·Ro: R holds the product) and the system's row of the higher mode factor
+    # table (designSpectrum.ordinates.higherMode); empty: not used.
+    Rd: float | None = Field(default=None, gt=0, description="Ductility-related factor.")
+    Ro: float | None = Field(default=None, gt=0, description="Overstrength-related factor.")
+    higherModeGroup: str | None = Field(
+        default=None, description="Group of the higher mode factor table (Mv) and least period."
     )
     dual: bool = Field(default=False, description="A dual system (one row of the table).")
     note: str | None = None
@@ -1001,6 +1032,104 @@ class SiteCoefficients(BaseModel):
     clause: str = ""
 
 
+class HigherModeTable(BaseModel):
+    """Alpha 9 C17: the higher mode factor Mv of one group of systems by the spectral ratio
+    (the pack's ``higherModePeriods``) and the period, bilinear between the points, the end
+    values outside."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    ratios: list[Positive] = Field(min_length=1, description="Spectral ratios of the rows.")
+    periods: list[Positive] = Field(min_length=1, description="Periods [s] of the columns.")
+    values: list[list[Positive]] = Field(description="Mv, a row per ratio, a column per period.")
+
+    @model_validator(mode="after")
+    def _shape(self) -> HigherModeTable:
+        if len(self.values) != len(self.ratios) or any(
+            len(row) != len(self.periods) for row in self.values
+        ):
+            raise ValueError("higher mode table: one row per ratio, one value per period")
+        return self
+
+
+class SpectrumOrdinates(BaseModel):
+    """Alpha 9 C17: the design spectrum and the equivalent static base shear from the site's
+    (or its town's) uniform hazard spectrum, an option of ``mappedSpectral`` (NBCC 2020
+    4.1.8.4 and 4.1.8.11 type, :mod:`saengine.fem.spectral_hazard`): S(T) the spectrum's
+    ordinates, linear between them, held beyond the last; at and below the first of
+    ``shortPeriods`` the largest ordinate of those periods. SDS and SD1 of the bands stand for
+    S at ``bandPeriods``. V/W = S(T) Mv I / R, at least S(least period of the system's group)
+    Mv I / R and, for systems with Rd at least ``capFromRd``, at most the largest
+    share × S(period) of ``capShares`` × I / R; Mv from ``higherMode`` by the system's group,
+    the ratio S(``higherModePeriods[0]``) / S(``higherModePeriods[1]``) and T (1 without a
+    table of the group)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    shortPeriods: list[Positive] = Field(
+        default_factory=lambda: [0.2], min_length=1, description="[s]"
+    )
+    bandPeriods: tuple[Positive, Positive] = (0.2, 1.0)
+    referenceClass: str | None = Field(
+        default=None, description="Site class of the towns' spectra (empty: any class)."
+    )
+    minimumPeriod: dict[str, Positive] = Field(
+        default_factory=dict,
+        description="Least period [s] of the base shear by higher mode group ('default' for "
+        "the rest); empty: no least value.",
+    )
+    capShares: list[tuple[Positive, Positive]] = Field(
+        default_factory=list, description="(period [s], share): the cap's candidates."
+    )
+    capFromRd: Positive | None = Field(
+        default=None, description="The cap applies to systems with Rd at least this."
+    )
+    higherModePeriods: tuple[Positive, Positive] = (0.2, 5.0)
+    higherMode: dict[str, HigherModeTable] = Field(default_factory=dict)
+    clauses: dict[str, str] = Field(default_factory=dict)
+
+
+class SiteSpectrum(BaseModel):
+    """Alpha 9 C17: the elastic spectrum of one site class (zone) of the method
+    ``ductilityOverstrength``: a = a0 + (c - a0) T / Ta below Ta, c to Tb, beyond it
+    c (Tb / T)^r; with ``k`` (the site-specific form) c p (Tb / T)² with
+    p = k + (1 - k)(Tb / T)². In g and s."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    a0: Positive
+    c: Positive
+    ta: Positive
+    tb: Positive
+    r: Positive = 2.0
+    k: Positive | None = None
+    label: str = ""
+
+
+class DuctilityOverstrength(BaseModel):
+    """Alpha 9 C17: the reduction of the method ``ductilityOverstrength`` (NTC-Sismo CDMX
+    type, :mod:`saengine.fem.ductility_spectrum`): the design ordinate a / (Q' R) × I, Q the
+    system's R. Without k: Q' = 1 + (Q - 1) T / Ta below Ta, Q beyond, R = 1; with k:
+    Q' = 1 + (Q - 1) √(β / k) T / Ta below Ta, 1 + (Q - 1) √(β / k) to Tb,
+    1 + (Q - 1) √(β p / k) beyond, and R = k1 R0 + k2 with R0 of ``overstrength`` by Q (the
+    last point at or below Q) and k2 = ``k2Coefficient`` [1 - (T / Ta)^½] >= 0. Q' ×
+    ``regularityFactor`` (at least 1)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    sites: dict[str, SiteSpectrum] = Field(min_length=1, description="By site class id.")
+    beta: Positive = Field(default=1.0, description="Damping factor β (1: 5 %).")
+    overstrength: list[tuple[Positive, Positive]] = Field(
+        default_factory=list, description="(Q, R0) points of the site-specific form."
+    )
+    redundancy: Positive = Field(default=1.0, description="k1 of R = k1 R0 + k2.")
+    k2Coefficient: float = Field(default=0.5, ge=0)
+    regularityFactor: Share = Field(
+        default=1.0, description="On Q' (regular 1; the code's factor when irregular)."
+    )
+    clauses: dict[str, str] = Field(default_factory=dict)
+
+
 class Ubc97Rule(BaseModel):
     """Alpha 9 C16: the seismic coefficients Ca and Cv of the UBC-97 form (UBC 1997 Tables
     16-Q, 16-R; adopted by NSCP 2015 Sec 208 and BCP SP-2007) by soil profile and Z, given at
@@ -1123,7 +1252,12 @@ class DesignSpectrumRule(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     method: Literal[
-        "reducedElastic", "behaviourFactor", "mappedSpectral", "ubc97", "shapeFactors"
+        "reducedElastic",
+        "behaviourFactor",
+        "mappedSpectral",
+        "ubc97",
+        "ductilityOverstrength",
+        "shapeFactors",
     ] = "reducedElastic"
     plateau: float = Field(default=2.5, gt=0, description="Spectral amplification of the plateau.")
     lowerBound: float = Field(default=0.0, ge=0, lt=1, description="β: least Sd / ag.")
@@ -1190,6 +1324,10 @@ class DesignSpectrumRule(BaseModel):
     siteCoefficients: SiteCoefficients | None = None
     # Alpha 9 C16: Ca, Cv of the ubc97 method.
     ubc97: Ubc97Rule | None = None
+    # Alpha 9 C17: S(T) and the base shear from the uniform hazard spectrum (NBCC 2020 type).
+    ordinates: SpectrumOrdinates | None = None
+    # Alpha 9 C17: the method ductilityOverstrength (NTC-Sismo CDMX type).
+    ductility: DuctilityOverstrength | None = None
     # Alpha 9 C18: the terms of the shapeFactors method.
     shapeFactors: ShapeFactorsRule | None = None
     clauses: dict[str, str] = Field(default_factory=dict)
@@ -1198,6 +1336,8 @@ class DesignSpectrumRule(BaseModel):
     def _ubc97_block(self) -> DesignSpectrumRule:
         if self.method == "ubc97" and self.ubc97 is None:
             raise ValueError("the design spectrum method ubc97 needs its ubc97 block (Ca, Cv)")
+        if self.method == "ductilityOverstrength" and self.ductility is None:
+            raise ValueError("ductilityOverstrength: the method needs its 'ductility' block")
         if self.method == "shapeFactors" and self.shapeFactors is None:
             raise ValueError("the design spectrum method shapeFactors needs its shapeFactors block")
         return self
@@ -1427,6 +1567,11 @@ class Exposure(_Row):
         description="z_min of z̄ [m]; with peakVelocityPressure the least height zmin of the "
         "logarithmic profile.",
     )
+    # Alpha 9 C17: the power law's factor and least height of this exposure (NBCC 2020
+    # 4.1.7.3 Ce = (h/10)^0.2 >= 0.9 open, 0.7 (h/12)^0.3 >= 0.7 rough; CFE Frz²); empty:
+    # the table's kzFactor and kzMinHeight.
+    kzFactor: float | None = Field(default=None, gt=0, description="Factor of Kz.")
+    kzMinHeight: float | None = Field(default=None, gt=0, description="Kz below this [m].")
 
 
 class WindDesignCasesRow(_Row):
@@ -3784,6 +3929,30 @@ class SteelMemberMethods(_Group):
     )
     teeFlangeSlender: Positive = Field(
         default=0.7, description="Slender tee flange: Mn = this E Sxc / (bf/2tf)²."
+    )
+    # Alpha 9 C17 (CSA S16-19 13.3.1, NTC-Acero 2017 type): the column curve and the lateral-
+    # torsional buckling of I-shapes by the elastic critical moment.
+    columnCurve: Literal["exponential", "powerCurve"] = Field(
+        default="exponential",
+        description="Flexural buckling: ``exponential`` (Fcr = 0.658^(Fy/Fe) Fy, 0.877 Fe) or "
+        "``powerCurve`` (Fcr = Fy (1 + λ^2n)^(-1/n), λ = √(Fy/Fe), n by section family).",
+    )
+    curveExponent: dict[str, Positive] = Field(
+        default_factory=dict,
+        description="n of ``powerCurve`` by section family (I, channel, rhs, chs, angle, tee, "
+        "...); 'default' for the rest.",
+    )
+    lateralTorsional: Literal["lengthLimits", "criticalMoment"] = Field(
+        default="lengthLimits",
+        description="I-shapes about the major axis: ``lengthLimits`` (Lp, Lr, Cb) or "
+        "``criticalMoment`` (Mu = ω2 π/L √(E Iy G J + (π E/L)² Iy Cw); Mr = a Mp (1 - b Mp/Mu) "
+        "<= Mp where Mu > c Mp, else Mu; ``ltbCurve`` [a, b, c]).",
+    )
+    ltbCurve: tuple[Positive, Positive, Positive] = Field(
+        default=(1.15, 0.28, 0.67), description="[a, b, c] of ``criticalMoment``."
+    )
+    omega2Max: Positive = Field(
+        default=2.5, description="ω2 (the member's moment gradient factor) at most this."
     )
 
 
@@ -10746,6 +10915,11 @@ class SnowTable(TableModel):
     # Alpha 9 C15: a National Annex's ground snow load by map zone and altitude.
     groundLoad: GroundSnowRule | None = Field(
         default=None, description="sk by zone and altitude; None: the project enters sk."
+    )
+    # Alpha 9 C17 (NBCC 2020 4.1.6.2: S = Is [Ss (Cb Cw Cs Ca) + Sr]): the associated rain
+    # load of the town (locations rainLoad) × this × Is added to the roof snow; empty: none.
+    rainShare: Positive | None = Field(
+        default=None, description="Sr × this × Is added to the roof snow (none: no rain)."
     )
 
     @model_validator(mode="after")

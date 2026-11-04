@@ -806,6 +806,68 @@
           "exclusiveMinimum": 0,
           "title": "Teeflangeslender",
           "type": "number"
+        },
+        "columnCurve": {
+          "default": "exponential",
+          "description": "Flexural buckling: ``exponential`` (Fcr = 0.658^(Fy/Fe) Fy, 0.877 Fe) or ``powerCurve`` (Fcr = Fy (1 + λ^2n)^(-1/n), λ = √(Fy/Fe), n by section family).",
+          "enum": [
+            "exponential",
+            "powerCurve"
+          ],
+          "title": "Columncurve",
+          "type": "string"
+        },
+        "curveExponent": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "description": "n of ``powerCurve`` by section family (I, channel, rhs, chs, angle, tee, ...); 'default' for the rest.",
+          "title": "Curveexponent",
+          "type": "object"
+        },
+        "lateralTorsional": {
+          "default": "lengthLimits",
+          "description": "I-shapes about the major axis: ``lengthLimits`` (Lp, Lr, Cb) or ``criticalMoment`` (Mu = ω2 π/L √(E Iy G J + (π E/L)² Iy Cw); Mr = a Mp (1 - b Mp/Mu) <= Mp where Mu > c Mp, else Mu; ``ltbCurve`` [a, b, c]).",
+          "enum": [
+            "lengthLimits",
+            "criticalMoment"
+          ],
+          "title": "Lateraltorsional",
+          "type": "string"
+        },
+        "ltbCurve": {
+          "default": [
+            1.15,
+            0.28,
+            0.67
+          ],
+          "description": "[a, b, c] of ``criticalMoment``.",
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Ltbcurve",
+          "type": "array"
+        },
+        "omega2Max": {
+          "default": 2.5,
+          "description": "ω2 (the member's moment gradient factor) at most this.",
+          "exclusiveMinimum": 0,
+          "title": "Omega2Max",
+          "type": "number"
         }
       },
       "title": "SteelMemberMethods",

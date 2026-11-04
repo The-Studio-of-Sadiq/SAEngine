@@ -660,6 +660,20 @@
       ],
       "default": null,
       "description": "sk by zone and altitude; None: the project enters sk."
+    },
+    "rainShare": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Sr × this × Is added to the roof snow (none: no rain).",
+      "title": "Rainshare"
     }
   },
   "required": [

@@ -107,6 +107,10 @@ def normalized_spectrum(
         return damping_correction(damping) * sh.spectral_acceleration(period, _mapped(hazard))
     seismic = code_context.table("seismic")
     rule = getattr(seismic, "designSpectrum", None)
+    if rule is not None and rule.method == "ductilityOverstrength":  # Alpha 9 C17
+        from saengine.fem.ductility_spectrum import elastic_ordinate
+
+        return elastic_ordinate(period, site_class, rule.ductility)
     site = seismic.siteClasses[site_class]
     if site.shape:  # Alpha 9 C18: the class's spectral shape factor Ch(T) (AS 1170.4 type)
         from saengine.fem.spectra import shape_factor
@@ -185,6 +189,10 @@ def design_acceleration(
         )
     if rule is not None and rule.method in ("mappedSpectral", "ubc97"):  # C16: ubc97 the same
         return importance / r * normalized_spectrum(period, site_class, damping, z)
+    if rule is not None and rule.method == "ductilityOverstrength":  # Alpha 9 C17
+        from saengine.fem.ductility_spectrum import design_ordinate
+
+        return importance * design_ordinate(period, site_class, r, rule.ductility)
     if rule is not None and rule.method == "shapeFactors":  # Alpha 9 C18: R stands for μ
         from saengine.fem.spectra import shape_factor_acceleration
 
@@ -235,16 +243,18 @@ def elf_coefficient(
     r: float,
     damping: float | None = None,
     static: bool = True,
+    system: Any = None,
 ) -> float:
     """The equivalent static force coefficient V/W at ``period`` before the pack's base shear
     correction (:func:`base_shear_correction`): the design spectral acceleration
     (:func:`design_acceleration`); C1: with the design spectrum ``mappedSpectral`` the pack's
     Cs = SDS/(R/I) with its upper and lower bounds
-    (:func:`saengine.fem.spectral_hazard.response_coefficient`)."""
+    (:func:`saengine.fem.spectral_hazard.response_coefficient`); alpha 9 C17: ``system`` the
+    ``seismic.systems`` row (its higher mode group and Rd, for a pack's ``ordinates``)."""
     from saengine.fem import spectral_hazard as sh
 
     if sh.uses_mapped():
-        return sh.response_coefficient(period, _mapped(z), importance, r)
+        return sh.response_coefficient(period, _mapped(z), importance, r, system=system)
     return design_acceleration(period, site_class, z, importance, r, damping, static=static)
 
 
@@ -458,6 +468,11 @@ def exposure_coefficient(height: float, exposure: str) -> float:
     # C1: the power law's constants from the pack where it gives them (else Table 6.2.11's).
     factor = table.kzFactor if table.kzFactor is not None else 2.01
     least = table.kzMinHeight if table.kzMinHeight is not None else 4.57
+    # Alpha 9 C17: the exposure's own factor and least height where it gives them.
+    if profile.kzFactor is not None:
+        factor = profile.kzFactor
+    if profile.kzMinHeight is not None:
+        least = profile.kzMinHeight
     return factor * (max(height, least) / zg) ** (2 / alpha)
 
 

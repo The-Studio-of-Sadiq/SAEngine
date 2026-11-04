@@ -1,0 +1,9 @@
+{
+  "$schema": "../../../schemas/zoneCoefficients.schema.json",
+  "$replace": true,
+  "$sources": [
+    "NTC-Sismo Sec 3: the zone spectra give the ordinates in g themselves"
+  ],
+  "source": "NTC-Sismo Sec 3: Z = 1.0 only marks the city as seismic (the spectrum's ordinates come from the site class, its zone I-IIId); with pgaFactor 1 and the site classes' S = a0 the peak ground acceleration is the zone's a0",
+  "zones": {"1": 1.0}
+}

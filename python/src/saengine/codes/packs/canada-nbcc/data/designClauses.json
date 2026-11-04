@@ -1,0 +1,12 @@
+{
+  "$schema": "../../../schemas/designClauses.schema.json",
+  "$sources": [
+    "CSA S16-19 13.3.1 and 13.6 (the steel member checks of the pack's own methods); the other clause references are the parent's"
+  ],
+  "clauses": {
+    "steelMembers": {
+      "compressionFlexural": "13.3.1",
+      "flexureLtb": "13.6(a)"
+    }
+  }
+}

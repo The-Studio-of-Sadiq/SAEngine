@@ -1,0 +1,35 @@
+{
+  "$schema": "../../../schemas/wind.schema.json",
+  "$sources": [
+    "CFE Manual de Diseño de Obras Civiles, Diseño por Viento (2008): Sec 4.2.3 (Frz by terrain category, Tabla 4.2.3), Sec 4.2.5 (qz = 0.0048 G VD²), Sec 4.3 (static pressures, Cp of the walls)"
+  ],
+  "source": "CFE Viento 2008 (the power law of the program: Kz = Frz² = c² (z/10)^(2α) with Frz = c below 10 m; the town's G in its pressure factor; the cladding, internal pressure and roof coefficients the parent's ASCE 7-22 / BNBC values until checked)",
+  "method": "powerLaw",
+  "exposures": {
+    "$replace": true,
+    "cat1": {"description": "Categoría 1: open flat terrain, water surfaces, practically without obstructions", "alpha": 10.101, "zg": 10.0, "kzFactor": 1.2928, "kzMinHeight": 10.0},
+    "cat2": {"description": "Categoría 2: flat or undulating terrain with few obstructions (farmland, scattered isolated buildings)", "alpha": 7.8125, "zg": 10.0, "kzFactor": 1.0, "kzMinHeight": 10.0},
+    "cat3": {"description": "Categoría 3: terrain covered by many close obstructions (suburbs, light industry, forests)", "alpha": 6.4103, "zg": 10.0, "kzFactor": 0.7762, "kzMinHeight": 10.0},
+    "cat4": {"description": "Categoría 4: terrain with many large, tall, close obstructions (city centres)", "alpha": 5.8824, "zg": 10.0, "kzFactor": 0.6642, "kzMinHeight": 10.0}
+  },
+  "defaultExposure": "cat3",
+  "directionality": 1.0,
+  "topographic": 1.0,
+  "gust": 1.0,
+  "topography": null,
+  "sources": {
+    "$replace": true,
+    "exposures": "CFE Viento 2008 Tabla 4.2.3: Frz = c (z/10)^α for 10 m < z < δ, c below 10 m; (α, c) = (0.099, 1.137), (0.128, 1.000), (0.156, 0.881), (0.170, 0.815) for categories 1-4, written as Kz = Frz² = c² (max(z, 10)/10)^(2α) (the program's α = 1/α of CFE); the gradient height δ (245-455 m) is not applied",
+    "directionality": "CFE has no directionality factor: 1.0",
+    "topographic": "FT = 1.0 (flat terrain); the CFE topography factor is not covered (topography: none)",
+    "gust": "CFE Viento 2008 Sec 4.3: static pressures pz = Cp qz of rigid structures (Tipo 1) with VD a 3-second gust: no gust factor (1.0); flexible structures (dynamic factor) are not covered",
+    "cpWindward": "CFE Viento 2008 Tabla 4.3.1: windward wall Cp = 0.8 (the parent's value, the same)",
+    "cpLeeward": "CFE Viento 2008 Tabla 4.3.2: leeward wall Cp by d/b (the parent's values, the same form: to be checked)"
+  },
+  "clauses": {
+    "$replace": true,
+    "gust": "Sec 4.3",
+    "pressure": "Secs 4.2.5, 4.3",
+    "exposure": "Sec 4.2.3, Tabla 4.2.3"
+  }
+}
