@@ -1787,6 +1787,8 @@ def _results(
     out["irregularity"] = _irregularity(model_path, results_dir, settings, warnings)
     # B15: seismic forces on nonstructural components and the anchorage of structural walls.
     out["nonstructural"] = _nonstructural(parts.root, warnings)
+    # Alpha 9 L1: the precast pieces' handling, erection and connections, and their schedule.
+    out["precast"] = _precast(parts.root, warnings)
     # B37: the isolation system of a seismically isolated building.
     out["isolation"] = _isolation(model_path.parent)
     out["displacementFails"] = [row[-1] == "FAIL" for row in out["displacements"]]
@@ -2636,6 +2638,18 @@ def _nonstructural(root: Path, warnings: list[str]) -> dict[str, Any] | None:
         return nonstructural.report_section(root)
     except Exception as e:  # noqa: BLE001 - one section must not stop the report
         warnings.append(f"Nonstructural components: not computed ({e}).")
+        return None
+
+
+def _precast(root: Path, warnings: list[str]) -> dict[str, Any] | None:
+    """Alpha 9 L1: the section on precast pieces (:func:`saengine.design.precast.
+    report_section`); None without precast object types."""
+    from saengine.design import precast
+
+    try:
+        return precast.report_section(root)
+    except Exception as e:  # noqa: BLE001 - one section must not stop the report
+        warnings.append(f"Precast pieces: not computed ({e}).")
         return None
 
 

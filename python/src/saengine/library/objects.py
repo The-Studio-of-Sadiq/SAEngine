@@ -20,6 +20,7 @@ from saengine.library.labels import field_title
 from saengine.library.materials import Category, Id, MaterialLibrary
 from saengine.library.modifiers import (  # noqa: F401 - MomentMagnifiers: for the editors
     BuiltUpMember,
+    Corbel,
     DesignOverwrites,
     FrameModifiers,
     MomentMagnifiers,
@@ -1548,6 +1549,333 @@ class SeismicIsolator(_Model):
     )
 
 
+# ─────────────── alpha 9 L1: precast pieces (checked by saengine.design.precast) ───────────────
+
+#: The precast element of each object kind (a type's ``precast.element`` must be one of them).
+PRECAST_ELEMENTS: dict[str, tuple[str, ...]] = {
+    "slab": ("hollowCore", "doubleTee"),
+    "beam": ("beam",),
+    "column": ("column",),
+    "wall": ("wallPanel",),
+}
+
+
+class PrecastInsert(_Model):
+    """A cast-in insert of a precast piece: a lifting anchor or an erection insert."""
+
+    position: float = Field(
+        ge=0,
+        description="Along the piece from its start (a column, a wall panel: from its bottom) "
+        "[mm].",
+    )
+    offset: float = Field(default=0, description="Across the piece from its centre line [mm].")
+    use: Literal["lifting", "erection", "both"] = Field(
+        default="both",
+        description="Lifting from the mould and handling, erection only, or both.",
+        json_schema_extra={"enumDescriptions": ["Lifting and handling", "Erection", "Both"]},
+    )
+    workingLoad: float = Field(
+        gt=0,
+        title="Working load limit",
+        description="The insert's rated working load (the maker's, at the safety factor of its "
+        "rating) [kN].",
+    )
+    ultimateLoad: float | None = Field(
+        default=None,
+        gt=0,
+        title="Ultimate load",
+        description="Its tested ultimate load in this concrete [kN]; given: the code pack's "
+        "safety factor on it is checked too.",
+    )
+    name: str | None = Field(default=None, description="Product or type, for the drawings.")
+
+
+class PrecastCorbel(_Model):
+    """A corbel cast with a precast column (designed with the code pack's corbel method)."""
+
+    face: Literal["+x", "-x", "+y", "-y"] = Field(
+        description="The column face it projects from (local axes of the column's profile)."
+    )
+    height: float = Field(
+        gt=0, description="From the column piece's bottom to the corbel's bearing face [mm]."
+    )
+    corbel: Corbel
+
+
+class PrecastConnection(_Model):
+    """A connection of a precast piece to what supports it or to the piece next to it."""
+
+    id: Id
+    kind: Literal["bearing", "dowel", "corbelBearing", "weldedPlate"] = Field(
+        description="Bearing on a support (seat, ledge or wall), dowels across the joint, the "
+        "bearing on a corbel of the column (its corbel by ``corbel``), or a welded plate "
+        "connection (embedded plates joined by a fillet-welded plate or bar).",
+        json_schema_extra={
+            "enumDescriptions": ["Bearing", "Dowels", "Bearing on a corbel", "Welded plate"]
+        },
+    )
+    at: Literal["start", "end", "both", "base", "top"] = Field(
+        default="both",
+        description="Which end of the piece (a column or a wall panel: its base or top).",
+    )
+    bearingLength: float | None = Field(
+        default=None,
+        gt=0,
+        title="Bearing length",
+        description="The seating detailed: from the support's edge to the piece's end [mm].",
+    )
+    bearingWidth: float | None = Field(
+        default=None,
+        gt=0,
+        title="Bearing width",
+        description="Width of the bearing (pad) across the piece [mm]; empty: the piece's.",
+    )
+    bedding: Literal["dry", "bedded"] = Field(
+        default="bedded",
+        description="Dry: the piece on the bare support; bedded: on mortar, a pad or a strip.",
+        json_schema_extra={"enumDescriptions": ["Dry", "Bedded (mortar or pad)"]},
+    )
+    support: Literal["precast", "castInSitu", "steel", "masonry"] = Field(
+        default="precast",
+        description="What the piece sits on (the tolerances and the ineffective edges of "
+        "the code pack's bearing method).",
+        json_schema_extra={
+            "enumDescriptions": ["Precast concrete", "Cast in situ concrete", "Steel", "Masonry"]
+        },
+    )
+    endBars: Literal["continuous", "straight", "exposed", "loops"] = Field(
+        default="straight",
+        title="Bars at the end",
+        description="How the piece's bars end over the support: continuous over it, straight "
+        "bars or horizontal loops near the end, tendons or bars exposed at the end, vertical "
+        "loops.",
+        json_schema_extra={
+            "enumDescriptions": [
+                "Continuous over the support",
+                "Straight bars or horizontal loops",
+                "Exposed at the end",
+                "Vertical loops",
+            ]
+        },
+    )
+    dowels: int = Field(default=0, ge=0, description="Dowels across the joint.")
+    dowelDia: float | None = Field(default=None, gt=0, title="Dowel diameter", description="[mm]")
+    dowelMaterial: Id | None = Field(
+        default=None,
+        title="Dowel material",
+        description="Rebar or steel of 03 Materials; empty: the piece's reinforcement material.",
+    )
+    eccentricity: float = Field(
+        default=0,
+        ge=0,
+        description="Dowels: where the shear acts from the joint face (a soft bearing pad) [mm].",
+    )
+    surface: Literal["roughened", "notRoughened", "monolithic"] = Field(
+        default="roughened",
+        description="Dowels: the joint's surface (the code pack's shear transfer across it).",
+        json_schema_extra={"enumDescriptions": ["Roughened", "Not roughened", "Monolithic"]},
+    )
+    corbel: int | None = Field(
+        default=None,
+        ge=0,
+        description="Bearing on a corbel: the index (from 0) of the supporting column type's "
+        "corbel; the corbel is designed for this connection's shear.",
+    )
+    corbelType: Id | None = Field(
+        default=None,
+        title="Corbel column type",
+        description="Bearing on a corbel: the precast column type whose corbel carries the piece.",
+    )
+    weldSize: float | None = Field(
+        default=None, gt=0, title="Weld size", description="Welded plate: fillet weld leg [mm]."
+    )
+    weldLength: float | None = Field(
+        default=None,
+        gt=0,
+        title="Weld length",
+        description="Welded plate: total effective fillet weld length [mm].",
+    )
+    electrode: float = Field(default=480, gt=0, description="Welded plate: FEXX [MPa].")
+    shear: float | None = Field(
+        default=None,
+        ge=0,
+        description="Factored shear (the vertical reaction of a bearing) [kN]; empty: from the "
+        "piece's weight and the floor's loads by the code pack's gravity combinations.",
+    )
+    tension: float | None = Field(
+        default=None,
+        ge=0,
+        description="Factored horizontal tension on the joint [kN]; empty: the code pack's "
+        "share of the shear (restraint, shrinkage).",
+    )
+
+
+class PrecastPiece(_Model):
+    """A precast concrete piece (alpha 9 L1): the type is cast in a factory, lifted from its
+    mould, stored, transported and erected, then connected. The checks of every stage, its
+    connections and its shop drawing follow from this; the analysis takes the type as it
+    takes any other of its kind."""
+
+    element: Literal["hollowCore", "doubleTee", "beam", "column", "wallPanel"] = Field(
+        description="Hollow-core or double-tee floor units (slab types), a beam, a column or a "
+        "wall panel.",
+        json_schema_extra={
+            "enumDescriptions": [
+                "Hollow-core slab units",
+                "Double-tee units",
+                "Precast beam",
+                "Precast column",
+                "Wall panel",
+            ]
+        },
+    )
+    mark: str | None = Field(
+        default=None,
+        description="Piece mark prefix on the drawings; empty: the object type's id.",
+    )
+    unitWidth: float | None = Field(
+        default=None,
+        gt=0,
+        title="Unit width",
+        description="Floor units: the nominal width of one unit [mm] (hollow-core 1200, double "
+        "tee 2400 when empty). Wall panels: the largest panel width [mm] (empty: one panel "
+        "per wall).",
+    )
+    spanDirection: Literal["x", "y"] = Field(
+        default="x",
+        title="Span direction",
+        description="Floor units: the direction they span in plan.",
+    )
+    cores: int | None = Field(
+        default=None, ge=0, description="Hollow-core: the number of cores in one unit."
+    )
+    coreDiameter: float | None = Field(
+        default=None, gt=0, title="Core diameter", description="Hollow-core: [mm]."
+    )
+    flangeThickness: float | None = Field(
+        default=None, gt=0, title="Flange thickness", description="Double tee: [mm]."
+    )
+    stemWidth: float | None = Field(
+        default=None, gt=0, title="Stem width", description="Double tee: mean stem width [mm]."
+    )
+    stemSpacing: float | None = Field(
+        default=None,
+        gt=0,
+        title="Stem spacing",
+        description="Double tee: centre to centre of the two stems [mm] (empty: half the width).",
+    )
+    topping: float = Field(
+        default=0,
+        ge=0,
+        description="Floor units: cast-in-place structural topping over them [mm] (on the piece "
+        "in service, not while it is handled).",
+    )
+    facing: float = Field(
+        default=0,
+        ge=0,
+        description="Sandwich wall panels: the outer (non-structural) wythe [mm]; 0: a solid "
+        "panel.",
+    )
+    insulation: float = Field(
+        default=0, ge=0, description="Sandwich wall panels: the insulation between wythes [mm]."
+    )
+    length: float | None = Field(
+        default=None,
+        gt=0,
+        description="The piece's length [mm]; empty: from the building model (each element).",
+    )
+    stripStrength: float | None = Field(
+        default=None,
+        gt=0,
+        title="Strength at stripping",
+        description="f'ci when lifted from the mould [MPa]; empty: the code pack's share of "
+        "the specified strength.",
+    )
+    mouldFinish: Literal["flatRemovable", "flatFalseJoints", "fluted", "sculptured"] = Field(
+        default="flatRemovable",
+        title="Mould and finish",
+        description="How the piece leaves its mould (the code pack's form suction and "
+        "impact multipliers at stripping).",
+        json_schema_extra={
+            "enumDescriptions": [
+                "Flat, removable side forms",
+                "Flat with false joints",
+                "Fluted, proper draft",
+                "Sculptured",
+            ]
+        },
+    )
+    rigging: Literal["twoPoint", "fourPointEqualised", "fourPointRigid"] = Field(
+        default="twoPoint",
+        description="How it is lifted: two points, four points with equalising sheaves, four "
+        "points without them (the code pack's inserts taken to carry the load).",
+        json_schema_extra={
+            "enumDescriptions": [
+                "Two points",
+                "Four points, equalised",
+                "Four points, not equalised",
+            ]
+        },
+    )
+    slingAngle: float = Field(
+        default=60,
+        gt=0,
+        le=90,
+        title="Sling angle",
+        description="Of the slings from the horizontal [°] (90: a vertical lift with a beam).",
+    )
+    supports: list[float] = Field(
+        default_factory=list,
+        description="Where it rests in storage and on the truck, from its start [mm]; empty: "
+        "at its lifting inserts.",
+    )
+    inserts: list[PrecastInsert] = Field(default_factory=list)
+    corbels: list[PrecastCorbel] = Field(
+        default_factory=list, description="Columns: the corbels cast with the piece."
+    )
+    connections: list[PrecastConnection] = Field(default_factory=list)
+    superimposedDead: float | None = Field(
+        default=None,
+        ge=0,
+        title="Superimposed dead load",
+        description="Supported by the piece [kN/m² on floor units, kN/m on beams]; empty: floor "
+        "units take their slab's area load, beams none.",
+    )
+    live: float | None = Field(
+        default=None,
+        ge=0,
+        description="Live load on the piece [kN/m² on floor units, kN/m on beams]; empty: floor "
+        "units take their slab's area load, beams none.",
+    )
+    erectionWind: float | None = Field(
+        default=None,
+        ge=0,
+        title="Erection wind",
+        description="Wind pressure while it stands unconnected [kPa]; empty: the code pack's.",
+    )
+    baseMoment: float | None = Field(
+        default=None,
+        gt=0,
+        title="Temporary base moment",
+        description="Columns: the moment the temporary base (shims, bolts, socket wedges) takes "
+        "before it is grouted [kN·m]; empty: the free-standing stability is not checked.",
+    )
+    braceCapacity: float | None = Field(
+        default=None,
+        gt=0,
+        title="Brace capacity",
+        description="Wall panels: the working capacity of each of the two temporary braces "
+        "[kN]; empty: only the brace force is given.",
+    )
+    braceHeight: float | None = Field(
+        default=None,
+        gt=0,
+        title="Brace height",
+        description="Wall panels: where the braces attach above its base [mm]; empty: 2/3 of "
+        "its height.",
+    )
+
+
 # ─────────────────────────────────── object types ───────────────────────────────────
 
 
@@ -1681,6 +2009,12 @@ class Beam(_ObjectBase):
         "a cast-in-place top): the horizontal shear at the contact surface is checked; none: "
         "cast in one piece.",
     )
+    precast: PrecastPiece | None = Field(
+        default=None,
+        description="A precast concrete piece (alpha 9 L1): its element, inserts, corbels and "
+        "connections; the handling, erection and connection checks, its shop drawing and its "
+        "piece schedule follow; none: cast in place.",
+    )
     modifiers: FrameModifiers | None = Field(
         default=None,
         title="Stiffness modifiers",
@@ -1736,6 +2070,12 @@ class Column(_ObjectBase):
     )
     ferrocement: FerrocementMember | None = Field(
         default=None, description="Ferrocement members: the mesh layers (B39)."
+    )
+    precast: PrecastPiece | None = Field(
+        default=None,
+        description="A precast concrete piece (alpha 9 L1): its element, inserts, corbels and "
+        "connections; the handling, erection and connection checks, its shop drawing and its "
+        "piece schedule follow; none: cast in place.",
     )
     modifiers: FrameModifiers | None = Field(
         default=None,
@@ -1886,6 +2226,12 @@ class Slab(_ObjectBase):
         description="Studs or stirrups round the columns of a flat slab, checked where the "
         "concrete alone is not enough (empty: none).",
     )
+    precast: PrecastPiece | None = Field(
+        default=None,
+        description="A precast concrete piece (alpha 9 L1): its element, inserts, corbels and "
+        "connections; the handling, erection and connection checks, its shop drawing and its "
+        "piece schedule follow; none: cast in place.",
+    )
     modifiers: ShellModifiers | None = Field(
         default=None,
         title="Stiffness modifiers",
@@ -1931,6 +2277,12 @@ class Wall(_ObjectBase):
     basement: bool = Field(
         default=False,
         description="Exterior basement or foundation wall (the default pack's 6.6.3.4, 6.6.5.3).",
+    )
+    precast: PrecastPiece | None = Field(
+        default=None,
+        description="A precast concrete piece (alpha 9 L1): its element, inserts, corbels and "
+        "connections; the handling, erection and connection checks, its shop drawing and its "
+        "piece schedule follow; none: cast in place.",
     )
     modifiers: ShellModifiers | None = Field(
         default=None,
@@ -2115,6 +2467,13 @@ class ObjectLibrary(_Model):
         for o in self.objects:
             if isinstance(o, PileCap) and o.pile and o.pile not in piles:
                 raise ValueError(f"pile cap '{o.id}' refers to unknown pile type '{o.pile}'")
+            precast = getattr(o, "precast", None)  # Alpha 9 L1
+            if precast is not None and precast.element not in PRECAST_ELEMENTS.get(o.kind, ()):
+                allowed = ", ".join(PRECAST_ELEMENTS.get(o.kind, ())) or "none"
+                raise ValueError(
+                    f"'{o.id}': a {o.kind} type cannot be a precast {precast.element} "
+                    f"(allowed: {allowed})"
+                )
         return self
 
     def check_materials(self, materials: MaterialLibrary) -> list[str]:

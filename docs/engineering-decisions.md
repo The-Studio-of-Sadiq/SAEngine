@@ -41,6 +41,31 @@ here, newest first, with the date, the question, the decision, the reason and wh
 - **No unlicensed software.** ETABS, SAP2000 and STAAD are not used for cross-checks or cited.
   Open-source tools are used instead (2026-10-25).
 
+## 2026-11-05: precast pieces and their shop drawings (alpha 9 track L1)
+
+- **Where it lives.** A precast type is an object type of 04 Objects with `precast` (hollow-core
+  and double-tee slab types, precast beams, columns with corbels, wall panels). The analysis
+  takes the type as any other of its kind; the piece checks (`saengine.design.precast`), the
+  piece shop drawings (`drawings/sheets/precast.py`) and the piece schedule
+  (`saengine.boq.precast`, `precastPieces` of the bill) follow from it. Corbels are designed by
+  the existing corbel method and welds by the pack's fillet welds (no second copy).
+- **Code values (default pack).** BNBC 2020 Part 6 Sec 6.10: bearing ln/180, 50 mm slabs, 75 mm
+  beams and stemmed members, pads 13 mm from unarmoured edges, bearing 0.85 f'c A1; dowels by
+  shear friction (Sec 6.4.5); integrity ties 4.4 kN/m, 1.4 Ag, two 44 kN ties per panel.
+- **SAEngine practice** (Sec 6.10.2.1 and 6.10.9 ask for the handling stages and give no
+  values): PCI Design Handbook multipliers (stripping 1.3-1.7 by mould, yard 1.2, travel 1.5,
+  erection 1.2), handling tension 0.62 √f'ci / 1.5, f'ci = 0.7 f'c when not entered, four-point
+  rigid rigging on two inserts, insert safety 4 on an ultimate load, erection wind 0.5 kPa and
+  safety 1.5, a hanging member by Mast's method with the whole sweep L/960 + 6 mm (on the safe
+  side), the least bearing tension 0.2 Vu. All are in the pack's `precast` table and can be
+  overridden per project; a pack without the table shows precast as not covered.
+- **Methods by id.** Bearing `spanRatio` (BNBC, ACI 318-19 16.2.6) or `netBearing` (EN 1992-1-1
+  10.9.5); dowels `shearFriction` or `dowelAction` (fib Bulletin 43). Pieces of one type with
+  the same length and width share a mark. A slab is covered by units of the unit width
+  spanning in the span direction, the last one cut to fit.
+- **Known limit.** The bill's slab items still measure a precast floor type as a slab of its
+  thickness; the piece schedule gives the units' net concrete (cores and voids deducted).
+
 ## 2026-11-05: online hazard lookup by site coordinates (alpha 9 track C22)
 
 - **Opt-in and asked every time (owner).** A global setting "Allow online hazard lookups"

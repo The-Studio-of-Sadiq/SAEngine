@@ -772,3 +772,15 @@ live answer before release.
 | C22-11 | decimals, timeout | 4 decimals (about 10 m), 30 s | SAEngine practice | PRACTICE |
 | C22-12 | terms | USGS information is US public domain; the service page calls the software provisional | usgs.gov copyrights and credits page | Owner to confirm |
 | C22-13 | wind (Ch 26), snow (Ch 7) | not covered | the ASCE Hazard Tool's programmatic access needs a subscription key; no public API | Not covered |
+
+## Precast pieces (`precast`; alpha 9 L1; ACI 318-19 Chapter 16)
+
+| # | Path | Value | Source | Sure? |
+|---|---|---|---|---|
+| L1U1 | bearing.spanDivisor, minimum | ln/180; 50 mm slabs, 75 mm beams and stemmed members | ACI 318-19 16.2.6.2 | Sure |
+| L1U2 | bearing.padSetback | 13 mm (1/2 in) | ACI 318-19 16.2.6.2(b) | Sure |
+| L1U3 | bearing.stressFactor | 0.85 f'c A1, φ 0.65 | ACI 318-19 22.8.3.2, 21.2.1 | Sure |
+| L1U4 | dowel.method | shearFriction | ACI 318-19 16.2.2.4, 22.9 | Sure |
+| L1U5 | connections.tensionShare | 0.2 Vu where none is entered | ACI 318-19 16.5.3.5 (corbels), applied to every bearing | SAEngine practice |
+| L1U6 | integrity | 4.4 kN/m; 1.4 Ag N; 2 × 44 kN per panel; 3 storeys: 22 kN/m at 3 m, 71 kN within 1.2 m, 44 kN/m | ACI 318-19 16.2.4.2, 16.2.4.3, 16.2.5.1 (300 lb/ft, 200 Ag lb, 10 kip, 1500 lb/ft, 10 ft, 16 kip, 4 ft, 3000 lb/ft) | Check (SI conversions) |
+| L1U7 | handling, erection | as the default pack's L1B11-L1B19 | PCI Design Handbook 8th ed.; Mast | Check / SAEngine practice |

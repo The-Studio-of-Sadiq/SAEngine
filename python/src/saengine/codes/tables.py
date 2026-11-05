@@ -11866,6 +11866,7 @@ from saengine.codes.practice_tables import (  # P7: checks the code gives no met
     NonBuildingTable,
     WindComfortTable,
 )
+from saengine.codes.precast_tables import PrecastTable  # L1: precast pieces
 from saengine.codes.steel_remainder_tables import ColdFormedTable, SteelFireTable  # C12
 
 for _model in (  # alpha 9 C6: the groups above are defined after the tables that hold them
@@ -11956,6 +11957,8 @@ TABLE_MODELS: dict[str, type[TableModel]] = {
     "existing": ExistingTable,
     # Alpha 9 C22: the hazard services by site coordinates.
     "hazardLookup": HazardLookupTable,
+    # Alpha 9 L1: precast pieces, their handling, erection and connections.
+    "precast": PrecastTable,
 }
 
 

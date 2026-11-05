@@ -1219,6 +1219,18 @@ def drawing_set(
                 arch = None
         data.mep, problems = mep_drawing(texts["mep"], bim, arch)
         data.problems += problems
+    if any(getattr(o, "precast", None) for o in objects.objects):  # Alpha 9 L1
+        from saengine.boq.precast import piece_schedule
+        from saengine.design.precast import pieces_of
+        from saengine.drawings.sheets.precast import precast_pieces
+
+        try:
+            data.precast = precast_pieces(bim, objects, materials)
+            data.precast_schedule = piece_schedule(
+                pieces_of(bim, objects), {o.id: o for o in objects.objects}, materials
+            )
+        except (ValueError, AttributeError) as error:
+            data.problems.append(f"The precast piece drawings could not be made: {error}")
     if materials is not None:
         from saengine.drawings.sheets.steel import steel_set
 

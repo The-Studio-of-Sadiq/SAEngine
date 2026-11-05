@@ -346,6 +346,7 @@ SECTIONS: tuple[tuple[str, tuple[str, ...]], ...] = (
             "coldFormed",
             "composite",
             "compositeConcrete",
+            "precast",
             "masonry",
             "timber",
             "bamboo",

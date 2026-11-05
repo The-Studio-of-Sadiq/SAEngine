@@ -430,6 +430,14 @@ class BillOfQuantities(_Model):
         description="What the bill could not measure (no bars on a type, a tank not designed, "
         "a mortar with no mix, ...): while there are any the bill is incomplete.",
     )
+    precastPieces: list[dict[str, Any]] = Field(
+        default_factory=list,
+        exclude_if=lambda value: not value,
+        title="Precast pieces",
+        description="Alpha 9 L1: the precast piece schedule per mark (count, size, net "
+        "concrete, weight, bars, inserts, mould area; saengine.boq.precast). The slab items "
+        "measure precast floor units as slabs of their thickness; this gives their net concrete.",
+    )
     notMeasured: int = Field(
         default=0,
         title="Not measured",
@@ -2647,9 +2655,17 @@ def bill_of_quantities(
     notes = measure.finish()
     problems = measure.problems()
     bare = sum(len(v) for v in measure.unreinforced.values())
+    precast: list[dict[str, Any]] = []
+    if any(getattr(o, "precast", None) for o in objects.objects):  # Alpha 9 L1
+        from saengine.boq.precast import piece_schedule
+        from saengine.design.precast import pieces_of
+
+        types = {o.id: o for o in objects.objects}
+        precast = piece_schedule(pieces_of(building, objects), types, materials)["items"]
     return BillOfQuantities(
         source=source or BoqSource(),
         items=measure.bill.items({e.id: e.type for e in building.elements if e.type}),
+        precastPieces=precast,
         notes=notes,
         problems=problems,
         notMeasured=bare + len(problems) - (1 if bare else 0),

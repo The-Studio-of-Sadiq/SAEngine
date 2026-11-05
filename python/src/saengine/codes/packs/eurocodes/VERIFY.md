@@ -624,3 +624,23 @@ length along the bar's centre line (SAEngine practice), with the mandrel diamete
 | P4E13 | existing.frp.confinement.rotationFactor | θum's confinement exponent + α ρf ff,e/fc, α = 1.0, ff,e = Ef × 0.5 εfu | EN 1998-3 A.4.4.3 | Unsure |
 | P4E14 | existing.frp.environment | 1.0 (EN 1998-3 gives none) | none | SAEngine practice |
 | P4E15 | existing.nonlinear | θum with fc and fy over CF (× CF^-0.225 × 0.3^(ν (CF - 1))), shear by Eq A.12 at the target | EN 1998-3 Sec 3.5, A.3.2.2, A.3.3.1 | Check |
+
+## Precast pieces (`precast`; alpha 9 L1; EN 1992-1-1 Section 10)
+
+| # | Path | Value | Source | Sure? |
+|---|---|---|---|---|
+| L1E1 | bearing.method | netBearing: a = a1 + a2 + a3 + √(Δa2² + Δa3²), a1 = FEd/(b1 fRd) | EN 1992-1-1 10.9.5.2(1), Eq 10.6 | Sure |
+| L1E2 | bearing.strength | fRd = 0.4 fcd dry, 0.85 fcd bedded | EN 1992-1-1 10.9.5.2(2) | Sure |
+| L1E3 | bearing.stressBands | σEd/fcd ≤ 0.15, 0.15-0.4, > 0.4 | EN 1992-1-1 Tables 10.2-10.3 | Sure |
+| L1E4 | bearing.a1Minimum | linear 25/30/40, ribbed 55/70/80, concentrated 90/110/140 mm | EN 1992-1-1 Table 10.2 | Check |
+| L1E5 | bearing.a2 | steel 0/0/10 (linear), 5/10/15 (concentrated); RC ≥ C30 5/10/15, 10/15/25; plain or RC < C30 10/15/25, 20/25/35; masonry as the last | EN 1992-1-1 Table 10.3 | Unsure (masonry's > 0.4 column is "–" in the code; taken as concrete < C30) |
+| L1E6 | bearing.highStrength | C30 | Table 10.3 | Sure |
+| L1E7 | bearing.a3 | continuous 0/0; straight bars or horizontal loops 5/15 (at least the end cover); exposed tendons or bars 5/15; vertical loops 15/15 | EN 1992-1-1 Table 10.4 | Check (vertical loops, concentrated: the code gives end cover + inner bend radius; 15 mm taken) |
+| L1E8 | bearing.supportTolerance | steel or precast 10 ≤ l/1200 ≤ 30 mm; masonry or cast in situ 15 ≤ l/1200 + 5 ≤ 40 mm | EN 1992-1-1 Table 10.5 | Check |
+| L1E9 | bearing.memberTolerance | Δa3 = ln/2500 | EN 1992-1-1 10.9.5.2(1) | Check |
+| L1E10 | dowel | dowelAction: α0 1.0, ε = 3 √(fcd/fyd), γRd 1.3, γc 1.5, γs 1.15, cap fyd/√3 As | fib Bulletin 43 (2008) Ch 5 (Rasmussen dowel action) | Unsure (α0 and γRd as recalled) |
+| L1E11 | connections.tensionShare | 0.2 FEd where none is entered | none in EN 1992-1-1 10.9.4 | SAEngine practice |
+| L1E12 | handling.tension | 0.7 × 0.30 f'ci^(2/3) / 1.5 (fctk,0.05 / γc) | EN 1992-1-1 Table 3.1, 2.4.2.4 | Check |
+| L1E13 | handling.insertSafety | 2.5 | CEN/TR 15728 (order of its factors) | Unsure |
+| L1E14 | handling (multipliers), erection | as the default pack's L1B11-L1B19 | PCI Design Handbook 8th ed.; Mast | SAEngine practice |
+| L1E15 | integrity | not given: EN 1992-1-1 9.10 tying systems are the concreteMethods ties | none | Not covered here |

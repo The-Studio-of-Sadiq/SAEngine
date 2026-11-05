@@ -139,6 +139,12 @@ TABLE_HELP: dict[str, str] = {
     "redundantCharts). A group left out is not covered.",
     "compositeConcrete": "Composite concrete flexural members (precast and cast-in-place parts "
     "placed separately): the horizontal shear limits at the contact surface and the ties.",
+    "precast": "Precast concrete pieces (alpha 9 L1): the bearing method (spanRatio or "
+    "netBearing) and its values, dowels across joints (shearFriction or dowelAction), the corbel "
+    "and weld methods of the connections, the least tension on a bearing, the integrity ties, "
+    "the handling multipliers (stripping, yard, transport, erection), the tension allowed while "
+    "handled, the inserts carrying the load, and the erection wind and stability. A pack "
+    "without it does not check precast pieces.",
     "bamboo": "Round bamboo members (permissible stresses): safe working stresses by species, "
     "by density or from tests with the factors of safety, load duration factors, the column "
     "rules and the joints. A pack without it does not cover bamboo.",

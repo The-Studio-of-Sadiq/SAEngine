@@ -1559,6 +1559,19 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 					description: 'Concrete beams cast in two placements acting as one (a precast stem with a cast-in-place top): the horizontal shear at the contact surface is checked; none: cast in one piece.',
 					title: 'Composite concrete',
 				},
+				precast: {
+					anyOf: [
+						{
+							$ref: '#/$defs/PrecastPiece',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'A precast concrete piece (alpha 9 L1): its element, inserts, corbels and connections; the handling, erection and connection checks, its shop drawing and its piece schedule follow; none: cast in place.',
+					title: 'Precast',
+				},
 				modifiers: {
 					anyOf: [
 						{
@@ -2596,6 +2609,19 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 					description: 'Ferrocement members: the mesh layers (B39).',
 					title: 'Ferrocement',
 				},
+				precast: {
+					anyOf: [
+						{
+							$ref: '#/$defs/PrecastPiece',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'A precast concrete piece (alpha 9 L1): its element, inserts, corbels and connections; the handling, erection and connection checks, its shop drawing and its piece schedule follow; none: cast in place.',
+					title: 'Precast',
+				},
 				modifiers: {
 					anyOf: [
 						{
@@ -3296,6 +3322,126 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 				},
 			},
 			title: 'ConfiningElement',
+			type: 'object',
+		},
+		Corbel: {
+			additionalProperties: false,
+			description: 'A corbel (bracket) cast with a column that carries a beam\'s end (the default pack\'s Part 6 Sec\n6.4.7). The beam\'s end shear from the analysis is its Vu.',
+			properties: {
+				width: {
+					description: 'Across the beam [mm].',
+					exclusiveMinimum: 0,
+					title: 'Width bw',
+					type: 'number',
+				},
+				depth: {
+					description: 'At the column face [mm].',
+					exclusiveMinimum: 0,
+					title: 'Depth h',
+					type: 'number',
+				},
+				edgeDepth: {
+					description: 'At the outer edge [mm].',
+					exclusiveMinimum: 0,
+					title: 'Edge depth',
+					type: 'number',
+				},
+				projection: {
+					description: 'From the column face [mm].',
+					exclusiveMinimum: 0,
+					title: 'Projection',
+					type: 'number',
+				},
+				loadOffset: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Column face to the bearing\'s centre [mm]; empty: half the projection.',
+					title: 'Shear span av',
+				},
+				bearing: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Bearing pad along the projection [mm]; empty: no bearing check.',
+					title: 'Bearing length',
+				},
+				cover: {
+					default: 40.0,
+					description: '[mm]',
+					exclusiveMinimum: 0,
+					title: 'Cover',
+					type: 'number',
+				},
+				mainBars: {
+					$ref: '#/$defs/CorbelBars',
+					description: 'Top tension bars.',
+					title: 'Main bars As',
+				},
+				ties: {
+					anyOf: [
+						{
+							$ref: '#/$defs/CorbelBars',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Closed ties parallel to the main bars (two legs each).',
+					title: 'Closed ties Ah',
+				},
+				horizontalForce: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Factored tension on the bearing [kN]; empty: 0.2 Vu, the least of the code.',
+					title: 'Horizontal force Nuc',
+				},
+			},
+			required: ['width', 'depth', 'edgeDepth', 'projection', 'mainBars'],
+			title: 'Corbel',
+			type: 'object',
+		},
+		CorbelBars: {
+			additionalProperties: false,
+			description: 'A set of bars of a corbel: how many and their diameter.',
+			properties: {
+				count: {
+					minimum: 1,
+					title: 'Count',
+					type: 'integer',
+				},
+				dia: {
+					description: '[mm]',
+					exclusiveMinimum: 0,
+					title: 'Diameter',
+					type: 'number',
+				},
+			},
+			required: ['count', 'dia'],
+			title: 'CorbelBars',
 			type: 'object',
 		},
 		CouplingDiagonal: {
@@ -5422,6 +5568,626 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 			title: 'PlanarReinforcement',
 			type: 'object',
 		},
+		PrecastConnection: {
+			additionalProperties: false,
+			description: 'A connection of a precast piece to what supports it or to the piece next to it.',
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				kind: {
+					description: 'Bearing on a support (seat, ledge or wall), dowels across the joint, the bearing on a corbel of the column (its corbel by ``corbel``), or a welded plate connection (embedded plates joined by a fillet-welded plate or bar).',
+					enum: ['bearing', 'dowel', 'corbelBearing', 'weldedPlate'],
+					enumDescriptions: ['Bearing', 'Dowels', 'Bearing on a corbel', 'Welded plate'],
+					title: 'Kind',
+					type: 'string',
+				},
+				at: {
+					default: 'both',
+					description: 'Which end of the piece (a column or a wall panel: its base or top).',
+					enum: ['start', 'end', 'both', 'base', 'top'],
+					title: 'At',
+					type: 'string',
+				},
+				bearingLength: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'The seating detailed: from the support\'s edge to the piece\'s end [mm].',
+					title: 'Bearing length',
+				},
+				bearingWidth: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Width of the bearing (pad) across the piece [mm]; empty: the piece\'s.',
+					title: 'Bearing width',
+				},
+				bedding: {
+					default: 'bedded',
+					description: 'Dry: the piece on the bare support; bedded: on mortar, a pad or a strip.',
+					enum: ['dry', 'bedded'],
+					enumDescriptions: ['Dry', 'Bedded (mortar or pad)'],
+					title: 'Bedding',
+					type: 'string',
+				},
+				support: {
+					default: 'precast',
+					description: 'What the piece sits on (the tolerances and the ineffective edges of the code pack\'s bearing method).',
+					enum: ['precast', 'castInSitu', 'steel', 'masonry'],
+					enumDescriptions: ['Precast concrete', 'Cast in situ concrete', 'Steel', 'Masonry'],
+					title: 'Support',
+					type: 'string',
+				},
+				endBars: {
+					default: 'straight',
+					description: 'How the piece\'s bars end over the support: continuous over it, straight bars or horizontal loops near the end, tendons or bars exposed at the end, vertical loops.',
+					enum: ['continuous', 'straight', 'exposed', 'loops'],
+					enumDescriptions: ['Continuous over the support', 'Straight bars or horizontal loops', 'Exposed at the end', 'Vertical loops'],
+					title: 'Bars at the end',
+					type: 'string',
+				},
+				dowels: {
+					default: 0,
+					description: 'Dowels across the joint.',
+					minimum: 0,
+					title: 'Dowels',
+					type: 'integer',
+				},
+				dowelDia: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: '[mm]',
+					title: 'Dowel diameter',
+				},
+				dowelMaterial: {
+					anyOf: [
+						{
+							maxLength: 64,
+							minLength: 1,
+							pattern: '^[A-Za-z0-9._-]+$',
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Rebar or steel of 03 Materials; empty: the piece\'s reinforcement material.',
+					title: 'Dowel material',
+				},
+				eccentricity: {
+					default: 0,
+					description: 'Dowels: where the shear acts from the joint face (a soft bearing pad) [mm].',
+					minimum: 0,
+					title: 'Eccentricity',
+					type: 'number',
+				},
+				surface: {
+					default: 'roughened',
+					description: 'Dowels: the joint\'s surface (the code pack\'s shear transfer across it).',
+					enum: ['roughened', 'notRoughened', 'monolithic'],
+					enumDescriptions: ['Roughened', 'Not roughened', 'Monolithic'],
+					title: 'Surface',
+					type: 'string',
+				},
+				corbel: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'integer',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Bearing on a corbel: the index (from 0) of the supporting column type\'s corbel; the corbel is designed for this connection\'s shear.',
+					title: 'Corbel',
+				},
+				corbelType: {
+					anyOf: [
+						{
+							maxLength: 64,
+							minLength: 1,
+							pattern: '^[A-Za-z0-9._-]+$',
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Bearing on a corbel: the precast column type whose corbel carries the piece.',
+					title: 'Corbel column type',
+				},
+				weldSize: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Welded plate: fillet weld leg [mm].',
+					title: 'Weld size',
+				},
+				weldLength: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Welded plate: total effective fillet weld length [mm].',
+					title: 'Weld length',
+				},
+				electrode: {
+					default: 480,
+					description: 'Welded plate: FEXX [MPa].',
+					exclusiveMinimum: 0,
+					title: 'Electrode',
+					type: 'number',
+				},
+				shear: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Factored shear (the vertical reaction of a bearing) [kN]; empty: from the piece\'s weight and the floor\'s loads by the code pack\'s gravity combinations.',
+					title: 'Shear',
+				},
+				tension: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Factored horizontal tension on the joint [kN]; empty: the code pack\'s share of the shear (restraint, shrinkage).',
+					title: 'Tension',
+				},
+			},
+			required: ['id', 'kind'],
+			title: 'PrecastConnection',
+			type: 'object',
+		},
+		PrecastCorbel: {
+			additionalProperties: false,
+			description: 'A corbel cast with a precast column (designed with the code pack\'s corbel method).',
+			properties: {
+				face: {
+					description: 'The column face it projects from (local axes of the column\'s profile).',
+					enum: ['+x', '-x', '+y', '-y'],
+					title: 'Face',
+					type: 'string',
+				},
+				height: {
+					description: 'From the column piece\'s bottom to the corbel\'s bearing face [mm].',
+					exclusiveMinimum: 0,
+					title: 'Height',
+					type: 'number',
+				},
+				corbel: {
+					$ref: '#/$defs/Corbel',
+				},
+			},
+			required: ['face', 'height', 'corbel'],
+			title: 'PrecastCorbel',
+			type: 'object',
+		},
+		PrecastInsert: {
+			additionalProperties: false,
+			description: 'A cast-in insert of a precast piece: a lifting anchor or an erection insert.',
+			properties: {
+				position: {
+					description: 'Along the piece from its start (a column, a wall panel: from its bottom) [mm].',
+					minimum: 0,
+					title: 'Position',
+					type: 'number',
+				},
+				offset: {
+					default: 0,
+					description: 'Across the piece from its centre line [mm].',
+					title: 'Offset',
+					type: 'number',
+				},
+				use: {
+					default: 'both',
+					description: 'Lifting from the mould and handling, erection only, or both.',
+					enum: ['lifting', 'erection', 'both'],
+					enumDescriptions: ['Lifting and handling', 'Erection', 'Both'],
+					title: 'Use',
+					type: 'string',
+				},
+				workingLoad: {
+					description: 'The insert\'s rated working load (the maker\'s, at the safety factor of its rating) [kN].',
+					exclusiveMinimum: 0,
+					title: 'Working load limit',
+					type: 'number',
+				},
+				ultimateLoad: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Its tested ultimate load in this concrete [kN]; given: the code pack\'s safety factor on it is checked too.',
+					title: 'Ultimate load',
+				},
+				name: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Product or type, for the drawings.',
+					title: 'Name',
+				},
+			},
+			required: ['position', 'workingLoad'],
+			title: 'PrecastInsert',
+			type: 'object',
+		},
+		PrecastPiece: {
+			additionalProperties: false,
+			description: 'A precast concrete piece (alpha 9 L1): the type is cast in a factory, lifted from its\nmould, stored, transported and erected, then connected. The checks of every stage, its\nconnections and its shop drawing follow from this; the analysis takes the type as it\ntakes any other of its kind.',
+			properties: {
+				element: {
+					description: 'Hollow-core or double-tee floor units (slab types), a beam, a column or a wall panel.',
+					enum: ['hollowCore', 'doubleTee', 'beam', 'column', 'wallPanel'],
+					enumDescriptions: ['Hollow-core slab units', 'Double-tee units', 'Precast beam', 'Precast column', 'Wall panel'],
+					title: 'Element',
+					type: 'string',
+				},
+				mark: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Piece mark prefix on the drawings; empty: the object type\'s id.',
+					title: 'Mark',
+				},
+				unitWidth: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Floor units: the nominal width of one unit [mm] (hollow-core 1200, double tee 2400 when empty). Wall panels: the largest panel width [mm] (empty: one panel per wall).',
+					title: 'Unit width',
+				},
+				spanDirection: {
+					default: 'x',
+					description: 'Floor units: the direction they span in plan.',
+					enum: ['x', 'y'],
+					title: 'Span direction',
+					type: 'string',
+				},
+				cores: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'integer',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Hollow-core: the number of cores in one unit.',
+					title: 'Cores',
+				},
+				coreDiameter: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Hollow-core: [mm].',
+					title: 'Core diameter',
+				},
+				flangeThickness: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Double tee: [mm].',
+					title: 'Flange thickness',
+				},
+				stemWidth: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Double tee: mean stem width [mm].',
+					title: 'Stem width',
+				},
+				stemSpacing: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Double tee: centre to centre of the two stems [mm] (empty: half the width).',
+					title: 'Stem spacing',
+				},
+				topping: {
+					default: 0,
+					description: 'Floor units: cast-in-place structural topping over them [mm] (on the piece in service, not while it is handled).',
+					minimum: 0,
+					title: 'Topping',
+					type: 'number',
+				},
+				facing: {
+					default: 0,
+					description: 'Sandwich wall panels: the outer (non-structural) wythe [mm]; 0: a solid panel.',
+					minimum: 0,
+					title: 'Facing',
+					type: 'number',
+				},
+				insulation: {
+					default: 0,
+					description: 'Sandwich wall panels: the insulation between wythes [mm].',
+					minimum: 0,
+					title: 'Insulation',
+					type: 'number',
+				},
+				length: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'The piece\'s length [mm]; empty: from the building model (each element).',
+					title: 'Length',
+				},
+				stripStrength: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'f\'ci when lifted from the mould [MPa]; empty: the code pack\'s share of the specified strength.',
+					title: 'Strength at stripping',
+				},
+				mouldFinish: {
+					default: 'flatRemovable',
+					description: 'How the piece leaves its mould (the code pack\'s form suction and impact multipliers at stripping).',
+					enum: ['flatRemovable', 'flatFalseJoints', 'fluted', 'sculptured'],
+					enumDescriptions: ['Flat, removable side forms', 'Flat with false joints', 'Fluted, proper draft', 'Sculptured'],
+					title: 'Mould and finish',
+					type: 'string',
+				},
+				rigging: {
+					default: 'twoPoint',
+					description: 'How it is lifted: two points, four points with equalising sheaves, four points without them (the code pack\'s inserts taken to carry the load).',
+					enum: ['twoPoint', 'fourPointEqualised', 'fourPointRigid'],
+					enumDescriptions: ['Two points', 'Four points, equalised', 'Four points, not equalised'],
+					title: 'Rigging',
+					type: 'string',
+				},
+				slingAngle: {
+					default: 60,
+					description: 'Of the slings from the horizontal [°] (90: a vertical lift with a beam).',
+					exclusiveMinimum: 0,
+					maximum: 90,
+					title: 'Sling angle',
+					type: 'number',
+				},
+				supports: {
+					description: 'Where it rests in storage and on the truck, from its start [mm]; empty: at its lifting inserts.',
+					items: {
+						type: 'number',
+					},
+					title: 'Supports',
+					type: 'array',
+				},
+				inserts: {
+					items: {
+						$ref: '#/$defs/PrecastInsert',
+					},
+					title: 'Inserts',
+					type: 'array',
+				},
+				corbels: {
+					description: 'Columns: the corbels cast with the piece.',
+					items: {
+						$ref: '#/$defs/PrecastCorbel',
+					},
+					title: 'Corbels',
+					type: 'array',
+				},
+				connections: {
+					items: {
+						$ref: '#/$defs/PrecastConnection',
+					},
+					title: 'Connections',
+					type: 'array',
+				},
+				superimposedDead: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Supported by the piece [kN/m² on floor units, kN/m on beams]; empty: floor units take their slab\'s area load, beams none.',
+					title: 'Superimposed dead load',
+				},
+				live: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Live load on the piece [kN/m² on floor units, kN/m on beams]; empty: floor units take their slab\'s area load, beams none.',
+					title: 'Live',
+				},
+				erectionWind: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Wind pressure while it stands unconnected [kPa]; empty: the code pack\'s.',
+					title: 'Erection wind',
+				},
+				baseMoment: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Columns: the moment the temporary base (shims, bolts, socket wedges) takes before it is grouted [kN·m]; empty: the free-standing stability is not checked.',
+					title: 'Temporary base moment',
+				},
+				braceCapacity: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Wall panels: the working capacity of each of the two temporary braces [kN]; empty: only the brace force is given.',
+					title: 'Brace capacity',
+				},
+				braceHeight: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Wall panels: where the braces attach above its base [mm]; empty: 2/3 of its height.',
+					title: 'Brace height',
+				},
+			},
+			required: ['element'],
+			title: 'PrecastPiece',
+			type: 'object',
+		},
 		PunchingReinforcement: {
 			additionalProperties: false,
 			description: 'Shear reinforcement for punching around each column of a flat slab or footing: headed\nshear studs (the default pack\'s Part 6 Sec 6.4.10.5) or stirrups (6.4.10.3), in peripheral lines\nparallel to the column faces (:mod:`saengine.design.punching`). Checked only where the\nconcrete alone is not enough.',
@@ -5960,6 +6726,19 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 					default: null,
 					description: 'Studs or stirrups round the columns of a flat slab, checked where the concrete alone is not enough (empty: none).',
 					title: 'Punching reinforcement',
+				},
+				precast: {
+					anyOf: [
+						{
+							$ref: '#/$defs/PrecastPiece',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'A precast concrete piece (alpha 9 L1): its element, inserts, corbels and connections; the handling, erection and connection checks, its shop drawing and its piece schedule follow; none: cast in place.',
+					title: 'Precast',
 				},
 				modifiers: {
 					anyOf: [
@@ -7429,6 +8208,19 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 					description: 'Exterior basement or foundation wall (the default pack\'s 6.6.3.4, 6.6.5.3).',
 					title: 'Basement',
 					type: 'boolean',
+				},
+				precast: {
+					anyOf: [
+						{
+							$ref: '#/$defs/PrecastPiece',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'A precast concrete piece (alpha 9 L1): its element, inserts, corbels and connections; the handling, erection and connection checks, its shop drawing and its piece schedule follow; none: cast in place.',
+					title: 'Precast',
 				},
 				modifiers: {
 					anyOf: [
