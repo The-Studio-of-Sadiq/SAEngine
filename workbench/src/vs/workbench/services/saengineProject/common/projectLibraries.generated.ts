@@ -16875,9 +16875,9 @@ export const FLOOR_PLAN_SCHEMA: IJSONSchema = {
 					type: 'string',
 				},
 				file: {
-					description: 'DXF, DWG or PDF file, relative to the 05 Floor Plan folder.',
+					description: 'DXF, DWG or PDF file, or a point cloud (LAS, XYZ, PTS; LAZ and E57 need a library), relative to the 05 Floor Plan folder.',
 					minLength: 1,
-					pattern: '\\.([dD]([xX][fF]|[wW][gG])|[pP][dD][fF])$',
+					pattern: '\\.([dD]([xX][fF]|[wW][gG])|[pP][dD][fF]|[lL][aA][sSzZ]|[eE]57|[xX][yY][zZ]|[pP][tT][sS])$',
 					title: 'File',
 					type: 'string',
 				},
@@ -16923,6 +16923,60 @@ export const FLOOR_PLAN_SCHEMA: IJSONSchema = {
 					description: 'Locked: moving, rotating and calibrating the underlay are turned off.',
 					title: 'Locked',
 					type: 'boolean',
+				},
+				cutHeight: {
+					anyOf: [
+						{
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Point clouds: the slice\'s height above the story level [mm]; empty: 1200.',
+					title: 'Cut height',
+				},
+				sliceThickness: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Point clouds: the thickness of the slice [mm]; empty: 100.',
+					title: 'Slice thickness',
+				},
+				pointSpacing: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Point clouds: one point kept per cube of this side [mm] (decimation); empty: 20; 0: only the point limit.',
+					title: 'Point spacing',
+				},
+				elevationOffset: {
+					anyOf: [
+						{
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Point clouds: the scan\'s height of the project\'s ±0 level, in the scan\'s units; empty: 0.',
+					title: 'Scan elevation of ±0',
 				},
 			},
 			required: ['story', 'file'],

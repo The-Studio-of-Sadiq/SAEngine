@@ -52,6 +52,14 @@ export interface FemRecordOptions {
 	readonly fps?: number;
 }
 
+/** Alpha 9 L2: a decimated laser scan in model space (see {@link FemViewer.setPointCloud}). */
+export interface FemPointCloud {
+	readonly positions: ArrayLike<number>;
+	readonly colors?: ArrayLike<number>;
+	/** Point size on screen [px]; default 2. */
+	readonly size?: number;
+}
+
 export interface FemViewer {
 	setModel(model: FemModel): void;
 	setSelection(selection: FemSelection | undefined): void;
@@ -66,6 +74,12 @@ export interface FemViewer {
 	 * centres are drawn, and a click on a member picks the member.
 	 */
 	setMeshNodes(shown: boolean): void;
+	/**
+	 * Alpha 9 L2: shows a laser scan as a reference under the model (not picked, not measured):
+	 * `positions` x, y, z in model space (Z up), `colors` r, g, b in 0-1 per point (grey by
+	 * intensity) or undefined (one muted colour); undefined removes it.
+	 */
+	setPointCloud(cloud: FemPointCloud | undefined): void;
 	/**
 	 * Looks at the model in 3D (perspective, orbiting) or straight down the model's Z (`top`: a
 	 * plan), along its Y (`front`: an X-Z elevation) or along its X (`side`: a Y-Z elevation),
@@ -197,6 +211,8 @@ class FemViewerImpl implements FemViewer {
 	private solidEdges: THREE.LineSegments<THREE.BufferGeometry, THREE.LineBasicMaterial> | undefined;
 	private nodes: THREE.Points | undefined;
 	private nodeIds: number[] = [];
+	/** Alpha 9 L2: the laser scan shown under the model (not picked). */
+	private pointCloud: THREE.Points | undefined;
 	/** The shells' faces, as triangles, and the element of each triangle. */
 	private faces: THREE.Mesh | undefined;
 	private faceIds: number[] = [];
@@ -326,6 +342,44 @@ class FemViewerImpl implements FemViewer {
 		this.meshNodes = shown;
 		this.rebuild();
 		this.renderHighlight();
+	}
+
+	setPointCloud(cloud: FemPointCloud | undefined): void {
+		if (this.pointCloud) {
+			this.world.scene.three.remove(this.pointCloud);
+			this.pointCloud.geometry.dispose();
+			(this.pointCloud.material as THREE.Material).dispose();
+			this.pointCloud = undefined;
+		}
+		const n = cloud ? Math.floor(cloud.positions.length / 3) : 0;
+		if (!cloud || !n) {
+			return;
+		}
+		// Model space (Z up) to world space (Y up), as the model's nodes (toWorld, ndm 3).
+		const world = new Float32Array(n * 3);
+		for (let i = 0; i < n; i++) {
+			world[i * 3] = cloud.positions[i * 3];
+			world[i * 3 + 1] = cloud.positions[i * 3 + 2];
+			world[i * 3 + 2] = -cloud.positions[i * 3 + 1];
+		}
+		const geometry = new THREE.BufferGeometry();
+		geometry.setAttribute('position', new THREE.BufferAttribute(world, 3));
+		const colored = !!cloud.colors && cloud.colors.length >= n * 3;
+		if (colored) {
+			geometry.setAttribute('color', new THREE.BufferAttribute(Float32Array.from(Array.prototype.slice.call(cloud.colors, 0, n * 3) as number[]), 3));
+		}
+		const material = new THREE.PointsMaterial({
+			size: cloud.size ?? 2,
+			sizeAttenuation: false,
+			vertexColors: colored,
+			color: colored ? 0xffffff : subtleNodeColor(this.theme.node, this.theme.background),
+			transparent: true,
+			opacity: 0.6,
+			depthWrite: false,
+		});
+		this.pointCloud = new THREE.Points(geometry, material);
+		this.pointCloud.renderOrder = -1; // under the model's linework
+		this.world.scene.three.add(this.pointCloud);
 	}
 
 	setVisibleElements(elements: FemVisibleElements): void {
@@ -460,6 +514,7 @@ class FemViewerImpl implements FemViewer {
 		canvas?.removeEventListener('pointerup', this.onPointerUp);
 		this.container.removeEventListener('keydown', this.onKeyDown);
 		this.measureOverlay.dispose();
+		this.setPointCloud(undefined);
 		this.clearGroup(this.modelGroup);
 		this.clearGroup(this.highlight);
 		this.clearResults();

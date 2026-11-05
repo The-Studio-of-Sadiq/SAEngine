@@ -50,7 +50,7 @@ import { propertyLink, renderPropertySheet } from '../../saengineModel/browser/p
 import { editNotice, IMemberRef as IModifierMemberRef, memberTargets, modifiersView, readCodeStiffness, resetMembersGroup, setMembersField } from '../../saengineModel/browser/modifiersModel.js';
 import { renderModifiers } from '../../saengineModel/browser/modifiersPanel.js';
 import { appendPropertyHeading, appendPropertyNote, appendPropertyRow, EditorFrame, IEditorFrameIconButton } from '../../saengineProject/browser/editorFrame.js';
-import { CLEAN_DXF_COMMAND, DWG_TO_DXF_COMMAND, OPEN_DXF_IN_CAD_UI_COMMAND, PDF_TO_DXF_COMMAND, WORKBOOK_EXPORT_COMMAND, WORKBOOK_IMPORT_COMMAND } from '../../saengineProject/browser/projectArchiveModel.js';
+import { CLEAN_DXF_COMMAND, DWG_TO_DXF_COMMAND, OPEN_DXF_IN_CAD_UI_COMMAND, PDF_TO_DXF_COMMAND, POINT_CLOUD_TO_DXF_COMMAND, WORKBOOK_EXPORT_COMMAND, WORKBOOK_IMPORT_COMMAND } from '../../saengineProject/browser/projectArchiveModel.js';
 import { COMPONENTS_ADD_COMMAND } from '../../saengineUpdate/common/components.js';
 import { acquireCadEditor, cadBackground, forCanvas, isLightCanvas, releaseCadEditor } from './cadHost.js';
 import { storiesOf } from '../../../services/saengineProject/common/floorPlanMembers.js';
@@ -58,7 +58,7 @@ import { floorPlanDrawing, gridsOf, IFloorPlan, IMemberShape, ISlabSplit, PLAN_A
 import { basePoint, bayAt, changeMemberType, EditResult, footingsOwnedMessage, notRotatableMessage, IGridNode, moveMember, pickMember, placeColumn, placeLinear, placePolygonSlab, placeSlab, PlacementTool, removeMember, rotateMember, setMembersType, snapPoint, snapToGrid, splitSlab, TOOL_GROUP, TOOL_KINDS } from './floorPlanEdits.js';
 import { FloorPlanEditorInput, siblingPartFile } from './floorPlanEditorInput.js';
 import { ISnap, ISnapSegment, nearMisses, SNAP_NAMES, snapLinear, snapMarker, squareMarker, typedEnd, unsupportedBeams } from './floorPlanSnap.js';
-import { alignAngle, calibrated, diffLines, diffSummary, firstPdfPlacement, gridCentre, isPdf, IUnderlayPlacement, IWorkbookImport, moved, placementFields, placementOf, planSegments, readWorkbookImport, rotated, segmentsNear } from './floorPlanUnderlay.js';
+import { alignAngle, calibrated, cloudSlice, DEFAULT_CLOUD_SCALE, diffLines, diffSummary, firstPdfPlacement, gridCentre, isPdf, isPointCloud, IUnderlayPlacement, IWorkbookImport, moved, placementFields, placementOf, planSegments, readWorkbookImport, rotated, segmentsNear } from './floorPlanUnderlay.js';
 import { addObjectType, NEW_TYPE_PROMPTS, NewTypeKind, validateSize } from './floorPlanTypes.js';
 import { FloorPlanLoadsFile, FloorPlanLoadsPanel, ILoadsWrite, IMemberLoads, LOAD_LAYER_SPECS, loadsDrawing } from './floorPlanLoads.js';
 import { copyStory, familyDiffersMessage, familyNote, familyOf, inSync, masterOf, repeatFamily, setSimilar, typicalLosses } from './floorPlanTypical.js';
@@ -2758,7 +2758,11 @@ export class FloorPlanEditor extends EditorPane {
 			title: localize('floorPlan.pickUnderlay', "Attach an Architect's Drawing"),
 			canSelectFiles: true,
 			canSelectMany: false,
-			filters: [{ name: localize('floorPlan.cadFiles', "Drawings (DXF, DWG, PDF)"), extensions: ['dxf', 'dwg', 'pdf'] }],
+			filters: [
+				{ name: localize('floorPlan.cadFiles', "Drawings (DXF, DWG, PDF)"), extensions: ['dxf', 'dwg', 'pdf'] },
+				// Alpha 9 L2: laser scans, shown as the slice at the story's cut with the lines traced through it.
+				{ name: localize('floorPlan.cloudFiles', "Point clouds (LAS, XYZ, PTS, LAZ, E57)"), extensions: ['las', 'xyz', 'pts', 'laz', 'e57'] },
+			],
 			defaultUri: folder,
 		});
 		const source = picked?.[0];
@@ -2771,7 +2775,7 @@ export class FloorPlanEditor extends EditorPane {
 			const underlays = joinPath(folder, 'Underlays');
 			let target = joinPath(underlays, basename(source));
 			for (let n = 2; await this.fileService.exists(target); n++) {
-				target = joinPath(underlays, basename(source).replace(/(\.(?:dxf|dwg|pdf))$/i, ` (${n})$1`));
+				target = joinPath(underlays, basename(source).replace(/(\.(?:dxf|dwg|pdf|las|laz|e57|xyz|pts))$/i, ` (${n})$1`));
 			}
 			await this.fileService.copy(source, target);
 			file = relativePath(folder, target)!;
@@ -2780,6 +2784,11 @@ export class FloorPlanEditor extends EditorPane {
 		let page = 1;
 		let placement: object = {};
 		let stated: number | undefined;
+		if (isPointCloud(file)) {
+			// Scans are usually in metres: start at 1000 mm per unit (Calibrate Underlay Scale fixes it).
+			placement = { scale: DEFAULT_CLOUD_SCALE };
+			this.zoomToUnderlay = true;
+		}
 		if (isPdf(file)) {
 			const path = joinPath(folder, file).fsPath;
 			// A PDF of several sheets: which page is this story's plan (its page count only, read
@@ -2844,7 +2853,10 @@ export class FloorPlanEditor extends EditorPane {
 		const editor = this.editor;
 		const underlay = this.underlayOf(layout, input.story);
 		const shown = underlay && this.underlayVisible(underlay) ? underlay : undefined;
-		const key = shown ? JSON.stringify([shown.file, shown.page, shown.dx, shown.dy, shown.scale, shown.rotation]) : '';
+		// Alpha 9 L2: a point cloud's slice follows the story's level and its slice settings.
+		const level = storiesOf(layout).find(s => s.id === input.story)?.elevation ?? 0;
+		const slice = shown && isPointCloud(shown.file) ? cloudSlice(shown, level) : undefined;
+		const key = shown ? JSON.stringify([shown.file, shown.page, shown.dx, shown.dy, shown.scale, shown.rotation, slice]) : '';
 		if (!editor || key === this.underlayKey) {
 			return;
 		}
@@ -2873,6 +2885,17 @@ export class FloorPlanEditor extends EditorPane {
 				}
 				segments = answer.segments;
 				source = URI.file(answer.dxf);
+			} else if (slice) {
+				// Alpha 9 L2: the scan's slice at the story's cut as DXF, with the lines traced through it for the snaps.
+				const answer = await this.commandService.executeCommand<{ ok?: boolean; dxf?: string; segments?: unknown; points?: number; warnings?: string[]; code?: string; message?: string }>(POINT_CLOUD_TO_DXF_COMMAND, { path: source.fsPath, ...slice });
+				if (!answer?.ok || typeof answer.dxf !== 'string') {
+					throw new Error(answer?.message ?? localize('floorPlan.cloudUnavailable', "point clouds cannot be read here"));
+				}
+				if (answer.warnings?.length) {
+					this.setNotice(answer.warnings[0]);
+				}
+				segments = answer.segments;
+				source = URI.file(answer.dxf);
 			} else if (/\.dwg$/i.test(file)) {
 				// A DWG is shown through its DXF copy, converted (and cached) by the backend.
 				const answer = await this.commandService.executeCommand<{ ok?: boolean; dxf?: string; code?: string; message?: string }>(DWG_TO_DXF_COMMAND, { path: source.fsPath });
@@ -2891,7 +2914,7 @@ export class FloorPlanEditor extends EditorPane {
 			if (this.editor !== editor || this.underlayKey !== key) {
 				return;
 			}
-			this.underlayProblem = /\.(dwg|pdf)$/i.test(file) && error instanceof Error && error.message
+			this.underlayProblem = /\.(dwg|pdf|las|laz|e57|xyz|pts)$/i.test(file) && error instanceof Error && error.message
 				? localize('floorPlan.underlayDwgFailed', "The underlay {0} could not be read: {1}", file, error.message)
 				: localize('floorPlan.underlayMissing', "The underlay {0} could not be read.", file);
 			await editor.setUnderlay(undefined);

@@ -41,6 +41,22 @@ here, newest first, with the date, the question, the decision, the reason and wh
 - **No unlicensed software.** ETABS, SAP2000 and STAAD are not used for cross-checks or cited.
   Open-source tools are used instead (2026-10-25).
 
+## 2026-11-05: point-cloud references (alpha 9 track L2)
+
+- **Formats.** LAS 1.2-1.4 uncompressed (point formats 0-10) and text scans (XYZ, PTS) are read
+  by SAEngine's own reader (numpy). No point-cloud library is in the environment, so LAZ needs
+  `lazrs` or `laszip` and E57 needs `pye57`: both are refused with a message until the owner
+  decides to add the dependency.
+- **As an underlay.** A scan attached to a story is shown as the slice at the story level + a
+  cut height (default 1200 mm, 100 mm thick, one point per 20 mm cube; SAEngine practice, set per
+  underlay), drawn as dashes, with straight lines traced through it by RANSAC. The traced lines
+  are the plan's object snaps, so as-built walls, columns and grids are drawn over the scan
+  with the existing tools. A scan starts at 1000 mm per unit (metres); Calibrate Underlay Scale
+  corrects it. `elevationOffset` gives the scan's height of the project's ±0.
+- **3D view.** The viewer package has `setPointCloud` (decimated points, grey by intensity) in
+  its source; the backend gives the points (`cad/pointCloudView`). The viewer is not rebuilt
+  this week, so the BIM view does not call it yet.
+
 ## 2026-11-05: precast pieces and their shop drawings (alpha 9 track L1)
 
 - **Where it lives.** A precast type is an object type of 04 Objects with `precast` (hollow-core

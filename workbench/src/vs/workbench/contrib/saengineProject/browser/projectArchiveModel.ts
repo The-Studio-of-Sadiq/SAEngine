@@ -38,6 +38,15 @@ export const DWG_TO_DXF_COMMAND = 'saengine.cad.dwgToDxf';
  */
 export const PDF_TO_DXF_COMMAND = 'saengine.cad.pdfToDxf';
 /**
+ * Alpha 9 L2: `{path, cut, thickness, voxel?, tolerance?, trace?}` -> `{ok, dxf, points, total,
+ * segments, bounds, warnings, cached}` or `{ok: false, code, message}` (`needs-library` for LAZ
+ * and E57): a plan slice of a point cloud as DXF (cached in a `.cloud-cache` folder beside it),
+ * with the lines traced through it `[x1, y1, x2, y2]` in the scan's units for object snaps.
+ */
+export const POINT_CLOUD_TO_DXF_COMMAND = 'saengine.cad.pointCloudToDxf';
+/** Alpha 9 L2: `{path, voxel?, limit?}` -> `{ok, positions, colors, count, total, bounds}`: a scan decimated for the 3D view. */
+export const POINT_CLOUD_VIEW_COMMAND = 'saengine.cad.pointCloudView';
+/**
  * `{paths}` -> `{ok, files: [{path, fixed, errors}]}`: DXF files the app wrote, repaired in place
  * by ezdxf's auditor so CAD programs open them without repairs (`saengine.library.dxf_audit`).
  */

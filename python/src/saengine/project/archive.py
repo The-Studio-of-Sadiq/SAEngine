@@ -80,6 +80,8 @@ COMPUTED_PATHS: tuple[str, ...] = (
     "**/.dwg-cache/",
     # ... and of PDF pages (saengine.library.pdf_underlay).
     "**/.pdf-cache/",
+    # ... and the slices of point clouds (alpha 9 L2, saengine.library.point_cloud).
+    "**/.cloud-cache/",
 )
 
 #: The deliverables folder (report PDF, IFC, DXF, CSV), included unless ``include_exports`` is
