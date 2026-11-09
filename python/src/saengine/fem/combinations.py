@@ -145,8 +145,8 @@ def expand_rows(
     """``(name, {kind: factor}, row)`` of pack rows, a row with W or E once per plan direction
     and sign: ``1.2D + 1.6WX + ...``, ``1.2D + 1.6(-WX) + ...`` (kinds W, E become WX, WY, EX,
     EY; the other kinds stay). The kinds ``with_lateral`` (default: the pack's ``withLateral``,
-    the flood load Fa) take the same direction and sign (FaX, FaY); a row with one of them
-    and no W or E expands on it alone."""
+    the flood load Fa), and the other of W and E in a row with both, take the same direction
+    and sign (FaX, FaY); a row with one of them and no W or E expands on it alone."""
     following = _with_lateral() if with_lateral is None else with_lateral
     out: list[tuple[str, dict[str, float], Any]] = []
     for row in rows:
@@ -157,7 +157,11 @@ def expand_rows(
         if lateral is None:
             out.append((row.name, factors, row))
             continue
-        along = [k for k in following if k in factors and k != lateral]
+        # A row with both W and E (e.g. GB 55002 4.3.2: 1.4E + 0.3W) takes the other one
+        # along the same direction and sign, as the kinds ``with_lateral`` do.
+        along = list(
+            dict.fromkeys(k for k in (*DIRECTIONAL, *following) if k in factors and k != lateral)
+        )
         base = {k: v for k, v in factors.items() if k != lateral and k not in along}
         for axis in ("X", "Y"):
             for sign in (1, -1):

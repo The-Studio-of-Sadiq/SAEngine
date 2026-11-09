@@ -192,7 +192,7 @@ def test_linear_mode_share_and_default_correction(ru):
     assert fl.base_shear_correction(0.5, 3, "II", levels=levels) == pytest.approx(share)
     assert fl.linear_mode_share([(3.0, 50.0)]) == pytest.approx(1.0)
     with code_context.using(registry.load("eurocodes")):  # λ 0.85 unchanged
-        assert fl.base_shear_correction(0.3, 4, "B") == pytest.approx(0.85)
+        assert fl.base_shear_correction(0.3, 4, "SB") == pytest.approx(0.85)
     with code_context.using(registry.load("bnbc2020")):
         assert fl.base_shear_correction(0.3, 4, "SC", levels=levels) == 1.0
 

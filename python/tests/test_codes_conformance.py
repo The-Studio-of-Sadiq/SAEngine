@@ -204,4 +204,4 @@ def test_generated_building_derives_and_designs(pack_id: str, tmp_path: Path):
     )
     # The kept report wraps the design result with its stamp: {stamp, computed, result}.
     result = report.get("result", report)
-    assert result.get("members"), "no member was designed"
+    assert result.get("elements"), "no member was designed"  # the checked elements

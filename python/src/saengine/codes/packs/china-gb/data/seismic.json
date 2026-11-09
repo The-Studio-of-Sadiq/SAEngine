@@ -302,12 +302,22 @@
     }
   },
   "generatorSystems": {
+    "rcFrame": [
+      "rcFrame"
+    ],
+    "rcFrameWithWalls": [
+      "rcFrameWall"
+    ],
+    "flatSlab": [
+      "rcFrameWall"
+    ],
     "steelMomentFrame": [
       "steelFrame"
     ],
     "steelBracedFrame": [
       "steelBraced"
-    ]
+    ],
+    "$comment": "SAEngine practice: the New Building generator's systems of this pack's own table (GB 50011-2010 Table 6.1.1): an RC frame as rcFrame; a frame with walls, and a flat slab (core walls added: the slab-column frame is no moment frame), as rcFrameWall; the first the height limit permits is taken"
   },
   "designCategories": {
     "occupancyGroups": {

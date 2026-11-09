@@ -122,8 +122,9 @@ def test_damping_adjustment_eta1_eta2_gamma(cn):
     assert t["gamma"] == pytest.approx(0.9 + 0.03 / (0.3 + 6 * 0.02))
     assert t["eta1"] == pytest.approx(0.02 + 0.03 / (4 + 32 * 0.02))
     assert t["eta2"] == pytest.approx(1 + 0.03 / (0.08 + 1.6 * 0.02))
-    assert spectra.influence_terms(0.30, rule)["eta2"] == 0.55  # at least 0.55
-    assert spectra.influence_terms(0.30, rule)["eta1"] == 0.0  # at least 0
+    # ζ 0.30 gives η2 0.554 (above the bound): at ζ 0.40, 1 - 0.35 / 0.72 = 0.51 -> 0.55.
+    assert spectra.influence_terms(0.40, rule)["eta2"] == 0.55  # at least 0.55
+    assert spectra.influence_terms(0.40, rule)["eta1"] == 0.0  # at least 0
     assert fl.normalized_spectrum(0.3, "II", damping=0.02) == pytest.approx(t["eta2"])
 
 

@@ -3607,7 +3607,7 @@ def default_project_settings(
     name: str = "Project", code_pack: str | None = None
 ) -> ProjectSettings:
     """A new project's settings; with ``code_pack`` (another pack than the default) the
-    settings of :func:`settings_for_pack` under it."""
+    settings of :func:`settings_for_pack` under it, with the pack's own defaults (``fresh``)."""
     settings = ProjectSettings(
         project=ProjectInfo(name=name),
         areaLoads=default_area_loads(),
@@ -3616,12 +3616,12 @@ def default_project_settings(
         combinations=strength_combinations(),
     )
     if code_pack and code_pack != settings.codePack:
-        return settings_for_pack(settings, code_pack)
+        return settings_for_pack(settings, code_pack, fresh=True)
     return settings
 
 
 def settings_for_pack(
-    settings: ProjectSettings | dict[str, Any], code_pack: str
+    settings: ProjectSettings | dict[str, Any], code_pack: str, fresh: bool = False
 ) -> ProjectSettings:
     """``settings`` switched to the code pack ``code_pack`` (C7): every choice the pack's lists
     lack (town, site class, systems, exposure, area uses) becomes the pack's default (its
@@ -3629,7 +3629,9 @@ def settings_for_pack(
     ``wind.defaultExposure``, else the first of its list); the area loads take the pack's live
     load of their use, and the combinations the pack's. Raises :class:`CodePackError` when the
     pack cannot be found (with the project's own packs of
-    :func:`saengine.codes.context.project`)."""
+    :func:`saengine.codes.context.project`). With ``fresh`` (a new project's settings, whose
+    choices are the default pack's, not the engineer's), the pack's defaults replace them even
+    where the pack's lists have them too (an exposure "A" of another meaning)."""
     data = (
         settings.model_dump(mode="json", by_alias=True, exclude_none=True)
         if isinstance(settings, ProjectSettings)
@@ -3643,6 +3645,8 @@ def settings_for_pack(
 
     def pick(key: str, value: Any, preferred: str | None) -> Any:
         ids = lists.get(key)
+        if fresh and ids and preferred in ids:
+            return preferred
         if not ids or value in ids:
             return value
         return preferred if preferred in ids else ids[0]

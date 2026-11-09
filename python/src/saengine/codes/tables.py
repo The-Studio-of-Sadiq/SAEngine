@@ -2119,7 +2119,8 @@ class SeismicTable(TableModel):
     generatorSystems: dict[str, list[str]] = Field(
         default_factory=dict,
         description="Alpha 9 C3b: the New Building generator's candidate systems by its system "
-        "kind (steelMomentFrame, steelBracedFrame), least ductile first: the first one the "
+        "kind (rcFrame, rcFrameWithWalls, flatSlab, masonry, steelMomentFrame, "
+        "steelBracedFrame), least ductile first: the first one the "
         "category and the height permit is taken; a kind not listed takes the generator's own.",
     )
     stability: StabilityRule | None = Field(

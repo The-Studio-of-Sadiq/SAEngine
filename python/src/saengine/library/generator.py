@@ -371,40 +371,64 @@ def _template(key: str, **changes: Any) -> dict[str, Any]:
 # ─────────────────────────────────────────── the generator ───────────────────────────────────────
 
 
+#: The generator's own candidate systems by its system kind, least ductile first (the default
+#: pack's Table 6.2.19 ids); a pack's ``seismic.generatorSystems`` replaces a kind's list.
+SYSTEM_CANDIDATES: dict[str, tuple[str, ...]] = {
+    "rcFrame": ("rcOmf", "rcImf", "rcSmf"),
+    "rcFrameWithWalls": ("rcOrdinaryWallFrame", "rcDualSpecial"),
+    "flatSlab": ("rcOmf", "rcImf", "rcSpecialWallFrame", "rcDualSpecial"),
+    "masonry": ("masonryOrdinaryPlain", "masonryOrdinaryReinforced"),
+}
+
+
 def _system(kind: str, sdc: str | None, height_m: float) -> tuple[str, bool, list[str]]:
     """(settings' system id, core walls needed, notes) for the generator's system in ``sdc``:
-    the first candidate Table 6.2.19 permits in the category and the height, with the detailing
-    level the category requires (Sec 8.3.2)."""
-    from saengine.design.seismic_rules import NP, _level_at_least, required_level, system_row
+    the first candidate (the pack's ``seismic.generatorSystems`` of ``kind``, else
+    :data:`SYSTEM_CANDIDATES`) the pack's system table permits in the category and the height
+    (its ``heightLimits``), with the detailing level the category requires (Sec 8.3.2). Walls
+    are needed for a system that is not a moment frame (Table 6.2.19's building frame and
+    dual systems)."""
+    from saengine.design.seismic_rules import NP, _level_at_least, required_level
 
-    candidates = {
-        "rcFrame": ["rcOmf", "rcImf", "rcSmf"],
-        "rcFrameWithWalls": ["rcOrdinaryWallFrame", "rcDualSpecial"],
-        "flatSlab": ["rcOmf", "rcImf", "rcSpecialWallFrame", "rcDualSpecial"],
-        "masonry": ["masonryOrdinaryPlain", "masonryOrdinaryReinforced"],
-    }[kind]
+    seismic = code_context.table("seismic")
+    listed = (getattr(seismic, "generatorSystems", None) or {}).get(kind)
+    candidates = list(listed) if listed else list(SYSTEM_CANDIDATES[kind])
     category = sdc or "B"
     notes: list[str] = []
+    required = required_level(category) or "ordinary"
+    permitted = []
     for system in candidates:
-        row = system_row(system)
+        row = seismic.systems.get(system)
         if row is None:
             continue
-        limit = row.limits["BCD".index(category)]
+        limit = (row.heightLimits or {}).get(category)
         if limit == NP or (limit is not None and height_m > limit):
             continue
-        if row.frame is not None and not _level_at_least(
-            row.frame, required_level(category) or "ordinary"
-        ):
-            continue
-        walls = kind == "rcFrameWithWalls" or system in ("rcSpecialWallFrame", "rcDualSpecial")
+        permitted.append((system, row))
+    # The first permitted system whose frames have the detailing the category requires; a pack
+    # whose systems have no such level (one system per type, its detailing set by the category
+    # or a seismic grade: GB 50011, SP 14) takes its first permitted system, and the design
+    # details its members at the required level (seismic_rules.detailing_level).
+    leveled = [
+        (system, row)
+        for system, row in permitted
+        if row.frame is None or _level_at_least(row.frame, required)
+    ]
+    for system, row in leveled or permitted[:1]:
+        if not leveled:
+            notes.append(
+                f"Seismic Design Category {category}: {row.name} is detailed at the {required} "
+                "level the category requires (the code pack's systems have no such level)."
+            )
+        walls = kind == "rcFrameWithWalls" or (kind != "masonry" and not row.momentFrame)
         if kind == "flatSlab" and walls:
             notes.append(
                 f"Seismic Design Category {category}: a flat slab-column frame is not a moment "
                 f"frame of the detailing the category needs (Sec 8.3.2); core walls are added "
-                f"and the system is {code_data.STRUCTURAL_SYSTEMS[system].name} (Table 6.2.19 row "
-                f"{row.row}): the slab-column frame is a gravity system (Sec 8.3.12)."
+                f"and the system is {row.name} (Table 6.2.19 row {row.row}): the slab-column "
+                "frame is a gravity system (Sec 8.3.12)."
             )
-            if system == "rcDualSpecial":
+            if row.dual:
                 notes.append(
                     "Over 50 m in Category D the walls are taken as a dual system with special "
                     "moment frames, which a flat slab is not: add beams or consult."
@@ -1388,6 +1412,12 @@ def _code_pack_patch(
         # C7: the pack's default site class (its first) where the spec's is not one of its own.
         chosen = getattr(seismic, "defaultSiteClass", None)
         site["siteClass"] = chosen if chosen in classes else classes[0]
+    systems = list(seismic.systems) if seismic is not None else []
+    if systems and base.seismic.system not in systems:
+        # The starting settings' system must be one of the pack's until the generator picks
+        # its own (_system): the pack's default system, else its first.
+        chosen = getattr(seismic, "defaultSystem", None)
+        patch["seismic"] = {"system": chosen if chosen in systems else systems[0]}
     if s.zoneCoefficient is not None:
         site["zoneCoefficient"] = s.zoneCoefficient
     if s.windSpeed is not None:
@@ -1498,7 +1528,8 @@ def _generate_building(s: BuildingSpec, settings: Any) -> dict[str, Any]:
         patch["analysis"] = {"slabs": "shells"}
     settings_json = _deep_merge(base_json, patch)
     final = ProjectSettings.model_validate(settings_json)
-    special = sdc == "D" or system_id in ("rcSmf", "rcDualSpecial")
+    system_row = code_context.table("seismic").systems[system_id]
+    special = sdc == "D" or system_row.frame == "special"
     floor_load = next(a for a in final.areaLoads if a.id == final.floorLoad)
     roof_load = next(a for a in final.areaLoads if a.id == final.roofLoad)
     part_case = partition_case(final)
@@ -1518,7 +1549,7 @@ def _generate_building(s: BuildingSpec, settings: Any) -> dict[str, Any]:
         f"{final.site.siteClass}"
         f"{' assumed' if s.siteClass is not None and s.siteClassSource == 'assumed' else ''}"
         f", occupancy category {final.occupancy.category}); system "
-        f"{code_data.STRUCTURAL_SYSTEMS[system_id].name}."
+        f"{system_row.name}."
     )
     notes += system_notes
     notes.append("PRELIMINARY sizes: the analysis and Design mode check and size every member.")
@@ -1961,7 +1992,7 @@ def _generate_building(s: BuildingSpec, settings: Any) -> dict[str, Any]:
     if walls_on:
         # Dual systems: the frames take at least a quarter of the storey shear; otherwise the
         # walls take it all and the frames are gravity frames.
-        frame_share = 0.25 if system_id == "rcDualSpecial" else 0.0
+        frame_share = 0.25 if system_row.dual else 0.0
     if lateral_on and frame_share > 0:
         t_least = min(v[0] for v in slab_of.values())
         beam_loads: dict[tuple[tuple[int, int], tuple[int, int]], tuple[float, float]] = {}
