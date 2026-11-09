@@ -239,6 +239,25 @@ TABLE_HELP: dict[str, str] = {
     "the least depths, the methods of the longitudinal shear the pack allows (m-k, partial "
     "connection), the modular ratio of the deflections and the anti-crack bars. A pack without "
     "it does not check composite slabs.",
+    "compositePlateWalls": "Concrete-filled composite plate shear walls (alpha 9 L7): the "
+    "resistance factors, the plastic stress block, the in-plane shear of the composite section "
+    "and the limits of the plates, the ties and the wall thickness. A pack without it does not "
+    "design these walls.",
+    "glass": "Structural glass (alpha 9 L7): the method (partial factors with kmod, or load "
+    "resistance with the glass type and load duration factors), the strengths, the factors on "
+    "the actions, the interlayers' shear moduli and the deflection limits of panels, "
+    "balustrades and fins. A pack without it does not design glass.",
+    "membranes": "Tensile membranes and cable nets (alpha 9 L7): the load cases on the found "
+    "form, the fabric's strength reduction factors by duration, the cables' factor and the "
+    "wrinkling share. A pack without it does not design membranes.",
+    "steelJoists": "Open-web steel joists and joist girders (alpha 9 L7): the joist "
+    "specification's slenderness limits, the top chord's panel moments, the least web shear, "
+    "the bridging and the catalogue load tables. Without it joists are designed as generic "
+    "open-web trusses by the pack's steel checks alone.",
+    "webOpenings": "Castellated and cellular beams (alpha 9 L7): the resistance factors of the "
+    "tees and web posts, the Vierendeel length of circular openings, the web post buckling "
+    "method and the geometry limits. A pack without it does not design beams with web "
+    "openings.",
     "cranes": "Crane loads: the vertical impact allowance and the lateral and longitudinal "
     "forces of crane runways by kind of crane, and how they combine. A pack without it does not "
     "cover cranes.",

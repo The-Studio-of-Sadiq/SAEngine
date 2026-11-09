@@ -347,6 +347,11 @@ SECTIONS: tuple[tuple[str, tuple[str, ...]], ...] = (
             "composite",
             "compositeSlab",
             "compositeConcrete",
+            "steelJoists",  # alpha 9 L7: special members
+            "webOpenings",
+            "glass",
+            "membranes",
+            "compositePlateWalls",
             "masonry",
             "timber",
             "bamboo",

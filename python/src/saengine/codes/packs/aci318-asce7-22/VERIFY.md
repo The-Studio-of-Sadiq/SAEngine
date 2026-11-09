@@ -812,3 +812,33 @@ live answer before release.
 | P8U2 | floorVibration.compositeDynamicModulus | Ec,dyn = 1.35 Ec, full interaction | AISC Design Guide 11 2nd ed. Sec 3.2 (the dynamic modulus, the transformed moment of inertia with full composite action) | Check |
 
 Not covered by this pack: composite slabs on steel deck (the compositeSlab table; the ANSI/SDI C-2017 values are not entered). A slab type's composite deck is reported as not checked.
+
+## Alpha 9 L7: special members — `steelJoists`, `webOpenings`, `glass`, `membranes`, `compositePlateWalls`
+
+| # | Key | Value | Source | Status |
+|---|---|---|---|---|
+| L7U1 | steelJoists.slenderness | top chord interior 90, end 120, compression webs 200, tension 240 | SJI 100-2020 4.3 | Check |
+| L7U2 | steelJoists.panelMoment | w l² / 8 (end panels), / 10 (interior) | SJI 100-2020 4.4 (top chord) | Unsure |
+| L7U3 | steelJoists.leastWebShare | 25 % of the end reaction | SJI 100-2020 4.4 (web, K-series) | Check |
+| L7U4 | steelJoists.bridging | top chord L/ry ≤ 170, bottom chord L/ry ≤ 240 between bridging lines | SJI 100-2020 5.5 | Unsure (SJI gives bridging tables by chord size) |
+| L7U5 | steelJoists.interaction | bilinear (AISC H1 form) | SJI 100-2020 4.4 / AISC 360-22 H1 | Check |
+| L7U6 | steelJoists.loadTables | empty: the SJI standard load tables are project data (not copied) | SJI load tables | Owner to enter |
+| L7U7 | webOpenings.factors | φ 0.9 axial, flexure, shear, web post; 1.0 horizontal shear; τy = 0.6 Fy | AISC DG31 Ch 3, AISC 360-22 G2 | Check |
+| L7U8 | webOpenings.circularLength | le = 0.45 d0 | AISC DG31 / SCI P355 | Check |
+| L7U9 | webOpenings.webPost.ward | C1 = 5.097 + 0.1464 x − 0.00174 x², C2 = 1.441 + 0.0625 x − 0.000683 x², C3 = 3.645 + 0.0853 x − 0.00108 x², x = d0/tw; Mmax/Me = C1 s/d0 − C2 (s/d0)² − C3 | AISC DG31 (Ward 1990) | Unsure (coefficients from memory) |
+| L7U10 | webOpenings.geometry | d0/dg 0.5–0.8, w0/d0 ≥ 0.08, tee stem ≥ 25 mm, end post ≥ 0.5 d0 | AISC DG31 Ch 2 | Unsure |
+| L7U11 | webOpenings.vierendeelDeflection | +10 % over the net-section deflection | none | SAEngine practice |
+| L7U12 | glass.loadResistance.annealed3s | 23.3 MPa | none (stands for the ASTM E1300 NFL charts) | SAEngine practice, owner to check |
+| L7U13 | glass.loadResistance.type factors | short AN 1, HS 2, FT 4; long AN 0.5, HS 1, FT 2 | ASTM E1300-16 Tables 1, 2 | Check |
+| L7U14 | glass.loadResistance.duration | LDF = (3/d)^(1/16), d: wind 3 s, barrier 60 s, snow/live 30 days, permanent 50 years | ASTM E1300-16 Appendix X6 | Check |
+| L7U15 | glass.loadResistance.deflection | r0 = 0.553 − 3.83 AR + 1.11 AR² − 0.0969 AR³, r1 = −2.29 + 5.83 AR − 2.17 AR² + 0.2067 AR³, r2 = 1.485 − 1.908 AR + 0.815 AR² − 0.0822 AR³ (AR = long / short side) | ASTM E1300-16 Appendix X1 | Unsure (AR's definition) |
+| L7U16 | glass.actionFactors | wind 0.6 (ASD), others 1.0 | ASCE 7-22 2.4 | Check |
+| L7U17 | glass.interlayers | PVB 0.44 / 0.05 MPa, ionoplast 100 / 10, EVA 3 / 0.5 (short / long) | manufacturers' typical values at 20-30 °C | SAEngine practice |
+| L7U18 | glass.deflection, finBuckling | span/60, span/100 (two edges), height/60, 25 mm; fin Mcr ≥ 2.0 M | none | SAEngine practice |
+| L7U19 | membranes | cases prestress, + snow, + wind pressure, + wind suction; fabric factors 4.0 (short) 6.0 (long); cables / 2.2; wrinkling 5 % | TensiNet guide; ASCE 55-16 not entered | SAEngine practice |
+| L7U20 | compositePlateWalls.factors | φv 0.90, φb 0.90, φc 0.75 | AISC 341-22 H7.5, AISC 360-22 I2 | Check |
+| L7U21 | compositePlateWalls.shear | Kc = 0.7 Ec Ac Es As / (4 Es As + Ec Ac) | AISC 341-22 H7.5b / AISC 360-22 I4 | Unsure (clause numbers and the factors) |
+| L7U22 | compositePlateWalls.limits | b/tp ≤ 1.2 √(Es/Fy); s/tp ≤ 1.05 √(Es/((2α+1)Fy)), α = 1.7 (tsc/tp − 2)(tp/dtie)⁴ | AISC 360-22 I1.6 | Unsure |
+| L7U23 | compositePlateWalls.limits | tsc 230–1520 mm, ρ 1–10 %, tp ≥ 9.5 mm | AISC 341-22 H7.4 | Unsure |
+
+Not covered by this pack: aluminium (the Aluminum Design Manual; a planned feature).

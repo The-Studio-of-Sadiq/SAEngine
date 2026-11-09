@@ -1,0 +1,43 @@
+{
+  "$schema": "../../../schemas/webOpenings.schema.json",
+  "$sources": [
+    "AISC Design Guide 31 Castellated and Cellular Beam Design (2016), on AISC 360-22 resistances"
+  ],
+  "source": "AISC Design Guide 31 (LRFD): tees under axial force, Vierendeel bending and shear at the openings, web post horizontal shear and buckling (Ward's empirical web post capacity for cellular beams), the geometry limits; see VERIFY.md",
+  "method": "teeChords",
+  "factors": {
+    "axial": 0.9,
+    "flexure": 0.9,
+    "shear": 0.9,
+    "horizontalShear": 1.0,
+    "webPost": 0.9
+  },
+  "shearYield": 0.6,
+  "circularLength": 0.45,
+  "interaction": "linear",
+  "webPost": {
+    "method": "ward",
+    "strutAlpha": 0.49,
+    "strutPlateau": 0.2,
+    "strutLength": 0.5,
+    "wardCoefficients": [5.097, 0.1464, -0.00174, 1.441, 0.0625, -0.000683, 3.645, 0.0853, -0.00108]
+  },
+  "geometry": {
+    "openingDepthMax": 0.8,
+    "openingDepthMin": 0.5,
+    "postWidthMin": 0.08,
+    "teeStemMin": 25,
+    "endPostMin": 0.5
+  },
+  "vierendeelDeflection": 0.1,
+  "clauses": {
+    "code": "AISC DG31",
+    "teeAxial": "AISC DG31 Ch 3 (tee axial and flexure), AISC 360-22 H1",
+    "vierendeel": "AISC DG31 Ch 3 (Vierendeel bending)",
+    "shear": "AISC DG31 Ch 3 (tee shear), AISC 360-22 G",
+    "horizontalShear": "AISC DG31 Ch 3 (web post horizontal shear)",
+    "webPost": "AISC DG31 Ch 3 (web post buckling, Ward)",
+    "chordBuckling": "AISC DG31 Ch 3 (lateral-torsional buckling on the tee), AISC 360-22 E",
+    "geometry": "AISC DG31 Ch 2 (geometry limits)"
+  }
+}

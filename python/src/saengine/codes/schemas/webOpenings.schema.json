@@ -1,0 +1,226 @@
+{
+  "$defs": {
+    "OpeningFactors": {
+      "additionalProperties": false,
+      "description": "Factors on the nominal resistances (φ, or 1 / γM): axial force and bending of the\ntees, their shear, the web posts' horizontal shear and their buckling.",
+      "properties": {
+        "axial": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Axial",
+          "type": "number"
+        },
+        "flexure": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Flexure",
+          "type": "number"
+        },
+        "shear": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Shear",
+          "type": "number"
+        },
+        "horizontalShear": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Horizontalshear",
+          "type": "number"
+        },
+        "webPost": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Webpost",
+          "type": "number"
+        }
+      },
+      "required": [
+        "axial",
+        "flexure",
+        "shear",
+        "horizontalShear",
+        "webPost"
+      ],
+      "title": "OpeningFactors",
+      "type": "object"
+    },
+    "OpeningGeometry": {
+      "additionalProperties": false,
+      "description": "Limits of the openings' geometry the method applies to.",
+      "properties": {
+        "openingDepthMax": {
+          "description": "d0 (or h0) / overall depth at most.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Openingdepthmax",
+          "type": "number"
+        },
+        "openingDepthMin": {
+          "description": "d0 (or h0) / overall depth at least.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Openingdepthmin",
+          "type": "number"
+        },
+        "postWidthMin": {
+          "description": "Web post width w0 / d0 at least.",
+          "exclusiveMinimum": 0,
+          "title": "Postwidthmin",
+          "type": "number"
+        },
+        "teeStemMin": {
+          "description": "Tee stem depth below the flange at least [mm].",
+          "minimum": 0,
+          "title": "Teestemmin",
+          "type": "number"
+        },
+        "endPostMin": {
+          "description": "End post (beam end to the first opening's edge) / d0 at least.",
+          "exclusiveMinimum": 0,
+          "title": "Endpostmin",
+          "type": "number"
+        }
+      },
+      "required": [
+        "openingDepthMax",
+        "openingDepthMin",
+        "postWidthMin",
+        "teeStemMin",
+        "endPostMin"
+      ],
+      "title": "OpeningGeometry",
+      "type": "object"
+    },
+    "WebPostRule": {
+      "additionalProperties": false,
+      "description": "The web posts' buckling.\n\n``strut``: the post as a strut of width w0 (its narrowest) and the web's thickness, length\n``strutLength`` × √(w0² + h0²), buckling by the curve α (λ̄ plateau ``strutPlateau``) under\nthe stress of its moment Mwp = Vh h0 / 2 on tw w0² / 6.\n\n``ward``: circular openings by the empirical moment capacity Mmax / Me = C1 (s/d0) - C2\n(s/d0)² - C3, each Ci = a + b (d0/tw) + c (d0/tw)² (``wardCoefficients`` [C1 a b c, C2 a b\nc, C3 a b c]), Me = tw (s - d0)² fy / 6; hexagonal openings by the strut.",
+      "properties": {
+        "method": {
+          "enum": [
+            "strut",
+            "ward"
+          ],
+          "title": "Method",
+          "type": "string"
+        },
+        "strutAlpha": {
+          "description": "Imperfection factor α of the strut.",
+          "exclusiveMinimum": 0,
+          "title": "Strutalpha",
+          "type": "number"
+        },
+        "strutPlateau": {
+          "description": "λ̄0 of the strut's buckling curve.",
+          "minimum": 0,
+          "title": "Strutplateau",
+          "type": "number"
+        },
+        "strutLength": {
+          "description": "Effective length = this × √(w0² + h0²).",
+          "exclusiveMinimum": 0,
+          "title": "Strutlength",
+          "type": "number"
+        },
+        "wardCoefficients": {
+          "description": "ward: 9 coefficients (a, b, c of C1, C2, C3).",
+          "items": {
+            "type": "number"
+          },
+          "title": "Wardcoefficients",
+          "type": "array"
+        }
+      },
+      "required": [
+        "method",
+        "strutAlpha",
+        "strutPlateau",
+        "strutLength"
+      ],
+      "title": "WebPostRule",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Castellated (hexagonal openings) and cellular (circular openings) beams: the tees at an\nopening carry the global moment as axial forces and the shear with their Vierendeel moment;\nthe web posts carry the horizontal shear and buckle.",
+  "properties": {
+    "source": {
+      "default": "",
+      "description": "Clause (and page) the table comes from.",
+      "title": "Source",
+      "type": "string"
+    },
+    "sources": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Clause references of single entries: {key: clause}.",
+      "title": "Sources",
+      "type": "object"
+    },
+    "clauses": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Short clause references the results cite, by key, without the code's name (e.g. 'Part 6 Sec 2.5.7.3'); read by saengine.codes.context.cite. A key the pack does not give is not cited.",
+      "title": "Clauses",
+      "type": "object"
+    },
+    "method": {
+      "const": "teeChords",
+      "default": "teeChords",
+      "title": "Method",
+      "type": "string"
+    },
+    "factors": {
+      "$ref": "#/$defs/OpeningFactors"
+    },
+    "shearYield": {
+      "description": "τy = this fy (0.6, or 1/√3).",
+      "exclusiveMinimum": 0,
+      "maximum": 1,
+      "title": "Shearyield",
+      "type": "number"
+    },
+    "circularLength": {
+      "description": "Circular openings: the effective (rectangular) length le = this × d0 of the Vierendeel moments.",
+      "exclusiveMinimum": 0,
+      "maximum": 1,
+      "title": "Circularlength",
+      "type": "number"
+    },
+    "interaction": {
+      "default": "linear",
+      "description": "The tee's axial force and moment: N/NRd + M/MRd ≤ 1, or the plastic form (N/NRd)² + M/MRd ≤ 1 of class 1 and 2 tees.",
+      "enum": [
+        "linear",
+        "plastic"
+      ],
+      "title": "Interaction",
+      "type": "string"
+    },
+    "webPost": {
+      "$ref": "#/$defs/WebPostRule"
+    },
+    "geometry": {
+      "$ref": "#/$defs/OpeningGeometry"
+    },
+    "vierendeelDeflection": {
+      "description": "The analysis deflection (on the gross profile) is increased for the net section at the openings and by this share for the Vierendeel and shear deformation.",
+      "minimum": 0,
+      "title": "Vierendeeldeflection",
+      "type": "number"
+    }
+  },
+  "required": [
+    "factors",
+    "shearYield",
+    "circularLength",
+    "webPost",
+    "geometry",
+    "vierendeelDeflection"
+  ],
+  "title": "WebOpeningsTable",
+  "type": "object",
+  "$id": "saengine.codePack.webOpenings/1"
+}

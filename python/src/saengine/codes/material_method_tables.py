@@ -577,6 +577,34 @@ class AluminiumBuckling(_Group):
     )
 
 
+class AluminiumBolt(_Group):
+    """A bolt material of aluminium joints: fub and αv of its shear resistance."""
+
+    fub: Positive = Field(description="Ultimate strength of the bolt [MPa].")
+    alphaV: Share = Field(description="Fv,Rd = αv fub A / γM2 (A the stress area).")
+    stressArea: Share = Field(
+        default=0.78, description="The threaded part's stress area As = this × π d² / 4."
+    )
+
+
+class AluminiumJoints(_Group):
+    """Alpha 9 L7: bolted and welded joints of aluminium members (EN 1999 type): bolts in
+    shear and bearing, fillet welds by their throat with the filler's fw, and the heat-affected
+    zone beside the weld at fu,haz."""
+
+    gammaM2: Positive = Field(description="γM2 of bolts and the members' bearing.")
+    gammaMw: Positive = Field(description="γMw of welds and the heat-affected zone.")
+    bolts: dict[str, AluminiumBolt] = Field(min_length=1)
+    bearingK1Max: Positive = Field(description="k1 = min(2.8 e2/d0 - 1.7, this).")
+    holeClearance: float = Field(ge=0, description="d0 = d + this [mm].")
+    weldStrength: dict[str, Positive] = Field(
+        description="fw [MPa] of the weld metal by '<alloy key>|<filler>' or '<filler>'."
+    )
+    weldCriterion: Positive = Field(
+        default=3.0, description="Fillet welds: √(σ⊥² + this (τ⊥² + τ∥²)) ≤ fw / γMw."
+    )
+
+
 class AluminiumTable(TableModel):
     """Alpha 9 C6: aluminium members (EN 1999 type): the alloys, γM1, γM2, the cross-section
     classes, the local and flexural buckling and the combined checks."""
@@ -593,4 +621,6 @@ class AluminiumTable(TableModel):
     buckling: AluminiumBuckling
     netTension: Share = Field(description="Nu,Rd = this Anet fu / γM2.")
     shearSlenderness: Positive = Field(description="hw/tw <= this ε: no shear buckling.")
+    # Alpha 9 L7: joints (None: aluminium joints are not covered).
+    joints: AluminiumJoints | None = None
     clauses: dict[str, str] = Field(default_factory=dict)

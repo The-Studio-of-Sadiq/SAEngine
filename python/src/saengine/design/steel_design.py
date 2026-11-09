@@ -496,6 +496,10 @@ def _design_member(
     composite_design.apply(
         entry, kind, object_type, material, mats, stations, lengths, list(combinations)
     )
+    # Alpha 9 L7: castellated and cellular beams (none for a plain web).
+    from saengine.design.steel import web_openings
+
+    web_openings.apply(entry, object_type, material, stations, lengths)
     collected = {
         "id": member_id,
         "kind": kind,

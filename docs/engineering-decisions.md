@@ -41,6 +41,55 @@ here, newest first, with the date, the question, the decision, the reason and wh
 - **No unlicensed software.** ETABS, SAP2000 and STAAD are not used for cross-checks or cited.
   Open-source tools are used instead (2026-10-25).
 
+## 2026-11-09: special members (alpha 9 track L7)
+
+Steel joists, castellated and cellular beams, aluminium joints, structural glass, tensile
+membranes and concrete-filled composite plate shear walls. New tables `steelJoists`,
+`webOpenings`, `glass`, `membranes`, `compositePlateWalls` and the `aluminium.joints` group;
+the default pack (BNBC 2020) has none of them, so its results do not change.
+
+- **SAEngine practice, joists.** A joist is a beam type with a `joist` (04 Objects): placed like
+  a beam, analysed with the type's profile (a light I section of about the joist's weight), then
+  designed as a parallel-chord truss from the member's M and V: chords N = M / d, webs V / sin θ,
+  each part by the pack's own steel member method (`design/steel/pack_resistance.py`: the
+  buckling-curve, limit-state or φ/Ω family the pack chooses). Two angles back to back are taken
+  as a tee of their legs (the gap neglected, on the safe side). Without a `steelJoists` table the
+  truss is checked alone (top chord panel moment w l² / 8 of a simple panel, linear interaction);
+  with it, the joist specification's slenderness, panel moments, least web shear, bridging and
+  catalogue load tables apply. The deflection uses the pack's serviceability limits on the
+  analysis deflection × I(profile) / I(effective), the effective I being the chords' reduced for
+  the webs' shear deformation by virtual work. The SJI load tables are not copied: the US pack's
+  `loadTables` is empty (project data).
+- **SAEngine practice, castellated and cellular beams.** The type's I profile is the finished
+  (expanded) section. The tees are checked at each opening centre (axial force and Vierendeel
+  moment on the tee at the opening's centre, the elastic modulus: on the safe side); the
+  deflection is scaled by the net-section stiffness along the openings plus the table's
+  Vierendeel share (0.1 in both packs). The design mode does not propose sections for these
+  types. A pack without `webOpenings` fails the beam with a "not covered" row (the gross-section
+  checks alone would be unsafe).
+- **SAEngine practice, aluminium joints.** The joint is checked for the largest resultant end
+  force; fillet welds and the heat-affected zone take the whole force as shear (the criterion's
+  least favourable direction). The US Aluminum Design Manual is not built (planned feature): the
+  US pack does not cover aluminium.
+- **SAEngine practice, glass.** Glass panels, floors, balustrades and fins are designed per type
+  from their own size and actions (characteristic wind, snow, live load; balustrades the pack's
+  barrier line load), on linear plate theory (Timoshenko's simply supported plate; no
+  large-deflection relief, on the safe side). Laminated glass by the Wölfel-Bennison ω; for more
+  than two plies SAEngine's generalisation (Is about the package's centroid, hs between the outer
+  plies). The ASTM E1300 load charts are approximated by an allowable 3 s surface stress of
+  annealed glass (23.3 MPa) × the glass type and load duration factors: owner to check against
+  the charts before release. Deflection limits span / 60 (US) or / 65 (EU), 25 or 50 mm, and the
+  fins' Mcr × 1 / (2.0 or 1.5) are SAEngine practice.
+- **SAEngine practice, membranes.** Four-corner membranes and cable nets only (other boundaries,
+  masts inside the surface and cutting patterns are planned). Form found by force density, then
+  each pack case is analysed on the found form by dynamic relaxation with tension-only links at
+  characteristic loads; the fabric's strip strength / 4 (short) or / 6 (long) and the cables'
+  breaking force / 2.2 (both packs, after the TensiNet guide; not code values).
+- **Code value (to verify), filled plate walls.** AISC 341-22 H7 / AISC 360-22 Chapter I in the
+  US pack only: shear Vn = (Ks + Kc) / √(3 Ks² + Kc²) As Fy, Pno, the plastic in-plane flexure
+  at the axial force, and the detailing limits. The plates' end closures are not counted. The
+  wall's analysis stiffness is the fill's (set its modifiers for the composite stiffness).
+
 ## 2026-11-05: composite beams, columns and slabs on deck (alpha 9 track P8)
 
 - **Composite slabs on steel deck are a new pack table.** A slab type's `compositeDeck` makes it

@@ -1,0 +1,351 @@
+{
+  "$defs": {
+    "GlassDeflection": {
+      "additionalProperties": false,
+      "description": "Deflection limits: span / divisor, and at most ``absolute`` [mm] (0: none).",
+      "properties": {
+        "fourEdges": {
+          "exclusiveMinimum": 0,
+          "title": "Fouredges",
+          "type": "number"
+        },
+        "twoEdges": {
+          "exclusiveMinimum": 0,
+          "title": "Twoedges",
+          "type": "number"
+        },
+        "cantilever": {
+          "exclusiveMinimum": 0,
+          "title": "Cantilever",
+          "type": "number"
+        },
+        "absolute": {
+          "minimum": 0,
+          "title": "Absolute",
+          "type": "number"
+        }
+      },
+      "required": [
+        "fourEdges",
+        "twoEdges",
+        "cantilever",
+        "absolute"
+      ],
+      "title": "GlassDeflection",
+      "type": "object"
+    },
+    "GlassInterlayer": {
+      "additionalProperties": false,
+      "description": "The interlayer's shear modulus [MPa] by duration of the action (short: wind and\nbarrier loads; long: snow, floors, permanent).",
+      "properties": {
+        "short": {
+          "exclusiveMinimum": 0,
+          "title": "Short",
+          "type": "number"
+        },
+        "long": {
+          "exclusiveMinimum": 0,
+          "title": "Long",
+          "type": "number"
+        }
+      },
+      "required": [
+        "short",
+        "long"
+      ],
+      "title": "GlassInterlayer",
+      "type": "object"
+    },
+    "GlassLoadResistance": {
+      "additionalProperties": false,
+      "description": "``loadResistance`` (ASTM E1300 type): the 3-second surface stress of annealed glass\nstands for the non-factored load charts (SAEngine practice approximation); × the glass type\nfactor (short or long duration) × the load duration factor (3 / d)^(1/n).",
+      "properties": {
+        "annealed3s": {
+          "description": "Allowable 3 s surface stress, annealed [MPa].",
+          "exclusiveMinimum": 0,
+          "title": "Annealed3S",
+          "type": "number"
+        },
+        "typeShort": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "description": "Glass type factors, short duration.",
+          "title": "Typeshort",
+          "type": "object"
+        },
+        "typeLong": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "description": "Glass type factors, long duration.",
+          "title": "Typelong",
+          "type": "object"
+        },
+        "durationExponent": {
+          "description": "n of (3 / d)^(1/n).",
+          "exclusiveMinimum": 0,
+          "title": "Durationexponent",
+          "type": "number"
+        },
+        "durations": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "description": "Load duration d [s].",
+          "propertyNames": {
+            "enum": [
+              "wind",
+              "snow",
+              "live",
+              "barrier",
+              "permanent"
+            ]
+          },
+          "title": "Durations",
+          "type": "object"
+        },
+        "deflection": {
+          "description": "Four-edge panels' centre deflection w = t exp(r0 + r1 x + r2 x²), x = ln(ln(q (ab)² / (E t⁴))): [r0, r1, r2] each as polynomial coefficients in a/b (empty: linear plate theory).",
+          "items": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array"
+          },
+          "title": "Deflection",
+          "type": "array"
+        }
+      },
+      "required": [
+        "annealed3s",
+        "typeShort",
+        "typeLong",
+        "durationExponent",
+        "durations"
+      ],
+      "title": "GlassLoadResistance",
+      "type": "object"
+    },
+    "GlassPartialFactors": {
+      "additionalProperties": false,
+      "description": "``partialFactors`` (EN 16612 type): fg;d = kmod ksp fg;k / γM;A + kv (fb;k - fg;k) /\nγM;v.",
+      "properties": {
+        "gammaA": {
+          "description": "γM;A of the annealed glass's strength.",
+          "exclusiveMinimum": 0,
+          "title": "Gammaa",
+          "type": "number"
+        },
+        "gammaV": {
+          "description": "γM;v of the prestress.",
+          "exclusiveMinimum": 0,
+          "title": "Gammav",
+          "type": "number"
+        },
+        "annealed": {
+          "description": "fg;k of annealed glass [MPa].",
+          "exclusiveMinimum": 0,
+          "title": "Annealed",
+          "type": "number"
+        },
+        "prestressed": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "description": "fb;k [MPa] by kind (heatStrengthened, toughened, chemicallyToughened).",
+          "title": "Prestressed",
+          "type": "object"
+        },
+        "kmod": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "maximum": 1,
+            "type": "number"
+          },
+          "description": "kmod by the action's duration.",
+          "propertyNames": {
+            "enum": [
+              "wind",
+              "snow",
+              "live",
+              "barrier",
+              "permanent"
+            ]
+          },
+          "title": "Kmod",
+          "type": "object"
+        },
+        "ksp": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "maximum": 1,
+            "type": "number"
+          },
+          "description": "Surface factor by surface (float, patterned ...).",
+          "title": "Ksp",
+          "type": "object"
+        },
+        "kv": {
+          "description": "kv of the toughening process.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Kv",
+          "type": "number"
+        }
+      },
+      "required": [
+        "gammaA",
+        "gammaV",
+        "annealed",
+        "prestressed",
+        "kmod",
+        "ksp",
+        "kv"
+      ],
+      "title": "GlassPartialFactors",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Structural glass: panels on four or two edges, cantilever balustrades and fins.",
+  "properties": {
+    "source": {
+      "default": "",
+      "description": "Clause (and page) the table comes from.",
+      "title": "Source",
+      "type": "string"
+    },
+    "sources": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Clause references of single entries: {key: clause}.",
+      "title": "Sources",
+      "type": "object"
+    },
+    "clauses": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Short clause references the results cite, by key, without the code's name (e.g. 'Part 6 Sec 2.5.7.3'); read by saengine.codes.context.cite. A key the pack does not give is not cited.",
+      "title": "Clauses",
+      "type": "object"
+    },
+    "method": {
+      "enum": [
+        "partialFactors",
+        "loadResistance"
+      ],
+      "title": "Method",
+      "type": "string"
+    },
+    "modulus": {
+      "description": "E of glass [MPa].",
+      "exclusiveMinimum": 0,
+      "title": "Modulus",
+      "type": "number"
+    },
+    "poisson": {
+      "exclusiveMinimum": 0,
+      "maximum": 1,
+      "title": "Poisson",
+      "type": "number"
+    },
+    "density": {
+      "description": "[kg/m³].",
+      "exclusiveMinimum": 0,
+      "title": "Density",
+      "type": "number"
+    },
+    "actionFactors": {
+      "additionalProperties": {
+        "exclusiveMinimum": 0,
+        "type": "number"
+      },
+      "description": "Factors on the actions entered (characteristic) for the strength check.",
+      "propertyNames": {
+        "enum": [
+          "wind",
+          "snow",
+          "live",
+          "barrier",
+          "permanent"
+        ]
+      },
+      "title": "Actionfactors",
+      "type": "object"
+    },
+    "partialFactors": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/GlassPartialFactors"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "loadResistance": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/GlassLoadResistance"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "interlayers": {
+      "additionalProperties": {
+        "$ref": "#/$defs/GlassInterlayer"
+      },
+      "description": "By interlayer (pvb ...).",
+      "title": "Interlayers",
+      "type": "object"
+    },
+    "deflection": {
+      "$ref": "#/$defs/GlassDeflection"
+    },
+    "finBuckling": {
+      "description": "Glass fins: the design moment × this ≤ the elastic critical moment Mcr (lateral-torsional buckling without imperfections).",
+      "exclusiveMinimum": 0,
+      "title": "Finbuckling",
+      "type": "number"
+    },
+    "longActions": {
+      "description": "Actions that take the interlayer's long-term modulus.",
+      "items": {
+        "enum": [
+          "wind",
+          "snow",
+          "live",
+          "barrier",
+          "permanent"
+        ],
+        "type": "string"
+      },
+      "title": "Longactions",
+      "type": "array"
+    }
+  },
+  "required": [
+    "method",
+    "modulus",
+    "poisson",
+    "density",
+    "actionFactors",
+    "interlayers",
+    "deflection",
+    "finBuckling"
+  ],
+  "title": "GlassTable",
+  "type": "object",
+  "$id": "saengine.codePack.glass/1"
+}

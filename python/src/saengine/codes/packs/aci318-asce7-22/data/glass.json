@@ -1,0 +1,53 @@
+{
+  "$schema": "../../../schemas/glass.schema.json",
+  "$sources": [
+    "ASTM E1300-16 Standard Practice for Determining Load Resistance of Glass in Buildings",
+    "ASCE/SEI 7-22 Sec 2.4 (allowable stress combinations: 0.6 W)"
+  ],
+  "source": "ASTM E1300 (load resistance): glass type factors, load duration factors, the centre deflection of four-edge panels (Appendix X1); the non-factored load charts approximated by an allowable 3 s surface stress on linear plate theory (SAEngine practice); see VERIFY.md",
+  "method": "loadResistance",
+  "modulus": 71700,
+  "poisson": 0.22,
+  "density": 2500,
+  "actionFactors": {
+    "wind": 0.6,
+    "snow": 1.0,
+    "live": 1.0,
+    "barrier": 1.0,
+    "permanent": 1.0
+  },
+  "loadResistance": {
+    "annealed3s": 23.3,
+    "typeShort": {"annealed": 1.0, "heatStrengthened": 2.0, "toughened": 4.0, "chemicallyToughened": 4.0},
+    "typeLong": {"annealed": 0.5, "heatStrengthened": 1.0, "toughened": 2.0, "chemicallyToughened": 2.0},
+    "durationExponent": 16,
+    "durations": {"wind": 3, "barrier": 60, "snow": 2592000, "live": 2592000, "permanent": 1576800000},
+    "deflection": [
+      [0.553, -3.83, 1.11, -0.0969],
+      [-2.29, 5.83, -2.17, 0.2067],
+      [1.485, -1.908, 0.815, -0.0822]
+    ]
+  },
+  "interlayers": {
+    "pvb": {"short": 0.44, "long": 0.05},
+    "ionoplast": {"short": 100.0, "long": 10.0},
+    "eva": {"short": 3.0, "long": 0.5}
+  },
+  "deflection": {
+    "fourEdges": 60,
+    "twoEdges": 100,
+    "cantilever": 60,
+    "absolute": 25
+  },
+  "finBuckling": 2.0,
+  "longActions": ["snow", "live", "permanent"],
+  "clauses": {
+    "code": "ASTM E1300-16",
+    "strength": "ASTM E1300-16 Sec 5-6 (load resistance, glass type factors Tables 1-3, load duration factors Table X6.1)",
+    "laminated": "ASTM E1300-16 Appendix X9 (effective thickness)",
+    "deflection": "ASTM E1300-16 Appendix X1 (centre deflection)",
+    "deflectionLimit": "SAEngine practice (span / 60, 25 mm; ASTM E1300 gives no limit)",
+    "barrier": "ASCE 7-22 Sec 4.5.1 (the pack's barrier loads)",
+    "fin": "ASTM E1300-16 (stress); lateral-torsional buckling by elastic Mcr (SAEngine practice)"
+  }
+}

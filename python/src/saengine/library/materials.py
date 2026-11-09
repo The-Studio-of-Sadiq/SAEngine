@@ -41,6 +41,7 @@ class Category(str, Enum):
     BAMBOO = "bamboo"
     FERROCEMENT = "ferrocement"
     ALUMINIUM = "aluminium"  # alpha 9 C6
+    GLASS = "glass"  # alpha 9 L7
     OTHER = "other"
 
 
@@ -285,6 +286,27 @@ class AluminiumProperties(_Model):
     )
 
 
+class GlassProperties(_Model):
+    """Structural glass (alpha 9 L7): the kind of glass and its surface, for the code pack's
+    glass strengths."""
+
+    kind: Literal["annealed", "heatStrengthened", "toughened", "chemicallyToughened"] = Field(
+        default="toughened",
+        json_schema_extra={
+            "enumDescriptions": [
+                "Annealed (float)",
+                "Heat-strengthened",
+                "Thermally toughened (fully tempered)",
+                "Chemically toughened",
+            ]
+        },
+    )
+    surface: Literal["float", "patterned", "enamelled"] = Field(
+        default="float",
+        json_schema_extra={"enumDescriptions": ["Float", "Patterned", "Enamelled"]},
+    )
+
+
 class NominalMix(_Model):
     """Volumetric site mix, e.g. 1:1.5:3 for concrete or 1:4 for mortar."""
 
@@ -343,6 +365,7 @@ class Material(_Model):
     bamboo: BambooProperties | None = None
     ferrocement: FerrocementProperties | None = None
     aluminium: AluminiumProperties | None = None
+    glass: GlassProperties | None = None  # alpha 9 L7
     composition: Composition | None = Field(
         default=None, description="Mix of a concrete or mortar, used for quantities (BOQ)."
     )
@@ -359,11 +382,13 @@ class Material(_Model):
             Category.BAMBOO: "bamboo",
             Category.FERROCEMENT: "ferrocement",
             Category.ALUMINIUM: "aluminium",
+            Category.GLASS: "glass",
         }.get(self.category)
         if required and getattr(self, required) is None:
             raise ValueError(f"a {self.category.value} material needs '{required}' properties")
         for group in (
             "concrete", "steel", "masonry", "timber", "bamboo", "ferrocement", "aluminium",
+            "glass",
         ):  # fmt: skip
             if getattr(self, group) is not None and group != required:
                 raise ValueError(
@@ -379,6 +404,7 @@ class Material(_Model):
                 Category.BAMBOO,
                 Category.FERROCEMENT,
                 Category.ALUMINIUM,
+                Category.GLASS,
             )
             and self.mechanical.E is None
         ):

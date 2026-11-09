@@ -98,6 +98,7 @@ Group = Literal[
     "formwork",
     "steel",
     "composite",  # alpha 9 P8: shear studs and steel deck
+    "special",  # alpha 9 L7: glass, membrane fabric and cables
     "mep",
     "materials",
 ]
@@ -149,6 +150,7 @@ GROUPS: dict[str, str] = {
     "formwork": "F",
     "steel": "S",
     "composite": "SC",  # alpha 9 P8: shear studs and steel deck (not in the steel's kg)
+    "special": "SX",  # alpha 9 L7: structural glass, membrane fabric and cables
     "mep": "P",
     "materials": "MT",
 }
@@ -194,6 +196,8 @@ KINDS: dict[str, str] = {
     # kinds above stays as it was).
     "embeddedWall": "embedded excavation walls",
     "excavationSupport": "excavation supports",
+    # Alpha 9 L7: tensile membranes (not placed: measured per type).
+    "membrane": "tensile membranes",
 }
 
 #: The note on a tank whose bars wait for its design (the workbench's Run All measures the bill
@@ -950,6 +954,16 @@ class _Measure:
             density = material.mechanical.density or STEEL_DENSITY
             label, area = self.steel_section(object_type)
             per_metre = area * MM2 * density
+            joist = getattr(object_type, "joist", None)
+            if joist is not None:  # alpha 9 L7: the joist's chords and webs
+                from saengine.design import steel_joists
+
+                per_metre = steel_joists.mass_per_metre(joist, material, length)
+                label = joist.designation or f"open-web joist {joist.depth:g} mm deep"
+            openings = getattr(object_type, "webOpenings", None)
+            if openings is not None and joist is None:  # alpha 9 L7: less the openings
+                per_metre -= _openings_per_metre(openings, object_type.profile) * density
+                label = f"{label} with {openings.shape} web openings"
             mass = count * per_metre * length * MM
             detail = f"{count * length * MM:.2f} m × {per_metre:.2f} kg/m"
             self.steel(element, material, kind, mass, story, label, per_metre, detail)
@@ -1182,6 +1196,9 @@ class _Measure:
         material = self.material(element, object_type)
         if material is None:
             return
+        if material.category == Category.GLASS:  # alpha 9 L7
+            self.glass(element, object_type, material, area, "slab", story)
+            return
         if material.category not in (Category.CONCRETE, Category.MASONRY):
             self.notes.append(f"{element}: slabs of {material.category.value} are not measured.")
             return
@@ -1228,6 +1245,13 @@ class _Measure:
         material = self.material(element, object_type)
         if material is None:
             return
+        if material.category == Category.GLASS:  # alpha 9 L7
+            self.glass(element, object_type, material, area, "wall", story)
+            return
+        filled = getattr(object_type, "filledPlate", None)
+        if filled is not None and material.category == Category.CONCRETE:  # alpha 9 L7
+            self.filled_plate_wall(element, object_type, material, area, less, story)
+            return
         if material.category not in (Category.CONCRETE, Category.MASONRY):
             self.notes.append(f"{element}: walls of {material.category.value} are not measured.")
             return
@@ -1238,6 +1262,102 @@ class _Measure:
             self.wall_bars(
                 element, object_type, area, runs, story, piers, spandrels, wall_piers_hoops
             )
+
+    # ── alpha 9 L7: glass, concrete-filled plate walls, membranes ──
+
+    def glass(
+        self, element: str, object_type: Any, material: Material, area: float, kind: str,
+        story: str | None,
+    ) -> None:  # fmt: skip
+        """Structural glass [m²] by its make-up (the plies and the interlayer)."""
+        panel = getattr(object_type, "glass", None)
+        if panel is not None:
+            plies = " + ".join(f"{p:g}" for p in panel.plies)
+            make = f"{plies} mm" + (
+                f", {panel.interlayer.upper()} {panel.interlayerThickness:g} mm"
+                if len(panel.plies) > 1
+                else ""
+            )
+        else:
+            make = f"{object_type.thickness:g} mm"
+        glass_kind = material.glass.kind if material.glass is not None else "glass"
+        self.bill.add(
+            "special",
+            ("glass", material.id, make),
+            f"Structural glass {material.id} ({glass_kind}), {make}, in {KINDS.get(kind, kind)}",
+            "m2",
+            element,
+            area * MM2,
+            story=story,
+            material=material.id,
+            kind="glass",
+        )
+
+    def filled_plate_wall(
+        self, element: str, object_type: Any, fill: Material, area: float,
+        less: tuple[float, float], story: str | None,
+    ) -> None:  # fmt: skip
+        """A concrete-filled composite plate wall: the fill [m³], the two plates [kg] and the
+        tie bars [kg] (the plates are the formwork)."""
+        fp = object_type.filledPlate
+        tp = float(fp.plateThickness)
+        core = max(float(object_type.thickness) - 2 * tp, 0.0)
+        self.concrete(element, fill, "wall", max(area * core - less[0], 0.0), story)
+        plate = self.materials.get(fp.plateMaterial)
+        if plate is None:
+            self.notes.append(f"{element}: plate material '{fp.plateMaterial}' not found.")
+            return
+        density = plate.mechanical.density or STEEL_DENSITY
+        mass = 2 * area * tp * MM3 * density
+        self.steel(element, plate, "wall", mass, story, f"plates {tp:g} mm", None,
+                   f"2 × {area * MM2:.2f} m² × {tp:g} mm")  # fmt: skip
+        ties = area / float(fp.tieSpacing) ** 2
+        tie_mass = ties * core * MM * bar_mass(float(fp.tieDiameter))
+        self.steel(element, plate, "wall", tie_mass, story, f"tie bars Ø{fp.tieDiameter:g}", None,
+                   f"{ties:.0f} ties × {core:.0f} mm")  # fmt: skip
+
+    def membranes(self) -> None:
+        """Tensile membrane types (not placed): the fabric [m²] of the found form and the
+        edge cables [m], once per type."""
+        from saengine.design import membranes as membrane_design
+
+        for t in self.types.values():
+            if getattr(t, "kind", None) != "membrane":
+                continue
+            try:
+                form = membrane_design.found_form(t)
+            except (ValueError, np.linalg.LinAlgError) as error:
+                self.notes.append(f"{t.id}: the membrane's form was not found ({error}).")
+                continue
+            from saengine.fem.form_finding import node_areas
+
+            area, _, _ = node_areas(form, form.xyz)
+            what = "Cable net" if t.system == "cableNet" else "Membrane fabric"
+            self.bill.add(
+                "special",
+                ("membrane", t.id),
+                f"{what} of {t.id} ({t.name}), the found form's surface",
+                "m2",
+                t.id,
+                float(area.sum()) * MM2,
+                material=t.material,
+                kind="membrane",
+            )
+            cables = [k for k, kind in enumerate(form.kinds) if kind == "cable"]
+            if cables:
+                ends = form.links[cables]
+                length = float(
+                    np.linalg.norm(form.xyz[ends[:, 1]] - form.xyz[ends[:, 0]], axis=1).sum()
+                )
+                self.bill.add(
+                    "special",
+                    ("cable", t.id, t.cables.area),
+                    f"Edge cables of {t.id}, {t.cables.area:g} mm² metallic area",
+                    "m",
+                    t.id,
+                    length * MM,
+                    kind="membrane",
+                )
 
     # ── alpha 9 P6: seismic isolators and supplemental dampers ──
 
@@ -1413,6 +1533,7 @@ class _Measure:
         self.slab_studs(slabs)
         self.slab_chords(slabs)
         self.devices()  # alpha 9 P6: seismic isolators and supplemental dampers
+        self.membranes()  # alpha 9 L7: tensile membranes (per type)
         if self.substructure is not None:
             self.foundations(self.substructure)
 
@@ -2731,6 +2852,19 @@ class _Measure:
             n for n in self.notes if TANK_BARS_PENDING in n or n.rstrip().endswith("not measured.")
         ]
         return out
+
+
+def _openings_per_metre(openings: Any, profile: Any) -> float:
+    """Alpha 9 L7: the web area cut out per metre of a castellated or cellular beam [m²/m]
+    × its web thickness [m]: the steel volume [m³/m] the openings remove."""
+    tw = float(getattr(profile, "webThickness", 0.0) or 0.0)
+    h0, s = float(openings.depth), float(openings.spacing)
+    if openings.shape == "circular":
+        hole = math.pi * h0**2 / 4
+    else:
+        cut = float(openings.cut) if openings.cut else h0 / math.sqrt(3)
+        hole = h0 * (cut + cut + h0 / math.tan(math.radians(60.0))) / 2
+    return hole * tw / s * MM2  # mm³ per mm → m³ per m
 
 
 def _fc(material: Material) -> float:
