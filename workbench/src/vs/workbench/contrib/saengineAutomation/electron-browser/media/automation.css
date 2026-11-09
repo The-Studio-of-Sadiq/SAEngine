@@ -1,0 +1,214 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) SAEngine contributors. All rights reserved.
+ *  Licensed under the AGPL-3.0-only license. See LICENSE in the repository root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Visual programs (alpha 9 L12) */
+
+.saengine-graph-canvas {
+	position: absolute;
+	inset: 0;
+	overflow: auto;
+	outline: none;
+	background-image: radial-gradient(var(--vscode-editorWhitespace-foreground) 1px, transparent 1px);
+	background-size: 20px 20px;
+}
+
+.saengine-graph-wires,
+.saengine-graph-nodes {
+	position: absolute;
+	left: 0;
+	top: 0;
+	min-width: 100%;
+	min-height: 100%;
+}
+
+.saengine-graph-wires {
+	pointer-events: none;
+}
+
+.saengine-graph-wires .wire {
+	fill: none;
+	stroke: var(--vscode-focusBorder);
+	stroke-width: 2;
+}
+
+.saengine-graph-node {
+	position: absolute;
+	box-sizing: border-box;
+	border: 1px solid var(--vscode-widget-border, var(--vscode-editorWidget-border));
+	border-radius: 6px;
+	background: var(--vscode-editorWidget-background);
+	color: var(--vscode-editorWidget-foreground);
+	font-size: 12px;
+	user-select: none;
+}
+
+.saengine-graph-node.selected {
+	border-color: var(--vscode-focusBorder);
+	box-shadow: 0 0 0 1px var(--vscode-focusBorder);
+}
+
+.saengine-graph-node.failed {
+	border-color: var(--vscode-errorForeground);
+}
+
+.saengine-graph-node .header {
+	height: 26px;
+	line-height: 26px;
+	padding: 0 8px;
+	font-weight: 600;
+	cursor: grab;
+	border-bottom: 1px solid var(--vscode-widget-border, var(--vscode-editorWidget-border));
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+
+.saengine-graph-node .header .writes {
+	float: right;
+	margin-top: 5px;
+	opacity: 0.7;
+}
+
+.saengine-graph-node .row {
+	display: flex;
+	height: 22px;
+	align-items: center;
+	justify-content: space-between;
+}
+
+.saengine-graph-node .in,
+.saengine-graph-node .out {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	min-width: 0;
+}
+
+.saengine-graph-node .in .dot {
+	margin-left: -6px;
+}
+
+.saengine-graph-node .out .dot {
+	margin-right: -6px;
+}
+
+.saengine-graph-node .dot {
+	width: 10px;
+	height: 10px;
+	border-radius: 50%;
+	border: 1px solid var(--vscode-focusBorder);
+	background: var(--vscode-editor-background);
+	cursor: pointer;
+	flex: none;
+}
+
+.saengine-graph-node .dot.wired,
+.saengine-graph-node .dot.pending {
+	background: var(--vscode-focusBorder);
+}
+
+.saengine-graph-node .result {
+	padding: 2px 8px 4px;
+	color: var(--vscode-descriptionForeground);
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+
+.saengine-graph-node.failed .result {
+	color: var(--vscode-errorForeground);
+}
+
+.saengine-graph-param {
+	width: 100%;
+	box-sizing: border-box;
+	background: var(--vscode-input-background);
+	color: var(--vscode-input-foreground);
+	border: 1px solid var(--vscode-input-border, transparent);
+}
+
+/* Design studies */
+
+.saengine-studies {
+	padding: 12px 20px 24px;
+	box-sizing: border-box;
+}
+
+.saengine-studies h2 {
+	font-size: 14px;
+	margin: 12px 0 8px;
+}
+
+.saengine-studies label.row {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	margin: 4px 0;
+}
+
+.saengine-studies label.row > span {
+	min-width: 80px;
+}
+
+.saengine-studies input,
+.saengine-studies select {
+	background: var(--vscode-input-background);
+	color: var(--vscode-input-foreground);
+	border: 1px solid var(--vscode-input-border, transparent);
+	padding: 2px 4px;
+}
+
+.saengine-studies table {
+	border-collapse: collapse;
+	margin: 6px 0;
+}
+
+.saengine-studies th,
+.saengine-studies td {
+	text-align: left;
+	padding: 3px 8px;
+	border-bottom: 1px solid var(--vscode-widget-border, var(--vscode-editorWidget-border));
+}
+
+.saengine-studies td.number {
+	text-align: right;
+	font-variant-numeric: tabular-nums;
+}
+
+.saengine-studies tr.failed td {
+	color: var(--vscode-errorForeground);
+}
+
+.saengine-studies button.link {
+	background: none;
+	border: none;
+	color: var(--vscode-textLink-foreground);
+	cursor: pointer;
+	padding: 0;
+}
+
+.saengine-studies button.icon {
+	background: none;
+	border: none;
+	color: var(--vscode-foreground);
+	cursor: pointer;
+}
+
+.saengine-studies .note {
+	color: var(--vscode-descriptionForeground);
+}
+
+.saengine-studies-chart text {
+	fill: var(--vscode-foreground);
+	font-size: 11px;
+}
+
+.saengine-studies-chart .bar {
+	fill: var(--vscode-charts-blue);
+}
+
+.saengine-studies-chart .bar.best {
+	fill: var(--vscode-charts-green);
+}

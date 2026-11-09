@@ -24,7 +24,7 @@ export const SHOW_IMPORT_REPORT_COMMAND = 'saengine.project.showImportReport';
 /** The last import (application storage): its project, file, time and report. */
 export const LAST_IMPORT_STORAGE_KEY = 'saengine.project.lastImport';
 
-export type StructuralFormat = 'etabs' | 'staad' | 'sap2000';
+export type StructuralFormat = 'etabs' | 'staad' | 'sap2000' | 'saf';
 
 export interface IStructuralFormatInfo {
 	readonly format: StructuralFormat;
@@ -42,12 +42,14 @@ export const STRUCTURAL_FORMATS: readonly IStructuralFormatInfo[] = [
 	{ format: 'etabs', label: localize('import.etabs', "ETABS"), extensions: ['e2k', '$et'] },
 	{ format: 'staad', label: localize('import.staad', "STAAD.Pro"), extensions: ['std'] },
 	{ format: 'sap2000', label: localize('import.sap2000', "SAP2000"), extensions: ['s2k', '$2k'] },
+	// Alpha 9 L12: SAF, the open Excel exchange (`saengine.exporters.saf`).
+	{ format: 'saf', label: localize('import.saf', "SAF"), extensions: ['xlsx'] },
 ];
 
 /** The file dialog's filters: all three together first, then each program's own. */
 export function importFilters(): { name: string; extensions: string[] }[] {
 	return [
-		{ name: localize('import.filterAll', "ETABS, STAAD.Pro or SAP2000 text files"), extensions: STRUCTURAL_FORMATS.flatMap(f => [...f.extensions]) },
+		{ name: localize('import.filterAllSaf', "ETABS, STAAD.Pro or SAP2000 text files, SAF workbooks"), extensions: STRUCTURAL_FORMATS.flatMap(f => [...f.extensions]) },
 		...STRUCTURAL_FORMATS.map(f => ({ name: localize('import.filterOne', "{0} (*.{1})", f.label, f.extensions.join(', *.')), extensions: [...f.extensions] })),
 	];
 }

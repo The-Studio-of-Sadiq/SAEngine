@@ -65,7 +65,8 @@ suite('SAEngine structural import model', () => {
 		);
 		const taken = new Set(['frame', 'frame (2)']);
 		assert.strictEqual(uniqueImportName('frame', n => taken.has(n)), 'frame (3)');
-		assert.deepStrictEqual(importFilters()[0].extensions, ['e2k', '$et', 'std', 's2k', '$2k']);
+		// Alpha 9 L12: SAF workbooks (.xlsx) too.
+		assert.deepStrictEqual(importFilters()[0].extensions, ['e2k', '$et', 'std', 's2k', '$2k', 'xlsx']);
 	});
 
 	test('reads the report: counts, approximated, skipped, warnings', () => {
