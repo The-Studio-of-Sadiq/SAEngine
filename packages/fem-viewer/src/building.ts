@@ -6,6 +6,9 @@ import * as THREE from 'three';
 import * as OBC from '@thatopen/components';
 import * as FRAGS from '@thatopen/fragments';
 import { usableTheme } from './theme.js';
+import { constructionState, ProjectFrame, renderStill, SceneLighting, terrainMesh, WalkKeys, type BuildingRenderPreset } from './render.js';
+
+export type { BuildingRenderPreset } from './render.js';
 
 /*
  * The 3D view of the building model: an IFC file (written by SAEngine's Python side with
@@ -79,7 +82,39 @@ export interface BuildingViewer {
 	/** Call when the container changes size without the browser reporting it. */
 	layout(): void;
 	dispose(): void;
+
+	// Alpha 9 L11: rendering, 4D, phases, terrain and the sun.
+	/** The look of the view: lighting, shadows, environment, a clay model (see render.ts). */
+	setRenderPreset(preset: BuildingRenderPreset): Promise<void>;
+	/** The sun towards `direction` (unit, project axes: x east, y north, z up); undefined: the default. */
+	setSun(direction: readonly number[] | undefined): void;
+	/** Walk through the building (first person: W/A/S/D, Q/E, the arrows) or orbit again. */
+	setWalkMode(on: boolean): Promise<void>;
+	/** A still of the view, `scale` times the canvas size, supersampled: a PNG blob. */
+	exportStill(options?: { readonly scale?: number; readonly supersample?: number }): Promise<Blob>;
+	/** The building's extents in the project [mm]: places project coordinates in the scene (terrain, sun). */
+	setProjectFrame(min: readonly number[], max: readonly number[]): void;
+	/** The site's terrain (TIN: points mm flat x, y, z; triangles flat), or none. */
+	setTerrain(points: readonly number[] | undefined, triangles?: readonly number[]): void;
+	/**
+	 * 4D: each element's activity dates (ISO) and the day shown: elements not started are hidden,
+	 * those under construction drawn see-through, the others as built. `day` undefined: all built.
+	 */
+	setConstruction(dates: Readonly<Record<string, { readonly start: string; readonly finish: string }>> | undefined, day: string | undefined): Promise<void>;
+	/**
+	 * Phases: each element's state in the phase shown (existing, new, demolished, temporary);
+	 * elements not listed are hidden. Undefined: no phase filter.
+	 */
+	setPhaseStates(states: Readonly<Record<string, 'existing' | 'new' | 'demolished' | 'temporary'>> | undefined): Promise<void>;
 }
+
+/** Colours of the 4D and phase states (see-through where they are not solid). */
+const STATE_STYLE = {
+	building: { color: '#ff9f40', opacity: 0.45 },
+	existing: { color: '#a0a0a0', opacity: 1 },
+	demolished: { color: '#e05050', opacity: 0.4 },
+	temporary: { color: '#d8b020', opacity: 0.6 },
+} as const;
 
 const defaultTheme: BuildingViewerTheme = {
 	background: '#1e1e1e',
@@ -165,6 +200,17 @@ class BuildingViewerImpl implements BuildingViewer {
 	private readonly hiddenLayers = new Set<BuildingLayer>();
 	private visibleElements: ReadonlySet<string> | undefined;
 
+	// Alpha 9 L11 (see render.ts).
+	private lighting: SceneLighting | undefined;
+	private walk: WalkKeys | undefined;
+	private readonly frame = new ProjectFrame();
+	private projectExtents: { readonly min: readonly number[]; readonly max: readonly number[] } | undefined;
+	private terrain: THREE.Mesh | undefined;
+	private terrainData: { readonly points: readonly number[]; readonly triangles: readonly number[] } | undefined;
+	private constructionDates: Readonly<Record<string, { readonly start: string; readonly finish: string }>> | undefined;
+	private constructionDay: string | undefined;
+	private phaseStates: Readonly<Record<string, 'existing' | 'new' | 'demolished' | 'temporary'>> | undefined;
+
 	private pointerDown: { x: number; y: number } | undefined;
 	private readonly onPointerDown = (e: PointerEvent) => { this.pointerDown = { x: e.clientX, y: e.clientY }; };
 	private readonly onPointerUp = (e: PointerEvent) => void this.handleClick(e);
@@ -241,8 +287,11 @@ class BuildingViewerImpl implements BuildingViewer {
 			}
 		}
 		await this.applyColors();
+		await this.applyStates();
 		await this.applyVisibility();
 		await this.applySelection();
+		this.placeFrame();
+		this.lighting?.shadows(this.lighting.current !== 'standard');
 		if (!this.fitted) {
 			this.fitted = true;
 			await this.fit();
@@ -262,6 +311,7 @@ class BuildingViewerImpl implements BuildingViewer {
 		this.theme = { ...this.theme, ...usableTheme(theme) };
 		this.applyTheme();
 		await this.applyColors();
+		await this.applyStates();
 		await this.applySelection();
 		await this.fragments.core.update(true);
 	}
@@ -312,7 +362,140 @@ class BuildingViewerImpl implements BuildingViewer {
 		const canvas = this.renderer.three.domElement;
 		canvas?.removeEventListener('pointerdown', this.onPointerDown);
 		canvas?.removeEventListener('pointerup', this.onPointerUp);
+		this.walk?.dispose();
+		this.lighting?.dispose();
+		this.disposeTerrain();
 		this.components.dispose();
+	}
+
+	async setRenderPreset(preset: BuildingRenderPreset): Promise<void> {
+		this.lighting ??= new SceneLighting(this.world.scene.three as THREE.Scene, this.renderer.three);
+		this.lighting.apply(preset, this.model?.box);
+		await this.applyColors();
+		await this.applyStates();
+		await this.applySelection();
+		await this.fragments.core.update(true);
+	}
+
+	setSun(direction: readonly number[] | undefined): void {
+		this.lighting ??= new SceneLighting(this.world.scene.three as THREE.Scene, this.renderer.three);
+		this.lighting.setSun(direction, this.model?.box);
+	}
+
+	async setWalkMode(on: boolean): Promise<void> {
+		const canvas = this.renderer.three.domElement;
+		this.walk?.dispose();
+		this.walk = undefined;
+		if (on) {
+			this.camera.set('FirstPerson');
+			this.walk = new WalkKeys(canvas, this.camera.controls);
+			canvas.focus();
+		} else {
+			this.camera.set('Orbit');
+		}
+	}
+
+	async exportStill(options?: { readonly scale?: number; readonly supersample?: number }): Promise<Blob> {
+		await this.fragments.core.update(true);
+		return renderStill(this.renderer.three, this.world.scene.three as THREE.Scene, this.camera.three, options);
+	}
+
+	setProjectFrame(min: readonly number[], max: readonly number[]): void {
+		this.projectExtents = { min, max };
+		this.placeFrame();
+	}
+
+	setTerrain(points: readonly number[] | undefined, triangles?: readonly number[]): void {
+		this.terrainData = points && points.length && triangles?.length ? { points, triangles } : undefined;
+		this.placeTerrain();
+	}
+
+	async setConstruction(dates: Readonly<Record<string, { readonly start: string; readonly finish: string }>> | undefined, day: string | undefined): Promise<void> {
+		this.constructionDates = dates;
+		this.constructionDay = day;
+		await this.refreshStates();
+	}
+
+	async setPhaseStates(states: Readonly<Record<string, 'existing' | 'new' | 'demolished' | 'temporary'>> | undefined): Promise<void> {
+		this.phaseStates = states;
+		await this.refreshStates();
+	}
+
+	private async refreshStates(): Promise<void> {
+		await this.applyVisibility();
+		await this.applyColors();
+		await this.applyStates();
+		await this.applySelection();
+		await this.fragments.core.update(true);
+	}
+
+	/** The project frame from the building's extents and the model's box, then the terrain in it. */
+	private placeFrame(): void {
+		const box = this.model?.box;
+		if (this.projectExtents && box && !box.isEmpty()) {
+			this.frame.set(this.projectExtents.min, this.projectExtents.max, box);
+		}
+		this.placeTerrain();
+	}
+
+	private placeTerrain(): void {
+		this.disposeTerrain();
+		if (!this.terrainData || !this.frame.ready) {
+			return;
+		}
+		this.terrain = terrainMesh(this.terrainData.points, this.terrainData.triangles, this.frame, this.theme.footing);
+		this.world.scene.three.add(this.terrain);
+	}
+
+	private disposeTerrain(): void {
+		if (this.terrain) {
+			this.world.scene.three.remove(this.terrain);
+			this.terrain.geometry.dispose();
+			(this.terrain.material as THREE.Material).dispose();
+			this.terrain = undefined;
+		}
+	}
+
+	/** The clay model's single colour, then the 4D and phase colours, over the class colours. */
+	private async applyStates(): Promise<void> {
+		const model = this.model;
+		if (!model) {
+			return;
+		}
+		const clay = this.lighting?.clayColor;
+		if (clay) {
+			const all = [...this.itemColors.keys()];
+			all.forEach(id => this.itemColors.set(id, clay));
+			if (all.length) {
+				await model.highlight(all, this.material(clay));
+			}
+		}
+		const groups = new Map<keyof typeof STATE_STYLE, number[]>();
+		for (const [id, local] of this.localIds) {
+			let state: keyof typeof STATE_STYLE | undefined;
+			if (this.constructionDay !== undefined && constructionState(this.constructionDates?.[id], this.constructionDay) === 'building') {
+				state = 'building';
+			} else {
+				const phase = this.phaseStates?.[id];
+				state = phase === 'existing' || phase === 'demolished' || phase === 'temporary' ? phase : undefined;
+			}
+			if (state) {
+				let list = groups.get(state);
+				if (!list) {
+					list = [];
+					groups.set(state, list);
+				}
+				list.push(local);
+			}
+		}
+		for (const [state, ids] of groups) {
+			const style = STATE_STYLE[state];
+			ids.forEach(id => {
+				this.itemColors.set(id, style.color);
+				this.itemOpacity.set(id, style.opacity);
+			});
+			await model.highlight(ids, this.material(style.color, style.opacity));
+		}
 	}
 
 	private applyTheme(): void {
@@ -391,6 +574,14 @@ class BuildingViewerImpl implements BuildingViewer {
 				if (!this.visibleElements.has(id)) {
 					hidden.add(local);
 				}
+			}
+		}
+		// Alpha 9 L11: elements not started on the 4D day, and those not in the phase shown.
+		for (const [id, local] of this.localIds) {
+			if (this.constructionDay !== undefined && constructionState(this.constructionDates?.[id], this.constructionDay) === 'notStarted') {
+				hidden.add(local);
+			} else if (this.phaseStates && !(id in this.phaseStates)) {
+				hidden.add(local);
 			}
 		}
 		if (hidden.size) {

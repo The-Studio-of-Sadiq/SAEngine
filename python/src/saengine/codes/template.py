@@ -212,6 +212,10 @@ TABLE_HELP: dict[str, str] = {
     "subgrade modulus, the struts' temperature and buckling length, the ground anchors' factors, "
     "test and lock-off loads and bond stresses, and the basal heave and piping factors. A pack "
     "without it does not analyse staged excavations or design their supports.",
+    "mepFabrication": "Supports of the services for fabrication detailing (alpha 9 L11, MEP LOD "
+    "400): the largest hanger and support spacing of pipes by material and diameter, of ducts by "
+    "size, and the fire mains' and sprinkler hangers' spacing and design load. A pack without it "
+    "leaves the spacings to the project's 07 MEP/fabrication.json.",
     "slopeStability": "Slope stability (alpha 9 L8): the limit equilibrium methods run and "
     "checked (Bishop, Janbu, Spencer, Morgenstern-Price), the verification by factors of safety or "
     "by the partial factors of the design approach, the pseudo-static seismic coefficients and the "

@@ -46,6 +46,7 @@ import { formatPropertyValue, propertyLink, renderPropertySheet, schemaUnit } fr
 import { appendPropertyHeading, appendPropertyNote, appendPropertyRow, EditorFrame, IEditorFrameStatus } from '../../saengineProject/browser/editorFrame.js';
 import { clone, IDocumentFrameActions, IShapeError, isObject, JsonDocumentEditor } from './jsonDocumentEditor.js';
 import { LibraryEditorInput } from './libraryEditorInput.js';
+import { BimStudies } from '../../saengineOffice/browser/bimStudies.js';
 import { humanize, JsonObject, JsonValue, SchemaForm } from './schemaForm.js';
 
 const BIM_SCHEMA_ID = 'saengine.bim/2';
@@ -251,6 +252,8 @@ export class BuildingEditor extends JsonDocumentEditor implements IPartSectionPa
 	private readonly openSourceAction = this._register(new Action('saengine.bim.openSource', '', undefined, true, async () => this.openSource()));
 	private readonly exportAction = this._register(new Action('saengine.bim.exportIfc', localize('building.exportIfc', "Export IFC"), undefined, false, () => this.exportIfc()));
 	private readonly propertiesDisposables = this._register(new DisposableStore());
+	/** Alpha 9 L11: render presets, walk mode, stills, 4D playback, terrain, sun and phases. */
+	private studies: BimStudies | undefined;
 	private additionsProblems: HTMLElement | undefined;
 	/** The Problems heading in Properties, which "Details" scrolls to. */
 	private problemsHeading: HTMLElement | undefined;
@@ -323,6 +326,10 @@ export class BuildingEditor extends JsonDocumentEditor implements IPartSectionPa
 		const container = append(body, $('.building-editor.building-3d'));
 		this.viewport = append(container, $('.building-viewport'));
 		this.createViewTools(this.viewport);
+		this.studies = this._register(this.instantiation.createInstance(BimStudies,
+			() => this.ensureViewer(), this.viewport,
+			() => this.document ? JSON.stringify(this.document) : undefined,
+			() => Object.keys(this.ifcIds)));
 		this.summary = append(container, $('.building-summary-view'));
 		this.additions = append(container, $('.building-additions-view'));
 		this._register(frame.onDidLayoutMain(() => this.viewer?.layout()));
@@ -627,6 +634,8 @@ export class BuildingEditor extends JsonDocumentEditor implements IPartSectionPa
 				}
 				await this.applyStoryFilter();
 				await this.renderLegend();
+				await this.studies?.afterLoad();
+				this.updateDocumentFrameActions();
 			} catch (error) {
 				this.setIfcNote(localize('building.viewerLoadFailed', "The 3D view could not show the building: {0}", String(error)), 1);
 			}
@@ -992,7 +1001,8 @@ export class BuildingEditor extends JsonDocumentEditor implements IPartSectionPa
 		const prominent = this.stale || !this.document;
 		return {
 			primary: [...(prominent ? [this.rebuildAction] : []), ...(this.view === '3d' && this.document ? [this.fitAction] : []), frame.togglePropertiesAction],
-			secondary: [...(prominent ? [] : [this.rebuildAction]), this.openSourceAction, new Separator(), this.exportAction],
+			secondary: [...(prominent ? [] : [this.rebuildAction]), this.openSourceAction, new Separator(), this.exportAction,
+				...(this.view === '3d' && this.document && this.studies ? [new Separator(), ...this.studies.actions()] : [])],
 		};
 	}
 

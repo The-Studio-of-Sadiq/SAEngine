@@ -257,6 +257,7 @@ import './contrib/saengineLibrary/browser/saengineLibrary.contribution.js';
 import './contrib/saengineCad/browser/saengineCad.contribution.js';
 import './contrib/saengineStructure/browser/saengineStructure.contribution.js';
 import './contrib/saengineBoq/browser/saengineBoq.contribution.js';
+import './contrib/saengineOffice/browser/officeTools.contribution.js';
 import './contrib/saengineSoil/browser/saengineSoil.contribution.js';
 import './contrib/saengineSubstructure/browser/saengineSubstructure.contribution.js';
 import './contrib/saengineMep/browser/saengineMep.contribution.js';

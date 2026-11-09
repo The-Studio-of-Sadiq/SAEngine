@@ -63,8 +63,9 @@ UNITS: dict[str, tuple[str, float]] = {
 }
 
 #: The part of the project a bill entry belongs to, by the element kind measured.
+#: Alpha 9 L11: siteCut and siteFill are the terrain's cut and fill to the building platform.
 SUBSTRUCTURE_KINDS = {"excavation", "backfill", "blinding", "footing", "pileCap", "pile", "raft",
-                      "tieBeam"}  # fmt: skip
+                      "tieBeam", "siteCut", "siteFill"}  # fmt: skip
 ARCHITECTURE_KINDS = {"door", "window", "plaster", "filling"}
 PARTS = ("Superstructure", "Substructure", "Architecture", "MEP")
 

@@ -29,6 +29,7 @@ dependencies = [
     "pyproj>=3.8,<3.9",  # site map coordinates: WGS 84, BTM (EPSG:9678), the project grid (MIT; PROJ inside)
     "lazrs>=0.8,<0.9",  # LAZ (compressed LAS) point clouds (MIT)
     "pye57>=0.4,<0.5",  # E57 point clouds (MIT; libE57Format inside, BSL-1.0)
+    "pillow>=11,<13",  # GeoTIFF terrain import (MIT-CMU)
 ]
 
 [project.optional-dependencies]
@@ -60,6 +61,7 @@ version = { attr = "saengine.__version__" }
 ]
 "saengine.boq" = ["data/*.json"]
 "saengine.special" = ["data/*.json"]  # alpha 9 L9: practice traffic loads (HL-93 basis)
+"saengine.environment" = ["data/*.json"]
 "saengine.i18n" = ["*.json"]
 # Copied in by scripts/installer/bundle-python.ps1 from third_party/freecad-profiles.
 "saengine.importers" = ["data/freecad-profiles.csv", "data/freecad-profiles.LICENSE.txt"]

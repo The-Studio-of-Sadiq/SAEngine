@@ -1,0 +1,32 @@
+{
+	"schema": "saengine.productivity/1",
+	"name": "Sample productivity rates (example values, SAEngine practice)",
+	"notes": [
+		"EXAMPLE ONLY. These outputs per crew-day are typical orders of magnitude for a mid-rise reinforced concrete building, not measured or published values. Replace them with your office's or your contractor's own output rates.",
+		"Each rate names the bill items it applies to in 'match' (group, element kind, material, unit, description pattern), as the schedule of rates does; the first rate that matches a bill item gives its output per crew-day. 'crews' is how many crews work the activity at once.",
+		"An activity's duration is the sum over its bill items of quantity / (perDay x crews), in working days, rounded up to whole days (at least 1): the trades of an activity (formwork, then bars, then concrete) follow each other."
+	],
+	"workDays": ["sat", "sun", "mon", "tue", "wed", "thu"],
+	"holidays": [],
+	"masonryLagLevels": 2,
+	"finishesLagDays": 5,
+	"mepLagDays": 0,
+	"defaultDays": 3,
+	"rates": [
+		{ "id": "excavation", "description": "Excavation", "perDay": 120, "unit": "m3", "crews": 1, "match": { "group": "earthwork", "kind": ["excavation", "siteCut"] } },
+		{ "id": "backfill", "description": "Backfill and fill", "perDay": 100, "unit": "m3", "crews": 1, "match": { "group": "earthwork" } },
+		{ "id": "piles", "description": "Bored piles (concrete)", "perDay": 25, "unit": "m3", "crews": 1, "match": { "group": "concrete", "kind": ["pile"] } },
+		{ "id": "concreteVertical", "description": "Concrete in columns and walls", "perDay": 15, "unit": "m3", "crews": 1, "match": { "group": "concrete", "kind": ["column", "wall"] } },
+		{ "id": "concrete", "description": "Concrete (beams, slabs, foundations, stairs)", "perDay": 40, "unit": "m3", "crews": 1, "match": { "group": "concrete" } },
+		{ "id": "formworkVertical", "description": "Formwork to columns and walls", "perDay": 60, "unit": "m2", "crews": 2, "match": { "group": "formwork", "kind": ["column", "wall"] } },
+		{ "id": "formwork", "description": "Formwork (beams, slabs, foundations, stairs)", "perDay": 80, "unit": "m2", "crews": 2, "match": { "group": "formwork" } },
+		{ "id": "reinforcement", "description": "Cutting, bending and fixing bars", "perDay": 1500, "unit": "kg", "crews": 2, "match": { "group": "reinforcement" } },
+		{ "id": "steel", "description": "Erecting structural steel", "perDay": 4000, "unit": "kg", "crews": 1, "match": { "group": "steel" } },
+		{ "id": "composite", "description": "Steel deck and studs", "perDay": 200, "unit": "m2", "crews": 1, "match": { "group": "composite" } },
+		{ "id": "masonry", "description": "Brick work", "perDay": 8, "unit": "m3", "crews": 2, "match": { "group": "masonry" } },
+		{ "id": "finishes", "description": "Plaster and finishes", "perDay": 60, "unit": "m2", "crews": 2, "match": { "group": "finishes", "unit": "m2" } },
+		{ "id": "openings", "description": "Doors and windows", "perDay": 10, "unit": "nr", "crews": 1, "match": { "group": "finishes", "unit": "nr" } },
+		{ "id": "mep", "description": "MEP first fix", "perDay": 50, "unit": "m", "crews": 1, "match": { "group": "mep", "unit": "m" } },
+		{ "id": "mepItems", "description": "MEP items (sleeves, fixtures, plinths)", "perDay": 20, "unit": "nr", "crews": 1, "match": { "group": "mep" } }
+	]
+}

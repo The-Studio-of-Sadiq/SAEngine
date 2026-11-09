@@ -1,0 +1,41 @@
+{
+	"schema": "saengine.environmentDefaults/1",
+	"$sources": [
+		"Daylight: the average daylight factor formula of BRE 'Site layout planning for daylight and sunlight' (BR 209) Appendix C and CIBSE LG10 (Littlefair's form); the transmittance, maintenance and reflectance values are typical values of those guides, SAEngine practice defaults, editable per project",
+		"Road noise: the form of the UK Calculation of Road Traffic Noise (CRTN, Department of Transport, 1988), Charts 3, 4, 6 and 7 and the facade correction; indicative facade levels only, not a noise assessment"
+	],
+	"daylight": {
+		"transmittance": 0.68,
+		"maintenance": 0.9,
+		"reflectance": 0.5,
+		"frameShare": 0.2,
+		"skyAngle": 90,
+		"sources": {
+			"transmittance": "SAEngine practice: clear double glazing, about 0.68 diffuse (BR 209 Appendix C / CIBSE LG10 typical value)",
+			"maintenance": "SAEngine practice: 0.9, glazing cleaned regularly, not sloped (CIBSE LG10 typical value)",
+			"reflectance": "SAEngine practice: 0.5, area-weighted mean of light-coloured rooms (BR 209 Appendix C typical value)",
+			"frameShare": "SAEngine practice: 20 % of a window's opening is frame",
+			"skyAngle": "Visible sky angle of an unobstructed vertical window [degrees] (BR 209 Appendix C)"
+		}
+	},
+	"roadNoise": {
+		"basic": 29.1,
+		"flowSlope": 10,
+		"speedTerm": [33, 40, 500, -68.8],
+		"heavyFactor": 5,
+		"gradientPerPercent": 0.3,
+		"referenceDistance": 13.5,
+		"kerbOffset": 3.5,
+		"sourceHeight": 0.5,
+		"facade": 2.5,
+		"l10ToLaeq": -2.0,
+		"sources": {
+			"basic": "CRTN Chart 3 (Eq 4): L10(18-hour) = 29.1 + 10 log10 Q, Q the 18-hour (06:00-24:00) flow",
+			"speedTerm": "CRTN Chart 4 (Eq 5): 33 log10(V + 40 + 500/V) + 10 log10(1 + 5p/V) - 68.8",
+			"gradientPerPercent": "CRTN Chart 6 (Eq 6): +0.3 G dB(A) for a gradient of G %",
+			"referenceDistance": "CRTN Chart 7 (Eq 7): -10 log10(d'/13.5), d' the slant distance from the source line 3.5 m from the near kerb, 0.5 m high",
+			"facade": "CRTN: +2.5 dB(A) at 1 m in front of a facade (reflection)",
+			"l10ToLaeq": "SAEngine practice: LAeq,18h is about L10,18h - 2 dB (an often-used rule of thumb), shown for orientation only"
+		}
+	}
+}

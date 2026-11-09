@@ -232,3 +232,20 @@ BNBC 2020 gives no slope method or factor of safety (Part 6 Sec 3.21 p. 817 list
 | L8B7 | seismic.kvRatio | 0 | Hynes-Griffin and Franklin (1984) neglect kv | SAEngine practice |
 | L8B8 | reinforcement.tendonFactor | 1.8 on the nail's tensile capacity | FHWA-NHI-14-007 (GEC 7, 2015) Table 5.x (tensile resistance, static) | Unsure (value and table: the GEC 7 LRFD/ASD equivalents) |
 | L8B9 | reinforcement.bondFactor | 2.0 on the pull-out | FHWA-NHI-14-007 (GEC 7, 2015), pull-out FS 2.0 (static) | Check |
+
+## MEP fabrication supports (`mepFabrication`; alpha 9 L11)
+
+Read by `saengine.mep.fabrication` (MEP LOD 400: hanger and support spacing, hanger design load). A project value in `07 MEP/fabrication.json` wins; a material the table lacks (PPR, HDPE, CI) needs one.
+
+| # | Path | Value | Source | Sure? |
+|---|---|---|---|---|
+| L11F1 | pipeSupports GI | 3.5 m horizontal, 4.5 m vertical | Part 8 Sec 5.17.2, Table 8.5.14 (part 2 PDF p. 1063) | Check |
+| L11F2 | pipeSupports copper > 38 mm | 3.5 m / 3.0 m | Table 8.5.14 | Check |
+| L11F3 | pipeSupports copper up to 38 mm | 2.0 m / 3.0 m | Table 8.5.14 ("< 38 mm": 38 mm itself read into this row) | Check (the boundary) |
+| L11F4 | pipeSupports uPVC | 1.0 m / 1.0 m | Table 8.5.14 ("PVC pipe and tubing") | Check |
+| L11F5 | pipeSupports aluminium | 3.0 m / 4.5 m | Table 8.5.14 | Check |
+| L11F6 | pipeSupports brass | 3.0 m / 3.0 m | Table 8.5.14 | Check |
+| L11F7 | ductSupports | 3.7 m up to 200 mm, 6 m larger | Part 8 Sec 2.11.4.8(b) (part 2 PDF p. 911), written for exhaust system ducts | SAEngine practice (applied to every duct; the code gives no other duct support spacing) |
+| L11F8 | fireMains.spacing | 5 m | Part 4 Sec 4.2.3.14 (part 1 PDF p. 330), horizontal standpipes | Check |
+| L11F9 | fireMains.loadFactor / extraMass | 5 x water-filled pipe + 110 kg | Part 4 Sec 4.2.3.14 | Check |
+| L11F10 | sprinklerHangers.loadFactor / extraMass | 5 x water-filled pipe + 110 kg | Part 4 Sec 4.2.10.6 (part 1 PDF p. 332) | Check (not yet used: sprinkler branch pipes are not routed in 07 MEP) |

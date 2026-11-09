@@ -13,7 +13,7 @@ import { IModelService } from '../../../../editor/common/services/model.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
-import { IBoqComputeRequest, IBuildingIfcRequest, IFemDeriveRequest, IFemSolverService, IMepServiceParams, ISoilBearingRequest, IStructureGeometry, IStructureScriptResult, LibraryFileKind, MepServiceMethod } from '../../../../platform/saengine/common/femSolver.js';
+import { IBoqComputeRequest, IBuildingIfcRequest, IFemDeriveRequest, IFemSolverService, IMepServiceParams, ISoilBearingRequest, IStructureGeometry, IStructureScriptResult, LibraryFileKind, MepServiceMethod, OfficeMethod } from '../../../../platform/saengine/common/femSolver.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { Extensions as ConfigurationExtensions, ConfigurationScope, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
@@ -440,6 +440,18 @@ CommandsRegistry.registerCommand('saengine.report.createTemplate', async (access
  * Internal: the worksheet editor and commands call it by id.
  */
 CommandsRegistry.registerCommand('saengine.worksheets.request', async (accessor, method: 'worksheets/kinds' | 'worksheets/calculate' | 'worksheets/list' | 'worksheets/create', params: object) => {
+	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
+	return accessor.get(IFemSolverService).engine(python, method, params ?? {});
+});
+
+/**
+ * Alpha 9 L11, the office tools (`saengine.rpc.office`): `{method, params}` with method one of
+ * {@link OfficeMethod}. Internal: the Office Tools editor and the BIM view's studies call it by id.
+ */
+CommandsRegistry.registerCommand('saengine.office.request', async (accessor, method: OfficeMethod, params: object) => {
+	if (typeof method !== 'string' || !method.startsWith('office/')) {
+		throw new Error(`not an office tools method: ${String(method)}`);
+	}
 	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
 	return accessor.get(IFemSolverService).engine(python, method, params ?? {});
 });

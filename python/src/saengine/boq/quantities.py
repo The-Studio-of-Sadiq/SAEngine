@@ -411,6 +411,19 @@ class BoqSource(_Model):
         description="Stamp of the ground level of project-settings.json, the only setting the "
         "bill depends on (the earthwork is dug from it): other settings edits leave it current.",
     )
+    # Alpha 9 L11: the drawing takeoff and the terrain, when the project has them.
+    takeoff: str | None = Field(
+        default=None,
+        exclude_if=lambda value: value is None,
+        title="Drawing takeoff",
+        description="Stamp of 10 BOQ/takeoff.json.",
+    )
+    terrain: str | None = Field(
+        default=None,
+        exclude_if=lambda value: value is None,
+        title="Terrain",
+        description="Stamp of 01 Soil Report/terrain.json.",
+    )
 
 
 class BreakdownEntry(_Model):
@@ -435,6 +448,13 @@ class BoqItem(_Model):
     diameter: float | None = Field(default=None, description="Bar diameter [mm].")
     byStory: dict[str, float] = Field(default_factory=dict, title="By story")
     breakdown: list[BreakdownEntry] = Field(default_factory=list)
+    # Alpha 9 L11: an item not measured from the model: "drawing" (10 BOQ/takeoff.json,
+    # saengine.boq.takeoff) or "terrain" (the site's cut and fill, saengine.gis.terrain).
+    origin: Literal["drawing", "terrain"] | None = Field(
+        default=None,
+        exclude_if=lambda value: value is None,
+        description="Not measured from the model: measured from a drawing or the terrain.",
+    )
 
 
 class BillOfQuantities(_Model):
@@ -3111,7 +3131,61 @@ def compute_boq(
         },
         project_root,
     )
+    if project_root:  # alpha 9 L11: items measured from drawings and the terrain's cut and fill
+        _with_other_origins(document, project_root)
     return document.model_dump(mode="json", by_alias=True, exclude_none=True)
+
+
+def _with_other_origins(document: BillOfQuantities, project_root: str) -> None:
+    """Alpha 9 L11: the items measured from PDF drawings (``10 BOQ/takeoff.json``,
+    :mod:`saengine.boq.takeoff`) and the site's cut and fill to the building platform
+    (``01 Soil Report/terrain.json``, :mod:`saengine.gis.terrain`), added after the model's items
+    of their group with their own codes ("E.D01", "E.T01"); nothing when the files are absent."""
+    from saengine.boq import takeoff as tk
+
+    root = Path(project_root)
+    try:
+        takeoff_text = (root / tk.TAKEOFF_FILE).read_text(encoding="utf-8")
+    except OSError:
+        takeoff_text = None
+    extra: list[dict[str, Any]] = []
+    if takeoff_text:
+        try:
+            takeoff = tk.parse(takeoff_text)
+        except ValueError as error:
+            document.notes.append(f"10 BOQ/takeoff.json not read: {str(error).splitlines()[0]}")
+            takeoff = None
+        if takeoff is not None:
+            items, notes = tk.bill_items(takeoff, GROUPS)
+            extra += items
+            document.notes += notes
+            document.source.takeoff = source_stamp(takeoff_text)
+    from saengine.gis import terrain as tr
+
+    try:
+        terrain_text = (root / tr.TERRAIN_FILE).read_text(encoding="utf-8")
+    except OSError:
+        terrain_text = None
+    if terrain_text:
+        try:
+            # Worked out again: the platform follows the building outline as it is now.
+            items, notes = tr.bill_items(tr.compute(tr.parse(terrain_text), root), GROUPS)
+        except ValueError as error:
+            document.notes.append(f"{tr.TERRAIN_FILE} not read: {str(error).splitlines()[0]}")
+        else:
+            extra += items
+            document.notes += notes
+            document.source.terrain = source_stamp(terrain_text)
+    if not extra:
+        return
+    groups = list(GROUPS)
+    added = [BoqItem.model_validate(item) for item in extra]
+    merged = document.items + added
+    rank = {id(item): n for n, item in enumerate(merged)}
+    # Each group's model items first (their codes unchanged), then the drawing and terrain items.
+    document.items = sorted(
+        merged, key=lambda i: (groups.index(i.group), i.origin is not None, rank[id(i)])
+    )
 
 
 def used_materials(library: MaterialLibrary, texts: list[str | None]) -> set[str]:

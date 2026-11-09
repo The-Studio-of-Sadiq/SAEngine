@@ -11989,6 +11989,7 @@ from saengine.codes.material_method_tables import (
     SwayImperfection,
     TimberLimitState,
 )
+from saengine.codes.mep_fabrication_tables import MepFabricationTable  # L11: MEP LOD 400
 from saengine.codes.method_tables import (
     ConcreteMethodsTable,
     GeotechnicalMethodsTable,
@@ -12135,6 +12136,8 @@ TABLE_MODELS: dict[str, type[TableModel]] = {
     "shellStructures": ShellStructuresTable,
     "offshore": OffshoreTable,
     "pipingStress": PipingStressTable,
+    # Alpha 9 L11: supports of the services for fabrication detailing (MEP LOD 400).
+    "mepFabrication": MepFabricationTable,
 }
 
 

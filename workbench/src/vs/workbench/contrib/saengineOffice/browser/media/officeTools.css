@@ -1,0 +1,236 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) SAEngine contributors. All rights reserved.
+ *  Licensed under the AGPL-3.0-only license. See LICENSE in the repository root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Alpha 9 L11: the Office Tools editor and the BIM view's 4D bar. */
+
+.saengine-office-tools .office-content {
+	flex: 1;
+	overflow: auto;
+	padding: var(--sa-space-3, 12px);
+	outline: none;
+}
+
+.saengine-office-tools .office-bar {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--sa-space-2, 8px);
+	margin-bottom: var(--sa-space-3, 12px);
+}
+
+.saengine-office-tools .office-field {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.saengine-office-tools .office-input {
+	background: var(--vscode-input-background);
+	color: var(--vscode-input-foreground);
+	border: 1px solid var(--vscode-input-border, var(--vscode-panel-border));
+	padding: 2px 6px;
+	font: inherit;
+}
+
+.saengine-office-tools .office-days {
+	width: 56px;
+}
+
+.office-button {
+	background: var(--vscode-button-secondaryBackground);
+	color: var(--vscode-button-secondaryForeground);
+	border: none;
+	padding: 4px 10px;
+	cursor: pointer;
+	font: inherit;
+}
+
+.office-button.primary {
+	background: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
+}
+
+.office-button:hover {
+	filter: brightness(1.1);
+}
+
+.saengine-office-tools .office-link {
+	background: none;
+	border: none;
+	color: var(--vscode-textLink-foreground);
+	cursor: pointer;
+	padding: 0;
+}
+
+.saengine-office-tools .office-empty,
+.saengine-office-tools .office-hint {
+	color: var(--vscode-descriptionForeground);
+	max-width: 80ch;
+}
+
+.saengine-office-tools .office-notes {
+	color: var(--vscode-descriptionForeground);
+	margin: var(--sa-space-2, 8px) 0;
+}
+
+.saengine-office-tools .office-section {
+	margin-bottom: var(--sa-space-4, 16px);
+}
+
+.saengine-office-tools .office-table {
+	border-collapse: collapse;
+	margin: var(--sa-space-2, 8px) 0;
+}
+
+.saengine-office-tools .office-table th,
+.saengine-office-tools .office-table td {
+	border-bottom: 1px solid var(--vscode-panel-border);
+	padding: 2px 8px;
+	text-align: left;
+	white-space: nowrap;
+}
+
+.saengine-office-tools .office-table th {
+	color: var(--vscode-descriptionForeground);
+	font-weight: normal;
+}
+
+/* Gantt: the table of activities beside the bars, row for row. */
+.saengine-office-tools .office-gantt {
+	display: flex;
+	align-items: flex-start;
+}
+
+.saengine-office-tools .office-gantt-table {
+	margin-top: 0;
+	flex: none;
+}
+
+.saengine-office-tools .office-gantt-table thead tr {
+	height: 24px;
+}
+
+.saengine-office-tools .office-gantt-table tr.critical td:first-child {
+	color: var(--vscode-errorForeground);
+}
+
+.saengine-office-tools .office-gantt-chart {
+	overflow-x: auto;
+	flex: 1;
+}
+
+.office-gantt-svg .tick {
+	stroke: var(--vscode-panel-border);
+	stroke-width: 1;
+}
+
+.office-gantt-svg .tick-label {
+	fill: var(--vscode-descriptionForeground);
+	font-size: 10px;
+}
+
+.office-gantt-svg .bar {
+	fill: var(--vscode-charts-blue, #4a90d9);
+}
+
+.office-gantt-svg .bar.critical {
+	fill: var(--vscode-charts-red, #e05050);
+}
+
+.office-gantt-svg .link {
+	fill: none;
+	stroke: var(--vscode-descriptionForeground);
+	stroke-width: 1;
+	opacity: 0.6;
+}
+
+/* PDF takeoff */
+.saengine-office-tools .office-sheet {
+	height: 60vh;
+	min-height: 320px;
+	border: 1px solid var(--vscode-panel-border);
+	background: var(--vscode-editor-background);
+}
+
+.office-sheet-svg {
+	width: 100%;
+	height: 100%;
+	cursor: crosshair;
+}
+
+.office-sheet-svg .drawing line {
+	stroke: var(--vscode-foreground);
+	stroke-width: 0.15;
+	vector-effect: non-scaling-stroke;
+	opacity: 0.7;
+}
+
+.office-sheet-svg .item {
+	fill: none;
+	stroke: var(--vscode-charts-orange, #e8a33d);
+	stroke-width: 2;
+	vector-effect: non-scaling-stroke;
+}
+
+.office-sheet-svg polygon.item {
+	fill: var(--vscode-charts-orange, #e8a33d);
+	fill-opacity: 0.2;
+}
+
+.office-sheet-svg .item.draft {
+	stroke: var(--vscode-charts-green, #4caf50);
+	stroke-dasharray: 4 2;
+}
+
+.office-sheet-svg .item.count {
+	fill: var(--vscode-charts-orange, #e8a33d);
+}
+
+.office-sheet-svg .calibration {
+	stroke: var(--vscode-charts-purple, #b180d7);
+	stroke-width: 2;
+	vector-effect: non-scaling-stroke;
+}
+
+/* Sun study plan */
+.saengine-office-tools .office-sun {
+	max-width: 640px;
+	border: 1px solid var(--vscode-panel-border);
+}
+
+.office-sun-svg {
+	width: 100%;
+	height: auto;
+}
+
+.office-sun-svg .shadow polygon {
+	fill: #000;
+	fill-opacity: 0.35;
+}
+
+/* The BIM view's 4D playback bar */
+.office-4d-bar {
+	position: absolute;
+	left: 12px;
+	right: 12px;
+	bottom: 12px;
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 6px 10px;
+	background: var(--vscode-editorWidget-background);
+	border: 1px solid var(--vscode-editorWidget-border, var(--vscode-panel-border));
+	z-index: 5;
+}
+
+.office-4d-bar input[type='range'] {
+	flex: 1;
+}
+
+.office-4d-bar .office-4d-day {
+	min-width: 220px;
+	color: var(--vscode-foreground);
+}

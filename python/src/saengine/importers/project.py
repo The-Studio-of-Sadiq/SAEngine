@@ -23,6 +23,8 @@ FORMATS = {
     ".std": "staad",
     ".s2k": "sap2000",
     ".$2k": "sap2000",
+    # Alpha 9 L12: SAF, the open Excel exchange (read by saengine.exporters.saf).
+    ".xlsx": "saf",
 }
 
 #: The parts the importers do not write: folder and (placeholder) main file, as a new project
@@ -77,7 +79,8 @@ def import_structural(
     kind = FORMATS.get(path.suffix.lower())
     if kind is None:
         raise StructuralImportError(
-            f"{path.name}: not an ETABS (.e2k), STAAD.Pro (.std) or SAP2000 (.s2k) text file"
+            f"{path.name}: not an ETABS (.e2k), STAAD.Pro (.std) or SAP2000 (.s2k) text file "
+            "or a SAF workbook (.xlsx)"
         )
     if not path.is_file():
         raise StructuralImportError(f"{path} does not exist")
@@ -90,6 +93,14 @@ def import_structural(
             from saengine.importers.staad import import_staad
 
             imported = import_staad(path, name)
+        elif kind == "saf":
+            from saengine.exporters.saf import import_saf, is_saf
+
+            if not is_saf(path):
+                raise StructuralImportError(
+                    f"{path.name}: not a SAF workbook (no StructuralPointConnection sheet)"
+                )
+            imported = import_saf(path, name)
         else:
             from saengine.importers.sap2000 import import_sap2000
 
