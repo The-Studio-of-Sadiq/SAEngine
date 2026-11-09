@@ -732,7 +732,21 @@ export type EngineMethod =
 	| 'fem/nonlinearStability' | 'design/connectionFe'
 	// Alpha 9 L9: `special/structures` `{projectPath, run}` -> the bridges and special
 	// structures of Project Settings (`saengine.special.project`), kept or computed anew.
-	| 'special/structures';
+	| 'special/structures'
+	// Alpha 9 L12: `export/exchange` `{projectRoot, format, outPath?}` (.s2k, .std, SAF, SDNF, CIS/2,
+	// the web viewer); the office server client `office/submit` `{projectRoot, server, token, steps?}`,
+	// `office/status` / `office/cancel` `{id}`, `office/info` `{server, token}`; visual programs
+	// `graph/nodeTypes`, `graph/list`, `graph/create`, `graph/check`, `graph/run`; design studies
+	// `studies/list|start|status|cancel|apply`; `drawings/automate` `{projectRoot, sheets?, actions}`.
+	| L12EngineMethod;
+
+/** Alpha 9 L12's backend methods (see {@link EngineMethod}). */
+export type L12EngineMethod =
+	| 'export/exchange'
+	| 'office/submit' | 'office/status' | 'office/cancel' | 'office/info'
+	| 'graph/nodeTypes' | 'graph/list' | 'graph/create' | 'graph/check' | 'graph/run'
+	| 'studies/list' | 'studies/start' | 'studies/status' | 'studies/cancel' | 'studies/apply'
+	| 'drawings/automate';
 
 export interface IQgisOpenRequest {
 	/** Absolute path of the `.gpkg`, `.geojson` or `.json` file. */

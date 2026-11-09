@@ -33,7 +33,8 @@ suite('SAEngine - AI tools', () => {
 
 	test('edit tools are offered only while edits are allowed', () => {
 		const edits = AI_TOOLS.filter(t => t.edits).map(t => t.name);
-		assert.deepStrictEqual(edits, ['set_json_value']);
+		// Alpha 9 L12: the drawing automation changes the drawing sheets.
+		assert.deepStrictEqual(edits, ['set_json_value', 'annotate_drawings']);
 		assert.ok(visibleTools(false).every(t => !t.edits));
 		assert.deepStrictEqual(visibleTools(true).length, AI_TOOLS.length);
 	});

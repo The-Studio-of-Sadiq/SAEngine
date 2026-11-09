@@ -41,6 +41,42 @@ here, newest first, with the date, the question, the decision, the reason and wh
 - **No unlicensed software.** ETABS, SAP2000 and STAAD are not used for cross-checks or cited.
   Open-source tools are used instead (2026-10-25).
 
+## 2026-11-09: exchange formats, office server, visual programs, studies, drawing automation (alpha 9 track L12)
+
+- **SAEngine practice, what the exchange files hold.** The `.s2k`, `.std`, SAF, SDNF and CIS/2
+  exports are written from SAEngine's own analysis model (derived as Run All derives it), not from
+  the building model as the `.e2k` export is: the other program gets the members, plates,
+  sections, supports, diaphragms and every load case SAEngine analyses, loads included, and the
+  combinations of Project Settings. The self-weight is part of the dead case's loads (no
+  self-weight multiplier), pinned steel ends are end releases, rigid end zones, lumped masses and
+  the staged dead load are left out and reported. Each file has an export report (what was
+  written, approximated and left out) like the `.e2k` export.
+- **Not verified against the other programs.** The formats are written from their public
+  descriptions and SAEngine's own readers of `.s2k`, `.std` and SAF read them back; no other
+  program was run. docs/exchange.md lists what is unverified (field names, local axes,
+  SDNF and CIS/2 layouts) for the owner to check with a licensed copy or the format owners.
+- **Detailing programs.** No proprietary link: IFC is the route (with SDNF and CIS/2 for programs
+  that read them).
+- **Owner decision needed, office server security.** The office server is off by default and
+  sends project data only to the address the engineer configures; no third-party cloud. It
+  listens on 127.0.0.1 unless started with `--host`; a token (shown once, only its SHA-256 kept on
+  the server, compared in constant time; five failures lock an address out for a minute) guards
+  every request; without TLS (`--certfile/--keyfile`) on a network address it warns, and the app
+  asks before sending to an `http` address that is not this machine. Open for the owner: whether to
+  require TLS on network addresses (refuse rather than warn), per-engineer tokens instead of one
+  office token, and how long jobs are kept on the server (7 days by default).
+- **SAEngine practice, design studies.** A study runs each variant on a copy of the project
+  (`12 Automation/studies/<id>/variants`, a computed cache kept out of versions and archives),
+  at most 32 variants, one after the other. The base is saved as a version first, but only in a
+  project that already keeps versions (a study never starts a history); applying a variant copies
+  its part files back and saves a version. Steel is the bill's steel and rebar mass, cost the
+  priced bill (the sample rates when the project has none: the table says so).
+- **SAEngine practice, drawing automation.** Rule-based, on the generated sheet DXFs: chain and
+  overall grid dimensions where a sheet has none, a mark beside members whose mark (from the
+  drawing set's own XDATA) is not near them, overlapping labels moved apart. Each change is
+  tagged so Undo Drawing Automation takes it back; regenerating the drawing set drops them, as any
+  hand edit. The AI assistant calls them only while AI edits are allowed.
+
 ## 2026-11-09: CFD wind tunnel as an optional OpenFOAM link (alpha 9 track L3)
 
 - **OpenFOAM is the user's.** SAEngine does not bundle or download OpenFOAM (GPL, large; the

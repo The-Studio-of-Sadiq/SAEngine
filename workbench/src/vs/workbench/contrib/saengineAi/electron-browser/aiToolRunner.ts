@@ -48,6 +48,9 @@ const DECISION_WAIT = 5 * 60 * 1000;
 /** The design checks the last run kept (`saengine.pipeline.design_mode.REPORT_FILE`). */
 const DESIGN_REPORT_FILE = 'design-report.json';
 
+/** The drawing automation's command (saengineAutomation's `DRAWINGS_AUTOMATE_COMMAND`, by id). */
+const DRAWINGS_AUTOMATE_COMMAND = 'saengine.drawings.automate';
+
 /** The source the selection service records for selections made by the assistant. */
 export const AI_SELECTION_SOURCE = 'aiAssistant';
 
@@ -116,6 +119,7 @@ export class AiToolRunner {
 			case 'explain_results': return this.explainResults(args.member as string | undefined, args.onlyFailing === true, (args.limit as number | undefined) ?? 20);
 			case 'propose_changes': return this.proposeChanges(args, source);
 			case 'propose_building': return this.proposeBuilding(args);
+			case 'annotate_drawings': return this.annotateDrawings(args);
 		}
 		throw new ToolError(`Tool "${tool.name}" is not implemented.`);
 	}
@@ -467,6 +471,23 @@ export class AiToolRunner {
 			case 'pending': return textResult(`The change set "${proposal.title}" waits for the engineer's decision in the AI Assistant view.`);
 			default: return errorResult(`The change set was not applied (${outcome}): ${changeSet.problem ?? ''}`);
 		}
+	}
+
+	/** Alpha 9 L12: the drawing automation (`saengine.drawings.automate`, saengineAutomation). */
+	private async annotateDrawings(args: Record<string, unknown>): Promise<MCP.CallToolResult> {
+		this.project();
+		if (!CommandsRegistry.getCommand(DRAWINGS_AUTOMATE_COMMAND)) {
+			throw new ToolError('Drawing automation is not available in this window.');
+		}
+		const answer = await this.commandService.executeCommand(DRAWINGS_AUTOMATE_COMMAND, {
+			actions: args.actions,
+			...(Array.isArray(args.sheets) && args.sheets.length ? { sheets: args.sheets } : {}),
+		});
+		const bag = record(answer);
+		if (typeof bag.error === 'string') {
+			throw new ToolError(bag.error);
+		}
+		return jsonResult(answer);
 	}
 
 	private async proposeBuilding(args: Record<string, unknown>): Promise<MCP.CallToolResult> {

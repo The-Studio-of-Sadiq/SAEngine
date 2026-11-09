@@ -259,6 +259,22 @@ export const AI_TOOLS: readonly IAiTool[] = [
 		},
 	},
 	{
+		name: 'annotate_drawings',
+		assistant: 'local',
+		title: 'Annotate drawing sheets',
+		description: 'Rule-based drawing automation on the generated structural drawing sheets (11 Exports/Drawings): "dimension" adds the missing chain and overall dimensions between grid lines, "tag" marks members that have no mark near them, "arrange" moves overlapping labels apart, "undo" takes back everything these actions added or moved. Give "sheets" (sheet numbers such as "S-101") to work on some sheets only. Generate the drawings first (run_command saengine.drawings.generate); regenerating them draws the sheets again without these changes. Returns the counts per sheet.',
+		inputSchema: {
+			type: 'object',
+			properties: {
+				actions: { type: 'array', items: { type: 'string', enum: ['dimension', 'tag', 'arrange', 'undo'] }, description: 'In this order, e.g. ["dimension", "tag", "arrange"].' },
+				sheets: { type: 'array', items: { type: 'string', maxLength: 40 }, description: 'Sheet numbers; omit for every sheet.' },
+			},
+			required: ['actions'],
+			additionalProperties: false,
+		},
+		edits: true,
+	},
+	{
 		name: 'propose_building',
 		assistant: 'local',
 		title: 'Propose a new building',
@@ -333,6 +349,13 @@ export const ALLOWED_COMMANDS: readonly IAllowedCommand[] = [
 	{ id: 'saengine.bim.exportIfc', description: 'Exports the building as IFC.' },
 	{ id: 'saengine.boq.exportCsv', description: 'Exports the bill of quantities as CSV (asks where).' },
 	{ id: 'saengine.boq.exportXlsx', description: 'Exports the bill of quantities with its costing and embodied carbon to Excel (asks where).' },
+	// Alpha 9 L12: the exchange exports and the web viewer, written to 11 Exports.
+	{ id: 'saengine.export.s2k', description: 'Exports the analysis model as a .s2k text file with its export report.' },
+	{ id: 'saengine.export.std', description: 'Exports the analysis model as a .std command file with its export report.' },
+	{ id: 'saengine.export.saf', description: 'Exports the analysis model as SAF (Structural Analysis Format, .xlsx) with its export report.' },
+	{ id: 'saengine.export.sdnf', description: 'Exports the steel members and plates as SDNF for detailing software.' },
+	{ id: 'saengine.export.cis2', description: 'Exports the analysis model as CIS/2 (LPM/6 basics, STEP file).' },
+	{ id: 'saengine.export.webViewer', description: 'Writes the licence-free web viewer (index.html, model, results, IFC) for reviewers.' },
 	{ id: 'saengine.project.showOverview', description: 'Opens the project overview.' },
 	{ id: 'saengine.project.showExports', description: 'Opens the Exports page.' },
 	{ id: 'saengine.project.showStart', description: 'Opens the Start page.' },
