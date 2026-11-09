@@ -22,6 +22,7 @@
     "bearing": 0.65,
     "plain": 0.65
   },
+  "phiClause": "NZS 3101:2006 2.3.2.2",
   "axialCap": {
     "tied": 0.85,
     "spiral": 0.85,

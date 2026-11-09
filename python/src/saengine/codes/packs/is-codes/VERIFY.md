@@ -589,3 +589,9 @@ silos, chimneys, cooling towers, offshore, piping, load rating.
 | # | Path | Value | Source | Sure? |
 |---|---|---|---|---|
 | S1 | concreteMethods.seismic.columns.lapHoopSpacing | 150 mm: now the hoops over the column lap splices, in place of BNBC 2020's min(least dimension / 4, 100 mm) | IS 13920:2016 7 (column lap splices; 1993 edition 7.2.1) | Check (clause number) |
+
+## Beam splice hoops (pack follow-up 2026-11-10)
+
+| # | Path | Value | Source | Sure? |
+|---|---|---|---|---|
+| B1 | detailing.bars.splices.hoopDepthShare, hoopMax (inherited) | the default pack's 0.25 and 100 mm: hoops over the lap splices of special moment frame beams at min(d/4, 100 mm), the check and Design Reinforcement now read them as the drawings do (values unchanged) | IS 13920:2016 6.2.6 type (hoops over beam lap splices; a 150 mm limit without d/4 may apply: not entered) | Check |

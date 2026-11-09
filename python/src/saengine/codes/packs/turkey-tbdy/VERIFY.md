@@ -93,3 +93,9 @@ The steel design is the base pack's AISC 360-22 / AISC 341-22 (the Turkish steel
 | # | Path | Value | Source | Sure? |
 |---|---|---|---|---|
 | S1 | concreteMethods.seismic.columns.lapHoopSpacing | 100 mm: now the ties over the column lap splices, in place of the base pack's ACI 318-19 rule | TBDY 2018 7.3 (column lap splices) | Check (clause; any least-dimension limit not entered) |
+
+## Beam splice hoops (pack follow-up 2026-11-10)
+
+| # | Path | Value | Source | Sure? |
+|---|---|---|---|---|
+| B1 | detailing.bars.splices.hoopDepthShare, hoopMax (inherited) | the default pack's 0.25 and 100 mm: hoops over the lap splices of special moment frame beams at min(d/4, 100 mm), the check and Design Reinforcement now read them as the drawings do (values unchanged) | TBDY 2018 7.4 (beam lap splices) | Check |

@@ -129,3 +129,16 @@ VERIFY.md), entered from knowledge of the standards (no copy of the codes was av
 | # | Path | Value | Source | Sure? |
 |---|---|---|---|---|
 | S1 | concreteMethods.seismic.columns.lapHoopSpacing | 100 mm: now the ties over the column lap splices, in place of BNBC 2020's min(least dimension / 4, 100 mm) | NZS 3101:2006 10.4 (column laps in ductile frames) | Check (clause and value) |
+
+## Beam splice hoops (pack follow-up 2026-11-10)
+
+| # | Path | Value | Source | Sure? |
+|---|---|---|---|---|
+| B1 | detailing.bars.splices.hoopDepthShare, hoopMax (inherited) | the default pack's 0.25 and 100 mm: hoops over the lap splices of special moment frame beams at min(d/4, 100 mm), the check and Design Reinforcement now read them as the drawings do (values unchanged) | NZS 3101:2006 9.4 (beam laps in ductile frames) | Check |
+
+## Flat phi and axial cap in the method lines (pack follow-up 2026-11-10)
+
+| # | Path | Value | Source | Sure? |
+|---|---|---|---|---|
+| F1 | factors.phiClause | NZS 3101:2006 2.3.2.2: the report's method line now states one φ = 0.85 for flexure with or without axial force, without a transition by strain (it named ACI 318-19 21.2.2's net tensile strain) | NZS 3101:2006 2.3.2.2 | Check (clause number) |
+| F2 | factors.axialCap (method line only) | the column method line now states 0.85 φ P0 for tied and spiral columns with the pack's clause (the computation already used it) | NZS 3101:2006 10.3.4.2 | Check (clause number) |

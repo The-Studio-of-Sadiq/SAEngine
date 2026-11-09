@@ -136,7 +136,7 @@ METHOD = [
     (
         "Columns: axial force with biaxial bending, the capacity read from the φ-factored "
         "interaction surface at the demand's axial force in the direction of its moment vector; "
-        "φPn,max = 0.80 φ P0 (tied) or 0.85 φ P0 (spiral). Column shear from the analysis "
+        "{axial_cap}. Column shear from the analysis "
         "along each profile axis, Vc with the simultaneous axial force{c[columnShear]}, "
         "the tie spacing limits{of[columnTies]} (the capacity-design shear of "
         "special and intermediate frames is checked with the seismic detailing)."
@@ -166,15 +166,24 @@ def strength_basis() -> dict[str, str]:
     """The pack's fields of the strength design's first lines: ``basis`` the pack's
     ``designClauses.methodBasis`` in brackets (the default pack: "ACI 318-19 clauses and
     factors"); ``phi`` the flexural φ, by the pack's ``factors.phiTransition`` where it has one
-    (AS 3600 type kuo), else by the net tensile strain (ACI 318-19 Table 21.2.2); ``beam_shear``
-    the beams' shear, by the pack's compression field method where it has one."""
+    (AS 3600 type kuo), one flat φ where the pack's are the same (:func:`flat_phi`, NZS 3101
+    type, with ``factors.phiClause``), else by the net tensile strain (ACI 318-19 Table
+    21.2.2); ``beam_shear`` the beams' shear, by the pack's compression field method where it
+    has one; ``axial_cap`` the columns' largest axial compression, the pack's
+    ``factors.axialCap`` (none: ACI 318-19 Table 22.4.2.1's 0.80 and 0.85)."""
     basis = method_basis()
-    transition = getattr(code_context.pack_table("factors"), "phiTransition", None)
+    factors = code_context.pack_table("factors")
+    transition = getattr(factors, "phiTransition", None)
     if transition is not None:
         phi = (
             f"φ = {transition.intercept:g} - {transition.slope:.4g} kuo within the compression "
             "and tension φ, kuo = c/d0 of the extreme tension bar"
             + (f" ({transition.clause})" if transition.clause else "")
+        )
+    elif flat_phi(factors.phi) is not None:
+        phi = (
+            f"φ = {flat_phi(factors.phi):g} for flexure with or without axial force, without a "
+            "transition by strain" + (f" ({factors.phiClause})" if factors.phiClause else "")
         )
     else:
         phi = "φ from the net tensile strain of the extreme bar (ACI 21.2.2)"
@@ -185,7 +194,30 @@ def strength_basis() -> dict[str, str]:
         "0.66 λs λ ρw^(1/3) √f'c b d (ACI Table 22.5.5.1, λ = 1, ρw of the face with fewer "
         "bars)"
     )
-    return {"basis": f" ({basis})" if basis else "", "phi": phi, "beam_shear": beam_shear}
+    cap = getattr(factors, "axialCap", None)
+    if cap is None:
+        axial_cap = "φPn,max = 0.80 φ P0 (tied) or 0.85 φ P0 (spiral)"
+    elif cap.tied == cap.spiral:
+        axial_cap = f"φPn,max = {cap.tied:.2f} φ P0 (tied and spiral)"
+    else:
+        axial_cap = f"φPn,max = {cap.tied:.2f} φ P0 (tied) or {cap.spiral:.2f} φ P0 (spiral)"
+    if cap is not None and cap.clause:
+        axial_cap = f"{axial_cap[:-1]}, {cap.clause})"
+    return {
+        "basis": f" ({basis})" if basis else "",
+        "phi": phi,
+        "beam_shear": beam_shear,
+        "axial_cap": axial_cap,
+    }
+
+
+def flat_phi(phi: Any) -> float | None:
+    """The pack's one φ of moment and axial force where its tension-controlled, tied and spiral
+    compression-controlled φ are the same (NZS 3101 type: no transition by strain); None where
+    they differ (the transition of ACI 318-19 Table 21.2.2 or the pack's ``phiTransition``)."""
+    if phi.tension == phi.compressionTied == phi.compressionSpiral:
+        return float(phi.tension)
+    return None
 
 
 #: The unfactored gravity cases the deflection checks use.

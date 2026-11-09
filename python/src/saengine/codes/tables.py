@@ -3500,6 +3500,11 @@ class FactorsTable(TableModel):
     # Alpha 9 C18: φ by kuo and the axial cap (empty: ACI 318's).
     phiTransition: PhiTransition | None = None
     axialCap: AxialCap | None = None
+    phiClause: str = Field(
+        default="",
+        description="Clause of φ for moment and axial force, named in the design report's "
+        "method line where the pack's φ is one value without a transition ('' names none).",
+    )
 
 
 # ──────────────────────────────────────── concrete, detailing ────────────────────────────────────────

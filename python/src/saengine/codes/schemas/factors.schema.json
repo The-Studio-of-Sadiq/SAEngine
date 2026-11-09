@@ -221,6 +221,12 @@
         }
       ],
       "default": null
+    },
+    "phiClause": {
+      "default": "",
+      "description": "Clause of φ for moment and axial force, named in the design report's method line where the pack's φ is one value without a transition ('' names none).",
+      "title": "Phiclause",
+      "type": "string"
     }
   },
   "required": [

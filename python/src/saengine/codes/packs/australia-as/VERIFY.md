@@ -307,3 +307,9 @@ before a number is entered in `designClauses` or a `slabMethods` table of this p
 | # | Path | Value | Source | Sure? |
 |---|---|---|---|---|
 | S1 | concreteMethods.seismic.columns.lapHoopSpacing | 150 mm: now the ties over the column lap splices (Design Reinforcement and the check), in place of BNBC 2020's min(least dimension / 4, 100 mm) | AS 3600:2018 Clause 14 / Appendix C | Check (clause and value) |
+
+## Beam splice hoops (pack follow-up 2026-11-10)
+
+| # | Path | Value | Source | Sure? |
+|---|---|---|---|---|
+| B1 | detailing.bars.splices.hoopDepthShare, hoopMax (inherited) | the default pack's 0.25 and 100 mm: hoops over the lap splices of special moment frame beams at min(d/4, 100 mm), the check and Design Reinforcement now read them as the drawings do (values unchanged) | AS 3600:2018 Clause 14 / Appendix C (beam lap splices of ductile frames) | Check |
