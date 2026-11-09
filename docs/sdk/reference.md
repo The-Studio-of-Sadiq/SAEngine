@@ -86,7 +86,7 @@ Python API version **1.0.0** (`saengine.api.API_VERSION`). The guide, the versio
 
 `saengine.codes.registry.uninstall`
 
-### `shape_geometry(shape: 'SpaceTruss | PlaneTruss | Arch | Dome | BarrelVault | CableNet | PortalFrame') -> 'Geometry'`
+### `shape_geometry(shape: 'SpaceTruss | PlaneTruss | Arch | Dome | BarrelVault | CableNet | PortalFrame | DeckGrillage | TrussTower | RevolutionShell | JacketFrame') -> 'Geometry'`
 
 `saengine.library.shapes.shape_geometry`: The members, panels and supports of ``shape``, placed in the model.
 
@@ -124,11 +124,20 @@ Python API version **1.0.0** (`saengine.api.API_VERSION`). The guide, the versio
 | `bim/ifcRebar` | **bimText**, **objectsText**, materialsText, substructureText, settingsText, mepText, architectureText, name, projectRoot | `building_ifc` (worker) | The IFC of the building model: ``{"text", "ids", "skipped"}`` or ``{"problems"}``. |
 | `boq/compute` | **bimText**, **objectsText**, **materialsText**, substructureText, settingsText, mepText, projectRoot, architectureText | `compute_boq` | The bill of quantities (``10 BOQ/boq.json`` text) of the building model, the substructure, the MEP plinths and sleeves, the plumbing (tanks, pipes, fixtures) and the architecture (brickwork, plaster, finishes, doors and windows): ``{"text", "notes"}``, or ``{"problems"}`` when an input has errors. ``project_root``: where the plumbing tanks' last designs are read from (their bars), and the architecture when ``architecture_text`` is not given. |
 | `boq/cost` | **boqText**, ratesText, carbonText | `cost_boq` | The bill priced by the schedule of rates, with its embodied carbon (``saengine.boq.costing``): ``{"costing", "sampleRates"}`` or ``{"problems"}``. |
-| `boq/exportXlsx` | **path**, **boqText**, ratesText, carbonText, title | `export_boq_xlsx` (worker) | The bill, its costing and embodied carbon written to an Excel workbook (``saengine.boq.workbook``). |
+| `boq/exportXlsx` | **path**, **boqText**, ratesText, carbonText, settingsText, title | `export_boq_xlsx` (worker) | The bill, its costing and embodied carbon written to an Excel workbook (``saengine.boq.workbook``); ``settings_text``: the project settings, for the display units of the bill (C13; SI without). |
 | `boq/templates` | — | `boq_templates` | The texts a project's ``10 BOQ/rates.json`` and ``carbon-factors.json`` start from: the sample schedule (made-up rates) and the carbon factors shipped. |
 | `cad/cleanDxf` | — |  |  |
 | `cad/convertDwg` | **path**, cache | `convert_dwg` (worker) | A DWG drawing as DXF (``saengine.library.dwg``): ``{"ok", "dxf", "warnings", "cached"}``, or ``{"ok": False, "code", "message"}`` (``code`` ``"no-converter"`` or ``"failed"``). |
 | `cad/convertPdf` | **path**, page, cache, pagesOnly | `convert_pdf` (worker) | One page of an architect's PDF as DXF (``saengine.library.pdf_underlay``): ``{"ok", "dxf", "page", "pages", "vector", "size", "segments", "warnings", "cached", "scale"}``, or ``{"ok": False, "code": "failed", "message"}``; with ``pages_only`` only ``{"ok", "pages"}`` (read without converting a page: the page picker asks it first). |
+| `cad/convertPointCloud` | — | `convert_point_cloud` (worker) | Alpha 9 L2: a plan slice of a scan as DXF with its traced lines (``saengine.library.point_cloud.convert``). |
+| `cad/pointCloudView` | — | `point_cloud_view` (worker) | Alpha 9 L2: the scan decimated for the 3D view (``point_cloud.view_points``). |
+| `cad/snapPointCloud` | — | `snap_point_cloud` (worker) | Alpha 9 L2: the nearest point of a plan slice to a picked point (``point_cloud.snap``). |
+| `cfd/cancel` | — | `cfd_cancel` | Alpha 9 L3: asks the CFD run to stop. |
+| `cfd/detect` | openfoam, distribution | `cfd_detect` (worker) | Alpha 9 L3: the user's OpenFOAM (WSL on Windows), or how to install it. |
+| `cfd/results` | — | `cfd_results` (worker) | Alpha 9 L3: the CFD coefficients, storey forces and the code comparison. |
+| `cfd/start` | **projectRoot**, openfoam, distribution | `cfd_start` (worker) | Alpha 9 L3: the CFD wind tunnel's run started in the background (the user pressed Run). |
+| `cfd/status` | — | `cfd_status` | Alpha 9 L3: the CFD run's status and progress. |
+| `cfd/write` | **projectRoot**, installation | `cfd_write` (worker) | Alpha 9 L3: the CFD wind tunnel's cases written, nothing run. |
 | `codes/checkTemplate` | **path**, author | `codes_check_template` (worker) | ``{ok, problems}``: whether the archive may be opened as a full building template (:func:`saengine.project.archive.template_problems`, plus :func:`inspect_archive`). |
 | `codes/choices` | **id**, root | `codes_choices` | The entries of the Project Settings lists (towns, area uses, structural systems, site classes) under the pack ``pack_id`` (:func:`saengine.library.settings.pack_choices`): ``{id, name, choices: {list: [{id, label}]}}``. |
 | `codes/codedGeometry` | **package**, **file**, values, root, memberType | `codes_coded_geometry` (worker) | The geometry of a coded structure template (:func:`saengine.codes.coded.coded_geometry`), to preview and insert like a built-in shape's; ``{problems}`` when it cannot be made. |
@@ -136,39 +145,55 @@ Python API version **1.0.0** (`saengine.api.API_VERSION`). The guide, the versio
 | `codes/list` | root, kind | `codes_list` | Every code pack found (built-in, the user's, the project's), shadowed ones included. |
 | `codes/new` | **id**, extends, dest, root, name, scope | `codes_new` | Writes a new pack's skeleton (:func:`saengine.codes.template.new_pack`) into ``dest``, else the user's packs or the project's (``scope``): ``{path}`` of its folder. |
 | `codes/remove` | **id**, kind, root, scope | `codes_remove` (worker) | Removes the user's (or the project's) package ``pack_id`` of ``kind``: ``{ok, path}``. |
+| `codes/settingsForPack` | **settings**, **id**, root | `codes_settings_for_pack` | C7: the project settings ``settings_text`` switched to the code pack ``pack_id`` (:func:`saengine.library.settings.settings_for_pack`: the choices the pack does not list become its defaults, the area loads and combinations the pack's): ``{settings}`` (JSON), or a refusal. |
 | `codes/show` | **id**, root | `codes_show` | The pack in force with this id, with its manifest's details. |
 | `codes/templates` | root, kind | `codes_templates` | The templates of the installed packages: ``structureTemplate`` → the Generate panel's presets, ``buildingTemplate`` → the wizard's specifications and the full templates (:mod:`saengine.codes.catalogue`). |
-| `codes/trust` | **id**, root, kind, trusted | `codes_trust` | Trusts (or stops trusting) the hooks of the package in force with this id and kind (a design code by default; a structure template's coded templates, round M5). |
+| `codes/trust` | **id**, root, kind, what, trusted | `codes_trust` | Trusts (or stops trusting) the hooks of the package in force with this id and kind (a design code by default; a structure template's coded templates, round M5); with ``what`` "lookup" (alpha 9 C26), the online hazard lookup services its pack names. |
 | `codes/validate` | **path**, root | `codes_validate` | The pack in ``path`` resolved against the installed packs, with its problems and the authoring warnings of :func:`saengine.codes.template.validate_pack`. |
 | `codes/values` | settingsText, root, table | `codes_values` | The Project Settings "Code values" page: the code pack the settings choose (unsaved edits included, ``settings_text``) with the project's overrides (``codeOverrides``): ``{id, name, missing, tables: [{name, overridden, generic}], overrides: [{path, packValue, value}], problems: [{path, message}], fallbacks: [{path, value, note}], rows}``, ``rows`` the values of ``table`` (:func:`saengine.codes.overrides.browse`; none without a table). |
 | `components/list` | — | `installer_components` (worker) | The setup's optional components the backend runs, found as the backend finds them for use (``find_energyplus``, ``find_converter``): ``{"energyplus", "libredwg"}``, each ``{"state": "installed" \| "elsewhere" \| "missing", "path"?}``. ``installed``: the component's copy in the app folder; ``elsewhere``: another copy (the environment variable, an installed program), which works too. LibreCAD is found by the workbench (``findCadProgram``). |
 | `design/analysisChanged` | **projectRoot**, **objectsText**, bimText | `design_analysis_changed` (worker) | R3-3: whether the analysis Run All would run again with ``objects_text`` (and ``bim_text``) in place of the project's: the analysis model derived from them, stamped as Run All stamps the analysis it keeps (``saengine.pipeline.run_all.analysis_inputs_stamp``: the model without its meta and its side files), against the stamp kept beside the results (``analysis-inputs.json``). ``{"changed": bool}``; ``{"changed": None}`` when it cannot be told (no results kept, an input that does not derive): the caller says what it can. |
 | `design/applyProposal` | **objectsText**, bimText, **proposal**, floorPlanText, substructureText | `design_apply_proposal` | The part files with a proposal applied, as new texts (``saengine.design.apply_proposal``, pure). A project without a building model sends no ``bimText``: an empty one is used. |
+| `design/connectionFe` | **outDir**, **projectPath**, member | `connection_fe` (worker) | Alpha 9 L6: the CBFEM check of ``member``'s end connection (``saengine.design.connection_fe.check_member_joint``); without a member, the checks made on this run (``{"checks": {member: check}}``). ``{"error"}`` when it cannot be made. |
 | `design/proposal` | **outDir**, **projectPath**, options | `design_proposal` (worker) | The bars SAEngine proposes per object type and foundation (``saengine.design.design_proposal``); an unknown mode is a ValueError. |
 | `design/report` | **outDir**, **projectPath** | `design_report` (worker) | The RC member design checks of a run (see ``saengine.design.check``): the ones kept for the run's inputs (``saengine.pipeline.design_mode.report``: Run All, Apply, the design view and the proposal share one run of the checks per change of the project). |
 | `design/required` | **outDir**, **projectPath**, options | `design_required` (worker) | The reinforcement every designed element requires (``saengine.design.design_required``), kept beside the results while the project does not change (:mod:`saengine.pipeline.design_mode`). |
 | `design/strutAndTie` | **model**, projectPath | `strut_and_tie` | One strut-and-tie model of a D-region solved and checked (``saengine.design.stm_model.check_model``) with the code pack the project of the analysis model ``project_path`` chooses; ``{"problems"}`` when the model is not valid. |
 | `design/strutAndTieTemplate` | **template**, parameters | `strut_and_tie_template` | A strut-and-tie model to start from (``saengine.design.stm_model.template``), or ``{"error"}``. |
+| `drawings/automate` | — |  |  |
 | `drawings/dwg` | **projectRoot**, sheets | `drawings_dwg` (worker) | The current sheets as DWG (LibreDWG's dxf2dwg, a separate program): ``{written, folder, problems}``. |
 | `drawings/generate` | designReportText, **projectRoot**, sheets, size | `drawings_generate` (worker) | Generates the drawings into ``11 Exports/Drawings`` (``saengine.pipeline.drawings``): the answer the Exports page reads, or ``{sheets: [], problems}`` when nothing is drawn. ``design_report``: the design checks Run All has just made (else those of the last run). |
 | `drawings/issue` | **projectRoot** | `drawings_issue` (worker) | Issues the drawing set (``saengine.pipeline.drawings.issue``): every sheet drawn again, the new or changed ones with the new revision, copied into ``Issued/<rev> <date>``; the answer of ``drawings_generate`` with ``issued``, or ``{sheets: [], problems}``. |
 | `drawings/list` | — | `drawings_list` | The last generation's drawings with what is out of date (reads files only). |
 | `drawings/progress` | — | `drawings_progress` | Where a generation of the project is (``{running: false}`` when none runs). |
 | `export/e2k` | — |  |  |
+| `export/exchange` | — |  |  |
+| `fabrication/bvbs` | — |  |  |
+| `fabrication/nc` | — |  |  |
+| `fabrication/shopDrawings` | — |  |  |
 | `fem/columnInteraction` | **outDir**, **projectPath**, member | `column_interaction` (worker) | The P-M interaction diagrams of the run's concrete columns with their demand points (worked out once per run by the design checks; ``saengine.fem.member_detail``). |
 | `fem/derive` | **bimText**, **objectsText**, **materialsText**, **settingsText**, modelFolder, soilText, mepText, substructureText, loadsText, architectureText | `derive_fem` | The analysis model (``model.osmodel`` text) of the building model with the settings' loads. |
+| `fem/existingAssessment` | **outDir**, **projectPath** | `existing_assessment` (worker) | Alpha 9 P4: the assessment of an existing building of a run, with the before and after comparison of its retrofit (``saengine.fem.existing_building.assessment``). |
 | `fem/exportCancel` | — |  |  |
 | `fem/exportProgress` | — |  |  |
 | `fem/exportTables` | **outDir**, **projectPath**, **path**, keys, tables, extra |  |  |
 | `fem/exportXlsx` | **path**, **sheets** | `export_xlsx` (worker) | Result tables written to an Excel workbook (``saengine.fem.table_export``). |
 | `fem/memberForces` | **outDir**, **projectPath**, **member** | `member_forces` (worker) | A member's section forces and deflection along it for every static case and load combination (the member detail window; ``saengine.fem.member_detail``). |
 | `fem/meshCheck` | — | `mesh_check` (worker) | The mesh convergence check of Run All (``saengine.fem.mesh_check``): the beams' gravity end moments on the project's mesh and on one twice as coarse, written to ``08 FEM/ model.results/mesh-check.json``; ``{"skipped": why}`` when the project needs none, ``{"problems"}`` when it could not be run. |
+| `fem/nonlinearStability` | **outDir**, **projectPath**, run | `nonlinear_stability` (worker) | Alpha 9 L4: the nonlinear stability analysis (GMNIA, cables) of the project's settings (``saengine.fem.nonlinear_stability.run_project``) when ``run``, else the last one kept beside the results (``{"available": False, "reason"}`` when none was made). |
 | `fem/secondOrder` | **outDir**, **projectPath** | `second_order_summary` (worker) | What the P-Delta analysis of a run changed (``saengine.fem.second_order. drift_amplification`` with the stories, I and Cd): ``{"method": "pDelta", "stiffness", "cases", "notes"}``; ``{"method": "none", "stiffness"}`` for a first-order model. |
 | `fem/seismicDesign` | **outDir**, **projectPath** | `seismic_design` (worker) | The response spectrum design of a run (``saengine.fem.seismic_design.seismic_design``, run=True: the modal-force run is made once per analysis run): its scaling, orthogonal rule, accidental torsion, drifts and combinations; None when the project designs for earthquake from the static cases (``analysis.seismicDesign``). |
 | `fem/ssiCompare` | — | `ssi_compare` | Fixed base against soil springs (see ``saengine.fem.ssi_compare.compare``). |
 | `fem/storyResponse` | **outDir**, **projectPath** | `story_response` (worker) | The storey response, modal participation, spectrum and curves of a run (the FEM results' charts; ``saengine.fem.story_response``). |
 | `fem/table` | **outDir**, **projectPath**, **key**, **table** |  |  |
 | `fem/tableIndex` | **outDir**, **projectPath** |  |  |
+| `graph/check` | — |  |  |
+| `graph/create` | **projectRoot**, name |  |  |
+| `graph/list` | — |  |  |
+| `graph/nodeTypes` | — |  |  |
+| `graph/run` | — |  |  |
+| `hazard/lookup` | settingsText, consent, soilText, root, latitude, longitude, provider | `hazard_lookup` (worker) | Alpha 9 C22: asks the provider for the site's hazard values (only the coordinates and the code parameters are sent; refused without ``consent`` true). The answer's values and the record to keep (``saengine.gis.hazard_lookup.lookup``); nothing is written. |
+| `hazard/offers` | settingsText, soilText, root, latitude, longitude | `hazard_offers` | Alpha 9 C22: the hazard services of the project's code pack and the exact query each would be sent for the site (no network; ``saengine.gis.hazard_lookup.offers``). |
 | `import/structural` | **path**, **destParent**, name, overwrite | `import_structural` (worker) | A new project from an ETABS (.e2k), STAAD.Pro (.std) or SAP2000 (.s2k) text file (``saengine.importers.project.import_structural``): ``{root, name, format, report, problems, files}``, or ``{error, problems}`` when the file cannot be imported. |
 | `library/check` | **kind**, **text**, materialsText | `check_library` |  |
 | `library/generateBuilding` | **spec**, **destParent**, name, site, overwrite | `new_building` (worker) | Integrator glue: a new building project from a grid and storeys (``saengine.project.new_building.create_building``, the generator of ``saengine.library.generator``): ``{root, name, notes, summary, settingsPatch, files}``, or ``{error}`` when the spec is not valid or the folder holds files already. ``site``: the soil report's site the new project starts with (its plot, the grid aligned with it). |
@@ -198,6 +223,10 @@ Python API version **1.0.0** (`saengine.api.API_VERSION`). The guide, the versio
 | `mep/plumbingSleeves` | **projectRoot**, mepText | `plumbing_sleeves` | The sleeves the risers and stacks still need through the slabs (07 MEP openings, those no opening of 07 MEP already gives): ``{openings, notes}`` or ``{problems}``. |
 | `mep/report` | **projectRoot**, outDir, mepText | `mep_report` | The MEP coordination report (``saengine.mep.mep_report``), or ``{"problems"}``. |
 | `mep/suggestSleeves` | **projectRoot**, mepText, allowance | `mep_suggest_sleeves` | Sleeves and openings that would coordinate the clashes (``{openings, notes}``). |
+| `office/cancel` | — |  |  |
+| `office/info` | — |  |  |
+| `office/status` | — |  |  |
+| `office/submit` | — |  |  |
 | `project/exportArchive` | **projectRoot**, **outPath**, note, saengineVersion, includeResults, includeVersions, includeExports | `project_export_archive` (worker) | Writes the project into one ``.civil`` file (``saengine.project.archive.export_project``): ``{path, size, files, skipped, problems}``, or a refusal (:func:`_refusal`). |
 | `project/importArchive` | **path**, **destParent**, name, currentVersion, overwrite, migrate | `project_import_archive` (worker) | Unpacks a ``.civil`` file into ``<dest_parent>/<name>``: ``{root, name, files, problems (warnings), migrated, pending, renamed?}``, or a refusal (nothing is left behind). |
 | `project/inspectArchive` | **path**, currentVersion, verify | `project_inspect_archive` | What a ``.civil`` file holds: ``{manifest\|null, problems, ok, files, size}``. |
@@ -224,6 +253,7 @@ Python API version **1.0.0** (`saengine.api.API_VERSION`). The guide, the versio
 | `share/sync` | **projectRoot**, author, resolutions, user | `share_sync` (worker) | Saves, fetches, merges per part file and sends: ``{state, received, sent, conflicts}``. |
 | `share/unlock` | **projectRoot**, **part**, user, force | `share_unlock` (worker) | Releases (or with ``force`` breaks) the lock of a part: ``{released, was}``. |
 | `soil/allowableBearing` | **soilText**, settingsText, **x**, **y**, **foundingLevel**, **b**, **l** | `allowable_bearing` (worker) | Net allowable bearing pressure of a footing (see ``saengine.soil.allowable_bearing``). |
+| `soil/export` | **path**, **soilText** | `export_soil` | Writes the soil report's boreholes as AGS4 (.ags) or DIGGS (.xml): ``{"path", "notes"}`` or ``{"problems"}`` (alpha 9 L8). |
 | `soil/gisExport` | **projectRoot**, **format**, **outPath** | `gis_export` (worker) | The site, boreholes and building outline as GeoJSON or GeoPackage (WGS 84). |
 | `soil/gisImport` | **path**, soilText | `gis_import` (worker) | The soil report with a GeoJSON or GeoPackage file's boreholes and boundary merged in. |
 | `soil/import` | **path**, soilText | `import_soil` | The soil report with the boreholes of a CSV or Excel file merged in: ``{"text", "notes"}`` or ``{"problems"}``. |
@@ -235,10 +265,16 @@ Python API version **1.0.0** (`saengine.api.API_VERSION`). The guide, the versio
 | `soil/settlement` | **soilText**, **borehole**, **b**, **l**, **df**, **q** | `soil_settlement` | Settlement of a footing at a borehole under a net pressure. |
 | `soil/sources` | soilText, settingsText | `soil_sources` | Where the site class and the allowable bearing pressure come from, for Project Settings. |
 | `soil/template` | — | `soil_template` | Writes the borehole import template (.csv or .xlsx): ``{"path"}`` or ``{"problems"}``. |
+| `special/structures` | **projectPath**, run | `special_structures` (worker) | Alpha 9 L9: the project's bridges and special structures (Project Settings): computed anew and kept when ``run`` (``saengine.special.project.run_project``), else the last run kept beside the analysis model (``{"available": False, "configured", "reason"}`` without one). ``project_path``: any file of the project (the analysis model). |
 | `structure/importGeometry` | **path**, objectsText, options | `import_geometry` (worker) | The geometry of a DXF, IFC or Rhino file, typed with the options and object types. |
 | `structure/insert` | **structureText**, **geometry** | `insert_geometry` | The structural model with previewed geometry added: ``{"text", "ids", "skipped"}``. |
 | `structure/runScript` | **structureText**, **scriptPath** | `run_script` | Runs a structural model script (see ``saengine.library.script``). |
 | `structure/shapeGeometry` | — | `shape_geometry` | The members, areas and supports of a parametric shape, to preview and insert. |
+| `studies/apply` | — |  |  |
+| `studies/cancel` | — |  |  |
+| `studies/list` | — |  |  |
+| `studies/start` | — |  |  |
+| `studies/status` | — |  |  |
 | `substructure/design` | — | `substructure_design` (worker) | Run All's foundation step (``saengine.substructure.run.design_foundations``): moves the building model's footings in while the substructure is the placeholder, gives foundations without bars the minimum mesh (``summary["barsAdded"]``) and checks them. The same answer as :func:`substructure_report`, with ``sources`` taken after the bars were written (they are part of what was checked), or ``{"problems"}``. |
 | `substructure/ensure` | — | `substructure_ensure` | Writes the building model's footings into ``substructure.json`` while it is still the placeholder (``saengine.substructure.handover.ensure_migrated``). |
 | `substructure/migrate` | — | `substructure_migrate` | The saved substructure with the building model's footings added (nothing is written): ``{"substructure", "notes", "count"}`` or ``{"problems"}``. |
