@@ -134,16 +134,19 @@ registerAction2(class extends Action2 {
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
 		const project = accessor.get(ISaengineProjectService).project;
+		const fileService = accessor.get(IFileService);
+		const notificationService = accessor.get(INotificationService);
+		const editorService = accessor.get(IEditorService);
 		const fem = partById('fem');
 		if (!project || !fem) {
 			return;
 		}
 		const model = joinPath(project.root, fem.folder, PUSHOVER_FILE);
-		if (!await accessor.get(IFileService).exists(model)) {
-			accessor.get(INotificationService).info(localize('saengine.fem.noPushover', "There is no pushover model: tick Pushover in Project Settings, Analysis model, give the object types bars (fiber sections need them) and derive the analysis model again (or Run All)."));
+		if (!await fileService.exists(model)) {
+			notificationService.info(localize('saengine.fem.noPushover', "There is no pushover model: tick Pushover in Project Settings, Analysis model, give the object types bars (fiber sections need them) and derive the analysis model again (or Run All)."));
 			return;
 		}
-		await accessor.get(IEditorService).openEditor(new FemModelEditorInput(model), { pinned: true });
+		await editorService.openEditor(new FemModelEditorInput(model), { pinned: true });
 	}
 });
 
