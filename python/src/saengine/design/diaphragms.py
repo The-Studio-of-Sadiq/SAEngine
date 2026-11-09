@@ -382,7 +382,7 @@ def diaphragms_of(
                 side = f"{'-' if edge == 'low' else '+'}{'XY'[along]} edge"
                 parts = []
                 if on_edge:
-                    parts.append(f"the edge beams' top and bottom bars (weakest {weakest})")
+                    parts.append(_beams_text(on_edge, types, mats, weakest, "edge"))
                 if on_slab:
                     parts.append(
                         f"the slab's {parallel} bars, top and bottom, within the "
@@ -490,7 +490,7 @@ def diaphragms_of(
                         )
                         + "; φ As fy of "
                         + (
-                            f"the collector beams' top and bottom bars (weakest {weakest})"
+                            _beams_text(on_line, types, mats, weakest, "collector")
                             if on_line
                             else "no beam on the wall's line: provide collector bars in the slab"
                         ),
@@ -582,14 +582,48 @@ def _weakest(
     mats: dict[str, Any],
     phi: float,
 ) -> tuple[float, str]:
-    """(φ As fy [N], beam id) of the weakest beam of ``members``; (0, "") without one."""
+    """(φ As fy [N], beam id) of the weakest beam of ``members``; (0, "") without one. A steel
+    beam (no bars, a steel profile) carries the chord force axially: its design tension
+    resistance by the pack's steel member method (W4C-9 of usability walk 4: steel edge beams
+    gave the chord no capacity, a false failure at utilisation 99)."""
     best: tuple[float, str] | None = None
     for e, _, _ in members:
         object_type = types.get(e.type)
         value = phi * _bars_area(object_type) * _fy(object_type, mats)
+        if value <= 0:
+            value = _steel_axial(object_type, mats)
         if best is None or value < best[0]:
             best = (value, e.id)
     return best if best is not None else (0.0, "")
+
+
+def _steel_axial(object_type: Any, mats: dict[str, Any]) -> float:
+    """The design tension resistance [N] of a steel beam type (gross yielding, the pack's steel
+    member method); 0 for other types or a profile the steel checks cannot read."""
+    if object_type is None or getattr(object_type, "reinforcement", None) is not None:
+        return 0.0
+    material = mats.get(getattr(object_type, "material", None))
+    if getattr(material, "steel", None) is None or getattr(object_type, "profile", None) is None:
+        return 0.0
+    try:
+        from saengine.design.steel.members import Steel
+        from saengine.design.steel.pack_resistance import axial
+        from saengine.design.steel.properties import shape_properties
+
+        shape = shape_properties(object_type.profile, False)
+        return float(axial(shape, Steel.of(material), 0.0, 0.0, False)[0])
+    except Exception:  # noqa: BLE001 - not a steel shape the checks read: no capacity
+        return 0.0
+
+
+def _beams_text(
+    members: list[Any], types: dict[str, Any], mats: dict[str, Any], weakest: str, what: str
+) -> str:
+    """How the ``what`` beams ("edge", "collector") carry the force: their top and bottom bars,
+    or (steel beams) their axial strength."""
+    if any(_steel_axial(types.get(e.type), mats) > 0 for e, _, _ in members):
+        return f"the {what} beams' axial strength (steel: gross yielding) (weakest {weakest})"
+    return f"the {what} beams' top and bottom bars (weakest {weakest})"
 
 
 def _weakest_slab(

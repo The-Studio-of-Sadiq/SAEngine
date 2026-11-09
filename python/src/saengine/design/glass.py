@@ -407,6 +407,7 @@ def design_types(types: dict[str, Any], mats: dict[str, Any]) -> tuple[list, lis
                     "kind": o.kind,
                     "type": type_id,
                     "reason": "structural glass is not covered by the code pack",
+                    "status": "notCovered",  # W4C-6: not "no reinforcement", not a failure
                 }
             )
         return [], skipped, []

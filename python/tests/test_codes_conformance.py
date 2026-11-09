@@ -185,6 +185,16 @@ def test_generated_building_derives_and_designs(pack_id: str, tmp_path: Path):
         "lateralSizing": "gravity",
     }
     root = Path(create_building(spec, tmp_path)["root"])
+    from saengine.pipeline.run_all import missing_hazard
+
+    settings_path = root / "02 Project Settings/project-settings.json"
+    if missing_hazard(settings_path.read_text(encoding="utf-8"), root):
+        # W4C-17: a pack on the site's mapped values fails the derive step without them; the
+        # engineer enters them (SDS 0.5 g, SD1 0.3 g: a moderate site).
+        settings = json.loads(settings_path.read_text(encoding="utf-8"))
+        site = settings.setdefault("site", {})
+        site["spectral"] = {**(site.get("spectral") or {}), "sds": 0.5, "sd1": 0.3}
+        settings_path.write_text(json.dumps(settings, indent=1), encoding="utf-8")
     result = run_all(root, steps=["derive", "analysis"])
     assert [s.status for s in result.steps] == ["ok", "ok"], [s.message for s in result.steps]
     with code_context.project(root):

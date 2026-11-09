@@ -350,7 +350,9 @@ def test_wizard_columns_are_sized_for_the_joint_shear() -> None:
     against φ γ √f'c Aj = 0.85 x 1.0 x √f'c x 600² with 300 mm beams covering less than
     three quarters of a face, Sec 8.3.7.3). The sizing now checks the joint shear with the
     beams' estimated bars (T = 1.25 fy As, Vcol = 1.25 ΣMnb over the storey height) and the
-    interior columns of L1-L3 grow to 650 mm, of L4-L6 to 600 mm."""
+    interior columns of L1-L3 grow to 650 mm, of L4-L6 to 600 mm. W4C-10 of usability walk 4:
+    the bars the design then proposes ran about 30 % above the estimate (the walk's edge C350
+    failed), so the sizing keeps the joint at most 80 % used (JOINT_SHEAR_RESERVE): 700 mm."""
     from saengine.library.generator import generate_building
 
     result = generate_building(
@@ -359,11 +361,11 @@ def test_wizard_columns_are_sized_for_the_joint_shear() -> None:
     reasons = result["summary"]["columnReasons"]
     # The governing joint moved from L1 to L2 with the larger W (owner decision 2026-11-03:
     # partitions in full in W, Sec 2.5.7.3): the storey forces and so the beams' bars grew.
-    assert reasons["L1-L3 interior"] == "joint shear at B2 L2"
+    assert reasons["L1-L3 interior"] == "joint shear at B2 L1"
     assert reasons["L4-L6 interior"] == "joint shear at B2 L4"
     by_id = {c["id"]: c["type"] for c in result["floorPlan"]["columns"]}
-    assert by_id["C-B2-L1"] == "C650x650"
-    assert by_id["C-B2-L4"] == "C600x600"
+    assert by_id["C-B2-L1"] == "C700x700"
+    assert by_id["C-B2-L4"] == "C700x700"
     method = next(n for n in result["notes"] if "PRELIMINARY P-M sizing" in n)
     assert "the joint shear with those bars (Sec 8.3.7.3" in method
 

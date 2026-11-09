@@ -43,6 +43,8 @@ export interface IDocumentProblem {
 	readonly index: number | null;
 	readonly path: string;
 	readonly message: string;
+	/** "warning": reported, not an error (a member type the code pack does not cover, W4C-6). */
+	readonly severity?: 'error' | 'warning';
 }
 
 /** Desktop command running the full model rules; absent where there is no Python backend. */
@@ -452,7 +454,7 @@ export abstract class JsonDocumentEditor extends EditorPane {
 		if (!STATUS_KINDS.has(kind) || !this.model) {
 			return;
 		}
-		const items = problems.map(p => ({ severity: 'error' as const, message: p.message, where: p.path || undefined }));
+		const items = problems.map(p => ({ severity: p.severity ?? 'error' as const, message: p.message, where: p.path || undefined }));
 		if (kind === 'objects') {
 			items.push(...storedFieldProblems(this.document, 'objects').map(p => ({ severity: 'error' as const, message: p.message, where: p.id })));
 		}
@@ -461,7 +463,7 @@ export abstract class JsonDocumentEditor extends EditorPane {
 		if (companion) {
 			texts[companion] = companionText;
 		}
-		void this.commandService.executeCommand(REPORT_PART_CHECKS_COMMAND, kind, { problems: items.length, items }, texts).catch(() => undefined);
+		void this.commandService.executeCommand(REPORT_PART_CHECKS_COMMAND, kind, { problems: items.filter(i => i.severity === 'error').length, items }, texts).catch(() => undefined);
 	}
 
 	/** Follows the companion file (unsaved edits included) for references and checks. */

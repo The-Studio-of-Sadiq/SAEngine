@@ -128,6 +128,7 @@ def check_library(kind: Kind, text: str, materials_text: str | None = None) -> l
             problems.append(
                 _problem(ids.index(object_id) if object_id in ids else None, "material", detail)
             )
+        problems += coverage_warnings(library, materials)
         from saengine.codes.context import project_root
         from saengine.library.section_designer import list_sections
 
@@ -149,6 +150,64 @@ def check_library(kind: Kind, text: str, materials_text: str | None = None) -> l
                     )
         return problems
     return []
+
+
+def coverage_warnings(library: ObjectLibrary, materials: MaterialLibrary) -> list[dict[str, Any]]:
+    """Warnings (``severity`` "warning", not errors) on object types the design will not check
+    as the engineer may expect (W4C-6 and W4C-25 of usability walk 4):
+
+    - a member type of a kind the code pack in force does not cover (structural glass, tensile
+      membranes, beam web openings): its design reports it as not covered, never checked;
+    - an open-web joist type with rigid ends (no simple connection): in a moment frame it takes
+      end moments and reversed moment it is not made for."""
+    from saengine.codes import context as code_context
+    from saengine.design.steel_connections import SIMPLE_KINDS
+
+    try:
+        pack = code_context.current()
+        name = code_context.code_name(pack)
+    except Exception:  # noqa: BLE001 - no pack machinery: nothing to say
+        return []
+    mats = {m.id: m for m in materials.materials}
+    out: list[dict[str, Any]] = []
+
+    def warn(index: int, path: str, message: str) -> None:
+        out.append({**_problem(index, path, message), "severity": "warning"})
+
+    for index, o in enumerate(library.objects):
+        material = mats.get(getattr(o, "material", None))
+        category = getattr(getattr(material, "category", None), "value", None)
+        uncovered: list[tuple[str, str, str]] = []  # (table, path, what)
+        if category == "glass" and (
+            getattr(o, "glass", None) is not None or getattr(o, "glassFin", None) is not None
+        ):
+            uncovered.append(("glass", "glass", "structural glass"))
+        if getattr(o, "kind", None) == "membrane":
+            uncovered.append(("membranes", "kind", "tensile membranes"))
+        if getattr(o, "webOpenings", None) is not None:
+            uncovered.append(("webOpenings", "webOpenings", "beam web openings"))
+        for table, path, what in uncovered:
+            if not pack.has(table):
+                warn(
+                    index,
+                    path,
+                    f"{what} are not covered by the code pack {name}: the design will report "
+                    f"{o.id} as not checked (choose a pack that covers them in 02 Project "
+                    "Settings, or check by hand)",
+                )
+        connection = getattr(o, "connection", None)
+        if getattr(o, "joist", None) is not None and (
+            connection is None or getattr(connection, "type", "") not in SIMPLE_KINDS
+        ):
+            warn(
+                index,
+                "joist",
+                f"{o.id} is an open-web joist with rigid ends (no simple connection): on a "
+                "moment-frame line it takes end moments and reversed moment it is not made "
+                "for; give it a fin plate or shear end plate connection (pinned ends) or use a "
+                "rolled beam for frame beams",
+            )
+    return out
 
 
 def _check_layout(

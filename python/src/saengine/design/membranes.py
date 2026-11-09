@@ -74,6 +74,19 @@ def found_form(membrane: Any) -> Any:
     return ff.find_form(net)
 
 
+def _missing_load(case: Any, membrane: Any) -> str:
+    """ "snow load", "wind pressure" or "wind suction" when the pack's ``case`` takes a load the
+    membrane type leaves at 0; "" when every load it takes is given (or it takes none)."""
+    if float(getattr(case, "snow", 0) or 0) > 0 and float(membrane.snow) <= 0:
+        return "snow load"
+    if float(getattr(case, "wind", 0) or 0) > 0:
+        if case.windSign > 0 and float(membrane.windPressure) <= 0:
+            return "wind pressure"
+        if case.windSign < 0 and float(membrane.windSuction) <= 0:
+            return "wind suction"
+    return ""
+
+
 def _stiffness(membrane: Any, form: Any) -> np.ndarray:
     """Axial stiffness of each link [N/mm]."""
     lengths = np.linalg.norm(form.xyz[form.links[:, 1]] - form.xyz[form.links[:, 0]], axis=1)
@@ -106,7 +119,26 @@ def check_membrane(type_id: str, membrane: Any) -> dict[str, Any]:
     reactions = np.zeros(4)
     net = membrane.system == "cableNet"
     cable_rd = float(membrane.cables.breaking) * 1e3 / float(t.cableFactor)
+    missing: list[str] = []
     for case in t.cases:
+        # W4C-11 of usability walk 4: a case whose snow or wind the type does not give was
+        # analysed as the prestress alone and reported as passing; it is not checked, and said.
+        lacking = _missing_load(case, membrane)
+        if lacking:
+            missing.append(f"{case.name}: no {lacking} given")
+            row = _row(
+                f"{case.name}: not checked",
+                0.0,
+                0.0,
+                "",
+                case.name,
+                f"no {lacking} given on the membrane type (04 Objects): the case is not "
+                "analysed; enter the characteristic load to check it",
+                "formFinding",
+            )
+            row.update(flag=True, ok=True, utilisation=0.0, status="noLoad")
+            checks.append(row)
+            continue
         pressure = (
             float(case.wind)
             * case.windSign
@@ -222,6 +254,9 @@ def check_membrane(type_id: str, membrane: Any) -> dict[str, Any]:
             "cableLength": round(cable_length / 1e3, 2),
             "reactions": [round(float(r) / 1e3, 2) for r in reactions],
             "form": [[round(float(v), 1) for v in p] for p in form.xyz],
+            # W4C-11: the cases not analysed for want of their load ("<case>: no snow load
+            # given"); the design notes list them.
+            "missingLoads": missing,
         },
     }
 
@@ -240,6 +275,7 @@ def design_types(types: dict[str, Any]) -> tuple[list, list, list[str]]:
                     "kind": "membrane",
                     "type": k,
                     "reason": "tensile membranes are not covered by the code pack",
+                    "status": "notCovered",  # W4C-6: not "no reinforcement", not a failure
                 }
                 for k, _ in found
             ],
@@ -251,7 +287,14 @@ def design_types(types: dict[str, Any]) -> tuple[list, list, list[str]]:
             entries.append(check_membrane(k, o))
         except (np.linalg.LinAlgError, ValueError, KeyError) as error:
             skipped.append({"id": k, "kind": "membrane", "type": k, "reason": str(error)})
-    return entries, skipped, []
+    notes = [
+        f"membrane {e['id']}: {'; '.join(e['membrane']['missingLoads'])} on its type (04 "
+        "Objects), so those cases are not checked (not passed): enter the characteristic snow "
+        "and wind loads"
+        for e in entries
+        if e["membrane"].get("missingLoads")
+    ]
+    return entries, skipped, notes
 
 
 def method_lines() -> list[str]:

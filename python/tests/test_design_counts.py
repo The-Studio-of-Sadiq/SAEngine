@@ -79,4 +79,4 @@ def test_counts_keep_members_joints_and_building_apart() -> None:
     assert members["byKind"]["slab"]["notChecked"] == 1
     assert counts["joints"] == {"checked": 3, "passed": 1, "failed": 2}
     assert counts["building"] == {"checked": 1, "passed": 1, "failed": 0}
-    assert counts["notChecked"] == {"noBars": 1, "other": 1}
+    assert counts["notChecked"] == {"noBars": 1, "notCovered": 0, "other": 1}

@@ -395,6 +395,10 @@ def design_member(
     span = float(s[-1] - s[0]) * 1e3
     stations = member_stations(pieces, combinations, turned)
     checks, summary = check_joist(object_type.joist, material, stations, span)
+    frame = frame_action(stations)
+    if frame is not None:
+        checks.append(frame)
+        summary["frameAction"] = True
     try:
         from saengine.library.sections import section_properties
 
@@ -417,6 +421,45 @@ def design_member(
         "ok": all(c["ok"] for c in strength),
         "material": material.id,
         "joist": summary,
+    }
+
+
+#: End moments above this share of the joist's largest moment are frame action (W4C-25).
+FRAME_ACTION_SHARE = 0.1
+
+
+def frame_action(stations: Sequence[Any]) -> dict[str, Any] | None:
+    """An information row when the joist's ends carry moments (W4C-25 of usability walk 4: a
+    joist on a moment-frame line, rigid ends, failed on reversed moment with no hint): a joist
+    is a simply supported truss; None when its end moments are small."""
+    worst = (0.0, None)
+    peak = 0.0
+    for st in stations:
+        m = np.abs(np.asarray(st.Mx, dtype=float))
+        if not len(m):
+            continue
+        peak = max(peak, float(np.max(m)))
+        end = max(float(m[0]), float(m[-1]))
+        if end > worst[0]:
+            worst = (end, st.combination)
+    if peak <= 0 or worst[0] <= FRAME_ACTION_SHARE * peak:
+        return None
+    return {
+        "name": "Frame action: end moments on a joist",
+        "demand": round(worst[0] / 1e6, 2),
+        "capacity": 0.0,
+        "unit": "kN·m",
+        "utilisation": 0.0,
+        "combination": worst[1],
+        "ok": True,
+        "note": (
+            f"the ends carry {worst[0] / 1e6:.1f} kN·m ({worst[0] / peak:.0%} of the largest "
+            "moment): the joist is framed as a moment-frame beam (rigid ends), so it takes end "
+            "moments and reversed moment it is not made for; give its type a simple connection "
+            "(fin plate or shear end plate: pinned ends) or use a rolled beam on frame lines"
+        ),
+        "flag": True,
+        "clause": "",
     }
 
 

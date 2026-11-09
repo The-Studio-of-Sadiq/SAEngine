@@ -200,6 +200,7 @@ def steel_length_options(resolved: Resolved | None, base: Any = None) -> Any:
     return LengthOptions(
         k=k,
         slab_braces_top_flange=base.slab_braces_top_flange,
+        slab_on_top=base.slab_on_top,
         unbraced=unbraced,
         sources=sources,
     )

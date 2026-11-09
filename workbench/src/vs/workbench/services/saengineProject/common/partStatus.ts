@@ -49,7 +49,7 @@ export interface IDesignSummary {
 		readonly members?: { readonly checked?: number; readonly failed?: number; readonly notChecked?: number };
 		readonly joints?: { readonly failed?: number };
 		readonly building?: { readonly failed?: number };
-		readonly notChecked?: { readonly noBars?: number };
+		readonly notChecked?: { readonly noBars?: number; readonly notCovered?: number };
 	};
 	/**
 	 * The stamp of each part file the checks read, by part id ("" for a missing file): the
@@ -442,7 +442,9 @@ function femStatus(inputs: IPartStatusInputs): IPartStatus {
 	if (counts?.members.notChecked) {
 		return status('fem', 'inProgress', localize('partStatus.fem.notChecked', "{0} not checked", counts.members.notChecked), counts.noBars
 			? localize('partStatus.fem.noBars', "{0} members have no bars: Design Reinforcement proposes them", counts.noBars)
-			: localize('partStatus.fem.notCheckedHint', "open the design results for why"));
+			: counts.notCovered
+				? localize('partStatus.fem.notCovered', "{0} not covered by the code pack: open the design results", counts.notCovered)
+				: localize('partStatus.fem.notCheckedHint', "open the design results for why"));
 	}
 	return status('fem', 'done', localize('partStatus.fem.pass', "{0} pass", counts?.members.passed ?? summary.passed));
 }
@@ -451,7 +453,7 @@ function femStatus(inputs: IPartStatusInputs): IPartStatus {
  * The members' and joints' counts of a design summary that records them (N-X8): "3 members,
  * 2 joints fail" for the part list instead of a total that adds members and joints together.
  */
-function designCounts(summary: IDesignSummary): { readonly members: { readonly checked: number; readonly passed: number; readonly notChecked: number }; readonly noBars: number; readonly failedText: string | undefined } | undefined {
+function designCounts(summary: IDesignSummary): { readonly members: { readonly checked: number; readonly passed: number; readonly notChecked: number }; readonly noBars: number; readonly notCovered: number; readonly failedText: string | undefined } | undefined {
 	const members = summary.counts?.members;
 	if (!members || typeof members.checked !== 'number') {
 		return undefined;
@@ -467,6 +469,7 @@ function designCounts(summary: IDesignSummary): { readonly members: { readonly c
 	return {
 		members: { checked: members.checked, passed: members.checked - failed, notChecked: positive(members.notChecked) },
 		noBars: positive(summary.counts?.notChecked?.noBars),
+		notCovered: positive(summary.counts?.notChecked?.notCovered),
 		failedText: parts.length ? localize('partStatus.fem.countsFail', "{0} fail", parts.join(', ')) : undefined,
 	};
 }

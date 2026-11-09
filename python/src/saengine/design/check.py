@@ -923,6 +923,9 @@ def _design_run(
     from saengine.design import member_limits
 
     limit_rules = member_limits.covered()
+    # W4C-10 of usability walk 4: the beams that carry a floor slab on their top flange, its
+    # bracing for lateral-torsional buckling also when the slab is not analysed as shells.
+    under_slabs = slab_carried_beams(building, types)
 
     for member_id, type_id, element in members:
         # A cancelled request (Stop Waiting on Design Reinforcement) stops here.
@@ -1008,6 +1011,10 @@ def _design_run(
             steel_fire_ratings = steel_fire.ratings(settings)
             if steel_fire_ratings:
                 steel_extra["fire"] = steel_fire_ratings
+            if member_id in under_slabs and object_type.kind == "beam":
+                from saengine.design.steel.lengths import LengthOptions
+
+                steel_extra["lengths"] = LengthOptions(slab_on_top=True)
             try:
                 entry, steel_collected = steel_design.design_member(
                     member_id,
@@ -2081,13 +2088,17 @@ def _design_b39(
         elif not reason:
             module.design_members(items, case_forces, names, factors, checked, skipped)
             continue
+        uncovered = not module.covered()
         for member_id, object_type, *_ in items:
             skipped.append(
                 {
                     "id": member_id,
                     "kind": object_type.kind,
                     "type": object_type.id,
-                    "reason": f"{kind} not checked: {reason}",
+                    "reason": f"{kind} members are not covered by this code pack"
+                    if uncovered
+                    else f"{kind} not checked: {reason}",
+                    **({"status": NOT_COVERED} if uncovered else {}),
                 }
             )
 
@@ -2241,6 +2252,20 @@ def _assemble(
 
     # Footings moved to Part 9 (saengine.substructure): this report designs the superstructure.
     notes.append(DESIGNED_IN_PART_9)
+    uncovered = not_covered_items(checked, skipped)
+    if uncovered:
+        # W4C-6 of usability walk 4: said at once, not only in the report's member tables.
+        notes.insert(0, not_covered_note(uncovered))
+    framed = [e["id"] for e in checked if (e.get("joist") or {}).get("frameAction")]
+    if framed:
+        # W4C-25 of usability walk 4: a joist on a moment-frame line failed with no hint.
+        notes.insert(
+            0,
+            f"open-web joists with end moments (frame action): {', '.join(framed[:6])}"
+            + (f" and {len(framed) - 6} more" if len(framed) > 6 else "")
+            + ": a joist is a simply supported truss; give its type a simple connection "
+            "(pinned ends) in 04 Objects or use a rolled beam on the frame lines",
+        )
     failed = [e for e in checked if not e["ok"]]
     governing = max(checked, key=lambda e: e["utilisation"], default=None)
     # The members' own counts leave the diaphragms out (B10-22 of usability walk 3: "640 of 630
@@ -2412,6 +2437,8 @@ def _assemble(
             # The object types not checked for want of bars (an imported model's): Design
             # Reinforcement proposes bars for them (X29 of the usability walk).
             "noBars": sorted({s["type"] for s in skipped if s.get("reason") == NO_REINFORCEMENT}),
+            # W4C-6: what the code pack does not cover (members skipped, parts not checked).
+            "notCovered": not_covered_items(checked, skipped),
             "maxUtilisation": governing["utilisation"] if governing else None,
             "governing": governing["id"] if governing else None,
             # The check that sets it: a strength check, unless a detailing check fails (rate).
@@ -2473,6 +2500,7 @@ def design_counts(
         row["notChecked"] += 1
     members = tally(checked)
     no_bars = sum(1 for s in skipped if s.get("reason") == NO_REINFORCEMENT)
+    not_covered = sum(1 for s in skipped if is_not_covered(s))
     return {
         "members": {
             "total": len(checked) + len(skipped),
@@ -2483,7 +2511,11 @@ def design_counts(
         "joints": tally(joints),
         "diaphragms": tally(diaphragms),
         "building": tally(building),
-        "notChecked": {"noBars": no_bars, "other": len(skipped) - no_bars},
+        "notChecked": {
+            "noBars": no_bars,
+            "notCovered": not_covered,
+            "other": len(skipped) - no_bars - not_covered,
+        },
     }
 
 
@@ -2555,6 +2587,112 @@ def _default_rebar_id(
 
 #: Why a slab of a type without bars is not checked (also the members': ``summary.noBars``).
 NO_REINFORCEMENT = "no reinforcement"
+#: The status of a member (or a part of one, e.g. a beam's web openings) the code pack in force
+#: does not cover (W4C-6 of usability walk 4): not a failure, not "no reinforcement"; a skipped
+#: entry carries it as ``"status"``, a checked one lists the parts under ``"notCovered"``.
+NOT_COVERED = "notCovered"
+
+
+def slab_carried_beams(building: Any, types: dict[str, Any]) -> set[str]:
+    """The ids of the beams of the building model a floor slab rests on (W4C-10 of usability
+    walk 4): a slab (or a slab-type area) whose top is at the beam's top and whose outline the
+    beam runs along or under. The slab, attached to the top flange, braces it continuously
+    (:attr:`saengine.design.steel.lengths.LengthOptions.slab_on_top`)."""
+    from shapely.geometry import LineString, Polygon
+
+    if building is None:
+        return set()
+    slabs: dict[float, list[Any]] = {}
+    for e in getattr(building, "elements", []):
+        try:
+            if isinstance(e, SlabElement):
+                outline = [(float(x), float(y)) for x, y in e.boundary]
+                level = float(e.elevation)
+            elif isinstance(e, AreaElement) and isinstance(types.get(e.type), Slab):
+                outline = [(float(p[0]), float(p[1])) for p in e.outline]
+                level = sum(float(p[2]) for p in e.outline) / len(e.outline)
+            else:
+                continue
+            polygon = Polygon(outline)
+        except (TypeError, ValueError, ZeroDivisionError):
+            continue
+        if polygon.is_valid and polygon.area > 0:
+            slabs.setdefault(round(level), []).append(polygon.buffer(50.0))
+    found: set[str] = set()
+    if not slabs:
+        return found
+    for e in getattr(building, "elements", []):
+        if not isinstance(e, BeamElement):
+            continue
+        try:
+            line = LineString([tuple(map(float, e.start[:2])), tuple(map(float, e.end[:2]))])
+            level = round(float(e.elevation))
+        except (TypeError, ValueError):
+            continue
+        if line.length <= 0:
+            continue
+        for polygon in slabs.get(level, []):
+            if polygon.intersection(line).length >= 0.9 * line.length:
+                found.add(e.id)
+                break
+    return found
+
+
+def is_not_covered(item: dict[str, Any]) -> bool:
+    """Whether a skipped entry was left out because the code pack does not cover it."""
+    return item.get("status") == NOT_COVERED or "not covered by" in str(item.get("reason", ""))
+
+
+def not_covered_items(
+    checked: list[dict[str, Any]], skipped: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
+    """What the code pack does not cover, one item per member: ``{"id", "kind", "type",
+    "what"}`` (``what`` the reason, or the parts of a checked member not checked)."""
+    found = [
+        {"id": s.get("id"), "kind": s.get("kind"), "type": s.get("type"), "what": s.get("reason")}
+        for s in skipped
+        if is_not_covered(s)
+    ]
+    found += [
+        {"id": e.get("id"), "kind": e.get("kind"), "type": e.get("type"), "what": what}
+        for e in checked
+        for what in e.get(NOT_COVERED) or []
+    ]
+    return found
+
+
+def not_covered_text(items: list[dict[str, Any]], limit: int = 4) -> str:
+    """ "web openings (B1, B2), structural glass (GW1)": what is not covered and where."""
+    by_what: dict[str, list[str]] = {}
+    for item in items:
+        what = str(item.get("what") or "").split(":")[0]
+        for cut in (" are not covered", " is not covered", " not covered"):
+            what = what.split(cut)[0]
+        by_what.setdefault(what.strip() or "members", []).append(str(item.get("id")))
+    parts = []
+    for what, ids in by_what.items():
+        shown = ", ".join(ids[:limit]) + (
+            f" and {len(ids) - limit} more" if len(ids) > limit else ""
+        )
+        parts.append(f"{what} ({shown})")
+    return "; ".join(parts)
+
+
+def not_covered_note(items: list[dict[str, Any]]) -> str:
+    """The design report's note on what the code pack in force does not cover."""
+    from saengine.codes import context as code_context
+
+    try:
+        name = code_context.code_name()
+    except Exception:  # noqa: BLE001 - no pack machinery
+        name = "in force"
+    return (
+        f"Not covered by the code pack {name}, so not checked (neither passed nor failed): "
+        f"{not_covered_text(items)}. Choose a code pack that covers them in 02 Project "
+        "Settings, or check them by hand."
+    )
+
+
 #: The kind of a floor diaphragm's entry (its chords and collectors): checked, not a member.
 DIAPHRAGM_KIND = "diaphragm"
 #: The note of a slab without bars that is not analysed as shells.
