@@ -958,3 +958,11 @@ The bill of quantities and the bar schedules weighed US bars as d²/162 of the s
 | C26-1 | concrete.barMasses 10, 13, 16 | 0.560, 0.994, 1.552 kg/m (No. 3, 4, 5) | ASTM A615/A615M Table 1 | Sure |
 | C26-2 | concrete.barMasses 19, 22, 25 | 2.235, 3.042, 3.973 kg/m (No. 6, 7, 8) | ASTM A615/A615M Table 1 | Sure |
 | C26-3 | concrete.barMasses 29, 32, 36 | 5.060, 6.404, 7.907 kg/m (No. 9, 10, 11) | ASTM A615/A615M Table 1 | Sure |
+
+## Column splice hoops (pack follow-up 2026-11-09)
+
+| # | Path | Value | Source | Sure? |
+|---|---|---|---|---|
+| S1 | detailing.special.columnSpliceDivisor | 4 (the parent's) | ACI 318-19 18.7.4.3, 18.7.5.3(a) | Sure |
+| S2 | detailing.special.columnSpliceCap | none (the parent's 100 mm is BNBC 2020's) | ACI 318-19 18.7.4.3 | Sure |
+| S3 | detailing.special.columnSpliceZone | true: the splices enclosed by the transverse reinforcement of 18.7.5.2 and 18.7.5.3 | ACI 318-19 18.7.4.3 | Sure |

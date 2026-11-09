@@ -583,3 +583,9 @@ silos, chimneys, cooling towers, offshore, piping, load rating.
 | # | Path | Value | Source | Sure? |
 |---|---|---|---|---|
 | C26-1 | detailing.clauses.shearFriction | the parent's shear-friction check of column construction joints kept, labelled SAEngine practice under IS 456:2000 13.4 | IS 456:2000 13.4 (places joints only); SAEngine practice | Practice |
+
+## Column splice hoops (pack follow-up 2026-11-09)
+
+| # | Path | Value | Source | Sure? |
+|---|---|---|---|---|
+| S1 | concreteMethods.seismic.columns.lapHoopSpacing | 150 mm: now the hoops over the column lap splices, in place of BNBC 2020's min(least dimension / 4, 100 mm) | IS 13920:2016 7 (column lap splices; 1993 edition 7.2.1) | Check (clause number) |

@@ -353,3 +353,9 @@ check every row (a city's districts can differ).
 | C20b-94 | zn = b (2.5 - 0.4 ln b) | 5.3.8 | |
 | C20b-95 | Es = 1.35 E of the log (ν = 0.3) | - | P |
 | C20b-96 | ᾱ by Boussinesq under the centre (Appendix K by computation) | Appendix K | |
+
+## Column splice hoops (pack follow-up 2026-11-09)
+
+| # | Path | Value | Source | Sure? |
+|---|---|---|---|---|
+| S1 | detailing.special.columnSplice* (inherited) | BNBC 2020's: min(least dimension / 4, 100 mm) | GB 50010 8.4.6 / GB 50011 6.3 (stirrups over laps of seismic columns) | Check (the GB rule not entered) |

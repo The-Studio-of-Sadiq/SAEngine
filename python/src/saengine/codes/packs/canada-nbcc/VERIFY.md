@@ -135,3 +135,9 @@ is the US pack's (`aci318-asce7-22`, its VERIFY.md).
 | K87 | steel.phi | the parent's (0.90 / 0.75 the same as S16) | 13.1 | | Check (bolts and welds stay AISC's with AISC's equations) |
 | K88 | steel.omegaFromPhi | none (no ASD) | - | | Sure |
 | K89 | steelSeismic, connections, timber (O86) | the parent's | Clause 27; O86 | | Not covered |
+
+## Column splice hoops (pack follow-up 2026-11-09)
+
+| # | Path | Value | Source | Sure? |
+|---|---|---|---|---|
+| S1 | detailing.special.columnSplice* (inherited) | the ACI 318-19 pack's: ties over the lap splices of special moment frame columns at the end zones' spacing (least dimension / 4, 6 db, so) | CSA A23.3-19 Clause 21 (ductile columns, lap splices) | Check (the CSA rule not entered) |

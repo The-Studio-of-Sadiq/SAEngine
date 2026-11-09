@@ -68,6 +68,13 @@ def short_name() -> str:
     return short or code_name()
 
 
+def method_basis() -> str:
+    """The table's ``methodBasis``: whose clauses and factors the strength design follows, said
+    after the code's name in the design report's first method line ("" when the pack has none)."""
+    table = _table()
+    return getattr(table, "methodBasis", "") if table is not None else ""
+
+
 def text(group: str, key: str) -> str:
     """The clause of ``key`` in ``group`` without the code's name; "" when the pack has none."""
     table = _table()

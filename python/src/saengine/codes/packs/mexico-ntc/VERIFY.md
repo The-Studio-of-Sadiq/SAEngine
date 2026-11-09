@@ -73,3 +73,9 @@ is the US pack's (`aci318-asce7-22`, its VERIFY.md).
 | M40 | steel.memberMethods.columnCurve | χ = (1 + λ^2n)^(-1/n), n = 1.4 | NTC-Acero 5.2 | | Check (n by section type) |
 | M41 | steel.memberMethods.lateralTorsional | 1.15 FR Mp (1 - 0.28 Mp/Mu) <= FR Mp where Mu > 2/3 Mp, else FR Mu | NTC-Acero 6.3 | | Check |
 | M42 | steel.phi | FR 0.9 / 0.75 (the parent's) | NTC-Acero 3.2 | | Check |
+
+## Column splice hoops (pack follow-up 2026-11-09)
+
+| # | Path | Value | Source | Sure? |
+|---|---|---|---|---|
+| S1 | detailing.special.columnSplice* (inherited) | the ACI 318-19 pack's: ties over the lap splices of special moment frame columns at the end zones' spacing (least dimension / 4, 6 db, so) | NTC-Concreto (ductile columns, lap splices) | Check (the NTC rule not entered) |

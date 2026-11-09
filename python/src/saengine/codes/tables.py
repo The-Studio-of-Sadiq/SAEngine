@@ -3934,6 +3934,15 @@ class SpecialFrames(_Group):
     hxMax: Positive = Field(description="Largest hx [mm].")
     unsupportedClear: Positive = Field(description="[mm]")
     beamFirstHoop: Positive = Field(description="First hoop from the column face [mm].")
+    columnSpliceDivisor: Positive = Field(
+        description="Ties over the lap splices of columns at most least dimension / divisor."
+    )
+    columnSpliceCap: Positive | None = Field(
+        description="... and at most this [mm]; None: no fixed cap."
+    )
+    columnSpliceZone: bool = Field(
+        description="... and at most the spacing of the end zones (lo) of the column."
+    )
 
     @model_validator(mode="after")
     def _check(self) -> SpecialFrames:
@@ -12229,6 +12238,11 @@ class DesignClausesTable(TableModel):
     )
     clauses: dict[str, dict[str, str]] = Field(
         default_factory=dict, description="Clause reference of each check: {group: {key: clause}}."
+    )
+    methodBasis: str = Field(
+        default="",
+        description="Whose clauses and factors the strength design follows, in brackets after "
+        "the code's name in the report's first method line ('' leaves the brackets out).",
     )
 
 

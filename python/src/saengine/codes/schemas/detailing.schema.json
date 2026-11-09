@@ -1133,6 +1133,30 @@
           "exclusiveMinimum": 0,
           "title": "Beamfirsthoop",
           "type": "number"
+        },
+        "columnSpliceDivisor": {
+          "description": "Ties over the lap splices of columns at most least dimension / divisor.",
+          "exclusiveMinimum": 0,
+          "title": "Columnsplicedivisor",
+          "type": "number"
+        },
+        "columnSpliceCap": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "... and at most this [mm]; None: no fixed cap.",
+          "title": "Columnsplicecap"
+        },
+        "columnSpliceZone": {
+          "description": "... and at most the spacing of the end zones (lo) of the column.",
+          "title": "Columnsplicezone",
+          "type": "boolean"
         }
       },
       "required": [
@@ -1146,7 +1170,10 @@
         "fytConfinementMax",
         "hxMax",
         "unsupportedClear",
-        "beamFirstHoop"
+        "beamFirstHoop",
+        "columnSpliceDivisor",
+        "columnSpliceCap",
+        "columnSpliceZone"
       ],
       "title": "SpecialFrames",
       "type": "object"

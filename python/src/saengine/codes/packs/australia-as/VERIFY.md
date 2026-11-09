@@ -301,3 +301,9 @@ before a number is entered in `designClauses` or a `slabMethods` table of this p
 | M-8 | Two-way slab systems: the equivalent frame method (the parent's) | 6.9 (idealised frame method) | U (method differs in detail) |
 | M-9 | Two-way slab systems: the direct design method (the parent's) | 6.10.4 | U (method differs) |
 | M-10 | Corner reinforcement of two-way panels at exterior corners | 9.1 | U |
+
+## Column splice hoops (pack follow-up 2026-11-09)
+
+| # | Path | Value | Source | Sure? |
+|---|---|---|---|---|
+| S1 | concreteMethods.seismic.columns.lapHoopSpacing | 150 mm: now the ties over the column lap splices (Design Reinforcement and the check), in place of BNBC 2020's min(least dimension / 4, 100 mm) | AS 3600:2018 Clause 14 / Appendix C | Check (clause and value) |

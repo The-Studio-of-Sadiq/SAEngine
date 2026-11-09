@@ -31,3 +31,9 @@ lists. Everything the pack does not set is the base pack's (`aci318-asce7-22`).
 | P22 | factors.phi | tied 0.70, shear 0.85, punching 0.85, bearing 0.70, plain 0.65 (tension 0.90, spirals 0.75 the base pack's) | E.060 9.3.2, 9.3.5 | Strength reduction factors | Check (plain: Uncertain) |
 | P23 | concrete.barNames | 3/8" ... 1 3/8" at 10-36 mm | NTP 341.031 | Bar names | Check |
 | P24 | areaLoads, wind method | the base pack's ASCE 7-22 | E.020 | Live loads, wind | Uncertain (E.020's values not set) |
+
+## Column splice hoops (pack follow-up 2026-11-09)
+
+| # | Path | Value | Source | Sure? |
+|---|---|---|---|---|
+| S1 | detailing.special.columnSplice* (inherited) | the ACI 318-19 pack's: ties over the lap splices of special moment frame columns at the end zones' spacing (least dimension / 4, 6 db, so) | E.060 Chapter 21 (column lap splices) | Check (ACI 318 type; not confirmed) |

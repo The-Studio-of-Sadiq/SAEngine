@@ -27,7 +27,10 @@
     "fytConfinementMax": 700.0,
     "hxMax": 350.0,
     "unsupportedClear": 150.0,
-    "beamFirstHoop": 50.0
+    "beamFirstHoop": 50.0,
+    "columnSpliceDivisor": 4.0,
+    "columnSpliceCap": 100.0,
+    "columnSpliceZone": false
   },
   "joints": {
     "probableStress": 1.25,
@@ -143,6 +146,9 @@
     "shearFriction": "BNBC 2020 Part 6 Sec 6.4.5.4.1, Eq 6.6.66 (p. 931), 6.4.5.4.3 (p. 932): μ = 1.4 λ monolithic, 1.0 λ roughened, 0.6 λ not roughened, 0.7 λ to as-rolled steel; 6.4.5.5: Vn <= min(0.2 f'c, 3.3 + 0.08 f'c, 11) Ac (monolithic or roughened, normal weight), else min(0.2 f'c, 5.5) Ac; 6.4.5.6: fy <= 420 MPa; 6.4.5.7 (p. 933): permanent net compression additive; 6.4.5.9: roughened to about 6 mm",
     "tendonSpacing": "BNBC 2020 Part 6 Sec 9.5.3.2 (a)-(c) (p. 1142): bonded tendons at most 2/3, a bar and a tendon at most 5/6 of the Eq 6.9.1 spacing; Δfps in place of fs, at most 250 MPa; up to 140 MPa (a) and (b) do not apply",
     "special": "BNBC 2020 Part 6 Sec 8.3.4, 8.3.5 (pp. 1090-1100), 8.1.9.4(c)",
+    "special.columnSpliceDivisor": "BNBC 2020 Part 6 Sec 8.3.5.3(b) with Figures 6.8.7-6.8.8 (pp. 1099-1102): ties over the lap splices of special moment frame columns at most the least dimension / 4",
+    "special.columnSpliceCap": "BNBC 2020 Part 6 Sec 8.3.5.3(b) with Figures 6.8.7-6.8.8 (pp. 1099-1102): and at most 100 mm",
+    "special.columnSpliceZone": "BNBC 2020 Part 6 Sec 8.3.5.3(b), Figure 6.8.8: the splice ties are set by their own limits (least dimension / 4, 100 mm), not by the end zone's spacing of Sec 8.3.5.4(b)",
     "joints": "BNBC 2020 Part 6 Sec 8.3.5.2(b), 8.3.7 (pp. 1096, 1108-1110), 8.3.8.2(a) (p. 1112)",
     "walls": "BNBC 2020 Part 6 Sec 8.3.6.2, 8.3.6.6 (pp. 1100-1105), 8.3.6.7(d) (pp. 1108-1109), 8.3.6.8 (pp. 1109-1110); the code does not define a wall pier's proportions: pierLengthRatioMax and pierHeightRatioMin are ACI 318-19 2.3's",
     "lintels": "SAEngine lintel design (design/lintels.py CLAUSES)",

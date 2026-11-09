@@ -32,3 +32,9 @@ does not set is the base pack's (`aci318-asce7-22`, its VERIFY.md).
 |---|---|---|---|---|
 | C26-1 | concrete.barMasses 10, 13, 16, 19 | 0.560, 0.995, 1.56, 2.25 kg/m (D10-D19, nominal 9.53-19.1 mm) | KS D 3504 table of nominal dimensions | Check |
 | C26-2 | concrete.barMasses 22, 25, 29, 32 | 3.04, 3.98, 5.04, 6.23 kg/m (D22-D32, nominal 22.2-31.8 mm) | KS D 3504 table of nominal dimensions | Check |
+
+## Column splice hoops (pack follow-up 2026-11-09)
+
+| # | Path | Value | Source | Sure? |
+|---|---|---|---|---|
+| S1 | detailing.special.columnSplice* (inherited) | the ACI 318-19 pack's: ties over the lap splices of special moment frame columns at the end zones' spacing (least dimension / 4, 6 db, so) | KDS 14 20 80 (special moment frame columns, lap splices) | Check (ACI 318 type; not confirmed) |
