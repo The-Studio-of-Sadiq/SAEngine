@@ -1,0 +1,433 @@
+{
+  "$defs": {
+    "BowImperfection": {
+      "additionalProperties": false,
+      "description": "The equivalent bow imperfection e0 of a member: L / ratio.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "method": {
+          "description": "curveRatio: by the member's buckling curve (ratios); fixedRatio: one ratio (fixedRatio) for every member.",
+          "enum": [
+            "curveRatio",
+            "fixedRatio"
+          ],
+          "title": "Method",
+          "type": "string"
+        },
+        "ratios": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "description": "Buckling curve -> L / e0 (elastic analysis).",
+          "title": "Ratios",
+          "type": "object"
+        },
+        "plasticRatios": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "description": "Buckling curve -> L / e0 when the members' plasticity is modelled (empty: the elastic ratios).",
+          "title": "Plasticratios",
+          "type": "object"
+        },
+        "defaultCurve": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The curve of a member whose curve is not known.",
+          "title": "Defaultcurve"
+        },
+        "fixedRatio": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "L / e0 of fixedRatio.",
+          "title": "Fixedratio"
+        }
+      },
+      "required": [
+        "method"
+      ],
+      "title": "BowImperfection",
+      "type": "object"
+    },
+    "CableResistance": {
+      "additionalProperties": false,
+      "description": "The design tension resistance of a cable: breakingShare × the breaking force.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "breakingShare": {
+          "description": "FRd / Fuk (or φ of the breaking strength).",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Breakingshare",
+          "type": "number"
+        },
+        "minimumPretensionShare": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Pretension at least this share of the breaking force.",
+          "title": "Minimumpretensionshare"
+        }
+      },
+      "required": [
+        "breakingShare"
+      ],
+      "title": "CableResistance",
+      "type": "object"
+    },
+    "EigenmodeImperfection": {
+      "additionalProperties": false,
+      "description": "The first buckling mode as the imperfection, scaled to the pack's amplitude.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "method": {
+          "description": "memberBow: the member moving most in the mode gets the bow amplitude e0; fixedRatio: that member's length over fixedRatio.",
+          "enum": [
+            "memberBow",
+            "fixedRatio"
+          ],
+          "title": "Method",
+          "type": "string"
+        },
+        "fixedRatio": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "L / amplitude of fixedRatio.",
+          "title": "Fixedratio"
+        }
+      },
+      "required": [
+        "method"
+      ],
+      "title": "EigenmodeImperfection",
+      "type": "object"
+    },
+    "FrameSway": {
+      "additionalProperties": false,
+      "description": "The equivalent sway imperfection φ of a frame (rad).",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "method": {
+          "description": "heightAndColumns: φ = (1 / baseRatio) αh αm, αh = 2/√h within [heightFactorMin, 1], αm = √(0.5 (1 + 1/m)); fixedRatio: φ = 1 / baseRatio.",
+          "enum": [
+            "heightAndColumns",
+            "fixedRatio"
+          ],
+          "title": "Method",
+          "type": "string"
+        },
+        "baseRatio": {
+          "description": "1 / φ0 (or 1 / φ of fixedRatio).",
+          "exclusiveMinimum": 0,
+          "title": "Baseratio",
+          "type": "number"
+        },
+        "heightFactorMin": {
+          "default": 0.6666666666666666,
+          "description": "Least αh.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Heightfactormin",
+          "type": "number"
+        }
+      },
+      "required": [
+        "method",
+        "baseRatio"
+      ],
+      "title": "FrameSway",
+      "type": "object"
+    },
+    "PlateImperfection": {
+      "additionalProperties": false,
+      "description": "The geometric imperfection amplitude of plated parts and shells.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "method": {
+          "description": "panelRatio: the panel's shorter side / panelRatio; dimple: U0 √(r t) with U0 of the fabrication class (dimple).",
+          "enum": [
+            "panelRatio",
+            "dimple"
+          ],
+          "title": "Method",
+          "type": "string"
+        },
+        "panelRatio": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "b / amplitude of panelRatio.",
+          "title": "Panelratio"
+        },
+        "dimple": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "description": "Fabrication quality class -> U0,max.",
+          "title": "Dimple",
+          "type": "object"
+        },
+        "defaultClass": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The class taken when none is set.",
+          "title": "Defaultclass"
+        }
+      },
+      "required": [
+        "method"
+      ],
+      "title": "PlateImperfection",
+      "type": "object"
+    },
+    "StabilityPath": {
+      "additionalProperties": false,
+      "description": "The load-displacement path's solver and stopping rules (SAEngine practice by default).",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "method": {
+          "default": "arcLength",
+          "description": "The path-following method by default.",
+          "enum": [
+            "arcLength",
+            "displacementControl"
+          ],
+          "title": "Method",
+          "type": "string"
+        },
+        "steps": {
+          "default": 100,
+          "description": "Steps of the path at most.",
+          "maximum": 5000,
+          "minimum": 5,
+          "title": "Steps",
+          "type": "integer"
+        },
+        "maxDisplacementRatio": {
+          "default": 10.0,
+          "description": "Stop once the control displacement exceeds the height (or span) / this.",
+          "exclusiveMinimum": 0,
+          "title": "Maxdisplacementratio",
+          "type": "number"
+        },
+        "dropShare": {
+          "default": 0.2,
+          "description": "Stop once the load factor falls this share below its peak.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Dropshare",
+          "type": "number"
+        }
+      },
+      "title": "StabilityPath",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Nonlinear buckling (GMNIA) and large-displacement cable analysis: imperfections,\nmaterial of the model, the path's solver and the cables' resistance.",
+  "properties": {
+    "source": {
+      "default": "",
+      "description": "Clause (and page) the table comes from.",
+      "title": "Source",
+      "type": "string"
+    },
+    "sources": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Clause references of single entries: {key: clause}.",
+      "title": "Sources",
+      "type": "object"
+    },
+    "clauses": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Clauses",
+      "type": "object"
+    },
+    "bow": {
+      "$ref": "#/$defs/BowImperfection"
+    },
+    "sway": {
+      "$ref": "#/$defs/FrameSway"
+    },
+    "eigenmode": {
+      "$ref": "#/$defs/EigenmodeImperfection"
+    },
+    "plates": {
+      "$ref": "#/$defs/PlateImperfection"
+    },
+    "yieldFactor": {
+      "default": 1.0,
+      "description": "The model's yield strength = this × fy (1/γM1, or 0.9 ...).",
+      "exclusiveMinimum": 0,
+      "title": "Yieldfactor",
+      "type": "number"
+    },
+    "stiffnessFactor": {
+      "default": 1.0,
+      "description": "The model's modulus = this × E.",
+      "exclusiveMinimum": 0,
+      "title": "Stiffnessfactor",
+      "type": "number"
+    },
+    "hardeningRatio": {
+      "default": 0.0001,
+      "description": "Strain hardening modulus / E of the steel.",
+      "exclusiveMaximum": 1,
+      "minimum": 0,
+      "title": "Hardeningratio",
+      "type": "number"
+    },
+    "requiredFactor": {
+      "default": 1.0,
+      "description": "The limit load factor of the combination needs at least this.",
+      "exclusiveMinimum": 0,
+      "title": "Requiredfactor",
+      "type": "number"
+    },
+    "path": {
+      "$ref": "#/$defs/StabilityPath"
+    },
+    "cables": {
+      "$ref": "#/$defs/CableResistance"
+    },
+    "note": {
+      "default": "",
+      "title": "Note",
+      "type": "string"
+    }
+  },
+  "required": [
+    "bow",
+    "sway",
+    "eigenmode",
+    "plates",
+    "cables"
+  ],
+  "title": "NonlinearStabilityTable",
+  "type": "object",
+  "$id": "saengine.codePack.nonlinearStability/1"
+}

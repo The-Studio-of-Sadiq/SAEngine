@@ -269,6 +269,15 @@ TABLE_HELP: dict[str, str] = {
     "ductility and hysteretic damping, the earthquake level of the devices' design and the "
     "requirements of the damping system. A pack without it models the dampers but does not "
     "reduce the earthquake forces for them.",
+    "nonlinearStability": "Nonlinear buckling (GMNIA) and cables (alpha 9 L4): the equivalent "
+    "bow and sway imperfections, the eigenmode imperfection's amplitude, the plated parts' "
+    "amplitude, the model's yield and stiffness factors and hardening, the path's solver and "
+    "the cables' design tension as a share of the breaking force. A pack without it gets the "
+    "default pack's (SAEngine practice).",
+    "connectionFe": "Finite element check of steel joints (CBFEM, alpha 9 L6): the plates' "
+    "plastic strain limit, the design yield factor and hardening, the bolts' stiffness method, "
+    "the stiffness classification bounds and the mesh. A pack without it gets the default "
+    "pack's (SAEngine practice).",
     "nonlinearHistory": "Nonlinear time history analysis: the procedure (the target, how the "
     "records' results combine, scaling to the static base shear, P-delta, design review), the "
     "drift limits and the member acceptance criteria.",

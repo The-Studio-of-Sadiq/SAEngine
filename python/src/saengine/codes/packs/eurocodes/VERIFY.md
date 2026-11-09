@@ -648,6 +648,26 @@ length along the bar's centre line (SAEngine practice), with the mandrel diamete
 | P4E14 | existing.frp.environment | 1.0 (EN 1998-3 gives none) | none | SAEngine practice |
 | P4E15 | existing.nonlinear | θum with fc and fy over CF (× CF^-0.225 × 0.3^(ν (CF - 1))), shear by Eq A.12 at the target | EN 1998-3 Sec 3.5, A.3.2.2, A.3.3.1 | Check |
 
+## Nonlinear stability (`nonlinearStability`) and the FE check of joints (`connectionFe`), alpha 9 L4 / L6
+
+| # | Path | Value | Source | Sure? |
+|---|---|---|---|---|
+| L4E1 | bow.ratios | L/e0 = 350, 300, 250, 200, 150 for curves a0, a, b, c, d (elastic analysis) | EN 1993-1-1 Table 5.1 | Sure |
+| L4E2 | bow.plasticRatios | L/e0 = 300, 250, 200, 150, 100 (plastic analysis) | EN 1993-1-1 Table 5.1 | Sure |
+| L4E3 | sway | φ0 = 1/200, αh = 2/√h with 2/3 ≤ αh ≤ 1, αm = √(0.5 (1 + 1/m)) | EN 1993-1-1 5.3.2(3) Eq 5.5 | Sure |
+| L4E4 | eigenmode | the first mode scaled so that its most bowed member gets e0 of Table 5.1 | EN 1993-1-1 5.3.2(11) (Eq 5.11 simplified) | Check (simplified amplitude) |
+| L4E5 | plates.panelRatio | panel imperfection min(a, b) / 200 | EN 1993-1-5 Annex C Table C.2 | Check |
+| L4E6 | plates.dimple | U0,max = 0.006 / 0.010 / 0.016 for fabrication classes A / B / C | EN 1993-1-6 Table 8.4 | Check |
+| L4E7 | yieldFactor, stiffnessFactor | 1.0 and 1.0 (γM1 = 1.0 recommended) | EN 1993-1-5 C.9, EN 1993-1-1 6.1 | Check |
+| L4E8 | hardeningRatio | E/10000 nominal plateau slope | EN 1993-1-5 C.6(2) Fig C.2 (b) | Unsure (figure from memory) |
+| L4E9 | cables.breakingShare | FRd = Fuk / (1.5 γR), γR = 0.90: 0.741 | EN 1993-1-11 6.2(2) and Table 6.2 | Unsure (γR by the socket kind) |
+| L6E1 | plasticStrainLimit | 5 % principal (equivalent) plastic strain | EN 1993-1-5 Annex C C.8 Note 1 | Sure |
+| L6E2 | yieldFactor | fy / γM0, γM0 = 1.0 | EN 1993-1-1 6.1 | Sure |
+| L6E3 | hardeningRatio | E/1000 | SAEngine practice (C.6 allows a hardening slope) | Practice |
+| L6E4 | boltStiffness | k10 = 1.6 As/Lb, k11 = 16 nb d² fub / (E dM16) | EN 1993-1-8 Table 6.11 | Check |
+| L6E5 | classification | pinned ≤ 0.5 E Ib/Lb; rigid ≥ 8 (braced) or 25 (unbraced) E Ib/Lb | EN 1993-1-8 5.2.2.5 | Sure |
+| L6E6 | elementSize, elementsAcross, loadSteps | 10 mm, 8 across, 10 steps | SAEngine practice | Practice |
+
 ## Precast pieces (`precast`; alpha 9 L1; EN 1992-1-1 Section 10)
 
 | # | Path | Value | Source | Sure? |

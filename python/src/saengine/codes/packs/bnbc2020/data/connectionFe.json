@@ -1,0 +1,35 @@
+{
+  "$schema": "../../../schemas/connectionFe.schema.json",
+  "$sources": [
+    "BNBC 2020 Part 6 Chapter 10 gives no finite element design of joints; the plastic strain limit is SAEngine practice after EN 1993-1-5 Annex C Sec C.8 Note 1, the bolt stiffness after EN 1993-1-8 Table 6.11, the classification after AISC 360-05 Commentary B3.6 (KS L / E I: at least 20 rigid, at most 2 simple); see VERIFY.md"
+  ],
+  "source": "SAEngine practice where BNBC 2020 gives no method: CBFEM with the plastic strain limit of EN 1993-1-5 Annex C Sec C.8, the bolt stiffness of EN 1993-1-8 Table 6.11 and the AISC 360-05 Commentary B3.6 classification",
+  "plasticStrainLimit": 0.05,
+  "yieldFactor": 0.9,
+  "hardeningRatio": 0.001,
+  "boltStiffness": "componentTable",
+  "classification": {
+    "method": "stiffnessRatio",
+    "pinned": 2.0,
+    "rigidBraced": 20.0,
+    "rigidUnbraced": 20.0,
+    "source": "AISC 360-05 Commentary B3.6 (SAEngine practice)"
+  },
+  "elementSize": 10.0,
+  "elementsAcross": 8,
+  "loadSteps": 10,
+  "clauses": {
+    "basis": "SAEngine practice (BNBC 2020 Part 6 Chapter 10 gives no FE method)",
+    "strain": "EN 1993-1-5 Annex C Sec C.8 Note 1 (practice)",
+    "bolts": "Part 6 Sec 10.10.3.6-10.10.3.7",
+    "welds": "Part 6 Sec 10.10.2.2.2",
+    "stiffness": "EN 1993-1-8 Table 6.11 (practice)",
+    "classification": "AISC 360-05 Commentary B3.6 (practice)"
+  },
+  "sources": {
+    "yieldFactor": "φ = 0.90 of yielding (Part 6 Ch 10), SAEngine practice",
+    "hardeningRatio": "SAEngine practice (E/1000)",
+    "boltStiffness": "EN 1993-1-8 Table 6.11 components 10 and 11 (practice)"
+  },
+  "note": "The joint's FE check is SAEngine practice; the bolt and weld resistances are the pack's own connection rules."
+}

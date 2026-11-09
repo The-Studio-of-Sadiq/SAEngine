@@ -41,6 +41,52 @@ here, newest first, with the date, the question, the decision, the reason and wh
 - **No unlicensed software.** ETABS, SAP2000 and STAAD are not used for cross-checks or cited.
   Open-source tools are used instead (2026-10-25).
 
+## 2026-11-09: nonlinear buckling (GMNIA), cables and the FE check of steel joints (alpha 9 tracks L4 and L6)
+
+- **Nonlinear stability (L4, `fem/nonlinear_stability.py`).** An analysis the engineer sets in
+  Project Settings, Analysis, Nonlinear stability (one combination) and runs from the FEM
+  results. The frames, trusses, links, supports and diaphragms of the derived model (walls,
+  slabs and solids left out, as in the linear buckling model, so that λu compares with αcr);
+  each frame element cut into pieces; co-rotational frames and trusses; steel members as
+  fibre elements (Steel02) at the pack's design yield and modulus; load control to λ = 1, then
+  arc length (cylindrical) or displacement control past the peak. The limit load factor λu is
+  the path's peak; a path still rising when it stops is reported as a lower bound.
+  *SAEngine practice*: the pieces (4 by default), the stopping rules (a 20 % drop past the
+  peak, a displacement of the height / 10), the first-order axial forces taken for αcr and
+  the bow directions (each compressed member about its weak axis), residual stresses left
+  to the equivalent imperfections.
+- **Imperfections by the pack** (`nonlinearStability` table, `codes/stability_tables.py`):
+  bow by curve ratio (EN 1993-1-1 Table 5.1) or one ratio (AISC L/1000); sway φ0 αh αm
+  (EN 1993-1-1 5.3.2(3)) or one ratio (AISC L/500); the first buckling mode scaled so that the
+  member that bows most in it gets the pack's bow (a simplification of EN 1993-1-1 5.3.2(11),
+  *SAEngine practice*); a pure sway mode scaled to φ h. **BNBC 2020 gives no GMNIA method**:
+  the default pack's table is *SAEngine practice* on the AISC 360 basis BNBC Part 6 Ch 10
+  adopts (L/1000, L/500, 0.9 Fy and 0.9 E), stated in the results.
+- **Cables** (`fem/cables.py`): a brace type's `cable` (pretension, breaking force, modulus,
+  pieces) becomes a tension-only chain of co-rotational trusses with the pretension as an
+  initial strain, its own weight on its interior nodes; sag and tension read at λ = 1. The
+  linear analysis keeps the brace as it was (no change to existing results). A cable needs a
+  pretension (a straight slack cable has no stiffness). Design tension = the pack's share of
+  the breaking force (EN 1993-1-11 6.2, Fuk / (1.5 γR), γR 0.9, in all three packs: *to verify*;
+  the US pack has no ASCE 19 values yet).
+- **CBFEM (L6, `design/connection_fe.py`).** "FE Check..." on a steel member whose end
+  connection is an end plate or a fin plate (FEM results, Properties). Plates as layered shells
+  (J2 plasticity, linear hardening E/1000), bolts as tension-only links with shear springs
+  (EN 1993-1-8 Table 6.11 stiffness in all packs: *SAEngine practice* outside the Eurocodes),
+  compression-only contact links, welds as stiff elastic links; the member's governing end
+  (largest shear of the combinations) loaded at a stub with the stub's lever arm taken off;
+  checks: plastic strain ≤ 5 % (EN 1993-1-5 C.8 Note 1; *SAEngine practice* for the default and
+  US packs), bolts and welds by the pack's own connection rules (reused), Sj,ini classified by
+  the pack's bounds (EN 1993-1-8 5.2.2.5; AISC 360 Commentary B3 20 / 2).
+  *SAEngine practice*: a mapped (structured) quad mesh instead of gmsh, so that the plates'
+  nodes meet at every bolt, weld and contact point without interpolation links; the supporting
+  member as a plate held along its web line (end plate) or rigid (fin plate); no holes,
+  preload, friction or plate buckling.
+- **Not built (stays for later):** shells (walls, slabs, plated girders) in the GMNIA model
+  (the `plates` imperfection values are in the packs for it), the fem-viewer strain contour
+  (the result carries the mesh and each shell's plastic strain for it), CBFEM of the other
+  connection kinds.
+
 ## 2026-11-05: floor response spectra (alpha 9 track L5)
 
 - **Where it lives.** Project Settings, Analysis, Floor response spectra (off unless set):

@@ -49,6 +49,8 @@
     "dampers",
     "existing",
     "hazardLookup",
+    "nonlinearStability",
+    "connectionFe",
     "precast",
     "floorSpectra"
   ],
@@ -128,6 +130,12 @@
     }
   ],
   "clauses": {
+    "nonlinearStability": [
+      "AISC 360-22 Appendix 1 and Sec C2.2a; plated parts and cables SAEngine practice"
+    ],
+    "connectionFe": [
+      "SAEngine practice with AISC 360-22 Chapter J resistances and Commentary B3.4b"
+    ],
     "floorSpectra": [
       "ASCE 4-16 Ch 6 in-structure spectra (±15 % broadening); ASCE 7-22 Ch 13 component forces"
     ],

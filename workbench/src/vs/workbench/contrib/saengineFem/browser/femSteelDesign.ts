@@ -64,6 +64,8 @@ export interface IFemSteelInteraction {
 export interface IFemSteelConnection {
 	/** "Shear tab", "End plate", "Gusset plate". */
 	readonly name: string;
+	/** Alpha 9 L6: the connection kind of design/steel_connections.py ("endPlate", "finPlate", ...). */
+	readonly kind?: string | null;
 	/** "i", "j", or "both" (the same at both ends). */
 	readonly end?: string | null;
 	/** "4 M20 8.8 bolts, 10 mm plate, 6 mm fillet welds". */
@@ -180,6 +182,7 @@ function connectionKindLabel(kind: string | undefined): string {
 function readConnection(entry: IFemSteelConnectionEntry): IFemSteelConnection {
 	return {
 		name: entry.name ?? connectionKindLabel(entry.connection),
+		kind: entry.connection,
 		end: entry.end,
 		description: entry.description,
 		checks: entry.checks ?? [],

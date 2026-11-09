@@ -40,6 +40,8 @@
     "concreteTime",
     "isolation",
     "existing",
+    "nonlinearStability",
+    "connectionFe",
     "precast",
     "floorSpectra"
   ],
@@ -167,6 +169,12 @@
     }
   ],
   "clauses": {
+    "nonlinearStability": [
+      "EN 1993-1-1 Sec 5.3, EN 1993-1-5 Annex C, EN 1993-1-6 Sec 8.7, EN 1993-1-11 Sec 6.2"
+    ],
+    "connectionFe": [
+      "EN 1993-1-5 Annex C Sec C.8, EN 1993-1-8 Sec 5.2.2 and Table 6.11"
+    ],
     "floorSpectra": [
       "SAEngine practice where EN 1998-1 4.3.5 gives no floor spectra (ASCE 4-16 Ch 6 broadening)"
     ],

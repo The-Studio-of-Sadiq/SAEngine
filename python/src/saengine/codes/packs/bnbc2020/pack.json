@@ -66,6 +66,8 @@
     "barSchedule",
     "excavationSupport",
     "existing",
+    "nonlinearStability",
+    "connectionFe",
     "precast",
     "floorSpectra"
   ],
@@ -79,6 +81,12 @@
     }
   ],
   "clauses": {
+    "nonlinearStability": [
+      "BNBC 2020 gives no GMNIA method (Part 6 Chapter 10, AISC 360-05 basis): SAEngine practice (AISC 360 Appendix 7 imperfections, EN 1993-1-5 Annex C, EN 1993-1-11)"
+    ],
+    "connectionFe": [
+      "BNBC 2020 gives no FE design of joints: SAEngine practice (EN 1993-1-5 C.8 strain limit, EN 1993-1-8 Table 6.11, AISC 360-05 Commentary B3.6)"
+    ],
     "floorSpectra": [
       "SAEngine practice where BNBC 2020 Part 6 Sec 2.5.15 gives no floor spectra: time history or direct spectrum-to-spectrum, ±15 % broadening (ASCE 4-16 Ch 6)"
     ],

@@ -1079,6 +1079,20 @@ def create_server() -> JsonRPCServer:
         args = _plain(params)
         return handlers.second_order_summary(args["outDir"], args["projectPath"])
 
+    @server.feature("fem/nonlinearStability")
+    @_in_worker
+    def _nonlinear_stability(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.nonlinear_stability(
+            args["outDir"], args["projectPath"], bool(args.get("run"))
+        )
+
+    @server.feature("design/connectionFe")
+    @_in_worker
+    def _connection_fe(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.connection_fe(args["outDir"], args["projectPath"], args.get("member"))
+
     @server.feature("fem/storyResponse")
     @_in_worker
     def _story_response(params: Any) -> dict[str, Any]:

@@ -25,11 +25,12 @@ import { IFemResultEntry, IFemResultList, IFemResultView } from '../../../../pla
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { defaultButtonStyles, defaultSelectBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { appendPropertyHeading, appendPropertyNote, appendPropertyRow, EditorFrame, IEditorFrameIconButton, IEditorFrameStatus } from '../../saengineProject/browser/editorFrame.js';
-import { describeDesignCounts, describeEngineError, describeDesignSummary, describeSlenderness, describeSteel, describeSteelRatio, designElementOf, designInputs, designKindLabel, designUtilisation, formatCheckValues, formatUtilisation, IFemDesignReport, IFemDesignRequired, IFemSteelRequirement, isOtherFailure, isSecondOrderRequired, isSlendernessCheck, NO_CAPACITY_UTILISATION, otherFailureElements, requiredSteelOf, resultsFolder, runDesign, runDesignRequired, secondOrderRequiredMembers, shortElements, slabRebar, slendernessHeading, sortedChecks, tooSmallElements, writeDesignSummary, STRUT_AND_TIE_COMMAND } from './femDesign.js';
+import { describeDesignCounts, describeEngineError, describeDesignSummary, describeSlenderness, describeSteel, describeSteelRatio, designElementOf, designInputs, designKindLabel, designUtilisation, formatCheckValues, formatUtilisation, IFemDesignElement, IFemDesignReport, IFemDesignRequired, IFemSteelRequirement, isOtherFailure, isSecondOrderRequired, isSlendernessCheck, NO_CAPACITY_UTILISATION, otherFailureElements, requiredSteelOf, resultsFolder, runDesign, runDesignRequired, secondOrderRequiredMembers, shortElements, slabRebar, slendernessHeading, sortedChecks, tooSmallElements, writeDesignSummary, STRUT_AND_TIE_COMMAND } from './femDesign.js';
 import { describeScaleOnResult, describeSecondOrder, FemAxis, IFemSecondOrder, isFirstOrderReference, IFemSeismicDesign, runSecondOrder, runSeismicDesign, seismicSection, spectrumAxis, storeyAmplificationRows } from './femSeismicDesign.js';
 import { FemSsiPanel } from './femSsi.js';
 import { describeJointsSummary, describeJointVerdict, detailingSection, FemDetailingItem, generalChecks, IFemDetailingModel, IFemJoint, jointAtNode, jointColouring, jointHeading, jointItems, jointNodeUtilisation, jointOk, jointsOf, jointsOfMember } from './femSeismicDetailing.js';
 import { describeSteelSummary, memberConnectionChecks, steelSection } from './femSteelDesign.js';
+import { connectionFeItems, FEM_CONNECTION_FE_COMMAND, hasFeCheck, IFemConnectionFe } from './femConnectionFe.js';
 import { appendPlannedChips, FemPlanned, STEEL_COMPOSITE_PLANNED, STEEL_CONNECTIONS_PLANNED, STEEL_SHEDS_PLANNED } from './femPlannedFeatures.js';
 import { timberSection } from './femTimberDesign.js';
 import { checkItems, describeStaircaseVerdict, describeWallsSummary, formatPierForce, IFemPierDiagram, isStaircase, isWall, ownChecks, pierDiagram, staircasesOf, staircaseSection, wallSection } from './femWallsStairs.js';
@@ -487,6 +488,9 @@ export class FemResultsBar extends Disposable {
 	private playToken = 0;
 	private readonly watch = this._register(new DisposableStore());
 	private readonly diaphragmChips = this._register(new DisposableStore());
+	/** Alpha 9 L6: the FE Check button of a steel member's connection, and the checks made (by model and member). */
+	private readonly feChips = this._register(new DisposableStore());
+	private readonly connectionFe = new Map<string, IFemConnectionFe | 'running'>();
 	private readonly resultsWatch = this._register(new MutableDisposable());
 	/** The "Planned" chips of the properties shown (see `FemPlanned`). */
 	private readonly plannedChips = this._register(new MutableDisposable<DisposableStore>());
@@ -1728,6 +1732,7 @@ export class FemResultsBar extends Disposable {
 		// A steel member's class, lengths, Cb and governing clause, then its connections.
 		const steel = steelSection(element);
 		this.renderDetailing(container, steel);
+		this.renderConnectionFe(container, element);
 		// A timber member's section, stresses and end joint, then the joints still planned (screws).
 		const timber = timberSection(element);
 		this.renderDetailing(container, timber);
@@ -1749,6 +1754,40 @@ export class FemResultsBar extends Disposable {
 		if (this.requiredLoading) {
 			appendPropertyNote(container, localize('femResults.steelLoading', "Working out the steel required..."));
 		}
+	}
+
+	/**
+	 * Alpha 9 L6: a steel member's end plate or fin plate checked by finite elements (CBFEM),
+	 * on demand: the button, the check running, or its result.
+	 */
+	private renderConnectionFe(container: HTMLElement, element: IFemDesignElement): void {
+		this.feChips.clear();
+		const resource = this.resource;
+		if (!resource || !hasFeCheck(element)) {
+			return;
+		}
+		const key = `${resource.toString()}|${element.id}`;
+		const found = this.connectionFe.get(key);
+		if (found === 'running') {
+			appendPropertyNote(container, localize('femResults.feRunning', "Checking the connection by finite elements..."));
+			return;
+		}
+		if (found) {
+			this.renderDetailing(container, connectionFeItems(found));
+		}
+		const button = this.feChips.add(new Button(append(container, $('.fem-results-stm')), { ...defaultButtonStyles, secondary: true, title: localize('femResults.feCheckTitle', "Check the end connection with a finite element model of its plates, bolts and welds (CBFEM) for the member's design end forces") }));
+		button.label = found ? localize('femResults.feCheckAgain', "FE Check Again") : localize('femResults.feCheck', "FE Check...");
+		this.feChips.add(button.onDidClick(async () => {
+			this.connectionFe.set(key, 'running');
+			this.host.changed();
+			try {
+				const result = await this.commandService.executeCommand<IFemConnectionFe>(FEM_CONNECTION_FE_COMMAND, resource, element.id);
+				this.connectionFe.set(key, result ?? { error: localize('femResults.feNoResult', "no result") });
+			} catch (error) {
+				this.connectionFe.set(key, { error: error instanceof Error ? error.message : String(error) });
+			}
+			this.host.changed();
+		}));
 	}
 
 	/** Draws the items of a seismic detailing section (a member's, or a joint's). */
