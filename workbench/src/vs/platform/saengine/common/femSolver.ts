@@ -351,6 +351,13 @@ export interface ISoilTemplate {
 	readonly problems?: readonly string[];
 }
 
+/** The AGS4 or DIGGS file written, with what it could not hold (alpha 9 L8). */
+export interface ISoilExport {
+	readonly path?: string;
+	readonly notes?: readonly string[];
+	readonly problems?: readonly string[];
+}
+
 /** Net allowable bearing pressure of one footing (`saengine.soil.allowable_bearing`). Lengths in mm. */
 export interface ISoilBearingRequest {
 	readonly soilText: string;
@@ -518,6 +525,9 @@ export interface IFemSolverService {
 
 	/** Writes the borehole import template (.csv or .xlsx by the extension of `path`). */
 	soilTemplate(python: string, path: string): Promise<ISoilTemplate>;
+
+	/** Writes the soil report's boreholes as AGS4 (.ags) or DIGGS (.xml) by the extension of `path` (alpha 9 L8). */
+	exportSoil(python: string, path: string, soilText: string): Promise<ISoilExport>;
 
 	/** Where the site class and the allowable bearing pressure come from, for Project Settings. */
 	soilSources(python: string, soilText: string | undefined, settingsText: string | undefined, projectRoot?: string): Promise<ISoilSources>;

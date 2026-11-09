@@ -848,3 +848,13 @@ live answer before release.
 | P8U2 | floorVibration.compositeDynamicModulus | Ec,dyn = 1.35 Ec, full interaction | AISC Design Guide 11 2nd ed. Sec 3.2 (the dynamic modulus, the transformed moment of inertia with full composite action) | Check |
 
 Not covered by this pack: composite slabs on steel deck (the compositeSlab table; the ANSI/SDI C-2017 values are not entered). A slab type's composite deck is reported as not checked.
+
+## Slope stability (`slopeStability`; alpha 9 L8)
+
+IBC 2021 and ASCE 7-22 give no slope method or factor of safety; the values are the parent's SAEngine practice with US sources.
+
+| # | Path | Value | Source | Sure? |
+|---|---|---|---|---|
+| L8U1 | required.permanent / temporary | 1.5 / 1.3 | USACE EM 1110-2-1902 (2003) Table 3-1 | Check |
+| L8U2 | required.seismic, seismic.khFactor | 1.1 with kh = 0.5 PGA | FHWA-NHI-11-032 Sec 6.3 (pseudo-static) | Check |
+| L8U3 | reinforcement | tensile 1.8, pull-out 2.0 | FHWA-NHI-14-007 (GEC 7, 2015) | Unsure (see bnbc2020 L8B8) |

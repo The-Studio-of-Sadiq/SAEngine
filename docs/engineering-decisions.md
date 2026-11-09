@@ -41,6 +41,52 @@ here, newest first, with the date, the question, the decision, the reason and wh
 - **No unlicensed software.** ETABS, SAP2000 and STAAD are not used for cross-checks or cited.
   Open-source tools are used instead (2026-10-25).
 
+## 2026-11-09: slope stability, 2D geotechnical FE and AGS4/DIGGS exchange (alpha 9 track L8)
+
+- **Where it lives.** Slopes are a list of 9 Substructure (`substructure.json` `slopes`), next to
+  the excavations whose wall, stages and supports (P1) the 2D FE reuses; the section cut from the
+  site's strata reads 01 Soil Report's stratigraphy (linked, never copied). The AGS4 and DIGGS
+  exchange lives in 01 Soil Report beside the CSV/Excel import (one import command, by the file's
+  extension; the fields it cannot map are listed as notes).
+- **Code pack table `slopeStability`.** BNBC 2020 gives no slope method or factor of safety (Part
+  6 Sec 3.21 lists landslides as a geo-hazard, Sec 3.14 the stability of adjoining buildings):
+  the default pack's values are **SAEngine practice**: factors of safety 1.5 (permanent), 1.3
+  (temporary), 1.1 (pseudo-static) as in USACE EM 1110-2-1902 Table 3-1 practice, kh = 0.5 PGA
+  (Hynes-Griffin and Franklin 1984), kv = 0; Bishop, Spencer and Morgenstern-Price checked,
+  Janbu reported. The Eurocodes pack checks by the partial factors of its design approach
+  (geotechnicalMethods: M sets on the strengths, A sets on the variable surcharges, F ≥ γR;e of
+  Annex A Table A.14) and EN 1998-5 4.1.3.3 (kh = 0.5 α S, kv = ± 0.5 kh) on M2; the US pack
+  keeps the factors of safety with US sources. Other packs inherit through `extends`.
+- **SAEngine practice in the methods.** The soil's own weight is not factored under partial
+  factors (single-source principle, `partialFactors.soilWeight` 1.0); a slice with mα < 0.2 makes
+  its surface unreliable and it is left out of the search (Whitman and Bailey 1967); Bishop's
+  method is run on circles only; Janbu's corrected factor uses b1 of Abramson et al. (2002);
+  Spencer and Morgenstern-Price find λ by bisection between ±2; pore pressures from a phreatic
+  line are hydrostatic below it (no seepage correction); free water above the ground is not
+  weighed; nails and anchors act as resisting forces along their axis where the slip surface
+  crosses them, min(tensile / 1.8, pull-out / 2.0) per metre (FHWA-NHI-14-007 factors in the
+  default pack); a vertical seismic coefficient is checked with both signs.
+- **The search.** Circles over a grid of centres above the slope (or the box given) and radii
+  tangent to levels down to the base, refined twice about the best; non-circular surfaces by a
+  random walk (seeded, so results repeat) of eight vertices from the critical circle, kept
+  concave and under the ground; every method of the check then runs on the best surfaces and
+  reports its lowest factor.
+- **2D FE (optional, for experienced users).** Plane strain on a Gmsh mesh of the section
+  (`saengine.fem.mesh`), OpenSees quad/tri31 with Drucker-Prager matched to Mohr-Coulomb in plane
+  strain (or PDMY/PIMY multi-yield, or J2 for undrained clay), K0 stresses from an elastic gravity
+  stage with ν = K0/(1+K0) when ν is not given, P1's wall (EI per metre, EA of a solid plate of
+  that EI, no weight, bonded to the soil) wished in place with its forces reported as the change
+  after gravity, P1's supports as springs to fixed points (compression-only struts and rakers,
+  tension-only anchors) placed at their stage, excavated elements released over the stage's load
+  steps, the excavation taken as half of a symmetric one. The strength reduction factor (each
+  trial a fresh analysis, Griffiths and Lane 1999) is reported beside the limit equilibrium as a
+  flagged row: the limit equilibrium is the check.
+- **AGS4 / DIGGS.** SAEngine keeps the SPT's 150 mm increments, AGS4 the 75 mm ones: the export
+  writes N1, N2, a refusal without its penetration and the sample number into `ISPT_REM`, the
+  soil type and USCS group into `GEOL_REM`, the method into `LOCA_REM` (read back by the import);
+  positions in a national grid other than BTM come in relative to the first borehole. DIGGS
+  output is written by the 2.6 element names as known and is not validated against the schema.
+
 ## 2026-11-09: nonlinear buckling (GMNIA), cables and the FE check of steel joints (alpha 9 tracks L4 and L6)
 
 - **Nonlinear stability (L4, `fem/nonlinear_stability.py`).** An analysis the engineer sets in

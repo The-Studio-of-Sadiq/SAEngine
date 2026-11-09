@@ -379,6 +379,12 @@ CommandsRegistry.registerCommand('saengine.soil.template', async (accessor, args
 	return accessor.get(IFemSolverService).soilTemplate(python, args.path);
 });
 
+/** Writes the soil report's boreholes as AGS4 or DIGGS (alpha 9 L8). Internal: the Soil Report editor calls it by id. */
+CommandsRegistry.registerCommand('saengine.soil.export', async (accessor, args: { path: string; soilText: string }) => {
+	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
+	return accessor.get(IFemSolverService).exportSoil(python, args.path, args.soilText);
+});
+
 /** Net allowable bearing pressure of one footing from the soil report (lengths in mm). */
 CommandsRegistry.registerCommand('saengine.soil.allowableBearing', async (accessor, request: ISoilBearingRequest) => {
 	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();

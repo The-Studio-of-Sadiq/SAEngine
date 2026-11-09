@@ -723,3 +723,17 @@ length along the bar's centre line (SAEngine practice), with the mandrel diamete
 | P8E19 | composite.beam.camber | 80 % of the wet-concrete deflection on the steel alone, 5 mm steps, none below 20 mm | none (EN 1994-1-1 gives no camber rule) | SAEngine practice |
 | P8E20 | floorVibration.compositeDynamicModulus | Ec,dyn = 1.1 Ecm, full interaction | SCI P354 (the dynamic modulus of normal-weight concrete) | Unsure (check the factor of SCI P354) |
 | P8E21 | deck profiles | DECK_PROFILES: generic trapezoidal 46/150, 60/300, 80/300 (geometry only) | none (not a product's) | SAEngine practice: replace by the product's data |
+
+## Slope stability (`slopeStability`; alpha 9 L8)
+
+| # | Path | Value | Source | Sure? |
+|---|---|---|---|---|
+| L8E1 | verification | partial factors of the design approach (geotechnicalMethods.designApproach, DA1 here) | EN 1997-1 11.5.1 with 2.4.7.3.4 | Sure |
+| L8E2 | partialFactors.resistances | γR;e R1 1.0, R2 1.1, R3 1.0 | EN 1997-1 Annex A Table A.14 (slopes and overall stability) | Check |
+| L8E3 | partialFactors.soilWeight | 1.0 (the soil's weight not factored; γγ of the M set still divides it) | EN 1997-1 2.4.2(9)P note (single source) | SAEngine practice |
+| L8E4 | checked | all four methods | EN 1997-1 11.5.1(1)P-(6) | SAEngine practice |
+| L8E5 | seismic.khFactor | 0.5 (FH = 0.5 α S W) | EN 1998-5 4.1.3.3(3), Eq 4.1 | Sure |
+| L8E6 | seismic.kvRatio | 0.5 (FV = ± 0.5 FH; 0.33 where avg/ag ≤ 0.6) | EN 1998-5 4.1.3.3(4), Eq 4.2 | Check (0.5 taken for every site) |
+| L8E7 | seismic.materials / required | M2 (γφ' 1.25, γc' 1.25, γcu 1.4), F ≥ 1.0 | EN 1998-5 3.1(3) Note | Check |
+| L8E8 | reinforcement | as the parent (FHWA-NHI-14-007 factors) | none in EN 1997-1 for soil nails | SAEngine practice |
+| L8E9 | topographic amplification ST | not applied (kh by α S of the seismic settings) | EN 1998-5 4.1.3.3 / EN 1998-5 Annex A | Not built |

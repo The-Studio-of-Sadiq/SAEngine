@@ -196,6 +196,40 @@ notes and the method.
 **The checks run on the saved file**: save (Ctrl+S) to check your latest edits; the view warns
 *These are the checks of the saved file. Save to check the latest edits.*
 
+## Slopes
+
+The **Slopes** section of the data view checks slopes on 2D sections (alpha 9 L8). **Add Slope**
+starts a drawn 2 : 1 slope 10 m high; with no foundations yet, the empty page offers **Check a
+Slope of the Site**.
+
+- **Section**: *Drawn* (the ground surface and, in **Slope strata**, the top line of each
+  stratum below the first, typed as `x, level; x, level` in m) or *Cut from the site's strata*
+  (the stratigraphy of 1 Soil Report between the plan points *Start* and *End*; each unit U1, U2,
+  … takes the mean of the boreholes' layers in it, a soil row with the unit's id overrides single
+  values; a ground surface typed here is a designed cut or fill over the strata, the fill being
+  the soil `FILL`).
+- **Water**: a water line (hydrostatic below it), or a pore pressure ratio ru of the section or of
+  a soil; cut from the strata, the boreholes' water table when none is drawn.
+- **Loads and reinforcement**: strip surcharges (variable or permanent), soil nails and ground
+  anchors (tensile capacity, bond, hole diameter, an anchor's fixed length).
+- **Search**: circular (grid of centres above the slope, or the *Centre grid* given) or
+  non-circular (optimised from the critical circle); the least depth leaves out shallow surface
+  slips.
+- **Methods**: Bishop simplified, Janbu simplified (corrected), Spencer and Morgenstern-Price
+  (half-sine), as the code pack runs and checks them; tick methods to run only those.
+- **Verification**: the code pack's: factors of safety (permanent, temporary, seismic; the
+  default pack's values are SAEngine practice, BNBC 2020 giving none) or the partial factors of
+  its design approach (Eurocodes: DA1 C1 and C2, F ≥ γR;e). *Seismic* adds the pseudo-static case
+  with kh = the pack's factor × the peak ground acceleration (or the kh given).
+
+The results show the section to scale with each method's critical surface and the centres
+searched, a table of F by case and method (λ of Spencer and Morgenstern-Price) and the soils
+used. **2D FE** (for experienced users) meshes the section and analyses it in plane strain with
+OpenSees: the at-rest stresses, the soil models (Mohr-Coulomb by default), optionally the stages,
+wall and supports of an excavation of this part, and the factor of safety by strength reduction;
+the displacements and plastic points are drawn on the mesh. The FE runs with every check, so it
+slows them down; the limit equilibrium is the check.
+
 ## Outputs
 
 The foundations are measured in the BOQ, drawn on the *Foundation plan* and *Foundation details*

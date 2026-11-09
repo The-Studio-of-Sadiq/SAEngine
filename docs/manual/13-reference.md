@@ -24,7 +24,7 @@ SAEngine commands are in the category **SAEngine**; floor-plan commands in **Flo
 | Print Design Report | File, Exports page |
 | Export Bill of Quantities as CSV... | BOQ, Exports page |
 | Open DXF in CAD... | File |
-| Add Borehole to the Soil Report, Import Boreholes from CSV/Excel..., Save Borehole Template... | Soil Report toolbar |
+| Add Borehole to the Soil Report, Import Boreholes from CSV, Excel, AGS4 or DIGGS..., Save Borehole Template... | Soil Report toolbar |
 | Size Footings, Import Footings from the Building Model into the Substructure | Substructure toolbar |
 | Suggest Sleeves from the MEP Clashes | MEP toolbar |
 | Floor Plan: Toggle Command Line, Select All on Story, Select by Type..., Copy Selection to Stories..., Mirror Selection..., Delete Selection, Members Table | floor plan |

@@ -21,6 +21,8 @@ export const SOIL_SCHEMA_ID = 'saengine.soilReport/1';
 export const SOIL_COMPUTE_COMMAND = 'saengine.soil.compute';
 export const SOIL_IMPORT_COMMAND = 'saengine.soil.import';
 export const SOIL_TEMPLATE_COMMAND = 'saengine.soil.template';
+/** Alpha 9 L8: writes the boreholes as AGS4 (.ags) or DIGGS (.xml); `{path, notes}` or `{problems}`. */
+export const SOIL_EXPORT_COMMAND = 'saengine.soil.export';
 
 /**
  * Desktop commands of the backend for the site map (`saengine.gis`); absent without one, and the
@@ -657,6 +659,13 @@ export interface ISoilTemplateRequest {
 
 export interface ISoilTemplateResult {
 	readonly path?: string;
+	readonly problems?: readonly string[];
+}
+
+/** Alpha 9 L8: the AGS4 or DIGGS file written, with what it could not hold. */
+export interface ISoilExportResult {
+	readonly path?: string;
+	readonly notes?: readonly string[];
 	readonly problems?: readonly string[];
 }
 /*
