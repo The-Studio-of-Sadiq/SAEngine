@@ -13,7 +13,10 @@ holds no numbers:
   steel table's, :func:`saengine.design.steel_connections.hole_diameter`);
 - ``copeClearance``: the gap [mm] a coped beam keeps from the flange and the root of the beam it
   frames into (the cope's depth is the supporting beam's flange and root radius plus this, and
-  its length the supporting flange's outstand plus this).
+  its length the supporting flange's outstand plus this);
+- ``plateGrades``: the plates' grade by the member's grade when a connection names no plate
+  material (a shapes-only specification such as ASTM A992 maps to the plate specification of
+  the same strength, ASTM A572 Grade 50).
 
 Every number is the pack's; its VERIFY.md gives each value's source (SAEngine practice where the
 code gives none).
@@ -45,4 +48,11 @@ class FabricationTable(TableModel):
         default=10.0,
         ge=0,
         description="A coped beam's gap from the flange and root of the beam it frames into [mm].",
+    )
+    plateGrades: dict[str, str] = Field(
+        default_factory=dict,
+        description="The plates' grade by the member's steel grade (or 03 Materials id) when a "
+        "connection gives no plate material: a specification for rolled shapes only (no "
+        "plates) maps to the plate specification of the same strength; a grade not listed "
+        "keeps the member's.",
     )

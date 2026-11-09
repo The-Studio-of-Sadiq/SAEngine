@@ -17,7 +17,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from saengine.exporters.analytical import AnalyticalModel, ExchangeReport
+from saengine.exporters.analytical import AnalyticalModel, ExchangeReport, count_written
 
 FORMAT_NAME = "CIS/2 LPM/6 (.stp)"
 EXTENSION = ".stp"
@@ -159,14 +159,23 @@ def write_cis2(
             "rigid diaphragms (not in this CIS/2 subset) and the loads on their master nodes",
             model.diaphragms[0].name,
         )
-    masters = {d.master for d in model.diaphragms}
+    # A master that is a node of the structure keeps its loads (its members carry them); only
+    # a master of its own (the centre of mass, on no member) has nothing to take them
+    structural = {n for m in model.members for n in (m.i, m.j)}
+    masters = {d.master for d in model.diaphragms} - structural
     for c in model.cases:
-        case = s.add("LOAD_CASE", _s(c.name), _s(c.title or c.name), analysis)
+        case = s.add("LOAD_CASE", _s(c.name), _s(c.title_text()), analysis)
+        # Every load that is not exactly zero is written (no size threshold: the components
+        # are in N and N·m, the smallest still a load); only the loads on a diaphragm's master
+        # node of its own are left out (no diaphragm here to take them to the floor), reported.
         for n, f in sorted(c.nodal.items()):
             if n in masters or n not in nodes:
-                report.not_carried[c.name] += sum(v * v for v in f[:3]) ** 0.5 / 1000
+                size = sum(v * v for v in f[:3]) ** 0.5 / 1000
+                report.not_carried[c.name] += size
+                if c.name in report.carried:
+                    report.carried[c.name] -= size
                 continue
-            if any(abs(v) > 1e-9 for v in f):
+            if any(f):
                 s.add(
                     "LOAD_NODE",
                     _s(f"{c.name} {n}"),
@@ -175,7 +184,7 @@ def write_cis2(
                     "(" + ",".join(_r(v) for v in f) + ")",
                 )
         for mid, w in c.uniform.items():
-            if any(abs(v) > 1e-9 for v in w):
+            if any(w):
                 s.add(
                     "LOAD_ELEMENT_DISTRIBUTED_CURVE_LINE",
                     _s(f"{c.name} {mid}"),
@@ -184,7 +193,6 @@ def write_cis2(
                     ".GLOBAL.",
                     "(" + ",".join(_r(v) for v in w) + ")",
                 )
-        report.count("loadCases")
     for name, factors in model.combinations:
         s.add(
             "LOAD_COMBINATION",
@@ -193,7 +201,7 @@ def write_cis2(
             "(" + ",".join(_s(k) for k in factors) + ")",
             "(" + ",".join(_r(v) for v in factors.values()) + ")",
         )
-        report.count("combinations")
+    count_written(report, model, members=False, diaphragms=None)
     header = [
         "ISO-10303-21;",
         "HEADER;",

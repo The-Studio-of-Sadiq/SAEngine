@@ -23,7 +23,17 @@ and fills a :class:`ExchangeReport` with what it could not carry:
 - element loads (OpenSees ``beamUniform`` Wx, Wy, Wz in the element's local axes) are turned into
   global components with the local axes the runner gives (``vecxz`` (1, 0, 0) for a vertical member,
   (0, 0, 1) for any other, unless the element states its own);
-- nodal masses, rigid end offsets and the staged dead load are not carried (reported).
+- the lumped nodal masses (SAEngine's mass source) and the modal analysis' number of modes are
+  kept (:attr:`AnalyticalModel.masses`, :attr:`AnalyticalModel.modes`): the ``.s2k`` and
+  ``.std`` writers write them as the target's mass source and modal case, the others report
+  them as left out (:func:`count_written`);
+- rigid end offsets and the staged dead load are not carried (reported).
+
+The analysis model splits members at every mesh node (500 mm) and at every node another member
+meets; :func:`joined_members` joins the segments back into members for the formats of analysis
+programs that mesh their own frames (``.s2k``, ``.std``); SDNF and the web viewer join them as
+physical members (:func:`physical_members`). The writers count what they write
+(:func:`count_written`).
 """
 
 from __future__ import annotations
@@ -220,6 +230,22 @@ class LoadCase:
     title: str = ""
     nodal: dict[int, list[float]] = field(default_factory=dict)
     uniform: dict[str, list[float]] = field(default_factory=dict)
+    #: Member -> partial uniform loads: (three global components [N/m], from, to [m from end
+    #: i]): the loads of analysis mesh segments joined into one member (:func:`joined_members`).
+    partial: dict[str, list[tuple[list[float], float, float]]] = field(default_factory=dict)
+    #: Member -> point loads: (six global components [N, N·m], distance [m] from end i): the
+    #: nodal loads of the mesh nodes inside a joined member.
+    points: dict[str, list[tuple[list[float], float]]] = field(default_factory=dict)
+
+    def title_text(self) -> str:
+        """The case's name and title, the name not repeated (case ``D`` titled ``D: Dead`` is
+        ``D: Dead``, never ``D: D: Dead``)."""
+        title = (self.title or "").strip()
+        if not title or title == self.name:
+            return self.name
+        if title.startswith((self.name + ":", self.name + " ")):
+            return title
+        return f"{self.name}: {title}"
 
 
 @dataclass
@@ -239,6 +265,11 @@ class AnalyticalModel:
     grids: list[tuple[str, str, float]] = field(default_factory=list)
     #: Story levels: (name, elevation [m]).
     levels: list[tuple[str, float]] = field(default_factory=list)
+    #: The lumped masses of the analysis model, node -> (MX, MY, MZ [kg], IX, IY, IZ [kg·m²]):
+    #: the masses SAEngine's modal analysis uses (its mass source, formed from the loads).
+    masses: dict[int, list[float]] = field(default_factory=dict)
+    #: The modes of SAEngine's modal analysis (0: the model has no modal analysis).
+    modes: int = 0
 
     def used_nodes(self) -> list[int]:
         """The nodes a member or plate uses, or that carry a support or a load, in id order."""
@@ -254,6 +285,7 @@ class AnalyticalModel:
             used.add(d.master)
         for c in self.cases:
             used.update(c.nodal)
+        used.update(n for n, mass in self.masses.items() if any(mass))
         return sorted(u for u in used if u in self.nodes)
 
     def length(self, member: Member) -> float:
@@ -380,11 +412,6 @@ def from_osmodel(
         if e.get("type") == "ZeroLength" and len(e.get("nodes", [])) == 2:
             a, b = (int(v) for v in e["nodes"])
             twin_of[b] = a
-    if twin_of:
-        report.approximate(
-            "pinned member ends (zero-length links of simple connections) as end releases",
-            next(iter(str(k) for k in twin_of)),
-        )
 
     def merged(node: int) -> int:
         seen = 0
@@ -392,10 +419,16 @@ def from_osmodel(
             node, seen = twin_of[node], seen + 1
         return node
 
-    if any(n.get("mass") and any(n["mass"]) for n in osmodel.get("nodes", [])):
-        report.skip(
-            "lumped nodal masses (the target forms its own mass source from the loads)", None
-        )
+    # ── the lumped masses (SAEngine's mass source) and the modal analysis ──
+    for n in osmodel.get("nodes", []):
+        mass = [float(v) for v in (list(n.get("mass") or []) + [0.0] * 6)[:6]]
+        if any(mass):
+            prev = model.masses.setdefault(merged(int(n["id"])), [0.0] * 6)
+            for k in range(6):
+                prev[k] += mass[k]
+    for a in osmodel.get("analyses", []):
+        if a.get("type") == "Modal":
+            model.modes = max(model.modes, int(a.get("n_modes") or 0))
 
     # ── sections and materials ──
     used_materials: set[str] = set()
@@ -522,6 +555,12 @@ def from_osmodel(
             for k, node in enumerate(raw[:2]):
                 if node in twin_of:
                     ends[k] |= {"M2", "M3"}
+                    # one entry per pinned end: the report counts the ends
+                    report.approximate(
+                        "pinned member ends (zero-length links of simple connections) as end "
+                        "releases",
+                        f"{label} {'i' if k == 0 else 'j'}",
+                    )
             model.members.append(
                 Member(
                     mid,
@@ -537,7 +576,6 @@ def from_osmodel(
             element_ids[eid] = mid
             if e.get("joint_offsets"):
                 report.approximate("rigid end zones left out (members run joint to joint)", mid)
-            report.count({"column": "columns", "beam": "beams", "brace": "braces"}[kind])
         elif etype == "Shell":
             pname = plate_sections.get(int(e.get("section_id", 0)))
             if pname is None:
@@ -547,7 +585,6 @@ def from_osmodel(
             pid = _unique_member(label, taken_ids)
             model.plates.append(Plate(pid, nodes, pname, _source(str(e.get("name", "")))))
             element_ids[eid] = pid
-            report.count("plates")
         elif etype == "ZeroLength":
             continue
         else:
@@ -563,7 +600,6 @@ def from_osmodel(
             )
             if master in model.nodes and slaves:
                 model.diaphragms.append(Diaphragm(f"D{len(model.diaphragms) + 1}", master, slaves))
-                report.count("diaphragms")
         else:
             report.skip("multi-point constraints other than rigid diaphragms", str(c.get("type")))
 
@@ -609,7 +645,6 @@ def from_osmodel(
             for k in range(3):
                 prev[k] += float(w[k])
         model.cases.append(case)
-        report.count("loadCases")
         report.carried[case_name] += _total(model, case) / 1000
     present = {c.name for c in model.cases}
     if settings is not None:
@@ -621,7 +656,6 @@ def from_osmodel(
             }
             if factors:
                 model.combinations.append((str(combo.name), factors))
-                report.count("combinations")
             else:
                 report.skip("combinations of cases the model has no loads in", str(combo.name))
     model.grids = list(grids or [])
@@ -693,8 +727,9 @@ class PhysicalMember:
     parts: list[str]
 
 
-def physical_members(model: AnalyticalModel) -> list[PhysicalMember]:
-    """The members of ``model`` joined into pieces (:class:`PhysicalMember`), in model order."""
+def _chains(model: AnalyticalModel) -> list[tuple[str, list[Member]]]:
+    """The members of ``model`` in chains: one building-model element and section joined end to
+    end along a straight line, with the element's name; in model order."""
     groups: dict[tuple[str, str, float], list[Member]] = defaultdict(list)
     order: list[tuple[str, str, float]] = []
     for m in model.members:
@@ -702,8 +737,7 @@ def physical_members(model: AnalyticalModel) -> list[PhysicalMember]:
         if key not in groups:
             order.append(key)
         groups[key].append(m)
-    out: list[PhysicalMember] = []
-    names: set[str] = set()
+    out: list[tuple[str, list[Member]]] = []
     for key in order:
         pending = list(groups[key])
         while pending:
@@ -720,8 +754,18 @@ def physical_members(model: AnalyticalModel) -> list[PhysicalMember]:
                         continue
                     pending.remove(other)
                     grown = True
+            out.append((key[0], chain))
+    return out
+
+
+def physical_members(model: AnalyticalModel) -> list[PhysicalMember]:
+    """The members of ``model`` joined into pieces (:class:`PhysicalMember`), in model order."""
+    out: list[PhysicalMember] = []
+    names: set[str] = set()
+    for source, chain in _chains(model):
+        if chain:
             first, last = chain[0], chain[-1]
-            name = _unique_member(key[0], names)
+            name = _unique_member(source, names)
             out.append(
                 PhysicalMember(
                     name,
@@ -744,6 +788,196 @@ def _collinear(model: AnalyticalModel, a: Member, b: Member) -> bool:
     u, v = pb - pa, pc - pb
     nu, nv = float(np.linalg.norm(u)), float(np.linalg.norm(v))
     return nu > 0 and nv > 0 and float(np.dot(u, v)) / (nu * nv) > 0.9999
+
+
+def joined_members(model: AnalyticalModel, report: ExchangeReport | None = None) -> AnalyticalModel:
+    """``model`` with its analysis mesh segments joined back into members, for the formats of
+    an analysis program that meshes its own members (``.s2k``, ``.std``): a beam the analysis
+    model splits every 500 mm and at every node it meets is one frame again, from support to
+    support (a member is still cut where another member, a plate, a support, a diaphragm master,
+    an end release or a nodal moment meets it). On a joined member the segments' uniform loads
+    become one uniform load when they are all the same, else partial uniform loads over their
+    lengths; the nodal forces at the mesh nodes inside become point loads; the lumped masses of
+    those nodes go to the member's ends by the lever rule; the nodes leave the diaphragms. A
+    model with nothing to join is returned as it is."""
+    report = report or ExchangeReport("Exchange", "")
+    ends: dict[int, int] = defaultdict(int)
+    for m in model.members:
+        ends[m.i] += 1
+        ends[m.j] += 1
+    fixed_nodes = {n for p in model.plates for n in p.nodes}
+    fixed_nodes |= {d.master for d in model.diaphragms}
+    fixed_nodes |= {n.id for n in model.nodes.values() if n.supported}
+    for c in model.cases:
+        fixed_nodes |= {n for n, f in c.nodal.items() if any(abs(v) > 0 for v in f[3:])}
+
+    def inner(a: Member, b: Member) -> bool:
+        """Whether the node between ``a`` and ``b`` (``a.j == b.i``) can go."""
+        node = a.j
+        return (
+            ends[node] == 2 and node not in fixed_nodes and not a.releases[1] and not b.releases[0]
+        )
+
+    pieces: list[tuple[str, list[Member]]] = []
+    for source, chain in _chains(model):
+        start = 0
+        for k in range(1, len(chain) + 1):
+            if k == len(chain) or not inner(chain[k - 1], chain[k]):
+                pieces.append((source, chain[start:k]))
+                start = k
+    if all(len(p) == 1 for _, p in pieces):
+        return model
+    taken = {p.id for p in model.plates}
+    taken |= {chain[0].id for _, chain in pieces if len(chain) == 1}
+    new_members: list[Member] = []
+    removed: set[int] = set()
+    cases = [
+        LoadCase(c.name, c.kind, c.title, {n: list(f) for n, f in c.nodal.items()}, {}, {}, {})
+        for c in model.cases
+    ]
+    masses = {n: list(m) for n, m in model.masses.items()}
+    segments = 0
+    for source, chain in pieces:
+        if len(chain) == 1:
+            m = chain[0]
+            new_members.append(m)
+            for case, old in zip(cases, model.cases, strict=True):
+                if m.id in old.uniform:
+                    case.uniform[m.id] = list(old.uniform[m.id])
+            continue
+        first, last = chain[0], chain[-1]
+        name = _unique_member(source or first.id, taken)
+        joined = Member(
+            name,
+            first.i,
+            last.j,
+            first.section,
+            first.rotation,
+            (first.releases[0], last.releases[1]),
+            first.kind,
+            first.source,
+        )
+        new_members.append(joined)
+        segments += len(chain)
+        stations = [0.0]
+        for m in chain:
+            stations.append(stations[-1] + model.length(m))
+        total = stations[-1] or 1.0
+        inside = [m.j for m in chain[:-1]]
+        removed.update(inside)
+        for case, old in zip(cases, model.cases, strict=True):
+            loads = [old.uniform.get(m.id, [0.0, 0.0, 0.0]) for m in chain]
+            if all(np.allclose(w, loads[0], rtol=1e-9, atol=1e-9) for w in loads) and any(
+                abs(v) > 0 for v in loads[0]
+            ):
+                case.uniform[name] = list(loads[0])
+            else:
+                runs: list[tuple[list[float], float, float]] = []
+                for k, w in enumerate(loads):
+                    if not any(abs(v) > 0 for v in w):
+                        continue
+                    a, b = stations[k], stations[k + 1]
+                    if runs and runs[-1][2] == a and np.allclose(runs[-1][0], w, rtol=1e-9):
+                        runs[-1] = (runs[-1][0], runs[-1][1], b)
+                    else:
+                        runs.append((list(w), a, b))
+                if runs:
+                    case.partial[name] = runs
+            for k, node in enumerate(inside, start=1):
+                f = case.nodal.pop(node, None)
+                if f is not None and any(abs(v) > 0 for v in f[:3]):
+                    case.points.setdefault(name, []).append((list(f), stations[k]))
+        moved = False
+        for k, node in enumerate(inside, start=1):
+            mass = masses.pop(node, None)
+            if mass is None or not any(mass):
+                continue
+            moved = True
+            share = stations[k] / total
+            for end, part in ((first.i, 1.0 - share), (last.j, share)):
+                prev = masses.setdefault(end, [0.0] * 6)
+                for q in range(6):
+                    prev[q] += mass[q] * part
+        if moved:  # one entry per member
+            report.approximate(
+                "lumped masses of the mesh nodes inside a member moved to its ends (lever rule)",
+                name,
+            )
+    out = AnalyticalModel(
+        name=model.name,
+        nodes={k: v for k, v in model.nodes.items() if k not in removed},
+        materials=model.materials,
+        sections=model.sections,
+        plate_sections=model.plate_sections,
+        members=new_members,
+        plates=model.plates,
+        diaphragms=[
+            Diaphragm(d.name, d.master, [n for n in d.nodes if n not in removed])
+            for d in model.diaphragms
+        ],
+        cases=cases,
+        combinations=model.combinations,
+        grids=model.grids,
+        levels=model.levels,
+        masses=masses,
+        modes=model.modes,
+    )
+    joined = sum(1 for _, p in pieces if len(p) > 1)
+    report.approximate(
+        "analysis mesh segments joined back into members (the target meshes its own frames)",
+        f"{segments} segments as {joined} members",
+    )
+    split = sorted({mid for c in cases for mid in (*c.partial, *c.points)})
+    if split:
+        report.approximate(
+            "loads of the joined segments as partial uniform and point loads on the members",
+            split[0],
+        )
+    return out
+
+
+def count_written(
+    report: ExchangeReport,
+    model: AnalyticalModel,
+    *,
+    members: bool = True,
+    loads: bool | None = True,
+    diaphragms: bool | None = True,
+    masses: bool | None = False,
+) -> None:
+    """Counts in ``report`` what a writer wrote of ``model``: its members by kind and plates;
+    its diaphragms, load cases and combinations, lumped masses when the format carries them
+    (True), listed as left out when it does not (False), untouched when the writer reports them
+    itself (None); ``members``: False when the writer counts the members and plates itself."""
+    if members:
+        for m in model.members:
+            kind = {"column": "columns", "beam": "beams", "brace": "braces"}.get(m.kind, "beams")
+            report.count(kind)
+        if model.plates:
+            report.count("plates", len(model.plates))
+    if model.diaphragms and diaphragms is not None:
+        if diaphragms:
+            report.count("diaphragms", len(model.diaphragms))
+        else:
+            report.skip("rigid diaphragms (not in this format)", model.diaphragms[0].name)
+    if loads:
+        if model.cases:
+            report.count("loadCases", len(model.cases))
+        if model.combinations:
+            report.count("combinations", len(model.combinations))
+    elif loads is not None:
+        if model.cases:
+            report.skip(
+                "load cases and combinations (this format carries the members, not the loads)",
+                ", ".join(c.name for c in model.cases[:5]),
+            )
+        report.carried.clear()
+    massed = sum(1 for m in model.masses.values() if any(m))
+    if massed and masses is not None:
+        if masses:
+            report.count("massNodes", massed)
+        else:
+            report.skip("lumped masses of the modal analysis (not in this format)", None)
 
 
 def case_totals(model: AnalyticalModel) -> dict[str, float]:
@@ -848,8 +1082,10 @@ __all__ = [
     "PlateSection",
     "Section",
     "case_totals",
+    "count_written",
     "from_osmodel",
     "is_vertical",
+    "joined_members",
     "local_axes",
     "numbering",
     "project_model",

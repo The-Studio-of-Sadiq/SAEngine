@@ -1300,6 +1300,101 @@ class _Support:
     cover: float = 40.0  # to the support's outer bars (its cover + ties)
 
 
+def _precast_piece(t: Any) -> Any | None:
+    """The type's precast piece when it is a precast beam (W4C-16), else None."""
+    piece = getattr(t, "precast", None)
+    return piece if piece is not None and getattr(piece, "element", None) == "beam" else None
+
+
+def _precast_beam(ctx: _Ctx, element: dict[str, Any], line: dict[str, Any]) -> None:
+    """W4C-16: a precast beam takes its bars from its precast piece
+    (:func:`saengine.design.precast.piece_bars`, the piece's own bar list): straight bars over
+    the piece less the end covers, no continuity, laps or anchorage into the supports across
+    the joints; its stirrups (and cross ties) keep their detailed shape, spaced over the piece.
+    The piece (the type's length, else the member's) is centred on the member."""
+    from saengine.design.precast import piece_bars
+
+    t = ctx.types[line["type"]]
+    r = t.reinforcement
+    if r is None or not element["bars"]:
+        return
+    length = float(t.precast.length or line["length"])
+    s0 = (float(line["length"]) - length) / 2
+    at = element.get("at") or {}
+    elev = float(at.get("elevation", line["elevation"]))
+    h = float(at.get("depth", getattr(t.profile, "yDim", 0.0)))
+    tdia = float(r.transverse.dia) if r.transverse else 0.0
+    inset = float(r.cover) + tdia
+    drop = float(at.get("topDrop") or 0.0)
+    origin, u = line["origin"], line["u"]
+    grade = ctx.grade(r.material)
+    kept = [b for b in element["bars"] if b["role"] in ("stirrup", "crosstie")]
+    stirrup = next((b for b in kept if b["role"] == "stirrup"), None)
+    old = int(stirrup["count"]) if stirrup is not None else 0
+    bars: list[dict[str, Any]] = []
+    letters = {"top": ("top", "T"), "bottom": ("bottom", "B"), "sides": ("side", "F")}
+    for row in piece_bars(t, length):
+        if row["where"] == "links":
+            if stirrup is not None:
+                rows = [
+                    {**x, "from": round(x["from"] + s0, 1), "to": round(x["to"] + s0, 1)}
+                    for x in row["rows"]
+                ]
+                for x in rows:
+                    x["_bar"] = stirrup
+                element["transverse"] = rows
+                for b in kept:
+                    share = int(b["count"]) / old if old else 1.0
+                    b["count"] = round(int(row["count"]) * share)
+            continue
+        role, letter = letters.get(row["where"], ("side", "F"))
+        db = float(row["dia"])
+        if role == "top":
+            z = elev - inset - db / 2 - drop
+        elif role == "bottom":
+            z = elev - h + inset + db / 2
+        else:
+            z = elev - h / 2
+        p0, p1 = s0 + float(row["from"]), s0 + float(row["to"])
+        bars.append(
+            _bar(
+                role,
+                letter,
+                db,
+                "straight",
+                int(row["count"]),
+                {"A": float(row["length"])},
+                float(row["length"]),
+                {
+                    "from": round(p0, 1),
+                    "to": round(p1, 1),
+                    "face": role,
+                    "layer": 2 if role == "top" and drop else 1,
+                    "members": list(line["members"]),
+                    "start": _point(origin, u, p0, z),
+                    "end": _point(origin, u, p1, z),
+                    "hooks": [None, None],
+                },
+                bend=bend_diameter(db).value,
+                grade=grade,
+                remarks="precast piece: straight, no continuity across the joints",
+            )
+        )
+    element["bars"] = bars + kept
+    element["laps"] = []
+    element["precast"] = {"length": round(length, 1), "from": round(s0, 1)}
+    element["notes"].append(
+        f"precast piece {length:.0f} mm long: its bars are the piece's (straight, the cover "
+        "short of its ends, no continuity or laps across the joints); the connections to the "
+        "supports are the precast connections' (dowels, bearing)"
+    )
+    if abs(length - float(line["length"])) > 1.0:
+        element["notes"].append(
+            f"the precast piece ({length:.0f} mm) is not the member's length "
+            f"({float(line['length']):.0f} mm): see the precast checks (fit on the bay)"
+        )
+
+
 def _beam_lines(ctx: _Ctx) -> list[dict[str, Any]]:
     """Collinear beams of one type and elevation that meet end to end, as continuous lines."""
     from saengine.library.bim import BeamElement
@@ -1338,9 +1433,11 @@ def _beam_lines(ctx: _Ctx) -> list[dict[str, Any]]:
 
         links: dict[str, list[str]] = {m.id: [] for m in members}
         by_id = {m.id: m for m in members}
+        # W4C-16: precast beams are pieces jointed at the supports: no line runs on
+        joined = _precast_piece(ctx.types.get(_type_id)) is None
         for i, a in enumerate(members):
             for b in members[i + 1 :]:
-                if touch(a, b) and collinear(a, b):
+                if joined and touch(a, b) and collinear(a, b):
                     links[a.id].append(b.id)
                     links[b.id].append(a.id)
         seen: set[str] = set()
@@ -4094,7 +4191,10 @@ def detailing_model(
                 ctx.notes.append(f"column {stack[k].id} could not be detailed: {error}")
     for line in _beam_lines(ctx):
         try:
-            elements.append(_detail_beam_line(ctx, line))
+            element = _detail_beam_line(ctx, line)
+            if _precast_piece(ctx.types.get(line["type"])) is not None:
+                _precast_beam(ctx, element, line)  # W4C-16
+            elements.append(element)
         except (ValueError, ArithmeticError) as error:
             ctx.notes.append(f"beam {'+'.join(line['members'])} could not be detailed: {error}")
     elements += _detail_slabs(ctx)

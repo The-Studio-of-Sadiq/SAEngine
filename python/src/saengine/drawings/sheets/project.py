@@ -1221,14 +1221,15 @@ def drawing_set(
         data.problems += problems
     if any(getattr(o, "precast", None) for o in objects.objects):  # Alpha 9 L1
         from saengine.boq.precast import piece_schedule
-        from saengine.design.precast import pieces_of
+        from saengine.design.precast import fit_problems, pieces_of
         from saengine.drawings.sheets.precast import precast_pieces
 
         try:
             data.precast = precast_pieces(bim, objects, materials)
-            data.precast_schedule = piece_schedule(
-                pieces_of(bim, objects), {o.id: o for o in objects.objects}, materials
-            )
+            all_types = {o.id: o for o in objects.objects}
+            marks = pieces_of(bim, objects)
+            data.precast_schedule = piece_schedule(marks, all_types, materials)
+            data.problems += fit_problems(marks, all_types)  # W4C-16
         except (ValueError, AttributeError) as error:
             data.problems.append(f"The precast piece drawings could not be made: {error}")
     if materials is not None:

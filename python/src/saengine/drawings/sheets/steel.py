@@ -113,6 +113,12 @@ def steel_members(bim: Any, objects: Any, materials: Any) -> list[SteelMember]:
         if not _is_steel(material):
             return
         name, shape, h, b, _, _ = _section(t.profile)
+        joist = getattr(t, "joist", None)
+        if joist is not None:
+            # an open-web joist: its designation and depth, not its analysis profile
+            from saengine.fabrication.model import joist_label
+
+            name, h = joist_label(joist), float(joist.depth)
         grade = material.steel.grade if material.steel is not None else material.name
         out.append(
             SteelMember(

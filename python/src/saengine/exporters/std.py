@@ -18,8 +18,14 @@ read; see ``docs/exchange.md``). The file:
   ``PINNED``, ``FIXED BUT ...``);
 - rigid diaphragms as ``SLAVE XY MASTER m JOINT ...`` (in-plane with Z up; unverified wording);
 - one ``LOAD n LOADTYPE ... TITLE ...`` per case with ``JOINT LOAD`` and ``MEMBER LOAD ... UNI GX/
-  GY/GZ`` (the self-weight is in the dead case's loads already: no ``SELFWEIGHT`` command);
-  ``LOAD COMBINATION n name`` per combination; ``PERFORM ANALYSIS``, ``FINISH``.
+  GY/GZ`` (partial: ``UNI GZ w d1 d2``; point loads ``CON GZ f d``) (the self-weight is in the
+  dead case's loads already: no ``SELFWEIGHT`` command); the modal analysis: a ``LOADTYPE Mass``
+  case with SAEngine's lumped masses as joint weights in X and Y and ``MODAL CALCULATION
+  REQUESTED`` (``CUT OFF MODE SHAPE`` SAEngine's number of modes); ``LOAD COMBINATION n name``
+  per combination; ``PERFORM ANALYSIS``, ``FINISH``.
+
+The members are the building's members, not the analysis mesh's segments
+(:func:`saengine.exporters.analytical.joined_members`).
 
 The section orientation (``BETA``) follows the command language's default member axes as SAEngine's
 reader reads them; it is listed as unverified in ``docs/exchange.md``.
@@ -27,11 +33,19 @@ reader reads them; it is listed as unverified in ``docs/exchange.md``.
 
 from __future__ import annotations
 
-from saengine.exporters.analytical import AnalyticalModel, ExchangeReport, numbering
+from saengine.exporters.analytical import (
+    AnalyticalModel,
+    ExchangeReport,
+    count_written,
+    joined_members,
+    numbering,
+)
 
 FORMAT_NAME = "STD text (.std)"
 EXTENSION = ".std"
 EXPORT_FOLDER = "STD"
+#: m/s²: a mass's weight in the modal analysis' load case.
+G = 9.80665
 
 _LOADTYPES = {
     "D": "Dead",
@@ -80,6 +94,8 @@ def _lists(numbers: list[int], per_line: int = 12) -> list[str]:
 def write_std(model: AnalyticalModel, report: ExchangeReport | None = None) -> str:
     """The ``.std`` text of ``model`` (kN, m)."""
     report = report or ExchangeReport(FORMAT_NAME, EXTENSION)
+    model = joined_members(model, report)
+    count_written(report, model, masses=True)
     kn = 1 / 1000
     nodes, members, plates = numbering(model)
     out = [
@@ -183,6 +199,7 @@ def write_std(model: AnalyticalModel, report: ExchangeReport | None = None) -> s
     ends = [(members[m.id], m.releases[1]) for m in model.members if m.releases[1]]
     if starts or ends:
         out.append("MEMBER RELEASE")
+        report.count("releasedEnds", len(starts) + len(ends))
         for number, names in starts:
             out.append(f"{number} START " + " ".join(_RELEASES[n] for n in sorted(names)))
         for number, names in ends:
@@ -214,7 +231,7 @@ def write_std(model: AnalyticalModel, report: ExchangeReport | None = None) -> s
     case_numbers = {c.name: k for k, c in enumerate(model.cases, start=1)}
     for c in model.cases:
         out.append(
-            f"LOAD {case_numbers[c.name]} LOADTYPE {_LOADTYPES[c.kind]} TITLE {_title(c.name + (': ' + c.title if c.title and c.title != c.name else ''))}"
+            f"LOAD {case_numbers[c.name]} LOADTYPE {_LOADTYPES[c.kind]} TITLE {_title(c.title_text())}"
         )
         joint = [(n, f) for n, f in sorted(c.nodal.items()) if any(abs(v) > 1e-9 for v in f)]
         if joint:
@@ -233,11 +250,55 @@ def write_std(model: AnalyticalModel, report: ExchangeReport | None = None) -> s
                 for axis, value in zip(("GX", "GY", "GZ"), w, strict=True):
                     if abs(value) > 1e-9:
                         out.append(f"{members[mid]} UNI {axis} {_n(value * kn)}")
-    report.count("loadCases", len(model.cases))
-    for k, (name, factors) in enumerate(model.combinations, start=len(model.cases) + 1):
+        partial = [
+            (mid, w, a, b, axis, value)
+            for mid, runs in c.partial.items()
+            for w, a, b in runs
+            for axis, value in zip(("GX", "GY", "GZ"), w, strict=True)
+            if value
+        ]
+        points = [
+            (mid, at, axis, value)
+            for mid, forces in c.points.items()
+            for f, at in forces
+            for axis, value in zip(("GX", "GY", "GZ"), f[:3], strict=True)
+            if value
+        ]
+        if (partial or points) and not member:
+            out.append("MEMBER LOAD")
+        for mid, _w, a, b, axis, value in partial:
+            out.append(f"{members[mid]} UNI {axis} {_n(value * kn)} {_n(a)} {_n(b)}")
+        for mid, at, axis, value in points:
+            out.append(f"{members[mid]} CON {axis} {_n(value * kn)} {_n(at)}")
+    # SAEngine's lumped masses as the modal analysis' weights (kN, X and Y: the masses' own
+    # directions; the vertical mass is not used by SAEngine's modal analysis)
+    modal = bool(model.modes) and any(any(m[:2]) for m in model.masses.values())
+    next_number = len(model.cases) + 1
+    if modal:
+        out.append(f"LOAD {next_number} LOADTYPE Mass TITLE MASSES OF THE MODAL ANALYSIS")
+        out.append("JOINT LOAD")
+        for n, m in sorted(model.masses.items()):
+            if n not in nodes or not any(m[:3]):
+                continue
+            parts = [
+                f"{key} {_n(v * G * kn)}"
+                for key, v in zip(("FX", "FY", "FZ"), m[:3], strict=True)
+                if abs(v) > 0
+            ]
+            out.append(f"{nodes[n]} " + " ".join(parts))
+        out.append("MODAL CALCULATION REQUESTED")
+        if any(abs(m[5]) > 0 for m in model.masses.values()):
+            report.approximate(
+                "rotary masses about Z left out of the modal analysis' weights", None
+            )
+        report.count("modalCases")
+        next_number += 1
+    for k, (name, factors) in enumerate(model.combinations, start=next_number):
         out.append(f"LOAD COMBINATION {k} {_title(name)}")
         terms = [f"{case_numbers[c]} {_n(f)}" for c, f in factors.items() if c in case_numbers]
         out.append(" ".join(terms))
+    if modal:
+        out.append(f"CUT OFF MODE SHAPE {int(model.modes)}")
     out += ["PERFORM ANALYSIS", "FINISH"]
     # The numbering in comments after FINISH: never read as commands.
     out.append("* SAEngine ids of the members: number = id")

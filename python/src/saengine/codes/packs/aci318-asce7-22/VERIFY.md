@@ -895,6 +895,7 @@ Not covered by this pack: aluminium (the Aluminum Design Manual; a planned featu
 | L10-1 | weldSymbols | aws | AWS A2.4 (AISC 303 shop drawing practice) | Check |
 | L10-2 | anchorHoleClearance | rod + 6 mm in base plates | none in the code (AISC Design Guide 1 Table 2.3 gives larger holes with plate washers) | SAEngine practice |
 | L10-3 | copeClearance | 10 mm from the supporting flange and root | none in the code | SAEngine practice |
+| L10-4 | plateGrades | ASTM A992 (shapes only) -> ASTM A572 Grade 50 plates when a connection names no plate material | AISC Manual Table 2-4 (A992: shapes; A572 Gr 50: shapes, plates and bars, the same Fy 345 / Fu 450 MPa) | Check |
 | L10-B1 | barSchedule.standards.*.shapes.*.bvbs | BVBS legs (outside dimensions), arcs (inside radius) and bend angles of each shape; one sign for one bending direction, the last angle 0 | BVBS guideline (Bundesverband Bausoftware) "Data exchange of reinforcement data", geometry block G (legs l, radius r, angle w; outer dimensions for 2D shapes) | Check (the shape's legs against the printed shape code; the sign convention of the angles) |
 | L10-B2 | (record) | header j r i p l n e d g s v, l = the cutting length, e = mass of one bar, s = 2 x the bend radius; checksum 96 - (sum of ASCII codes up to and including C) mod 32 | BVBS guideline, header and checksum blocks; checked against its examples (C72, C71, C82; "abcde@C" = 78) | Check (l: the cutting length, where the guideline's examples print the sum of the legs) |
 
