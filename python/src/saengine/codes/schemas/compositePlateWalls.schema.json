@@ -1,0 +1,174 @@
+{
+  "$defs": {
+    "FilledWallFactors": {
+      "additionalProperties": false,
+      "properties": {
+        "shear": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Shear",
+          "type": "number"
+        },
+        "flexure": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Flexure",
+          "type": "number"
+        },
+        "compression": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Compression",
+          "type": "number"
+        }
+      },
+      "required": [
+        "shear",
+        "flexure",
+        "compression"
+      ],
+      "title": "FilledWallFactors",
+      "type": "object"
+    },
+    "FilledWallLimits": {
+      "additionalProperties": false,
+      "description": "Detailing limits of concrete-filled composite plate shear walls.",
+      "properties": {
+        "plateSlenderness": {
+          "description": "Tie spacing / plate thickness ≤ this √(Es / Fy) (the plate's buckling).",
+          "exclusiveMinimum": 0,
+          "title": "Plateslenderness",
+          "type": "number"
+        },
+        "tieSpacing": {
+          "description": "s / tp ≤ this √(Es / ((2α + 1) Fy)), α = alphaFactor (tsc/tp - 2)(tp/dtie)^alphaExponent (the ties' spacing for composite action).",
+          "exclusiveMinimum": 0,
+          "title": "Tiespacing",
+          "type": "number"
+        },
+        "alphaFactor": {
+          "exclusiveMinimum": 0,
+          "title": "Alphafactor",
+          "type": "number"
+        },
+        "alphaExponent": {
+          "exclusiveMinimum": 0,
+          "title": "Alphaexponent",
+          "type": "number"
+        },
+        "thicknessMin": {
+          "description": "Wall thickness tsc at least [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Thicknessmin",
+          "type": "number"
+        },
+        "thicknessMax": {
+          "description": "Wall thickness tsc at most [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Thicknessmax",
+          "type": "number"
+        },
+        "steelRatioMin": {
+          "description": "ρ = 2 tp / tsc at least.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Steelratiomin",
+          "type": "number"
+        },
+        "steelRatioMax": {
+          "description": "ρ at most.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Steelratiomax",
+          "type": "number"
+        },
+        "plateMin": {
+          "description": "Plate thickness at least [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Platemin",
+          "type": "number"
+        }
+      },
+      "required": [
+        "plateSlenderness",
+        "tieSpacing",
+        "alphaFactor",
+        "alphaExponent",
+        "thicknessMin",
+        "thicknessMax",
+        "steelRatioMin",
+        "steelRatioMax",
+        "plateMin"
+      ],
+      "title": "FilledWallLimits",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Concrete-filled composite plate shear walls (C-PSW/CF): the in-plane shear of the\ncomposite section, the axial force and in-plane flexure by the plastic stress\ndistribution, the plate slenderness and the ties.",
+  "properties": {
+    "source": {
+      "default": "",
+      "description": "Clause (and page) the table comes from.",
+      "title": "Source",
+      "type": "string"
+    },
+    "sources": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Clause references of single entries: {key: clause}.",
+      "title": "Sources",
+      "type": "object"
+    },
+    "clauses": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Short clause references the results cite, by key, without the code's name (e.g. 'Part 6 Sec 2.5.7.3'); read by saengine.codes.context.cite. A key the pack does not give is not cited.",
+      "title": "Clauses",
+      "type": "object"
+    },
+    "method": {
+      "const": "filledPlates",
+      "default": "filledPlates",
+      "title": "Method",
+      "type": "string"
+    },
+    "factors": {
+      "$ref": "#/$defs/FilledWallFactors"
+    },
+    "concreteBlock": {
+      "description": "Concrete stress of the plastic block = this f'c.",
+      "exclusiveMinimum": 0,
+      "maximum": 1,
+      "title": "Concreteblock",
+      "type": "number"
+    },
+    "crackedConcrete": {
+      "description": "In-plane shear: Kc = this × Ec Ac Es As / (compositeShear Es As + Ec Ac), Ks = Gs As, Vn = (Ks + Kc) / √(3 Ks² + Kc²) As Fy.",
+      "exclusiveMinimum": 0,
+      "title": "Crackedconcrete",
+      "type": "number"
+    },
+    "compositeShear": {
+      "description": "The divisor's factor on Es As of Kc.",
+      "exclusiveMinimum": 0,
+      "title": "Compositeshear",
+      "type": "number"
+    },
+    "limits": {
+      "$ref": "#/$defs/FilledWallLimits"
+    }
+  },
+  "required": [
+    "factors",
+    "concreteBlock",
+    "crackedConcrete",
+    "compositeShear",
+    "limits"
+  ],
+  "title": "CompositePlateWallsTable",
+  "type": "object",
+  "$id": "saengine.codePack.compositePlateWalls/1"
+}

@@ -1,0 +1,55 @@
+{
+  "$schema": "../../../schemas/nonlinearStability.schema.json",
+  "$sources": [
+    "AISC 360-22 Appendix 1 Sec 1.3 (design by advanced inelastic analysis: 0.9 Fy and 0.9 E; imperfections L/500 and L/1000); plated parts by EN 1993-1-5 Annex C and cables by EN 1993-1-11 as SAEngine practice; see VERIFY.md"
+  ],
+  "source": "AISC 360-22 Appendix 1 (advanced analysis), Sec C2.2a imperfections; SAEngine practice for plated parts and cables",
+  "bow": {
+    "method": "fixedRatio",
+    "fixedRatio": 1000.0,
+    "source": "AISC 360-22 Appendix 1 Sec 1.2.3 (out-of-straightness L/1000)"
+  },
+  "sway": {
+    "method": "fixedRatio",
+    "baseRatio": 500.0,
+    "source": "AISC 360-22 Sec C2.2a (out-of-plumbness L/500)"
+  },
+  "eigenmode": {
+    "method": "memberBow",
+    "source": "SAEngine practice"
+  },
+  "plates": {
+    "method": "panelRatio",
+    "panelRatio": 200.0,
+    "source": "EN 1993-1-5 Annex C Table C.2 (SAEngine practice)"
+  },
+  "yieldFactor": 0.9,
+  "stiffnessFactor": 0.9,
+  "hardeningRatio": 0.0001,
+  "requiredFactor": 1.0,
+  "path": {
+    "method": "arcLength",
+    "steps": 100,
+    "maxDisplacementRatio": 10.0,
+    "dropShare": 0.2,
+    "source": "SAEngine practice"
+  },
+  "cables": {
+    "breakingShare": 0.741,
+    "source": "EN 1993-1-11 Sec 6.2 (SAEngine practice; ASCE 19 not entered)"
+  },
+  "clauses": {
+    "basis": "AISC 360-22 Appendix 1 Sec 1.3",
+    "bow": "Appendix 1 Sec 1.2.3",
+    "sway": "Sec C2.2a",
+    "eigenmode": "SAEngine practice",
+    "material": "Appendix 1 Sec 1.3.2b",
+    "plates": "EN 1993-1-5 Annex C (practice)",
+    "cables": "EN 1993-1-11 6.2 (practice)"
+  },
+  "sources": {
+    "yieldFactor": "AISC 360-22 Appendix 1 Sec 1.3.2b (0.9 Fy)",
+    "stiffnessFactor": "AISC 360-22 Appendix 1 Sec 1.3.2b (0.9 E)"
+  },
+  "note": ""
+}

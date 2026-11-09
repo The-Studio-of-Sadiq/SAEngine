@@ -146,7 +146,7 @@ export const MATERIALS_SCHEMA: IJSONSchema = {
 			type: 'object',
 		},
 		Category: {
-			enum: ['concrete', 'rebar', 'steel', 'masonry', 'timber', 'mortar', 'bamboo', 'ferrocement', 'aluminium', 'other'],
+			enum: ['concrete', 'rebar', 'steel', 'masonry', 'timber', 'mortar', 'bamboo', 'ferrocement', 'aluminium', 'glass', 'other'],
 			title: 'Category',
 			type: 'string',
 		},
@@ -285,6 +285,28 @@ export const MATERIALS_SCHEMA: IJSONSchema = {
 			},
 			required: ['fc'],
 			title: 'FerrocementProperties',
+			type: 'object',
+		},
+		GlassProperties: {
+			additionalProperties: false,
+			description: 'Structural glass (alpha 9 L7): the kind of glass and its surface, for the code pack\'s\nglass strengths.',
+			properties: {
+				kind: {
+					default: 'toughened',
+					enum: ['annealed', 'heatStrengthened', 'toughened', 'chemicallyToughened'],
+					enumDescriptions: ['Annealed (float)', 'Heat-strengthened', 'Thermally toughened (fully tempered)', 'Chemically toughened'],
+					title: 'Kind',
+					type: 'string',
+				},
+				surface: {
+					default: 'float',
+					enum: ['float', 'patterned', 'enamelled'],
+					enumDescriptions: ['Float', 'Patterned', 'Enamelled'],
+					title: 'Surface',
+					type: 'string',
+				},
+			},
+			title: 'GlassProperties',
 			type: 'object',
 		},
 		MasonryProperties: {
@@ -512,6 +534,18 @@ export const MATERIALS_SCHEMA: IJSONSchema = {
 					],
 					default: null,
 					title: 'Aluminium',
+				},
+				glass: {
+					anyOf: [
+						{
+							$ref: '#/$defs/GlassProperties',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Glass',
 				},
 				composition: {
 					anyOf: [
@@ -989,6 +1023,110 @@ export const MATERIALS_SCHEMA: IJSONSchema = {
 
 export const OBJECTS_SCHEMA: IJSONSchema = {
 	$defs: {
+		AluminiumJoint: {
+			additionalProperties: false,
+			description: 'Alpha 9 L7: the bolted or welded end joint of an aluminium member (both ends, the\nmember\'s end forces; saengine.design.aluminium, the code pack\'s aluminium.joints).',
+			properties: {
+				kind: {
+					default: 'bolted',
+					enum: ['bolted', 'welded'],
+					enumDescriptions: ['Bolted (lap or gusset)', 'Fillet welded'],
+					title: 'Kind',
+					type: 'string',
+				},
+				bolts: {
+					default: 4,
+					description: 'Bolts in the joint.',
+					minimum: 1,
+					title: 'Bolts',
+					type: 'integer',
+				},
+				boltDiameter: {
+					default: 12,
+					description: '[mm].',
+					exclusiveMinimum: 0,
+					title: 'Bolt diameter',
+					type: 'number',
+				},
+				boltMaterial: {
+					default: '8.8',
+					description: 'A bolt material of the code pack\'s aluminium joints.',
+					title: 'Bolt material',
+					type: 'string',
+				},
+				shearPlanes: {
+					default: 1,
+					maximum: 2,
+					minimum: 1,
+					title: 'Shear planes',
+					type: 'integer',
+				},
+				plate: {
+					default: 6,
+					description: 'Thinnest aluminium part the bolts bear on.',
+					exclusiveMinimum: 0,
+					title: 'Plate',
+					type: 'number',
+				},
+				endDistance: {
+					default: 30,
+					description: 'e1 in the force\'s direction [mm].',
+					exclusiveMinimum: 0,
+					title: 'End distance',
+					type: 'number',
+				},
+				edgeDistance: {
+					default: 25,
+					description: 'e2 across it [mm].',
+					exclusiveMinimum: 0,
+					title: 'Edge distance',
+					type: 'number',
+				},
+				pitch: {
+					default: 40,
+					description: 'p1 between bolts in the force\'s direction.',
+					exclusiveMinimum: 0,
+					title: 'Pitch',
+					type: 'number',
+				},
+				throat: {
+					default: 4,
+					description: 'Welded: the fillet welds\' throat a [mm].',
+					exclusiveMinimum: 0,
+					title: 'Throat',
+					type: 'number',
+				},
+				weldLength: {
+					default: 200,
+					description: 'Welded: total length of the welds.',
+					exclusiveMinimum: 0,
+					title: 'Weld length',
+					type: 'number',
+				},
+				filler: {
+					default: '5356',
+					description: 'Welded: the filler metal.',
+					title: 'Filler',
+					type: 'string',
+				},
+				hazThickness: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Welded: the parent part\'s thickness at the weld toe for the heat-affected zone [mm]; none: the joint\'s plate.',
+					title: 'Haz thickness',
+				},
+			},
+			title: 'AluminiumJoint',
+			type: 'object',
+		},
 		AnchorConcrete: {
 			additionalProperties: false,
 			description: 'The concrete side of a group of anchors (a base plate\'s anchor rods, an embedded plate\'s\nstuds): checked by :mod:`saengine.design.anchors` for steel, concrete breakout, pullout,\nside-face blowout and pryout under the code pack\'s anchoring rules.',
@@ -1559,6 +1697,58 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 					description: 'Concrete beams cast in two placements acting as one (a precast stem with a cast-in-place top): the horizontal shear at the contact surface is checked; none: cast in one piece.',
 					title: 'Composite concrete',
 				},
+				joist: {
+					anyOf: [
+						{
+							$ref: '#/$defs/SteelJoist',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Steel beams: an open-web steel joist or joist girder (chords and webs); none: a rolled or built-up beam.',
+					title: 'Steel joist',
+				},
+				webOpenings: {
+					anyOf: [
+						{
+							$ref: '#/$defs/BeamWebOpenings',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Steel I-beams: castellated (hexagonal) or cellular (circular) openings along the web; none: a plain web.',
+					title: 'Web openings',
+				},
+				aluminiumJoint: {
+					anyOf: [
+						{
+							$ref: '#/$defs/AluminiumJoint',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Aluminium members: the bolted or welded joint at both ends (the code pack\'s aluminium joints); none: not checked.',
+					title: 'Aluminium joint',
+				},
+				glassFin: {
+					anyOf: [
+						{
+							$ref: '#/$defs/GlassFin',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Glass members: the fin\'s span, tributary width, wind and plies (the code pack\'s glass table); none: not designed.',
+					title: 'Glass fin',
+				},
 				precast: {
 					anyOf: [
 						{
@@ -1601,6 +1791,70 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 			},
 			required: ['id', 'name', 'material', 'profile'],
 			title: 'Beam',
+			type: 'object',
+		},
+		BeamWebOpenings: {
+			additionalProperties: false,
+			description: 'Alpha 9 L7: a castellated (hexagonal openings) or cellular (circular openings) beam\n(saengine.design.steel.web_openings, the code pack\'s webOpenings table). The type\'s I\nprofile is the finished (expanded) section; the openings are along its web at equal\ncentres, centred on the span unless the first one is placed.',
+			properties: {
+				shape: {
+					default: 'circular',
+					enum: ['circular', 'hexagonal'],
+					enumDescriptions: ['Circular (cellular beam)', 'Hexagonal (castellated beam)'],
+					title: 'Shape',
+					type: 'string',
+				},
+				depth: {
+					default: 400,
+					description: 'Opening diameter d0, or the hexagon\'s depth h0 [mm].',
+					exclusiveMinimum: 0,
+					title: 'Depth',
+					type: 'number',
+				},
+				spacing: {
+					default: 600,
+					description: 'Centres of the openings s [mm].',
+					exclusiveMinimum: 0,
+					title: 'Spacing',
+					type: 'number',
+				},
+				cut: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Hexagonal openings: the length of their straight top and bottom edges [mm]; none: the 60° castellation\'s h0 / √3.',
+					title: 'Cut',
+				},
+				first: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Centre of the first opening from the beam\'s start [mm]; none: the openings are centred on the span.',
+					title: 'First',
+				},
+				filledEnds: {
+					default: 0,
+					description: 'Openings filled with plates at each end (not checked as openings).',
+					minimum: 0,
+					title: 'Filled ends',
+					type: 'integer',
+				},
+			},
+			title: 'BeamWebOpenings',
 			type: 'object',
 		},
 		BoundaryHoops: {
@@ -1782,6 +2036,19 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 					description: 'A damping device in each brace of this type (viscous, viscoelastic, metallic or friction): the analysis models it, works out the added damping and the damped design forces by the code pack (08 FEM); none: a plain brace.',
 					title: 'Damper',
 				},
+				cable: {
+					anyOf: [
+						{
+							$ref: '#/$defs/Cable',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'A tension-only cable with its pretension, modelled with large displacements by the nonlinear stability analysis; none: a plain brace.',
+					title: 'Cable',
+				},
 				timber: {
 					anyOf: [
 						{
@@ -1833,6 +2100,19 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 					default: null,
 					description: 'Bamboo members: bundle, truss member, joints (B39).',
 					title: 'Bamboo',
+				},
+				aluminiumJoint: {
+					anyOf: [
+						{
+							$ref: '#/$defs/AluminiumJoint',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Aluminium members: the bolted or welded joint at both ends (the code pack\'s aluminium joints); none: not checked.',
+					title: 'Aluminium joint',
 				},
 				modifiers: {
 					anyOf: [
@@ -2332,6 +2612,57 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 			title: 'CShapeProfile',
 			type: 'object',
 		},
+		Cable: {
+			additionalProperties: false,
+			description: 'Alpha 9 L4: a cable (guy wire, cable net, stay) in each brace of this type. The\nnonlinear stability analysis (Project Settings, Analysis, Nonlinear stability) models it\nas a tension-only chain of co-rotational trusses with its pretension and own weight, and\nreports its sag and tension (saengine.fem.cables); the linear analysis keeps the brace.',
+			properties: {
+				pretension: {
+					description: 'Tension built in at installation [kN] (a lack of fit of the cable).',
+					exclusiveMinimum: 0,
+					title: 'Pretension',
+					type: 'number',
+				},
+				breakingForce: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Minimum breaking force of the cable [kN]; its design tension is the code pack\'s share of it. Empty: the tension is not checked.',
+					title: 'Breaking force',
+				},
+				modulus: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Elastic modulus of the cable [MPa] (spiral strand about 150 000, locked coil about 160 000). Empty: the material\'s.',
+					title: 'Modulus',
+				},
+				segments: {
+					default: 8,
+					description: 'Pieces the cable is cut into for its sag.',
+					maximum: 100,
+					minimum: 2,
+					title: 'Segments',
+					type: 'integer',
+				},
+			},
+			required: ['pretension'],
+			title: 'Cable',
+			type: 'object',
+		},
 		ChordBars: {
 			additionalProperties: false,
 			description: 'Continuous bars along a slab\'s free edges (the floor\'s edges without an edge beam), lapped\nas tension bars, that carry the diaphragm chord force with the slab\'s own bars parallel to\nthe edge within the edge strip (:mod:`saengine.design.diaphragms`).',
@@ -2660,6 +2991,32 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 					default: null,
 					description: 'k, unbraced lengths and framing for the design (empty: automatic).',
 					title: 'Design overwrites',
+				},
+				aluminiumJoint: {
+					anyOf: [
+						{
+							$ref: '#/$defs/AluminiumJoint',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Aluminium members: the bolted or welded joint at both ends (the code pack\'s aluminium joints); none: not checked.',
+					title: 'Aluminium joint',
+				},
+				glassFin: {
+					anyOf: [
+						{
+							$ref: '#/$defs/GlassFin',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Glass members: the fin\'s span, tributary width, wind and plies (the code pack\'s glass table); none: not designed.',
+					title: 'Glass fin',
 				},
 				isolator: {
 					anyOf: [
@@ -4360,6 +4717,44 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 			title: 'FerrocementMember',
 			type: 'object',
 		},
+		FilledPlateWall: {
+			additionalProperties: false,
+			description: 'Alpha 9 L7: a concrete-filled composite plate shear wall (two steel plates tied through\nthe concrete fill; the wall type\'s thickness is the overall tsc, its material the fill;\nsaengine.design.composite_plate_walls, the code pack\'s compositePlateWalls).',
+			properties: {
+				plateThickness: {
+					default: 12,
+					description: 'Each steel plate tp [mm].',
+					exclusiveMinimum: 0,
+					title: 'Plate thickness',
+					type: 'number',
+				},
+				plateMaterial: {
+					description: '03 Materials id of the plates\' steel.',
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Plate material',
+					type: 'string',
+				},
+				tieDiameter: {
+					default: 25,
+					description: 'Tie bars across the fill [mm].',
+					exclusiveMinimum: 0,
+					title: 'Tie diameter',
+					type: 'number',
+				},
+				tieSpacing: {
+					default: 300,
+					description: 'Tie bars\' spacing both ways [mm].',
+					exclusiveMinimum: 0,
+					title: 'Tie spacing',
+					type: 'number',
+				},
+			},
+			required: ['plateMaterial'],
+			title: 'FilledPlateWall',
+			type: 'object',
+		},
 		FinPlateConnection: {
 			additionalProperties: false,
 			description: 'Single (fin) plate welded to the support, one line of bolts through the beam web.',
@@ -4978,6 +5373,200 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 			title: 'FrameModifiers',
 			type: 'object',
 		},
+		GlassFin: {
+			additionalProperties: false,
+			description: 'Alpha 9 L7: a glass fin (a beam or column type made of glass, its profile a rectangle:\nthe depth the fin\'s) stiffening a facade: designed for the wind on its tributary width over\nits span, with its lateral-torsional buckling.',
+			properties: {
+				span: {
+					default: 3500,
+					description: 'Span between the fin\'s supports [mm].',
+					exclusiveMinimum: 0,
+					title: 'Span',
+					type: 'number',
+				},
+				tributary: {
+					default: 1500,
+					description: 'Facade width the fin carries [mm].',
+					exclusiveMinimum: 0,
+					title: 'Tributary',
+					type: 'number',
+				},
+				windPressure: {
+					default: 1.0,
+					description: 'Wind pressure [kPa].',
+					minimum: 0,
+					title: 'Wind pressure',
+					type: 'number',
+				},
+				plies: {
+					items: {
+						exclusiveMinimum: 0,
+						type: 'number',
+					},
+					minItems: 1,
+					title: 'Plies',
+					type: 'array',
+				},
+				interlayer: {
+					default: 'ionoplast',
+					enum: ['pvb', 'ionoplast', 'eva'],
+					enumDescriptions: ['PVB', 'Ionoplast (stiff)', 'EVA'],
+					title: 'Interlayer',
+					type: 'string',
+				},
+				interlayerThickness: {
+					default: 1.52,
+					description: 'Each interlayer [mm].',
+					exclusiveMinimum: 0,
+					title: 'Interlayer thickness',
+					type: 'number',
+				},
+				restrained: {
+					default: false,
+					description: 'The glazing restrains the fin\'s compression edge (no lateral-torsional buckling).',
+					title: 'Restrained',
+					type: 'boolean',
+				},
+			},
+			title: 'GlassFin',
+			type: 'object',
+		},
+		GlassPanel: {
+			additionalProperties: false,
+			description: 'Alpha 9 L7: a structural glass panel of a wall or slab type made of glass (saengine.\ndesign.glass, the code pack\'s glass table): a facade or roof panel on four or two edges, a\nwalk-on floor panel, or a balustrade clamped at its base. Monolithic with one ply, laminated\nwith more (the interlayer\'s shear coupling by the Wölfel-Bennison ω).',
+			properties: {
+				use: {
+					default: 'panel',
+					enum: ['panel', 'floor', 'balustrade'],
+					enumDescriptions: ['Facade or roof panel', 'Walk-on floor panel', 'Balustrade'],
+					title: 'Use',
+					type: 'string',
+				},
+				support: {
+					default: 'fourEdges',
+					enum: ['fourEdges', 'twoEdges', 'cantilever'],
+					enumDescriptions: ['Line supported on four edges', 'Line supported on two opposite edges', 'Clamped at the base (cantilever)'],
+					title: 'Support',
+					type: 'string',
+				},
+				width: {
+					default: 1500,
+					description: 'Panel width [mm].',
+					exclusiveMinimum: 0,
+					title: 'Width',
+					type: 'number',
+				},
+				height: {
+					default: 2000,
+					description: 'Panel height [mm]; two edges: the span; cantilever: the free height.',
+					exclusiveMinimum: 0,
+					title: 'Height',
+					type: 'number',
+				},
+				plies: {
+					description: 'Thickness of each ply [mm] (the design thickness).',
+					items: {
+						exclusiveMinimum: 0,
+						type: 'number',
+					},
+					minItems: 1,
+					title: 'Plies',
+					type: 'array',
+				},
+				interlayer: {
+					default: 'pvb',
+					enum: ['pvb', 'ionoplast', 'eva'],
+					enumDescriptions: ['PVB', 'Ionoplast (stiff)', 'EVA'],
+					title: 'Interlayer',
+					type: 'string',
+				},
+				interlayerThickness: {
+					default: 0.76,
+					description: 'Each interlayer [mm].',
+					exclusiveMinimum: 0,
+					title: 'Interlayer thickness',
+					type: 'number',
+				},
+				shearModulus: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'G of the interlayer for the panel\'s actions [MPa]; none: the code pack\'s.',
+					title: 'Shear modulus',
+				},
+				windPressure: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Wind pressure on the panel [kPa] (characteristic).',
+					title: 'Wind pressure',
+				},
+				snow: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Snow on a roof panel [kPa].',
+					title: 'Snow',
+				},
+				live: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Imposed load on a floor panel [kPa].',
+					title: 'Live',
+				},
+				barrier: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Balustrades: the row id of the code pack\'s barrier loads (the line load at the top); none: its first row in kN/m.',
+					title: 'Barrier',
+				},
+				barrierHeight: {
+					default: 1100,
+					description: 'Balustrades: height of the line load above the clamp [mm].',
+					exclusiveMinimum: 0,
+					title: 'Barrier height',
+					type: 'number',
+				},
+			},
+			title: 'GlassPanel',
+			type: 'object',
+		},
 		GradeBeamWall: {
 			additionalProperties: false,
 			description: 'A wall designed as a grade beam spanning between its supports (footings, pile caps).',
@@ -5372,6 +5961,60 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 			title: 'IsolatorPropertyModification',
 			type: 'object',
 		},
+		JoistMember: {
+			additionalProperties: false,
+			description: 'A chord or web member of an open-web steel joist: an angle, a tee, a round or a bar\nprofile, single or two back to back (two angles act as a tee of their legs, the gap\nbetween them neglected: SAEngine practice, on the safe side).',
+			properties: {
+				profile: {
+					description: 'The member\'s section (an angle, tee, round or bar).',
+					oneOf: [
+						{
+							$ref: '#/$defs/RectangleProfile',
+						},
+						{
+							$ref: '#/$defs/CircleProfile',
+						},
+						{
+							$ref: '#/$defs/RectangleHollowProfile',
+						},
+						{
+							$ref: '#/$defs/CircleHollowProfile',
+						},
+						{
+							$ref: '#/$defs/IShapeProfile',
+						},
+						{
+							$ref: '#/$defs/TShapeProfile',
+						},
+						{
+							$ref: '#/$defs/LShapeProfile',
+						},
+						{
+							$ref: '#/$defs/UShapeProfile',
+						},
+						{
+							$ref: '#/$defs/CShapeProfile',
+						},
+						{
+							$ref: '#/$defs/ZShapeProfile',
+						},
+						{
+							$ref: '#/$defs/DesignedProfile',
+						},
+					],
+					title: 'Profile',
+				},
+				double: {
+					default: true,
+					description: 'Two of the section back to back (chords: two angles).',
+					title: 'Double',
+					type: 'boolean',
+				},
+			},
+			required: ['profile'],
+			title: 'JoistMember',
+			type: 'object',
+		},
 		LShapeProfile: {
 			additionalProperties: false,
 			description: 'IfcLShapeProfileDef (angle).',
@@ -5552,6 +6195,228 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 				},
 			},
 			title: 'MemberServiceability',
+			type: 'object',
+		},
+		Membrane: {
+			additionalProperties: false,
+			description: 'Alpha 9 L7: a tensile membrane or cable net on four corners (a four-point sail or a\nhypar), form found by force density from its prestress, then loaded by the code pack\'s\ncases (saengine.design.membranes, the code pack\'s membranes table). It has its own\ngeometry: not placed on the floor plan; its corner reactions are reported for the\nsupports.',
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				name: {
+					minLength: 1,
+					title: 'Name',
+					type: 'string',
+				},
+				material: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Material',
+					type: 'string',
+				},
+				description: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Description',
+				},
+				kind: {
+					const: 'membrane',
+					default: 'membrane',
+					title: 'Kind',
+					type: 'string',
+				},
+				system: {
+					default: 'fabric',
+					enum: ['fabric', 'cableNet'],
+					enumDescriptions: ['Fabric membrane', 'Cable net'],
+					title: 'System',
+					type: 'string',
+				},
+				corners: {
+					description: 'The four corners in order round the edge (fixed anchor points) [mm].',
+					items: {
+						$ref: '#/$defs/MembraneCorner',
+					},
+					maxItems: 4,
+					minItems: 4,
+					title: 'Corners',
+					type: 'array',
+				},
+				divisions: {
+					default: 16,
+					description: 'Mesh divisions per edge.',
+					maximum: 48,
+					minimum: 4,
+					title: 'Divisions',
+					type: 'integer',
+				},
+				prestressWarp: {
+					default: 2.0,
+					description: 'Warp prestress [kN/m].',
+					exclusiveMinimum: 0,
+					title: 'Prestress warp',
+					type: 'number',
+				},
+				prestressFill: {
+					default: 2.0,
+					description: 'Fill prestress [kN/m].',
+					exclusiveMinimum: 0,
+					title: 'Prestress fill',
+					type: 'number',
+				},
+				edgeCables: {
+					default: true,
+					description: 'Cables along the four edges (else straight fixed edges).',
+					title: 'Edge cables',
+					type: 'boolean',
+				},
+				cablePrestress: {
+					default: 30,
+					description: 'Edge cable prestress [kN].',
+					exclusiveMinimum: 0,
+					title: 'Cable prestress',
+					type: 'number',
+				},
+				fabric: {
+					$ref: '#/$defs/MembraneFabric',
+					title: 'Fabric',
+				},
+				cables: {
+					$ref: '#/$defs/MembraneCables',
+					title: 'Cables',
+				},
+				snow: {
+					default: 0.0,
+					description: 'Snow on plan [kPa] (characteristic).',
+					minimum: 0,
+					title: 'Snow',
+					type: 'number',
+				},
+				windPressure: {
+					default: 0.0,
+					description: 'Wind pressure [kPa].',
+					minimum: 0,
+					title: 'Wind pressure',
+					type: 'number',
+				},
+				windSuction: {
+					default: 0.0,
+					description: 'Wind suction [kPa].',
+					minimum: 0,
+					title: 'Wind suction',
+					type: 'number',
+				},
+			},
+			required: ['id', 'name', 'material'],
+			title: 'Membrane',
+			type: 'object',
+		},
+		MembraneCables: {
+			additionalProperties: false,
+			description: 'The edge cables (between the corners), or the cables of a cable net.',
+			properties: {
+				area: {
+					default: 150,
+					description: 'Metallic area [mm²].',
+					exclusiveMinimum: 0,
+					title: 'Area',
+					type: 'number',
+				},
+				modulus: {
+					default: 150000,
+					description: 'E of the cable [MPa].',
+					exclusiveMinimum: 0,
+					title: 'Modulus',
+					type: 'number',
+				},
+				breaking: {
+					default: 180,
+					description: 'Minimum breaking force [kN].',
+					exclusiveMinimum: 0,
+					title: 'Breaking',
+					type: 'number',
+				},
+			},
+			title: 'MembraneCables',
+			type: 'object',
+		},
+		MembraneCorner: {
+			additionalProperties: false,
+			properties: {
+				x: {
+					description: '[mm]',
+					title: 'X',
+					type: 'number',
+				},
+				y: {
+					description: '[mm]',
+					title: 'Y',
+					type: 'number',
+				},
+				z: {
+					description: '[mm]',
+					title: 'Z',
+					type: 'number',
+				},
+			},
+			required: ['x', 'y', 'z'],
+			title: 'MembraneCorner',
+			type: 'object',
+		},
+		MembraneFabric: {
+			additionalProperties: false,
+			description: 'The fabric\'s stiffness and strength in its two directions: warp along the first edge\n(corner 1 to 2), fill along the second (corner 2 to 3).',
+			properties: {
+				stiffnessWarp: {
+					default: 600,
+					description: 'E t of the warp [kN/m].',
+					exclusiveMinimum: 0,
+					title: 'Stiffness warp',
+					type: 'number',
+				},
+				stiffnessFill: {
+					default: 400,
+					description: 'E t of the fill [kN/m].',
+					exclusiveMinimum: 0,
+					title: 'Stiffness fill',
+					type: 'number',
+				},
+				strengthWarp: {
+					default: 84,
+					description: 'Strip tensile strength [kN/m].',
+					exclusiveMinimum: 0,
+					title: 'Strength warp',
+					type: 'number',
+				},
+				strengthFill: {
+					default: 80,
+					description: 'Strip tensile strength [kN/m].',
+					exclusiveMinimum: 0,
+					title: 'Strength fill',
+					type: 'number',
+				},
+				weight: {
+					default: 0.01,
+					description: 'Self weight [kPa].',
+					minimum: 0,
+					title: 'Weight',
+					type: 'number',
+				},
+			},
+			title: 'MembraneFabric',
 			type: 'object',
 		},
 		MomentMagnifiers: {
@@ -7139,6 +8004,19 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 					description: 'A composite slab on profiled steel deck (thickness: the overall depth, over the ribs); empty: a concrete slab.',
 					title: 'Composite deck',
 				},
+				glass: {
+					anyOf: [
+						{
+							$ref: '#/$defs/GlassPanel',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Glass types: the panel\'s support, size, plies and actions (the code pack\'s glass table); none: not designed.',
+					title: 'Glass panel',
+				},
 			},
 			required: ['id', 'name', 'material', 'thickness'],
 			title: 'Slab',
@@ -7605,6 +8483,89 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 			},
 			required: ['id', 'name', 'material', 'waistThickness', 'riser', 'tread', 'flightWidth'],
 			title: 'Staircase',
+			type: 'object',
+		},
+		SteelJoist: {
+			additionalProperties: false,
+			description: 'Alpha 9 L7: the beam type is an open-web steel joist or a joist girder (saengine.design.\nsteel_joists): the chords and webs are designed by the code pack\'s steel checks from the\nmember\'s moment and shear, with the joist specification\'s rules where the pack has them\n(its steelJoists table). The type\'s profile is the joist\'s analysis section only (give a\nlight I section of about the joist\'s weight); the deflection is scaled to the truss\'s\nstiffness (chords and webs).',
+			properties: {
+				kind: {
+					default: 'joist',
+					enum: ['joist', 'joistGirder'],
+					enumDescriptions: ['Joist (uniform load)', 'Joist girder'],
+					title: 'Kind',
+					type: 'string',
+				},
+				designation: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'A designation of the code pack\'s joist load tables: the joist is also rated by its row; none: the truss design alone.',
+					title: 'Designation',
+				},
+				depth: {
+					default: 600,
+					description: 'Overall depth of the joist [mm].',
+					exclusiveMinimum: 0,
+					title: 'Depth',
+					type: 'number',
+				},
+				panel: {
+					default: 600,
+					description: 'Panel length: the top chord\'s panel points\' spacing [mm].',
+					exclusiveMinimum: 0,
+					title: 'Panel',
+					type: 'number',
+				},
+				web: {
+					default: 'warren',
+					description: 'Warren (diagonals only, alternating) or Pratt (verticals and diagonals).',
+					enum: ['warren', 'pratt'],
+					enumDescriptions: ['Warren', 'Pratt (verticals and diagonals)'],
+					title: 'Web',
+					type: 'string',
+				},
+				topChord: {
+					$ref: '#/$defs/JoistMember',
+					title: 'Top chord',
+				},
+				bottomChord: {
+					$ref: '#/$defs/JoistMember',
+					title: 'Bottom chord',
+				},
+				webs: {
+					$ref: '#/$defs/JoistMember',
+					description: 'The web members (diagonals and verticals).',
+					title: 'Webs',
+				},
+				bridging: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Spacing of the rows of bridging [mm]; none: the bridging the code pack\'s rules need is reported (generic: the chords\' out-of-plane length is the span).',
+					title: 'Bridging',
+				},
+				deckBraced: {
+					default: true,
+					description: 'The deck braces the top chord out of the plane at every panel point.',
+					title: 'Deck braces top chord',
+					type: 'boolean',
+				},
+			},
+			title: 'SteelJoist',
 			type: 'object',
 		},
 		SteelPlateWall: {
@@ -8846,6 +9807,32 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 					description: 'Steel walls (a steel material; the thickness is the web plate\'s): the concrete encasing the plate of a composite plate shear wall; none: a steel plate shear wall without concrete.',
 					title: 'Steel plate wall',
 				},
+				filledPlate: {
+					anyOf: [
+						{
+							$ref: '#/$defs/FilledPlateWall',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Concrete walls: two steel plates tied through the concrete fill (a composite plate shear wall, the code pack\'s compositePlateWalls); none: a reinforced concrete wall.',
+					title: 'Concrete-filled plate wall',
+				},
+				glass: {
+					anyOf: [
+						{
+							$ref: '#/$defs/GlassPanel',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Glass types: the panel\'s support, size, plies and actions (the code pack\'s glass table); none: not designed.',
+					title: 'Glass panel',
+				},
 			},
 			required: ['id', 'name', 'material', 'thickness'],
 			title: 'Wall',
@@ -9113,6 +10100,9 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 					},
 					{
 						$ref: '#/$defs/Solid',
+					},
+					{
+						$ref: '#/$defs/Membrane',
 					},
 				],
 			},
@@ -10018,6 +11008,19 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 					default: null,
 					description: 'Assessment of an existing building and its retrofit (P4): the knowledge level, the as-built strengths from tests, the members\' condition and the retrofit measures; the results check every member by the code pack\'s assessment rules (its existing table). Empty: a new building.',
 					title: 'Existing building',
+				},
+				nonlinearStability: {
+					anyOf: [
+						{
+							$ref: '#/$defs/NonlinearStability',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Nonlinear buckling with imperfections (GMNIA) of the steel frames and the large-displacement analysis of cables under one load combination: the path of the load factor, the limit load factor against the linear buckling factor αcr, and the cables\' sag and tension (alpha 9 L4; run from the FEM results). Empty: not made.',
+					title: 'Nonlinear stability',
 				},
 				floorSpectra: {
 					anyOf: [
@@ -12264,6 +13267,129 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 				},
 			},
 			title: 'NonlinearHistory',
+			type: 'object',
+		},
+		NonlinearStability: {
+			additionalProperties: false,
+			description: 'Alpha 9 L4: nonlinear buckling of the steel frames with imperfections (GMNIA) and the\nlarge-displacement analysis of cables, under one load combination (fem/nonlinear_stability.py,\nby the code pack\'s nonlinearStability table).',
+			properties: {
+				combination: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'The load combination followed (its name). Empty: the first one.',
+					title: 'Combination',
+				},
+				imperfection: {
+					default: 'eigenmode',
+					description: 'Eigenmode: the first buckling mode scaled to the code pack\'s amplitude. Equivalent: the code pack\'s sway and member bow imperfections. None: the perfect frame.',
+					enum: ['eigenmode', 'equivalent', 'none'],
+					enumDescriptions: ['First buckling mode', 'Equivalent sway and bow', 'None (perfect frame)'],
+					title: 'Imperfection',
+					type: 'string',
+				},
+				material: {
+					default: 'plastic',
+					description: 'Plastic: steel members as fibre elements that yield (GMNIA). Elastic: geometric nonlinearity only (GNIA).',
+					enum: ['plastic', 'elastic'],
+					enumDescriptions: ['Elastic-plastic steel (GMNIA)', 'Elastic (GNIA)'],
+					title: 'Material',
+					type: 'string',
+				},
+				direction: {
+					default: 'X',
+					description: 'Direction of the sway imperfection (equivalent).',
+					enum: ['X', 'Y'],
+					title: 'Direction',
+					type: 'string',
+				},
+				method: {
+					anyOf: [
+						{
+							enum: ['arcLength', 'displacementControl'],
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'How the path is followed past λ = 1. Empty: the code pack\'s.',
+					enumDescriptions: ['Arc length', 'Displacement control'],
+					title: 'Path method',
+				},
+				steps: {
+					anyOf: [
+						{
+							maximum: 5000,
+							minimum: 5,
+							type: 'integer',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Steps of the path at most. Empty: the code pack\'s.',
+					title: 'Steps',
+				},
+				segments: {
+					default: 4,
+					description: 'Pieces each frame element is cut into (to bow).',
+					maximum: 20,
+					minimum: 1,
+					title: 'Segments',
+					type: 'integer',
+				},
+				curve: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'The buckling curve whose bow ratio applies (a0, a, b, c, d where the code pack gives them by curve). Empty: the code pack\'s default.',
+					title: 'Buckling curve',
+				},
+				bowRatio: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'L / e0 of the bow. Empty: the code pack\'s.',
+					title: 'Bow ratio',
+				},
+				swayRatio: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: '1 / φ of the sway. Empty: the code pack\'s.',
+					title: 'Sway ratio',
+				},
+			},
+			title: 'NonlinearStability',
 			type: 'object',
 		},
 		Occupancy: {
@@ -20659,6 +21785,19 @@ export const TEMPLATES: { readonly [defName: string]: object } = {
 			alloy: 'EN AW-6082 T6',
 		},
 	},
+	'Material:glass': {
+		id: 'GLASS-T',
+		name: 'Toughened glass',
+		category: 'glass',
+		mechanical: {
+			E: 70000,
+			density: 2500,
+			nu: 0.22,
+		},
+		glass: {
+			kind: 'toughened',
+		},
+	},
 	'Material:other': {
 		id: 'MAT',
 		name: 'New material',
@@ -20694,6 +21833,32 @@ export const TEMPLATES: { readonly [defName: string]: object } = {
 	AluminiumProperties: {
 		alloy: 'EN AW-6082 T6',
 	},
+	GlassProperties: {
+		kind: 'toughened',
+	},
+	SteelJoist: {},
+	JoistMember: {
+		profile: {
+			shape: 'L',
+			depth: 50,
+			width: 50,
+			thickness: 5,
+		},
+	},
+	BeamWebOpenings: {},
+	GlassPanel: {},
+	GlassFin: {},
+	AluminiumJoint: {},
+	FilledPlateWall: {
+		plateMaterial: 'S355',
+	},
+	MembraneCorner: {
+		x: 0,
+		y: 0,
+		z: 0,
+	},
+	MembraneFabric: {},
+	MembraneCables: {},
 	BambooMember: {},
 	BambooJoint: {
 		kind: 'gusset',
@@ -21436,6 +22601,12 @@ export const TEMPLATES: { readonly [defName: string]: object } = {
 		name: 'Mass concrete',
 		kind: 'solid',
 		material: 'C24.1',
+	},
+	Membrane: {
+		id: 'MEM1',
+		name: 'Four-point sail',
+		kind: 'membrane',
+		material: 'MAT',
 	},
 	Block: {
 		id: 'K1',

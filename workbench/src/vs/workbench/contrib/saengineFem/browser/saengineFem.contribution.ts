@@ -596,6 +596,52 @@ registerPlannedFeature({
 	],
 });
 
+// Alpha 9 L7: steel joists, castellated and cellular beams, aluminium joints (EN 1999), glass,
+// tensile membranes and concrete-filled composite plate walls are designed by the code pack's
+// tables (04 Objects); aluminium by the US Aluminum Design Manual and membrane cutting patterns
+// stay planned.
+registerPlannedFeature({
+	id: FemPlanned.aluminiumAdm,
+	part: 'fem',
+	title: localize('planned.aluminiumAdm.title', "Aluminium by the Aluminum Design Manual"),
+	summary: localize('planned.aluminiumAdm.summary', "Aluminium members and joints are designed today by a code pack with partial-factor aluminium rules (EN 1999-1-1 in the Eurocodes pack). Planned: the US Aluminum Design Manual's member and connection checks in the US pack (its buckling constants by alloy and temper, element slenderness limits, welded members)."),
+	steps: [
+		localize('planned.aluminiumAdm.step1', "Pick the alloy and temper of the US pack's aluminium table."),
+		localize('planned.aluminiumAdm.step2', "Check the members by the manual's limit states and the joints by its bolt and weld rules."),
+	],
+	inputs: [
+		{ label: localize('planned.aluminiumAdm.alloy', "Alloy and temper"), example: '6061-T6' },
+	],
+	outputs: [
+		localize('planned.aluminiumAdm.out1', "Aluminium member and joint utilisations by the US pack"),
+	],
+	references: [
+		localize('planned.aluminiumAdm.ref1', "Aluminum Design Manual 2020 (Specification for Aluminum Structures)"),
+	],
+});
+
+registerPlannedFeature({
+	id: FemPlanned.membranePatterns,
+	part: 'fem',
+	title: localize('planned.membranePatterns.title', "Membrane Cutting Patterns and Free Shapes"),
+	summary: localize('planned.membranePatterns.summary', "Tensile membranes and cable nets on four corners are form found, loaded and checked today (04 Objects, membrane types). Planned: boundaries of any number of corners, masts and ridge cables inside the surface, and the cutting patterns of the fabric with its compensation."),
+	steps: [
+		localize('planned.membranePatterns.step1', "Draw the boundary, the masts and the ridge and valley cables."),
+		localize('planned.membranePatterns.step2', "Find the form and check it under the code pack's cases."),
+		localize('planned.membranePatterns.step3', "Cut the surface into panels along geodesic seams and flatten them with the compensation."),
+	],
+	inputs: [
+		{ label: localize('planned.membranePatterns.width', "Fabric width"), unit: 'mm', example: '2500' },
+		{ label: localize('planned.membranePatterns.compensation', "Compensation"), unit: '%', example: '1.0' },
+	],
+	outputs: [
+		localize('planned.membranePatterns.out1', "Cutting patterns as DXF"),
+	],
+	references: [
+		localize('planned.membranePatterns.ref1', "TensiNet European Design Guide for Tensile Surface Structures"),
+	],
+});
+
 // B6: timber joints. Nailed, bolted (wooden splice plates), split-ring and disc-dowel joints are
 // checked with the code pack's timber table (saengine.design.timber.connections); wood screws and
 // steel side plates stay planned: the pack gives no design values for them.

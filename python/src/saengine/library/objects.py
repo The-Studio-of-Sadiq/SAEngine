@@ -1656,6 +1656,250 @@ class SeismicIsolator(_Model):
     )
 
 
+# ──────────── alpha 9 L7: special members (steel joists, web openings, glass, ────────────
+# ──────────── aluminium joints, concrete-filled plate walls, membranes) ──────────────────
+
+_Pos = Annotated[float, Field(gt=0)]
+
+
+class JoistMember(_Model):
+    """A chord or web member of an open-web steel joist: an angle, a tee, a round or a bar
+    profile, single or two back to back (two angles act as a tee of their legs, the gap
+    between them neglected: SAEngine practice, on the safe side)."""
+
+    profile: Profile = Field(description="The member's section (an angle, tee, round or bar).")
+    double: bool = Field(
+        default=True, description="Two of the section back to back (chords: two angles)."
+    )
+
+
+def _angle_pair() -> JoistMember:
+    return JoistMember(profile=LShapeProfile(depth=50, width=50, thickness=5), double=True)
+
+
+class SteelJoist(_Model):
+    """Alpha 9 L7: the beam type is an open-web steel joist or a joist girder (saengine.design.
+    steel_joists): the chords and webs are designed by the code pack's steel checks from the
+    member's moment and shear, with the joist specification's rules where the pack has them
+    (its steelJoists table). The type's profile is the joist's analysis section only (give a
+    light I section of about the joist's weight); the deflection is scaled to the truss's
+    stiffness (chords and webs)."""
+
+    kind: Literal["joist", "joistGirder"] = Field(
+        default="joist",
+        json_schema_extra={"enumDescriptions": ["Joist (uniform load)", "Joist girder"]},
+    )
+    designation: str | None = Field(
+        default=None,
+        description="A designation of the code pack's joist load tables: the joist is also "
+        "rated by its row; none: the truss design alone.",
+    )
+    depth: Length = Field(default=600, description="Overall depth of the joist [mm].")
+    panel: Length = Field(
+        default=600, description="Panel length: the top chord's panel points' spacing [mm]."
+    )
+    web: Literal["warren", "pratt"] = Field(
+        default="warren",
+        description="Warren (diagonals only, alternating) or Pratt (verticals and diagonals).",
+        json_schema_extra={"enumDescriptions": ["Warren", "Pratt (verticals and diagonals)"]},
+    )
+    topChord: JoistMember = Field(default_factory=_angle_pair, title="Top chord")
+    bottomChord: JoistMember = Field(default_factory=_angle_pair, title="Bottom chord")
+    webs: JoistMember = Field(
+        default_factory=lambda: JoistMember(profile=CircleProfile(radius=11), double=False),
+        description="The web members (diagonals and verticals).",
+    )
+    bridging: float | None = Field(
+        default=None,
+        gt=0,
+        description="Spacing of the rows of bridging [mm]; none: the bridging the code pack's "
+        "rules need is reported (generic: the chords' out-of-plane length is the span).",
+    )
+    deckBraced: bool = Field(
+        default=True,
+        title="Deck braces top chord",
+        description="The deck braces the top chord out of the plane at every panel point.",
+    )
+
+
+class BeamWebOpenings(_Model):
+    """Alpha 9 L7: a castellated (hexagonal openings) or cellular (circular openings) beam
+    (saengine.design.steel.web_openings, the code pack's webOpenings table). The type's I
+    profile is the finished (expanded) section; the openings are along its web at equal
+    centres, centred on the span unless the first one is placed."""
+
+    shape: Literal["circular", "hexagonal"] = Field(
+        default="circular",
+        json_schema_extra={
+            "enumDescriptions": ["Circular (cellular beam)", "Hexagonal (castellated beam)"]
+        },
+    )
+    depth: Length = Field(
+        default=400, description="Opening diameter d0, or the hexagon's depth h0 [mm]."
+    )
+    spacing: Length = Field(default=600, description="Centres of the openings s [mm].")
+    cut: float | None = Field(
+        default=None,
+        gt=0,
+        description="Hexagonal openings: the length of their straight top and bottom edges "
+        "[mm]; none: the 60° castellation's h0 / √3.",
+    )
+    first: float | None = Field(
+        default=None,
+        gt=0,
+        description="Centre of the first opening from the beam's start [mm]; none: the "
+        "openings are centred on the span.",
+    )
+    filledEnds: int = Field(
+        default=0,
+        ge=0,
+        description="Openings filled with plates at each end (not checked as openings).",
+    )
+
+
+GlassInterlayer = Literal["pvb", "ionoplast", "eva"]
+_INTERLAYERS = {"enumDescriptions": ["PVB", "Ionoplast (stiff)", "EVA"]}
+
+
+class GlassPanel(_Model):
+    """Alpha 9 L7: a structural glass panel of a wall or slab type made of glass (saengine.
+    design.glass, the code pack's glass table): a facade or roof panel on four or two edges, a
+    walk-on floor panel, or a balustrade clamped at its base. Monolithic with one ply, laminated
+    with more (the interlayer's shear coupling by the Wölfel-Bennison ω)."""
+
+    use: Literal["panel", "floor", "balustrade"] = Field(
+        default="panel",
+        json_schema_extra={
+            "enumDescriptions": ["Facade or roof panel", "Walk-on floor panel", "Balustrade"]
+        },
+    )
+    support: Literal["fourEdges", "twoEdges", "cantilever"] = Field(
+        default="fourEdges",
+        json_schema_extra={
+            "enumDescriptions": [
+                "Line supported on four edges",
+                "Line supported on two opposite edges",
+                "Clamped at the base (cantilever)",
+            ]
+        },
+    )
+    width: Length = Field(default=1500, description="Panel width [mm].")
+    height: Length = Field(
+        default=2000,
+        description="Panel height [mm]; two edges: the span; cantilever: the free height.",
+    )
+    plies: list[_Pos] = Field(
+        default_factory=lambda: [8.0, 8.0],
+        min_length=1,
+        description="Thickness of each ply [mm] (the design thickness).",
+    )
+    interlayer: GlassInterlayer = Field(default="pvb", json_schema_extra=_INTERLAYERS)
+    interlayerThickness: Length = Field(default=0.76, description="Each interlayer [mm].")
+    shearModulus: float | None = Field(
+        default=None,
+        gt=0,
+        description="G of the interlayer for the panel's actions [MPa]; none: the code pack's.",
+    )
+    windPressure: float | None = Field(
+        default=None, ge=0, description="Wind pressure on the panel [kPa] (characteristic)."
+    )
+    snow: float | None = Field(default=None, ge=0, description="Snow on a roof panel [kPa].")
+    live: float | None = Field(
+        default=None, ge=0, description="Imposed load on a floor panel [kPa]."
+    )
+    barrier: str | None = Field(
+        default=None,
+        description="Balustrades: the row id of the code pack's barrier loads (the line load "
+        "at the top); none: its first row in kN/m.",
+    )
+    barrierHeight: Length = Field(
+        default=1100, description="Balustrades: height of the line load above the clamp [mm]."
+    )
+
+
+class GlassFin(_Model):
+    """Alpha 9 L7: a glass fin (a beam or column type made of glass, its profile a rectangle:
+    the depth the fin's) stiffening a facade: designed for the wind on its tributary width over
+    its span, with its lateral-torsional buckling."""
+
+    span: Length = Field(default=3500, description="Span between the fin's supports [mm].")
+    tributary: Length = Field(default=1500, description="Facade width the fin carries [mm].")
+    windPressure: float = Field(default=1.0, ge=0, description="Wind pressure [kPa].")
+    plies: list[_Pos] = Field(default_factory=lambda: [10.0, 10.0, 10.0], min_length=1)
+    interlayer: GlassInterlayer = Field(default="ionoplast", json_schema_extra=_INTERLAYERS)
+    interlayerThickness: Length = Field(default=1.52, description="Each interlayer [mm].")
+    restrained: bool = Field(
+        default=False,
+        description="The glazing restrains the fin's compression edge (no lateral-torsional "
+        "buckling).",
+    )
+
+
+class AluminiumJoint(_Model):
+    """Alpha 9 L7: the bolted or welded end joint of an aluminium member (both ends, the
+    member's end forces; saengine.design.aluminium, the code pack's aluminium.joints)."""
+
+    kind: Literal["bolted", "welded"] = Field(
+        default="bolted",
+        json_schema_extra={"enumDescriptions": ["Bolted (lap or gusset)", "Fillet welded"]},
+    )
+    bolts: int = Field(default=4, ge=1, description="Bolts in the joint.")
+    boltDiameter: Length = Field(default=12, description="[mm].")
+    boltMaterial: str = Field(
+        default="8.8", description="A bolt material of the code pack's aluminium joints."
+    )
+    shearPlanes: int = Field(default=1, ge=1, le=2)
+    plate: Length = Field(default=6, description="Thinnest aluminium part the bolts bear on.")
+    endDistance: Length = Field(default=30, description="e1 in the force's direction [mm].")
+    edgeDistance: Length = Field(default=25, description="e2 across it [mm].")
+    pitch: Length = Field(default=40, description="p1 between bolts in the force's direction.")
+    throat: Length = Field(default=4, description="Welded: the fillet welds' throat a [mm].")
+    weldLength: Length = Field(default=200, description="Welded: total length of the welds.")
+    filler: str = Field(default="5356", description="Welded: the filler metal.")
+    hazThickness: float | None = Field(
+        default=None,
+        gt=0,
+        description="Welded: the parent part's thickness at the weld toe for the heat-affected "
+        "zone [mm]; none: the joint's plate.",
+    )
+
+
+class FilledPlateWall(_Model):
+    """Alpha 9 L7: a concrete-filled composite plate shear wall (two steel plates tied through
+    the concrete fill; the wall type's thickness is the overall tsc, its material the fill;
+    saengine.design.composite_plate_walls, the code pack's compositePlateWalls)."""
+
+    plateThickness: Length = Field(default=12, description="Each steel plate tp [mm].")
+    plateMaterial: Id = Field(description="03 Materials id of the plates' steel.")
+    tieDiameter: Length = Field(default=25, description="Tie bars across the fill [mm].")
+    tieSpacing: Length = Field(default=300, description="Tie bars' spacing both ways [mm].")
+
+
+class MembraneCorner(_Model):
+    x: float = Field(description="[mm]")
+    y: float = Field(description="[mm]")
+    z: float = Field(description="[mm]")
+
+
+class MembraneFabric(_Model):
+    """The fabric's stiffness and strength in its two directions: warp along the first edge
+    (corner 1 to 2), fill along the second (corner 2 to 3)."""
+
+    stiffnessWarp: _Pos = Field(default=600, description="E t of the warp [kN/m].")
+    stiffnessFill: _Pos = Field(default=400, description="E t of the fill [kN/m].")
+    strengthWarp: _Pos = Field(default=84, description="Strip tensile strength [kN/m].")
+    strengthFill: _Pos = Field(default=80, description="Strip tensile strength [kN/m].")
+    weight: float = Field(default=0.01, ge=0, description="Self weight [kPa].")
+
+
+class MembraneCables(_Model):
+    """The edge cables (between the corners), or the cables of a cable net."""
+
+    area: _Pos = Field(default=150, description="Metallic area [mm²].")
+    modulus: _Pos = Field(default=150000, description="E of the cable [MPa].")
+    breaking: _Pos = Field(default=180, description="Minimum breaking force [kN].")
+
+
 # ─────────────── alpha 9 L1: precast pieces (checked by saengine.design.precast) ───────────────
 
 #: The precast element of each object kind (a type's ``precast.element`` must be one of them).
@@ -2116,6 +2360,30 @@ class Beam(_ObjectBase):
         "a cast-in-place top): the horizontal shear at the contact surface is checked; none: "
         "cast in one piece.",
     )
+    joist: SteelJoist | None = Field(  # alpha 9 L7
+        default=None,
+        title="Steel joist",
+        description="Steel beams: an open-web steel joist or joist girder (chords and webs); "
+        "none: a rolled or built-up beam.",
+    )
+    webOpenings: BeamWebOpenings | None = Field(  # alpha 9 L7
+        default=None,
+        title="Web openings",
+        description="Steel I-beams: castellated (hexagonal) or cellular (circular) openings "
+        "along the web; none: a plain web.",
+    )
+    aluminiumJoint: AluminiumJoint | None = Field(  # alpha 9 L7
+        default=None,
+        title="Aluminium joint",
+        description="Aluminium members: the bolted or welded joint at both ends (the code "
+        "pack's aluminium joints); none: not checked.",
+    )
+    glassFin: GlassFin | None = Field(  # alpha 9 L7
+        default=None,
+        title="Glass fin",
+        description="Glass members: the fin's span, tributary width, wind and plies (the code "
+        "pack's glass table); none: not designed.",
+    )
     precast: PrecastPiece | None = Field(
         default=None,
         description="A precast concrete piece (alpha 9 L1): its element, inserts, corbels and "
@@ -2194,6 +2462,18 @@ class Column(_ObjectBase):
         default=None,
         title="Design overwrites",
         description="k, unbraced lengths and framing for the design (empty: automatic).",
+    )
+    aluminiumJoint: AluminiumJoint | None = Field(  # alpha 9 L7
+        default=None,
+        title="Aluminium joint",
+        description="Aluminium members: the bolted or welded joint at both ends (the code "
+        "pack's aluminium joints); none: not checked.",
+    )
+    glassFin: GlassFin | None = Field(  # alpha 9 L7
+        default=None,
+        title="Glass fin",
+        description="Glass members: the fin's span, tributary width, wind and plies (the code "
+        "pack's glass table); none: not designed.",
     )
     isolator: SeismicIsolator | None = Field(
         default=None,
@@ -2351,6 +2631,36 @@ class SupplementalDamper(_Model):
         return self
 
 
+class Cable(_Model):
+    """Alpha 9 L4: a cable (guy wire, cable net, stay) in each brace of this type. The
+    nonlinear stability analysis (Project Settings, Analysis, Nonlinear stability) models it
+    as a tension-only chain of co-rotational trusses with its pretension and own weight, and
+    reports its sag and tension (saengine.fem.cables); the linear analysis keeps the brace."""
+
+    pretension: float = Field(
+        gt=0,
+        title="Pretension",
+        description="Tension built in at installation [kN] (a lack of fit of the cable).",
+    )
+    breakingForce: float | None = Field(
+        default=None,
+        gt=0,
+        title="Breaking force",
+        description="Minimum breaking force of the cable [kN]; its design tension is the code "
+        "pack's share of it. Empty: the tension is not checked.",
+    )
+    modulus: float | None = Field(
+        default=None,
+        gt=0,
+        title="Modulus",
+        description="Elastic modulus of the cable [MPa] (spiral strand about 150 000, locked "
+        "coil about 160 000). Empty: the material's.",
+    )
+    segments: int = Field(
+        default=8, ge=2, le=100, description="Pieces the cable is cut into for its sag."
+    )
+
+
 class Brace(_ObjectBase):
     """Bracing and truss members."""
 
@@ -2381,6 +2691,12 @@ class Brace(_ObjectBase):
         "metallic or friction): the analysis models it, works out the added damping and the "
         "damped design forces by the code pack (08 FEM); none: a plain brace.",
     )
+    cable: Cable | None = Field(  # alpha 9 L4
+        default=None,
+        title="Cable",
+        description="A tension-only cable with its pretension, modelled with large "
+        "displacements by the nonlinear stability analysis; none: a plain brace.",
+    )
     timber: TimberMember | None = Field(
         default=None,
         description="Timber members: bearing, notches, restraints, cantilever, spaced column; "
@@ -2394,6 +2710,12 @@ class Brace(_ObjectBase):
     )
     bamboo: BambooMember | None = Field(
         default=None, description="Bamboo members: bundle, truss member, joints (B39)."
+    )
+    aluminiumJoint: AluminiumJoint | None = Field(  # alpha 9 L7
+        default=None,
+        title="Aluminium joint",
+        description="Aluminium members: the bolted or welded joint at both ends (the code "
+        "pack's aluminium joints); none: not checked.",
     )
     modifiers: FrameModifiers | None = Field(
         default=None,
@@ -2550,6 +2872,12 @@ class Slab(_ObjectBase):
         description="A composite slab on profiled steel deck (thickness: the overall depth, "
         "over the ribs); empty: a concrete slab.",
     )
+    glass: GlassPanel | None = Field(  # alpha 9 L7
+        default=None,
+        title="Glass panel",
+        description="Glass types: the panel's support, size, plies and actions (the code "
+        "pack's glass table); none: not designed.",
+    )
 
 
 class GradeBeamWall(_Model):
@@ -2634,6 +2962,19 @@ class Wall(_ObjectBase):
         description="Steel walls (a steel material; the thickness is the web plate's): the "
         "concrete encasing the plate of a composite plate shear wall; none: a steel plate "
         "shear wall without concrete.",
+    )
+    filledPlate: FilledPlateWall | None = Field(  # alpha 9 L7
+        default=None,
+        title="Concrete-filled plate wall",
+        description="Concrete walls: two steel plates tied through the concrete fill (a "
+        "composite plate shear wall, the code pack's compositePlateWalls); none: a reinforced "
+        "concrete wall.",
+    )
+    glass: GlassPanel | None = Field(  # alpha 9 L7
+        default=None,
+        title="Glass panel",
+        description="Glass types: the panel's support, size, plies and actions (the code "
+        "pack's glass table); none: not designed.",
     )
 
 
@@ -2752,6 +3093,43 @@ class Pile(_ObjectBase):
     reinforcement: LinearReinforcement | None = None
 
 
+class Membrane(_ObjectBase):
+    """Alpha 9 L7: a tensile membrane or cable net on four corners (a four-point sail or a
+    hypar), form found by force density from its prestress, then loaded by the code pack's
+    cases (saengine.design.membranes, the code pack's membranes table). It has its own
+    geometry: not placed on the floor plan; its corner reactions are reported for the
+    supports."""
+
+    kind: Literal["membrane"] = "membrane"
+    system: Literal["fabric", "cableNet"] = Field(
+        default="fabric",
+        json_schema_extra={"enumDescriptions": ["Fabric membrane", "Cable net"]},
+    )
+    corners: list[MembraneCorner] = Field(
+        default_factory=lambda: [
+            MembraneCorner(x=0, y=0, z=0),
+            MembraneCorner(x=10000, y=0, z=3000),
+            MembraneCorner(x=10000, y=10000, z=0),
+            MembraneCorner(x=0, y=10000, z=3000),
+        ],
+        min_length=4,
+        max_length=4,
+        description="The four corners in order round the edge (fixed anchor points) [mm].",
+    )
+    divisions: int = Field(default=16, ge=4, le=48, description="Mesh divisions per edge.")
+    prestressWarp: _Pos = Field(default=2.0, description="Warp prestress [kN/m].")
+    prestressFill: _Pos = Field(default=2.0, description="Fill prestress [kN/m].")
+    edgeCables: bool = Field(
+        default=True, description="Cables along the four edges (else straight fixed edges)."
+    )
+    cablePrestress: _Pos = Field(default=30, description="Edge cable prestress [kN].")
+    fabric: MembraneFabric = Field(default_factory=MembraneFabric)
+    cables: MembraneCables = Field(default_factory=MembraneCables)
+    snow: float = Field(default=0.0, ge=0, description="Snow on plan [kPa] (characteristic).")
+    windPressure: float = Field(default=0.0, ge=0, description="Wind pressure [kPa].")
+    windSuction: float = Field(default=0.0, ge=0, description="Wind suction [kPa].")
+
+
 class Solid(_ObjectBase):
     """The material of solid blocks of special structures (dam sections, massive foundations,
     piers, thick containment walls), analysed as volumes."""
@@ -2760,7 +3138,7 @@ class Solid(_ObjectBase):
 
 
 ObjectType = Annotated[
-    Beam | Column | Brace | Slab | Wall | Staircase | Footing | PileCap | Pile | Solid,
+    Beam | Column | Brace | Slab | Wall | Staircase | Footing | PileCap | Pile | Solid | Membrane,
     Field(discriminator="kind"),
 ]
 

@@ -1,0 +1,33 @@
+{
+  "$schema": "../../../schemas/connectionFe.schema.json",
+  "$sources": [
+    "AISC 360-22 gives no finite element design of joints: the plastic strain limit and bolt stiffness are SAEngine practice (EN 1993-1-5 Annex C Sec C.8, EN 1993-1-8 Table 6.11); the classification by AISC 360-22 Commentary B3.4b; see VERIFY.md"
+  ],
+  "source": "SAEngine practice (CBFEM) with AISC 360-22 bolt and weld resistances and the Commentary B3.4b classification",
+  "plasticStrainLimit": 0.05,
+  "yieldFactor": 0.9,
+  "hardeningRatio": 0.001,
+  "boltStiffness": "componentTable",
+  "classification": {
+    "method": "stiffnessRatio",
+    "pinned": 2.0,
+    "rigidBraced": 20.0,
+    "rigidUnbraced": 20.0,
+    "source": "AISC 360-22 Commentary B3.4b"
+  },
+  "elementSize": 10.0,
+  "elementsAcross": 8,
+  "loadSteps": 10,
+  "clauses": {
+    "basis": "SAEngine practice (AISC 360-22 gives no FE method)",
+    "strain": "EN 1993-1-5 C.8 Note 1 (practice)",
+    "bolts": "AISC 360-22 J3.6-J3.7",
+    "welds": "AISC 360-22 J2.4",
+    "stiffness": "EN 1993-1-8 Table 6.11 (practice)",
+    "classification": "AISC 360-22 Commentary B3.4b"
+  },
+  "sources": {
+    "yieldFactor": "φ = 0.90 of yielding (AISC 360-22 J4.1), SAEngine practice"
+  },
+  "note": ""
+}

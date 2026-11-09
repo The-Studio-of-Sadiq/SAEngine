@@ -21,7 +21,7 @@ export const BOQ_SCHEMA_ID = 'saengine.boq/1';
 /** Desktop command measuring the bill (registered where the Python backend is). */
 export const BOQ_COMPUTE_COMMAND = 'saengine.boq.compute';
 
-export type BoqGroup = 'earthwork' | 'concrete' | 'masonry' | 'finishes' | 'reinforcement' | 'formwork' | 'steel' | 'composite' | 'mep' | 'materials';
+export type BoqGroup = 'earthwork' | 'concrete' | 'masonry' | 'finishes' | 'reinforcement' | 'formwork' | 'steel' | 'composite' | 'special' | 'mep' | 'materials';
 export type BoqUnit = 'm3' | 'm2' | 'kg' | 'nr' | 'm' | 'cft' | 'bag' | 'l';
 
 export interface IBoqBreakdownEntry {
@@ -133,6 +133,7 @@ export const BOQ_GROUPS: readonly { readonly group: BoqGroup; readonly title: st
 	{ group: 'formwork', title: localize('boq.group.formwork', "Formwork") },
 	{ group: 'steel', title: localize('boq.group.steel', "Structural Steel") },
 	{ group: 'composite', title: localize('boq.group.composite', "Shear Studs and Steel Deck") },
+	{ group: 'special', title: localize('boq.group.special', "Glass and Membranes") },
 	{ group: 'mep', title: localize('boq.group.mep', "MEP Coordination") },
 	{ group: 'materials', title: localize('boq.group.materialsTakeOff', "Materials Take-off") },
 ];
@@ -150,6 +151,8 @@ export function totalledItems(group: BoqGroup, items: readonly IBoqItem[]): read
 		case 'finishes': return items.filter(i => i.kind === 'plaster');
 		// Alpha 9 P8: the deck (m²) stands for the group; the studs are counted (nr).
 		case 'composite': return items.filter(i => i.kind === 'slab');
+		// Alpha 9 L7: the glass and fabric (m²) stand for the group; the cables are in metres.
+		case 'special': return items.filter(i => i.unit === 'm2');
 		default: return items;
 	}
 }

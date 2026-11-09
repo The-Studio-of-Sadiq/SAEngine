@@ -1,0 +1,61 @@
+{
+  "$schema": "../../../schemas/nonlinearStability.schema.json",
+  "$sources": [
+    "EN 1993-1-1:2005 Sec 5.2-5.3 (Table 5.1 bow imperfections, 5.3.2(3) sway, 5.3.2(11) eigenmode), EN 1993-1-5:2006 Annex C (FE methods of analysis), EN 1993-1-6:2007 Sec 8.7 (dimple imperfection), EN 1993-1-11:2006 Sec 6.2 (tension components); recommended values; see VERIFY.md"
+  ],
+  "source": "EN 1993-1-1 Sec 5.3, EN 1993-1-5 Annex C, EN 1993-1-6 Sec 8.7, EN 1993-1-11 Sec 6.2 (recommended values)",
+  "bow": {
+    "method": "curveRatio",
+    "ratios": { "a0": 350.0, "a": 300.0, "b": 250.0, "c": 200.0, "d": 150.0 },
+    "plasticRatios": { "a0": 300.0, "a": 250.0, "b": 200.0, "c": 150.0, "d": 100.0 },
+    "defaultCurve": "b",
+    "source": "EN 1993-1-1 Table 5.1"
+  },
+  "sway": {
+    "method": "heightAndColumns",
+    "baseRatio": 200.0,
+    "heightFactorMin": 0.6667,
+    "source": "EN 1993-1-1 Sec 5.3.2(3) Eq 5.5"
+  },
+  "eigenmode": {
+    "method": "memberBow",
+    "source": "EN 1993-1-1 Sec 5.3.2(11) (amplitude from e0 of the critical member, simplified)"
+  },
+  "plates": {
+    "method": "panelRatio",
+    "panelRatio": 200.0,
+    "dimple": { "A": 0.006, "B": 0.010, "C": 0.016 },
+    "defaultClass": "B",
+    "source": "EN 1993-1-5 Annex C Table C.2; EN 1993-1-6 Table 8.4"
+  },
+  "yieldFactor": 1.0,
+  "stiffnessFactor": 1.0,
+  "hardeningRatio": 0.0001,
+  "requiredFactor": 1.0,
+  "path": {
+    "method": "arcLength",
+    "steps": 100,
+    "maxDisplacementRatio": 10.0,
+    "dropShare": 0.2,
+    "source": "SAEngine practice"
+  },
+  "cables": {
+    "breakingShare": 0.741,
+    "source": "EN 1993-1-11 Sec 6.2(2) FRd = Fuk / (1.5 γR), γR = 0.90"
+  },
+  "clauses": {
+    "basis": "EN 1993-1-5 Annex C",
+    "bow": "EN 1993-1-1 Table 5.1",
+    "sway": "EN 1993-1-1 5.3.2(3)",
+    "eigenmode": "EN 1993-1-1 5.3.2(11)",
+    "plates": "EN 1993-1-5 C.5",
+    "shells": "EN 1993-1-6 8.7",
+    "material": "EN 1993-1-5 C.6",
+    "cables": "EN 1993-1-11 6.2"
+  },
+  "sources": {
+    "yieldFactor": "EN 1993-1-5 C.9: γM1 = 1.0 recommended, taken on fy",
+    "hardeningRatio": "EN 1993-1-5 C.6(2) Fig C.2 (b): nominal plateau slope E/10000"
+  },
+  "note": "Residual stresses are not modelled: the equivalent imperfections of EN 1993-1-1 Table 5.1 cover them."
+}

@@ -83,11 +83,12 @@ function libraryConfig(kind: LibraryKind): ILibraryConfig {
 
 /** The material categories each kind of object type can be made of (members never of rebar or mortar alone). */
 const KIND_MATERIALS: { readonly [kind: string]: readonly string[] } = {
-	beam: ['concrete', 'steel', 'aluminium', 'timber', 'bamboo', 'ferrocement', 'other'],
-	column: ['concrete', 'steel', 'aluminium', 'masonry', 'timber', 'bamboo', 'ferrocement', 'other'],
+	beam: ['concrete', 'steel', 'aluminium', 'timber', 'bamboo', 'ferrocement', 'glass', 'other'],
+	column: ['concrete', 'steel', 'aluminium', 'masonry', 'timber', 'bamboo', 'ferrocement', 'glass', 'other'],
 	brace: ['steel', 'aluminium', 'timber', 'bamboo', 'other'],
-	slab: ['concrete', 'other'],
-	wall: ['concrete', 'masonry', 'other'],
+	slab: ['concrete', 'glass', 'other'],
+	wall: ['concrete', 'masonry', 'glass', 'other'],
+	membrane: ['other'],
 	staircase: ['concrete', 'other'],
 	footing: ['concrete', 'other'],
 	pileCap: ['concrete', 'other'],
@@ -105,6 +106,7 @@ const KIND_HELP: { readonly [kind: string]: string } = {
 	footing: localize('library.kindFooting', "A footing: designed in 9 Substructure; this type gives its material and bars."),
 	pileCap: localize('library.kindPileCap', "A pile cap on bored piles of a pile type; designed in 9 Substructure."),
 	pile: localize('library.kindPile', "A bored pile: its diameter, length and bars; pile caps refer to it."),
+	membrane: localize('library.kindMembrane', "A tensile membrane or cable net on four corners: form found from its prestress and checked under the code pack's load cases. It has its own corner coordinates and is not placed on the floor plan."),
 };
 
 /** Ec = 4700 √f'c (BNBC 2020 Part 6 Sec 6.1.7.1) and fr = 0.62 √f'c (Eq. 6.6.3), rounded as the defaults are. */
@@ -900,6 +902,14 @@ export class LibraryEditor extends JsonDocumentEditor {
 			const material = this.materialIds.members.find(m => m.id === item.material);
 			return material?.category === 'steel' ? undefined : 'hidden';
 		}
+		if (this.config?.listKey === 'objects' && item && item[path] === undefined) {
+			// Alpha 9 L7: the special members' groups, shown for their material only.
+			const needs: { readonly [path: string]: string } = { joist: 'steel', webOpenings: 'steel', aluminiumJoint: 'aluminium', glass: 'glass', glassFin: 'glass', filledPlate: 'concrete' };
+			if (needs[path]) {
+				const material = this.materialIds.members.find(m => m.id === item.material);
+				return material?.category === needs[path] ? undefined : 'hidden';
+			}
+		}
 		if (this.config?.listKey === 'objects' && item && (path === 'bamboo' || path === 'ferrocement') && item[path] === undefined) {
 			// B39: a bamboo or ferrocement member's design data, shown for its material only.
 			const material = this.materialIds.members.find(m => m.id === item.material);
@@ -909,8 +919,8 @@ export class LibraryEditor extends JsonDocumentEditor {
 			return undefined;
 		}
 		const category = item.category;
-		const group = { concrete: 'concrete', rebar: 'steel', steel: 'steel', masonry: 'masonry', timber: 'timber', bamboo: 'bamboo', ferrocement: 'ferrocement', aluminium: 'aluminium' }[String(category)];
-		if (path === 'concrete' || path === 'steel' || path === 'masonry' || path === 'timber' || path === 'bamboo' || path === 'ferrocement' || path === 'aluminium') {
+		const group = { concrete: 'concrete', rebar: 'steel', steel: 'steel', masonry: 'masonry', timber: 'timber', bamboo: 'bamboo', ferrocement: 'ferrocement', aluminium: 'aluminium', glass: 'glass' }[String(category)];
+		if (path === 'concrete' || path === 'steel' || path === 'masonry' || path === 'timber' || path === 'bamboo' || path === 'ferrocement' || path === 'aluminium' || path === 'glass') {
 			return path === group ? 'required' : 'hidden';
 		}
 		if (path === 'composition' && category !== 'concrete' && category !== 'mortar') {

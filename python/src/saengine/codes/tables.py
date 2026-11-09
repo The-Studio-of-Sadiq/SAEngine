@@ -11983,6 +11983,17 @@ from saengine.codes.practice_tables import (  # P7: checks the code gives no met
     WindComfortTable,
 )
 from saengine.codes.precast_tables import PrecastTable  # L1: precast pieces
+from saengine.codes.special_member_tables import (  # L7: special members
+    CompositePlateWallsTable,
+    GlassTable,
+    MembranesTable,
+    SteelJoistsTable,
+    WebOpeningsTable,
+)
+from saengine.codes.stability_tables import (  # L4, L6: GMNIA and cables, CBFEM joints
+    ConnectionFeTable,
+    NonlinearStabilityTable,
+)
 from saengine.codes.steel_remainder_tables import ColdFormedTable, SteelFireTable  # C12
 
 for _model in (  # alpha 9 C6: the groups above are defined after the tables that hold them
@@ -12084,6 +12095,16 @@ TABLE_MODELS: dict[str, type[TableModel]] = {
     "cfdWind": CfdWindTable,
     # Alpha 9 P8: composite slabs on profiled steel deck.
     "compositeSlab": CompositeSlabTable,
+    # Alpha 9 L7: special members (steel joists, castellated and cellular beams, glass,
+    # membranes, concrete-filled composite plate shear walls).
+    "steelJoists": SteelJoistsTable,
+    "webOpenings": WebOpeningsTable,
+    "glass": GlassTable,
+    "membranes": MembranesTable,
+    "compositePlateWalls": CompositePlateWallsTable,
+    # Alpha 9 L4: nonlinear buckling (GMNIA) and cables; L6: finite element check of joints.
+    "nonlinearStability": NonlinearStabilityTable,
+    "connectionFe": ConnectionFeTable,
 }
 
 

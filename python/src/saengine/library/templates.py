@@ -85,6 +85,14 @@ def _material_templates() -> dict[str, dict[str, Any]]:
         "mechanical": {"E": 70000, "density": 2700, "nu": 0.3},
         "aluminium": {"alloy": "EN AW-6082 T6"},
     }
+    # Alpha 9 L7: structural glass (the kinds of a code pack's glass table).
+    templates[f"Material:{Category.GLASS.value}"] = {
+        "id": "GLASS-T",
+        "name": "Toughened glass",
+        "category": "glass",
+        "mechanical": {"E": 70000, "density": 2500, "nu": 0.22},
+        "glass": {"kind": "toughened"},
+    }
     templates[f"Material:{Category.OTHER.value}"] = {
         "id": "MAT",
         "name": "New material",
@@ -109,6 +117,19 @@ TEMPLATES: dict[str, dict[str, Any]] = {
     "BambooTested": {"rupture": 60, "E": 10000, "compression": 40},
     "FerrocementProperties": {"fc": 35},
     "AluminiumProperties": {"alloy": "EN AW-6082 T6"},  # alpha 9 C6
+    # alpha 9 L7: special members (joists, web openings, glass, aluminium joints, filled plate
+    # walls, membranes); "S355" names a steel the editor replaces with an existing one
+    "GlassProperties": {"kind": "toughened"},
+    "SteelJoist": {},
+    "JoistMember": {"profile": {"shape": "L", "depth": 50, "width": 50, "thickness": 5}},
+    "BeamWebOpenings": {},
+    "GlassPanel": {},
+    "GlassFin": {},
+    "AluminiumJoint": {},
+    "FilledPlateWall": {"plateMaterial": "S355"},
+    "MembraneCorner": {"x": 0, "y": 0, "z": 0},
+    "MembraneFabric": {},
+    "MembraneCables": {},
     "BambooMember": {},
     "BambooJoint": {"kind": "gusset", "fastening": "fishPlate"},
     "FerrocementMember": {"mesh": "wovenSquare", "layers": 4, "wireDiameter": 1.0, "spacing": 13},
@@ -468,6 +489,8 @@ TEMPLATES: dict[str, dict[str, Any]] = {
     "AddedMembers": {"kind": "added", "id": "A1", "members": ["W-A1-A2"]},
     "ChecklistAnswer": {"item": "loadPath", "answer": "C"},
     "Solid": {"id": "MASS", "name": "Mass concrete", "kind": "solid", "material": _CONCRETE},
+    # alpha 9 L7: a four-point tensile membrane (its fabric a material of category "other")
+    "Membrane": {"id": "MEM1", "name": "Four-point sail", "kind": "membrane", "material": "MAT"},
     "Block": {
         "id": "K1",
         "type": "MASS",

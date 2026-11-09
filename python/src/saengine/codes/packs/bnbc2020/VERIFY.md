@@ -145,6 +145,22 @@ ASCE 41-17 basis: the same values as the aci318-asce7-22 pack's P4U1-P4U30 (see 
 | P4B3 | existing.linear.hazards | DBE (scale 1.0) at LS, MCE (1.5 × DBE) at CP | BNBC 2020 Part 6 Sec 2.5.2.1 (gazette p. 3186: the design basis earthquake is 2/3 of the MCE) | Sure for the 1.5; SAEngine practice for the levels |
 | P4B4 | all other values | as the US pack's P4U1-P4U30 | ASCE 41-17, ACI 440.2R-17, EN 1998-3 A.4.2.2 | SAEngine practice |
 
+## Nonlinear stability (`nonlinearStability`) and the FE check of joints (`connectionFe`), alpha 9 L4 / L6
+
+BNBC 2020 gives no geometrically and materially nonlinear analysis and no finite element design
+of joints. These tables are SAEngine practice on the AISC 360 basis that Part 6 Chapter 10
+adopts; the results label them so.
+
+| # | Path | Value | Source | Sure? |
+|---|---|---|---|---|
+| L4B1 | bow.fixedRatio, sway.baseRatio | L/1000, L/500 | AISC 360-05 Appendix 7 Sec 7.3 (the basis of Part 6 Ch 10) | Practice (check the section) |
+| L4B2 | yieldFactor, stiffnessFactor | 0.9 Fy, 0.9 E | AISC 360 Appendix 1 Sec 1.3 (later editions) | Practice |
+| L4B3 | eigenmode, plates, hardeningRatio, path | as the US pack's L4U4 | SAEngine practice | Practice |
+| L4B4 | cables.breakingShare | 0.741 | EN 1993-1-11 6.2 | Practice, unsure |
+| L6B1 | plasticStrainLimit, yieldFactor, hardeningRatio | 5 %, 0.9, E/1000 | EN 1993-1-5 C.8; φ of Part 6 Ch 10 | Practice |
+| L6B2 | classification | pinned ≤ 2, rigid ≥ 20 (× E Ib / Lb) | AISC 360-05 Commentary B3.6 | Practice (check) |
+| L6B3 | bolts, welds | the pack's own connection rules (Part 6 Sec 10.10.3, 10.10.2) | BNBC 2020 Part 6 Ch 10 | Sure (reused) |
+
 ## Precast pieces (`precast`; alpha 9 L1; BNBC Part 6 Sec 6.10 pp. 987-992)
 
 | # | Path | Value | Source | Sure? |

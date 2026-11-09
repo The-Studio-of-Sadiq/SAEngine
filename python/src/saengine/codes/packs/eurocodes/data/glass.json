@@ -1,0 +1,50 @@
+{
+  "$schema": "../../../schemas/glass.schema.json",
+  "$sources": [
+    "EN 16612:2019 Glass in building: determination of the lateral load resistance of glass panes by calculation",
+    "EN 1990 (γQ 1.5, γG 1.35); CEN/TS 19100-1/-2 (2021) for the interlayers"
+  ],
+  "source": "EN 16612 (partial factors): fg;d = kmod ksp fg;k / γM;A + kv (fb;k - fg;k) / γM;v; laminated effective thickness (Annex B, Wölfel-Bennison ω); linear plate theory (on the safe side); see VERIFY.md",
+  "method": "partialFactors",
+  "modulus": 70000,
+  "poisson": 0.23,
+  "density": 2500,
+  "actionFactors": {
+    "wind": 1.5,
+    "snow": 1.5,
+    "live": 1.5,
+    "barrier": 1.5,
+    "permanent": 1.35
+  },
+  "partialFactors": {
+    "gammaA": 1.8,
+    "gammaV": 1.2,
+    "annealed": 45,
+    "prestressed": {"heatStrengthened": 70, "toughened": 120, "chemicallyToughened": 150},
+    "kmod": {"wind": 0.74, "barrier": 0.89, "snow": 0.44, "live": 0.5, "permanent": 0.29},
+    "ksp": {"float": 1.0, "patterned": 0.75, "enamelled": 1.0},
+    "kv": 1.0
+  },
+  "interlayers": {
+    "pvb": {"short": 0.44, "long": 0.05},
+    "ionoplast": {"short": 100.0, "long": 10.0},
+    "eva": {"short": 3.0, "long": 0.5}
+  },
+  "deflection": {
+    "fourEdges": 65,
+    "twoEdges": 100,
+    "cantilever": 65,
+    "absolute": 50
+  },
+  "finBuckling": 1.5,
+  "longActions": ["snow", "live", "permanent"],
+  "clauses": {
+    "code": "EN 16612:2019",
+    "strength": "EN 16612 Sec 7 (fg;d), Table 2 (kmod), Table 4 (fb;k)",
+    "laminated": "EN 16612 Annex B (effective thickness, ω)",
+    "deflection": "linear plate theory (Timoshenko); EN 16612 Sec 9 (limits by the National Annex)",
+    "deflectionLimit": "SAEngine practice (span / 65, 50 mm)",
+    "barrier": "EN 1991-1-1 6.4 (the pack's barrier loads)",
+    "fin": "EN 16612 (stress); lateral-torsional buckling by elastic Mcr (SAEngine practice)"
+  }
+}
