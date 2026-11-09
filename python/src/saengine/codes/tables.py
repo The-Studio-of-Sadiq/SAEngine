@@ -11971,6 +11971,10 @@ from saengine.codes.practice_tables import (  # P7: checks the code gives no met
     NonBuildingTable,
     WindComfortTable,
 )
+from saengine.codes.stability_tables import (  # L4, L6: GMNIA and cables, CBFEM joints
+    ConnectionFeTable,
+    NonlinearStabilityTable,
+)
 from saengine.codes.steel_remainder_tables import ColdFormedTable, SteelFireTable  # C12
 
 for _model in (  # alpha 9 C6: the groups above are defined after the tables that hold them
@@ -12063,6 +12067,9 @@ TABLE_MODELS: dict[str, type[TableModel]] = {
     "existing": ExistingTable,
     # Alpha 9 C22: the hazard services by site coordinates.
     "hazardLookup": HazardLookupTable,
+    # Alpha 9 L4: nonlinear buckling (GMNIA) and cables; L6: finite element check of joints.
+    "nonlinearStability": NonlinearStabilityTable,
+    "connectionFe": ConnectionFeTable,
 }
 
 
