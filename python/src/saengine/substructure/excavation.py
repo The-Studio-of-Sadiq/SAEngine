@@ -107,6 +107,40 @@ def _rule(name: str, ok: bool, note: str, flag: bool = False) -> dict[str, Any]:
     return _check(name, 0.0 if ok else 1.0, 1.0, "", None, note, flag, 0.0 if ok else 99.0)
 
 
+def _action(name: str, note: str) -> dict[str, Any]:
+    """W4B-7: an action the engineer must take (plan dewatering): reported (``flag``) and marked
+    ``action``, with no demand, capacity or utilisation, so it neither fails the element nor
+    governs the substructure."""
+    return {
+        "name": name,
+        "demand": None,
+        "capacity": None,
+        "unit": "",
+        "utilisation": None,
+        "combination": None,
+        "ok": False,
+        "note": f"action needed: {note}",
+        "flag": True,
+        "action": True,
+    }
+
+
+def reported_only(checks: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """W4B-8: the reported-only rows that give a value without a capacity (demand = capacity,
+    utilisation 1.000 "OK") as not checked: no capacity, no utilisation."""
+    out = []
+    for c in checks:
+        if (
+            c.get("flag")
+            and not c.get("action")
+            and c.get("demand") is not None
+            and c.get("demand") == c.get("capacity")
+        ):
+            c = {**c, "capacity": None, "utilisation": None, "ok": True}
+        out.append(c)
+    return out
+
+
 def method_lines() -> list[str]:
     """The method lines of the report, from the pack."""
     lines: list[str] = []
@@ -673,10 +707,11 @@ def excavation_checks(
             )
         )
         if not excavation.dewatered:
+            # W4B-7: an action to take, not a utilisation (it was 99 and governed the
+            # substructure): reported, never counted or governing.
             checks.append(
-                _rule(
+                _action(
                     "Dewatering",
-                    False,
                     _cite(
                         "the bottom is below the water table: plan dewatering or a cut-off "
                         "(tick 'dewatered' once planned)",
@@ -749,11 +784,13 @@ def design_excavations(ctx: Any) -> tuple[list[dict[str, Any]], list[str]]:
         if staged is not None:
             checks += staged["checks"]
             needs += staged["notes"]
+        checks = reported_only(checks)
         counted = [c for c in checks if not c["flag"]]
         results.append(
             {
                 "id": excavation.id,
                 "type": "excavation",
+                "actions": [c["name"] for c in checks if c.get("action")],
                 "columns": [],
                 "checks": checks,
                 "utilisation": max((c["utilisation"] for c in counted), default=0.0),

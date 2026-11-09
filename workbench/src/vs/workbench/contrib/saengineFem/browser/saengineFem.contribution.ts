@@ -11,6 +11,7 @@ import { localize, localize2 } from '../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
@@ -32,6 +33,7 @@ import { FemModelEditor } from './femModelEditor.js';
 import { FemStrutAndTieEditor } from './femStrutAndTieEditor.js';
 import { FemStrutAndTieInput, FemStrutAndTieInputSerializer } from './femStrutAndTieInput.js';
 import { FemModelEditorInput, FemModelEditorInputSerializer } from './femModelEditorInput.js';
+import { PUSHOVER_FILE } from './femDerivationBar.js';
 import { FEM_SHOW_CHARTS_COMMAND, FEM_SHOW_MEMBER_COMMAND } from './femResultsBar.js';
 import { FemResultsEditor, FemResultsInput, FemResultsInputSerializer, IFemResultsEditorOptions, memberNames } from './femResultsView.js';
 import { defaultCodeName } from '../../../services/saengineProject/common/activeCodePack.js';
@@ -108,6 +110,40 @@ registerAction2(class extends Action2 {
 		if (target) {
 			await accessor.get(IEditorService).openEditor(new FemResultsInput(target, { kind: 'charts' }), { pinned: true });
 		}
+	}
+});
+
+/** Command id of opening the pushover model (`08 FEM/pushover.osmodel`, W4B-3). */
+export const FEM_OPEN_PUSHOVER_COMMAND = 'saengine.fem.openPushover';
+
+/**
+ * W4B-3: opens the pushover model (`08 FEM/pushover.osmodel`) in the FEM editor, where it is
+ * run and its capacity curve, hinges and target displacement shown; or says how to get one.
+ */
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: FEM_OPEN_PUSHOVER_COMMAND,
+			title: localize2('saengine.fem.openPushover', "Open Pushover Model"),
+			metadata: { description: localize2('saengine.fem.openPushover.description', "Opens 08 FEM/pushover.osmodel, the nonlinear model derived when Pushover is ticked in Project Settings, Analysis model; Run All runs it after the design checks.") },
+			category: localize2('saengine.category', "SAEngine"),
+			f1: true,
+			precondition: ProjectOpenContext,
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const project = accessor.get(ISaengineProjectService).project;
+		const fem = partById('fem');
+		if (!project || !fem) {
+			return;
+		}
+		const model = joinPath(project.root, fem.folder, PUSHOVER_FILE);
+		if (!await accessor.get(IFileService).exists(model)) {
+			accessor.get(INotificationService).info(localize('saengine.fem.noPushover', "There is no pushover model: tick Pushover in Project Settings, Analysis model, give the object types bars (fiber sections need them) and derive the analysis model again (or Run All)."));
+			return;
+		}
+		await accessor.get(IEditorService).openEditor(new FemModelEditorInput(model), { pinned: true });
 	}
 });
 

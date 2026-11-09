@@ -810,8 +810,20 @@ def substructure_status(inputs: StatusInputs) -> PartStatus:
             "soil" if needs_qa else None,
         )
     # Fails first: a footing without its bearing check can fail its other checks (N-U3, N-U5).
+    # W4B-6: a failing excavation, slope or wall fails the part too (partStatus.ts the same).
+    others = summary.get("others") if isinstance(summary.get("others"), dict) else {}
+    failing = [str(i) for i in others.get("failing") or []]
     if summary["failed"] > 0:
-        return _status("substructure", "failed", first, "review the failing foundations")
+        text = f"{first} · {len(failing)} other check(s) fail" if failing else first
+        return _status("substructure", "failed", text, "review the failing foundations")
+    if failing:
+        return _status(
+            "substructure",
+            "failed",
+            f"{len(failing)} other check(s) fail: {', '.join(failing[:3])}"
+            + (" ..." if len(failing) > 3 else ""),
+            "review the failing excavations, slopes or walls",
+        )
     if counts["bearingUnchecked"] > 0:
         return _status(
             "substructure", "inProgress", first,

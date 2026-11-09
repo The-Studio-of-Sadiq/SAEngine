@@ -2430,6 +2430,17 @@ def _pushover(folder: Path, warnings: list[str]) -> list[dict[str, Any]]:
     model, run = folder / "pushover.osmodel", folder / "pushover.results"
     if not model.is_file() or not (run / "manifest.json").is_file():
         return []
+    from saengine.fem.display import results_stale
+
+    if results_stale(run, model):
+        # W4B-11: results of an earlier pushover model (before isolators, say) are not this
+        # building's: they are flagged and left out, as the FEM view flags them.
+        reason = (
+            "the pushover model changed after the pushover was run; run the pushover again "
+            "(Run All, or open 08 FEM/pushover.osmodel and Run Analysis)"
+        )
+        warnings.append(f"The pushover results are out of date and left out: {reason}.")
+        return [{"label": "Pushover", "available": False, "stale": True, "reason": reason}]
     try:
         found = acceptance.pushover_results(run, model)
     except Exception as error:  # noqa: BLE001 - the report goes on without the pushovers
@@ -3529,12 +3540,16 @@ def _governing(element: dict[str, Any]) -> dict[str, Any] | None:
     checks = [c for c in element.get("checks", []) if not c.get("flag")]
     if not checks:
         checks = list(element.get("checks", []))
-    return max(checks, key=lambda c: c.get("utilisation", 0.0), default=None)
+    return max(checks, key=lambda c: c.get("utilisation") or 0.0, default=None)
 
 
 def _result_label(check: dict[str, Any]) -> str:
+    if check.get("flag") and check.get("utilisation") is None and not check.get("action"):
+        return "not checked"  # W4B-8: a value reported without a capacity
     if check.get("ok"):
         return "OK"
+    if check.get("action"):
+        return "ACTION"
     return "NOTE" if check.get("flag") else "FAIL"
 
 

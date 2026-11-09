@@ -923,8 +923,16 @@ function substructureStatus(inputs: IPartStatusInputs): IPartStatus {
 	}
 	// Fails first: a foundation without its bearing check (no qa) can fail its other checks
 	// while none is checked in full (N-U3, N-U5).
+	// W4B-6: a failing excavation, slope or wall fails the part too (`substructure_status` the same).
+	const others = (summary as unknown as { readonly others?: { readonly failing?: unknown } }).others;
+	const listed = others?.failing;
+	const failing = Array.isArray(listed) ? listed.map(String) : [];
 	if (summary.failed > 0) {
-		return status('substructure', 'failed', first, localize('partStatus.substructure.review', "review the failing foundations"));
+		return status('substructure', 'failed', failing.length ? localize('partStatus.substructure.andOthers', "{0} · {1} other check(s) fail", first, failing.length) : first, localize('partStatus.substructure.review', "review the failing foundations"));
+	}
+	if (failing.length) {
+		return status('substructure', 'failed', localize('partStatus.substructure.othersFail', "{0} other check(s) fail: {1}", failing.length, failing.slice(0, 3).join(', ') + (failing.length > 3 ? ' ...' : '')),
+			localize('partStatus.substructure.reviewOthers', "review the failing excavations, slopes or walls"));
 	}
 	if (counts!.bearingUnchecked > 0) {
 		return status('substructure', 'inProgress', first, localize('partStatus.substructure.enterQa', "enter qa in the soil report or Project Settings"), 'soil');

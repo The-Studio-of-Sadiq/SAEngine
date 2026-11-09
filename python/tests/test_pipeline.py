@@ -354,7 +354,7 @@ def test_a_failed_step_blocks_only_the_steps_that_need_it(
         result.step("design").message == "Not run: it needs the analysis model step, which failed."
     )
     assert result.stopped_at == "derive" and not result.ok
-    assert result.summary.startswith("Run All failed at step 2 of 10 (analysis model): Building")
+    assert result.summary.startswith("Run All failed at step 2 of 11 (analysis model): Building")
     assert "step(s) not run" in result.summary
     with pytest.raises(ValueError, match="unknown step"):
         R.run_all(sample, steps=["derive", "nope"])

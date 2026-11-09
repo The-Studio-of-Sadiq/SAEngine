@@ -381,6 +381,32 @@ def evaluate_run(
     return out
 
 
+def fibre_ratios(
+    project: dict[str, Any], results: Any, step: int, rule: Any
+) -> dict[str, Any] | None:
+    """W4B-12: ``{"level", "ratios": {element id: demand / limit}}`` by the fibre strains of a
+    pushover run at ``step`` (method ``fibreStrain``), each element coloured by its member's
+    governing fibre; None when the run kept no fibre strains."""
+    starts = getattr(results, "element_start_fibers", None) or {}
+    ends = getattr(results, "element_end_fibers", None) or {}
+    if not starts and not ends:
+        return None
+    of_member: dict[str, list[int]] = {}
+    worst: dict[str, float] = {}
+    for element, member, limits, _ in _fibre_elements(project, rule):
+        element_id = int(element["id"])
+        of_member.setdefault(member, []).append(element_id)
+        for store in (starts, ends):
+            history = store.get(element_id)
+            if history is None or step >= len(history):
+                continue
+            found = _worst(np.asarray(history[step]), limits)
+            if found is not None:
+                worst[member] = max(worst.get(member, 0.0), found[0])
+    ratios = {str(e): round(ratio, 4) for member, ratio in worst.items() for e in of_member[member]}
+    return {"level": "the fibre strain limits", "ratios": ratios}
+
+
 @code_context.in_project_pack(path_params=("project_path",))
 def hinge_ratios(
     project: dict[str, Any],
@@ -396,6 +422,10 @@ def hinge_ratios(
     from saengine.fem import hinges, pushover_target
 
     rule = table()
+    if rule is not None and rule.method in METHODS:
+        # W4B-12: a pack that accepts by fibre strains (no hinge rules): each member's governing
+        # fibre strain against its limit at this step stands for its hinge state.
+        return fibre_ratios(project, results, step, rule)
     rules = hinges.table()
     if rule is None or rule.method != "hingeRotation" or rules is None:
         return None
