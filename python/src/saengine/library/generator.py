@@ -313,6 +313,26 @@ def ceil_to(value: float, step: float) -> float:
     return math.ceil(value / step - 1e-9) * step
 
 
+def footing_sizes(foundations: list[dict[str, Any]]) -> list[str]:
+    """The generated foundations by kind and size for the wizard's Preliminary Sizes table
+    (W4C-10 of usability walk 4: it had no footing row): "4 isolated 1.8 × 1.8 × 0.45 m"."""
+    counts: dict[tuple[str, float, float, float], int] = {}
+    for f in foundations:
+        key = (
+            str(f.get("type") or "footing"),
+            float(f.get("length") or 0.0),
+            float(f.get("width") or 0.0),
+            float(f.get("thickness") or 0.0),
+        )
+        counts[key] = counts.get(key, 0) + 1
+    out = []
+    for (kind, length, width, thickness), count in sorted(counts.items()):
+        dims = [d for d in (length, width, thickness) if d > 0]
+        size = " × ".join(f"{d / 1000:g}" for d in dims)
+        out.append(f"{count} {kind}" + (f" {size} m" if size else ""))
+    return out
+
+
 def letters(index: int) -> str:
     """A, B, ..., Z, AA, AB, ..."""
     text = ""
@@ -462,6 +482,11 @@ ACCIDENTAL = 0.05
 #: Allowance on the beams' estimated flexural strength for the bars rounded up by the design
 #: (strong column / weak beam): practice.
 BEAM_BARS_ALLOWANCE = 1.15
+#: The share of the joint's shear strength the beams' estimated bars may use when the columns
+#: are sized (special moment frames): the bars the design proposes from the analysis (whole
+#: bars, the live load patterns, the analysis' moments over the portal method's) run above the
+#: estimate; practice (W4C-10 of usability walk 4: 1.28 × the estimate on a 2 × 2 bay frame).
+JOINT_SHEAR_RESERVE = 0.8
 #: The portal method's inflection points as a share of the storey height above its bottom:
 #: mid-height, the lowest storey (fixed base) at two thirds.
 INFLECTION = 0.5
@@ -1210,7 +1235,10 @@ def lateral_column_sizes(
                 else:
                     area = max(t for t, _ in steels)
                 vcol = probable * sum_mnb(i, j, k, along_x) * 1e6 / lever
-                if probable * fy * area - vcol > capacity:
+                # W4C-10 of usability walk 4: the bars the design proposes from the analysis
+                # (whole bars, the live load patterns) came out about 30 % above this estimate
+                # and the wizard's edge columns failed the joint shear: a reserve on it.
+                if probable * fy * area - vcol > JOINT_SHEAR_RESERVE * capacity:
                     return i, j, k
         return None
 
@@ -2783,7 +2811,9 @@ def _generate_building(s: BuildingSpec, settings: Any) -> dict[str, Any]:
                 f"{_g('strongColumn', ' ({})')} with the beams' "
                 "Mn from the bars their portal and gravity moments need (+15 % for rounding) "
                 "and the column type's least layout, and the joint shear with those bars "
-                f"({_g('jointShear', '{}: ')}Vj = 1.25 fy As - Vcol against φ γ √f'c Aj)"
+                f"({_g('jointShear', '{}: ')}Vj = 1.25 fy As - Vcol against φ γ √f'c Aj, at most "
+                f"{JOINT_SHEAR_RESERVE:.0%} of it: the bars the design proposes run above "
+                "the estimate)"
                 if special
                 else ""
             )
@@ -2883,6 +2913,7 @@ def _generate_building(s: BuildingSpec, settings: Any) -> dict[str, Any]:
         },
         "beamTypes": sorted({o["id"] for o in objects if o["kind"] == "beam"}),
         "slabTypes": sorted({o["id"] for o in objects if o["kind"] == "slab"}),
+        "footingTypes": footing_sizes(foundations),
         "families": families,
         "lateralSizing": (
             {

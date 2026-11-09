@@ -55,6 +55,10 @@ from saengine.fem.derive import pinned_twins
 _FRAME_TYPES = {"ElasticBeamColumn", "ForceBeamColumn", "DispBeamColumn", "BeamWithHinges"}
 _ALONG = 0.25  # |cos| above which an element or a restraint braces a direction
 _VERTICAL = 0.7  # |z| of a unit axis above which a frame element is a column (or post)
+#: The spacing [m] of the brace points standing for a slab's continuous bracing of the top
+#: flange it rests on (W4C-10): the order of a deck's or slab's connectors, well within the
+#: plastic range of any rolled beam's unbraced length (SAEngine practice).
+SLAB_BRACE_SPACING = 0.3
 
 
 @dataclass
@@ -96,6 +100,10 @@ class LengthOptions:
 
     k: dict[str, float] = field(default_factory=dict)
     slab_braces_top_flange: bool = True
+    #: W4C-10 of usability walk 4: the member is a beam a floor slab rests on (from the building
+    #: model, :func:`saengine.design.check.slab_carried_beams`), its top flange braced by it
+    #: continuously, also where the slab is not analysed as shells (no shell nodes on it).
+    slab_on_top: bool = False
     unbraced: dict[str, float] = field(default_factory=dict)
     sources: dict[str, str] = field(default_factory=dict)
 
@@ -344,6 +352,24 @@ def member_lengths(
     ltb_top = segments(width, slab_top, "LTB with the top flange in compression")
     ltb_bottom = segments(width, False, "LTB with the bottom flange in compression")
     notes = []
+    if (
+        options.slab_on_top
+        and slab_top
+        and horizontal
+        and not any(shells.get(n) for n in node_ids)
+        and length > SLAB_BRACE_SPACING
+    ):
+        # W4C-10: the slab the beam carries (not analysed as shells: no shell nodes on the
+        # beam) holds its top flange along its whole length, so under sagging (top flange in
+        # compression) the beam is braced continuously; the bottom flange (hogging, near the
+        # supports) keeps the brace points of the frame (ltb_bottom), as the pack's rules ask.
+        count = int(np.ceil(length / SLAB_BRACE_SPACING - 1e-9))
+        points = sorted({*ltb_top.points, *(length * k / count for k in range(count + 1))})
+        ltb_top = Segments(points, ltb_top.free_start, ltb_top.free_end)
+        notes.append(
+            "top flange braced continuously by the slab it carries (brace points every "
+            f"{length / count * 1e3:.0f} mm: LTB under sagging not critical)"
+        )
     if any_free:
         notes.append(
             "a free end (cantilever) for "

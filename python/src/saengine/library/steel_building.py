@@ -50,6 +50,7 @@ from saengine.library.generator import (
     _deep_merge,
     _template,
     ceil_to,
+    footing_sizes,
     letters,
     settings_patch,
 )
@@ -393,6 +394,7 @@ def _generate(s: BuildingSpec, settings: Any) -> dict[str, Any]:
     service: dict[tuple[int, int], float] = {}
     col_size: dict[tuple[int, int, int], Any] = {}
     col_notes: list[str] = []
+    col_why: dict[tuple[int, str], str] = {}
     for g, members in enumerate(groups):
         bottom = members[0]
         for kind in POSITION_FACTOR:
@@ -416,11 +418,19 @@ def _generate(s: BuildingSpec, settings: Any) -> dict[str, Any]:
             section, why = _column_section(pu, fy, z_beam, moment, column_ok)
             if why:
                 col_notes.append(why)
+            col_why[(g, kind)] = why or (
+                "axial load and strong column (Zx)" if moment else "gravity: axial load"
+            )
             for i in range(nx):
                 for j in range(ny):
                     if position(i, j) == kind:
                         for k in members:
                             col_size[(i, j, k)] = section
+    # A column of each position, for the summary's types.
+    first_of = {
+        kind: next((i, j) for i in range(nx) for j in range(ny) if position(i, j) == kind)
+        for kind in {position(i, j) for i in range(nx) for j in range(ny)}
+    }
     # Never smaller above than below (by area).
     for i in range(nx):
         for j in range(ny):
@@ -699,7 +709,12 @@ def _generate(s: BuildingSpec, settings: Any) -> dict[str, Any]:
         "sdc": sdc,
         "warnings": [],
         "suggestCoreWalls": False,
-        "columnReasons": {},
+        # W4C-10 of usability walk 4: the wizard's Preliminary Sizes table had no columns or
+        # footings for a steel frame.
+        "columnReasons": {
+            f"{story_ids[groups[g][0]]}-{story_ids[groups[g][-1]]} {kind}": why
+            for (g, kind), why in sorted(col_why.items())
+        },
         "zone": zone,
         "system": system_id,
         "counts": {
@@ -710,10 +725,16 @@ def _generate(s: BuildingSpec, settings: Any) -> dict[str, Any]:
             "foundations": len(foundations),
             "braces": len(members),
         },
-        "columnTypes": {},
+        "columnTypes": {
+            f"{story_ids[groups[g][0]]}-{story_ids[groups[g][-1]]} {kind}": tid(
+                "SC", col_size[(*first_of[kind], groups[g][0])]
+            )
+            for (g, kind) in sorted(col_why)
+        },
         "beamTypes": sorted({o["id"] for o in objects if o["kind"] == "beam"}),
         "wallTypes": [],
         "slabTypes": sorted({o["id"] for o in objects if o["kind"] == "slab"}),
+        "footingTypes": footing_sizes(foundations),
         "families": [[story_ids[2], *(story_ids[k] for k in sorted(similar))]] if similar else [],
         "lateralSizing": None,
         "stiffness": None,

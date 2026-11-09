@@ -301,7 +301,14 @@ def design_status(report: dict[str, Any]) -> dict[str, Any]:
     not_designed = (design.get("notDesigned") or {}) if design.get("available") else {}
     missing = f"{counted(not_designed)} are not designed (no reinforcement)"
     no_qa = f"{f_no_qa} of {f_total} foundations have no bearing check (no qa)"
-    gaps = ([missing] if not_designed else []) + ([no_qa] if f_no_qa else [])
+    # W4C-6: members the code pack does not cover, apart from those without bars.
+    uncovered = (design.get("notCovered") or {}) if design.get("available") else {}
+    beyond = f"{counted(uncovered)} are not covered by the code pack (not checked)"
+    gaps = (
+        ([missing] if not_designed else [])
+        + ([beyond] if uncovered else [])
+        + ([no_qa] if f_no_qa else [])
+    )
     if parts:
         parts += gaps
         state, headline = "fail", "DESIGN FAILS: " + "; ".join(parts) + "."
@@ -335,6 +342,7 @@ def design_status(report: dict[str, Any]) -> dict[str, Any]:
         "foundationsTotal": f_total,
         "foundationsBearingUnchecked": f_no_qa,
         "notDesigned": dict(not_designed),
+        "notCovered": dict(uncovered),
     }
 
 
@@ -3835,6 +3843,16 @@ def _design(
     punching = _punching(report)
     steel = _steel(report)
     skipped, not_designed, design_notes = _not_designed(report, building)
+    # W4C-6 of usability walk 4: what the code pack does not cover is not "no reinforcement".
+    from saengine.design.check import is_not_covered
+
+    not_covered: dict[str, int] = {}
+    for s in report.get("skipped", []):
+        if is_not_covered(s):
+            kind = str(s.get("kind", ""))
+            not_covered[kind] = not_covered.get(kind, 0) + 1
+            not_designed[kind] = not_designed.get(kind, 0) - 1
+    not_designed = {k: n for k, n in not_designed.items() if n > 0}
     if not_designed:
         design_notes.append(
             f"{counted(not_designed)} are not designed (no reinforcement): see Elements not "
@@ -3883,6 +3901,7 @@ def _design(
         "tables": tables,
         "skipped": skipped,
         "notDesigned": not_designed,
+        "notCovered": not_covered,
         "method": [str(line) for line in report.get("method", [])],
         "notes": design_notes,
         "details": details,

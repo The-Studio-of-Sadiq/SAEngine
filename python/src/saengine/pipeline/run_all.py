@@ -404,8 +404,49 @@ def derivation_state(description: Any, texts: dict[str, str | None]) -> tuple[bo
     return bool(recorded), changed
 
 
+def missing_hazard(settings_text: str | None, root: Path | None = None) -> str | None:
+    """The settings' problem when the code pack takes the seismic hazard from the site's mapped
+    values (SDS and SD1, or a hazard spectrum) and none is entered while a combination has
+    earthquake: the earthquake cases would be empty (W4C-17 of usability walk 4: Run All
+    reported "done" with them empty). None otherwise."""
+    if not settings_text:
+        return None
+    from saengine.library.settings import ProjectSettings, problems
+
+    try:
+        settings = ProjectSettings.model_validate_json(settings_text)
+    except ValueError:
+        return None  # the settings' own errors are reported by their check
+    if not any(
+        abs(float(getattr(c, axis, 0) or 0)) > 0
+        for c in settings.combinations
+        for axis in ("EX", "EY")
+    ):
+        return None
+    try:
+        from saengine.fem import spectral_hazard as sh
+        from saengine.library.settings import code_pack
+
+        with code_context.project(root):
+            pack = code_pack(settings)
+            # Only the packs that take SDS / SD1 (or a hazard spectrum) from the site: a pack
+            # on Z (ubc97's near-source data) still makes its earthquake cases.
+            if not (sh.uses_mapped(pack) and sh.takes_mapped_values(pack)):
+                return None
+            found = [m for path, m in problems(settings) if path == "site.spectral"]
+    except Exception:  # noqa: BLE001 - the pack's own problems are reported by its check
+        return None
+    return found[0] if found else None
+
+
 def _derive(project: Project, step: StepResult) -> bool:
     texts = project.texts(DERIVATION_INPUTS)
+    hazard = missing_hazard(texts.get("settings"), project.root)
+    if hazard:
+        raise StepFailure(
+            f"The earthquake cases cannot be made: {hazard}. Enter them in 02 Project Settings "
+            "> Site (or take the earthquake out of the combinations)."
+        )
     model = project.file("fem")
     try:
         description = (
@@ -766,8 +807,21 @@ def _design(project: Project, step: StepResult) -> dict[str, Any]:
     # N-G1: failing or unchecked members never end as a clean step.
     if summary.get("failed") or members.get("notChecked"):
         step.status = "warning"
-    if members.get("notChecked") and not no_bars:
-        step.message += f"; {members['notChecked']} members not checked"
+    # W4C-6 of usability walk 4: members (or parts of them) the code pack does not cover are
+    # their own status, named here, never "no reinforcement" nor a failure.
+    uncovered = [i for i in summary.get("notCovered") or [] if isinstance(i, dict)]
+    skipped_uncovered = int(S.record(counts.get("notChecked")).get("notCovered") or 0)
+    others = int(members.get("notChecked") or 0) - skipped_uncovered
+    if others > 0 and not no_bars:
+        step.message += f"; {others} members not checked"
+    if uncovered:
+        from saengine.design.check import not_covered_text
+
+        step.status = "warning"
+        step.counts["notCovered"] = len(uncovered)
+        step.message += (
+            f"; not covered by the code pack (not checked): {not_covered_text(uncovered)}"
+        )
     if no_bars:
         # X29: members of types without bars are not checked; said, not hidden.
         step.status = "warning"

@@ -21,7 +21,8 @@ At each opening (its centre's M and V of every strength combination):
 
 The deflection rows are scaled for the net section along the openings and the table's
 Vierendeel and shear allowance. A pack without the table does not cover web openings: the
-beam fails with a row that says so. Units: mm, MPa, N, N·mm (kN, kN·m reported).
+beam keeps its gross section's checks and the openings are reported as not covered (an
+information row and the entry's ``notCovered``; never a failure). Units: mm, MPa, N, N·mm (kN, kN·m reported).
 """
 
 from __future__ import annotations
@@ -149,12 +150,35 @@ def apply(
 
     t = table()
     checks: list[dict[str, Any]] = []
+    if t is None:
+        # W4C-6 of usability walk 4: a pack without the table does not cover the openings. Not
+        # a failure at utilisation 99: the openings are not checked, said on the member (its
+        # gross section's checks stand) and counted apart (design.check.NOT_COVERED).
+        what = f"web openings are not covered by {code_context.code_name()}"
+        entry["checks"].append(
+            {
+                "name": "Web openings",
+                "demand": 0.0,
+                "capacity": 0.0,
+                "unit": "",
+                "utilisation": 0.0,
+                "combination": None,
+                "ok": True,
+                "note": f"not checked: {what}; check the openings by hand or choose a code "
+                "pack that covers them (02 Project Settings)",
+                "flag": True,
+                "clause": "",
+                "status": "notCovered",
+            }
+        )
+        entry["notCovered"] = [*entry.get("notCovered", []), what]
+        entry["webOpenings"] = {"covered": False, "problem": what}
+        _rescore(entry)
+        return
     try:
         shape = shape_properties(object_type.profile, False)
         if shape.family != "I":
             raise ValueError("web openings need an I profile")
-        if t is None:
-            raise ValueError(f"web openings are not covered by {code_context.current().name}")
         steel = Steel.of(material)
         length = float(lengths.length) * 1e3
         g = geometry(openings, shape, length)

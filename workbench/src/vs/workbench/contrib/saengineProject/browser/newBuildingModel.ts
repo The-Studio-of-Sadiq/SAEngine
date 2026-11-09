@@ -617,7 +617,7 @@ export function readGenerateSummary(value: unknown): IGenerateSummary | undefine
 			sizes.push({ what: localize('size.columns', "Columns {0}", what), size, why: typeof why === 'string' ? why : localize('size.gravity', "gravity: axial load") });
 		}
 	}
-	for (const [key, label] of [['beamTypes', localize('size.beams', "Beams")], ['wallTypes', localize('size.walls', "Walls")], ['slabTypes', localize('size.slabs', "Slabs")]] as const) {
+	for (const [key, label] of [['beamTypes', localize('size.beams', "Beams")], ['wallTypes', localize('size.walls', "Walls")], ['slabTypes', localize('size.slabs', "Slabs")], ['footingTypes', localize('size.footings', "Footings")]] as const) {
 		const types = Array.isArray(record[key]) ? (record[key] as unknown[]).filter((t): t is string => typeof t === 'string') : [];
 		if (types.length) {
 			sizes.push({ what: label, size: types.join(', ') });

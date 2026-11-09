@@ -613,6 +613,9 @@ def fem_status(inputs: StatusInputs) -> PartStatus:
         hint = (
             f"{counts['noBars']} members have no bars: Design Reinforcement proposes them"
             if counts["noBars"]
+            # W4C-6 of usability walk 4: what the code pack does not cover, said as such.
+            else f"{counts['notCovered']} not covered by the code pack: open the design results"
+            if counts.get("notCovered")
             else "open the design results for why"
         )
         return _status("fem", "inProgress", f"{counts['notChecked']} not checked", hint)
@@ -646,6 +649,9 @@ def _design_counts(summary: dict[str, Any]) -> dict[str, Any] | None:
         "passed": members["checked"] - failed,
         "notChecked": int(_positive(members.get("notChecked"))),
         "noBars": int(_positive(not_checked.get("noBars"))) if isinstance(not_checked, dict) else 0,
+        "notCovered": (
+            int(_positive(not_checked.get("notCovered"))) if isinstance(not_checked, dict) else 0
+        ),
         "failedText": f"{', '.join(parts)} fail" if parts else None,
     }
 

@@ -48,6 +48,7 @@ from saengine.library.generator import (
     _system,
     _template,
     ceil_to,
+    footing_sizes,
     letters,
     settings_patch,
 )
@@ -405,6 +406,7 @@ def generate_masonry_building(
         "beamTypes": [],
         "wallTypes": sorted({o["id"] for o in objects if o["kind"] == "wall"}),
         "slabTypes": sorted({o["id"] for o in objects if o["kind"] == "slab"}),
+        "footingTypes": footing_sizes(foundations),
         "families": [[story_ids[2], *(story_ids[k] for k in sorted(similar))]] if similar else [],
         "lateralSizing": None,
         "stiffness": None,

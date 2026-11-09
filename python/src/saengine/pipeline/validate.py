@@ -160,7 +160,13 @@ def validate_part(project: Project, part: str) -> PartValidation:
         with code_context.project(project.root):
             found = check_library(part, text, project.text(companion) if companion else None)  # type: ignore[arg-type]
         problems = [
-            _problem(p["message"], path=p.get("path") or "", index=p.get("index")) for p in found
+            _problem(
+                p["message"],
+                p.get("severity") or "error",
+                path=p.get("path") or "",
+                index=p.get("index"),
+            )
+            for p in found
         ]
         if part == "floorPlan" and not problems:
             problems = _plot_warnings(project, text)

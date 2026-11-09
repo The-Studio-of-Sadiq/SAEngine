@@ -262,7 +262,12 @@ def test_openings_checks_added(pack_fixture, request):
 def test_openings_not_covered_by_the_default_pack(bnbc):
     entry = {"checks": [], "utilisation": 0.0, "ok": True}
     wo.apply(entry, _cellular_beam(), STEEL, [_stations(9.0, 100e6)], MemberLengths.simple(9.0))
-    assert entry["ok"] is False and entry["webOpenings"]["covered"] is False
+    # W4C-6 of usability walk 4: not covered is its own status, never a fail at 99.
+    assert entry["ok"] is True and entry["webOpenings"]["covered"] is False
+    assert entry["utilisation"] < 99
+    row = entry["checks"][-1]
+    assert row["status"] == "notCovered" and row["flag"] and row["ok"]
+    assert "not covered" in entry["notCovered"][0]
 
 
 # ───────────────────────────────────────── aluminium joints ─────────────────────────────────────────
