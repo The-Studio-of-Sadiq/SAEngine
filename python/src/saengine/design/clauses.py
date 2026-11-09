@@ -149,6 +149,68 @@ class Rows:
         return f" ({found})" if found else ""
 
 
+def from_default(pack: Any, owner_id: str | None) -> bool:
+    """True when ``pack`` (the pack in force) inherits a clause from the default pack (its
+    writer ``owner_id``): the default pack is the fallback of every pack, not a code the pack
+    adopts, so the pack's method text leaves such a clause out."""
+    if owner_id is None or pack.id == code_context.DEFAULT_PACK or pack.replaces_builtin:
+        return False
+    return owner_id == code_context.DEFAULT_PACK
+
+
+def adopted(group: str, key: str) -> str:
+    """:func:`clause` of ``key`` in ``group`` (after the name of the code that wrote it) for a
+    method text; "" when the pack in force has none or inherits it from the default pack
+    (:func:`from_default`; a project override of it is kept)."""
+    found = text(group, key)
+    if not found:
+        return ""
+    pack = code_context.current()
+    owner = pack.clause_owner(TABLE, group, key) if pack.has(TABLE) else None
+    if owner is not None and owner[1] == found and from_default(pack, owner[0]):
+        return ""
+    return clause(group, key)
+
+
+def own_short_name() -> str:
+    """:func:`short_name`, or the display name of the pack in force when its short name is the
+    default pack's (inherited): a text naming the pack in force never takes the default pack's
+    short name."""
+    pack = code_context.current()
+    found = short_name()
+    if not from_default(pack, code_context.DEFAULT_PACK):
+        return found
+    from saengine.codes.tables import builtin_table
+
+    default = getattr(builtin_table(TABLE, code_context.DEFAULT_PACK), "shortName", "")
+    return code_name() if found == default else found
+
+
+class Own(Mapping[str, str]):
+    """``OWN[key]`` of a group for a method text template (``"{p[key]}"``): :func:`own_text` of
+    the key set in ``form`` ("{}" is the clause), or ``empty`` when the pack in force does not
+    give the key itself, so a template never shows another code's clause number. ``named``:
+    :func:`adopted` instead (the clause after its code's name, kept when inherited from a code
+    the pack extends, left out when inherited from the default pack)."""
+
+    def __init__(self, group: str, form: str = "{}", empty: str = "", named: bool = False) -> None:
+        self.group = group
+        self.form = form
+        self.empty = empty
+        self.named = named
+
+    def __getitem__(self, key: str) -> str:
+        found = adopted(self.group, key) if self.named else own_text(self.group, key)
+        return self.form.format(found) if found else self.empty
+
+    def __iter__(self) -> Iterator[str]:
+        table = _table()
+        return iter(dict(table.clauses.get(self.group) or {}) if table is not None else {})
+
+    def __len__(self) -> int:
+        return sum(1 for _ in self)
+
+
 class Clauses(Mapping[str, str]):
     """``CLAUSES[key]`` of a module: :func:`clause` of its group, read when it is used (so the
     pack in force at that time gives it)."""

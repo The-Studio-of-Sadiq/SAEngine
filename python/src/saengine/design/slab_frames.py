@@ -955,6 +955,24 @@ def column_moment_rows(results: Sequence[FrameResult]) -> list[dict[str, Any]]:
     return rows
 
 
+def _own(*keys: str, form: str = " ({})") -> str:
+    """:func:`clause` of ``keys`` (comma separated) set in ``form`` for the method text; a
+    clause the pack in force inherits from the default pack is left out (never another code's
+    number in this pack's text), and "" when none is left."""
+    from saengine.design.clauses import from_default
+
+    pack = code_context.current()
+    found = []
+    for key in keys:
+        text = clause(key)
+        owner = (
+            pack.value_owner("slabMethods", key) if text and hasattr(pack, "value_owner") else None
+        )
+        if text and not from_default(pack, owner[0] if owner else None):
+            found.append(text)
+    return form.format(", ".join(found)) if found else ""
+
+
 def method_text(used: set[str] | None = None) -> list[str]:
     """The report's method lines of the frame methods (``used``: the method ids used)."""
     lines = []
@@ -962,29 +980,29 @@ def method_text(used: set[str] | None = None) -> list[str]:
     if "directDesign" in used:
         lines.append(
             "Two-way slab systems on columns (slabs not in the analysis model) by the direct "
-            f"design method ({clause('directDesign')}): frames along the column lines each way, "
+            f"design method{_own('directDesign')}: frames along the column lines each way, "
             "l2 to the panels' centre lines; Mo = qu l2 ln² / 8 per span shared to the support "
             "faces and midspan by the pack's coefficients, then to the column strip (0.25 "
             "min(l1, l2) each side of the line), the beam along it and the middle strips by "
-            f"the pack's tables in l2/l1, αf1 l2/l1 and βt ({clause('strips')}); the limits of "
-            f"{clause('limits')} are checked first. Flexure per metre of the slab's layers "
+            f"the pack's tables in l2/l1, αf1 l2/l1 and βt{_own('strips')}; the limits"
+            f"{_own('limits', form=' of {}')} are checked first. Flexure per metre of the slab's layers "
             "from the strips' moments over their widths; one-way shear qu (ln/2 - d); "
             "punching at each column from its tributary area with the moments the frames "
-            f"give it ({clause('edgeTransfer')}, {clause('columnMoment')})."
+            f"give it{_own('edgeTransfer', 'columnMoment')}."
         )
     if "equivalentFrame" in used:
         lines.append(
             "Two-way slab systems outside the direct design method's limits by the equivalent "
-            f"frame method ({clause('equivalentFrame')}): each frame a continuous slab-beam "
+            f"frame method{_own('equivalentFrame')}: each frame a continuous slab-beam "
             "(Is / (1 - c2/l2)² within the supports) on equivalent columns 1/Kec = 1/ΣKc + "
-            f"1/Kt ({clause('torsion')}), the columns' far ends fixed; live load patterns "
-            f"({clause('pattern')}); negative moments at the support faces ({clause('face')}), "
+            f"1/Kt{_own('torsion')}, the columns' far ends fixed; live load patterns"
+            f"{_own('pattern')}; negative moments at the support faces{_own('face')}, "
             "shared to the strips as the direct design method does."
         )
     table = rules()
     if table is not None and getattr(table, "corner", None) is not None:
         lines.append(
-            f"Corner reinforcement ({clause('corner')}): at exterior corners with edge walls "
+            f"Corner reinforcement{_own('corner')}: at exterior corners with edge walls "
             "or edge beams stiffer than the pack's αf, top and bottom layers for the largest "
             "positive moment per metre over the pack's share of the longer span."
         )

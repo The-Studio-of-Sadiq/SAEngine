@@ -64,7 +64,7 @@ from typing import Any
 
 import numpy as np
 
-from saengine.design.clauses import clause
+from saengine.design.clauses import Own, clause
 
 #: Columns of a station row (N, Vy, Vz, T, My, Mz): taken at the face, and the shears, taken at
 #: d from the face when allowed.
@@ -88,7 +88,7 @@ def _texts() -> dict[str, Any]:
         "SHEAR_CLAUSE": clause("faceForces", "shear"),
         "COLUMN_PRACTICE": f"SAEngine's practice for columns; {face} permits face design for "
         "beams only",
-        "METHOD": _method(face),
+        "METHOD": _method(),
     }
 
 
@@ -103,20 +103,26 @@ def __getattr__(name: str) -> Any:
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
-def _method(face: str) -> list[str]:
+def _method() -> list[str]:
+    """The report's method lines. The face clause after its code's name unless inherited from
+    the default pack, the bare numbers only where the pack in force gives them itself (never
+    another code's number in this pack's text)."""
+    head = "Design at the faces of the supports" + Own("faceForces", " ({})", named=True)["face"]
+    spans = Own("faceForces", " ({})")["spansRef"]
+    shear = Own("faceForces", "{}: ")["shearRef"]
+    beams = Own("faceForces", "{}", "the face rule")["faceRef"]
     return [
         (
-            f"Design at the faces of the supports ({face}): the analysis "
-            "spans centre to centre of the supports (6.1.6.2); beams are designed for the moments "
-            "at the column and wall faces (the positive moments in the span unchanged) and for the "
-            "shear at d from the face (6.4.1.3.1: the support compresses the end of the beam, the "
-            "loads act at its top; with a point load within d of a face the shear at the face "
-            "should be taken)."
+            f"{head}: the analysis spans centre to centre of the supports{spans}; beams are "
+            "designed for the moments at the column and wall faces (the positive moments in the "
+            f"span unchanged) and for the shear at d from the face ({shear}the support "
+            "compresses the end of the beam, the loads act at its top; with a point load within "
+            "d of a face the shear at the face should be taken)."
         ),
         (
             "Columns are designed for the forces at the beam soffit and the top of the slab: "
-            "SAEngine's practice, as a commercial analysis program designs them (6.1.6.3 covers "
-            "beams only); their slenderness end moments M1 and M2 stay the joints'."
+            f"SAEngine's practice, as a commercial analysis program designs them ({beams} "
+            "covers beams only); their slenderness end moments M1 and M2 stay the joints'."
         ),
     ]
 

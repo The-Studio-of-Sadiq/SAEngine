@@ -14,7 +14,14 @@
       "patternLive": "Part 6 Sec 6.1.12.2",
       "accidentalTorsion": "Part 6 Sec 2.5.7.6.2",
       "omega": "Part 6 Sec 2.5.13.4",
-      "fireRatings": "Part 4"
+      "fireRatings": "Part 4",
+      "torsionLimit": "Eq. 6.6.59",
+      "torsionDetailing": "Sec 6.4.4.6",
+      "torsionCompatibility": "Sec 6.4.4.2.2",
+      "deflectionIe": "Eq. 6.6.1",
+      "deflectionLimits": "Table 6.6.2",
+      "deflectionDepth": "Table 6.6.1",
+      "columnTies": "Sec 6.4.3.4"
     },
     "seismicRules": {
       "scope": "Part 6 Sec 8.3.1 (p. 1088)",
@@ -42,7 +49,10 @@
     },
     "faceForces": {
       "face": "Part 6 Sec 6.1.6.3",
-      "shear": "Part 6 Sec 6.4.1.3.1"
+      "shear": "Part 6 Sec 6.4.1.3.1",
+      "spansRef": "6.1.6.2",
+      "shearRef": "6.4.1.3.1",
+      "faceRef": "6.1.6.3"
     },
     "walls": {
       "minimum": "Part 6 Sec 6.6.3.2, 6.6.3.3 (p. 969)",
@@ -179,7 +189,14 @@
       "stiffness": "6.5.8.2.3",
       "minimum": "8.1.11.2",
       "spacingTwoWay": "Part 6 Sec 6.5.3.2",
-      "spacingOneWay": "Part 6 Sec 6.3.5.4"
+      "spacingOneWay": "Part 6 Sec 6.3.5.4",
+      "coefficientTables": "Tables 6.6.8-6.6.11",
+      "coefficientShearTable": "Table 6.6.11",
+      "coefficientOneWayShear": "Sec 6.1.4.3",
+      "coefficientMinimum": "Sec 8.1.11.2",
+      "coefficientSpacingTwoWay": "Sec 6.5.8.6.2, 8.1.6.6",
+      "coefficientSpacingAlong": "8.1.6.5",
+      "coefficientSpacingAcross": "8.1.6.7"
     },
     "columnShear": {
       "minimum": "6.4.3.5.1"

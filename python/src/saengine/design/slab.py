@@ -86,8 +86,7 @@ import numpy as np
 
 from saengine.codes import context as code_context
 from saengine.design import slab_systems
-from saengine.design.clauses import clause as pack_clause
-from saengine.design.clauses import short_clause, short_name
+from saengine.design.clauses import Own, own_short_name, short_clause, short_name
 from saengine.design.rc import (
     alpha1,
     bar_area,
@@ -2392,29 +2391,44 @@ def _punching_with_reinforcement(
 
 def _coefficient_method() -> str:
     """``COEFFICIENT_METHOD``: the report's method text of the coefficient design, with the
-    clauses of the code pack in force."""
+    clauses of the code pack in force: a clause after its code's name unless inherited from the
+    default pack, the bare numbers only where the pack gives them itself (never another code's
+    number in this pack's text)."""
+    two_way = Own("slab", "the coefficient method of {}", "the moment coefficient method", True)
+    two_way = two_way["twoWayMethod"]
+    one_way = (
+        short_clause("slab", "oneWaySec")
+        if Own("slab", named=True)["oneWaySec"]
+        else "the moment coefficients"
+    )
+    tables = Own("slab", " ({})")["coefficientTables"]
+    shear_table = Own("slab", " ({})")["coefficientShearTable"]
+    one_way_shear = Own("slab", " ({})")["coefficientOneWayShear"]
+    minimum = Own("slab", "{}: ")["coefficientMinimum"]
+    two_way_spacing = Own("slab", " ({})")["coefficientSpacingTwoWay"]
+    along = Own("slab", " ({})")["coefficientSpacingAlong"]
+    across = Own("slab", " ({})")["coefficientSpacingAcross"]
     return (
         "Slabs on beams (analysis slabs 'loadsToBeams', not in the analysis model): designed from "
-        f"their own loads. Two-way panels by the coefficient method of {pack_clause('slab', 'twoWayMethod')} "
-        "(Tables 6.6.8-6.6.11): Ma,neg = Ca,neg w la², Ma,pos = Ca,dl wD la² + Ca,ll wL la² (and b "
+        f"their own loads. Two-way panels by {two_way}{tables}: Ma,neg = Ca,neg w la², Ma,pos = Ca,dl wD la² + Ca,ll wL la² (and b "
         "with lb), la and lb the clear spans (short, long: centre lines less half the supports' "
         "widths), the case by which edges have a slab beyond them, coefficients interpolated in "
         "m = la/lb; scope checked: rectangular, on beams (total depth >= 3h) or walls on all four "
         "edges, centre-to-centre spans <= 2 : 1, αf l2/l1 >= 1 (beam's own section). Top bars at a "
-        f"discontinuous edge for 1/3 of the positive moment (SAEngine practice, not a {short_name()} clause). "
-        f"One-way slabs (and two-way types longer than 2 : 1) by {short_clause('slab', 'oneWaySec')}: w ln²/14 (end "
+        f"discontinuous edge for 1/3 of the positive moment (SAEngine practice, not a {own_short_name()} clause). "
+        f"One-way slabs (and two-way types longer than 2 : 1) by {one_way}: w ln²/14 (end "
         "span) or /16 (interior span) positive, /9 or /10 at the exterior face of the first "
         "interior support (two, more spans), /11 at other interior faces, /12 for spans <= 3.048 m, "
         "/24 (beam) or /16 (wall) at a discontinuous end, the negative ln the mean of the adjacent "
         "clear spans; outside its limits (a single span, adjacent spans differing by more than "
         "20 %, L > 3D) the bounds w ln²/8 (positive) and w ln,max²/8 (interior support) instead. "
         "Every gravity combination of the project (its dead and live factors) is enveloped. Shear "
-        "per metre: Wa w la / 2 at the long edges, Wb w lb / 2 at the short edges (Table 6.6.11), "
-        "1.15 w ln / 2 at the first interior support of an end span (Sec 6.1.4.3), against φVc of "
-        "the bars in tension there. As,min (Sec 8.1.11.2: 0.0020 below fy 420, 0.0018 x 420/fy, "
+        f"per metre: Wa w la / 2 at the long edges, Wb w lb / 2 at the short edges{shear_table}, "
+        f"1.15 w ln / 2 at the first interior support of an end span{one_way_shear}, against φVc "
+        f"of the bars in tension there. As,min ({minimum}0.0020 below fy 420, 0.0018 x 420/fy, "
         ">= 0.0014; x 1.5 with brick aggregate) in both bottom layers and in a top layer that "
-        "resists a negative moment; spacing <= 2h and 450 mm two-way (Sec 6.5.8.6.2, 8.1.6.6), 3h "
-        "and 450 mm along a one-way span (8.1.6.5), 5h and 450 mm across it (8.1.6.7)."
+        f"resists a negative moment; spacing <= 2h and 450 mm two-way{two_way_spacing}, 3h "
+        f"and 450 mm along a one-way span{along}, 5h and 450 mm across it{across}."
     )
 
 
@@ -3070,7 +3084,7 @@ def coefficient_design(
                     f"top{direction}",
                     [share * p for p in positive],
                     f"discontinuous edge {edges}: {share:.2f} x M{label},pos (SAEngine practice, "
-                    f"not a {short_name()} clause); {geometry}",
+                    f"not a {own_short_name()} clause); {geometry}",
                 )
             for s in sides_of:
                 other = unknown.get(s.name)

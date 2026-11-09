@@ -281,3 +281,23 @@ U: uncertain (check first). P: SAEngine practice where the code leaves a choice.
 | C18c-60 | Design Reinforcement's torsion links Asw/s = T*/(φ fsy.f 2 At cot θv) on top of the shear's, at most min(0.12 ut, 300 mm); ΔAl added to the bars | 8.3.5, 8.3.6, 8.3.8 | P |
 
 60 more entries (230 in all).
+
+## Alpha 9 method text (clauses of the report's method lines)
+
+The design report's method lines name only clauses this pack gives itself; a line whose method
+the pack inherits from its parent is worded without a clause number. The lines below have no
+AS 3600:2018 clause yet: find the counterpart (and check that SAEngine's method matches it)
+before a number is entered in `designClauses` or a `slabMethods` table of this pack.
+
+| # | Method line | Candidate clause | |
+| --- | --- | --- | --- |
+| M-1 | Beam deflection limits: Table 2.3.2 (entered, check.deflectionLimits) | Table 2.3.2 | |
+| M-2 | Beam deflection: the effective second moment Ie (the parent's form) | 8.5.3.1 | U (not entered: the form is the parent's) |
+| M-3 | Beam deflection: least depth for which the deflection is not computed (the parent's table) | 8.5.4 | U (not entered: AS uses a span-to-depth formula) |
+| M-4 | Beam torsion: section limit, detailing, compatibility torsion (the line is replaced by the 8.3 method) | 8.3.3, 8.3.8, 8.3.2 | U |
+| M-5 | Column tie spacing limits | 10.7.4 | U |
+| M-6 | Design at the faces of the supports: the moment and the shear at d from the face | 6.2, 8.2 | U |
+| M-7 | Slabs on beams by moment coefficients (the parent's coefficient tables; AS 3600 has its own simplified methods) | 6.10.2 (one-way), 6.10.3 (two-way on four sides) | U (method differs) |
+| M-8 | Two-way slab systems: the equivalent frame method (the parent's) | 6.9 (idealised frame method) | U (method differs in detail) |
+| M-9 | Two-way slab systems: the direct design method (the parent's) | 6.10.4 | U (method differs) |
+| M-10 | Corner reinforcement of two-way panels at exterior corners | 9.1 | U |
