@@ -5,6 +5,7 @@
   ],
   "source": "AS 3600:2018: the clauses of the checks of the member design this pack covers (alpha 9 C18b), without the code's name (the design puts it before them: tableCodes). A group given here is given whole; a key the code has no counterpart for is empty, so the row names the code without a clause, never the default pack's number. Groups not given (walls' detailing, deep beams, lintels, stairs, steel members) are the parent pack's and named after it.",
   "shortName": "AS 3600",
+  "methodBasis": "its capacity reduction factors (Table 2.2.2) and rectangular stress block (8.1.3); the column shear, the column tie limits and the 0.80 φ P0 axial cap (SAEngine practice) are the parent pack's rules, of the ACI 318-19 type",
   "clauses": {
     "check": {
       "torsion": "8.3",

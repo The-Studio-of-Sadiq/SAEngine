@@ -123,3 +123,9 @@ SAEngine's choice is stated. Everything the pack does not set is the US pack's
 | --- | --- | --- | --- | --- | --- |
 | J80 | concrete.barDiameters / barNames | D10 9.53, D13 12.7, D16 15.9, D19 19.1, D22 22.2, D25 25.4, D29 28.6, D32 31.8, D35 34.9, D38 38.1, D41 41.3 mm | JIS G 3112 | Nominal diameters | Sure |
 | J81 | concrete (sets by use) | main D16-D32, columns D19-D41, slabs and links D10-D16 | - | | SAEngine practice |
+
+## Column splice hoops (pack follow-up 2026-11-09)
+
+| # | Path | Value | Source | Sure? |
+|---|---|---|---|---|
+| S1 | detailing.special.columnSplice* (inherited) | the ACI 318-19 pack's: ties over the lap splices of special moment frame columns at the end zones' spacing (least dimension / 4, 6 db, so) | AIJ RC Standard (column lap splices) | Check (the Japanese rule not entered) |

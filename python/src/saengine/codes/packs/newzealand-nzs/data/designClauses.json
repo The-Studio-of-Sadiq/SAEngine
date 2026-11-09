@@ -5,6 +5,7 @@
   ],
   "source": "NZS 3101:2006 A3: the clauses of the checks of the member design this pack covers (alpha 9 C18b), without the code's name (tableCodes names it). A group given here is given whole (it replaces the Australian pack's); a key without a counterpart is empty, so the row names the code without a clause. Groups not given are the parent packs' and named after them.",
   "shortName": "NZS 3101",
+  "methodBasis": "its strength reduction factors (2.3.2.2) and rectangular stress block (7.4.2.7); the methods it does not give are the parent packs', named in their lines",
   "clauses": {
     "check": {
       "torsion": "7.6",

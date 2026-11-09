@@ -40,7 +40,8 @@ Beams of special moment frames (8.3.4, p. 1090-1094)
 Columns of special moment frames (8.3.5, p. 1095-1099)
 - 8.3.5.1(a) least dimension >= 300 mm; (b) least / perpendicular dimension >= 0.4.
 - 8.3.5.3(a) 0.01 <= ρg <= 0.06; (b) lap splices in the centre half (not modelled: noted),
-  ties over them <= min(least dimension / 4, 100 mm) (Figure 6.8.8).
+  ties over them <= min(least dimension / 4, 100 mm) (Figure 6.8.8; the pack's
+  ``detailing.special`` ``columnSplice*``: :func:`column_splice_spacing`).
 - 8.3.5.4(a)(i) spirals and circular hoops: ρs >= max(0.12 f'c/fyt (Eq. 6.8.6), 0.45 (Ag/Ach
   - 1) f'c/fyt (Eq. 6.6.12, Sec 6.3.9.3)); (ii) rectangular hoops, in each direction: Ash >=
   max(0.3 s bc f'c/fyt (Ag/Ach - 1) (Eq. 6.8.7), 0.09 s bc f'c/fyt (Eq. 6.8.8)), fyt <=
@@ -125,7 +126,9 @@ FRAMES: tuple[str, ...] = ("special", "intermediate", "ordinary")
 # confinement equations (8.3.3.4(c)); ``hxMax`` 350 mm, the largest spacing of cross ties or
 # hoop legs across the section (8.3.5.4(c)); ``unsupportedClear`` 150 mm, the largest clear
 # distance of an unsupported bar from a supported one (8.1.9.4(c)); ``beamFirstHoop`` 50 mm,
-# the first hoop of a beam from the joint face (8.3.4.3(b), 8.3.10.4(b)).
+# the first hoop of a beam from the joint face (8.3.4.3(b), 8.3.10.4(b)); ``columnSpliceDivisor``
+# 4, ``columnSpliceCap`` 100 mm and ``columnSpliceZone`` false, the ties over the lap splices
+# of columns at <= min(least dimension/4, 100 mm) (8.3.5.3(b), Figure 6.8.8).
 
 
 def _special(name: str) -> float:
@@ -761,6 +764,9 @@ class ColumnNeed:
     #: The :data:`R` keys of the zone rows' clauses (length, spacing, first, outside), several
     #: keys comma separated; None: by frame type.
     clauses: tuple[tuple[str, str], ...] | None = None
+    #: How :attr:`splice_spacing` is found (the row's note): "min(least dimension/4, 100 mm)"
+    #: in the default pack.
+    splice_rule: str = ""
 
 
 def _column_depth(section: RcSection) -> float:
@@ -807,6 +813,26 @@ def so_special(hx: float) -> float:
     if found is not None:
         return float(found.columns.confinedSpacing[2])
     return min(150.0, max(100.0, 100 + (350 - hx) / 3))
+
+
+def column_splice_spacing(least: float, zone: float) -> tuple[float, str]:
+    """The largest spacing of the ties over the lap splices of a special moment frame column,
+    and its rule, from the pack's ``detailing.special``: least dimension / ``columnSpliceDivisor``,
+    at most ``columnSpliceCap`` [mm] (None: no fixed cap) and, with ``columnSpliceZone``, at most
+    the end zone's spacing ``zone`` (default pack BNBC 2020 8.3.5.3(b), Figure 6.8.8: min(least
+    dimension/4, 100 mm)); C8: the pack's ``lapHoopSpacing`` with prescriptive ductile detailing."""
+    found = _prescriptive()
+    if found is not None:
+        lap = float(found.columns.lapHoopSpacing)
+        return lap, f"{lap:g} mm"
+    sp = code_context.table("detailing").special
+    divisor = float(sp.columnSpliceDivisor)
+    parts = {f"least dimension/{divisor:g}": least / divisor}
+    if sp.columnSpliceCap is not None:
+        parts[f"{float(sp.columnSpliceCap):g} mm"] = float(sp.columnSpliceCap)
+    if sp.columnSpliceZone:
+        parts["the end-zone spacing"] = zone
+    return min(parts.values()), f"min({', '.join(parts)})"
 
 
 def ash_per_spacing(bc: float, ag: float, ach: float, fc: float, fyt: float) -> float:
@@ -932,6 +958,7 @@ def column_need(
             )
         governing = min(limits, key=lambda k: limits[k])
         out_governing = min(outside, key=lambda k: outside[k])
+        splice_spacing, splice_rule = column_splice_spacing(least, limits[governing])
         return ColumnNeed(
             frame=frame,
             lateral=lateral,
@@ -945,12 +972,13 @@ def column_need(
             first=so / 2,
             outside_spacing=outside[out_governing],
             outside_rule=f"min({', '.join(outside)}), {out_governing} governs",
-            splice_spacing=min(least / 4, 100.0),
+            splice_spacing=splice_spacing,
             ash_s=ash_s,
             rho_s=rho_s,
             full_height=full_height,
             notes=tuple(notes),
             clauses=clauses,
+            splice_rule=splice_rule,
         )
     if frame == "intermediate" and lateral and not above:
         # 8.3.10.2 (p1114): Pu <= 0.1 Ag f'c follows 8.3.10.4 (the beam rules), not 8.3.10.5.
@@ -1292,7 +1320,7 @@ def column_checks(
                     zones.splice_spacing,
                     need.splice_spacing,
                     "mm",
-                    "min(least dimension/4, 100 mm)",
+                    need.splice_rule,
                 )
             )
     outside_limit = need.zone_spacing if full_height else need.outside_spacing

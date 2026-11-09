@@ -5,6 +5,7 @@
   ],
   "source": "BNBC 2020: the clause of each check of the member and connection design (saengine.design), grouped by module, without the code's name (the design puts the pack's name before it). The references were in the design modules before the decoupling; the numbers are unchanged.",
   "shortName": "BNBC",
+  "methodBasis": "ACI 318-19 clauses and factors",
   "clauses": {
     "check": {
       "torsion": "Part 6 Sec 6.4.4",

@@ -48,3 +48,9 @@ stated. Everything the pack does not set is the US pack's (`aci318-asce7-22`, it
 | N20 | concrete.barDiameters | 10, 12, 16, 20, 25, 28, 32 mm; links 8, 10, 12 | - | Metric bars | SAEngine practice |
 | N21 | barSchedule.standard | bs8666 | - | Bar shapes and schedule | SAEngine practice |
 | N22 | concrete design, steel, live loads | the parent's ACI 318-19, AISC 360-22, ASCE 7-22 Table 4.3-1 | MNBC 2020 Part 3 references | Not set by this version | Uncertain (check which editions MNBC 2020 references and its own live load table) |
+
+## Column splice hoops (pack follow-up 2026-11-09)
+
+| # | Path | Value | Source | Sure? |
+|---|---|---|---|---|
+| S1 | detailing.special.columnSplice* (inherited) | the ACI 318-19 pack's: ties over the lap splices of special moment frame columns at the end zones' spacing (least dimension / 4, 6 db, so) | MNBC concrete chapter (column lap splices) | Check (not confirmed) |

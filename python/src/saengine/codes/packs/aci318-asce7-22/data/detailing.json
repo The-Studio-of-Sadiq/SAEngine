@@ -7,7 +7,9 @@
   ],
   "source": "ACI 318-19 Chapters 18, 24 and 25 (SI values of ACI 318M-19)",
   "special": {
-    "fytConfinementMax": 690.0
+    "fytConfinementMax": 690.0,
+    "columnSpliceCap": null,
+    "columnSpliceZone": true
   },
   "joints": {
     "gamma": {
@@ -65,6 +67,9 @@
     "shearFriction": "ACI 318-19 22.9.4.2, Table 22.9.4.2: μ = 1.4 λ monolithic, 1.0 λ roughened (6 mm), 0.6 λ not roughened, 0.7 λ to as-rolled steel; Table 22.9.4.4: Vn <= min(0.2 f'c, 3.3 + 0.08 f'c, 11) Ac (monolithic or roughened, normal weight), else min(0.2 f'c, 5.5) Ac; Table 20.2.2.4(a): fy <= 420 MPa; 22.9.4.6: permanent net compression additive",
     "tendonSpacing": "ACI 318-19 24.3.2.2-24.3.2.3: bonded tendons at most 2/3, bars and tendons at most 5/6 of the Table 24.3.2 spacing; Δfps in place of fs, at most 250 MPa; up to 140 MPa no check",
     "special": "ACI 318-19 18.6.2.1 (beams: ln >= 4d, width >= 0.3 h and 250 mm), 18.6.3.1 (ρ <= 0.025), 18.7.2.1 (columns: least dimension >= 300 mm, ratio >= 0.4), 18.7.4.1 (0.01 <= ρ <= 0.06), 18.7.5.2(e) (hx <= 350 mm), 18.6.4.4 (first hoop 50 mm from the face), Table 20.2.2.4(a) (confinement fyt <= 690 MPa)",
+    "special.columnSpliceDivisor": "ACI 318-19 18.7.4.3 with 18.7.5.3(a): the lap splices of special moment frame columns enclosed by the end zones' transverse reinforcement, whose spacing is at most the least dimension / 4 (the parent's 4)",
+    "special.columnSpliceCap": "ACI 318-19 18.7.4.3: no fixed cap of its own (the parent's 100 mm is BNBC 2020 Figure 6.8.8's); the spacing is capped by 18.7.5.3 through columnSpliceZone",
+    "special.columnSpliceZone": "ACI 318-19 18.7.4.3: the lap splices enclosed within transverse reinforcement in accordance with 18.7.5.2 and 18.7.5.3, the spacing of the end zones (least dimension / 4, 6 db, so)",
     "joints": "ACI 318-19 18.8.2.1 (T = 1.25 fy As), 18.7.3.2 (ΣMnc >= 1.2 ΣMnb), 18.7.3.1 (Pu > 0.1 Ag f'c), Table 18.8.4.3 (γ: 1.7, 1.2, 1.0 at joints of continuous columns; 1.2, 1.0, 0.7 where the column does not continue above ('Top' keys)), 18.7.6.2.1 (Vc = 0 below Pu = 0.05 Ag f'c)",
     "walls": "ACI 318-19 18.10.2.1 (0.083 λ √f'c Acv relaxes ρ), 18.10.2.2 (two curtains above 0.17 λ √f'c Acv or where hw/lw >= 2.0), 18.10.6.2 (boundary elements: c >= lw / (600 (1.5 δu/hw)), δu/hw >= 0.005), 18.10.6.3 (0.2 f'c, 0.15 f'c), 18.10.3.3 (Ve = Ωv ωv Vu <= 3 Vu: Ωv = 1.5 for hwcs/lw > 1.5, ωv = 0.9 + ns/10 up to 6 storeys, 1.3 + ns/30 <= 1.8 above, 1.0 for hwcs/lw < 2.0), 18.10.7.4 (coupling beams), 18.10.8.1 and 2.3 (wall piers); Table 20.2.2.4(a) (690 MPa)",
     "lintels": "SAEngine lintel design practice (bearing 100 mm minimum, 150 mm used; span/600; 1.25 fy probable stress per ACI 318-19 18.6.5.1)",

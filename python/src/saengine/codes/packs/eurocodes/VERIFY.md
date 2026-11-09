@@ -811,3 +811,9 @@ EN ISO 3766 shapes 00, 11, 12, 13, 21, 23, 31, 41, 51 have a BVBS geometry; 26, 
 
 Not covered by this pack: piping (`pipingStress`; EN 13480-3 planned) and load rating (EN
 gives no rating method).
+
+## Column splice hoops (pack follow-up 2026-11-09)
+
+| # | Path | Value | Source | Sure? |
+|---|---|---|---|---|
+| S1 | detailing.special.columnSplice* (inherited) | BNBC 2020's: min(least dimension / 4, 100 mm); not used while concreteMethods.seismic is curvatureDuctility | EN 1998-1 5.6.3 (laps in critical regions) | Check (not entered) |

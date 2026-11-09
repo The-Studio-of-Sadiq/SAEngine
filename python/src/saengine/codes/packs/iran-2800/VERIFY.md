@@ -32,3 +32,9 @@ lists. Everything the pack does not set is the base pack's (`aci318-asce7-22`).
 | R23 | concrete.barDiameters | Φ8-Φ32 | ISIRI 3132 | Bars | SAEngine practice |
 | R24 | combinations, areaLoads | the base pack's ASCE 7-22 | INBC Part 6 | Loads | Uncertain (INBC Part 6 follows ASCE 7 closely: check the factors and the live loads) |
 | R25 | steel | the base pack's AISC 360-22 | INBC Part 10 | Steel design | Check |
+
+## Column splice hoops (pack follow-up 2026-11-09)
+
+| # | Path | Value | Source | Sure? |
+|---|---|---|---|---|
+| S1 | detailing.special.columnSplice* (inherited) | the ACI 318-19 pack's: ties over the lap splices of special moment frame columns at the end zones' spacing (least dimension / 4, 6 db, so) | MNR Part 9 (column lap splices) | Check (not confirmed) |

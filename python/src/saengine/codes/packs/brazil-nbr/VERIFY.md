@@ -32,3 +32,9 @@ the other packs' lists. Everything the pack does not set is the base pack's (`ac
 | B23 | concrete.barDiameters / barNames | Ø5, Ø6,3, Ø8, Ø10, Ø12,5, Ø16, Ø20, Ø25, Ø32, Ø40 | NBR 7480 | Bars | Sure |
 | B24 | concrete.modulus.normal | 4760 √fck | NBR 6118 8.2.8 | Ecs for the analysis | SAEngine practice |
 | B25 | steel | the base pack's AISC 360-22 | NBR 8800 | Steel design | Check (γa1 1.10, γa2 1.35 against φ 0.90, 0.75) |
+
+## Column splice hoops (pack follow-up 2026-11-09)
+
+| # | Path | Value | Source | Sure? |
+|---|---|---|---|---|
+| S1 | detailing.special.columnSplice* (inherited) | the ACI 318-19 pack's: ties over the lap splices of special moment frame columns at the end zones' spacing (least dimension / 4, 6 db, so) | NBR 6118 / NBR 15421 (no special moment frame rule of their own) | Check |

@@ -57,7 +57,7 @@ from saengine.design import corbels as corbel_design
 from saengine.design import deflection as deflection_design
 from saengine.design import slender as slenderness_design
 from saengine.design import torsion as torsion_design
-from saengine.design.clauses import Own, clause
+from saengine.design.clauses import Own, clause, method_basis
 from saengine.design.rc import (
     DesignError,
     InteractionSurface,
@@ -103,16 +103,14 @@ DESIGNED_IN_PART_9 = (
 )
 
 METHOD = [
-    "Strength design to {code} (ACI 318-19 clauses and factors).",
+    "Strength design to {code}{basis}.",
     (
         "Flexure and axial force by strain compatibility with the rectangular stress block "
-        "(concreteproperties); φ from the net tensile strain of the extreme bar (ACI 21.2.2)."
+        "(concreteproperties); {phi}."
     ),
     (
         "Beams: sagging (bottom bars) and hogging (top bars) moments about the strong axis, and "
-        "shear φ(Vc + Vs) with Vc = 0.17 λ √f'c b d when Av >= Av,min, else "
-        "0.66 λs λ ρw^(1/3) √f'c b d (ACI Table 22.5.5.1, λ = 1, ρw of the face with fewer "
-        "bars). Weak-axis bending and axial force in beams are not checked; shear is "
+        "{beam_shear}. Weak-axis bending and axial force in beams are not checked; shear is "
         "taken at every station, including the supports. The top of a beam is the face of its "
         "depth axis that points up."
     ),
@@ -150,7 +148,8 @@ def method_refs() -> dict[str, Any]:
     """The clause fields of :data:`METHOD`'s templates, read from the pack in force: ``c`` the
     clause after the name of its code (left out when inherited from the default pack:
     :func:`saengine.design.clauses.adopted`), the others bare numbers only where the pack gives
-    them itself (never another code's number in this pack's text)."""
+    them itself (never another code's number in this pack's text); with
+    :func:`strength_basis`'s fields of the first lines."""
     return {
         "c": Own("check", " ({})", named=True),
         "p": Own("check", " ({})"),
@@ -159,7 +158,34 @@ def method_refs() -> dict[str, Any]:
         "lead": Own("check", "{}, "),
         "limits": Own("check", "limits of {}", "the pack's limits"),
         "depth": Own("check", "{} asks", "the pack's least depth"),
+        **strength_basis(),
     }
+
+
+def strength_basis() -> dict[str, str]:
+    """The pack's fields of the strength design's first lines: ``basis`` the pack's
+    ``designClauses.methodBasis`` in brackets (the default pack: "ACI 318-19 clauses and
+    factors"); ``phi`` the flexural φ, by the pack's ``factors.phiTransition`` where it has one
+    (AS 3600 type kuo), else by the net tensile strain (ACI 318-19 Table 21.2.2); ``beam_shear``
+    the beams' shear, by the pack's compression field method where it has one."""
+    basis = method_basis()
+    transition = getattr(code_context.pack_table("factors"), "phiTransition", None)
+    if transition is not None:
+        phi = (
+            f"φ = {transition.intercept:g} - {transition.slope:.4g} kuo within the compression "
+            "and tension φ, kuo = c/d0 of the extreme tension bar"
+            + (f" ({transition.clause})" if transition.clause else "")
+        )
+    else:
+        phi = "φ from the net tensile strain of the extreme bar (ACI 21.2.2)"
+    beam_shear = (
+        compression_field_shear.method_line()
+        if compression_field_shear.rules() is not None
+        else "shear φ(Vc + Vs) with Vc = 0.17 λ √f'c b d when Av >= Av,min, else "
+        "0.66 λs λ ρw^(1/3) √f'c b d (ACI Table 22.5.5.1, λ = 1, ρw of the face with fewer "
+        "bars)"
+    )
+    return {"basis": f" ({basis})" if basis else "", "phi": phi, "beam_shear": beam_shear}
 
 
 #: The unfactored gravity cases the deflection checks use.

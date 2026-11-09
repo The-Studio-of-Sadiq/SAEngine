@@ -87,3 +87,9 @@ value; SAEngine's choice. Everything the pack does not set is the base pack's
 
 The steel design is the base pack's AISC 360-22 / AISC 341-22 (the Turkish steel regulation of
 2016 follows AISC 360-10): Check that the φ factors and the seismic provisions match.
+
+## Column splice hoops (pack follow-up 2026-11-09)
+
+| # | Path | Value | Source | Sure? |
+|---|---|---|---|---|
+| S1 | concreteMethods.seismic.columns.lapHoopSpacing | 100 mm: now the ties over the column lap splices, in place of the base pack's ACI 318-19 rule | TBDY 2018 7.3 (column lap splices) | Check (clause; any least-dimension limit not entered) |

@@ -123,3 +123,9 @@ VERIFY.md), entered from knowledge of the standards (no copy of the codes was av
 | C18c-29 | Clause numbers 9.4, 9.4.6, 10.4, 10.4.7, 11.4, 11.4.6, 11.4.11, 15.4, Appendix D; walls 11.3.10, 11.3.11 | 2006 A3 numbering | U |
 
 29 more entries (84 in all, plus the inherited ones).
+
+## Column splice hoops (pack follow-up 2026-11-09)
+
+| # | Path | Value | Source | Sure? |
+|---|---|---|---|---|
+| S1 | concreteMethods.seismic.columns.lapHoopSpacing | 100 mm: now the ties over the column lap splices, in place of BNBC 2020's min(least dimension / 4, 100 mm) | NZS 3101:2006 10.4 (column laps in ductile frames) | Check (clause and value) |
