@@ -344,3 +344,54 @@ def _fence(fence_id: str, chosen: list[dict[str, Any]], at: Any) -> dict[str, An
         "length": round(total, 3),
         "schematic": schematic,
     }
+
+
+# ─────────────────────── a section between two plan points (alpha 9 L8) ───────────────────────
+
+
+def section(
+    report: SoilReport,
+    start: tuple[float, float],
+    end: tuple[float, float],
+    stations: int = FENCE_STATIONS,
+) -> dict[str, Any]:
+    """A vertical section of the stratigraphy along the straight line from ``start`` to
+    ``end`` (plan points in the project grid [m]), interpolated as the fences are: ``{"units",
+    "boreholes" (as :func:`build`'s), "stations": [{"distance", "x", "y"}], "surfaces":
+    [surface][station] (the ground, then each unit's bottom; None where no borehole knows it),
+    "water": [station] or None, "length", "notes"}`` (m). The slopes of 9 Substructure cut
+    their sections from it (:mod:`saengine.substructure.slope_stability`)."""
+    model = build(report)
+    boreholes = model["boreholes"]
+    notes = list(model["notes"])
+    count = len(model["units"]) + 1
+    known = [
+        [(b["x"], b["y"], b["surfaces"][k]) for b in boreholes if b["surfaces"][k] is not None]
+        for k in range(count)
+    ]
+    water = [(b["x"], b["y"], b["water"]) for b in boreholes if b["water"] is not None]
+    length = math.hypot(end[0] - start[0], end[1] - start[1])
+    if length < 1.0:
+        notes.append("the section's start and end are less than 1 m apart")
+    n = max(2, int(stations))
+    at_stations: list[dict[str, float]] = []
+    surfaces: list[list[float | None]] = [[] for _ in range(count)]
+    water_at: list[float | None] = []
+    for i in range(n):
+        t = i / (n - 1)
+        x = start[0] + (end[0] - start[0]) * t
+        y = start[1] + (end[1] - start[1]) * t
+        values = _ordered([idw(points, x, y) for points in known])
+        for k in range(count):
+            surfaces[k].append(_round(values[k]))
+        water_at.append(_round(idw(water, x, y)))
+        at_stations.append({"distance": round(length * t, 3), "x": round(x, 3), "y": round(y, 3)})
+    return {
+        "units": model["units"],
+        "boreholes": boreholes,
+        "stations": at_stations,
+        "surfaces": surfaces,
+        "water": water_at if any(w is not None for w in water_at) else None,
+        "length": round(length, 3),
+        "notes": notes,
+    }

@@ -1430,6 +1430,14 @@ def import_soil(path: str, soil_text: str | None = None) -> dict[str, Any]:
     return read(path, soil_text)
 
 
+def export_soil(path: str, soil_text: str) -> dict[str, Any]:
+    """Writes the soil report's boreholes as AGS4 (.ags) or DIGGS (.xml): ``{"path",
+    "notes"}`` or ``{"problems"}`` (alpha 9 L8)."""
+    from saengine.soil import export_soil as write
+
+    return write(path, soil_text)
+
+
 def soil_template(path: str) -> dict[str, Any]:
     """Writes the borehole import template (.csv or .xlsx): ``{"path"}`` or ``{"problems"}``."""
     from saengine.soil import soil_template as write

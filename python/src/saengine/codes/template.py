@@ -202,6 +202,10 @@ TABLE_HELP: dict[str, str] = {
     "subgrade modulus, the struts' temperature and buckling length, the ground anchors' factors, "
     "test and lock-off loads and bond stresses, and the basal heave and piping factors. A pack "
     "without it does not analyse staged excavations or design their supports.",
+    "slopeStability": "Slope stability (alpha 9 L8): the limit equilibrium methods run and "
+    "checked (Bishop, Janbu, Spencer, Morgenstern-Price), the verification by factors of safety or "
+    "by the partial factors of the design approach, the pseudo-static seismic coefficients and the "
+    "factors on soil nails and anchors. A pack without it does not check slopes.",
     "allowableStress": "Allowable stress design of members (alpha 9 C19): the combination "
     "rows of the long-term allowable stresses, the allowable concrete stresses as shares of Fc, "
     "the modular ratio and lever arm, the bars' allowable stresses by grade, the allowable "

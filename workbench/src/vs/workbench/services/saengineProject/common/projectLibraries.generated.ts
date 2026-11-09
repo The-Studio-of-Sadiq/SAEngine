@@ -28836,6 +28836,807 @@ export const SUBSTRUCTURE_SCHEMA: IJSONSchema = {
 			title: 'RetainingWallBars',
 			type: 'object',
 		},
+		Slope: {
+			additionalProperties: false,
+			description: 'A slope checked on a 2D section by limit equilibrium (the code pack\'s ``slopeStability``\nmethods) and, optionally, by 2D finite elements. The section is drawn (its surface, strata\nand soils) or cut from the site\'s strata (the stratigraphy of 01 Soil Report along a line\nbetween two plan points, its units\' values from the boreholes\' layers).',
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				name: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Name',
+				},
+				section: {
+					default: 'drawn',
+					description: 'Drawn, or cut from the stratigraphy of the soil report along start-end.',
+					enum: ['drawn', 'strata'],
+					enumDescriptions: ['Drawn', 'Cut from the site\'s strata'],
+					title: 'Section',
+					type: 'string',
+				},
+				start: {
+					anyOf: [
+						{
+							description: '[x, y] in mm.',
+							items: {
+								type: 'number',
+							},
+							maxItems: 2,
+							minItems: 2,
+							type: 'array',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Cut from the strata: the section\'s start in plan [x, y] mm.',
+					title: 'Start',
+				},
+				end: {
+					anyOf: [
+						{
+							description: '[x, y] in mm.',
+							items: {
+								type: 'number',
+							},
+							maxItems: 2,
+							minItems: 2,
+							type: 'array',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Cut from the strata: the section\'s end in plan [x, y] mm.',
+					title: 'End',
+				},
+				surface: {
+					description: 'The ground surface [[x, level], ...] mm, left to right; cut from the strata it is the ground of the boreholes when empty, else a designed surface (a cut or a fill) over the strata.',
+					items: {
+						description: '[x, level] mm: along the section, and the level in the project datum.',
+						items: {
+							type: 'number',
+						},
+						maxItems: 2,
+						minItems: 2,
+						type: 'array',
+					},
+					title: 'Surface',
+					type: 'array',
+				},
+				strata: {
+					description: 'Drawn: the strata from the top down.',
+					items: {
+						$ref: '#/$defs/SlopeStratum',
+					},
+					title: 'Strata',
+					type: 'array',
+				},
+				soils: {
+					items: {
+						$ref: '#/$defs/SlopeSoil',
+					},
+					title: 'Soils',
+					type: 'array',
+				},
+				base: {
+					anyOf: [
+						{
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'The section\'s base (firm ground) [mm, project datum]; empty: the deepest boundary less the slope\'s height.',
+					title: 'Base',
+				},
+				water: {
+					anyOf: [
+						{
+							items: {
+								description: '[x, level] mm: along the section, and the level in the project datum.',
+								items: {
+									type: 'number',
+								},
+								maxItems: 2,
+								minItems: 2,
+								type: 'array',
+							},
+							type: 'array',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'The phreatic line [[x, level], ...] mm; empty: none drawn (cut from the strata: the boreholes\' water table).',
+					title: 'Water line',
+				},
+				ru: {
+					anyOf: [
+						{
+							exclusiveMaximum: 1,
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Of every soil.',
+					title: 'Pore pressure ratio ru',
+				},
+				surcharges: {
+					items: {
+						$ref: '#/$defs/SlopeSurcharge',
+					},
+					title: 'Surcharges',
+					type: 'array',
+				},
+				nails: {
+					description: 'Resisting forces.',
+					items: {
+						$ref: '#/$defs/SlopeNail',
+					},
+					title: 'Nails and anchors',
+					type: 'array',
+				},
+				temporary: {
+					default: false,
+					description: 'A temporary slope (the temporary factor of safety).',
+					title: 'Temporary',
+					type: 'boolean',
+				},
+				seismic: {
+					default: false,
+					description: 'Check also under the pseudo-static seismic coefficients of the code pack.',
+					title: 'Seismic',
+					type: 'boolean',
+				},
+				kh: {
+					anyOf: [
+						{
+							maximum: 1,
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Seismic coefficient kh [g]; empty: the pack\'s.',
+					title: 'Kh',
+				},
+				kv: {
+					anyOf: [
+						{
+							maximum: 1,
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Seismic coefficient kv [g]; empty: the pack\'s.',
+					title: 'Kv',
+				},
+				requiredFS: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Overrides the code pack\'s (factor of safety verification).',
+					title: 'Required factor of safety',
+				},
+				direction: {
+					default: 'auto',
+					description: 'The way the slope fails; auto: down from the higher end of the section.',
+					enum: ['auto', 'left', 'right'],
+					enumDescriptions: ['Down the slope', 'To the left', 'To the right'],
+					title: 'Direction',
+					type: 'string',
+				},
+				methods: {
+					anyOf: [
+						{
+							items: {
+								enum: ['bishop', 'janbu', 'spencer', 'morgensternPrice'],
+								type: 'string',
+							},
+							type: 'array',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'The methods run; empty: the code pack\'s.',
+					title: 'Methods',
+				},
+				search: {
+					$ref: '#/$defs/SlopeSearch',
+					title: 'Search',
+				},
+				fe: {
+					anyOf: [
+						{
+							$ref: '#/$defs/SlopeFE',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: '2D FE',
+				},
+				note: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Note',
+				},
+			},
+			required: ['id'],
+			title: 'Slope',
+			type: 'object',
+		},
+		SlopeFE: {
+			additionalProperties: false,
+			description: 'The 2D finite element analysis of the section (plane strain, for experienced users).',
+			properties: {
+				run: {
+					default: false,
+					description: 'Run the 2D FE with the limit equilibrium.',
+					title: 'Run',
+					type: 'boolean',
+				},
+				meshSize: {
+					default: 1000,
+					description: '[mm]',
+					exclusiveMinimum: 0,
+					title: 'Mesh size',
+					type: 'number',
+				},
+				strengthReduction: {
+					default: true,
+					description: 'Find the factor of safety by reducing c\' and tan φ\' (cu) to failure.',
+					title: 'Strength reduction',
+					type: 'boolean',
+				},
+				excavation: {
+					anyOf: [
+						{
+							maxLength: 64,
+							minLength: 1,
+							pattern: '^[A-Za-z0-9._-]+$',
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'An excavation of 9 Substructure whose embedded wall, stages and supports are modelled in this section (the half of a symmetric excavation).',
+					title: 'Excavation',
+				},
+				wallX: {
+					anyOf: [
+						{
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Of the excavation\'s wall along the section [mm].',
+					title: 'Wall position',
+				},
+				side: {
+					default: 'right',
+					description: 'The side of the wall that is dug out (to the edge of the section).',
+					enum: ['left', 'right'],
+					enumDescriptions: ['Left', 'Right'],
+					title: 'Side',
+					type: 'string',
+				},
+				steps: {
+					default: 10,
+					description: 'Load steps of each stage.',
+					maximum: 100,
+					minimum: 1,
+					title: 'Steps',
+					type: 'integer',
+				},
+			},
+			title: 'SlopeFE',
+			type: 'object',
+		},
+		SlopeNail: {
+			additionalProperties: false,
+			description: 'A soil nail or ground anchor of the slope, repeated at its spacing along the slope; a\nresisting force where the slip surface crosses it.',
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				kind: {
+					default: 'nail',
+					description: 'A soil nail (bonded over its whole length) or a ground anchor (bonded over its fixed length at the far end).',
+					enum: ['nail', 'anchor'],
+					enumDescriptions: ['Soil nail', 'Ground anchor'],
+					title: 'Kind',
+					type: 'string',
+				},
+				x: {
+					description: 'Its head along the section [mm].',
+					title: 'X',
+					type: 'number',
+				},
+				level: {
+					description: 'Its head [mm, project datum].',
+					title: 'Level',
+					type: 'number',
+				},
+				inclination: {
+					default: 15.0,
+					description: 'Below the horizontal, into the slope [°].',
+					exclusiveMaximum: 90,
+					minimum: 0,
+					title: 'Inclination',
+					type: 'number',
+				},
+				length: {
+					description: 'Total length [mm].',
+					exclusiveMinimum: 0,
+					title: 'Length',
+					type: 'number',
+				},
+				fixedLength: {
+					anyOf: [
+						{
+							description: '[mm]',
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Anchors: the bonded length at the far end [mm]; empty: a third of the length.',
+					title: 'Fixed length',
+				},
+				spacing: {
+					default: 1500,
+					description: 'Along the slope [mm].',
+					exclusiveMinimum: 0,
+					title: 'Spacing',
+					type: 'number',
+				},
+				capacity: {
+					description: 'Characteristic tensile capacity of the bar or tendon [kN].',
+					exclusiveMinimum: 0,
+					title: 'Capacity',
+					type: 'number',
+				},
+				bond: {
+					description: 'Ultimate grout-ground bond (unit skin friction) qs [kPa].',
+					exclusiveMinimum: 0,
+					title: 'Bond',
+					type: 'number',
+				},
+				diameter: {
+					default: 100,
+					description: 'Drill hole (grout) diameter [mm].',
+					exclusiveMinimum: 0,
+					title: 'Diameter',
+					type: 'number',
+				},
+				headCapacity: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Nails: of the facing at the head [kN]; empty: as the tensile capacity.',
+					title: 'Head capacity',
+				},
+			},
+			required: ['id', 'x', 'level', 'length', 'capacity', 'bond'],
+			title: 'SlopeNail',
+			type: 'object',
+		},
+		SlopeSearch: {
+			additionalProperties: false,
+			description: 'How the critical slip surface is searched for.',
+			properties: {
+				surface: {
+					default: 'circular',
+					description: 'Circular arcs over a grid of centres and radii, or non-circular surfaces optimised from the critical circle (and any given surfaces).',
+					enum: ['circular', 'nonCircular'],
+					enumDescriptions: ['Circular', 'Non-circular'],
+					title: 'Surface',
+					type: 'string',
+				},
+				method: {
+					anyOf: [
+						{
+							enum: ['bishop', 'janbu', 'spencer', 'morgensternPrice'],
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'The method of the search; empty: Bishop for circles, Janbu for non-circular surfaces. Every method of the check is then run on the best surfaces found.',
+					enumDescriptions: ['Bishop simplified', 'Janbu simplified (corrected)', 'Spencer', 'Morgenstern-Price (half-sine)'],
+					title: 'Method',
+				},
+				centres: {
+					anyOf: [
+						{
+							items: {
+								type: 'number',
+							},
+							maxItems: 4,
+							minItems: 4,
+							type: 'array',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: '[x left, level bottom, x right, level top] mm of the grid of centres; empty: above the slope, worked out from its height.',
+					title: 'Centre grid',
+				},
+				grid: {
+					default: 10,
+					description: 'Centres along each side.',
+					maximum: 40,
+					minimum: 3,
+					title: 'Grid',
+					type: 'integer',
+				},
+				radii: {
+					default: 8,
+					description: 'Radii per centre.',
+					maximum: 40,
+					minimum: 2,
+					title: 'Radii',
+					type: 'integer',
+				},
+				minDepth: {
+					default: 1000,
+					description: 'Slip surfaces shallower than this below the ground are left out [mm].',
+					minimum: 0,
+					title: 'Least depth',
+					type: 'number',
+				},
+				slices: {
+					default: 40,
+					maximum: 200,
+					minimum: 10,
+					title: 'Slices',
+					type: 'integer',
+				},
+				surfaces: {
+					description: 'Slip surfaces to check besides the search, each [[x, level], ...] mm from where it leaves the ground to where it comes out.',
+					items: {
+						items: {
+							description: '[x, level] mm: along the section, and the level in the project datum.',
+							items: {
+								type: 'number',
+							},
+							maxItems: 2,
+							minItems: 2,
+							type: 'array',
+						},
+						type: 'array',
+					},
+					title: 'Surfaces',
+					type: 'array',
+				},
+			},
+			title: 'SlopeSearch',
+			type: 'object',
+		},
+		SlopeSoil: {
+			additionalProperties: false,
+			description: 'A soil of a slope\'s section. In a section cut from the site\'s strata a soil whose id is\na unit of the stratigraphy (U1, U2, ...) overrides the values worked out from the boreholes\'\nlayers of that unit; an empty value keeps the boreholes\'.',
+			properties: {
+				id: {
+					description: 'Its id; in a section cut from the strata, a unit id (U1, ...).',
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				name: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Name',
+				},
+				unitWeight: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							maximum: 30,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Above the water [kN/m³].',
+					title: 'Unit weight γ',
+				},
+				saturatedUnitWeight: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							maximum: 30,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: '[kN/m³]',
+					title: 'Saturated unit weight γsat',
+				},
+				c: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: '[kPa]',
+					title: 'Effective cohesion c\'',
+				},
+				phi: {
+					anyOf: [
+						{
+							maximum: 50,
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: '[°]',
+					title: 'Friction angle φ\'',
+				},
+				cu: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: '[kPa]',
+					title: 'Undrained shear strength cu',
+				},
+				strength: {
+					anyOf: [
+						{
+							enum: ['drained', 'undrained'],
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Drained (c\', φ\', the pore pressures) or undrained (cu, φ = 0, total stresses); empty: drained when φ\' is known, else undrained.',
+					enumDescriptions: ['Drained (c\', φ\')', 'Undrained (cu)'],
+					title: 'Strength',
+				},
+				ru: {
+					anyOf: [
+						{
+							exclusiveMaximum: 1,
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'u = ru × the overburden at the slip surface in this soil; empty: the section\'s water line or ru.',
+					title: 'Pore pressure ratio ru',
+				},
+				E: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'For the 2D FE [MPa].',
+					title: 'Young\'s modulus E',
+				},
+				poisson: {
+					anyOf: [
+						{
+							exclusiveMaximum: 0.5,
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'For the 2D FE; empty: K0 / (1 + K0), so the elastic gravity stage gives the at-rest stresses.',
+					title: 'Poisson\'s ratio ν',
+				},
+				dilatancy: {
+					anyOf: [
+						{
+							maximum: 30,
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'For the 2D FE [°]; empty 0.',
+					title: 'Dilatancy ψ',
+				},
+				model: {
+					anyOf: [
+						{
+							enum: ['mohrCoulomb', 'multiYield', 'vonMises'],
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Of the 2D FE; empty: Mohr-Coulomb.',
+					enumDescriptions: ['Mohr-Coulomb (Drucker-Prager matched in plane strain)', 'Hardening: pressure-dependent multi-yield (sand) or pressure-independent (clay)', 'Von Mises with linear hardening (undrained clay)'],
+					title: 'FE soil model',
+				},
+			},
+			required: ['id'],
+			title: 'SlopeSoil',
+			type: 'object',
+		},
+		SlopeStratum: {
+			additionalProperties: false,
+			description: 'A stratum of a drawn section: its soil and the line of its top, from the left of the\nsection to the right. The first stratum\'s top is the ground surface (its points may be\nleft empty); each stratum reaches down to the next one\'s top, the last to the section\'s\nbase.',
+			properties: {
+				soil: {
+					description: 'A soil of the slope (its id).',
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Soil',
+					type: 'string',
+				},
+				points: {
+					description: 'Its top boundary [[x, level], ...] mm, left to right; the part above the ground surface is cut off.',
+					items: {
+						description: '[x, level] mm: along the section, and the level in the project datum.',
+						items: {
+							type: 'number',
+						},
+						maxItems: 2,
+						minItems: 2,
+						type: 'array',
+					},
+					title: 'Points',
+					type: 'array',
+				},
+			},
+			required: ['soil'],
+			title: 'SlopeStratum',
+			type: 'object',
+		},
+		SlopeSurcharge: {
+			additionalProperties: false,
+			description: 'A strip load on the ground surface of the section.',
+			properties: {
+				start: {
+					description: 'Left end along the section [mm].',
+					title: 'Start',
+					type: 'number',
+				},
+				end: {
+					description: 'Right end along the section [mm].',
+					title: 'End',
+					type: 'number',
+				},
+				pressure: {
+					description: 'Vertical pressure [kPa].',
+					exclusiveMinimum: 0,
+					title: 'Pressure',
+					type: 'number',
+				},
+				permanent: {
+					default: false,
+					description: 'A permanent load (the design approach\'s factor on permanent actions); else variable.',
+					title: 'Permanent',
+					type: 'boolean',
+				},
+			},
+			required: ['start', 'end', 'pressure'],
+			title: 'SlopeSurcharge',
+			type: 'object',
+		},
 		SpliceZone: {
 			additionalProperties: false,
 			description: 'Hoops or ties over the lap splices (the default pack\'s Part 6 Sec 8.3.4.2(b), Figure 6.8.8).',
@@ -29352,6 +30153,14 @@ export const SUBSTRUCTURE_SCHEMA: IJSONSchema = {
 			title: 'Machine foundations',
 			type: 'array',
 		},
+		slopes: {
+			description: 'Slopes checked on 2D sections by limit equilibrium and, optionally, 2D FE (alpha 9 L8).',
+			items: {
+				$ref: '#/$defs/Slope',
+			},
+			title: 'Slopes',
+			type: 'array',
+		},
 	},
 	title: 'SAEngine substructure',
 	type: 'object',
@@ -29390,6 +30199,7 @@ export const DEFAULT_SUBSTRUCTURE: object = {
 	},
 	excavations: [],
 	machineFoundations: [],
+	slopes: [],
 };
 
 export const MEP_SCHEMA: IJSONSchema = {

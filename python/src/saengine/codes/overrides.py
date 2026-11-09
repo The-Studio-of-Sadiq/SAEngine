@@ -393,6 +393,7 @@ SECTIONS: tuple[tuple[str, tuple[str, ...]], ...] = (
             "construction",
             "embeddedWalls",
             "excavationSupport",
+            "slopeStability",
             "materials",
         ),
     ),

@@ -1,0 +1,35 @@
+{
+  "$schema": "../../../schemas/slopeStability.schema.json",
+  "$sources": [
+    "BNBC 2020 Part 6 Sec 3.21 (p. 817, geo-hazard analysis: landslides, a detailed analysis where the preliminary review finds a significant threat) and Sec 3.14 (p. 803, stability of adjoining buildings: overturning and sliding 1.5): no method and no factor of safety for slopes",
+    "SAEngine practice where BNBC 2020 is silent: limit equilibrium by Bishop simplified, Janbu simplified (corrected), Spencer and Morgenstern-Price (half-sine); factor of safety 1.5 long term and 1.3 for temporary slopes (USACE EM 1110-2-1902 Table 3-1 practice), 1.1 pseudo-static with kh = 0.5 PGA (Hynes-Griffin and Franklin 1984), kv = 0; soil nails and anchors by FHWA-NHI-14-007 factors (tensile 1.8, pull-out 2.0); see VERIFY.md"
+  ],
+  "source": "SAEngine practice where BNBC 2020 is silent (Part 6 Sec 3.21 lists landslides as a geo-hazard, Sec 3.14 the stability of adjoining buildings; no slope method): limit equilibrium with factors of safety",
+  "methods": ["bishop", "janbu", "spencer", "morgensternPrice"],
+  "checked": ["bishop", "spencer", "morgensternPrice"],
+  "verification": "factorOfSafety",
+  "required": {
+    "permanent": 1.5,
+    "temporary": 1.3,
+    "seismic": 1.1
+  },
+  "partialFactors": null,
+  "seismic": {
+    "method": "pseudoStatic",
+    "khFactor": 0.5,
+    "kvRatio": 0.0,
+    "materials": null,
+    "required": null
+  },
+  "reinforcement": {
+    "standard": "FHWA-NHI-14-007 (soil nails) and the anchors' tendon and bond factors (SAEngine practice)",
+    "tendonFactor": 1.8,
+    "bondFactor": 2.0
+  },
+  "clauses": {
+    "required": "SAEngine practice where BNBC 2020 gives no factor of safety for slopes (Part 6 Sec 3.21, 3.14)",
+    "method": "SAEngine practice: limit equilibrium of slices (Bishop 1955, Janbu 1973, Spencer 1967, Morgenstern and Price 1965)",
+    "seismic": "SAEngine practice: pseudo-static kh = 0.5 PGA (Hynes-Griffin and Franklin 1984), PGA by the pack's seismic settings",
+    "reinforcement": "SAEngine practice: FHWA-NHI-14-007 soil nail factors on the tendon and the pull-out"
+  }
+}

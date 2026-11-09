@@ -970,6 +970,11 @@ def create_server() -> JsonRPCServer:
     def _soil_template(params: Any) -> dict[str, Any]:
         return handlers.soil_template(_plain(params)["path"])
 
+    @server.feature("soil/export")  # Alpha 9 L8: AGS4 or DIGGS
+    def _soil_export(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.export_soil(args["path"], args["soilText"])
+
     @server.feature("soil/settlement")
     def _soil_settlement(params: Any) -> dict[str, Any]:
         args = _plain(params)

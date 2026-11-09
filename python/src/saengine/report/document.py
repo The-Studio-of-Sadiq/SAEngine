@@ -707,6 +707,32 @@ def _foundations(data: dict[str, Any], ctx: Context) -> dict[str, Any]:
                     size=7.5,
                 ),
             )
+    for slope in fdn.get("slopes") or []:  # Alpha 9 L8: slope stability
+        out += [h(2, "Slope stability")] + full(
+            p(slope["title"]),
+            table(
+                ["Soil", "γ [kN/m³]", "γsat [kN/m³]", "c' or cu [kPa]", "φ' [°]", "From"],
+                slope["soils"],
+                ["auto"] * 5 + ["1fr"],
+                "lrrrrl",
+                size=7.5,
+            ),
+            table(
+                ["Case", "Method", "F", "Required", "λ", "Result", "Note"],
+                slope["rows"],
+                ["auto"] * 6 + ["1fr"],
+                "llrrrll",
+                size=7.5,
+            ),
+        )
+        if slope["fe"]:
+            out += full(p(slope["fe"]))
+        if slope["stages"]:
+            stage_heads = ["Stage", "Dig [m]", "M+ [kN·m/m]", "M- [kN·m/m]", "V [kN/m]"]
+            stage_heads += ["Wall top [mm]", "Largest [mm]"]
+            out += full(
+                table(stage_heads, slope["stages"], ["1fr"] + ["auto"] * 6, "lrrrrrr", size=7.5),
+            )
     if fdn["skipped"]:
         out += [
             h(2, "Foundations not designed"),
