@@ -868,6 +868,9 @@ lists them with their clauses and marks the uncertain ones.
 
 ## 2026-11-09
 
+- **Bridges under BNBC: HL-93 traffic as SAEngine practice** (owner). BNBC carries no traffic
+  loading and the RHD loading is not entered, so a pack without a traffic table uses SAEngine's
+  HL-93-based data, named as such in every result (alpha 9 track L9).
 - **Point clouds: LAZ and E57 are read** (owner). `lazrs` (MIT) decompresses LAZ scans and
   `pye57` (MIT, with libE57Format under BSL-1.0) reads E57 scans, every scan in its own pose, in
   metres. Both are dependencies of the backend and ship in the bundled Python. Before, these
