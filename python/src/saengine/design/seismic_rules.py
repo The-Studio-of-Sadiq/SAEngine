@@ -296,10 +296,14 @@ def system_checks(
     height limit; Sec 8.3.2: the system's frame detailing at least what the category needs."""
     if row is None or sdc is None:
         return []
-    # The pack's height limit of the category (a pack with a category A, SP 14, or more
-    # categories than B-D has them in heightLimits; a category it does not list: no limit).
-    entry = code_context.table("seismic").systems.get(system)
-    limit = (entry.heightLimits or {}).get(sdc) if entry is not None else None
+    # The row's height limit of categories B, C, D (the row given is the one checked); a pack
+    # with a category A (SP 14) or other categories has them in its heightLimits, and a
+    # category it does not list there has no limit.
+    if sdc in ("B", "C", "D"):
+        limit = row.limits["BCD".index(sdc)]
+    else:
+        entry = code_context.table("seismic").systems.get(system)
+        limit = (entry.heightLimits or {}).get(sdc) if entry is not None else None
     limit = None if limit is None else float(limit)
     name = system_name(system)
     checks = []

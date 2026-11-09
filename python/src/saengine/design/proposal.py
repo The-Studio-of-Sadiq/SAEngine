@@ -2622,6 +2622,10 @@ def seismic_transverse(
                 spacing = min(found["zone"]["spacing"], zone_cap)
                 found["zone"]["spacing"] = max(round_down(spacing), least)
                 found["zone"]["length"] = max(found["zone"].get("length", 0.0), zone_length)
+            if "splice" in found:
+                # The splice hoops likewise: not below the least spacing offered (the parent's
+                # Ash spacing of thin ties can round down to 0, an invalid spacing).
+                found["splice"]["spacing"] = max(found["splice"]["spacing"], least)
             if "spacing" in found:
                 found["spacing"] = round_down(min(found["spacing"], outside_cap))
         smallest = min(
