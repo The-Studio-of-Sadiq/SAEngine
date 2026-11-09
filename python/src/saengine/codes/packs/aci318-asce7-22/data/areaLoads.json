@@ -3,7 +3,8 @@
   "$replace": true,
   "$sources": [
     "ASCE 7-22 Table 4.3-1 (minimum uniformly distributed and concentrated live loads), SI values",
-    "ASCE 7-22 Sec 4.3.2 (partitions), 4.4 (concentrated loads), 4.6 (impact)"
+    "ASCE 7-22 Sec 4.3.2 (partitions), 4.4 (concentrated loads), 4.6 (impact)",
+    "ASCE 7-22 Sec 4.5.1 (handrails and guards), 4.5.3 (vehicle barrier systems)"
   ],
   "source": "ASCE 7-22 Table 4.3-1 (SI values as printed beside psf and lb)",
   "uses": {
@@ -81,12 +82,26 @@
     {"id": "3", "name": "Reciprocating machinery or power-driven units", "vertical": 0.5},
     {"id": "4", "name": "Hangers supporting floors and balconies", "vertical": 0.33}
   ],
+  "barriers": {
+    "rows": [
+      {"id": "guard", "name": "Handrails and guards: 50 lb/ft along the top in any direction (with 200 lb at any point, not concurrent)", "load": 0.73},
+      {"id": "vehicle", "name": "Vehicle barrier systems for passenger vehicles: 6000 lb horizontal in any direction, on a 12 in x 12 in area at 18 in to 27 in above the floor", "load": 26.7, "unit": "kN"}
+    ],
+    "vehicleLength": 0.305,
+    "bumperHeight": 686,
+    "rampShare": 1.0,
+    "rampHeight": 686,
+    "longRampLength": 1000,
+    "longRampFactor": 1.0
+  },
   "sources": {
+    "barriers": "ASCE 7-22 Sec 4.5.1.1: handrails and guards 50 lb/ft (0.73 kN/m) and 200 lb (0.89 kN), not concurrent; one- and two-family dwellings and factory, industrial and storage areas of at most 50 occupants need only the 200 lb (choose no line-load row there). Sec 4.5.3: vehicle barriers 6000 lb (26.70 kN) on 12 in x 12 in (305 mm) at the most severe height of 18-27 in (686 mm taken). ASCE 7 has no ramp or long-ramp rule: share 1.0 and factor 1.0 leave the force unchanged.",
     "concentratedPatch": "ASCE 7-22 Sec 4.4: the concentrated loads of Table 4.3-1 on 2.5 ft x 2.5 ft (762 mm) unless stated, not with the uniform load",
     "partitions": "ASCE 7-22 Sec 4.3.2: a partition load of at least 15 psf (0.72 kN/m²) where partitions may be moved, not required where the live load is 80 psf or more (not applied by SAEngine: the allowance stays as entered); share 0.33 and lightMax 5.5 kN/m for drawn light partitions are SAEngine practice inherited from the BNBC rule (ASCE 7 gives no such rule)",
     "impact": "ASCE 7-22 Sec 4.6.2-4.6.3: elevators 100 % (ASME A17.1), machinery 20 % / 50 %, hangers 33 %"
   },
   "clauses": {
-    "partitions": "Sec 4.3.2"
+    "partitions": "Sec 4.3.2",
+    "barriers": "Sec 4.5"
   }
 }

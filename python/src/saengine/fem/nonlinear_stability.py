@@ -677,8 +677,12 @@ def trace_path(
             on_design()
     # 2. on past the peak
     taken = 0
-    arc = last_increment if last_increment > 0 else initial_arc
     du = max_displacement / max(steps, 1)
+    # The arc is at least the displacement step: the arc length takes the norm of all the
+    # nodes' translations, so the control node moves no more than ``du`` a step and the steps
+    # can reach the displacement limit (the last load step's increment alone is too short
+    # near a limit point: the path ran out of steps well before it).
+    arc = max(last_increment if last_increment > 0 else initial_arc, du)
     sign = 1.0 if float(ops.nodeDisp(node, dof)) >= 0 else -1.0
     cuts = 0
     while taken < steps:
