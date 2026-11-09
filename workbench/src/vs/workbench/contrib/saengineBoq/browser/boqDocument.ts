@@ -133,7 +133,7 @@ export const BOQ_GROUPS: readonly { readonly group: BoqGroup; readonly title: st
 	{ group: 'formwork', title: localize('boq.group.formwork', "Formwork") },
 	{ group: 'steel', title: localize('boq.group.steel', "Structural Steel") },
 	{ group: 'composite', title: localize('boq.group.composite', "Shear Studs and Steel Deck") },
-	{ group: 'special', title: localize('boq.group.special', "Glass and Membranes") },
+	{ group: 'special', title: localize('boq.group.special', "Glass, Membranes, Strands and Pipes") },
 	{ group: 'mep', title: localize('boq.group.mep', "MEP Coordination") },
 	{ group: 'materials', title: localize('boq.group.materialsTakeOff', "Materials Take-off") },
 ];

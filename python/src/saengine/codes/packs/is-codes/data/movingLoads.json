@@ -1,0 +1,85 @@
+{
+  "$schema": "../../../schemas/movingLoads.schema.json",
+  "$sources": [
+    "IRC:6-2017 (Standard Specifications and Code of Practice for Road Bridges, Section II Loads): Cl 204.1 and Annex A (IRC Class A train, Class 70R wheeled and tracked vehicles), Table 6 (number of lanes by carriageway width), Cl 205 (reduction in the longitudinal effect on bridges of more than two lanes), Cl 208 (impact factor 4.5 / (6 + L) for RCC and 9 / (13.5 + L) for steel bridges, Class A); the 70R tracked vehicle as ten axles over its 4.57 m track is SAEngine practice; see VERIFY.md"
+  ],
+  "source": "IRC:6 Class A, Class 70R (wheeled, tracked), lanes by carriageway width, reduction for several lanes, impact factor",
+  "method": "laneLoadModels",
+  "laneWidth": 3.5,
+  "narrow": [[5.3, 1], [9.6, 2], [13.1, 3], [16.6, 4], [20.1, 5], [23.6, 6]],
+  "vehicles": {
+    "classA": {
+      "label": "IRC Class A train (27, 27, 114, 114, 68, 68, 68, 68 kN)",
+      "axles": [
+        {"load": 27.0},
+        {"load": 27.0, "spacing": 1.1},
+        {"load": 114.0, "spacing": 3.2},
+        {"load": 114.0, "spacing": 1.2},
+        {"load": 68.0, "spacing": 4.3},
+        {"load": 68.0, "spacing": 3.0},
+        {"load": 68.0, "spacing": 3.0},
+        {"load": 68.0, "spacing": 3.0}
+      ],
+      "gauge": 1.8
+    },
+    "class70RWheeled": {
+      "label": "IRC Class 70R wheeled (1000 kN)",
+      "axles": [
+        {"load": 80.0},
+        {"load": 120.0, "spacing": 3.96},
+        {"load": 120.0, "spacing": 1.52},
+        {"load": 170.0, "spacing": 2.13},
+        {"load": 170.0, "spacing": 1.37},
+        {"load": 170.0, "spacing": 3.05},
+        {"load": 170.0, "spacing": 1.37}
+      ],
+      "gauge": 1.93
+    },
+    "class70RTracked": {
+      "label": "IRC Class 70R tracked (700 kN over 4.57 m, as ten axles)",
+      "axles": [
+        {"load": 70.0},
+        {"load": 70.0, "spacing": 0.5078},
+        {"load": 70.0, "spacing": 0.5078},
+        {"load": 70.0, "spacing": 0.5078},
+        {"load": 70.0, "spacing": 0.5078},
+        {"load": 70.0, "spacing": 0.5078},
+        {"load": 70.0, "spacing": 0.5078},
+        {"load": 70.0, "spacing": 0.5078},
+        {"load": 70.0, "spacing": 0.5078},
+        {"load": 70.0, "spacing": 0.5078}
+      ],
+      "gauge": 2.06
+    }
+  },
+  "loadModels": {
+    "classA": {
+      "label": "Class A in every lane",
+      "lanes": [{"vehicle": "classA", "dynamic": true}]
+    },
+    "class70RWheeled": {
+      "label": "Class 70R wheeled in one lane",
+      "lanes": [{"vehicle": "class70RWheeled", "dynamic": true}],
+      "maxLanes": 1
+    },
+    "class70RTracked": {
+      "label": "Class 70R tracked in one lane",
+      "lanes": [{"vehicle": "class70RTracked", "dynamic": true}],
+      "maxLanes": 1
+    }
+  },
+  "multiplePresence": [1.0, 1.0, 0.9, 0.8],
+  "dynamic": {
+    "method": "spanFormula",
+    "formula": {"concrete": [4.5, 6.0], "steel": [9.0, 13.5]},
+    "cap": 0.5
+  },
+  "clauses": {
+    "code": "IRC:6-2017",
+    "lanes": "Cl 204.3, Table 6",
+    "vehicles": "Cl 204.1, Annex A",
+    "application": "Cl 204.3",
+    "multiplePresence": "Cl 205",
+    "dynamic": "Cl 208"
+  }
+}

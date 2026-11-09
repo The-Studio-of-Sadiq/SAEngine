@@ -1,0 +1,56 @@
+{
+  "additionalProperties": false,
+  "description": "Steel fabrication: shop drawing symbols and the drilling allowances (module notes).",
+  "properties": {
+    "source": {
+      "default": "",
+      "description": "Clause (and page) the table comes from.",
+      "title": "Source",
+      "type": "string"
+    },
+    "sources": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Clause references of single entries: {key: clause}.",
+      "title": "Sources",
+      "type": "object"
+    },
+    "clauses": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Short clause references the results cite, by key, without the code's name (e.g. 'Part 6 Sec 2.5.7.3'); read by saengine.codes.context.cite. A key the pack does not give is not cited.",
+      "title": "Clauses",
+      "type": "object"
+    },
+    "weldSymbols": {
+      "default": "aws",
+      "description": "Weld symbols of the shop drawings: AWS A2.4 (aws) or ISO 2553 system A (isoA) or system B (isoB).",
+      "enum": [
+        "aws",
+        "isoA",
+        "isoB"
+      ],
+      "title": "Weldsymbols",
+      "type": "string"
+    },
+    "anchorHoleClearance": {
+      "default": 6.0,
+      "description": "Base plate holes: anchor rod diameter plus this [mm].",
+      "minimum": 0,
+      "title": "Anchorholeclearance",
+      "type": "number"
+    },
+    "copeClearance": {
+      "default": 10.0,
+      "description": "A coped beam's gap from the flange and root of the beam it frames into [mm].",
+      "minimum": 0,
+      "title": "Copeclearance",
+      "type": "number"
+    }
+  },
+  "title": "FabricationTable",
+  "type": "object",
+  "$id": "saengine.codePack.fabrication/1"
+}

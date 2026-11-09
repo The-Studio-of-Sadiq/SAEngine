@@ -888,6 +888,18 @@ Not covered by this pack: composite slabs on steel deck (the compositeSlab table
 
 Not covered by this pack: aluminium (the Aluminum Design Manual; a planned feature).
 
+## Steel fabrication (`fabrication`) and rebar CNC (`barSchedule` bvbs; alpha 9 L10)
+
+| # | Path | Value | Source | Sure? |
+|---|---|---|---|---|
+| L10-1 | weldSymbols | aws | AWS A2.4 (AISC 303 shop drawing practice) | Check |
+| L10-2 | anchorHoleClearance | rod + 6 mm in base plates | none in the code (AISC Design Guide 1 Table 2.3 gives larger holes with plate washers) | SAEngine practice |
+| L10-3 | copeClearance | 10 mm from the supporting flange and root | none in the code | SAEngine practice |
+| L10-B1 | barSchedule.standards.*.shapes.*.bvbs | BVBS legs (outside dimensions), arcs (inside radius) and bend angles of each shape; one sign for one bending direction, the last angle 0 | BVBS guideline (Bundesverband Bausoftware) "Data exchange of reinforcement data", geometry block G (legs l, radius r, angle w; outer dimensions for 2D shapes) | Check (the shape's legs against the printed shape code; the sign convention of the angles) |
+| L10-B2 | (record) | header j r i p l n e d g s v, l = the cutting length, e = mass of one bar, s = 2 x the bend radius; checksum 96 - (sum of ASCII codes up to and including C) mod 32 | BVBS guideline, header and checksum blocks; checked against its examples (C72, C71, C82; "abcde@C" = 78) | Check (l: the cutting length, where the guideline's examples print the sum of the legs) |
+
+ACI 315 shapes STR, 1, 2, 3, T1 have a BVBS geometry; 4 (truss bar), SP (spiral), 99 are sent without one. The bolt holes drilled are the steel table's standard holes (`steel` connections).
+
 ## Slope stability (`slopeStability`; alpha 9 L8)
 
 IBC 2021 and ASCE 7-22 give no slope method or factor of safety; the values are the parent's SAEngine practice with US sources.
@@ -897,3 +909,41 @@ IBC 2021 and ASCE 7-22 give no slope method or factor of safety; the values are 
 | L8U1 | required.permanent / temporary | 1.5 / 1.3 | USACE EM 1110-2-1902 (2003) Table 3-1 | Check |
 | L8U2 | required.seismic, seismic.khFactor | 1.1 with kh = 0.5 PGA | FHWA-NHI-11-032 Sec 6.3 (pseudo-static) | Check |
 | L8U3 | reinforcement | tensile 1.8, pull-out 2.0 | FHWA-NHI-14-007 (GEC 7, 2015) | Unsure (see bnbc2020 L8B8) |
+
+
+## Bridges and special structures (alpha 9 L9) — `movingLoads.json`, `bridgeDesign.json`, `latticeTowers.json`, `offshore.json`, `pipingStress.json`
+
+No copy of AASHTO LRFD, the MBE, TIA-222-H, API RP 2A or ASME B31.3 was available; every value
+below is from the author's knowledge and must be checked against the printed text.
+
+| # | Path | Value | Clause | Status |
+|---|---|---|---|---|
+| L9U1 | movingLoads.laneWidth, narrow | 3.6 m lanes (integer part of w/3.6), 6.0-7.2 m: two lanes | AASHTO LRFD 3.6.1.1.1 | Check |
+| L9U2 | movingLoads.vehicles.designTruck | 35, 145, 145 kN; 4.3 m; 4.3-9.0 m; gauge 1.8 m | 3.6.1.2.2 | Sure |
+| L9U3 | movingLoads.vehicles.designTandem | 2 × 110 kN at 1.2 m | 3.6.1.2.3 | Sure |
+| L9U4 | movingLoads lineLoad | 9.3 kN/m, no dynamic allowance | 3.6.1.2.4 | Sure |
+| L9U5 | movingLoads.loadModels.dualTruck | 90 % of two trucks (rear spacing 4.3 m) ≥ 15 m apart + 90 % lane, negative moments and interior reactions | 3.6.1.3.1 | Sure |
+| L9U6 | movingLoads.multiplePresence | 1.2, 1.0, 0.85, 0.65 | Table 3.6.1.1.2-1 | Sure |
+| L9U7 | movingLoads.dynamic | IM 33 % (all limit states but fatigue; deck joints 75 % not used) | Table 3.6.2.1-1 | Sure |
+| L9U8 | bridgeDesign.strength | 1.25 DC, 1.50 DW, 1.75 LL (Strength I, max factors) | Table 3.4.1-1, 3.4.1-2 | Sure (min factors 0.90 / 0.65 not applied) |
+| L9U9 | bridgeDesign.tensionLive | 0.8 (Service III) | Table 3.4.1-1 | Sure |
+| L9U10 | bridgeDesign.prestress | 0.65 f'ci, 0.25 √f'ci (≤ 1.38 MPa cap not applied), 0.45 / 0.60 f'c, 0.50 √f'c | 5.9.2.3.1, 5.9.2.3.2 | Check (the 0.60 φw factor and the tension cap are not applied) |
+| L9U11 | bridgeDesign.rating | γDC 1.25, γDW 1.50 (1.25 measured), γL 1.75 / 1.35, φc φs ≥ 0.85 | MBE 6A.4.2.2, 6A.4.2.4 | Check |
+| L9U12 | bridgeDesign.thermalCoefficient | 10.8 × 10⁻⁶ /°C | 5.4.2.2 | Sure |
+| L9U13 | latticeTowers square, triangular | Cf = 4.0 ε² - 5.9 ε + 4.0; 3.4 ε² - 4.7 ε + 3.4 | TIA-222-H 2.6.11.2 | Sure |
+| L9U14 | latticeTowers.roundTower | Rr = 0.51 ε² + 0.57 ≤ 1 (the ASCE 7 form) | TIA-222-H 2.6.11.2 | Unsure (TIA's own Rr expression may differ) |
+| L9U15 | latticeTowers.diagonalFactor | Df = 1 + 0.75 ε ≤ 1.2 (square, 45°) | Table 2-6 | Check |
+| L9U16 | latticeTowers.gust | Gh = 0.85 (lattice ≤ 183 m) | 2.6.7 | Check |
+| L9U17 | latticeTowers.lengths | K = 1.0 legs and bracing | Sec 4.5 | Unsure (the bracing's K by connection) |
+| L9U18 | offshore Cd, Cm | 0.65 / 1.05; 1.6 / 1.2 (smooth / rough) | API RP 2A-WSD 2.3.1b(7) | Sure |
+| L9U19 | offshore.kinematicsFactor | 0.88 (tropical storms; 0.95-1.0 extratropical) | 2.3.1b(3) | Check |
+| L9U20 | offshore.blockage | 3 legs 0.90; 4, 6, 8 legs 0.85 (the largest of the headings) | 2.3.1b(4) | Unsure |
+| L9U21 | offshore factors | 1.1 permanent, 1.35 environmental | API RP 2A-LRFD (SAEngine practice) | Practice |
+| L9U22 | pipingStress A106B | S 137.9 MPa to 204 °C, 130.3 at 260, 119.3 at 316, 113.8 at 371; E 203.4 GPa; α 11.7e-6 | B31.3 Table A-1, App. C | Unsure (the elevated temperature values) |
+| L9U23 | pipingStress A312TP304 | S 137.9 to 149 °C, 128.2, 120.7, 114.5; E 195.1 GPa; α 17.1e-6 | Table A-1, App. C | Unsure |
+| L9U24 | pipingStress range | f = 6.0 N^-0.2 ≤ 1.0 (fm 1.2 not used); SA = f (1.25 Sc + 0.25 Sh) + (Sh - SL) | 302.3.5(d) | Check |
+| L9U25 | pipingStress sustained, occasional | 0.75 i ≥ 1; 1.33 Sh | 302.3.5(c), 302.3.6 | Check (2016+ editions use Ia, Ii, Io) |
+| L9U26 | pipingStress pressure, bends | Y = 0.4; k = 1.65/h, ii = 0.9/h^(2/3), io = 0.75/h^(2/3) | 304.1.2, Appendix D | Sure |
+
+Not covered by this pack: silos, chimney vortex shedding and cooling towers (`shellStructures`;
+ACI 313 / ACI 307 planned).

@@ -1,0 +1,44 @@
+{
+  "$schema": "../../../schemas/movingLoads.schema.json",
+  "$sources": [
+    "EN 1991-2:2003: 4.2.3 and Table 4.1 (notional lanes), 4.3.2 and Table 4.2 (Load Model 1: tandem systems TS and UDL, adjustment factors αQ = αq = 1 as recommended), 4.3.3 (Load Model 2: single axle βQ Qak, βQ = 1), 4.3.1 (the dynamic amplification is included in the characteristic values); see VERIFY.md"
+  ],
+  "source": "EN 1991-2 Load Models 1 and 2 on notional lanes 3 m wide (dynamic amplification included)",
+  "method": "laneLoadModels",
+  "laneWidth": 3.0,
+  "narrow": [[5.4, 1], [6.0, 2]],
+  "vehicles": {
+    "ts1": {"label": "LM1 tandem, lane 1 (2 × 300 kN at 1.2 m)", "axles": [{"load": 300.0}, {"load": 300.0, "spacing": 1.2}], "gauge": 2.0},
+    "ts2": {"label": "LM1 tandem, lane 2 (2 × 200 kN at 1.2 m)", "axles": [{"load": 200.0}, {"load": 200.0, "spacing": 1.2}], "gauge": 2.0},
+    "ts3": {"label": "LM1 tandem, lane 3 (2 × 100 kN at 1.2 m)", "axles": [{"load": 100.0}, {"load": 100.0, "spacing": 1.2}], "gauge": 2.0},
+    "lm2": {"label": "LM2 single axle (400 kN)", "axles": [{"load": 400.0}], "gauge": 2.0}
+  },
+  "loadModels": {
+    "lm1": {
+      "label": "Load Model 1 (tandems and UDL by lane)",
+      "lanes": [
+        {"vehicle": "ts1", "areaLoad": 9.0, "dynamic": false},
+        {"vehicle": "ts2", "areaLoad": 2.5, "dynamic": false},
+        {"vehicle": "ts3", "areaLoad": 2.5, "dynamic": false},
+        {"areaLoad": 2.5, "dynamic": false}
+      ],
+      "multiplePresence": false
+    },
+    "lm2": {
+      "label": "Load Model 2 (single axle)",
+      "lanes": [{"vehicle": "lm2", "dynamic": false}],
+      "maxLanes": 1,
+      "multiplePresence": false
+    }
+  },
+  "multiplePresence": [1.0],
+  "dynamic": {"method": "included"},
+  "clauses": {
+    "code": "EN 1991-2",
+    "lanes": "4.2.3, Table 4.1",
+    "vehicles": "4.3.2 (Table 4.2), 4.3.3",
+    "application": "4.3.2, 4.2.4",
+    "multiplePresence": "4.3.2 (αQ, αq = 1)",
+    "dynamic": "4.3.1 (included)"
+  }
+}

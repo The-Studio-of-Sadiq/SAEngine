@@ -22,10 +22,14 @@ from saengine.library.shapes import (
     Arch,
     BarrelVault,
     CableNet,
+    DeckGrillage,
     Dome,
+    JacketFrame,
     PlaneTruss,
     PortalFrame,
+    RevolutionShell,
     SpaceTruss,
+    TrussTower,
 )
 
 # Parametric shapes start at typical sizes of their kind; "MEMBER" is replaced by a member type.
@@ -41,10 +45,102 @@ _SHAPES = [
     PortalFrame(
         width=24000, length=60000, bays=8, eaveHeight=7500, columnType="MEMBER", rafterType="MEMBER"
     ),
+    # Alpha 9 L9: a two-span deck grillage, a telecom tower, a silo shell and a jacket ("PANEL"
+    # is replaced by a slab or wall type).
+    DeckGrillage(spans=[20000, 20000], girders=4, girderSpacing=2500, memberType="MEMBER"),
+    TrussTower(height=40000, baseWidth=6000, topWidth=1500, panels=10, memberType="MEMBER"),
+    RevolutionShell(height=24000, baseRadius=4000, rings=12, segments=24, panelType="PANEL"),
+    JacketFrame(height=42000, bays=4, memberType="MEMBER"),
 ]
 
 _REBAR = "B420DWR"
 _CONCRETE = "C24.1"
+
+#: Alpha 9 L9: the bridges and special structures of Project Settings (typical sizes).
+_GIRDER: dict[str, Any] = {
+    "depth": 1500,
+    "webWidth": 400,
+    "concrete": _CONCRETE,
+    "rebar": _REBAR,
+    "bottomBars": 8,
+    "bottomDiameter": 32,
+    "topBars": 0,
+    "topDiameter": 25,
+}
+_SPECIAL_TEMPLATES: dict[str, dict[str, Any]] = {
+    "Bridge": {
+        "id": "BR1",
+        "name": "Two-lane girder bridge",
+        "spans": [20.0],
+        "carriageway": 7.5,
+        "girders": 4,
+        "girderSpacing": 2.5,
+        "girder": _GIRDER,
+    },
+    "GirderSection": _GIRDER,
+    "GirderPrestress": {"area": 2800, "depth": 1350},
+    "BridgeBearing": {"support": 0, "kind": "fixed"},
+    "BridgeRating": {"condition": 1.0, "system": 1.0},
+    "LatticeTower": {
+        "id": "TW1",
+        "name": "Telecom tower",
+        "height": 40.0,
+        "baseWidth": 6.0,
+        "topWidth": 1.5,
+        "panels": 10,
+        "legType": "TOWER-LEG",
+        "bracingType": "TOWER-BRACE",
+    },
+    "Antenna": {"name": "Panel antenna", "elevation": 38.0, "area": 0.8, "weight": 0.3},
+    "Silo": {
+        "id": "SL1",
+        "name": "Grain silo",
+        "diameter": 8.0,
+        "height": 24.0,
+        "concrete": _CONCRETE,
+        "rebar": _REBAR,
+    },
+    "Chimney": {
+        "id": "CH1",
+        "name": "Chimney",
+        "height": 60.0,
+        "baseDiameter": 5.0,
+        "topDiameter": 3.0,
+        "baseThickness": 300,
+        "topThickness": 200,
+        "material": _CONCRETE,
+    },
+    "CoolingTower": {
+        "id": "CT1",
+        "name": "Cooling tower",
+        "height": 100.0,
+        "baseRadius": 40.0,
+        "throatRadius": 26.0,
+        "throatHeight": 80.0,
+        "topRadius": 28.0,
+        "concrete": _CONCRETE,
+    },
+    "OffshoreStructure": {
+        "id": "OS1",
+        "name": "Four-leg jacket",
+        "waterDepth": 30.0,
+        "deckElevation": 12.0,
+        "legType": "JACKET-LEG",
+        "braceType": "JACKET-BRACE",
+        "waveHeight": 10.0,
+        "wavePeriod": 10.0,
+    },
+    "PipingSystem": {
+        "id": "P1",
+        "name": "Steam line",
+        "route": [{"x": 0, "y": 0, "z": 3}, {"x": 12, "y": 0, "z": 3}, {"x": 12, "y": 6, "z": 3}],
+        "outsideDiameter": 168.3,
+        "wallThickness": 7.11,
+        "supports": [{"at": 0, "kind": "anchor", "nozzle": True}, {"at": 2, "kind": "anchor"}],
+    },
+    "PipePoint": {"x": 0, "y": 0, "z": 0},
+    "PipeSupport": {"at": 0, "kind": "rest"},
+}
 
 
 def _material_templates() -> dict[str, dict[str, Any]]:
@@ -633,4 +729,7 @@ TEMPLATES: dict[str, dict[str, Any]] = {
     **{type(shape).__name__: shape.model_dump(mode="json", exclude_none=True) for shape in _SHAPES},
     # B31: a built-up steel compression member (design overwrites)
     "BuiltUpMember": {"connectors": "snugTight", "spacing": 600, "component": "L 75x75x6"},
+    # alpha 9 L9: bridges and special structures (Project Settings); "TOWER-LEG" and the like
+    # name object types the engineer picks (04 Objects)
+    **_SPECIAL_TEMPLATES,
 }

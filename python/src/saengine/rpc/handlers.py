@@ -1244,6 +1244,22 @@ def nonlinear_stability(out_dir: str, project_path: str, run: bool) -> dict[str,
     return _plain(ns.run_project(out_dir, project_path))
 
 
+def special_structures(project_path: str, run: bool) -> dict[str, Any]:
+    """Alpha 9 L9: the project's bridges and special structures (Project Settings): computed
+    anew and kept when ``run`` (``saengine.special.project.run_project``), else the last run
+    kept beside the analysis model (``{"available": False, "configured", "reason"}`` without
+    one). ``project_path``: any file of the project (the analysis model)."""
+    from saengine.codes.context import find_project_root
+    from saengine.pipeline.design_mode import _plain
+    from saengine.special import project as special
+
+    root = find_project_root(project_path) or Path(project_path).parent
+    try:
+        return _plain(special.run_project(root) if run else special.kept(root))
+    except (ValueError, OSError) as error:
+        return {"available": False, "configured": True, "reason": str(error)}
+
+
 def connection_fe(out_dir: str, project_path: str, member: str | None) -> dict[str, Any]:
     """Alpha 9 L6: the CBFEM check of ``member``'s end connection
     (``saengine.design.connection_fe.check_member_joint``); without a member, the checks made

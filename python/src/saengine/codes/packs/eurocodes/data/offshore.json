@@ -1,0 +1,27 @@
+{
+  "$schema": "../../../schemas/offshore.schema.json",
+  "$sources": [
+    "ISO 19902:2020 (fixed steel offshore structures): 9.5 (Morison's equation, Cd 0.65 smooth / 1.05 rough, Cm 1.6 / 1.2), 9.4 (wave kinematics factor, current blockage), Table 9.10-1 (extreme action factors 1.1 G, 1.35 E); see VERIFY.md"
+  ],
+  "source": "ISO 19902 hydrodynamic actions by Morison's equation",
+  "method": "morison",
+  "seawaterDensity": 1025.0,
+  "dragSmooth": 0.65,
+  "dragRough": 1.05,
+  "inertiaSmooth": 1.6,
+  "inertiaRough": 1.2,
+  "kinematicsFactor": 0.9,
+  "blockage": {"1": 1.0, "3": 0.9, "4": 0.85, "6": 0.85, "8": 0.85},
+  "currentExponent": 0.142857,
+  "permanentFactor": 1.1,
+  "environmentalFactor": 1.35,
+  "clauses": {
+    "code": "ISO 19902",
+    "morison": "9.5",
+    "coefficients": "9.5.2",
+    "kinematics": "9.4.2",
+    "blockage": "9.4.3",
+    "current": "9.4.3",
+    "factors": "Table 9.10-1"
+  }
+}

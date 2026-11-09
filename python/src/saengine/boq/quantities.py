@@ -198,6 +198,14 @@ KINDS: dict[str, str] = {
     "excavationSupport": "excavation supports",
     # Alpha 9 L7: tensile membranes (not placed: measured per type).
     "membrane": "tensile membranes",
+    # Alpha 9 L9: bridges and special structures (Project Settings, measured per structure).
+    "bridge": "bridges",
+    "latticeTower": "lattice towers",
+    "silo": "silos",
+    "chimney": "chimneys",
+    "coolingTower": "cooling towers",
+    "offshore": "offshore structures",
+    "piping": "piping",
 }
 
 #: The note on a tank whose bars wait for its design (the workbench's Run All measures the bill
@@ -2924,6 +2932,7 @@ def bill_of_quantities(
     mep: Any = None,
     tank_designs: dict[str, Any] | None = None,
     architecture: Any = None,
+    special: Any = None,
 ) -> BillOfQuantities:
     """The bill of quantities of ``building``. With ``substructure`` (the project's
     ``substructure.json`` once it is no longer the placeholder, see
@@ -2946,6 +2955,22 @@ def bill_of_quantities(
     from saengine.fire.boq import measure_fire
 
     measure.fire_measured = measure_fire(measure, tank_designs)
+    if special is not None and not special.is_empty():  # Alpha 9 L9: special structures
+        from saengine.special.project import quantities as special_quantities
+
+        lines, special_notes = special_quantities(special, objects, materials)
+        for line in lines:
+            measure.bill.add(
+                line["group"],
+                line["key"],
+                line["description"],
+                line["unit"],
+                line["element"],
+                line["quantity"],
+                material=line["material"],
+                kind=line["kind"],
+            )
+        measure.notes.extend(special_notes)
     measure.measure_materials()
     notes = measure.finish()
     problems = measure.problems()
@@ -3025,6 +3050,13 @@ def compute_boq(
         architecture = None
 
     substructure, ground = _inputs(substructure_text, settings_text, bim_text)
+    special = None
+    if settings_text and '"specialStructures"' in settings_text:  # Alpha 9 L9
+        from saengine.library.settings import ProjectSettings
+
+        special = ProjectSettings.model_validate_json(settings_text).specialStructures
+        if special.is_empty():
+            special = None
     mep = parse_mep(mep_text) if mep_text is not None else None
     designs = None
     if project_root and mep is not None and (mep.plumbing is not None or mep.fire is not None):
@@ -3046,7 +3078,15 @@ def compute_boq(
     used = (
         None
         if architecture
-        else used_materials(library, [objects_text, substructure_text, mep_text])
+        else used_materials(
+            library,
+            [
+                objects_text,
+                substructure_text,
+                mep_text,
+                special.model_dump_json() if special is not None else None,  # Alpha 9 L9
+            ],
+        )
     )
     if used is not None:
         library = library.model_copy(
@@ -3075,6 +3115,7 @@ def compute_boq(
         mep,
         designs,
         architecture,
+        special,
     )
     _with_bar_schedule(
         document,

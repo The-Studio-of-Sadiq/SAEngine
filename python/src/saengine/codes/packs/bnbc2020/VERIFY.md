@@ -205,6 +205,18 @@ adopts; the results label them so.
 | L3-3 | lowerLimit | 0.8 of the code's base shear on each axis | after ASCE 7-22 Sec 31.4.3; BNBC Sec 2.4.16 has no limit | SAEngine practice |
 | L3-4 | validation / clauses | Method 3 wind tunnel procedure, test conditions | Part 6 Sec 2.4.16, 2.4.16.2 (printed pp. 563-564, PDF pp. 566-567), Sec 1.5.3.5 (printed p. 496) | Check (page numbers) |
 
+## Steel fabrication (`fabrication`) and rebar CNC (`barSchedule` bvbs; alpha 9 L10)
+
+| # | Path | Value | Source | Sure? |
+|---|---|---|---|---|
+| L10-1 | weldSymbols | aws | SAEngine practice: AWS A2.4, as the steel connection details (BNBC 2020 Part 6 Chapter 10 is AISC 360-05 based; the code gives no symbols) | SAEngine practice |
+| L10-2 | anchorHoleClearance | rod + 6 mm in base plates | none in the code (AISC Design Guide 1 Table 2.3 gives larger holes with plate washers) | SAEngine practice |
+| L10-3 | copeClearance | 10 mm from the supporting flange and root | none in the code | SAEngine practice |
+| L10-B1 | barSchedule.standards.*.shapes.*.bvbs | BVBS legs (outside dimensions), arcs (inside radius) and bend angles of each shape; one sign for one bending direction, the last angle 0 | BVBS guideline (Bundesverband Bausoftware) "Data exchange of reinforcement data", geometry block G (legs l, radius r, angle w; outer dimensions for 2D shapes) | Check (the shape's legs against the printed shape code; the sign convention of the angles) |
+| L10-B2 | (record) | header j r i p l n e d g s v, l = the cutting length, e = mass of one bar, s = 2 x the bend radius; checksum 96 - (sum of ASCII codes up to and including C) mod 32 | BVBS guideline, header and checksum blocks; checked against its examples (C72, C71, C82; "abcde@C" = 78) | Check (l: the cutting length, where the guideline's examples print the sum of the legs) |
+
+BS 8666 shapes 00, 01, 11, 12, 13, 21, 22, 23, 31, 41, 51 have a BVBS geometry; 15, 26, 33, 63, 77, 99 are sent without one. The bolt holes drilled are the steel table's standard holes (`steel` connections).
+
 ## Slope stability (`slopeStability`; alpha 9 L8)
 
 BNBC 2020 gives no slope method or factor of safety (Part 6 Sec 3.21 p. 817 lists landslides as a geo-hazard; Sec 3.14 p. 803 the stability of adjoining buildings, FS 1.5 against overturning and sliding of the building). Every value below is SAEngine practice.

@@ -115,6 +115,10 @@ const FIELD_KINDS: { readonly [path: string]: readonly string[] } = {
 	'shape.bracingType': ['brace'],
 	'shape.roofPanelType': ['slab'],
 	'shape.wallPanelType': ['wall'],
+	// Alpha 9 L9: deck grillages, lattice towers and jackets.
+	'shape.crossType': MEMBER_KINDS,
+	'shape.horizontalType': MEMBER_KINDS,
+	'shape.braceType': MEMBER_KINDS,
 	'options.memberType': ['beam', 'brace'],
 	'options.columnType': ['column'],
 	'options.slabType': ['slab'],
@@ -955,7 +959,7 @@ export class StructureModelerEditor extends EditorPane {
 	 */
 	private fillTypes(shape: JsonObject): void {
 		const member = () => this.defaultType(['brace', 'beam']) ?? this.defaultType(MEMBER_KINDS) ?? '';
-		if (shape.memberType === 'MEMBER' || (shape.kind !== 'portalFrame' && (typeof shape.memberType !== 'string' || !shape.memberType))) {
+		if (shape.memberType === 'MEMBER' || (shape.kind !== 'portalFrame' && shape.kind !== 'revolutionShell' && (typeof shape.memberType !== 'string' || !shape.memberType))) {
 			shape.memberType = member();
 		}
 		const placeholders = [
@@ -966,6 +970,10 @@ export class StructureModelerEditor extends EditorPane {
 			if (shape[key] === 'MEMBER') {
 				shape[key] = this.defaultType(kinds) ?? member();
 			}
+		}
+		// Alpha 9 L9: a shell of revolution's panels (a wall type, else a slab type).
+		if (shape.panelType === 'PANEL') {
+			shape.panelType = this.defaultType(['wall']) ?? this.defaultType(['slab']) ?? '';
 		}
 	}
 

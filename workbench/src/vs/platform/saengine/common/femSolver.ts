@@ -714,6 +714,10 @@ export type EngineMethod =
 	// `revit/export` `{projectRoot, outPath?}`, `revit/preview` `{projectRoot, path}` and
 	// `revit/apply` `{projectRoot, path, changes}`.
 	| 'revit/export' | 'revit/preview' | 'revit/apply'
+	// Alpha 9 L10, the fabrication exports (`saengine.fabrication.export`, in a worker thread):
+	// `fabrication/shopDrawings`, `fabrication/nc` and `fabrication/bvbs` `{projectRoot}` ->
+	// `{folder, files, notes, problems}` or `{error}`.
+	| 'fabrication/shopDrawings' | 'fabrication/nc' | 'fabrication/bvbs'
 	| 'section/analyse' | 'architecture/importIfc' | 'architecture/inspectDrawing' | 'architecture/importDrawing' | 'architecture/check' | 'architecture/ramps'
 	| 'boq/cost' | 'boq/templates' | 'boq/exportXlsx'
 	// Calculation worksheets (`saengine.report.worksheets`): `worksheets/kinds` `{}`,
@@ -728,6 +732,11 @@ export type EngineMethod =
 	// `cfd/start` `{projectRoot, openfoam?, distribution?}` (the background run), `cfd/status`,
 	// `cfd/cancel` and `cfd/results` `{projectRoot}`.
 	| 'cfd/detect' | 'cfd/write' | 'cfd/start' | 'cfd/status' | 'cfd/cancel' | 'cfd/results'
+	// Alpha 9 L4 / L6: the nonlinear stability analysis and the CBFEM check of joints.
+	| 'fem/nonlinearStability' | 'design/connectionFe'
+	// Alpha 9 L9: `special/structures` `{projectPath, run}` -> the bridges and special
+	// structures of Project Settings (`saengine.special.project`), kept or computed anew.
+	| 'special/structures'
 	// Alpha 9 L11, the office tools (`saengine.rpc.office`, where each one's params are listed):
 	// the 4D programme, cost optimisation, PDF takeoff, terrain, sun / daylight / noise, MEP
 	// fabrication (LOD 400), phasing and design options.

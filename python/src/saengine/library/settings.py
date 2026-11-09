@@ -27,6 +27,23 @@ from saengine.codes.registry import DEFAULT_PACK, CodePack, CodePackError
 from saengine.library import code_data
 from saengine.library.labels import field_title
 from saengine.library.materials import Id
+from saengine.library.special_structures import (  # noqa: F401 - alpha 9 L9, the editors' $defs
+    Antenna,
+    Bridge,
+    BridgeBearing,
+    BridgeRating,
+    Chimney,
+    CoolingTower,
+    GirderPrestress,
+    GirderSection,
+    LatticeTower,
+    OffshoreStructure,
+    PipePoint,
+    PipeSupport,
+    PipingSystem,
+    Silo,
+    SpecialStructures,
+)
 
 SCHEMA_ID = "saengine.projectSettings/1"
 
@@ -3078,6 +3095,54 @@ PLAN_SCALES = (50, 75, 100, 125, 150, 200, 250)
 DETAIL_SCALES = (10, 20, 25, 50)
 
 
+class Fabrication(_Model):
+    """Alpha 9 L10: the steel shop drawings, the DSTV NC files and the BVBS rebar files of 11
+    Exports (saengine.fabrication). Every field has a default: nothing needs entering."""
+
+    orderNumber: str | None = Field(
+        default=None,
+        title="Order number",
+        description="The fabrication order in the NC files' headers; empty: the project number.",
+    )
+    phase: str = Field(
+        default="1", description="The erection phase in the NC files' headers (DSTV)."
+    )
+    weldSymbols: Literal["pack", "aws", "isoA", "isoB"] = Field(
+        default="pack",
+        title="Weld symbols",
+        description="The weld symbols of the shop drawings: the code pack's choice, AWS A2.4, or "
+        "ISO 2553 system A or B.",
+        json_schema_extra=_labels(
+            ["The code pack's", "AWS A2.4", "ISO 2553 system A", "ISO 2553 system B"]
+        ),
+    )
+    sheetSize: Literal["A1", "A2", "A3"] = Field(
+        default="A3", title="Shop drawing sheet size", description="ISO sheet of the shop drawings."
+    )
+    endClearance: float = Field(
+        default=12,
+        ge=0,
+        le=50,
+        title="Beam end clearance",
+        description="Gap between a beam's cut end and the face it frames into [mm] (fin plates, "
+        "flange plates, gussets; an end plate is cut to the face less its thickness).",
+    )
+    beamPrefix: str = Field(default="B", min_length=1, title="Beam assembly marks")
+    columnPrefix: str = Field(default="C", min_length=1, title="Column assembly marks")
+    bracePrefix: str = Field(default="BR", min_length=1, title="Brace assembly marks")
+    partPrefix: str = Field(default="p", min_length=1, title="Part marks")
+    ncMarking: bool = Field(
+        default=True,
+        title="Mark the parts",
+        description="The NC files carry the part mark to scribe on each part (DSTV SI block).",
+    )
+    bvbsDrawing: str | None = Field(
+        default=None,
+        title="BVBS schedule number",
+        description="The bar schedule's number in the BVBS files; empty: 'BBS'.",
+    )
+
+
 def _scale(default: int, scales: tuple[int, ...], title: str, description: str) -> Any:
     return Field(
         default=default,
@@ -3154,6 +3219,12 @@ class Drawings(_Model):
         default_factory=DraftingStandard,
         title="Office standard",
         description="Layers, font, arrows, sheet numbers and title block lines of the office.",
+    )
+    fabrication: Fabrication = Field(
+        default_factory=Fabrication,
+        title="Fabrication",
+        description="Steel shop drawings, NC files (DSTV) and rebar CNC files (BVBS) of 11 "
+        "Exports: marks, weld symbols, clearances and the files' headers.",
     )
 
     @model_validator(mode="before")
@@ -3279,6 +3350,15 @@ class ProjectSettings(_Model):
         title="Crane runways",
         description="Overhead and monorail cranes: wheel loads with impact, lateral and "
         "longitudinal forces, runway beam checks and the loads on the columns.",
+    )
+    # Alpha 9 L9: bridges and special structures (saengine.special); left out of the file
+    # while empty, so the settings of projects without them stay as they were.
+    specialStructures: SpecialStructures = Field(
+        default_factory=SpecialStructures,
+        exclude_if=lambda value: value.is_empty(),
+        title="Bridges and Special Structures",
+        description="Bridges (traffic loads, girders, bearings, rating), lattice towers, silos, "
+        "chimneys, cooling towers, offshore jackets and piping, by the code pack's methods.",
     )
     analysis: Analysis = Field(default_factory=Analysis, title="Analysis model")
     foundation: Foundation = Field(

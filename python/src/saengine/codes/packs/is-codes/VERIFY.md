@@ -546,3 +546,34 @@ the parent's), with no IS 2502 minimum radius.
 | L3-2 | roughness.1 / 2 / 3 / 4 | z0 = 0.002 / 0.02 / 0.2 / 2.0 m | IS 875 (Part 3):2015 Sec 6.3.2.1 (the same values as the gust factor's roughness) | Check (clause number) |
 | L3-3 | lowerLimit | 0.8 | after ASCE 7-22 Sec 31.4.3; IS 875 (Part 3) gives none | SAEngine practice |
 | L3-4 | validation / clauses | wind tunnel studies of tall or unusual buildings | IS 875 (Part 3):2015 Sec 10 | Check (clause number) |
+
+## Steel fabrication (`fabrication`) and rebar CNC (`barSchedule` bvbs; alpha 9 L10)
+
+| # | Path | Value | Source | Sure? |
+|---|---|---|---|---|
+| L10-1 | weldSymbols | isoA | IS 813 drawn as ISO 2553 system A (Indian practice may use system B: the project can choose it) | Check |
+| L10-2 | anchorHoleClearance | rod + 6 mm in base plates | none in the code (AISC Design Guide 1 Table 2.3 gives larger holes with plate washers) | SAEngine practice |
+| L10-3 | copeClearance | 10 mm from the supporting flange and root | none in the code | SAEngine practice |
+| L10-B1 | barSchedule.standards.*.shapes.*.bvbs | BVBS legs (outside dimensions), arcs (inside radius) and bend angles of each shape; one sign for one bending direction, the last angle 0 | BVBS guideline (Bundesverband Bausoftware) "Data exchange of reinforcement data", geometry block G (legs l, radius r, angle w; outer dimensions for 2D shapes) | Check (the shape's legs against the printed shape code; the sign convention of the angles) |
+| L10-B2 | (record) | header j r i p l n e d g s v, l = the cutting length, e = mass of one bar, s = 2 x the bend radius; checksum 96 - (sum of ASCII codes up to and including C) mod 32 | BVBS guideline, header and checksum blocks; checked against its examples (C72, C71, C82; "abcde@C" = 78) | Check (l: the cutting length, where the guideline's examples print the sum of the legs) |
+
+IS 2502 shapes 00, 11, 21, 23, 31, 41, 51 have a BVBS geometry; 13 (its B is not the outside width of BS 8666), 26, 77, 99 are sent without one. The bolt holes drilled are the steel table's standard holes (`steel` connections).
+
+## Bridges (alpha 9 L9) — `movingLoads.json`, `bridgeDesign.json`
+
+| # | Path | Value | Clause | Description | Status |
+|---|---|---|---|---|---|
+| L9I1 | movingLoads.narrow | < 5.3 m 1 lane, < 9.6 m 2, < 13.1 m 3, < 16.6 m 4, < 20.1 m 5, < 23.6 m 6 | IRC:6-2017 Table 6 | Lanes by carriageway width | Check |
+| L9I2 | movingLoads.vehicles.classA | 27, 27, 114, 114, 68, 68, 68, 68 kN at 1.1, 3.2, 1.2, 4.3, 3.0, 3.0, 3.0 m, gauge 1.8 m | Cl 204.1, Annex A | IRC Class A train | Sure (axles), Check (gauge) |
+| L9I3 | movingLoads.vehicles.class70RWheeled | 80, 120, 120, 170 × 4 kN at 3.96, 1.52, 2.13, 1.37, 3.05, 1.37 m, gauge 1.93 m | Annex A | Class 70R wheeled | Unsure |
+| L9I4 | movingLoads.vehicles.class70RTracked | 700 kN over 4.57 m as ten axles, gauge 2.06 m | Annex A | Class 70R tracked | Unsure (gauge; the ten axles are SAEngine practice) |
+| L9I5 | movingLoads.multiplePresence | 1.0, 1.0, 0.9, 0.8 | Cl 205 | Reduction for 3 and 4+ lanes | Check |
+| L9I6 | movingLoads.dynamic | 4.5 / (6 + L) RCC, 9 / (13.5 + L) steel, at most 0.5 | Cl 208 | Impact factor (Class A) | Check (70R's own impact not separate) |
+| L9I7 | movingLoads combinations | Class A in every lane; 70R in one lane alone | Cl 204.3 | Load models | Unsure (70R with Class A in the other lanes not modelled) |
+| L9I8 | bridgeDesign.strength | DL 1.35, surfacing 1.75, live 1.5 | IRC:6 Annex B Table B.2 | ULS basic combination | Check |
+| L9I9 | bridgeDesign.service | surfacing 1.2 | Table B.3 | SLS rare | Check |
+| L9I10 | bridgeDesign.prestress | 0.6 fck(t) transfer, 0.36 fck quasi-permanent, 0.48 fck rare, no tension | IRC:112 Cl 7.9.5, 12.2.1 | Stress limits | Unsure |
+| L9I11 | bridgeDesign.thermalCoefficient | 12 × 10⁻⁶ /°C | IRC:6 Cl 215 | Expansion joints | Check |
+
+Not covered by this pack: towers (they take the parent's wind open-structure coefficients),
+silos, chimneys, cooling towers, offshore, piping, load rating.

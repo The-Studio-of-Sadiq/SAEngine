@@ -41,6 +41,7 @@ import { ChartColor, IChartSeries, renderChart, renderSheet } from './femChart.j
 import { baseReactionTable, closedPmCurve, defaultChartResult, describeMode, elasticDriftLimit, orderLike, extremes, FEM_COLUMN_INTERACTION_COMMAND, floorSpectrumCurves, IFemFloorSpectra, FEM_MEMBER_FORCES_COMMAND, FEM_STORY_RESPONSE_COMMAND, FemAxis2, IFemColumnDiagram, IFemColumnShortening, hingeRowsOf, IFemHingeRow, IFemPushoverAcceptance, IFemPushoverCurve, IFemPushoverTarget, IFemColumnInteraction, IFemDamperDesign, IFemDeviceSuite, IFemIsolationDesign, IFemMemberForces, IFemNonlinearHingeRow, IFemNonlinearHistory, IFemStoryResponse, IFemStoryResult, IFemTimeHistoryDesign, isEarthquakeResult, MemberComponent, memberEnvelope, memberValues, modalTable, modesToReach, profilePeak, spectrumAt, storeyProfile, StoreyQuantity, storeyQuantityLabel, STOREY_QUANTITIES } from './femChartData.js';
 import { IFemDesignRequired, IFemSteelRequirement, resultsFolder, runDesignRequired } from './femDesign.js';
 import { cableSheet, FEM_NONLINEAR_STABILITY_COMMAND, hasStability, IFemNonlinearStability, pathSeries, pathXLabel, stabilityHelp } from './femNonlinearStability.js';
+import { FEM_SPECIAL_STRUCTURES_COMMAND, hasSpecialStructures, IFemSpecialStructures, specialHelp, specialSeries, specialSheet } from './femSpecialStructures.js';
 import { assessmentHelp, assessmentTitle, checklistSheet, FEM_EXISTING_ASSESSMENT_COMMAND, hasExistingAssessment, hazardSheet, IFemExistingAssessment, memberSheet, strengthSheet } from './femExisting.js';
 import { appendPlannedChips, FemPlanned } from './femPlannedFeatures.js';
 import { errorSummary, FEM_RESULT_LIST_COMMAND, IFemRunTracker } from './femResultsBar.js';
@@ -240,6 +241,10 @@ export class FemResultsEditor extends EditorPane {
 	private stability: IFemNonlinearStability | undefined;
 	private stabilityState: 'idle' | 'loading' | 'running' | 'failed' = 'idle';
 	private stabilityProblem: string | undefined;
+	/** Alpha 9 L9: the bridges and special structures of Project Settings, kept or being computed. */
+	private special: IFemSpecialStructures | undefined;
+	private specialState: 'idle' | 'loading' | 'running' | 'failed' = 'idle';
+	private specialProblem: string | undefined;
 	private problem: string | undefined;
 	private loading = false;
 	/** The 3D view's result list: its order, and whether the model changed after the run. */
@@ -447,6 +452,8 @@ export class FemResultsEditor extends EditorPane {
 				this.existingState = 'idle';
 				this.stability = undefined;
 				this.stabilityState = 'idle';
+				this.special = undefined;
+				this.specialState = 'idle';
 			} else {
 				const member = await this.commandService.executeCommand<IFemMemberForces>(FEM_MEMBER_FORCES_COMMAND, input.model, input.page.member);
 				if (request !== this.request) {
@@ -474,6 +481,7 @@ export class FemResultsEditor extends EditorPane {
 		if (input.page.kind === 'charts' && this.response) {
 			void this.loadExisting();
 			void this.loadStability(false);
+			void this.loadSpecial(false);
 		}
 		// What the backend has already worked out for this run is shown at once; working it out
 		// takes minutes, so that waits for the engineer's click.
@@ -596,6 +604,83 @@ export class FemResultsEditor extends EditorPane {
 			this.stabilityProblem = errorSummary(error);
 		}
 		this.render();
+	}
+
+	/**
+	 * Alpha 9 L9: the bridges and special structures of Project Settings: the last run kept
+	 * beside the analysis model at once (`run` false), a new one on the engineer's click.
+	 */
+	private async loadSpecial(run: boolean): Promise<void> {
+		const input = this.typed;
+		if (!input || input.page.kind !== 'charts' || this.specialState === 'loading' || this.specialState === 'running') {
+			return;
+		}
+		const request = this.request;
+		this.specialState = run ? 'running' : 'loading';
+		if (run) {
+			this.render();
+		}
+		try {
+			const found = await this.commandService.executeCommand<IFemSpecialStructures>(FEM_SPECIAL_STRUCTURES_COMMAND, input.model, run);
+			if (request !== this.request) {
+				return;
+			}
+			this.special = found;
+			this.specialState = 'idle';
+		} catch (error) {
+			if (request !== this.request) {
+				return;
+			}
+			this.specialState = 'failed';
+			this.specialProblem = errorSummary(error);
+		}
+		this.render();
+	}
+
+	/** Alpha 9 L9: each bridge and special structure's checks, tables and charts. */
+	private renderSpecial(): void {
+		const found = this.special;
+		if (!found?.configured && this.specialState !== 'running' && this.specialState !== 'failed') {
+			return; // none in the project settings
+		}
+		const title = localize('femResults.specialHeading', "Bridges and Special Structures");
+		const section = this.section(title, found ? specialHelp(found) : undefined);
+		if (this.specialState === 'running') {
+			append(section, $('.fem-results-note', undefined, localize('femResults.specialRunning', "Computing the bridges and special structures... (a deck grillage takes a while)")));
+			return;
+		}
+		if (this.specialState === 'failed') {
+			append(section, $('.fem-results-note', undefined, localize('femResults.specialFailed', "They could not be computed: {0}", this.specialProblem ?? '')));
+		} else if (found && !found.available && found.reason) {
+			append(section, $('.fem-results-note', undefined, localize('femResults.specialNone', "No results: {0}", found.reason)));
+		}
+		if (hasSpecialStructures(found)) {
+			for (const structure of found.sections) {
+				append(section, $('h3.fem-results-subheading', undefined, structure.title));
+				if (structure.error) {
+					append(section, $('.fem-results-note', undefined, localize('femResults.specialError', "Not computed: {0}", structure.error)));
+					continue;
+				}
+				if (structure.charts.length) {
+					const grid = this.grid(section);
+					for (const chart of structure.charts) {
+						renderChart(grid, { title: chart.title, xLabel: chart.xLabel, yLabel: chart.yLabel, series: specialSeries(chart) });
+					}
+				}
+				for (const sheet of structure.sheets) {
+					if (sheet.rows.length) {
+						append(section, $('.fem-results-help', undefined, sheet.name));
+						renderSheet(section, specialSheet(sheet));
+					}
+				}
+				if (structure.notes.length) {
+					append(section, $('.fem-results-note', undefined, structure.notes.join(' ')));
+				}
+			}
+		}
+		const button = this.renderStore.add(new Button(section, { ...defaultButtonStyles, supportIcons: true }));
+		button.label = `$(${Codicon.graph.id}) ${hasSpecialStructures(found) ? localize('femResults.specialAgain', "Compute the Bridges and Special Structures Again") : localize('femResults.specialRun', "Compute the Bridges and Special Structures")}`;
+		this.renderStore.add(button.onDidClick(() => void this.loadSpecial(true)));
 	}
 
 	/** Alpha 9 L4: the load-displacement path, λu against αcr, and the cables' sag and tension. */
@@ -1030,6 +1115,7 @@ export class FemResultsEditor extends EditorPane {
 		}
 		this.renderExisting();
 		this.renderStability();
+		this.renderSpecial();
 	}
 
 	/**

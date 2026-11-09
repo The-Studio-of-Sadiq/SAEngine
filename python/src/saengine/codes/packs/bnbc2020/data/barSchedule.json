@@ -84,7 +84,17 @@
               ]
             }
           },
-          "kind": "straight"
+          "kind": "straight",
+          "bvbs": [
+            [
+              "l",
+              "A"
+            ],
+            [
+              "w",
+              "0"
+            ]
+          ]
         },
         "01": {
           "name": "straight (stock length)",
@@ -110,7 +120,17 @@
               ]
             }
           },
-          "kind": "straight"
+          "kind": "straight",
+          "bvbs": [
+            [
+              "l",
+              "A"
+            ],
+            [
+              "w",
+              "0"
+            ]
+          ]
         },
         "11": {
           "name": "L bar (one 90° bend)",
@@ -146,7 +166,25 @@
           },
           "bends": 1,
           "endCheck": true,
-          "formula": "L = A + B - 0.5r - d"
+          "formula": "L = A + B - 0.5r - d",
+          "bvbs": [
+            [
+              "l",
+              "A"
+            ],
+            [
+              "w",
+              "90"
+            ],
+            [
+              "l",
+              "B"
+            ],
+            [
+              "w",
+              "0"
+            ]
+          ]
         },
         "12": {
           "name": "L bar (one radius bend)",
@@ -197,7 +235,37 @@
             "R": "r"
           },
           "radius": "R",
-          "formula": "L = A + B - 0.43R - 1.2d (R: the scheduled radius, else r)"
+          "formula": "L = A + B - 0.43R - 1.2d (R: the scheduled radius, else r)",
+          "bvbs": [
+            [
+              "l",
+              "A - R - d"
+            ],
+            [
+              "w",
+              "0"
+            ],
+            [
+              "r",
+              "R"
+            ],
+            [
+              "w",
+              "90"
+            ],
+            [
+              "w",
+              "0"
+            ],
+            [
+              "l",
+              "B - R - d"
+            ],
+            [
+              "w",
+              "0"
+            ]
+          ]
         },
         "13": {
           "name": "U bar (180° bend)",
@@ -252,7 +320,37 @@
             }
           },
           "bends": 1,
-          "formula": "L = A + 0.57B + C - 1.6d"
+          "formula": "L = A + 0.57B + C - 1.6d",
+          "bvbs": [
+            [
+              "l",
+              "A - B / 2"
+            ],
+            [
+              "w",
+              "0"
+            ],
+            [
+              "r",
+              "B / 2 - d"
+            ],
+            [
+              "w",
+              "180"
+            ],
+            [
+              "w",
+              "0"
+            ],
+            [
+              "l",
+              "C - B / 2"
+            ],
+            [
+              "w",
+              "0"
+            ]
+          ]
         },
         "15": {
           "name": "cranked end",
@@ -335,7 +433,33 @@
           },
           "bends": 2,
           "endCheck": true,
-          "formula": "L = A + B + C - r - 2d"
+          "formula": "L = A + B + C - r - 2d",
+          "bvbs": [
+            [
+              "l",
+              "A"
+            ],
+            [
+              "w",
+              "90"
+            ],
+            [
+              "l",
+              "B"
+            ],
+            [
+              "w",
+              "90"
+            ],
+            [
+              "l",
+              "C"
+            ],
+            [
+              "w",
+              "0"
+            ]
+          ]
         },
         "22": {
           "name": "U bar with a return",
@@ -386,7 +510,41 @@
             }
           },
           "bends": 3,
-          "formula": "L = A + B + C + D - 1.5r - 3d"
+          "formula": "L = A + B + C + D - 1.5r - 3d",
+          "bvbs": [
+            [
+              "l",
+              "A"
+            ],
+            [
+              "w",
+              "90"
+            ],
+            [
+              "l",
+              "B"
+            ],
+            [
+              "w",
+              "90"
+            ],
+            [
+              "l",
+              "C"
+            ],
+            [
+              "w",
+              "90"
+            ],
+            [
+              "l",
+              "D"
+            ],
+            [
+              "w",
+              "0"
+            ]
+          ]
         },
         "23": {
           "name": "Z bar (two 90° bends)",
@@ -430,7 +588,33 @@
           },
           "bends": 2,
           "endCheck": true,
-          "formula": "L = A + B + C - r - 2d"
+          "formula": "L = A + B + C - r - 2d",
+          "bvbs": [
+            [
+              "l",
+              "A"
+            ],
+            [
+              "w",
+              "90"
+            ],
+            [
+              "l",
+              "B"
+            ],
+            [
+              "w",
+              "-90"
+            ],
+            [
+              "l",
+              "C"
+            ],
+            [
+              "w",
+              "0"
+            ]
+          ]
         },
         "26": {
           "name": "cranked bar",
@@ -525,7 +709,41 @@
           },
           "bends": 3,
           "endCheck": true,
-          "formula": "L = A + B + C + D - 1.5r - 3d"
+          "formula": "L = A + B + C + D - 1.5r - 3d",
+          "bvbs": [
+            [
+              "l",
+              "A"
+            ],
+            [
+              "w",
+              "90"
+            ],
+            [
+              "l",
+              "B"
+            ],
+            [
+              "w",
+              "90"
+            ],
+            [
+              "l",
+              "C"
+            ],
+            [
+              "w",
+              "90"
+            ],
+            [
+              "l",
+              "D"
+            ],
+            [
+              "w",
+              "0"
+            ]
+          ]
         },
         "33": {
           "name": "U bar with 180° hooks",
@@ -644,7 +862,49 @@
           },
           "bends": 4,
           "endCheck": true,
-          "formula": "L = A + B + C + D + E - 2r - 4d"
+          "formula": "L = A + B + C + D + E - 2r - 4d",
+          "bvbs": [
+            [
+              "l",
+              "A"
+            ],
+            [
+              "w",
+              "90"
+            ],
+            [
+              "l",
+              "B"
+            ],
+            [
+              "w",
+              "-90"
+            ],
+            [
+              "l",
+              "C"
+            ],
+            [
+              "w",
+              "-90"
+            ],
+            [
+              "l",
+              "D"
+            ],
+            [
+              "w",
+              "90"
+            ],
+            [
+              "l",
+              "E"
+            ],
+            [
+              "w",
+              "0"
+            ]
+          ]
         },
         "51": {
           "name": "closed link",
@@ -713,7 +973,57 @@
           "transverse": true,
           "bends": 5,
           "hook": "C",
-          "formula": "L = 2(A + B + C) - 2.5r - 5d"
+          "formula": "L = 2(A + B + C) - 2.5r - 5d",
+          "bvbs": [
+            [
+              "l",
+              "C"
+            ],
+            [
+              "w",
+              "135"
+            ],
+            [
+              "l",
+              "A"
+            ],
+            [
+              "w",
+              "90"
+            ],
+            [
+              "l",
+              "B"
+            ],
+            [
+              "w",
+              "90"
+            ],
+            [
+              "l",
+              "A"
+            ],
+            [
+              "w",
+              "90"
+            ],
+            [
+              "l",
+              "B"
+            ],
+            [
+              "w",
+              "135"
+            ],
+            [
+              "l",
+              "C"
+            ],
+            [
+              "w",
+              "0"
+            ]
+          ]
         },
         "63": {
           "name": "closed link, overlapping legs",

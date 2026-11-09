@@ -799,8 +799,313 @@ class PortalFrame(_Model):
         return g
 
 
+# ─────────────── alpha 9 L9: bridge decks, lattice towers, shells, jackets ───────────────
+
+
+class DeckGrillage(_Model):
+    """A bridge deck as a grillage: girders along x (the spans), transverse members across y
+    at every station (the deck slab's strips and the diaphragms), supported under every
+    girder at each support line. The origin is the first girder's start; girders are
+    ``girderSpacing`` apart along +y."""
+
+    kind: Literal["deckGrillage"] = "deckGrillage"
+    spans: list[Annotated[float, Field(gt=0)]] = Field(
+        min_length=1, description="Span lengths in order [mm]."
+    )
+    girders: int = Field(ge=1, le=20, description="Girders across the deck.")
+    girderSpacing: Mm = Field(title="Girder spacing", description="[mm].")
+    divisions: int = Field(
+        default=10, ge=2, le=100, description="Elements of each girder in each span."
+    )
+    memberType: Id = Field(title="Girder type", description="Object type of the girders.")
+    crossType: Id | None = Field(
+        default=None,
+        title="Transverse type",
+        description="Object type of the transverse members (deck strips, diaphragms); none "
+        "uses the girder type.",
+    )
+    panelType: Id | None = _panels()
+    supports: Supports = _supports()
+    origin: Point = _origin()
+    rotation: float = _rotation()
+
+    def stations(self) -> list[float]:
+        """x of every station along the deck [mm], the support lines among them."""
+        xs = [0.0]
+        for span in self.spans:
+            start = xs[-1]
+            xs += [start + span * k / self.divisions for k in range(1, self.divisions + 1)]
+        return xs
+
+    def support_lines(self) -> list[float]:
+        return [0.0, *itertools.accumulate(self.spans)]
+
+    def local(self) -> Geometry:
+        g = Geometry()
+        xs = self.stations()
+        ys = [k * self.girderSpacing for k in range(self.girders)]
+        cross = self.crossType or self.memberType
+        for y in ys:
+            for x0, x1 in itertools.pairwise(xs):
+                g.line((x0, y, 0.0), (x1, y, 0.0), self.memberType)
+        for x in xs:
+            for y0, y1 in itertools.pairwise(ys):
+                g.line((x, y0, 0.0), (x, y1, 0.0), cross)
+        if self.panelType and len(ys) > 1:
+            for x0, x1 in itertools.pairwise(xs):
+                for y0, y1 in itertools.pairwise(ys):
+                    g.panel([(x0, y0, 0.0), (x1, y0, 0.0), (x1, y1, 0.0), (x0, y1, 0.0)],
+                            self.panelType)  # fmt: skip
+        for x in self.support_lines():
+            for y in ys:
+                g.support((x, y, 0.0), self.supports)
+        g.notes.append(
+            "bearings are pinned supports here; their kinds (fixed, guided, free) and the traffic "
+            "loads are set in Project Settings, Bridges and Special Structures"
+        )
+        return g
+
+
+def tower_corners(width: float, section: str) -> list[tuple[float, float]]:
+    """Plan corners of a lattice tower's cross-section of face width ``width`` about its axis:
+    a square, or an equilateral triangle (one corner on +y)."""
+    if section == "square":
+        h = width / 2
+        return [(-h, -h), (h, -h), (h, h), (-h, h)]
+    radius = width / math.sqrt(3.0)
+    return [
+        (radius * math.cos(math.radians(a)), radius * math.sin(math.radians(a)))
+        for a in (210.0, 330.0, 90.0)
+    ]
+
+
+class TrussTower(_Model):
+    """A self-supporting lattice tower, tapering linearly from its base to its top: legs at the
+    corners, X or single-diagonal bracing in every face of every panel, optional horizontals.
+    The origin is the centre of its base."""
+
+    kind: Literal["trussTower"] = "trussTower"
+    height: Mm
+    baseWidth: Mm = Field(title="Base width", description="Face width at the base [mm].")
+    topWidth: Mm = Field(title="Top width", description="Face width at the top [mm].")
+    section: Literal["square", "triangular"] = "square"
+    panels: int = Field(ge=1, le=200, description="Panels up the height.")
+    bracing: Literal["x", "single"] = "x"
+    memberType: Id = Field(title="Leg type", description="Object type of the legs.")
+    bracingType: Id | None = _secondary("Bracing")
+    horizontalType: Id | None = Field(
+        default=None,
+        title="Horizontal type",
+        description="Object type of the horizontals at the panel points; none: no horizontals "
+        "(the top is closed with the bracing type).",
+    )
+    supports: Supports = _supports("fixed")
+    origin: Point = _origin()
+    rotation: float = _rotation()
+
+    def width_at(self, z: float) -> float:
+        return self.baseWidth + (self.topWidth - self.baseWidth) * z / self.height
+
+    def levels(self) -> list[float]:
+        return [self.height * k / self.panels for k in range(self.panels + 1)]
+
+    def corners_at(self, z: float) -> list[tuple[float, float, float]]:
+        return [(x, y, z) for x, y in tower_corners(self.width_at(z), self.section)]
+
+    def local(self) -> Geometry:
+        g = Geometry()
+        brace = self.bracingType or self.memberType
+        levels = self.levels()
+        for k, (z0, z1) in enumerate(itertools.pairwise(levels)):
+            low, high = self.corners_at(z0), self.corners_at(z1)
+            n = len(low)
+            for i in range(n):
+                j = (i + 1) % n
+                g.line(low[i], high[i], self.memberType)
+                if self.bracing == "x":
+                    g.line(low[i], high[j], brace)
+                    g.line(low[j], high[i], brace)
+                elif k % 2 == 0:
+                    g.line(low[i], high[j], brace)
+                else:
+                    g.line(low[j], high[i], brace)
+        for k, z in enumerate(levels):
+            if k == 0:
+                continue
+            ring = self.corners_at(z)
+            kind = self.horizontalType or (brace if k == len(levels) - 1 else None)
+            if kind is None:
+                continue
+            for i in range(len(ring)):
+                g.line(ring[i], ring[(i + 1) % len(ring)], kind)
+        for corner in self.corners_at(0.0):
+            g.support(corner, self.supports)
+        return g
+
+
+class RevolutionShell(_Model):
+    """A shell of revolution about the vertical axis through the origin, as flat facets
+    between rings and meridians: a cylinder (silo, tank), a cone (chimney) or a hyperboloid of
+    one sheet (cooling tower, its throat at ``throatHeight``)."""
+
+    kind: Literal["revolutionShell"] = "revolutionShell"
+    profile: Literal["cylinder", "cone", "hyperboloid"] = "cylinder"
+    height: Mm
+    baseRadius: Mm = Field(title="Base radius", description="Of the mid-surface [mm].")
+    topRadius: float | None = Field(
+        default=None, gt=0, title="Top radius", description="Cone, hyperboloid [mm]."
+    )
+    throatRadius: float | None = Field(
+        default=None, gt=0, title="Throat radius", description="Hyperboloid [mm]."
+    )
+    throatHeight: float | None = Field(
+        default=None, gt=0, title="Throat height", description="Hyperboloid, above the base [mm]."
+    )
+    rings: int = Field(default=12, ge=1, le=200, description="Facets up the height.")
+    segments: int = Field(default=24, ge=6, le=360, description="Facets round the shell.")
+    panelType: Id = Field(title="Shell type", description="Wall type of the shell.")
+    memberType: Id | None = Field(
+        default=None,
+        title="Ring beam type",
+        description="Object type of ring beams at the top and the base; none: no ring beams.",
+    )
+    supports: Supports = _supports("fixed")
+    origin: Point = _origin()
+    rotation: float = _rotation()
+
+    @model_validator(mode="after")
+    def _profile(self) -> RevolutionShell:
+        if self.profile != "cylinder" and self.topRadius is None:
+            raise ValueError("a cone or hyperboloid needs its top radius")
+        if self.profile == "hyperboloid":
+            if self.throatRadius is None or self.throatHeight is None:
+                raise ValueError("a hyperboloid needs its throat radius and height")
+            if self.throatHeight >= self.height:
+                raise ValueError("the throat must be below the top")
+            if self.throatRadius >= min(self.baseRadius, self.topRadius or 0.0):
+                raise ValueError("the throat radius must be the least radius")
+        return self
+
+    def radius(self, z: float) -> float:
+        """Mid-surface radius at height ``z`` [mm]."""
+        return revolution_radius(
+            self.profile,
+            z,
+            self.height,
+            self.baseRadius,
+            self.topRadius,
+            self.throatRadius,
+            self.throatHeight,
+        )
+
+    def local(self) -> Geometry:
+        g = Geometry()
+        zs = [self.height * k / self.rings for k in range(self.rings + 1)]
+        m = self.segments
+
+        def node(k: int, j: int) -> tuple[float, float, float]:
+            a = 2 * math.pi * (j % m) / m
+            r = self.radius(zs[k])
+            return (r * math.cos(a), r * math.sin(a), zs[k])
+
+        for k in range(self.rings):
+            for j in range(m):
+                g.panel([node(k, j), node(k, j + 1), node(k + 1, j + 1), node(k + 1, j)],
+                        self.panelType)  # fmt: skip
+        if self.memberType:
+            for k in (0, self.rings):
+                for j in range(m):
+                    g.line(node(k, j), node(k, j + 1), self.memberType)
+        for j in range(m):
+            g.support(node(0, j), self.supports)
+        return g
+
+
+def revolution_radius(
+    profile: str,
+    z: float,
+    height: float,
+    base: float,
+    top: float | None,
+    throat: float | None,
+    throat_height: float | None,
+) -> float:
+    """The radius of a shell of revolution at height ``z``: constant (cylinder), linear (cone),
+    or two hyperbolas meeting at the throat, r = a √(1 + ((z - zt) / b)²), b set below the
+    throat by the base radius and above it by the top radius (hyperboloid)."""
+    if profile == "cylinder" or top is None:
+        return base
+    if profile == "cone":
+        return base + (top - base) * z / height
+    assert throat is not None and throat_height is not None
+    a, zt = throat, throat_height
+    end, length = (base, zt) if z <= zt else (top, height - zt)
+    b = length / math.sqrt(max((end / a) ** 2 - 1.0, 1e-12))
+    return a * math.sqrt(1.0 + ((z - zt) / b) ** 2)
+
+
+class JacketFrame(_Model):
+    """A fixed offshore structure from the mudline (z = 0, the origin at its centre): a
+    four-legged jacket with battered legs, a horizontal frame at every bay level and X braces
+    in every face, or a monopile (one vertical pile)."""
+
+    kind: Literal["jacketFrame"] = "jacketFrame"
+    form: Literal["jacket", "monopile"] = "jacket"
+    height: Mm = Field(description="From the mudline to the top [mm].")
+    baseWidth: Mm = Field(default=20000, title="Base width", description="Legs apart [mm].")
+    topWidth: Mm = Field(default=12000, title="Top width", description="Legs apart [mm].")
+    bays: int = Field(default=4, ge=1, le=40, description="Braced bays up the jacket.")
+    memberType: Id = Field(title="Leg type", description="Object type of the legs or the pile.")
+    braceType: Id | None = _secondary("Brace")
+    supports: Supports = _supports("fixed")
+    origin: Point = _origin()
+    rotation: float = _rotation()
+
+    def levels(self) -> list[float]:
+        return [self.height * k / self.bays for k in range(self.bays + 1)]
+
+    def corners_at(self, z: float) -> list[tuple[float, float, float]]:
+        w = self.baseWidth + (self.topWidth - self.baseWidth) * z / self.height
+        return [(x, y, z) for x, y in tower_corners(w, "square")]
+
+    def local(self) -> Geometry:
+        g = Geometry()
+        if self.form == "monopile":
+            levels = self.levels()
+            for z0, z1 in itertools.pairwise(levels):
+                g.line((0.0, 0.0, z0), (0.0, 0.0, z1), self.memberType)
+            g.support((0.0, 0.0, 0.0), self.supports)
+            return g
+        brace = self.braceType or self.memberType
+        levels = self.levels()
+        for z0, z1 in itertools.pairwise(levels):
+            low, high = self.corners_at(z0), self.corners_at(z1)
+            for i in range(4):
+                j = (i + 1) % 4
+                g.line(low[i], high[i], self.memberType)
+                g.line(low[i], high[j], brace)
+                g.line(low[j], high[i], brace)
+        for z in levels[1:]:
+            ring = self.corners_at(z)
+            for i in range(4):
+                g.line(ring[i], ring[(i + 1) % 4], brace)
+        for corner in self.corners_at(0.0):
+            g.support(corner, self.supports)
+        return g
+
+
 Shape = Annotated[
-    SpaceTruss | PlaneTruss | Arch | Dome | BarrelVault | CableNet | PortalFrame,
+    SpaceTruss
+    | PlaneTruss
+    | Arch
+    | Dome
+    | BarrelVault
+    | CableNet
+    | PortalFrame
+    | DeckGrillage
+    | TrussTower
+    | RevolutionShell
+    | JacketFrame,
     Field(discriminator="kind"),
 ]
 
@@ -812,6 +1117,10 @@ SHAPES: tuple[type[_Model], ...] = (
     BarrelVault,
     CableNet,
     PortalFrame,
+    DeckGrillage,
+    TrussTower,
+    RevolutionShell,
+    JacketFrame,
 )
 
 
@@ -822,7 +1131,17 @@ class ShapeInput(_Model):
 
 
 def shape_geometry(
-    shape: SpaceTruss | PlaneTruss | Arch | Dome | BarrelVault | CableNet | PortalFrame,
+    shape: SpaceTruss
+    | PlaneTruss
+    | Arch
+    | Dome
+    | BarrelVault
+    | CableNet
+    | PortalFrame
+    | DeckGrillage
+    | TrussTower
+    | RevolutionShell
+    | JacketFrame,
 ) -> Geometry:
     """The members, panels and supports of ``shape``, placed in the model."""
     return shape.local().placed(shape.origin, shape.rotation)

@@ -753,6 +753,12 @@ CommandsRegistry.registerCommand('saengine.fem.nonlinearStability', async (acces
 	return accessor.get(IFemSolverService).engine(python, 'fem/nonlinearStability', { outDir: resultsFolder(model).fsPath, projectPath: model.fsPath, run: !!run });
 });
 
+/** Alpha 9 L9: the bridges and special structures of Project Settings, kept beside the analysis model or computed anew (`run`). Internal. */
+CommandsRegistry.registerCommand('saengine.fem.specialStructures', async (accessor, model: URI, run?: boolean) => {
+	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
+	return accessor.get(IFemSolverService).engine(python, 'special/structures', { projectPath: model.fsPath, run: !!run });
+});
+
 /** Alpha 9 L6: the finite element (CBFEM) check of a steel member's end connection. Internal. */
 CommandsRegistry.registerCommand('saengine.fem.connectionFe', async (accessor, model: URI, member?: string) => {
 	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
@@ -993,6 +999,23 @@ CommandsRegistry.registerCommand('saengine.export.e2k', async (accessor, args: {
 	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
 	return accessor.get(IFemSolverService).engine(python, 'export/e2k', { projectRoot: args.projectRoot });
 });
+
+/**
+ * Alpha 9 L10: the backends of the fabrication exports (the Exports page calls them by id):
+ * `saengine.export.shopDrawings`, `saengine.export.nc` and `saengine.export.bvbs` `{projectRoot}`
+ * write the steel shop drawings, the DSTV NC files and the BVBS rebar files into `11 Exports`
+ * (saengine.fabrication.export) and answer `{folder, files, notes, problems}`, or `{error}`.
+ */
+for (const [command, method] of [
+	['saengine.export.shopDrawings', 'fabrication/shopDrawings'],
+	['saengine.export.nc', 'fabrication/nc'],
+	['saengine.export.bvbs', 'fabrication/bvbs'],
+] as const) {
+	CommandsRegistry.registerCommand(command, async (accessor, args: { readonly projectRoot: string }) => {
+		const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
+		return accessor.get(IFemSolverService).engine(python, method, { projectRoot: args.projectRoot });
+	});
+}
 
 /**
  * Integrator glue: the backend of the Revit link (revitLink.ts calls them by id). `revit/export`

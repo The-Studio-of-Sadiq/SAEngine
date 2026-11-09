@@ -1407,6 +1407,38 @@ def _precast_blocks(found: dict[str, Any] | None) -> list[Block]:
     return out
 
 
+def _special_blocks(found: dict[str, Any] | None) -> list[Block]:
+    """Alpha 9 L9: bridges and special structures, one subsection each with its tables."""
+    if not found:
+        return []
+    out: list[Block] = [h(2, str(found.get("title") or "Bridges and special structures"))]
+    if found.get("intro"):
+        out.append(p(str(found["intro"])))
+    for s in found.get("structures") or []:
+        out.append(h(3, str(s["title"])))
+        if s.get("error"):
+            out.append(p(f"Not computed: {s['error']}."))
+            continue
+        for sheet in s.get("sheets") or []:
+            if not sheet.get("rows"):
+                continue
+            n = len(sheet["columns"])
+            out.append(p(str(sheet["name"]), muted=True))
+            rows = [[str(c) for c in row] for row in sheet["rows"]]
+            out.append(
+                table(
+                    [str(c) for c in sheet["columns"]],
+                    rows,
+                    ["auto"] * (n - 1) + ["1fr"],
+                    "l" * n,
+                    bad=sheet.get("fails"),
+                )
+            )
+        if s.get("notes"):
+            out.append(bullets([str(x) for x in s["notes"]], 8.5))
+    return out
+
+
 def _isolation_blocks(iso: dict[str, Any] | None) -> list[Block]:
     """B37: the isolation system of a seismically isolated building."""
     if not iso:
@@ -1661,6 +1693,7 @@ def _results(data: dict[str, Any], ctx: Context) -> dict[str, Any]:
     out += _irregularity_blocks(results.get("irregularity") or {})
     out += _nonstructural_blocks(results.get("nonstructural") or {})
     out += _precast_blocks(results.get("precast"))  # Alpha 9 L1
+    out += _special_blocks(results.get("specialStructures"))  # Alpha 9 L9
     out += _isolation_blocks(results.get("isolation"))  # B37
     out += _damper_blocks(results.get("dampers"))  # alpha 9 P6
     out += _shape_ratio_blocks(results.get("shapeRatios"))  # Alpha 9 C19

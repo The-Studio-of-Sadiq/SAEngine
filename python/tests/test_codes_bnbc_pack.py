@@ -680,6 +680,9 @@ NOT_IN_DEFAULT = {
     "compositeSlab",  # alpha 9 P8: composite slabs on deck (BNBC 2020 gives no rules)
     # alpha 9 L7: special members (BNBC 2020 gives no rules for them)
     "steelJoists", "webOpenings", "glass", "membranes", "compositePlateWalls",
+    # alpha 9 L9: bridges and special structures (BNBC 2020 gives no rules for them; the
+    # traffic loads and bridge factors fall back to SAEngine practice on the HL-93 basis)
+    "movingLoads", "bridgeDesign", "latticeTowers", "shellStructures", "offshore", "pipingStress",
 }  # fmt: skip
 
 

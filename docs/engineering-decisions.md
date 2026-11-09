@@ -41,6 +41,42 @@ here, newest first, with the date, the question, the decision, the reason and wh
 - **No unlicensed software.** ETABS, SAP2000 and STAAD are not used for cross-checks or cited.
   Open-source tools are used instead (2026-10-25).
 
+## 2026-11-09: steel shop drawings, NC files (DSTV) and rebar CNC (BVBS) (alpha 9 track L10)
+
+- **Made only when asked.** Three rows of 11 Exports: Steel Shop Drawings (`11 Exports/Shop
+  Drawings/`, sheets `SD-101` on, DXF per sheet and one PDF), NC Files (DSTV, `11 Exports/nc/`,
+  one `.nc1` per part mark) and Rebar CNC (BVBS, `11 Exports/bvbs/`, one `.abs`). The structural
+  drawing set and its connection details are unchanged. Options: Project Settings > Drawings >
+  Fabrication (weld symbols, marks' prefixes, end clearance, sheet size, NC order and phase,
+  part marking, BVBS schedule number).
+- **Code independence.** The pack's `fabrication` table picks the weld symbols (AWS A2.4 in
+  the default pack, ISO 2553 system A in the Eurocodes and IS packs), the anchor hole clearance
+  and the cope clearance; a pack without it takes the default pack's; the project can override
+  each. Bolt holes are the pack's steel table's standard holes. The BVBS shape geometry is data
+  of the pack's bar schedule standard (`bvbs` of each shape code); a shape without it is sent
+  without geometry, which the guideline allows.
+- **Assemblies (SAEngine practice).** One assembly per member (two at a cover-plate splice).
+  Parts welded in the shop go with the member they are welded to: end plates, tabs, base and
+  cap plates with the member; fin plates, gussets, flange plates, column stiffeners and doublers
+  with the supporting member, else loose with a note. Splice plates are loose. A beam framing
+  into a beam at the same level is coped (the supporting flange and root radius plus the cope
+  clearance). A bolted end plate drills the support to match. A tab slot of a hollow brace is
+  stated on the drawing, not cut in the NC contour.
+- **Cut lengths (SAEngine practice).** To the face of the support: the end clearance (12 mm by
+  default) for fin plates, gussets of channels and angles and members without a designed
+  connection; the end plate's thickness; the flange plate connection's setback; the gusset
+  geometry of the connection details for braces. Cap plate welds take the wall thickness as
+  their leg.
+- **Marks.** Identical parts (profile or plate, grade, length, holes, cuts, outline) share one
+  part mark (`p1`, ...; main parts first); identical assemblies one assembly mark (`B1`, `C1`,
+  `BR1`). The marking plans are the structural steel plans and braced elevations with the
+  assembly marks.
+- **Formats.** DSTV NC after the DSTV standard description (7th edition, 1998): ST, BO, AK,
+  SI, EN; a plate's thickness written in the flange width and both thicknesses, AK for every
+  plate. BVBS BF2D records after the BVBS guideline with its checksum; `l` is the scheduled
+  cutting length, `s` twice the bend radius. Both files are ASCII with CR LF line ends. The
+  details to verify are listed in the PR and the packs' VERIFY.md.
+
 ## 2026-11-09: CFD wind tunnel as an optional OpenFOAM link (alpha 9 track L3)
 
 - **OpenFOAM is the user's.** SAEngine does not bundle or download OpenFOAM (GPL, large; the
@@ -84,6 +120,63 @@ here, newest first, with the date, the question, the decision, the reason and wh
 - **Validation.** The page and the report say first that these are engineer-supplied loads, not
   a code wind tunnel test, with the pack's own requirement (BNBC 2020 Part 6 Sec 2.4.16, ASCE 7-22
   Ch 31, EN 1991-1-4 Sec 1.5, IS 875-3 Sec 10).
+
+## 2026-11-09: bridges and special structures (alpha 9 track L9)
+
+Moving loads and influence lines, girder bridges (design, bearings, joints, load rating),
+lattice towers, silos, chimneys, cooling towers, offshore jackets and piping stress, entered in
+Project Settings → Bridges and Special Structures (`specialStructures`, left out of the file
+while empty) and computed by `python/src/saengine/special`. New tables `movingLoads`,
+`bridgeDesign`, `latticeTowers`, `shellStructures`, `offshore`, `pipingStress`; the default pack
+(BNBC 2020) has none of them, so its results do not change (the building's analysis only gains
+the wind of towers marked "on the roof").
+
+- **SAEngine practice (owner's brief), traffic loads without a pack table.** A pack without
+  `movingLoads` / `bridgeDesign` (BNBC 2020: buildings only; the RHD bridge loading is not
+  reliably known here) takes SAEngine's practice data on the HL-93 basis
+  (`special/data/movingLoads.json`, `bridgeDesign.json`: the HL-93 truck, tandem and lane load,
+  multiple presence, IM 33 %, Strength I 1.25 / 1.50 / 1.75 and the MBE rating factors), every
+  result naming it "SAEngine practice (HL-93 basis), not given by <pack>". This is the one
+  place a whole table falls back (the generic defaults never do); the girders' resistances stay
+  the pack's own concrete methods.
+- **SAEngine practice, influence lines.** A girder line is a continuous beam on knife-edge
+  supports with constant EI (the beam model of the post-tensioned slabs), unit loads at stations
+  at most 0.5 m apart; a grillage: girders of the tee section and transverse deck strips (the
+  station spacing wide, torsion b t³/6), unit loads at every girder node (OpenSees), wheels
+  shared by the lever rule between girders, all on the outer girder beyond it (no cantilever
+  overhang). Lanes side by side from either kerb, loads on their centre line; the code's lane
+  1, 2, ... loadings go to the lanes that give the most (every assignment up to six lanes).
+  Line girders share the traffic by Courbon's rigid cross-section; the dead loads are shared
+  equally among the girders in both models.
+- **SAEngine practice, girder checks.** Sagging flexure on the flange-wide rectangle (a note when
+  the neutral axis leaves the slab), hogging on the web with the top bars, shear on the web with
+  its stirrups without the prestress (on the safe side); prestressed girders: stresses at the
+  section of the largest sagging moment with the losses as entered (no time-step), strength
+  with fps of bonded strands from the pack's prestress rules (γp 0.28 where the pack has none).
+  A pack's `bridgeDesign` without prestress limits takes its building prestress limits (said).
+  Load rating only where the pack gives rating factors (the US pack; practice for BNBC):
+  RF = (φc φs φRn - γDC DC - γDW DW) / (γL (LL + IM)), φc φs at least the pack's least.
+- **SAEngine practice, towers.** Wind panel by panel at the corner nodes (no member wind
+  between), feed lines and ladders Ca 1.2, antennas by their EPA; the EN pack's Kθ at 45° is a
+  constant 1.11 (K1 0.55, K2 0.2) and its round members take the flat-member coefficient (on the
+  safe side). Members by the pack's steel method with |N| / NRd + |M| / MRd. A pack without
+  `latticeTowers` takes the trussed tower coefficients of its wind table (BNBC 2020 Figure
+  6.2.23). A rooftop tower adds its wind (normal to a face) to the roof level's storey force;
+  its weight is entered as joint loads and its base moment is not applied.
+- **SAEngine practice, shells.** Silo walls by Janssen's membrane forces (no FE): the wall's own
+  weight × 1.35 with the friction. Chimneys: vm = √(2 qz / ρ) at the top (on the safe side for
+  the vortex trigger), b the mean diameter of the top third, clat,0 log-linear in Re between
+  the pack's points. Cooling towers: a ShellMITC4 model fixed at its base ring with the cp of
+  EN 1991-1-4 Table 7.12 joined by cos² curves (SAEngine practice), internal suction -0.5.
+- **SAEngine practice, offshore.** The stream function wave (12 Fourier terms) is used for
+  "Stokes 5th"-type nonlinear waves; Airy with Wheeler stretching. Members fixed at the mudline
+  (no pile-soil), no buoyancy, load factors 1.1 / 1.35 and 0.9 / 1.35 (the table's and 0.9
+  practice), members by the pack's steel method (API WSD's allowable stress formulas are not
+  used).
+- **SAEngine practice, piping.** Bends as sharp corners (no flexibility factor: stiffer, on the
+  safe side for the expansion stresses at anchors), the larger of the in- and out-of-plane SIF
+  on the resultant moment, guides and stops on the run's nearer global axis, missing directions
+  held at the first support for stability (said).
 
 ## 2026-11-09: special members (alpha 9 track L7)
 
@@ -811,6 +904,9 @@ lists them with their clauses and marks the uncertain ones.
 
 ## 2026-11-09
 
+- **Bridges under BNBC: HL-93 traffic as SAEngine practice** (owner). BNBC carries no traffic
+  loading and the RHD loading is not entered, so a pack without a traffic table uses SAEngine's
+  HL-93-based data, named as such in every result (alpha 9 track L9).
 - **Point clouds: LAZ and E57 are read** (owner). `lazrs` (MIT) decompresses LAZ scans and
   `pye57` (MIT, with libE57Format under BSL-1.0) reads E57 scans, every scan in its own pose, in
   metres. Both are dependencies of the backend and ship in the bundled Python. Before, these

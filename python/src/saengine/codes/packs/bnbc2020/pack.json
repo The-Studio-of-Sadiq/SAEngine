@@ -71,6 +71,7 @@
     "precast",
     "floorSpectra",
     "cfdWind",
+    "fabrication",
     "slopeStability",
     "mepFabrication"
   ],
@@ -84,6 +85,9 @@
     }
   ],
   "clauses": {
+    "fabrication": [
+      "BNBC 2020 gives no shop drawing conventions: AWS A2.4 weld symbols (Part 6 Chapter 10 is AISC 360-05 based) and SAEngine practice drilling allowances for the shop drawings and NC files"
+    ],
     "mepFabrication": [
       "BNBC 2020 Part 8 Sec 5.17.2, Table 8.5.14 (p1063): pipe hanger spacing; Part 8 Sec 2.11.4.8(b) (p911): duct supports (exhaust ducts, applied to all ducts as SAEngine practice); Part 4 Sec 4.2.3.14 and 4.2.10.6: fire main and sprinkler hangers (spacing, five times the water-filled weight plus 110 kg)"
     ],

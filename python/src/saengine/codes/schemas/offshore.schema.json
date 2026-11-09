@@ -1,0 +1,110 @@
+{
+  "additionalProperties": false,
+  "description": "Fixed offshore structures: Morison's equation f = ½ ρ Cd D |u| u + ρ Cm π D²/4 a on the\nmembers' normal velocities and accelerations of the wave (× the kinematics factor) and the\ncurrent (× the blockage factor), and the load factors of the member checks (the members are\ndesigned by the pack's steel methods).",
+  "properties": {
+    "source": {
+      "default": "",
+      "description": "Clause (and page) the table comes from.",
+      "title": "Source",
+      "type": "string"
+    },
+    "sources": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Clause references of single entries: {key: clause}.",
+      "title": "Sources",
+      "type": "object"
+    },
+    "clauses": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Short clause references the results cite, by key, without the code's name (e.g. 'Part 6 Sec 2.5.7.3'); read by saengine.codes.context.cite. A key the pack does not give is not cited.",
+      "title": "Clauses",
+      "type": "object"
+    },
+    "method": {
+      "const": "morison",
+      "default": "morison",
+      "title": "Method",
+      "type": "string"
+    },
+    "seawaterDensity": {
+      "description": "[kg/m³].",
+      "exclusiveMinimum": 0,
+      "title": "Seawaterdensity",
+      "type": "number"
+    },
+    "dragSmooth": {
+      "exclusiveMinimum": 0,
+      "title": "Dragsmooth",
+      "type": "number"
+    },
+    "dragRough": {
+      "exclusiveMinimum": 0,
+      "title": "Dragrough",
+      "type": "number"
+    },
+    "inertiaSmooth": {
+      "exclusiveMinimum": 0,
+      "title": "Inertiasmooth",
+      "type": "number"
+    },
+    "inertiaRough": {
+      "exclusiveMinimum": 0,
+      "title": "Inertiarough",
+      "type": "number"
+    },
+    "kinematicsFactor": {
+      "description": "On the wave's horizontal velocities.",
+      "exclusiveMinimum": 0,
+      "maximum": 1,
+      "title": "Kinematicsfactor",
+      "type": "number"
+    },
+    "blockage": {
+      "additionalProperties": {
+        "exclusiveMinimum": 0,
+        "maximum": 1,
+        "type": "number"
+      },
+      "description": "Current blockage factor by the number of legs ('1': a monopile).",
+      "title": "Blockage",
+      "type": "object"
+    },
+    "currentExponent": {
+      "default": 0.14285714285714285,
+      "description": "The current's profile ((z + d) / d) to this power.",
+      "exclusiveMinimum": 0,
+      "title": "Currentexponent",
+      "type": "number"
+    },
+    "permanentFactor": {
+      "description": "γ of the permanent loads.",
+      "exclusiveMinimum": 0,
+      "title": "Permanentfactor",
+      "type": "number"
+    },
+    "environmentalFactor": {
+      "description": "γ of the wave, current and wind.",
+      "exclusiveMinimum": 0,
+      "title": "Environmentalfactor",
+      "type": "number"
+    }
+  },
+  "required": [
+    "seawaterDensity",
+    "dragSmooth",
+    "dragRough",
+    "inertiaSmooth",
+    "inertiaRough",
+    "kinematicsFactor",
+    "blockage",
+    "permanentFactor",
+    "environmentalFactor"
+  ],
+  "title": "OffshoreTable",
+  "type": "object",
+  "$id": "saengine.codePack.offshore/1"
+}

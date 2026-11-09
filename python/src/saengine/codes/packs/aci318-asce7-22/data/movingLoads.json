@@ -1,0 +1,72 @@
+{
+  "$schema": "../../../schemas/movingLoads.schema.json",
+  "$sources": [
+    "AASHTO LRFD Bridge Design Specifications (9th edition, SI values as printed): Art. 3.6.1.1.1 (design lanes), 3.6.1.1.2 (multiple presence), 3.6.1.2 (HL-93 design truck, tandem and lane load), 3.6.1.3.1 (application), 3.6.2.1 (dynamic load allowance); see VERIFY.md"
+  ],
+  "source": "AASHTO LRFD Art. 3.6.1-3.6.2: HL-93 (design truck or design tandem with the design lane load), multiple presence factors, dynamic load allowance IM 33 % on the truck and tandem only",
+  "method": "laneLoadModels",
+  "laneWidth": 3.6,
+  "narrow": [[6.0, 1], [7.2, 2]],
+  "vehicles": {
+    "designTruck": {
+      "label": "HL-93 design truck (35 + 145 + 145 kN, rear spacing 4.3-9.0 m)",
+      "axles": [
+        {"load": 35.0, "spacing": 0.0},
+        {"load": 145.0, "spacing": 4.3},
+        {"load": 145.0, "spacing": 4.3, "spacingMax": 9.0}
+      ],
+      "gauge": 1.8
+    },
+    "designTruckFixed": {
+      "label": "HL-93 design truck, rear spacing 4.3 m (two trucks)",
+      "axles": [
+        {"load": 35.0, "spacing": 0.0},
+        {"load": 145.0, "spacing": 4.3},
+        {"load": 145.0, "spacing": 4.3}
+      ],
+      "gauge": 1.8
+    },
+    "designTandem": {
+      "label": "HL-93 design tandem (2 × 110 kN at 1.2 m)",
+      "axles": [
+        {"load": 110.0, "spacing": 0.0},
+        {"load": 110.0, "spacing": 1.2}
+      ],
+      "gauge": 1.8
+    }
+  },
+  "loadModels": {
+    "truckLane": {
+      "label": "Design truck + design lane load",
+      "lanes": [{"vehicle": "designTruck", "lineLoad": 9.3, "dynamic": true}]
+    },
+    "tandemLane": {
+      "label": "Design tandem + design lane load",
+      "lanes": [{"vehicle": "designTandem", "lineLoad": 9.3, "dynamic": true}]
+    },
+    "dualTruck": {
+      "label": "90 % of two design trucks (15 m apart) + 90 % of the design lane load",
+      "lanes": [
+        {
+          "vehicle": "designTruckFixed",
+          "vehicleFactor": 0.9,
+          "secondGap": 15.0,
+          "lineLoad": 9.3,
+          "lineFactor": 0.9,
+          "dynamic": true
+        }
+      ],
+      "only": "hogging"
+    }
+  },
+  "multiplePresence": [1.2, 1.0, 0.85, 0.65],
+  "dynamic": {"method": "constant", "constant": 0.33},
+  "clauses": {
+    "code": "AASHTO LRFD",
+    "lanes": "Art. 3.6.1.1.1",
+    "multiplePresence": "Art. 3.6.1.1.2, Table 3.6.1.1.2-1",
+    "vehicles": "Art. 3.6.1.2.2-3.6.1.2.4",
+    "application": "Art. 3.6.1.3.1",
+    "dynamic": "Art. 3.6.2.1, Table 3.6.2.1-1"
+  }
+}
