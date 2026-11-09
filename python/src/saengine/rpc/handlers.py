@@ -1151,7 +1151,17 @@ def nonlinear_stability(out_dir: str, project_path: str, run: bool) -> dict[str,
 
     if not run:
         found = ns.load_summary(out_dir)
-        return _plain(found) if found else {"available": False, "reason": "not run yet"}
+        if found:
+            return _plain({**found, "configured": True})
+        from saengine.fem.combinations import settings_beside
+
+        settings = settings_beside(project_path)
+        configured = getattr(getattr(settings, "analysis", None), "nonlinearStability", None)
+        return {
+            "available": False,
+            "configured": configured is not None,
+            "reason": "not run yet" if configured is not None else "not set",
+        }
     return _plain(ns.run_project(out_dir, project_path))
 
 

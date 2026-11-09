@@ -803,3 +803,17 @@ live answer before release.
 | C22-11 | decimals, timeout | 4 decimals (about 10 m), 30 s | SAEngine practice | PRACTICE |
 | C22-12 | terms | USGS information is US public domain; the service page calls the software provisional | usgs.gov copyrights and credits page | Owner to confirm |
 | C22-13 | wind (Ch 26), snow (Ch 7) | not covered | the ASCE Hazard Tool's programmatic access needs a subscription key; no public API | Not covered |
+
+## Nonlinear stability (`nonlinearStability`) and the FE check of joints (`connectionFe`), alpha 9 L4 / L6
+
+| # | Path | Value | Source | Sure? |
+|---|---|---|---|---|
+| L4U1 | bow.fixedRatio | out-of-straightness L/1000 | AISC 360-22 Appendix 1 Sec 1.2.3 (and C2.2a) | Check (the section number) |
+| L4U2 | sway.baseRatio | out-of-plumbness L/500 | AISC 360-22 Sec C2.2a | Sure |
+| L4U3 | yieldFactor, stiffnessFactor | 0.9 Fy and 0.9 E in the advanced inelastic analysis | AISC 360-22 Appendix 1 Sec 1.3.2b | Check |
+| L4U4 | eigenmode, plates, hardeningRatio, path | the mode scaled to the member's L/1000; panel b/200; E/10000 | SAEngine practice (EN 1993-1-5 Annex C) | Practice |
+| L4U5 | cables.breakingShare | 0.741 (EN 1993-1-11 6.2) | SAEngine practice: ASCE 19 not entered | Unsure (replace by ASCE 19's factor) |
+| L6U1 | plasticStrainLimit | 5 % | SAEngine practice (EN 1993-1-5 C.8 Note 1; AISC gives none) | Practice |
+| L6U2 | yieldFactor | φ = 0.90 on Fy | AISC 360-22 J4.1 (yielding), SAEngine practice for the FE model | Practice |
+| L6U3 | classification | simple ≤ 2 E I / L, fully restrained ≥ 20 E I / L | AISC 360-22 Commentary B3.4b | Check |
+| L6U4 | boltStiffness, hardeningRatio, mesh | EN 1993-1-8 Table 6.11; E/1000; 10 mm | SAEngine practice | Practice |

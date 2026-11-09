@@ -682,7 +682,19 @@ CommandsRegistry.registerCommand('saengine.fem.existingAssessment', async (acces
 	return accessor.get(IFemSolverService).engine(python, 'fem/existingAssessment', { outDir: resultsFolder(model).fsPath, projectPath: model.fsPath });
 });
 
-CommandsRegistry.registerCommand('saengine.fem.memberForces', async (accessor, model: URI, member: string) => {
+/** Alpha 9 L4: the nonlinear stability analysis (GMNIA, cables) of a run, kept or made anew (`run`). Internal. */
+CommandsRegistry.registerCommand('saengine.fem.nonlinearStability', async (accessor, model: URI, run?: boolean) => {
+	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
+	return accessor.get(IFemSolverService).engine(python, 'fem/nonlinearStability', { outDir: resultsFolder(model).fsPath, projectPath: model.fsPath, run: !!run });
+});
+
+/** Alpha 9 L6: the finite element (CBFEM) check of a steel member's end connection. Internal. */
+CommandsRegistry.registerCommand('saengine.fem.connectionFe', async (accessor, model: URI, member?: string) => {
+	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
+	return accessor.get(IFemSolverService).engine(python, 'design/connectionFe', { outDir: resultsFolder(model).fsPath, projectPath: model.fsPath, member });
+});
+
+CommandsRegistry.registerCommand('saengine.fem.memberForces',async (accessor, model: URI, member: string) => {
 	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
 	return accessor.get(IFemSolverService).engine(python, 'fem/memberForces', { outDir: resultsFolder(model).fsPath, projectPath: model.fsPath, member });
 });
