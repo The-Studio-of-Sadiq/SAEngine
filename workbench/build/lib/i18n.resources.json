@@ -671,6 +671,14 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/contrib/saengineAutomation",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/saengineOffice",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/contrib/saengineCad",
 			"project": "vscode-workbench"
 		},
