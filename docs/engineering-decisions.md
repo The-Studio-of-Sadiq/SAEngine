@@ -1001,6 +1001,8 @@ lists them with their clauses and marks the uncertain ones.
 
 ## 2026-11-09
 
+- **BNBC 2020 pack marked verified** (owner). Its `pack.json` carries `"verified": "2026-11-09"`, so the
+  "values not yet verified" notice no longer shows for it; SAEngine-practice items stay labelled as such.
 - **Bridges under BNBC: HL-93 traffic as SAEngine practice** (owner). BNBC carries no traffic
   loading and the RHD loading is not entered, so a pack without a traffic table uses SAEngine's
   HL-93-based data, named as such in every result (alpha 9 track L9).
