@@ -67,6 +67,30 @@ choose another file): one row per item followed by one row per element of its br
 the columns `Row, Code, Group, Description, Element, Story, Detail, Item Quantity, Element
 Quantity, Unit`. Open it in Excel to add rates.
 
+## Office tools (alpha 9)
+
+**SAEngine: Office Tools** (command palette) opens one editor with a tab per tool:
+
+- **4D Programme**: *Generate from the Model* makes the activities from the building model and
+  this bill (substructure first, then per level and tower: columns and walls, the floor, brick
+  work, finishes, MEP), their durations from the quantities and `10 BOQ/productivity.json` (the
+  office's output per crew-day; a made-up sample to start from), the floor cycle and casting days
+  of Project Settings. Edit a duration in the table and the dates follow (critical path); *Save*
+  keeps `10 BOQ/construction-schedule.json`, your edits survive generating again. Export CSV or
+  MS Project XML; play it in 6 BIM.
+- **Cost Optimisation**: for each member group, the cheapest section, steel grade or concrete
+  strength that still passes Design Reinforcement's checks, priced with the schedule of rates;
+  tick the groups to apply to 04 Objects, then run the analysis and the checks again.
+- **PDF Takeoff**: add a PDF drawing, calibrate it from two points and their true length (or
+  keep the scale the page states), then measure lengths (times a height for an area), areas
+  (times a depth for a volume) and counts. Saved in `10 BOQ/takeoff.json`; computing the bill
+  again adds them as items "measured from drawing" (codes `C.D01`, ...).
+- **Site and Environment**: import the site's survey (GeoTIFF DEM, XYZ points or a DXF of
+  contours) as a terrain; the cut and fill of the building platform go into the earthwork
+  (`E.T01`, `E.T02`) when the bill is computed. The sun, daylight and noise studies are
+  described in 6 BIM.
+- **MEP Fabrication** and **Phases and Options**: see 7 MEP and 6 BIM.
+
 ## Not confirmed / limitations
 
 - No rates, costs or xlsx export.

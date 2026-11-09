@@ -2194,3 +2194,48 @@ Each is a pack value or method id, overridable in Code Values; the default pack 
   - Cement is in kg and in 50 kg bags; sand and stone are in cft.
   - Practice defaults, editable and flagged as not code values: dry-volume factor 1.54 for
     concrete and 1.30 for mortar, and cement bulk density 1440 kg/m³.
+
+## Alpha 9 L11: office tools (2026-11-09)
+
+- **4D programme (SAEngine practice).** Activities per level and zone (the building model's
+  towers): substructure (excavation, piles, foundations, backfill), then per level the columns
+  and walls below it, the floor at it, brick work once the floors two levels above are cast,
+  finishes and MEP after the brick work. Durations are Σ quantity / (output per crew-day x
+  crews), rounded up to whole working days, from the office's `10 BOQ/productivity.json` (a
+  made-up sample ships, like the schedule of rates). The floor cycle and the casting days are
+  those of Project Settings > time-dependent analysis (alpha 9 P2). The engineer's names,
+  durations, start dates and own links are kept on regenerating. Dates by the critical path
+  method on a working-day calendar (sample: Saturday to Thursday).
+- **Cost-driven optimisation (SAEngine practice).** Per member group (object type): steel
+  beams, columns and braces over every section family of the shape x every structural steel of
+  03 Materials; RC rectangular beams over depth steps (default +0, +50, +100, +150 mm: a smaller
+  depth needs deflection checked again) x every concrete. Passing is Design Reinforcement's own
+  search (lightest passing bars, the steel proposal's checks), priced with the schedule of
+  rates; branch and bound on the concrete and formwork (RC) or lightest-section (steel) lower
+  bound. The forces are the last analysis's: applying an option needs the analysis and checks
+  run again. RC columns and slabs are not optimised yet.
+- **PDF takeoff and terrain in the bill.** Items measured on calibrated PDF pages
+  (`10 BOQ/takeoff.json`) and the cut and fill of the building platform from the terrain
+  (`01 Soil Report/terrain.json`) are added to the bill when it is computed, after the model's
+  items of their group, coded `<group>.Dnn` and `E.Tnn` and marked `origin`; they are not in the
+  materials take-off. The cut and fill are bank volumes of the TIN against the platform level
+  (the building outline, the plot or a polygon, grown by a margin), with no side slopes or
+  bulking; the survey datum defaults to the mean ground inside the platform at the platform
+  level (stated in the notes).
+- **Sun, daylight, road noise (indicative).** The sun by the NOAA equations, no refraction; the
+  massing is the storeys from the slabs plus the neighbouring buildings given. The average
+  daylight factor uses the BR 209 / CIBSE LG10 formula with SAEngine practice T = 0.68, M = 0.9,
+  R = 0.5 and 20 % frame (editable in `06 BIM/environment.json`); no code target is applied.
+  Road noise is the CRTN (1988) form without barriers or ground corrections, an orientation
+  figure only.
+- **MEP LOD 400.** Long-radius elbows 1.5 D (pipes), 1.0 W (rectangular ducts), 1.5 D (round
+  ducts), 300 mm (trays); 6 m pipe stock, 1.5 m / 3 m duct sections, 3 m tray sections, 6 m
+  spools, a hanger within 600 mm of each fitting and end; tray supports every 1.5 m (no code
+  table): SAEngine practice, editable in `07 MEP/fabrication.json`. Pipe and duct support spacing
+  and the fire main hanger load come from the pack's new `mepFabrication` table (bnbc2020: Part
+  8 Table 8.5.14, Sec 2.11.4.8(b), Part 4 Sec 4.2.3.14 and 4.2.10.6).
+- **Phasing and design options.** Phases live beside the building model (`06 BIM/phasing.json`,
+  by element id) so they survive its regeneration; the first phase is what stands before the
+  works (kept, not priced). Design options are saved versions (id, label, tag or branch)
+  measured from their own files and priced with the current rates; results are compared only
+  for the current files (results are not kept with versions).

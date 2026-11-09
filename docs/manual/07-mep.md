@@ -101,6 +101,17 @@ catalogue values: replace them with the supplier's data.
 `07 MEP/mep.json`; imported IFC models in `07 MEP/IFC/`; computed summaries and tank designs in
 `07 MEP/mep.results/`; the EnergyPlus cache in `07 MEP/hvac.results/`.
 
+## Fabrication (LOD 400, alpha 9)
+
+Office Tools > **MEP Fabrication** details the routed runs (ducts, fire mains and risers, cable
+trays, plumbing risers): elbows (long radius) and tees, cut pieces to the stock length, spools,
+and hangers within 600 mm of every fitting and at most the code pack's spacing apart (BNBC 2020
+Part 8 Table 8.5.14 for pipes, Sec 2.11.4.8(b) for ducts, Part 4 Sec 4.2.3.14 for fire mains,
+with their design load). A spool sheet per run (DXF) and the cut list, fittings and hangers
+(CSV) are written to `11 Exports/MEP Fabrication`. Shop practice (radii, stock lengths, wall
+thicknesses) and project spacings are in `07 MEP/fabrication.json`. Runs without a size are
+skipped until sized; plumbing branches, sanitary fittings and seismic bracing are not detailed.
+
 ## Not confirmed / limitations
 
 - Large beam openings (Vierendeel action) and Imhoff tanks (above 300 residential users) are

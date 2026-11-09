@@ -38,6 +38,28 @@ is exported.
 **Export IFC** (in **...**, or on the [Exports](11-exports.md) page) writes
 `11 Exports/IFC/<project>.ifc` with the elements, storeys and materials, for other BIM software.
 
+## Studies (alpha 9)
+
+The 3D view's "..." menu:
+
+- **Render**: Standard, Daylight (sun and soft shadows), Overcast, Dusk, Clay model; **Walk
+  Mode** (W/A/S/D, Q/E up and down, the arrows turn, Shift faster); **Export Still Image** (a
+  PNG at twice the view's size, supersampled).
+- **Sun at Noon on the Study Day**: the sun of the site (01 Soil Report's map point) on the
+  day set in `06 BIM/environment.json` (default the June solstice).
+- **4D Playback of the Programme**: a bar over the view with a day slider and Play; elements not
+  started are hidden, those under construction drawn see-through orange.
+- **Show Terrain**: the survey's surface under the building.
+- **Phase**: the elements standing in a phase of `06 BIM/phasing.json` (existing grey,
+  demolished red, temporary yellow).
+
+Office Tools > **Site and Environment** also gives the sun path, the shadows each hour and the
+direct sun hours of the ground and the facades, an average daylight factor per room of the
+architecture (BR 209 / CIBSE LG10 formula, side windows), and an indicative road-noise level at
+the facades (CRTN form) from the roads listed in `environment.json`. **Phases and Options**
+splits the bill by phase and compares saved versions (design options) side by side: quantities,
+cost, carbon, and the checks of the current files.
+
 ## Not confirmed
 
 - The exact mouse buttons for orbit and pan are the defaults of the 3D library (That Open

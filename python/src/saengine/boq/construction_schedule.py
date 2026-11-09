@@ -467,8 +467,12 @@ def generate(
             finishes = _activity_id("finishes", level, zone)
             mep = _activity_id("mep", level, zone)
             support: str | None
-            if level in built:
-                j = min(built.index(level) + productivity.masonryLagLevels, len(built) - 1)
+            # The first level built at or above this one, then masonryLagLevels more up.
+            at = next(
+                (k for k, lv in enumerate(built) if order.index(lv) >= order.index(level)), None
+            )
+            if at is not None:
+                j = min(at + productivity.masonryLagLevels, len(built) - 1)
                 support = _activity_id("floor", built[j], zone)
                 if support not in acts:
                     support = _activity_id("vertical", built[j], zone)

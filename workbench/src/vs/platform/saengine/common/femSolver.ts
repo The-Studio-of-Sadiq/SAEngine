@@ -727,7 +727,21 @@ export type EngineMethod =
 	// `cfd/detect` `{openfoam?, distribution?}`, `cfd/write` `{projectRoot, installation?}`,
 	// `cfd/start` `{projectRoot, openfoam?, distribution?}` (the background run), `cfd/status`,
 	// `cfd/cancel` and `cfd/results` `{projectRoot}`.
-	| 'cfd/detect' | 'cfd/write' | 'cfd/start' | 'cfd/status' | 'cfd/cancel' | 'cfd/results';
+	| 'cfd/detect' | 'cfd/write' | 'cfd/start' | 'cfd/status' | 'cfd/cancel' | 'cfd/results'
+	// Alpha 9 L11, the office tools (`saengine.rpc.office`, where each one's params are listed):
+	// the 4D programme, cost optimisation, PDF takeoff, terrain, sun / daylight / noise, MEP
+	// fabrication (LOD 400), phasing and design options.
+	| OfficeMethod;
+
+/** Alpha 9 L11: the methods of `saengine.rpc.office` (see its module notes for their params). */
+export type OfficeMethod =
+	| 'office/schedule' | 'office/reschedule' | 'office/exportSchedule' | 'office/productivityTemplate'
+	| 'office/optimise' | 'office/applyOptimisation'
+	| 'office/takeoff' | 'office/calibrate'
+	| 'office/terrainImport' | 'office/terrainRecompute' | 'office/terrainMesh'
+	| 'office/sun' | 'office/daylight' | 'office/noise'
+	| 'office/fabrication'
+	| 'office/phaseBill' | 'office/compareOptions';
 
 export interface IQgisOpenRequest {
 	/** Absolute path of the `.gpkg`, `.geojson` or `.json` file. */
