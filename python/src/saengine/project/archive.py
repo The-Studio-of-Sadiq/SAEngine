@@ -85,6 +85,11 @@ COMPUTED_PATHS: tuple[str, ...] = (
     "**/.pdf-cache/",
     # ... and the slices of point clouds (alpha 9 L2, saengine.library.point_cloud).
     "**/.cloud-cache/",
+    # Alpha 9 L12: the record of the last office server job (saengine.office.client) and the
+    # working copies of a design study's variants (saengine.automation.studies; the study and
+    # its comparison table are kept).
+    ".saengine-office-job.json",
+    "12 Automation/studies/*/variants/",
 )
 
 #: The deliverables folder (report PDF, IFC, DXF, CSV), included unless ``include_exports`` is

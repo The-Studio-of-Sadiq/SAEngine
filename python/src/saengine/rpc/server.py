@@ -85,6 +85,16 @@ Methods:
 - ``export/e2k`` ``{projectRoot, outPath?, units?, lateral?}`` -> the project as an ETABS text
   model in ``11 Exports/ETABS`` with its export report (``{path, reportPath, report}`` or
   ``{error}``; ``saengine.exporters.etabs``; in a worker thread)
+- Alpha 9 L12 (``_register_l12``): ``export/exchange`` ``{projectRoot, format: s2k|std|saf|sdnf|
+  cis2|webViewer, outPath?}`` -> ``{path, reportPath, readablePath, report}`` or ``{error}``
+  (``saengine.exporters.exchange``, ``.web_viewer``; worker); ``office/submit`` ``{projectRoot,
+  server, token, steps?}`` -> ``{id}``, ``office/status`` / ``office/cancel`` ``{id}``,
+  ``office/info`` ``{server, token}`` (``saengine.office.client``; only the server given is
+  contacted); ``graph/nodeTypes``, ``graph/list`` / ``graph/create`` ``{projectRoot, name?}``,
+  ``graph/check`` ``{graph}``, ``graph/run`` ``{graph|path, projectRoot?, until?}``
+  (``saengine.automation.graph``); ``studies/list|start|status|cancel|apply`` ``{projectRoot,
+  study|id, variant?}`` (``saengine.automation.studies``); ``drawings/automate`` ``{projectRoot,
+  sheets?, actions}`` (``saengine.drawings.automation``)
 - ``library/generateBuilding`` ``{spec, destParent, name?, overwrite?, site?}`` -> a new building
   project generated from its grids and storeys (``{root, name, notes, summary, settingsPatch,
   files}`` or ``{error}``; ``saengine.project.new_building``; in a worker thread)
@@ -1591,7 +1601,153 @@ def create_server() -> JsonRPCServer:
             args.get("memberType"),
         )
 
+    _register_l12(server)
     return server
+
+
+def _register_l12(server: JsonRPCServer) -> None:
+    """Alpha 9 L12: exchange exports, the office server client, visual programs, design studies
+    and drawing automation (see the module notes' list)."""
+
+    @server.feature("export/exchange")
+    @_in_worker  # derives the analysis model (seconds to minutes)
+    def _export_exchange(params: Any) -> dict[str, Any]:
+        from saengine.exporters.exchange import rpc_export
+
+        return rpc_export(_plain(params))
+
+    def office_call(work: Callable[[dict[str, Any]], Any]) -> Callable[[Any], Any]:
+        def run(params: Any) -> Any:
+            from saengine.office.client import OfficeError
+
+            try:
+                return work(_plain(params))
+            except OfficeError as error:
+                return {"ok": False, "code": error.code, "message": str(error)}
+            except (KeyError, OSError, ValueError) as error:
+                return {"ok": False, "code": "failed", "message": str(error)}
+
+        return run
+
+    @server.feature("office/submit")
+    @_in_worker
+    def _office_submit(params: Any) -> Any:
+        from saengine.office import client
+
+        return office_call(
+            lambda a: client.start_background(
+                str(a["projectRoot"]), str(a["server"]), str(a["token"]), a.get("steps")
+            )
+        )(params)
+
+    @server.feature("office/status")
+    def _office_status(params: Any) -> Any:
+        from saengine.office import client
+
+        return office_call(lambda a: client.background_status(str(a["id"])))(params)
+
+    @server.feature("office/cancel")
+    def _office_cancel(params: Any) -> Any:
+        from saengine.office import client
+
+        return office_call(lambda a: client.background_cancel(str(a["id"])))(params)
+
+    @server.feature("office/info")
+    @_in_worker
+    def _office_info(params: Any) -> Any:
+        from saengine.office import client
+
+        return office_call(lambda a: client.rpc(str(a["server"]), str(a["token"]), "office/info"))(
+            params
+        )
+
+    @server.feature("graph/nodeTypes")
+    def _graph_node_types(params: Any) -> dict[str, Any]:
+        from saengine.automation.graph import node_types
+
+        return node_types()
+
+    @server.feature("graph/list")
+    def _graph_list(params: Any) -> dict[str, Any]:
+        from saengine.automation.graph import list_graphs
+
+        return list_graphs(_plain(params)["projectRoot"])
+
+    @server.feature("graph/create")
+    def _graph_create(params: Any) -> dict[str, Any]:
+        from saengine.automation.graph import GraphError, create_graph
+
+        args = _plain(params)
+        try:
+            return create_graph(args["projectRoot"], str(args.get("name") or "Graph"))
+        except (GraphError, OSError) as error:
+            return {"error": str(error)}
+
+    @server.feature("graph/check")
+    def _graph_check(params: Any) -> dict[str, Any]:
+        from saengine.automation.graph import check_graph
+
+        return {"problems": check_graph(_plain(params)["graph"])}
+
+    @server.feature("graph/run")
+    @_in_worker  # may run Run All's steps (minutes)
+    def _graph_run(params: Any) -> dict[str, Any]:
+        from saengine.automation.graph import rpc_run
+
+        return rpc_run(_plain(params))
+
+    def study_call(work: Callable[[dict[str, Any]], Any]) -> Callable[[Any], Any]:
+        def run(params: Any) -> Any:
+            from saengine.automation.studies import StudyError
+
+            try:
+                return work(_plain(params))
+            except (StudyError, KeyError, OSError) as error:
+                return {"error": str(error)}
+
+        return run
+
+    @server.feature("studies/list")
+    def _studies_list(params: Any) -> Any:
+        from saengine.automation import studies
+
+        return study_call(lambda a: studies.list_studies(a["projectRoot"]))(params)
+
+    @server.feature("studies/start")
+    def _studies_start(params: Any) -> Any:
+        from saengine.automation import studies
+
+        return study_call(lambda a: studies.start(a["projectRoot"], a["study"]))(params)
+
+    @server.feature("studies/status")
+    def _studies_status(params: Any) -> Any:
+        from saengine.automation import studies
+
+        return study_call(lambda a: studies.status(a["projectRoot"], str(a["id"])))(params)
+
+    @server.feature("studies/cancel")
+    def _studies_cancel(params: Any) -> Any:
+        from saengine.automation import studies
+
+        return study_call(lambda a: studies.cancel(a["projectRoot"], str(a["id"])))(params)
+
+    @server.feature("studies/apply")
+    @_versions_worker
+    def _studies_apply(args: dict[str, Any]) -> Any:
+        from saengine.automation import studies
+
+        return study_call(
+            lambda a: studies.apply_variant(
+                a["projectRoot"], str(a["id"]), str(a["variant"]), a.get("author")
+            )
+        )(args)
+
+    @server.feature("drawings/automate")
+    @_in_design_worker
+    def _drawings_automate(params: Any) -> dict[str, Any]:
+        from saengine.drawings.automation import rpc_automate
+
+        return rpc_automate(_plain(params))
 
 
 def _claim_stdout() -> BinaryIO:

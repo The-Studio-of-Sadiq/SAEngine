@@ -10,6 +10,8 @@ Commands (see ``docs/cli.md`` for examples and the JSON schema)::
     saengine status <project> [--json]
     saengine export <project> --format ifc|dxf|csv|pdf|drawings|civil [--out PATH]
                     [--size A1|A2|A3] [--include-results]
+    saengine export <project> --format e2k|s2k|std|saf|sdnf|cis2|web [--out PATH]
+    saengine office-server --workspace DIR [--host H] [--port P] [--certfile F --keyfile K]
     saengine import <file.civil> <dest folder> [--name NAME] [--overwrite]
     saengine versions status|list|save|diff|restore|issue <project> ...
     saengine verify [--out DIR] [--pdf] [--fast] [--cases ID ...]
@@ -311,6 +313,8 @@ def cmd_export(args: argparse.Namespace, out: Output) -> int:
     out_path = Path(target_arg) if target_arg else None
     if args.format == "e2k":
         return cmd_export_e2k(args, out, project, out_path)
+    if args.format in EXCHANGE_FORMATS:
+        return cmd_export_exchange(args, out, project, out_path)
     if args.format == "civil":
         from saengine.project.archive import ArchiveError, export_project, safe_name
 
@@ -386,6 +390,50 @@ def cmd_export_e2k(
         "files": [str(written), str(report_path)], "report": report,
     })  # fmt: skip
     return EXIT_OK
+
+
+#: Alpha 9 L12: the exchange exports of ``saengine export`` (saengine.exporters.exchange).
+EXCHANGE_FORMATS = ("s2k", "std", "saf", "sdnf", "cis2", "web")
+
+
+def cmd_export_exchange(
+    args: argparse.Namespace, out: Output, project: Any, out_path: Path | None
+) -> int:
+    """``saengine export --format s2k|std|saf|sdnf|cis2|web <project>``: the analysis model in
+    another program's format (or the web viewer), with its export report beside it."""
+    from saengine.exporters.exchange import rpc_export
+
+    out.progress("Deriving the analysis model ...")
+    fmt = "webViewer" if args.format == "web" else args.format
+    params: dict[str, Any] = {"projectRoot": str(project.root), "format": fmt}
+    if out_path is not None:
+        params["outPath"] = str(out_path)
+    result = rpc_export(params)
+    if result.get("error"):
+        raise CommandError(str(result["error"]))
+    report = result.get("report") or {}
+    files = [str(result["path"])] + (
+        [str(result["reportPath"])] if result.get("reportPath") else []
+    )
+    for path in files:
+        out.line(f"Wrote {path}")
+    for heading in ("approximated", "skipped"):
+        for item in report.get(heading) or []:
+            out.line(f"  {heading}: {item['what']} ({item['count']})")
+    for warning in report.get("warnings") or []:
+        out.line(f"  warning: {warning}")
+    out.document("export", EXIT_OK, {
+        "project": _project_json(project), "format": args.format, "files": files, "report": report,
+    })  # fmt: skip
+    return EXIT_OK
+
+
+def cmd_office_server(args: argparse.Namespace, out: Output) -> int:
+    """``saengine office-server --workspace DIR ...``: the opt-in office analysis server
+    (saengine.office.server); runs until stopped."""
+    from saengine.office.server import main as serve
+
+    return serve(list(args.server_args or []))
 
 
 def cmd_import_structural(args: argparse.Namespace, out: Output) -> int:
@@ -679,7 +727,8 @@ def build_parser() -> argparse.ArgumentParser:
                           "ETABS text model (.e2k)")  # fmt: skip
     sub.add_argument("target", nargs="?", help="e2k: the .e2k file to write (as --out)")
     sub.add_argument("--format", required=True,
-                     choices=["ifc", "dxf", "csv", "xlsx", "pdf", "docx", "drawings", "civil", "e2k"])  # fmt: skip
+                     choices=["ifc", "dxf", "csv", "xlsx", "pdf", "docx", "drawings", "civil", "e2k",
+                              *EXCHANGE_FORMATS])  # fmt: skip
     sub.add_argument("--out", help="the file (the folder for dxf and drawings) to write")
     sub.add_argument("--units", choices=["kN-m", "N-mm"], default="kN-m",
                      help="e2k: the file's units (default: %(default)s)")  # fmt: skip
@@ -754,6 +803,12 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_argument("--cases", nargs="+", metavar="ID", help="only these cases")
     sub.add_argument("--jobs", type=int, help="parallel processes")
 
+    # Alpha 9 L12: the opt-in office analysis server; its own options (saengine.office.server).
+    sub = commands.add_parser("office-server", add_help=False,
+                              help="serve analyses to the office's engineers (opt-in; "
+                              "office-server --help for its options)")  # fmt: skip
+    sub.add_argument("server_args", nargs=argparse.REMAINDER)
+
     register_codepack(commands, common)
     return parser
 
@@ -774,6 +829,7 @@ HANDLERS = {
     "versions": cmd_versions,
     "verify": cmd_verify,
     "codepack": cmd_codepack,
+    "office-server": cmd_office_server,
 }
 
 
