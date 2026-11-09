@@ -37,6 +37,8 @@ import {
 import { OfficeToolsInput } from './officeToolsInput.js';
 
 type Answer = { readonly problems?: readonly string[]; readonly [key: string]: unknown };
+/** What every backend answer has: its problems (the typed answers below declare the rest). */
+type Problems = { readonly problems?: readonly string[] };
 type TakeoffMode = 'pan' | 'calibrate' | 'length' | 'area' | 'count';
 
 const SVG = 'http://www.w3.org/2000/svg';
@@ -158,7 +160,7 @@ export class OfficeToolsEditor extends EditorPane {
 		return this.projectService.project?.root;
 	}
 
-	private async request<T extends Answer>(method: string, params: object): Promise<T | undefined> {
+	private async request<T extends Problems>(method: string, params: object): Promise<T | undefined> {
 		this.frame.showProgress();
 		try {
 			return await this.commands.executeCommand<T>(OFFICE_REQUEST_COMMAND, method, params);
@@ -221,7 +223,7 @@ export class OfficeToolsEditor extends EditorPane {
 		await this.editorService.openEditor({ resource, options: { pinned: true } });
 	}
 
-	private problems(answer: Answer | undefined): boolean {
+	private problems(answer: Problems | undefined): boolean {
 		if (!answer) {
 			return true;
 		}
