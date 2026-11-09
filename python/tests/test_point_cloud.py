@@ -104,7 +104,9 @@ def test_decimate_one_per_voxel() -> None:
 
 
 def test_slice_and_trace_the_room() -> None:
-    plan = pcl.slice_plan(_room(4000), 1.2, 0.2)
+    # Dense enough that no random hole along a wall exceeds the default gap (10 x 0.02 m): at
+    # 4000 points a wall had about 56 points in the slice and holes of 0.35 m, so it broke up.
+    plan = pcl.slice_plan(_room(8000), 1.2, 0.2)
     assert len(plan) > 100
     lines = pcl.trace_lines(plan, 0.02, min_points=20, min_length=1.0)
     assert len(lines) >= 4

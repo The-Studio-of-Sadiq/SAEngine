@@ -3,7 +3,7 @@
   "$sources": [
     "AS 3600:2018 2.3.2, 5, 8.3, 8.5, 9.3; AS 1170.4-2007 6.6 (the clause of each check this pack covers)"
   ],
-  "source": "AS 3600:2018: the clauses of the checks of the member design this pack covers (alpha 9 C18b), without the code's name (the design puts it before them: tableCodes). A group given here is given whole; a key the code has no counterpart for is empty, so the row names the code without a clause, never the default pack's number. Groups not given (slender columns, walls' detailing, the seismic detailing, deep beams, lintels, stairs, steel members) are the parent pack's and named after it.",
+  "source": "AS 3600:2018: the clauses of the checks of the member design this pack covers (alpha 9 C18b), without the code's name (the design puts it before them: tableCodes). A group given here is given whole; a key the code has no counterpart for is empty, so the row names the code without a clause, never the default pack's number. Groups not given (walls' detailing, deep beams, lintels, stairs, steel members) are the parent pack's and named after it.",
   "shortName": "AS 3600",
   "clauses": {
     "check": {

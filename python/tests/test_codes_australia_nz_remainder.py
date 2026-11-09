@@ -231,9 +231,11 @@ def test_clauses_from_the_packs_never_inherited():
         assert clause("punching", "punching") == "AS 3600:2018 9.3"
         assert own_text("check", "columnShear") == ""
         assert "BNBC" not in clause("check", "columnShear")
+        # C18c gives slender columns in the pack itself (AS 3600 10.3-10.5).
+        assert clause("slender", "chapter") == "AS 3600:2018 10.3-10.5"
         # A group the pack does not give is the parent's, named after it.
-        assert clause("slender", "chapter").startswith("BNBC")
-        assert own_text("slender", "chapter") == ""
+        assert clause("stairs", "spans").startswith("BNBC")
+        assert own_text("stairs", "spans") == ""
     with code_context.using(registry.load(NZ)):
         assert clause("check", "torsion") == "NZS 3101:2006 7.6"
         assert clause("check", "accidentalTorsion") == "NZS 1170.5 5.3.1.2"
@@ -327,7 +329,8 @@ def test_generated_building_designed_with_the_pack_methods(tmp_path, pack_id):
     report = json.loads(
         (root / "08 FEM/model.results/design-report.json").read_text(encoding="utf-8")
     )["result"]
-    torsion_line = next(line for line in report["method"] if "orsion" in line)
+    # The method's torsion line (the basis line before it may name the torsion clause too).
+    torsion_line = next(line for line in report["method"] if line.startswith("Beam torsion"))
     if pack_id == AU:
         assert "Tuc" in torsion_line
     else:

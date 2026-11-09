@@ -193,7 +193,10 @@ def _float(text: str) -> float | None:
 
 def _interval(element: ET.Element, scale: float) -> tuple[float | None, float | None]:
     """(top, bottom) [mm] of an element's ``location`` interval (a point: bottom None)."""
-    pos = _find(element, "location", "posList") or _find(element, "location", "pos")
+    # Not ``or``: an element without children is falsy, so a found posList would be dropped.
+    pos = _find(element, "location", "posList")
+    if pos is None:
+        pos = _find(element, "location", "pos")
     if pos is None:
         return None, None
     values = [_float(v) for v in _text(pos).split()]

@@ -77,7 +77,9 @@ def test_is_pack_rs_combinations_use_its_factors():
     options = sd.SeismicOptions(verticalComponent=False, liveFactor=None)
     with code_context.using(registry.load("is-codes")):
         combos = sd.seismic_combinations(_settings("is-codes", []), options, False, False)
-    by_dead = {(c["loads"]["D"], c["loads"].get("L")): c for c in combos}
+    # Each row is formed in EX and in EY: take the EX ones (EY would overwrite them).
+    by_dead = {(c["loads"]["D"], c["loads"].get("L")): c for c in combos if "RX" in c["envelope"]}
+    assert len(combos) == 2 * len(by_dead)
     assert (1.2, 1.2) in by_dead and by_dead[(1.2, 1.2)]["envelope"] == {"RX": 1.2}
     assert (1.5, None) in by_dead and by_dead[(1.5, None)]["envelope"] == {"RX": 1.5}
     assert (0.9, None) in by_dead and by_dead[(0.9, None)]["envelope"] == {"RX": 1.5}

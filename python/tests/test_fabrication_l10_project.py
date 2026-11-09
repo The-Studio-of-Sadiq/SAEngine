@@ -130,6 +130,19 @@ def test_shop_drawings(project: Path) -> None:
 
 
 def test_bvbs_file(project: Path) -> None:
+    # The generated steel frame has no reinforcement (Run All never writes bars): give the
+    # floor slab's type a mesh so the bar schedule has bars to export.
+    path = project / "04 Objects/objects.json"
+    raw = json.loads(path.read_text(encoding="utf-8"))
+    for o in raw["objects"]:
+        if o.get("kind") == "slab":
+            o["reinforcement"] = {
+                "material": "B420DWR",
+                "cover": 20,
+                "bottomX": {"dia": 10, "spacing": 150},
+                "bottomY": {"dia": 10, "spacing": 200},
+            }
+    path.write_text(json.dumps(raw, indent="\t"), encoding="utf-8")
     answer = export_bvbs(project)
     (path,) = [Path(f) for f in answer["files"]]
     assert path.parent == project / BVBS_FOLDER and path.suffix == ".abs"
