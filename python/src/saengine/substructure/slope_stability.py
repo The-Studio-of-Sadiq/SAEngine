@@ -1125,13 +1125,15 @@ class Found:
 def _slope_box(sec: Section) -> tuple[float, float, float, float, float]:
     """(x of the face's top, x of its toe, crest level, toe level, height) in the frame where
     the slope fails to +x."""
-    xs = np.unique(np.concatenate([sec.surface[:, 0], np.linspace(sec.x0, sec.x1, 101)]))
-    g = sec.ground(xs)
-    gmax, gmin = float(g.max()), float(g.min())
+    pts = sec.surface
+    gmax, gmin = float(pts[:, 1].max()), float(pts[:, 1].min())
     height = max(gmax - gmin, 1.0)
-    face = xs[(g < gmax - 0.05 * height) & (g > gmin + 0.05 * height)]
-    if len(face):
-        return float(face.min()), float(face.max()), gmax, gmin, height
+    dx = np.diff(pts[:, 0])
+    dz = np.diff(pts[:, 1])
+    steep = np.abs(dz) > 0.02 * np.maximum(dx, 1e-9)  # the segments of the face
+    if steep.any():
+        index = np.nonzero(steep)[0]
+        return float(pts[index[0], 0]), float(pts[index[-1] + 1, 0]), gmax, gmin, height
     mid = (sec.x0 + sec.x1) / 2
     return mid - height, mid + height, gmax, gmin, height
 
@@ -1151,7 +1153,7 @@ def circular_search(
             a, c = -c, -a
         box = (min(a, c), min(b, d), max(a, c), max(b, d))
     else:
-        box = (xa - 0.25 * height, gmax + 0.25 * height, xb + 0.5 * height, gmax + 2.0 * height)
+        box = (xa - height, gmax + 0.1 * height, xb + height, gmax + 2.5 * height)
     low = max(sec.base + 0.01, gmin - 1.5 * height)
     high = gmax - max(min_depth, 0.05)
     found: list[Found] = []
