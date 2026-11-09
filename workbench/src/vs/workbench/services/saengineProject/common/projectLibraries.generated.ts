@@ -1769,6 +1769,19 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 					description: 'A damping device in each brace of this type (viscous, viscoelastic, metallic or friction): the analysis models it, works out the added damping and the damped design forces by the code pack (08 FEM); none: a plain brace.',
 					title: 'Damper',
 				},
+				cable: {
+					anyOf: [
+						{
+							$ref: '#/$defs/Cable',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'A tension-only cable with its pretension, modelled with large displacements by the nonlinear stability analysis; none: a plain brace.',
+					title: 'Cable',
+				},
 				timber: {
 					anyOf: [
 						{
@@ -2317,6 +2330,57 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 			},
 			required: ['depth', 'width', 'wallThickness', 'girth'],
 			title: 'CShapeProfile',
+			type: 'object',
+		},
+		Cable: {
+			additionalProperties: false,
+			description: 'Alpha 9 L4: a cable (guy wire, cable net, stay) in each brace of this type. The\nnonlinear stability analysis (Project Settings, Analysis, Nonlinear stability) models it\nas a tension-only chain of co-rotational trusses with its pretension and own weight, and\nreports its sag and tension (saengine.fem.cables); the linear analysis keeps the brace.',
+			properties: {
+				pretension: {
+					description: 'Tension built in at installation [kN] (a lack of fit of the cable).',
+					exclusiveMinimum: 0,
+					title: 'Pretension',
+					type: 'number',
+				},
+				breakingForce: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Minimum breaking force of the cable [kN]; its design tension is the code pack\'s share of it. Empty: the tension is not checked.',
+					title: 'Breaking force',
+				},
+				modulus: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Elastic modulus of the cable [MPa] (spiral strand about 150 000, locked coil about 160 000). Empty: the material\'s.',
+					title: 'Modulus',
+				},
+				segments: {
+					default: 8,
+					description: 'Pieces the cable is cut into for its sag.',
+					maximum: 100,
+					minimum: 2,
+					title: 'Segments',
+					type: 'integer',
+				},
+			},
+			required: ['pretension'],
+			title: 'Cable',
 			type: 'object',
 		},
 		ChordBars: {
@@ -8921,6 +8985,19 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 					description: 'Assessment of an existing building and its retrofit (P4): the knowledge level, the as-built strengths from tests, the members\' condition and the retrofit measures; the results check every member by the code pack\'s assessment rules (its existing table). Empty: a new building.',
 					title: 'Existing building',
 				},
+				nonlinearStability: {
+					anyOf: [
+						{
+							$ref: '#/$defs/NonlinearStability',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Nonlinear buckling with imperfections (GMNIA) of the steel frames and the large-displacement analysis of cables under one load combination: the path of the load factor, the limit load factor against the linear buckling factor αcr, and the cables\' sag and tension (alpha 9 L4; run from the FEM results). Empty: not made.',
+					title: 'Nonlinear stability',
+				},
 				thermal: {
 					$ref: '#/$defs/Thermal',
 					title: 'Temperature',
@@ -10982,6 +11059,129 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 				},
 			},
 			title: 'NonlinearHistory',
+			type: 'object',
+		},
+		NonlinearStability: {
+			additionalProperties: false,
+			description: 'Alpha 9 L4: nonlinear buckling of the steel frames with imperfections (GMNIA) and the\nlarge-displacement analysis of cables, under one load combination (fem/nonlinear_stability.py,\nby the code pack\'s nonlinearStability table).',
+			properties: {
+				combination: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'The load combination followed (its name). Empty: the first one.',
+					title: 'Combination',
+				},
+				imperfection: {
+					default: 'eigenmode',
+					description: 'Eigenmode: the first buckling mode scaled to the code pack\'s amplitude. Equivalent: the code pack\'s sway and member bow imperfections. None: the perfect frame.',
+					enum: ['eigenmode', 'equivalent', 'none'],
+					enumDescriptions: ['First buckling mode', 'Equivalent sway and bow', 'None (perfect frame)'],
+					title: 'Imperfection',
+					type: 'string',
+				},
+				material: {
+					default: 'plastic',
+					description: 'Plastic: steel members as fibre elements that yield (GMNIA). Elastic: geometric nonlinearity only (GNIA).',
+					enum: ['plastic', 'elastic'],
+					enumDescriptions: ['Elastic-plastic steel (GMNIA)', 'Elastic (GNIA)'],
+					title: 'Material',
+					type: 'string',
+				},
+				direction: {
+					default: 'X',
+					description: 'Direction of the sway imperfection (equivalent).',
+					enum: ['X', 'Y'],
+					title: 'Direction',
+					type: 'string',
+				},
+				method: {
+					anyOf: [
+						{
+							enum: ['arcLength', 'displacementControl'],
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'How the path is followed past λ = 1. Empty: the code pack\'s.',
+					enumDescriptions: ['Arc length', 'Displacement control'],
+					title: 'Path method',
+				},
+				steps: {
+					anyOf: [
+						{
+							maximum: 5000,
+							minimum: 5,
+							type: 'integer',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Steps of the path at most. Empty: the code pack\'s.',
+					title: 'Steps',
+				},
+				segments: {
+					default: 4,
+					description: 'Pieces each frame element is cut into (to bow).',
+					maximum: 20,
+					minimum: 1,
+					title: 'Segments',
+					type: 'integer',
+				},
+				curve: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'The buckling curve whose bow ratio applies (a0, a, b, c, d where the code pack gives them by curve). Empty: the code pack\'s default.',
+					title: 'Buckling curve',
+				},
+				bowRatio: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'L / e0 of the bow. Empty: the code pack\'s.',
+					title: 'Bow ratio',
+				},
+				swayRatio: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: '1 / φ of the sway. Empty: the code pack\'s.',
+					title: 'Sway ratio',
+				},
+			},
+			title: 'NonlinearStability',
 			type: 'object',
 		},
 		Occupancy: {

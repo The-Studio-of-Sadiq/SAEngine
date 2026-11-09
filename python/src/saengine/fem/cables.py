@@ -5,10 +5,10 @@ truss chains in OpenSees (alpha 9 track L4).
 cable of unstressed length L0, weight w per unstressed length and axial stiffness EA hung
 between A = (0, 0) and B = (l, h). With H the horizontal component of its tension and V the
 vertical reaction at A (upward), the tension's vertical component at the Lagrangian coordinate
-s from A is Tv = w s - V, T = √(H² + Tv²), and
+s from A is Tv = w s - V, T = âˆš(HÂ² + TvÂ²), and
 
     x(s) = H s / EA + (H / w) [asinh((w s - V) / H) + asinh(V / H)]
-    z(s) = (w s² / 2 - V s) / EA + (H / w) [√(1 + ((w s - V) / H)²) - √(1 + (V / H)²)]
+    z(s) = (w sÂ² / 2 - V s) / EA + (H / w) [âˆš(1 + ((w s - V) / H)Â²) - âˆš(1 + (V / H)Â²)]
 
 The two conditions x(L0) = l and z(L0) = h are solved for H and V by Newton's method from the
 parabolic estimate. The sag is the largest vertical distance of the cable below its chord.
@@ -17,8 +17,8 @@ parabolic estimate. The sag is the largest vertical distance of the cable below 
 ``segments`` co-rotational trusses (``corotTruss``: large displacements and rotations, the
 geometric stiffness of the tension) on a tension-only elastic material (``Elastic`` with no
 stiffness in compression) wrapped in an initial strain (``InitStrainMaterial``): the
-pretension T0 is the lack of fit ε0 = T0 / (E A) of a cable whose stress-free length is the
-chord / (1 + ε0). A slack segment carries nothing. The interior nodes carry the cable's own
+pretension T0 is the lack of fit Îµ0 = T0 / (E A) of a cable whose stress-free length is the
+chord / (1 + Îµ0). A slack segment carries nothing. The interior nodes carry the cable's own
 weight (per unstressed length) and their rotations are fixed (a truss has none).
 
 What is not modelled: bending stiffness of strands, the cable's creep and the clamps' slip;
@@ -29,6 +29,7 @@ Units: N, m.
 
 from __future__ import annotations
 
+import itertools
 import math
 from dataclasses import dataclass, field
 from typing import Any
@@ -72,11 +73,13 @@ def _shape(s: np.ndarray | float, h_force: float, v: float, w: float, ea: float)
 
 
 def parabolic_sag(w: float, span: float, horizontal: float) -> float:
-    """The sag of a shallow cable at mid-span, f = w l² / (8 H) (w per horizontal length)."""
+    """The sag of a shallow cable at mid-span, f = w lÂ² / (8 H) (w per horizontal length)."""
     return w * span**2 / (8 * horizontal)
 
 
-def elastic_catenary(span: float, rise: float, w: float, ea: float, length: float) -> CatenaryResult:
+def elastic_catenary(
+    span: float, rise: float, w: float, ea: float, length: float
+) -> CatenaryResult:
     """The elastic catenary of unstressed ``length`` L0 between A = (0, 0) and B = (``span``,
     ``rise``) under its weight ``w`` [N/m of unstressed length], ``ea`` = E A [N]."""
     if span <= 0 or w <= 0 or ea <= 0 or length <= 0:
@@ -127,7 +130,7 @@ def elastic_catenary(span: float, rise: float, w: float, ea: float, length: floa
     )
 
 
-# ─────────────────────────────────── cables in OpenSees ───────────────────────────────────
+# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ cables in OpenSees â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 
 @dataclass
@@ -163,7 +166,9 @@ def add_cable(
     strain. ``tags`` holds the next free ``node``, ``element`` and ``material`` tags and is
     advanced. Returns the cable's handle."""
     if pretension <= 0:
-        raise CableError(f"cable {name}: a cable needs a pretension (a straight slack cable has no stiffness)")
+        raise CableError(
+            f"cable {name}: a cable needs a pretension (a straight slack cable has no stiffness)"
+        )
     a, b = (np.asarray(c, dtype=float) for c in coords)
     base = tags["material"]
     ops.uniaxialMaterial("Elastic", base, float(modulus), 0.0, 0.0)  # E, eta, Eneg = 0
@@ -180,7 +185,7 @@ def add_cable(
         nodes.append(tag)
     nodes.append(ends[1])
     elements = []
-    for i, j in zip(nodes[:-1], nodes[1:], strict=True):
+    for i, j in itertools.pairwise(nodes):
         tag = tags["element"]
         tags["element"] += 1
         ops.element("corotTruss", tag, i, j, float(area), base + 1)
@@ -202,7 +207,7 @@ def _axial(ops: Any, element: int) -> float:
     for key in ("axialForce", "basicForce", "basicForces"):
         try:
             value = ops.eleResponse(element, key)
-        except Exception:  # noqa: BLE001 - a response this build does not give
+        except Exception:  # noqa: BLE001, S112 - a response this build does not give
             continue
         if value:
             return float(value[0])
@@ -214,7 +219,10 @@ def cable_state(ops: Any, cable: CableHandle) -> dict[str, Any]:
     its chord (vertical, [m]), the slack segments and its utilisation (largest tension over
     its resistance)."""
     tensions = [_axial(ops, e) for e in cable.elements]
-    points = [np.asarray(ops.nodeCoord(n), dtype=float) + np.asarray(ops.nodeDisp(n)[:3]) for n in cable.nodes]
+    points = [
+        np.asarray(ops.nodeCoord(n), dtype=float) + np.asarray(ops.nodeDisp(n)[:3])
+        for n in cable.nodes
+    ]
     a, b = points[0], points[-1]
     sag = 0.0
     horizontal = float(np.linalg.norm((b - a)[:2]))
@@ -291,7 +299,10 @@ def cable_fe(
         raise CableError("the finite element cable did not converge")
     ops.reactions()
     reaction = ops.nodeReaction(1)
-    points = [np.asarray(ops.nodeCoord(k + 1)) + np.asarray(ops.nodeDisp(k + 1)) for k in range(segments + 1)]
+    points = [
+        np.asarray(ops.nodeCoord(k + 1)) + np.asarray(ops.nodeDisp(k + 1))
+        for k in range(segments + 1)
+    ]
     a, b = points[0], points[-1]
     sag = max(
         float(a[1] + (p[0] - a[0]) / (b[0] - a[0]) * (b[1] - a[1]) - p[1]) for p in points[1:-1]

@@ -1996,6 +1996,36 @@ class SupplementalDamper(_Model):
         return self
 
 
+class Cable(_Model):
+    """Alpha 9 L4: a cable (guy wire, cable net, stay) in each brace of this type. The
+    nonlinear stability analysis (Project Settings, Analysis, Nonlinear stability) models it
+    as a tension-only chain of co-rotational trusses with its pretension and own weight, and
+    reports its sag and tension (saengine.fem.cables); the linear analysis keeps the brace."""
+
+    pretension: float = Field(
+        gt=0,
+        title="Pretension",
+        description="Tension built in at installation [kN] (a lack of fit of the cable).",
+    )
+    breakingForce: float | None = Field(
+        default=None,
+        gt=0,
+        title="Breaking force",
+        description="Minimum breaking force of the cable [kN]; its design tension is the code "
+        "pack's share of it. Empty: the tension is not checked.",
+    )
+    modulus: float | None = Field(
+        default=None,
+        gt=0,
+        title="Modulus",
+        description="Elastic modulus of the cable [MPa] (spiral strand about 150 000, locked "
+        "coil about 160 000). Empty: the material's.",
+    )
+    segments: int = Field(
+        default=8, ge=2, le=100, description="Pieces the cable is cut into for its sag."
+    )
+
+
 class Brace(_ObjectBase):
     """Bracing and truss members."""
 
@@ -2025,6 +2055,12 @@ class Brace(_ObjectBase):
         description="A damping device in each brace of this type (viscous, viscoelastic, "
         "metallic or friction): the analysis models it, works out the added damping and the "
         "damped design forces by the code pack (08 FEM); none: a plain brace.",
+    )
+    cable: Cable | None = Field(  # alpha 9 L4
+        default=None,
+        title="Cable",
+        description="A tension-only cable with its pretension, modelled with large "
+        "displacements by the nonlinear stability analysis; none: a plain brace.",
     )
     timber: TimberMember | None = Field(
         default=None,

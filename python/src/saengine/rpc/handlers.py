@@ -1142,6 +1142,34 @@ def second_order_summary(out_dir: str, project_path: str) -> dict[str, Any] | No
     return _plain({"method": "pDelta", "stiffness": stiffness, **result})
 
 
+def nonlinear_stability(out_dir: str, project_path: str, run: bool) -> dict[str, Any]:
+    """Alpha 9 L4: the nonlinear stability analysis (GMNIA, cables) of the project's settings
+    (``saengine.fem.nonlinear_stability.run_project``) when ``run``, else the last one kept
+    beside the results (``{"available": False, "reason"}`` when none was made)."""
+    from saengine.fem import nonlinear_stability as ns
+    from saengine.pipeline.design_mode import _plain
+
+    if not run:
+        found = ns.load_summary(out_dir)
+        return _plain(found) if found else {"available": False, "reason": "not run yet"}
+    return _plain(ns.run_project(out_dir, project_path))
+
+
+def connection_fe(out_dir: str, project_path: str, member: str | None) -> dict[str, Any]:
+    """Alpha 9 L6: the CBFEM check of ``member``'s end connection
+    (``saengine.design.connection_fe.check_member_joint``); without a member, the checks made
+    on this run (``{"checks": {member: check}}``). ``{"error"}`` when it cannot be made."""
+    from saengine.design import connection_fe as cfe
+    from saengine.pipeline.design_mode import _plain
+
+    if not member:
+        return {"checks": _plain(cfe.load_checks(out_dir))}
+    try:
+        return _plain(cfe.check_member_joint(out_dir, project_path, member))
+    except (cfe.ConnectionFeError, ValueError, KeyError, OSError) as error:
+        return {"error": str(error)}
+
+
 def _story_levels(project_path: str) -> list[float] | None:
     """The building's storey elevations [m] (``06 BIM/bim.json``); None for a special structure
     or when it cannot be read."""

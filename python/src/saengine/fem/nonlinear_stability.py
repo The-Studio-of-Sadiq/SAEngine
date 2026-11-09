@@ -44,6 +44,7 @@ and slabs, and joint flexibility other than the model's links. Units: N, m.
 from __future__ import annotations
 
 import copy
+import itertools
 import json
 import math
 from dataclasses import dataclass, field
@@ -130,7 +131,9 @@ def bow_ratio(t: Any, options: StabilityOptions, curve: str | None = None) -> fl
     if bow.method == "fixedRatio":
         return float(bow.fixedRatio)
     key = curve or options.curve or bow.defaultCurve
-    ratios = bow.plasticRatios if options.material == "plastic" and bow.plasticRatios else bow.ratios
+    ratios = (
+        bow.plasticRatios if options.material == "plastic" and bow.plasticRatios else bow.ratios
+    )
     return float(ratios.get(key) or ratios[bow.defaultCurve])
 
 
@@ -250,7 +253,7 @@ def stability_model(
         # The pieces keep the element's own local axes (its vecxz, else the runner's choice).
         _, _, z = _frame_axes(a, b, e.get("vecxz"))
         vecxz = e.get("vecxz") or [float(v) for v in z]
-        for k, (p, q) in enumerate(zip(chain[:-1], chain[1:], strict=True)):
+        for k, (p, q) in enumerate(itertools.pairwise(chain)):
             tag = e["id"] if k == 0 else next_element
             if k:
                 next_element += 1
@@ -366,7 +369,9 @@ def member_chains(model: dict[str, Any], members: dict[str, list[int]]) -> dict[
     return chains
 
 
-def _weak_axis(model: dict[str, Any], element: dict[str, Any], coords: dict[int, np.ndarray]) -> np.ndarray:
+def _weak_axis(
+    model: dict[str, Any], element: dict[str, Any], coords: dict[int, np.ndarray]
+) -> np.ndarray:
     """The unit vector along which the member bows: its local y when bending about z is the
     weaker (Iz <= Iy), else its local z; a truss bows along its local y."""
     from saengine.fem.second_order import _frame_axes
@@ -610,7 +615,12 @@ def _state(ops: Any) -> dict[int, list[float]]:
 
 def _norm(ops: Any, before: dict[int, list[float]]) -> float:
     now = _state(ops)
-    return math.sqrt(sum(sum((a - b) ** 2 for a, b in zip(now[n], before.get(n, [0.0] * 3), strict=False)) for n in now))
+    return math.sqrt(
+        sum(
+            sum((a - b) ** 2 for a, b in zip(now[n], before.get(n, [0.0] * 3), strict=False))
+            for n in now
+        )
+    )
 
 
 def trace_path(
@@ -758,11 +768,18 @@ def analyse(
         if len(ends) != 2:
             notes.append(f"cable {spec.name}: not a single chain; left as modelled")
             continue
-        length = sum(float(np.linalg.norm(coords[elements[i]["nodes"][1]] - coords[elements[i]["nodes"][0]])) for i in ids)
+        length = sum(
+            float(np.linalg.norm(coords[elements[i]["nodes"][1]] - coords[elements[i]["nodes"][0]]))
+            for i in ids
+        )
         w = np.zeros(3)
         for i in ids:
             if i in uniform:
-                piece = float(np.linalg.norm(coords[elements[i]["nodes"][1]] - coords[elements[i]["nodes"][0]]))
+                piece = float(
+                    np.linalg.norm(
+                        coords[elements[i]["nodes"][1]] - coords[elements[i]["nodes"][0]]
+                    )
+                )
                 w += uniform[i] * piece / length
                 for n in elements[i]["nodes"][:2]:  # take back the lumped share
                     loads.setdefault(n, np.zeros(6))[:3] -= uniform[i] * piece / 2
@@ -771,7 +788,9 @@ def analyse(
     first = first_order(model, loads, ops)
     alpha_cr: float | None = None
     if options.imperfection == "eigenmode":
-        offsets, applied, alpha_cr = eigenmode_imperfection(model, members, first["axial"], options, t)
+        offsets, applied, alpha_cr = eigenmode_imperfection(
+            model, members, first["axial"], options, t
+        )
     elif options.imperfection == "equivalent":
         offsets, applied = equivalent_imperfection(model, members, first["axial"], options, t)
         try:
@@ -915,7 +934,9 @@ def _fibres(
         if material is None or material.category.value != "steel":
             elastic.add(type_id)
             continue
-        section = fiber_section(sid, f"{type_id} fibres", object_type, materials, library, vertical, turns)
+        section = fiber_section(
+            sid, f"{type_id} fibres", object_type, materials, library, vertical, turns
+        )
         if section is None:
             elastic.add(type_id)
             continue
@@ -928,7 +949,9 @@ def _fibres(
     return out, library.materials, notes
 
 
-def _cables(root: Path, types: dict[str, Any], materials: dict[str, Any], t: Any) -> list[CableSpec]:
+def _cables(
+    root: Path, types: dict[str, Any], materials: dict[str, Any], t: Any
+) -> list[CableSpec]:
     """The cable members of the building: braces whose type has a ``cable``."""
     from saengine.library.sections import section_properties
 
@@ -972,7 +995,10 @@ def run_project(out_dir: str | Path, project_path: str | Path) -> dict[str, Any]
     settings = settings_beside(project_path)
     chosen = getattr(getattr(settings, "analysis", None), "nonlinearStability", None)
     if settings is None or chosen is None:
-        return {"available": False, "reason": "no nonlinear stability analysis is set (Project Settings, Analysis)"}
+        return {
+            "available": False,
+            "reason": "no nonlinear stability analysis is set (Project Settings, Analysis)",
+        }
     combination = next(
         (c for c in settings.combinations if c.name == chosen.combination),
         settings.combinations[0] if settings.combinations else None,

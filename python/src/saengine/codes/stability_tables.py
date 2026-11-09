@@ -154,9 +154,7 @@ class NonlinearStabilityTable(TableModel):
     yieldFactor: Positive = Field(
         default=1.0, description="The model's yield strength = this × fy (1/γM1, or 0.9 ...)."
     )
-    stiffnessFactor: Positive = Field(
-        default=1.0, description="The model's modulus = this × E."
-    )
+    stiffnessFactor: Positive = Field(default=1.0, description="The model's modulus = this × E.")
     hardeningRatio: float = Field(
         default=0.0001, ge=0, lt=1, description="Strain hardening modulus / E of the steel."
     )

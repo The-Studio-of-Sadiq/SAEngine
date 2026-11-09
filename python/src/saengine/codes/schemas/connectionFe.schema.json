@@ -1,0 +1,149 @@
+{
+  "$defs": {
+    "JointClassification": {
+      "additionalProperties": false,
+      "description": "Stiffness classification by Sj,ini Lb / (E Ib) (method ``stiffnessRatio``).",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "method": {
+          "const": "stiffnessRatio",
+          "default": "stiffnessRatio",
+          "title": "Method",
+          "type": "string"
+        },
+        "pinned": {
+          "description": "Pinned at most this × E Ib / Lb.",
+          "exclusiveMinimum": 0,
+          "title": "Pinned",
+          "type": "number"
+        },
+        "rigidBraced": {
+          "description": "Rigid at least this × E Ib / Lb, braced frame.",
+          "exclusiveMinimum": 0,
+          "title": "Rigidbraced",
+          "type": "number"
+        },
+        "rigidUnbraced": {
+          "description": "Rigid at least this × E Ib / Lb, unbraced (sway) frame.",
+          "exclusiveMinimum": 0,
+          "title": "Rigidunbraced",
+          "type": "number"
+        }
+      },
+      "required": [
+        "pinned",
+        "rigidBraced",
+        "rigidUnbraced"
+      ],
+      "title": "JointClassification",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "The component-based finite element check of steel joints (CBFEM).",
+  "properties": {
+    "source": {
+      "default": "",
+      "description": "Clause (and page) the table comes from.",
+      "title": "Source",
+      "type": "string"
+    },
+    "sources": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Clause references of single entries: {key: clause}.",
+      "title": "Sources",
+      "type": "object"
+    },
+    "clauses": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Clauses",
+      "type": "object"
+    },
+    "plasticStrainLimit": {
+      "description": "Plates' plastic strain at most this.",
+      "exclusiveMinimum": 0,
+      "maximum": 1,
+      "title": "Plasticstrainlimit",
+      "type": "number"
+    },
+    "yieldFactor": {
+      "default": 1.0,
+      "description": "The plates' design yield = this × fy (1/γM0, or φ).",
+      "exclusiveMinimum": 0,
+      "title": "Yieldfactor",
+      "type": "number"
+    },
+    "hardeningRatio": {
+      "default": 0.001,
+      "description": "Tangent modulus after yield / E.",
+      "exclusiveMaximum": 1,
+      "minimum": 0,
+      "title": "Hardeningratio",
+      "type": "number"
+    },
+    "boltStiffness": {
+      "description": "componentTable: k10 = 1.6 As/Lb in tension, k11 = 16 d² fub/(E dM16) in shear (the EN 1993-1-8 Table 6.11 form); elasticShank: E As/Lb in tension, the shank's E Ab/d in shear.",
+      "enum": [
+        "componentTable",
+        "elasticShank"
+      ],
+      "title": "Boltstiffness",
+      "type": "string"
+    },
+    "classification": {
+      "$ref": "#/$defs/JointClassification"
+    },
+    "elementSize": {
+      "default": 10.0,
+      "description": "Mesh size of the plates at most [mm].",
+      "exclusiveMinimum": 0,
+      "title": "Elementsize",
+      "type": "number"
+    },
+    "elementsAcross": {
+      "default": 8,
+      "description": "Elements across a plate's shorter side at least.",
+      "maximum": 40,
+      "minimum": 2,
+      "title": "Elementsacross",
+      "type": "integer"
+    },
+    "loadSteps": {
+      "default": 10,
+      "description": "Load steps to the design forces.",
+      "maximum": 200,
+      "minimum": 1,
+      "title": "Loadsteps",
+      "type": "integer"
+    },
+    "note": {
+      "default": "",
+      "title": "Note",
+      "type": "string"
+    }
+  },
+  "required": [
+    "plasticStrainLimit",
+    "boltStiffness",
+    "classification"
+  ],
+  "title": "ConnectionFeTable",
+  "type": "object",
+  "$id": "saengine.codePack.connectionFe/1"
+}
