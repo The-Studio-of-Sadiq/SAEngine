@@ -29,6 +29,7 @@ dependencies = [
     "pyproj>=3.8,<3.9",  # site map coordinates: WGS 84, BTM (EPSG:9678), the project grid (MIT; PROJ inside)
     "lazrs>=0.8,<0.9",  # LAZ (compressed LAS) point clouds (MIT)
     "pye57>=0.4,<0.5",  # E57 point clouds (MIT; libE57Format inside, BSL-1.0)
+    "pillow>=11,<13",  # GeoTIFF terrain import (MIT-CMU)
 ]
 
 [project.optional-dependencies]
