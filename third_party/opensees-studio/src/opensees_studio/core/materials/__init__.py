@@ -286,6 +286,20 @@ class MultiLinear(Entity):
         return self
 
 
+# ──────────────────────────── Dampers ────────────────────────────
+class ViscousDamper(Entity):
+    """Maxwell viscous damper: a linear spring ``K`` in series with a nonlinear dashpot
+    ``F = Cd sign(v) |v|^alpha`` (``uniaxialMaterial ViscousDamper``). In a ``twoNodeLink``
+    the "strain" is the deformation and the "stress" the force, so ``K`` is the axial
+    stiffness of the brace the damper sits in and ``Cd`` the damping coefficient in force
+    units per (length / time)^alpha."""
+
+    type: Literal["ViscousDamper"] = "ViscousDamper"
+    K: PositiveFloat = Field(..., description="Elastic stiffness of the spring in series.")
+    Cd: PositiveFloat = Field(..., description="Damping coefficient.")
+    alpha: float = Field(..., gt=0.0, le=2.0, description="Velocity exponent.")
+
+
 # ──────────────────────────── Discriminated union ────────────────────────────
 Material = Annotated[
     ElasticIsotropic
@@ -299,7 +313,8 @@ Material = Annotated[
     | Hardening
     | HystereticMaterial
     | HystereticSM
-    | MultiLinear,
+    | MultiLinear
+    | ViscousDamper,
     Field(discriminator="type"),
 ]
 """Tagged union of every material kind. Pydantic uses ``type`` to dispatch on JSON load."""

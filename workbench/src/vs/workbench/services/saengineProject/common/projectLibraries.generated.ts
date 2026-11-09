@@ -1769,6 +1769,19 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 					description: 'Steel braces of buckling-restrained braced frames: the core and the test results; none: a conventional brace.',
 					title: 'Buckling-restrained',
 				},
+				damper: {
+					anyOf: [
+						{
+							$ref: '#/$defs/SupplementalDamper',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'A damping device in each brace of this type (viscous, viscoelastic, metallic or friction): the analysis models it, works out the added damping and the damped design forces by the code pack (08 FEM); none: a plain brace.',
+					title: 'Damper',
+				},
 				timber: {
 					anyOf: [
 						{
@@ -2989,6 +3002,19 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 					title: 'Embedded ends',
 					type: 'boolean',
 				},
+				transverseBars: {
+					anyOf: [
+						{
+							$ref: '#/$defs/SlabTransverseBars',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'The slab bars across the beam for the longitudinal shear (where the code pack checks it); none: the bars needed are reported.',
+					title: 'Transverse bars',
+				},
 			},
 			required: ['concrete'],
 			title: 'CompositeBeam',
@@ -3201,6 +3227,257 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 				},
 			},
 			title: 'CompositeDeck',
+			type: 'object',
+		},
+		CompositeSlabDeck: {
+			additionalProperties: false,
+			description: 'Alpha 9 P8: the profiled steel deck of a composite slab spanning one way along its ribs\n(:mod:`saengine.design.composite_slab`, the code pack\'s ``compositeSlab``). The geometry is\nthe product\'s (or a generic profile\'s); the deck\'s section values are computed from it\nunless the manufacturer\'s are given. The longitudinal shear needs the deck\'s test values\n(m and k, or τu,Rk).',
+			properties: {
+				profile: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'A generic profile of saengine.design.composite_slab.DECK_PROFILES (its geometry replaces the one below); none: the geometry below.',
+					title: 'Profile',
+				},
+				direction: {
+					default: 'x',
+					description: 'The ribs (and the slab\'s span) along the slab\'s local x or y.',
+					enum: ['x', 'y'],
+					title: 'Direction',
+					type: 'string',
+				},
+				span: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Span of the deck between its supports [mm]; none: the slab\'s extent along the ribs.',
+					title: 'Span',
+				},
+				spans: {
+					default: 1,
+					description: 'Spans the deck sheet is continuous over while the concrete is wet (the composite slab is designed as simply supported).',
+					minimum: 1,
+					title: 'Spans',
+					type: 'integer',
+				},
+				propped: {
+					default: false,
+					description: 'Props carry the wet concrete (else the deck).',
+					title: 'Propped',
+					type: 'boolean',
+				},
+				ribHeight: {
+					default: 60,
+					description: 'Height of the deck hp [mm].',
+					exclusiveMinimum: 0,
+					title: 'Rib height',
+					type: 'number',
+				},
+				pitch: {
+					default: 300,
+					description: 'Centres of the ribs [mm].',
+					exclusiveMinimum: 0,
+					title: 'Pitch',
+					type: 'number',
+				},
+				ribTopWidth: {
+					default: 180,
+					description: 'Width of a concrete rib at the top of the deck [mm].',
+					exclusiveMinimum: 0,
+					title: 'Rib top width',
+					type: 'number',
+				},
+				ribBottomWidth: {
+					default: 120,
+					description: 'Width of a concrete rib at its bottom [mm].',
+					exclusiveMinimum: 0,
+					title: 'Rib bottom width',
+					type: 'number',
+				},
+				thickness: {
+					default: 0.9,
+					description: 'Design (core) thickness of the sheet [mm].',
+					exclusiveMaximum: 5,
+					exclusiveMinimum: 0,
+					title: 'Thickness',
+					type: 'number',
+				},
+				fyp: {
+					default: 350,
+					description: 'Yield strength of the deck [MPa].',
+					exclusiveMinimum: 0,
+					title: 'Fyp',
+					type: 'number',
+				},
+				E: {
+					default: 210000,
+					description: 'Modulus of the deck [MPa].',
+					exclusiveMinimum: 0,
+					title: 'Young\'s modulus E',
+					type: 'number',
+				},
+				m: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'm of the shear bond from the deck\'s tests [N/mm²].',
+					title: 'M',
+				},
+				k: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'k of the shear bond from the deck\'s tests [N/mm²].',
+					title: 'K',
+				},
+				tauU: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Longitudinal shear strength of the partial connection method from the deck\'s tests [N/mm²].',
+					title: 'τu,Rk',
+				},
+				momentResistance: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'The deck\'s design sagging resistance per metre width (its effective section) from the manufacturer [kN·m/m]; none: the gross section\'s (reported).',
+					title: 'Moment resistance',
+				},
+				hoggingResistance: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'The deck\'s design resistance over an inner support [kN·m/m] (continuous sheets); none: the sagging one.',
+					title: 'Hogging resistance',
+				},
+				inertia: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'The deck\'s effective second moment of area per metre [mm⁴/m]; none: the gross section\'s.',
+					title: 'Inertia',
+				},
+				area: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Ap per metre [mm²/m]; none: from the geometry.',
+					title: 'Area',
+				},
+				centroid: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'e, the deck\'s centroid above its bottom [mm]; none: from the geometry.',
+					title: 'Centroid',
+				},
+				plasticMoment: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Mpa, the deck\'s plastic moment per metre at its design strength [kN·m/m]; none: from the geometry.',
+					title: 'Plastic moment',
+				},
+				weight: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Self weight of the deck [kN/m²]; none: from the steel.',
+					title: 'Weight',
+				},
+				beamFlange: {
+					default: false,
+					description: 'The slab is the flange of composite beams (its least depths are larger).',
+					title: 'Beam flange',
+					type: 'boolean',
+				},
+			},
+			title: 'CompositeSlabDeck',
 			type: 'object',
 		},
 		CompositeTopping: {
@@ -5042,6 +5319,59 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 			title: 'IShapeProfile',
 			type: 'object',
 		},
+		IsolatorPropertyModification: {
+			additionalProperties: false,
+			description: 'Alpha 9 P6: property modification factors λ of an isolator type (the ageing and\nenvironment, the prototype test and the specification tolerance factors on Qd and Kd).\nThe code pack combines them into the lower- and upper-bound factors (its\n``isolation.propertyModification``); they replace the two bound factors of the isolator.\nEnter the manufacturer\'s values.',
+			properties: {
+				aeMax: {
+					default: 1.0,
+					description: 'Ageing and environment, upper bound.',
+					minimum: 1,
+					title: 'λae,max',
+					type: 'number',
+				},
+				aeMin: {
+					default: 1.0,
+					description: 'Ageing and environment, lower bound.',
+					exclusiveMinimum: 0,
+					maximum: 1,
+					title: 'λae,min',
+					type: 'number',
+				},
+				testMax: {
+					default: 1.0,
+					description: 'Prototype tests (heating, rate of loading, scragging), upper bound.',
+					minimum: 1,
+					title: 'λtest,max',
+					type: 'number',
+				},
+				testMin: {
+					default: 1.0,
+					description: 'Prototype tests, lower bound.',
+					exclusiveMinimum: 0,
+					maximum: 1,
+					title: 'λtest,min',
+					type: 'number',
+				},
+				specMax: {
+					default: 1.0,
+					description: 'Permissible variation of the production units from the nominal values, upper bound.',
+					minimum: 1,
+					title: 'λspec,max',
+					type: 'number',
+				},
+				specMin: {
+					default: 1.0,
+					description: 'Permissible variation of the production units, lower bound.',
+					exclusiveMinimum: 0,
+					maximum: 1,
+					title: 'λspec,min',
+					type: 'number',
+				},
+			},
+			title: 'IsolatorPropertyModification',
+			type: 'object',
+		},
 		LShapeProfile: {
 			additionalProperties: false,
 			description: 'IfcLShapeProfileDef (angle).',
@@ -6326,8 +6656,9 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 			properties: {
 				kind: {
 					default: 'leadRubber',
-					description: 'The isolator type (a label: the curve below is what the analysis uses).',
-					enum: ['leadRubber', 'elastomeric', 'slidingPendulum', 'other'],
+					description: 'The isolator type: lead-rubber, (low-damping) elastomeric, single friction pendulum, other, high-damping rubber, triple friction pendulum, flat slider. The curve below is what the linear analysis uses; the nonlinear time history takes the type\'s element (Bouc-Wen bearing, friction pendulum, flat slider).',
+					enum: ['leadRubber', 'elastomeric', 'slidingPendulum', 'other', 'highDampingRubber', 'tripleFrictionPendulum', 'flatSlider'],
+					enumDescriptions: ['Lead-rubber bearing (LRB)', 'Elastomeric bearing', 'Friction pendulum, single (FPS)', 'Other', 'High-damping rubber bearing (HDRB)', 'Friction pendulum, triple', 'Flat slider'],
 					title: 'Kind',
 					type: 'string',
 				},
@@ -6429,6 +6760,48 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 					default: null,
 					description: 'Vertical load of the prototype tests (average dead load plus half the live load on the units of this type) [kN]; none: the seismic weight per unit.',
 					title: 'Test vertical load',
+				},
+				frictionCoefficient: {
+					anyOf: [
+						{
+							exclusiveMaximum: 1,
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Sliding isolators: the friction coefficient of the sliding surface; with it Qd = μ·P and Kd = P / R under the unit\'s vertical load P (the test vertical load, else the seismic weight per unit). None: Qd and Kd as entered.',
+					title: 'Friction coefficient μ',
+				},
+				radius: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Friction pendulums: the effective radius of curvature of the sliding surface [mm] (a triple pendulum: its equivalent single radius); none on a flat slider.',
+					title: 'Effective radius R',
+				},
+				propertyModification: {
+					anyOf: [
+						{
+							$ref: '#/$defs/IsolatorPropertyModification',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'The λ factors of the type; the code pack combines them into the lower- and upper-bound factors, which then replace the two bound factors above. None: the bound factors as entered.',
+					title: 'Property modification factors λ',
 				},
 			},
 			title: 'SeismicIsolator',
@@ -6753,6 +7126,19 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 					description: 'Factors on the analysis shell stiffness, mass and weight (empty: the code\'s cracked factors for concrete and masonry, else 1).',
 					title: 'Stiffness modifiers',
 				},
+				compositeDeck: {
+					anyOf: [
+						{
+							$ref: '#/$defs/CompositeSlabDeck',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'A composite slab on profiled steel deck (thickness: the overall depth, over the ribs); empty: a concrete slab.',
+					title: 'Composite deck',
+				},
 			},
 			required: ['id', 'name', 'material', 'thickness'],
 			title: 'Slab',
@@ -6828,6 +7214,35 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 			},
 			required: ['freeStrain', 'coefficient', 'aging', 'creep'],
 			title: 'SlabShrinkage',
+			type: 'object',
+		},
+		SlabTransverseBars: {
+			additionalProperties: false,
+			description: 'The slab bars across a composite beam that carry the slab\'s longitudinal shear (alpha 9\nP8, the pack\'s ``composite.beam.longitudinalShear``).',
+			properties: {
+				top: {
+					default: 0,
+					description: 'Top bars across the beam [mm²/m].',
+					minimum: 0,
+					title: 'Top',
+					type: 'number',
+				},
+				bottom: {
+					default: 0,
+					description: 'Bottom bars across the beam [mm²/m].',
+					minimum: 0,
+					title: 'Bottom',
+					type: 'number',
+				},
+				fy: {
+					default: 500,
+					description: 'Their yield strength [MPa].',
+					exclusiveMinimum: 0,
+					title: 'Yield strength fy',
+					type: 'number',
+				},
+			},
+			title: 'SlabTransverseBars',
 			type: 'object',
 		},
 		Solid: {
@@ -7437,6 +7852,135 @@ export const OBJECTS_SCHEMA: IJSONSchema = {
 				},
 			},
 			title: 'SteelSplice',
+			type: 'object',
+		},
+		SupplementalDamper: {
+			additionalProperties: false,
+			description: 'A damping device in each brace of this type (a damper brace): the brace carries the\ndevice between its two ends. Velocity-dependent (viscous F = C·v^α, viscoelastic) or\ndisplacement-dependent (metallic yielding, such as a buckling-restrained brace used as a\ndamper, and friction). Enter the manufacturer\'s values.',
+			properties: {
+				kind: {
+					default: 'viscous',
+					enum: ['viscous', 'viscoelastic', 'metallic', 'friction'],
+					enumDescriptions: ['Fluid viscous damper (F = C·v^α)', 'Viscoelastic damper', 'Metallic yielding damper', 'Friction damper'],
+					title: 'Kind',
+					type: 'string',
+				},
+				coefficient: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Viscous dampers: C of F = C·v^α [kN·(s/m)^α].',
+					title: 'Damping coefficient C',
+				},
+				exponent: {
+					default: 1.0,
+					description: 'Viscous dampers: α of F = C·v^α (1: linear).',
+					exclusiveMinimum: 0,
+					maximum: 2,
+					title: 'Velocity exponent α',
+					type: 'number',
+				},
+				storageStiffness: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Viscoelastic dampers: the in-phase stiffness at the building\'s fundamental frequency [kN/m].',
+					title: 'Storage stiffness K′',
+				},
+				lossStiffness: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Viscoelastic dampers: the out-of-phase stiffness at that frequency [kN/m] (C = K″/ω).',
+					title: 'Loss stiffness K″',
+				},
+				yieldForce: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Metallic dampers: the yield force; friction dampers: the slip force [kN].',
+					title: 'Yield or slip force',
+				},
+				initialStiffness: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Metallic and friction dampers: the elastic (stick) stiffness of the device with its brace [kN/m]; none: the brace\'s axial stiffness EA/L.',
+					title: 'Initial stiffness',
+				},
+				postYieldRatio: {
+					default: 0.02,
+					description: 'Metallic dampers: the stiffness after yield over the initial stiffness.',
+					exclusiveMaximum: 1,
+					minimum: 0,
+					title: 'Post-yield stiffness ratio',
+					type: 'number',
+				},
+				strokeCapacity: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'The largest deformation the device takes [mm]; none: not checked.',
+					title: 'Stroke capacity',
+				},
+				forceCapacity: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'The largest force the device and its connections take [kN]; none: not checked.',
+					title: 'Force capacity',
+				},
+			},
+			title: 'SupplementalDamper',
 			type: 'object',
 		},
 		TShapeProfile: {
@@ -20047,6 +20591,8 @@ export const TEMPLATES: { readonly [defName: string]: object } = {
 		concrete: 'C20.7',
 	},
 	CompositeDeck: {},
+	CompositeSlabDeck: {},
+	SlabTransverseBars: {},
 	BucklingRestrainedBrace: {
 		type: 'bucklingRestrained',
 		coreArea: 3000,

@@ -101,6 +101,97 @@ here, newest first, with the date, the question, the decision, the reason and wh
   spanning in the span direction, the last one cut to fit.
 - **Known limit.** The bill's slab items still measure a precast floor type as a slab of its
   thickness; the piece schedule gives the units' net concrete (cores and voids deducted).
+## 2026-11-05: composite beams, columns and slabs on deck (alpha 9 track P8)
+
+- **Composite slabs on steel deck are a new pack table.** A slab type's `compositeDeck` makes it
+  a composite slab, checked by the pack's `compositeSlab` table (only the Eurocodes pack, EN
+  1994-1-1 Section 9). A pack without it reports the deck as not checked and designs the slab as
+  concrete; the default pack's results are unchanged. With the table, the slab's own concrete
+  checks become advisories and the composite slab's rows decide.
+- **SAEngine practice: one way, simply supported, per metre.** The slab spans along the ribs
+  between its supports (the slab's extent along them unless the span is given), designed simply
+  supported (the bars over the supports are crack control). The deck's section values come from
+  its trapezoidal geometry (gross, no embossments or effective widths) unless the manufacturer's
+  are given; without the manufacturer's MRd the construction stage bending row is an advisory.
+  The longitudinal shear needs the deck's test values (m and k, or τu,Rk); without them the row is
+  an advisory asking for them. The working area of the construction load is placed at mid-span.
+  The service deflection limit is L/250 overall (the code gives none).
+- **SAEngine practice: the camber of unshored composite beams** (US and Eurocodes packs): 80 %
+  of the steel beam's deflection under the wet concrete, in 5 mm steps, none below 20 mm.
+  Reported in the summary and the drawings' notes, not checked.
+- **The slab's longitudinal shear of composite beams** (Eurocodes pack, EN 1994-1-1 6.6.6): the
+  planes beside the beam (top and bottom bars) and, in solid slabs, round the studs (bottom bars
+  twice); the deck's own contribution is not counted (safe side).
+- **SAEngine practice: composite floors' vibration.** The analysis carries the steel beams
+  alone, so a floor on composite beams has its deflection scaled by Is / It,dyn of its composite
+  beams (full interaction, Ec × the pack's `compositeDynamicModulus`: 1.35 US, 1.1 Eurocodes);
+  the default pack has none and is unchanged.
+- **The design mode checks composite types as composite.** The lightest section is found with
+  the composite checks (and the studs designed when the type gives no spacing); the proposal
+  notes the studs.
+- **BOQ.** Shear studs (number, from the type's spacing) and the steel deck (m², the slab's
+  soffit) are a new group, "Composite" (SC), kept out of the structural steel's kg. A composite
+  slab's concrete is the volume over and in the ribs; the deck replaces the soffit formwork.
+- **Planned.** The fire resistance of composite members (EN 1994-1-2, AISC 360 Appendix 4) stays
+  a planned feature; the US pack's composite slabs (ANSI/SDI C-2017) are not entered.
+
+## 2026-11-05: base isolators and supplemental dampers (alpha 9 track P6)
+
+- **What was built.** B37's isolation design now takes its procedure from the pack
+  (`isolation.procedure.method`): `twoLevel` (the default pack's DD/DM form, unchanged) or
+  `singleLevel` (`fem/isolation_single_level.py`): one earthquake level, the displacement with
+  the lower- and the upper-bound properties, Vb = k·D of the governing bound,
+  Vst = Vb (Ws/W)^(1 − c β), Vs = Vst / RI with the pack's minima, k = 14 β Tfb or a fixed
+  exponent, the base level force (Vb − Vst)/RI, γx on the devices' displacements, the total
+  displacement by the rigid deck or (`torsion.method: "periodRatio"`) the closed form with PT
+  and a floor. Isolator kinds: lead-rubber, high-damping rubber, elastomeric, single and triple
+  friction pendulum, flat slider; a sliding unit's curve from μ and R (Qd = μP, Kd = P/R);
+  property modification factors λ combined by the pack (`propertyModification`). The US pack
+  gets ASCE 7-22 Ch 17, the Eurocodes pack EN 1998-1 Section 10 with EN 15129; BNBC keeps its
+  procedure and results.
+- **Dampers** (`fem/dampers.py`, new `dampers` table, not in the default pack): a brace type's
+  `damper` (viscous, viscoelastic, metallic, friction). The pack's method `modalStrength` (the
+  ASCE 7-22 Ch 18 fundamental and residual mode ELF with the effective ductility and the
+  hysteretic damping) or `dampedSpectrum` (generic); the static earthquake cases scaled to the
+  damped base shear (never below the pack's minimum), the response spectrum divided by the
+  damping ratio, the damper schedule (stroke, velocity, force, energy at the pack's earthquake
+  level) against the devices' capacities, a report section, BOQ items. The US pack gets
+  ASCE 7-22 Ch 18; EN 1998-1 has no damped-structure procedure, so the Eurocodes packs model the
+  dampers but take no reduction (the same for the default pack).
+- **Nonlinear time history.** The isolators become bearing elements of their kind in the NLTH
+  model (Bouc-Wen elastomeric bearing, single friction pendulum, flat slider; before P6 the NLTH
+  model kept the fixed bases), the dampers twoNodeLink elements (a new Maxwell `ViscousDamper`
+  material in the solver, Kelvin for viscoelastic, Steel02, elastic-perfectly-plastic). The
+  results give each device's design displacement, force, velocity and energy over a suite, and
+  hysteresis loops.
+- **SAEngine practice (no code gives it):**
+  - The NLTH takes the isolators' nominal properties; the bounds are run by setting the types'
+    bound factors and deriving again. A triple friction pendulum runs as its equivalent single
+    pendulum (the solver has no triple pendulum element yet).
+  - A sliding unit's vertical load P is the type's test vertical load, else the seismic weight
+    per unit.
+  - A damper brace in the linear model keeps 0.1 % of its area for a viscous damper (no static
+    stiffness), K′ for a viscoelastic one, the device's initial stiffness for metallic and
+    friction ones; the brace member is designed for the analysis forces and the device force
+    comes from the schedule.
+  - The damped response spectrum is divided by B1D/B(ξ) from 0.8 T1 up, as the isolation
+    spectrum (0.8 TD) already is.
+  - The fundamental mode of the damper design is φ = h/hr (Ch 18 permits it for the ELF), and
+    the devices are designed at 1.5 × the design-earthquake response for the MCER.
+  - The damped base shear is used even where it is above the fixed-base one (with a note).
+  - Dampers together with isolators: the isolation design sets the earthquake forces.
+  - EN 1998-1: the superstructure drift limit of an isolated building is taken as
+    0.005 h / ν with ν = 0.5 (Sec 4.4.3.2), and the importance factor γI is not applied by the
+    isolation design (to check).
+- **Packs that extend the US pack** (Saudi, Pakistan, Philippines, Indonesia, Myanmar, Canada,
+  Mexico) now inherit ASCE 7-22 Ch 17 and Ch 18 in place of the default pack's isolation table
+  they inherited before; the National Annex packs inherit EN 1998-1 Section 10.
+- **Placeholder removed:** "Viscous Dampers" (fem.dampers). Placement uses the existing tools:
+  isolators go under the columns of isolator types that stand on supports (the isolation
+  plane), dampers in the braces of damper types.
+- **Where:** `fem/isolation.py`, `fem/isolation_single_level.py`, `fem/dampers.py`,
+  `fem/device_response.py`, `codes/damper_tables.py`, `library/objects.py`
+  (`SeismicIsolator`, `SupplementalDamper`), the packs' `VERIFY.md` (P6 sections).
 
 ## 2026-11-05: online hazard lookup by site coordinates (alpha 9 track C22)
 

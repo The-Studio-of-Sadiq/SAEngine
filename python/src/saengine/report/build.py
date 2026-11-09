@@ -1792,6 +1792,8 @@ def _results(
     out["precast"] = _precast(parts.root, warnings)
     # B37: the isolation system of a seismically isolated building.
     out["isolation"] = _isolation(model_path.parent)
+    # Alpha 9 P6: the supplemental dampers.
+    out["dampers"] = _dampers(model_path.parent)
     out["displacementFails"] = [row[-1] == "FAIL" for row in out["displacements"]]
     out["secondOrder"] = _second_order(model, results_dir, settings, parts)
     # B20: the pushovers' target displacement and member acceptance.
@@ -2062,7 +2064,14 @@ def _nonlinear_history(folder: Path, warnings: list[str]) -> dict[str, Any]:
         ),
         "notes": [str(n) for n in found.get("notes", []) if n],
         "ok": bool(found.get("ok")),
-    }
+        # Alpha 9 P6: the isolators and dampers over the records.
+        "devices": [
+            [s["key"], r["kind"], r["name"], r["record"], fmt(r["displacement_mm"], 1),
+             fmt(r["force_kN"], 0), fmt(r["velocity_ms"], 3), fmt(r["energy_kJ"], 1)]
+            for s in found["suites"]
+            for r in (s.get("devices") or {}).get("rows", [])
+        ],
+    }  # fmt: skip
 
 
 def _column_shortening(model_path: Path, results_dir: Path, warnings: list[str]) -> dict[str, Any]:
@@ -2684,6 +2693,8 @@ def _isolation(model_folder: Path) -> dict[str, Any] | None:
 
     d, m, t = found["design"], found["maximum"], found["total"]
     cl = found.get("clauses", {})
+    if found.get("procedure") == "singleLevel":  # alpha 9 P6
+        return _isolation_single(found, ok)
     summary = [
         ["Seismic weight above the isolators W [kN]", fmt(found["weight_kN"], 0), ""],
         ["Design displacement DD [mm]", fmt(d["D_mm"], 0), cl.get("designDisplacement", "")],
@@ -2754,6 +2765,139 @@ def _isolation(model_folder: Path) -> dict[str, Any] | None:
             f"{found['drift']['limits']['history']:g} hsx (time history) "
             f"({cl.get('staticDrift', '')}; {cl.get('dynamicDrift', '')})"
         ),
+        "notes": [str(n) for n in found.get("notes", [])],
+    }
+
+
+def _isolation_single(found: dict[str, Any], ok: Any) -> dict[str, Any]:
+    """Alpha 9 P6: the rows of a single-level isolation design
+    (:mod:`saengine.fem.isolation_single_level`), in the shape of :func:`_isolation`'s."""
+    cl = found.get("clauses", {})
+    m, t = found["maximum"], found["total"]
+    bounds = found.get("bounds", {})
+    summary = [
+        ["Seismic weight W / above the base level Ws [kN]",
+         f"{fmt(found['weight_kN'], 0)} / {fmt(found.get('weightAbove_kN', 0.0), 0)}", ""],
+        *(
+            [f"{name.capitalize()} bound: D [mm], T [s], β [%], B",
+             f"{fmt(b['D_mm'], 0)}, {fmt(b['T'], 2)}, {fmt(100 * b['beta'], 1)}, {fmt(b['B'], 2)}",
+             cl.get("maximumDisplacement", "")]
+            for name, b in bounds.items()
+        ),
+        ["Displacement D [mm]", fmt(m["D_mm"], 0), cl.get("maximumDisplacement", "")],
+        ["Effective period T [s]", fmt(m["T"], 2), cl.get("maximumPeriod", "")],
+        ["kmin / kmax [kN/m]", f"{fmt(m['kMin_kNm'], 0)} / {fmt(m['kMax_kNm'], 0)}", ""],
+        ["Total displacement [mm]", fmt(t["DTM_mm"], 0), cl.get("totalDisplacement", "")],
+        ["Units' displacement demand (× γx) [mm]", fmt(t.get("demand_mm", t["DTM_mm"]), 0),
+         cl.get("displacementFactor", "")],
+    ]  # fmt: skip
+    forces = []
+    for axis in ("X", "Y"):
+        f = found["forces"][axis]
+        mins = f.get("minima_kN", {})
+        forces.append(
+            [axis, fmt(f["R"], 2), fmt(f["RI"], 2), fmt(f["Vb_kN"], 0), fmt(f["Vst_kN"], 0),
+             fmt(f["VsFormula_kN"], 0),
+             "–" if "fixedBase" not in mins else fmt(mins["fixedBase"], 0),
+             "–" if "wind" not in mins else fmt(mins["wind"], 0),
+             "–" if "activation" not in mins else fmt(mins["activation"], 0),
+             fmt(f["Vs_kN"], 0), f"{f['governs']}, k = {fmt(f.get('k', 1.0), 2)}"]
+        )  # fmt: skip
+    checks = [
+        [c["label"], "–" if c["value"] is None else str(c["value"]),
+         "–" if c["limit"] is None else str(c["limit"]), ok(c["ok"]), c.get("clause", "")]
+        for c in found["checks"]
+    ]  # fmt: skip
+    static = found["staticAnalysis"]
+    tests = [
+        [row["type"], s["label"],
+         fmt(s["displacement_mm"], 0) + " mm" if "displacement_mm" in s else fmt(s["force_kN"], 1) + " kN",
+         str(s["cycles"]), fmt(row["verticalLoad_kN"], 0)]
+        for row in found["testing"]
+        for s in row["steps"]
+    ]  # fmt: skip
+    return {
+        "procedure": "singleLevel",
+        "summary": summary,
+        "forces": forces,
+        "forcesHeaders": ["Dir.", "R", "RI", "Vb", "Vst", "Vst/RI", "Fixed base at T", "Wind",
+                          "Activation", "Vs", "Governs"],
+        "forcesClause": f"{cl.get('forceAbove', '')}; {cl.get('minimumForce', '')}",
+        "checks": checks,
+        "checkFails": [c["ok"] is False for c in found["checks"]],
+        "static": [[c["id"], c["label"], ok(c["ok"])] for c in static["conditions"]],
+        "staticPermitted": bool(static["permitted"]),
+        "staticClause": cl.get("staticLimits", ""),
+        "units": [
+            [u["column"], u["kind"], fmt(u["kDmax_kNm"], 0), fmt(u["DTD_mm"], 0),
+             fmt(u["DTM_mm"], 0), "–" if u["capacity_mm"] is None else fmt(u["capacity_mm"], 0)]
+            for u in found["units"]
+        ],
+        "unitsHeaders": ["Column", "Isolator", "kmax [kN/m]", "Total [mm]", "Total [mm]",
+                         "Capacity [mm]"],
+        "tests": tests,
+        "testsClause": cl.get("testing", ""),
+        "requirements": [
+            [r["id"], r["text"], r["check"], ok(r["ok"])] for r in found["requirements"]
+        ],
+        "requirementsClause": cl.get("requirements", ""),
+        "review": list(found.get("review", [])),
+        "reviewClause": cl.get("review", ""),
+        "drift": (
+            f"Storey drift above the isolators with Cd = RI ({fmt(found['drift']['Cd']['X'], 2)} / "
+            f"{fmt(found['drift']['Cd']['Y'], 2)}) and I = {fmt(found['drift']['importance'], 1)}: "
+            f"at most {found['drift']['limits']['static']:g} hsx (static, response spectrum) and "
+            f"{found['drift']['limits']['history']:g} hsx (time history) "
+            f"({cl.get('staticDrift', '')}; {cl.get('dynamicDrift', '')})"
+        ),
+        "notes": [str(n) for n in found.get("notes", [])],
+    }  # fmt: skip
+
+
+def _dampers(model_folder: Path) -> dict[str, Any] | None:
+    """Alpha 9 P6: the damper design beside the model (``08 FEM/dampers.json``,
+    :mod:`saengine.fem.dampers`) as report rows; None for a building without dampers."""
+    from saengine.fem import dampers
+
+    found = dampers.load(model_folder)
+    if found is None:
+        return None
+    if not found.get("available"):
+        return {"available": False, "reason": str(found.get("reason", ""))}
+    cl = found.get("clauses", {})
+    axes = []
+    for axis, row in (found.get("byAxis") or {}).items():
+        if not row.get("available"):
+            continue
+        axes.append(
+            [axis, fmt(row["T1"], 2), fmt(row["T1D"], 2), fmt(row["mu"], 2),
+             fmt(100 * row["betaI"], 1), fmt(100 * row["betaV"], 1), fmt(100 * row["betaH"], 1),
+             fmt(row["B1D"], 2), fmt(row["D1D_mm"], 0), fmt(row["Vfixed_kN"], 0),
+             fmt(row["V_kN"], 0), fmt(row["Vmin_kN"], 0), fmt(row["Vdesign_kN"], 0)]
+        )  # fmt: skip
+
+    def ok(value: Any) -> str:
+        return "OK" if value is True else "FAIL" if value is False else "–"
+
+    devices = [
+        [d["member"], d["kind"], d["axis"], fmt(d["stroke_mm"], 1), fmt(d["strokeMCE_mm"], 1),
+         fmt(d["velocityMCE_ms"], 3), fmt(d["forceMCE_kN"], 0), fmt(d["energy_kJ"], 2),
+         ok(d["strokeOk"]), ok(d["forceOk"])]
+        for d in found.get("devices", [])
+        if "stroke_mm" in d
+    ]  # fmt: skip
+    return {
+        "available": True,
+        "method": found.get("method", ""),
+        "axes": axes,
+        "axesClause": f"{cl.get('baseShear', '')}; {cl.get('effectiveDamping', '')}",
+        "devices": devices,
+        "deviceFails": ["FAIL" in row[-2:] for row in devices],
+        "devicesClause": cl.get("devices", ""),
+        "mceFactor": found.get("mceFactor", 1.0),
+        "requirements": [[r["id"], r["text"], r["check"]] for r in found.get("requirements", [])],
+        "requirementsClause": cl.get("requirements", ""),
+        "review": list(found.get("review", [])),
         "notes": [str(n) for n in found.get("notes", [])],
     }
 

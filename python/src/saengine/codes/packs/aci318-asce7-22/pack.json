@@ -45,6 +45,8 @@
     "barSchedule",
     "excavationSupport",
     "concreteTime",
+    "isolation",
+    "dampers",
     "existing",
     "hazardLookup",
     "precast",
@@ -131,6 +133,12 @@
     ],
     "precast": [
       "ACI 318-19 16.2: precast connections, integrity ties and bearing; the handling and erection values are SAEngine practice (PCI Design Handbook, Mast)"
+    ],
+    "isolation": [
+      "ASCE 7-22 Chapter 17 (seismically isolated structures: one MCER level with the upper and lower bound properties, ELF, response spectrum and response history criteria, property modification factors, prototype tests)"
+    ],
+    "dampers": [
+      "ASCE 7-22 Chapter 18 (structures with damping systems: effective damping, the damped equivalent lateral force with the fundamental and residual modes, the devices at the MCER)"
     ],
     "hazardLookup": [
       "ASCE/SEI 7-22 Sec 11.4 (mapped values by the USGS Seismic Design Web Services, asce7-22 endpoint; opt-in online lookup, alpha 9 C22)"
@@ -260,6 +268,8 @@
     "method": "Strength design (LRFD); timber NDS 2018 and masonry TMS 402-22 by allowable stresses (ASD) unless chosen otherwise"
   },
   "tableCodes": {
+    "isolation": "ASCE 7-22",
+    "dampers": "ASCE 7-22",
     "materials": "ACI 318-19",
     "factors": "ACI 318-19",
     "concrete": "ACI 318-19",

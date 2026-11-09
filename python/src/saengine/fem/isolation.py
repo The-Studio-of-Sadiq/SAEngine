@@ -43,6 +43,22 @@ How it works (SI inside: m, N, s):
 - **Time history** (Sec 2.5.16.3.2): :func:`history_criteria` gives the record count, the
   scaling range and factor that a nonlinear time-history run of the isolated building must
   meet (the hook for the nonlinear time history engine; this module does not run records).
+
+Alpha 9 P6, by the pack in force (no code named in the engine):
+
+- isolator kinds lead-rubber, high-damping rubber, elastomeric, single and triple friction
+  pendulum and flat slider; a sliding unit's curve from its friction coefficient and radius
+  (Qd = μP, Kd = P/R under the unit's vertical load P);
+- property modification factors λ of a type combined by the pack's
+  ``propertyModification`` rule into its lower and upper bound;
+- the pack's ``procedure``: ``twoLevel`` (above) or ``singleLevel``
+  (:mod:`saengine.fem.isolation_single_level`: one earthquake level, both bounds, Vst with the
+  weight ratio, k from the damping and the fixed-base period, the base level force);
+- the damping coefficient by the pack's ``dampingFormula`` (B = 1/η) in place of its table;
+- the total displacement by ``torsion.method`` ``periodRatio`` (the closed form with PT);
+- in the nonlinear time history model (:func:`nonlinear_bearings`), each isolator as the
+  bearing element of its kind: a Bouc-Wen elastomeric bearing, a single friction pendulum
+  (also standing in for a triple one) or a flat slider.
 """
 
 from __future__ import annotations
@@ -124,14 +140,42 @@ class Curve:
         return Curve(self.qd * factor, self.kd * factor, self.dy)
 
 
-def curve_of(spec: Any) -> Curve:
+def curve_of(spec: Any, load: float | None = None) -> Curve:
     """The bilinear curve of a :class:`~saengine.library.objects.SeismicIsolator` (kN, kN/m, mm
-    to N, N/m, m)."""
+    to N, N/m, m). P6: a sliding unit with a friction coefficient under the vertical load
+    ``load`` [N]: Qd = μ·P and Kd = P / R (none on a flat slider)."""
+    from saengine.library.objects import SLIDING_ISOLATORS
+
+    mu = getattr(spec, "frictionCoefficient", None)
+    if mu is not None and load and getattr(spec, "kind", None) in SLIDING_ISOLATORS:
+        radius = getattr(spec, "radius", None)
+        kd = load / (float(radius) / 1e3) if radius and spec.kind != "flatSlider" else 0.0
+        return Curve(float(mu) * load, kd, float(spec.yieldDisplacement) / 1e3)
     return Curve(
         float(spec.characteristicStrength) * 1e3,
         float(spec.postYieldStiffness) * 1e3,
         float(spec.yieldDisplacement) / 1e3,
     )
+
+
+def property_factors(spec: Any) -> tuple[float, float]:
+    """The lower- and upper-bound factors on Qd and Kd of an isolator type: its two bound
+    factors, or (P6) its λ factors combined by the pack's ``propertyModification`` rule,
+    λmax = (1 + a (λae,max − 1)) λtest,max λspec,max and λmin = (1 − a (1 − λae,min))
+    λtest,min λspec,min (a: the pack's aeShare; a pack without the rule: a = 1, the plain
+    products), with the pack's limits."""
+    lam = getattr(spec, "propertyModification", None)
+    if lam is None:
+        return float(spec.lowerBoundFactor), float(spec.upperBoundFactor)
+    rule = getattr(_table(), "propertyModification", None) if covered() else None
+    share = float(rule.aeShare) if rule is not None else 1.0
+    upper = (1.0 + share * (lam.aeMax - 1.0)) * lam.testMax * lam.specMax
+    lower = (1.0 - share * (1.0 - lam.aeMin)) * lam.testMin * lam.specMin
+    if rule is not None and rule.maxAtLeast is not None:
+        upper = max(upper, float(rule.maxAtLeast))
+    if rule is not None and rule.minAtMost is not None:
+        lower = min(lower, float(rule.minAtMost))
+    return lower, upper
 
 
 @dataclass
@@ -145,24 +189,34 @@ class Unit:
     x: float
     y: float
     spec: Any
+    #: P6: the vertical load on the unit [N] (a sliding unit's curve depends on it).
+    load: float | None = None
 
     @property
     def nominal(self) -> Curve:
-        return curve_of(self.spec)
+        return curve_of(self.spec, self.load)
 
     @property
     def lower(self) -> Curve:
-        return self.nominal.scaled(float(self.spec.lowerBoundFactor))
+        return self.nominal.scaled(property_factors(self.spec)[0])
 
     @property
     def upper(self) -> Curve:
-        return self.nominal.scaled(float(self.spec.upperBoundFactor))
+        return self.nominal.scaled(property_factors(self.spec)[1])
 
     def activation(self) -> float:
         """The force that fully activates the unit [N] (upper bound)."""
         if self.spec.activationForce:
             return float(self.spec.activationForce) * 1e3
         return self.upper.fy
+
+
+def unit_load(spec: Any, weight: float, count: int) -> float:
+    """P6: the vertical load on a unit [N]: the test vertical load of its type, else the
+    seismic weight ``weight`` [N] per unit."""
+    if getattr(spec, "testVerticalLoad", None):
+        return float(spec.testVerticalLoad) * 1e3
+    return weight / max(count, 1)
 
 
 def system_stiffness(curves: list[Curve], d: float) -> float:
@@ -182,7 +236,11 @@ def system_damping(curves: list[Curve], d: float) -> float:
 
 def damping_coefficient(damping_percent: float) -> float:
     """BD or BM of the effective damping [%] (the pack's table, linear in between, the end
-    values beyond)."""
+    values beyond; P6: the pack's ``dampingFormula``, B = 1/η, in its place)."""
+    formula = getattr(_table(), "dampingFormula", None)
+    if formula is not None and formula.method == "eta":
+        eta = math.sqrt(formula.reference / (formula.offset + max(damping_percent, 0.0)))
+        return 1.0 / max(eta, formula.etaMin)
     points = sorted(_table().dampingCoefficients, key=lambda p: p.damping)
     xs = [p.damping for p in points]
     ys = [p.B for p in points]
@@ -291,6 +349,58 @@ def total_displacements(
     return out
 
 
+def period_ratio_displacements(
+    units: list[Unit],
+    centre: tuple[float, float],
+    d: float,
+    share: float,
+    minimum: float | None = None,
+) -> dict[str, dict[str, Any]]:
+    """The total displacement per direction by method ``periodRatio`` (P6): a unit at the
+    distance y across the motion from the isolators' centre of rigidity moves
+    ``D (1 + y·12e / (PT² (b² + d²)))``, b and d the plan dimensions of the isolators'
+    extent, e the eccentricity (the centre of mass from the centre of rigidity plus the
+    accidental ``share`` of the extent across the motion), PT the ratio of the effective
+    translational to the torsional period, ``(1/rI) √(Σ (xi² + yi²) / N)`` with
+    ``rI = √((b² + d²)/12)``, at least 1; the result at least ``minimum`` × D. The same
+    shape as :func:`total_displacements`."""
+    ks = [u.lower.stiffness(d) for u in units]
+    k = sum(ks)
+    xs = np.array([u.x for u in units])
+    ys = np.array([u.y for u in units])
+    xr = float(np.dot(ks, xs) / k) if k else 0.0
+    yr = float(np.dot(ks, ys) / k) if k else 0.0
+    b = float(xs.max() - xs.min()) if len(xs) else 0.0
+    dd = float(ys.max() - ys.min()) if len(ys) else 0.0
+    plan = b * b + dd * dd
+    r_i = math.sqrt(plan / 12.0) if plan > 0 else 0.0
+    spread = float(np.mean((xs - xr) ** 2 + (ys - yr) ** 2)) if len(xs) else 0.0
+    pt = max(math.sqrt(spread) / r_i, 1.0) if r_i > 0 else 1.0
+    floor = float(minimum) if minimum else 1.0
+    out: dict[str, dict[str, Any]] = {}
+    for axis, (actual, across, rel) in {
+        "X": (abs(centre[1] - yr), dd, ys - yr),
+        "Y": (abs(centre[0] - xr), b, xs - xr),
+    }.items():
+        e = actual + share * across
+        per = {
+            u.node: d * max(1.0 + abs(float(y)) * 12.0 * e / (pt * pt * plan), floor)
+            if plan > 0
+            else d * floor
+            for u, y in zip(units, rel, strict=True)
+        }
+        total = max(per.values(), default=d * floor)
+        out[axis] = {
+            "total": total,
+            "eccentricity": e,
+            "factor": total / d if d else 1.0,
+            "units": per,
+            "PT": pt,
+        }
+    out["centreOfRigidity"] = {"x": xr, "y": yr}  # type: ignore[assignment]
+    return out
+
+
 def distribute(levels: list[tuple[float, float]], shear: float) -> list[float]:
     """Eq 6.2.68: ``Fx = Vs wx hx^k / Σ wi hi^k`` for (height above the interface, weight)."""
     k = _table().distribution.exponent
@@ -370,8 +480,27 @@ def design(
     isolation interface m, weight N)] with its centre of mass ``centre`` [m]. ``r``: the
     system's R by direction, ``fixed_period``: the fixed-base period by direction [s],
     ``wind_shear``: the factored wind base shear by direction [N]. Returns the summary
-    (forces in kN, displacements in mm, periods in s) that ``08 FEM/isolation.json`` keeps."""
+    (forces in kN, displacements in mm, periods in s) that ``08 FEM/isolation.json`` keeps.
+    P6: the pack's ``procedure`` ``singleLevel`` is :mod:`saengine.fem.isolation_single_level`
+    (the same summary, ``"procedure": "singleLevel"``)."""
     t = _table()
+    procedure = getattr(t, "procedure", None)
+    if procedure is not None and procedure.method == "singleLevel":
+        from saengine.fem import isolation_single_level
+
+        return isolation_single_level.design(
+            units,
+            levels,
+            centre,
+            site_class=site_class,
+            z=z,
+            r=r,
+            fixed_period=fixed_period,
+            wind_shear=wind_shear,
+            storeys=storeys,
+            accidental_share=accidental_share,
+            has_time_histories=has_time_histories,
+        )
     cl = clauses()
     weight = sum(w for _, w in levels)
     notes: list[str] = []
@@ -544,9 +673,7 @@ def design(
     # ── requirements, testing and review ──
     computed = {"4": restoring_ok, "5": restraint_ok}
     computed["7"] = all(c["ok"] for c in checks if c["id"] == "overturning")
-    bounded = all(
-        float(u.spec.lowerBoundFactor) < 1 or float(u.spec.upperBoundFactor) > 1 for u in units
-    )
+    bounded = all(property_factors(u.spec)[0] < 1 or property_factors(u.spec)[1] > 1 for u in units)
     requirements = []
     for item in t.requirements:
         status: bool | None = None
@@ -787,6 +914,18 @@ def apply_isolation(
         return IsolationResult(project, None, notes)
     centre = (float(moment[0] / weight), float(moment[1] / weight))
     levels = [(round(z - interface, 6), w) for z, w in sorted(level_weight.items())]
+    # P6: the vertical load on each unit (a sliding unit's curve depends on it): the test
+    # vertical load of its type, else the seismic weight per unit.
+    sliding = False
+    for u in units:
+        u.load = unit_load(u.spec, weight, len(units))
+        sliding = sliding or getattr(u.spec, "frictionCoefficient", None) is not None
+    if sliding:
+        notes.append(
+            "sliding isolators: Qd = μP and Kd = P/R with P the test vertical load of the type, "
+            "else the seismic weight per unit (the column reactions differ; enter the test "
+            "vertical load where they do)"
+        )
     storeys = sum(1 for h, _ in levels if h > 1e-6)
 
     wind_factor = max(
@@ -862,12 +1001,16 @@ def apply_isolation(
     from saengine.fem import loads as fl
 
     spec = summary["spectrum"]
+    # P6: the single-level procedure's spectrum is the design spectrum × mceFactor.
+    single = summary.get("procedure") == "singleLevel"
+    level = float(_table().spectrum.mceFactor) if single else 1.0
     for spectrum in out.get("spectra", []):
         axis = "Y" if str(spectrum.get("name", "")).endswith("Y") else "X"
         ri = summary["forces"][axis]["RI"]
         spectrum["accelerations"] = [
             round(
                 G
+                * level
                 * fl.design_acceleration(
                     t,
                     settings.site.siteClass,
@@ -887,15 +1030,25 @@ def apply_isolation(
             f"the isolation damping {spec['modalDamping']:.1f} % from {spec['dampedFrom']:.2f} s "
             "up: SAEngine practice, see the pack's note)"
         )
-    notes.insert(
-        0,
-        f"seismic isolators under {len(units)} columns: DD = {summary['design']['D_mm']:.0f} mm "
-        f"(TD = {summary['design']['T']:.2f} s), DM = {summary['maximum']['D_mm']:.0f} mm "
-        f"(TM = {summary['maximum']['T']:.2f} s), DTD = {summary['total']['DTD_mm']:.0f} mm, "
-        f"DTM = {summary['total']['DTM_mm']:.0f} mm; Vb = {summary['forces']['X']['Vb_kN']:.0f} kN, "
-        f"Vs = {summary['forces']['X']['Vs_kN']:.0f} / {summary['forces']['Y']['Vs_kN']:.0f} kN "
-        f"(X / Y; EX, EY re-distributed: {clauses().get('distribution', '')})",
-    )
+    if single:
+        headline = (
+            f"seismic isolators under {len(units)} columns (one earthquake level, the lower- "
+            f"and upper-bound properties): D = {summary['maximum']['D_mm']:.0f} mm "
+            f"(T = {summary['maximum']['T']:.2f} s), total {summary['total']['DTM_mm']:.0f} mm; "
+            f"Vb = {summary['forces']['X']['Vb_kN']:.0f} kN, Vs = "
+            f"{summary['forces']['X']['Vs_kN']:.0f} / {summary['forces']['Y']['Vs_kN']:.0f} kN "
+            f"(X / Y; EX, EY re-distributed: {clauses().get('distribution', '')})"
+        )
+    else:
+        headline = (
+            f"seismic isolators under {len(units)} columns: DD = {summary['design']['D_mm']:.0f} mm "
+            f"(TD = {summary['design']['T']:.2f} s), DM = {summary['maximum']['D_mm']:.0f} mm "
+            f"(TM = {summary['maximum']['T']:.2f} s), DTD = {summary['total']['DTD_mm']:.0f} mm, "
+            f"DTM = {summary['total']['DTM_mm']:.0f} mm; Vb = {summary['forces']['X']['Vb_kN']:.0f} kN, "
+            f"Vs = {summary['forces']['X']['Vs_kN']:.0f} / {summary['forces']['Y']['Vs_kN']:.0f} kN "
+            f"(X / Y; EX, EY re-distributed: {clauses().get('distribution', '')})"
+        )
+    notes.insert(0, headline)
     notes.extend(summary["notes"])
     for c in summary["checks"]:
         if c["ok"] is False:
@@ -959,9 +1112,14 @@ def spectrum_displacements(
         return None
     dtd = max(per.values())
     ratio = summary["design"]["B"] / summary["maximum"]["B"] if summary["maximum"]["B"] else 1.0
+    # P6: the single-level spectrum is already at the earthquake level of the design.
+    if summary.get("procedure") == "singleLevel":
+        dtm = dtd
+    else:
+        dtm = dtd * t.spectrum.mceFactor * ratio
     return {
         "DTD_mm": dtd * 1e3,
-        "DTM_mm": dtd * t.spectrum.mceFactor * ratio * 1e3,
+        "DTM_mm": dtm * 1e3,
         "centre_mm": float(np.mean(centre)) * 1e3,
         "assumed_mm": summary["design"]["D_mm"],
         "units": {str(k): v * 1e3 for k, v in per.items()},
@@ -1016,3 +1174,116 @@ def seismic_design_block(
                 "of the code)"
             )
     return block
+
+
+# ─────────────────────────── P6: the isolators in the nonlinear time history ───────────────────────────
+
+#: Element of each isolator kind in the nonlinear time history model.
+_BEARING = {
+    "leadRubber": "ElastomericBearingBoucWen",
+    "highDampingRubber": "ElastomericBearingBoucWen",
+    "elastomeric": "ElastomericBearingBoucWen",
+    "other": "ElastomericBearingBoucWen",
+    "slidingPendulum": "SingleFPBearing",
+    "tripleFrictionPendulum": "SingleFPBearing",
+    "flatSlider": "FlatSliderBearing",
+}
+
+
+def nonlinear_bearings(
+    history: dict[str, Any], summary: dict[str, Any], isolators: dict[str, Any]
+) -> list[str]:
+    """Put the isolated column bases of the nonlinear time history model ``history`` (built
+    from the fixed-base model) on bearing elements of their kind (``_BEARING``), with the
+    nominal properties: a Bouc-Wen elastomeric bearing (Kinit = Fy/Dy, Qd, α1 = Kd/Kinit), a
+    single friction pendulum (Coulomb μ, the effective radius; a triple pendulum by its
+    equivalent single one) or a flat slider; the axial stiffness Kv; the base stays restrained
+    in rotation as in the linear model. ``summary``: the isolation design, ``isolators``: the
+    column types' :class:`~saengine.library.objects.SeismicIsolator`. Returns the notes."""
+    from saengine.fem.ssi import _Editor
+
+    editor = _Editor(history)
+    rows = summary.get("units") or []
+    weight = float(summary.get("weight_kN") or 0.0) * 1e3
+    friction = history.setdefault("friction_models", [])
+    next_friction = max((int(f["id"]) for f in friction), default=0) + 1
+    placed: dict[str, int] = {}
+    skipped: list[str] = []
+    triple = False
+    for row in rows:
+        spec = isolators.get(row.get("type"))
+        node_id = int(row.get("node", 0))
+        node = editor.nodes.get(node_id)
+        if spec is None or node is None:
+            skipped.append(str(row.get("column")))
+            continue
+        load = unit_load(spec, weight, len(rows))
+        curve = curve_of(spec, load)
+        kind = getattr(spec, "kind", "other")
+        element = _BEARING.get(kind, "ElastomericBearingBoucWen")
+        k_init = curve.fy / curve.dy if curve.dy > 0 else 0.0
+        r_eff = 0.0
+        if element == "SingleFPBearing":
+            radius = getattr(spec, "radius", None)
+            r_eff = float(radius) / 1e3 if radius else (load / curve.kd if curve.kd else 0.0)
+        if curve.qd <= 0 or k_init <= 0 or (element == "SingleFPBearing" and r_eff <= 0):
+            skipped.append(str(row.get("column")))
+            continue
+        name = f"{row['column']}{ELEMENT_SUFFIX}"
+        vertical = float(spec.verticalStiffness) * 1e3
+        mats = []
+        for _ in range(4):  # P, T, My, Mz (the rotations stay restrained at the base)
+            mats.append(editor.next_material)
+            history["materials"].append(
+                {"id": editor.next_material, "name": name, "type": "Elastic", "E": vertical}
+            )
+            editor.next_material += 1
+        node["restraint"] = [False, False, False, True, True, True]
+        ground = editor.node(node["coords"], fixed=True)
+        bearing: dict[str, Any] = {
+            "id": editor.next_element,
+            "name": name,
+            "type": element,
+            "nodes": [ground, node_id],
+            "p_material_id": mats[0],
+            "t_material_id": mats[1],
+            "my_material_id": mats[2],
+            "mz_material_id": mats[3],
+            "k_init": k_init,
+        }
+        if element == "ElastomericBearingBoucWen":
+            bearing.update({"qd": curve.qd, "alpha1": min(max(curve.kd / k_init, 0.0), 0.99)})
+        else:
+            mu = getattr(spec, "frictionCoefficient", None) or (curve.qd / load if load else 0.0)
+            friction.append({"id": next_friction, "name": name, "type": "Coulomb", "mu": mu})
+            bearing["friction_model_id"] = next_friction
+            next_friction += 1
+            if element == "SingleFPBearing":
+                bearing["r_eff"] = r_eff
+            triple = triple or kind == "tripleFrictionPendulum"
+        editor.next_element += 1
+        history["elements"].append(bearing)
+        placed[element] = placed.get(element, 0) + 1
+    if not friction:
+        history.pop("friction_models", None)
+    notes = []
+    if placed:
+        notes.append(
+            "nonlinear time history: the isolators as "
+            + ", ".join(f"{n} {kind}" for kind, n in sorted(placed.items()))
+            + " elements with the nominal properties (run the bounds by setting the isolator "
+            "types' bound factors and deriving again)"
+        )
+    if triple:
+        notes.append(
+            "nonlinear time history: triple friction pendulums are modelled as their "
+            "equivalent single pendulum (effective radius and friction); the stiffening "
+            "stages of the triple pendulum are not modelled"
+        )
+    if skipped:
+        notes.append(
+            "nonlinear time history: no bearing element for "
+            + ", ".join(sorted(skipped))
+            + " (no characteristic strength, radius or type); their bases stay fixed"
+        )
+    return notes

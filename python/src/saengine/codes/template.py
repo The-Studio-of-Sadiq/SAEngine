@@ -244,6 +244,11 @@ TABLE_HELP: dict[str, str] = {
     "composite": "Composite steel-concrete members: the design method, material limits, "
     "modulus and stress block, phi and Omega factors, and the rules of composite columns, "
     "beams and their shear connectors. A pack without it does not cover composite members.",
+    "compositeSlab": "Composite slabs on profiled steel deck (alpha 9 P8): the partial factors, "
+    "the plastic block, the construction load and ponding on the deck, the deflection limits, "
+    "the least depths, the methods of the longitudinal shear the pack allows (m-k, partial "
+    "connection), the modular ratio of the deflections and the anti-crack bars. A pack without "
+    "it does not check composite slabs.",
     "cranes": "Crane loads: the vertical impact allowance and the lateral and longitudinal "
     "forces of crane runways by kind of crane, and how they combine. A pack without it does not "
     "cover cranes.",
@@ -258,6 +263,12 @@ TABLE_HELP: dict[str, str] = {
     "spectrum, the static procedure's limits, restoring force, forces and their distribution, "
     "drift, the spectrum and history analyses, overturning, torsion, prototype testing and the "
     "design review. A pack without it does not cover isolation.",
+    "dampers": "Structures with supplemental damping systems (alpha 9 P6): the method of the "
+    "damped equivalent lateral force, the damping coefficients, the inherent damping limit, "
+    "the residual mode, the least share of the fixed-base base shear, the structure's effective "
+    "ductility and hysteretic damping, the earthquake level of the devices' design and the "
+    "requirements of the damping system. A pack without it models the dampers but does not "
+    "reduce the earthquake forces for them.",
     "nonlinearHistory": "Nonlinear time history analysis: the procedure (the target, how the "
     "records' results combine, scaling to the static base shear, P-delta, design review), the "
     "drift limits and the member acceptance criteria.",

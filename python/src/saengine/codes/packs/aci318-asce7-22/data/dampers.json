@@ -1,0 +1,60 @@
+{
+  "$schema": "../../../schemas/dampers.schema.json",
+  "$sources": [
+    "ASCE 7-22 Chapter 18 (Seismic Design Requirements for Structures with Damping Systems): Sec 18.2 general requirements, Sec 18.6 damping system testing, Sec 18.7 alternate procedures (equivalent lateral force and response spectrum) and damping coefficients, Sec 18.5 design review"
+  ],
+  "source": "ASCE 7-22 Chapter 18 (Structures with Damping Systems)",
+  "sources": {
+    "general": "ASCE 7-22 Sec 18.2: the seismic force-resisting system and the damping system; the damping devices designed for the MCER response",
+    "baseShear": "ASCE 7-22 Sec 18.7.1.2 (equivalent lateral force): V = sqrt(V1^2 + VR^2), not less than Vmin = V/B(V+I) or 0.75 V",
+    "modal": "ASCE 7-22 Sec 18.7.1.2: W1 = (sum w phi)^2 / sum w phi^2, Gamma1, phi = h/hr permitted; residual mode TR = 0.4 T1",
+    "coefficients": "ASCE 7-22 Sec 18.7.1.2: Cs1 = (R/Cd) SDS / (Omega0 B1D) (T1D < TS), (R/Cd) SD1 / (T1D Omega0 B1D) (T1D >= TS); CsR = (R/Cd) SDS / (Omega0 BR)",
+    "displacement": "ASCE 7-22 Sec 18.7.3: D1D = (g / 4 pi^2) Gamma1 SDS T1D^2 / B1D or SD1 T1D / B1D",
+    "effectiveDamping": "ASCE 7-22 Sec 18.7.4.2-18.7.4.5: beta1D = betaI + betaV1 sqrt(muD) + betaHD; betaHD = qH (0.64 - betaI)(1 - 1/muD), qH = 0.67 TS/T1 within 0.5-1.0; betaV = sum Wj / (4 pi W); muD = D1D/DY at most muMax",
+    "dampingCoefficient": "ASCE 7-22 Table 18.7-1: B by the effective damping, linear in between",
+    "devices": "ASCE 7-22 Sec 18.2.2 and 18.7.4: the damping devices and their connections for the MCER displacements, velocities and forces",
+    "requirements": "ASCE 7-22 Sec 18.2.4 (redundancy, inspection, testing), 18.6 (prototype and production tests)",
+    "review": "ASCE 7-22 Sec 18.5: design review of the damping system"
+  },
+  "method": "modalStrength",
+  "dampingCoefficients": [
+    { "damping": 2.0, "B": 0.8 },
+    { "damping": 5.0, "B": 1.0 },
+    { "damping": 10.0, "B": 1.2 },
+    { "damping": 20.0, "B": 1.5 },
+    { "damping": 30.0, "B": 1.8 },
+    { "damping": 40.0, "B": 2.1 },
+    { "damping": 50.0, "B": 2.4 },
+    { "damping": 60.0, "B": 2.7 },
+    { "damping": 70.0, "B": 3.0 },
+    { "damping": 80.0, "B": 3.3 },
+    { "damping": 90.0, "B": 3.6 }
+  ],
+  "inherentMax": 3.0,
+  "residualPeriodShare": 0.4,
+  "minimumShare": 0.75,
+  "ductility": {
+    "hystereticBase": 0.64,
+    "qhFactor": 0.67,
+    "qhMin": 0.5,
+    "qhMax": 1.0,
+    "maximum": "strengthRatio",
+    "note": "muMax = R / (Omega0 Ie), the long-period limit; the short-period limit of Sec 18.7.4.4 is not applied (SAEngine practice, conservative for T1D below TS only where it limits muD less)."
+  },
+  "mceFactor": 1.5,
+  "dampedFromShare": 0.8,
+  "requirements": [
+    { "id": "18.2.2.1", "text": "The seismic force-resisting system meets Chapter 12 for at least the minimum base shear Vmin", "check": "computed" },
+    { "id": "18.2.4.1", "text": "At least two damping devices at each storey in each principal direction, placed to resist torsion", "check": "manual" },
+    { "id": "18.2.4.2", "text": "Damping devices and their connections designed for the MCER displacements, velocities and forces", "check": "computed" },
+    { "id": "18.2.4.3", "text": "Inspection and periodic testing of the devices", "check": "manual" },
+    { "id": "18.6", "text": "Prototype tests and production tests of the damping devices", "check": "tests" }
+  ],
+  "review": [
+    "Preliminary design: the damping devices and the design criteria",
+    "Prototype testing of the damping devices",
+    "Final design of the structure with the damping system and the supporting analyses",
+    "The damping device production testing and inspection programme"
+  ],
+  "note": "Effective damping by the fundamental mode phi = h/hr (permitted for the equivalent lateral force procedure). The devices' design at 1.5 times the design-earthquake response stands for the MCER response (SAEngine practice for the ELF procedure; a nonlinear response history at the MCER gives them directly)."
+}

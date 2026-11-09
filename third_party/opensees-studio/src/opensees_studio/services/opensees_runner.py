@@ -88,6 +88,7 @@ from opensees_studio.core import (
     UniformExcitationPattern,
     VelDependentFriction,
     VelNormalFrcDepFriction,
+    ViscousDamper,
     ZeroLengthElement,
     ZeroLengthSectionElement,
 )
@@ -497,6 +498,9 @@ class OpenSeesRunner:
                 for strain, stress in mat.points:
                     ml_args.extend([strain, stress])
                 ops.uniaxialMaterial("MultiLinear", mat.id, *ml_args)
+            case ViscousDamper():
+                # uniaxialMaterial ViscousDamper $tag $K $Cd $alpha
+                ops.uniaxialMaterial("ViscousDamper", mat.id, mat.K, mat.Cd, mat.alpha)
             case ElasticIsotropic():
                 ops.nDMaterial("ElasticIsotropic", mat.id, mat.E, mat.nu, mat.rho)
             case _:

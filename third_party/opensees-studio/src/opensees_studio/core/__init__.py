@@ -154,6 +154,7 @@ from opensees_studio.core.materials import (
     MultiLinear,
     Steel01,
     Steel02,
+    ViscousDamper,
 )
 from opensees_studio.core.project import Project, ProjectMeta
 from opensees_studio.core.response_spectrum import (
@@ -310,6 +311,7 @@ __all__ = [  # noqa: RUF022 - grouped by domain under section comments, not alph
     "HystereticMaterial",
     "HystereticSM",
     "MultiLinear",
+    "ViscousDamper",
     # Sections
     "Section",
     "ElasticSection",

@@ -1102,6 +1102,16 @@ def _nonlinear_history_blocks(nh: dict[str, Any]) -> list[Block]:
                 bad=nh.get("forceFails"),
             )
         )
+    if nh.get("devices"):  # alpha 9 P6: the isolators and dampers over the records
+        out.append(
+            table(
+                ["Suite", "Device", "Name", "Governing record", "Displacement [mm]", "Force [kN]",
+                 "Velocity [m/s]", "Energy [kJ]"],
+                nh["devices"],
+                ["auto", "auto", "1fr", "1fr"] + ["auto"] * 4,
+                "llllrrrr",
+            )
+        )  # fmt: skip
     if nh.get("notes"):
         out.append(bullets([str(n) for n in nh["notes"]], 8.5))
     return out
@@ -1289,15 +1299,18 @@ def _isolation_blocks(iso: dict[str, Any] | None) -> list[Block]:
         table(["Quantity", "Value", "Clause"], iso["summary"], ["auto", "auto", "1fr"], "lrl")
     )
     out.append(p(f"Forces above (Vs) and below (Vb) the isolators [kN] ({iso['forcesClause']})."))
+    heads = iso.get("forcesHeaders") or [
+        "Dir.", "R", "RI", "Vb", "Vb/RI", "Fixed base at TD", "Wind", "1.5 × activation", "Vs",
+        "Governs",
+    ]  # fmt: skip
     out.append(
         table(
-            ["Dir.", "R", "RI", "Vb", "Vb/RI", "Fixed base at TD", "Wind", "1.5 × activation",
-             "Vs", "Governs"],
+            heads,
             iso["forces"],
-            ["auto"] * 9 + ["1fr"],
-            "lrrrrrrrrl",
+            ["auto"] * (len(heads) - 1) + ["1fr"],
+            "l" + "r" * (len(heads) - 2) + "l",
         )
-    )  # fmt: skip
+    )
     out.append(p(iso["drift"]))
     out.append(
         table(
@@ -1318,7 +1331,8 @@ def _isolation_blocks(iso: dict[str, Any] | None) -> list[Block]:
     out.append(table(["", "Condition", "Result"], iso["static"], ["auto", "1fr", "auto"], "llc"))
     out.append(
         table(
-            ["Column", "Isolator", "kDmax [kN/m]", "DTD [mm]", "DTM [mm]", "Capacity [mm]"],
+            iso.get("unitsHeaders")
+            or ["Column", "Isolator", "kDmax [kN/m]", "DTD [mm]", "DTM [mm]", "Capacity [mm]"],
             iso["units"],
             ["1fr"] + ["auto"] * 5,
             "llrrrr",
@@ -1346,6 +1360,52 @@ def _isolation_blocks(iso: dict[str, Any] | None) -> list[Block]:
     out.append(bullets(iso["review"], 8.5))
     if iso.get("notes"):
         out.append(bullets(iso["notes"], 8.5))
+    return out
+
+
+def _damper_blocks(dm: dict[str, Any] | None) -> list[Block]:
+    """Alpha 9 P6: the supplemental dampers: the damped base shear and the devices."""
+    if not dm:
+        return []
+    out: list[Block] = [h(2, "Supplemental dampers")]
+    if not dm.get("available"):
+        out.append(p(f"Not designed: {dm.get('reason', '')}"))
+        return out
+    out.append(p(f"Effective damping and the damped base shear ({dm['axesClause']})."))
+    out.append(
+        table(
+            ["Dir.", "T1 [s]", "T1D [s]", "μD", "βI [%]", "βV [%]", "βH [%]", "B1D",
+             "D1D [mm]", "V fixed [kN]", "V [kN]", "Vmin [kN]", "V design [kN]"],
+            dm["axes"],
+            ["auto"] * 13,
+            "l" + "r" * 12,
+        )
+    )  # fmt: skip
+    out.append(
+        p(
+            f"The devices at {dm.get('mceFactor', 1.0):g} × the design displacement "
+            f"({dm['devicesClause']})."
+        )
+    )
+    out.append(
+        table(
+            ["Brace", "Damper", "Dir.", "Stroke [mm]", "Stroke MCE [mm]", "Velocity [m/s]",
+             "Force [kN]", "Energy [kJ]", "Stroke", "Force"],
+            dm["devices"],
+            ["1fr"] + ["auto"] * 9,
+            "lllrrrrrcc",
+            bad=dm.get("deviceFails"),
+        )
+    )  # fmt: skip
+    if dm.get("requirements"):
+        out.append(p(f"Requirements of the damping system ({dm['requirementsClause']})."))
+        out.append(
+            table(["", "Requirement", "How"], dm["requirements"], ["auto", "1fr", "auto"], "lll")
+        )
+    if dm.get("review"):
+        out.append(bullets(dm["review"], 8.5))
+    if dm.get("notes"):
+        out.append(bullets(dm["notes"], 8.5))
     return out
 
 
@@ -1484,6 +1544,7 @@ def _results(data: dict[str, Any], ctx: Context) -> dict[str, Any]:
     out += _nonstructural_blocks(results.get("nonstructural") or {})
     out += _precast_blocks(results.get("precast"))  # Alpha 9 L1
     out += _isolation_blocks(results.get("isolation"))  # B37
+    out += _damper_blocks(results.get("dampers"))  # alpha 9 P6
     out += _shape_ratio_blocks(results.get("shapeRatios"))  # Alpha 9 C19
     out += _pushover_blocks(results.get("pushover") or [])
     out += _nonlinear_history_blocks(results.get("nonlinearHistory") or {})

@@ -1042,6 +1042,15 @@ class SlabShrinkage(_Model):
     creep: float = Field(ge=0, description="Creep coefficient φ [-].")
 
 
+class SlabTransverseBars(_Model):
+    """The slab bars across a composite beam that carry the slab's longitudinal shear (alpha 9
+    P8, the pack's ``composite.beam.longitudinalShear``)."""
+
+    top: float = Field(default=0, ge=0, description="Top bars across the beam [mm²/m].")
+    bottom: float = Field(default=0, ge=0, description="Bottom bars across the beam [mm²/m].")
+    fy: float = Field(default=500, gt=0, description="Their yield strength [MPa].")
+
+
 class CompositeBeam(_Model):
     """A steel beam acting with the concrete slab through shear connectors."""
 
@@ -1090,6 +1099,12 @@ class CompositeBeam(_Model):
     embeddedEnds: bool = Field(
         default=False,
         description="The beam ends are embedded in reinforced concrete columns or walls.",
+    )
+    transverseBars: SlabTransverseBars | None = Field(
+        default=None,
+        title="Transverse bars",
+        description="The slab bars across the beam for the longitudinal shear (where the code "
+        "pack checks it); none: the bars needed are reported.",
     )
 
 
@@ -1485,15 +1500,83 @@ class MasonryAnchorBolts(_Model):
 # ─────────────────────────── seismic isolators (B37, saengine.fem.isolation) ───────────────────────────
 
 
+class IsolatorPropertyModification(_Model):
+    """Alpha 9 P6: property modification factors λ of an isolator type (the ageing and
+    environment, the prototype test and the specification tolerance factors on Qd and Kd).
+    The code pack combines them into the lower- and upper-bound factors (its
+    ``isolation.propertyModification``); they replace the two bound factors of the isolator.
+    Enter the manufacturer's values."""
+
+    aeMax: float = Field(
+        default=1.0, ge=1, title="λae,max", description="Ageing and environment, upper bound."
+    )
+    aeMin: float = Field(
+        default=1.0,
+        gt=0,
+        le=1,
+        title="λae,min",
+        description="Ageing and environment, lower bound.",
+    )
+    testMax: float = Field(
+        default=1.0,
+        ge=1,
+        title="λtest,max",
+        description="Prototype tests (heating, rate of loading, scragging), upper bound.",
+    )
+    testMin: float = Field(
+        default=1.0, gt=0, le=1, title="λtest,min", description="Prototype tests, lower bound."
+    )
+    specMax: float = Field(
+        default=1.0,
+        ge=1,
+        title="λspec,max",
+        description="Permissible variation of the production units from the nominal values, "
+        "upper bound.",
+    )
+    specMin: float = Field(
+        default=1.0,
+        gt=0,
+        le=1,
+        title="λspec,min",
+        description="Permissible variation of the production units, lower bound.",
+    )
+
+
+#: Isolator kinds whose curve may come from a friction coefficient and a radius (sliding).
+SLIDING_ISOLATORS = ("slidingPendulum", "tripleFrictionPendulum", "flatSlider")
+
+
 class SeismicIsolator(_Model):
     """A seismic isolator under a column's base, by its bilinear force-displacement curve from
     the prototype tests: the effective stiffness (secant) and the effective damping (from the
     loop area) at any displacement follow from it. The values here are only a starting point:
     enter the tested values of the units used."""
 
-    kind: Literal["leadRubber", "elastomeric", "slidingPendulum", "other"] = Field(
+    kind: Literal[
+        "leadRubber",
+        "elastomeric",
+        "slidingPendulum",
+        "other",
+        "highDampingRubber",
+        "tripleFrictionPendulum",
+        "flatSlider",
+    ] = Field(
         default="leadRubber",
-        description="The isolator type (a label: the curve below is what the analysis uses).",
+        description="The isolator type: lead-rubber, (low-damping) elastomeric, single friction "
+        "pendulum, other, high-damping rubber, triple friction pendulum, flat slider. The curve "
+        "below is what the linear analysis uses; the nonlinear time history takes the type's "
+        "element (Bouc-Wen bearing, friction pendulum, flat slider).",
+        json_schema_extra={
+            "enumDescriptions": [
+                "Lead-rubber bearing (LRB)",
+                "Elastomeric bearing",
+                "Friction pendulum, single (FPS)",
+                "Other",
+                "High-damping rubber bearing (HDRB)",
+                "Friction pendulum, triple",
+                "Flat slider",
+            ]
+        },
     )
     characteristicStrength: float = Field(
         default=60,
@@ -1546,6 +1629,30 @@ class SeismicIsolator(_Model):
         gt=0,
         description="Vertical load of the prototype tests (average dead load plus half the "
         "live load on the units of this type) [kN]; none: the seismic weight per unit.",
+    )
+    # ── alpha 9 P6 ──
+    frictionCoefficient: float | None = Field(
+        default=None,
+        gt=0,
+        lt=1,
+        title="Friction coefficient μ",
+        description="Sliding isolators: the friction coefficient of the sliding surface; with "
+        "it Qd = μ·P and Kd = P / R under the unit's vertical load P (the test vertical load, "
+        "else the seismic weight per unit). None: Qd and Kd as entered.",
+    )
+    radius: float | None = Field(
+        default=None,
+        gt=0,
+        title="Effective radius R",
+        description="Friction pendulums: the effective radius of curvature of the sliding "
+        "surface [mm] (a triple pendulum: its equivalent single radius); none on a flat slider.",
+    )
+    propertyModification: IsolatorPropertyModification | None = Field(
+        default=None,
+        title="Property modification factors λ",
+        description="The λ factors of the type; the code pack combines them into the lower- and "
+        "upper-bound factors, which then replace the two bound factors above. None: the bound "
+        "factors as entered.",
     )
 
 
@@ -2149,6 +2256,101 @@ class SteelPlateWall(_Model):
     )
 
 
+# ─────────────── alpha 9 P6: supplemental dampers in braces (saengine.fem.dampers) ───────────────
+
+
+class SupplementalDamper(_Model):
+    """A damping device in each brace of this type (a damper brace): the brace carries the
+    device between its two ends. Velocity-dependent (viscous F = C·v^α, viscoelastic) or
+    displacement-dependent (metallic yielding, such as a buckling-restrained brace used as a
+    damper, and friction). Enter the manufacturer's values."""
+
+    kind: Literal["viscous", "viscoelastic", "metallic", "friction"] = Field(
+        default="viscous",
+        json_schema_extra={
+            "enumDescriptions": [
+                "Fluid viscous damper (F = C·v^α)",
+                "Viscoelastic damper",
+                "Metallic yielding damper",
+                "Friction damper",
+            ]
+        },
+    )
+    coefficient: float | None = Field(
+        default=None,
+        gt=0,
+        title="Damping coefficient C",
+        description="Viscous dampers: C of F = C·v^α [kN·(s/m)^α].",
+    )
+    exponent: float = Field(
+        default=1.0,
+        gt=0,
+        le=2,
+        title="Velocity exponent α",
+        description="Viscous dampers: α of F = C·v^α (1: linear).",
+    )
+    storageStiffness: float | None = Field(
+        default=None,
+        gt=0,
+        title="Storage stiffness K′",
+        description="Viscoelastic dampers: the in-phase stiffness at the building's "
+        "fundamental frequency [kN/m].",
+    )
+    lossStiffness: float | None = Field(
+        default=None,
+        gt=0,
+        title="Loss stiffness K″",
+        description="Viscoelastic dampers: the out-of-phase stiffness at that frequency [kN/m] "
+        "(C = K″/ω).",
+    )
+    yieldForce: float | None = Field(
+        default=None,
+        gt=0,
+        title="Yield or slip force",
+        description="Metallic dampers: the yield force; friction dampers: the slip force [kN].",
+    )
+    initialStiffness: float | None = Field(
+        default=None,
+        gt=0,
+        title="Initial stiffness",
+        description="Metallic and friction dampers: the elastic (stick) stiffness of the device "
+        "with its brace [kN/m]; none: the brace's axial stiffness EA/L.",
+    )
+    postYieldRatio: float = Field(
+        default=0.02,
+        ge=0,
+        lt=1,
+        title="Post-yield stiffness ratio",
+        description="Metallic dampers: the stiffness after yield over the initial stiffness.",
+    )
+    strokeCapacity: float | None = Field(
+        default=None,
+        gt=0,
+        title="Stroke capacity",
+        description="The largest deformation the device takes [mm]; none: not checked.",
+    )
+    forceCapacity: float | None = Field(
+        default=None,
+        gt=0,
+        title="Force capacity",
+        description="The largest force the device and its connections take [kN]; none: not "
+        "checked.",
+    )
+
+    @model_validator(mode="after")
+    def _values_of_the_kind(self) -> SupplementalDamper:
+        needs = {
+            "viscous": ("coefficient",),
+            "viscoelastic": ("storageStiffness", "lossStiffness"),
+            "metallic": ("yieldForce",),
+            "friction": ("yieldForce",),
+        }[self.kind]
+        missing = [name for name in needs if getattr(self, name) is None]
+        if missing:
+            raise ValueError(f"a {self.kind} damper needs {', '.join(missing)}")
+        return self
+
+
 class Brace(_ObjectBase):
     """Bracing and truss members."""
 
@@ -2171,6 +2373,13 @@ class Brace(_ObjectBase):
         title="Buckling-restrained",
         description="Steel braces of buckling-restrained braced frames: the core and the test "
         "results; none: a conventional brace.",
+    )
+    damper: SupplementalDamper | None = Field(  # alpha 9 P6
+        default=None,
+        title="Damper",
+        description="A damping device in each brace of this type (viscous, viscoelastic, "
+        "metallic or friction): the analysis models it, works out the added damping and the "
+        "damped design forces by the code pack (08 FEM); none: a plain brace.",
     )
     timber: TimberMember | None = Field(
         default=None,
@@ -2196,6 +2405,103 @@ class Brace(_ObjectBase):
         default=None,
         title="Design overwrites",
         description="k, unbraced lengths and framing for the design (empty: automatic).",
+    )
+
+
+class CompositeSlabDeck(_Model):
+    """Alpha 9 P8: the profiled steel deck of a composite slab spanning one way along its ribs
+    (:mod:`saengine.design.composite_slab`, the code pack's ``compositeSlab``). The geometry is
+    the product's (or a generic profile's); the deck's section values are computed from it
+    unless the manufacturer's are given. The longitudinal shear needs the deck's test values
+    (m and k, or τu,Rk)."""
+
+    profile: str | None = Field(
+        default=None,
+        description="A generic profile of saengine.design.composite_slab.DECK_PROFILES (its "
+        "geometry replaces the one below); none: the geometry below.",
+    )
+    direction: Literal["x", "y"] = Field(
+        default="x", description="The ribs (and the slab's span) along the slab's local x or y."
+    )
+    span: float | None = Field(
+        default=None,
+        gt=0,
+        description="Span of the deck between its supports [mm]; none: the slab's extent along "
+        "the ribs.",
+    )
+    spans: int = Field(
+        default=1,
+        ge=1,
+        description="Spans the deck sheet is continuous over while the concrete is wet (the "
+        "composite slab is designed as simply supported).",
+    )
+    propped: bool = Field(
+        default=False, description="Props carry the wet concrete (else the deck)."
+    )
+    ribHeight: float = Field(default=60, gt=0, description="Height of the deck hp [mm].")
+    pitch: float = Field(default=300, gt=0, description="Centres of the ribs [mm].")
+    ribTopWidth: float = Field(
+        default=180, gt=0, description="Width of a concrete rib at the top of the deck [mm]."
+    )
+    ribBottomWidth: float = Field(
+        default=120, gt=0, description="Width of a concrete rib at its bottom [mm]."
+    )
+    thickness: float = Field(
+        default=0.9, gt=0, lt=5, description="Design (core) thickness of the sheet [mm]."
+    )
+    fyp: float = Field(default=350, gt=0, description="Yield strength of the deck [MPa].")
+    E: float = Field(default=210000, gt=0, description="Modulus of the deck [MPa].")
+    m: float | None = Field(
+        default=None, gt=0, description="m of the shear bond from the deck's tests [N/mm²]."
+    )
+    k: float | None = Field(
+        default=None, ge=0, description="k of the shear bond from the deck's tests [N/mm²]."
+    )
+    tauU: float | None = Field(
+        default=None,
+        gt=0,
+        title="τu,Rk",
+        description="Longitudinal shear strength of the partial connection method from the "
+        "deck's tests [N/mm²].",
+    )
+    momentResistance: float | None = Field(
+        default=None,
+        gt=0,
+        description="The deck's design sagging resistance per metre width (its effective "
+        "section) from the manufacturer [kN·m/m]; none: the gross section's (reported).",
+    )
+    hoggingResistance: float | None = Field(
+        default=None,
+        gt=0,
+        description="The deck's design resistance over an inner support [kN·m/m] (continuous "
+        "sheets); none: the sagging one.",
+    )
+    inertia: float | None = Field(
+        default=None,
+        gt=0,
+        description="The deck's effective second moment of area per metre [mm⁴/m]; none: the "
+        "gross section's.",
+    )
+    area: float | None = Field(
+        default=None, gt=0, description="Ap per metre [mm²/m]; none: from the geometry."
+    )
+    centroid: float | None = Field(
+        default=None,
+        gt=0,
+        description="e, the deck's centroid above its bottom [mm]; none: from the geometry.",
+    )
+    plasticMoment: float | None = Field(
+        default=None,
+        gt=0,
+        description="Mpa, the deck's plastic moment per metre at its design strength "
+        "[kN·m/m]; none: from the geometry.",
+    )
+    weight: float | None = Field(
+        default=None, ge=0, description="Self weight of the deck [kN/m²]; none: from the steel."
+    )
+    beamFlange: bool = Field(
+        default=False,
+        description="The slab is the flange of composite beams (its least depths are larger).",
     )
 
 
@@ -2237,6 +2543,12 @@ class Slab(_ObjectBase):
         title="Stiffness modifiers",
         description="Factors on the analysis shell stiffness, mass and weight (empty: the "
         "code's cracked factors for concrete and masonry, else 1).",
+    )
+    compositeDeck: CompositeSlabDeck | None = Field(
+        default=None,
+        title="Composite deck",
+        description="A composite slab on profiled steel deck (thickness: the overall depth, "
+        "over the ribs); empty: a concrete slab.",
     )
 
 

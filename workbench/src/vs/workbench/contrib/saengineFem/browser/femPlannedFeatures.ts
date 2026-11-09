@@ -23,8 +23,6 @@ export const FemPlanned = {
 	existingMasonry: 'fem.existingMasonry',
 	/** T35 / B36 / P5: what stays planned of the time histories: searching open record databases and time-domain wavelet matching (scaling, frequency-domain matching and the NLTH design are built). */
 	recordSearch: 'fem.recordSearch',
-	/** T36: dampers (seismic isolators are built: B37). */
-	dampers: 'fem.dampers',
 	/** T14: cracked long-term FE deflection of slabs, and crack widths. */
 	crackedSlabDeflection: 'fem.crackedSlabDeflection',
 	crackWidths: 'fem.crackWidths',
@@ -38,6 +36,8 @@ export const FemPlanned = {
 	endPlateMoment: 'fem.endPlateMoment',
 	/** T30: cold-formed purlins and girts (AISI S100). */
 	coldFormedSteel: 'fem.coldFormedSteel',
+	/** T44 / P8: what stays planned of composite members: their fire resistance (beams, columns and slabs on deck are built). */
+	compositeFire: 'fem.compositeFire',
 } as const;
 
 /** The planned steel connection features, shown with the steel members' checks. */
@@ -45,6 +45,9 @@ export const STEEL_CONNECTIONS_PLANNED: readonly string[] = [FemPlanned.basePlat
 
 /** The planned steel shed features (cold-formed purlins and girts), shown with the steel members' checks. */
 export const STEEL_SHEDS_PLANNED: readonly string[] = [FemPlanned.coldFormedSteel];
+
+/** The planned composite member features (fire resistance), shown with the steel members' checks. */
+export const STEEL_COMPOSITE_PLANNED: readonly string[] = [FemPlanned.compositeFire];
 
 /**
  * A row of "Planned" chips, under a Properties panel heading when `heading` is given. The

@@ -24,6 +24,7 @@
     "steelStability",
     "steelSeismic",
     "composite",
+    "compositeSlab",
     "timber",
     "masonry",
     "aluminium",
@@ -37,6 +38,7 @@
     "barSchedule",
     "excavationSupport",
     "concreteTime",
+    "isolation",
     "existing",
     "precast",
     "floorSpectra"
@@ -171,6 +173,9 @@
     "precast": [
       "EN 1992-1-1 Section 10 (10.9.5 bearings), fib Bulletin 43 dowel action; the handling and erection values are SAEngine practice"
     ],
+    "isolation": [
+      "EN 1998-1 Section 10 (base isolation: design seismic action, gamma_x on the device displacements, q at most 1.5, simplified linear and modal analysis) with EN 15129 (anti-seismic devices)"
+    ],
     "existing": [
       "EN 1998-3:2005 Sec 2-4 and Annex A (knowledge levels, limit states DL/SD/NC, chord rotation and shear capacities, jackets and FRP)"
     ],
@@ -228,6 +233,9 @@
     "composite": [
       "EN 1994-1-1 Sections 2-6"
     ],
+    "compositeSlab": [
+      "EN 1994-1-1 Section 9"
+    ],
     "timber": [
       "EN 1995-1-1 Sections 2, 3, 6; EN 338; EN 14080"
     ],
@@ -269,11 +277,13 @@
   "licence": "AGPL-3.0-only",
   "hooks": null,
   "tableCodes": {
+    "isolation": "EN 1998-1",
     "steelLimitState": "EN 1993-1-1",
     "steel": "EN 1993-1-8",
     "steelStability": "EN 1993-1-1",
     "steelSeismic": "EN 1998-1",
     "composite": "EN 1994-1-1",
+    "compositeSlab": "EN 1994-1-1",
     "timber": "EN 1995-1-1",
     "masonry": "EN 1996-1-1",
     "aluminium": "EN 1999-1-1",

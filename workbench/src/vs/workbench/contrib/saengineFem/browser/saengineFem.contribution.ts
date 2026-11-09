@@ -343,29 +343,8 @@ registerPlannedFeature({
 	],
 });
 
-// T36: dampers (seismic isolators: B37, saengine.fem.isolation, an option of the column types).
-registerPlannedFeature({
-	id: FemPlanned.dampers,
-	part: 'fem',
-	title: localize('planned.dampers.title', "Viscous Dampers"),
-	summary: localize('planned.dampers.summary', "Adds fluid viscous dampers in braces or between storeys, from the solver's bundled damper catalog, and sizes them for the added damping the building needs."),
-	steps: [
-		localize('planned.dampers.step1', "Place the dampers in the chosen bays."),
-		localize('planned.dampers.step2', "Size them for a target added damping."),
-		localize('planned.dampers.step3', "Check the drifts, and the damper forces and strokes, by time history."),
-	],
-	inputs: [
-		{ label: localize('planned.dampers.target', "Target added damping"), unit: '%' },
-		{ label: localize('planned.dampers.exponent', "Velocity exponent") },
-	],
-	outputs: [
-		localize('planned.dampers.out1', "A damper schedule: coefficient, force and stroke"),
-		localize('planned.dampers.out2', "Drifts with and without the dampers"),
-	],
-	references: [
-		localize('planned.dampers.ref1', "ASCE/SEI 7-16 Ch 18 (structures with damping systems)"),
-	],
-});
+// T36 / alpha 9 P6: seismic isolators (B37, an option of the column types) and supplemental
+// dampers (an option of the brace types) are built: saengine.fem.isolation, saengine.fem.dampers.
 
 // T14: cracked long-term FE deflection of slabs, and crack widths.
 registerPlannedFeature({
@@ -553,6 +532,32 @@ registerPlannedFeature({
 	references: [
 		localize('planned.coldFormed.ref1', "{0} Part 6 Chapter 10 (hot-rolled and built-up steel; no cold-formed provisions: the US, Eurocodes and IS packs design C and Z members)", defaultCodeName()),
 		localize('planned.coldFormed.ref2', "AISI S100 (North American specification for cold-formed steel structural members)"),
+	],
+});
+
+// T44 / P8: composite beams (studs, deck, partial connection, construction stage, camber,
+// longitudinal shear), encased and filled columns and composite slabs on steel deck are designed
+// by the code pack's composite and compositeSlab tables; their fire resistance stays planned.
+registerPlannedFeature({
+	id: FemPlanned.compositeFire,
+	part: 'fem',
+	title: localize('planned.compositeFire.title', "Fire Resistance of Composite Members"),
+	summary: localize('planned.compositeFire.summary', "Checks composite beams, encased and concrete-filled columns and composite slabs on steel deck in a standard fire: the temperatures of the steel, the bars and the concrete over the fire rating, and the reduced resistances. Today the composite members are designed at normal temperature; steel members alone are checked in fire where the code pack has a steel fire method."),
+	steps: [
+		localize('planned.compositeFire.step1', "Give the fire rating and the protection of each composite member type."),
+		localize('planned.compositeFire.step2', "Find the temperatures of the section's parts from the code pack's tables or a heat transfer."),
+		localize('planned.compositeFire.step3', "Check the members under the fire combination with the reduced strengths."),
+	],
+	inputs: [
+		{ label: localize('planned.compositeFire.rating', "Fire rating"), unit: 'min', example: '90' },
+		{ label: localize('planned.compositeFire.protection', "Protection"), example: localize('planned.compositeFire.protectionExample', "None (filled column)") },
+	],
+	outputs: [
+		localize('planned.compositeFire.out1', "Utilisation of each composite member in fire"),
+	],
+	references: [
+		localize('planned.compositeFire.ref1', "EN 1994-1-2 (structural fire design of composite members)"),
+		localize('planned.compositeFire.ref2', "AISC 360 Appendix 4 (structural design for fire conditions)"),
 	],
 });
 

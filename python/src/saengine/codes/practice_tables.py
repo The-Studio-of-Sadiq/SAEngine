@@ -119,6 +119,13 @@ class FloorVibrationTable(TableModel):
     defaultOccupancy: str
     defaultFitOut: str = Field(description="The fit-out (damping key) of a floor that sets none.")
     clauses: dict[str, str] = Field(default_factory=dict)
+    compositeDynamicModulus: Positive | None = Field(
+        default=None,
+        description="Alpha 9 P8: a steel floor on composite beams vibrates on the composite "
+        "section with the concrete's modulus × this (full interaction): the panel's deflection "
+        "(the analysis carries the steel beams alone) × Is / It,dyn of its composite beams. "
+        "None: the analysis deflection as it is.",
+    )
 
     @model_validator(mode="after")
     def _methods(self) -> FloorVibrationTable:

@@ -634,6 +634,9 @@ class Derivation:
     #: B37: the isolation design (``08 FEM/isolation.json``, :mod:`saengine.fem.isolation`),
     #: when a column type has a seismic isolator.
     isolation: dict[str, Any] | None = None
+    #: Alpha 9 P6: the damper design (``08 FEM/dampers.json``, :mod:`saengine.fem.dampers`),
+    #: when a brace type has a damper.
+    dampers: dict[str, Any] | None = None
 
 
 class _Builder:
@@ -3301,6 +3304,12 @@ def _derive_fem(
             "supports": sum(1 for r in b.restraints.values() if all(r)),
         }
     )
+    # ── alpha 9 P6: the damper braces' own sections with the devices' static stiffness
+    # (saengine.fem.dampers), before the pushover and nonlinear time history copies ──
+    from saengine.fem import dampers as fem_dampers
+
+    damper_braces, more = fem_dampers.prepare_linear(project, building, types)
+    b.notes.extend(more)
     pushover = None
     if options.pushover is not None:
         from saengine.fem.nonlinear import WallSpec, pushover_model
@@ -3378,6 +3387,11 @@ def _derive_fem(
             amplitudes,
         )
         b.notes.extend(more)
+        # P6: the dampers as links between their brace ends.
+        if history_project is not None and damper_braces:
+            b.notes.extend(
+                fem_dampers.nonlinear_links(history_project, damper_braces, approximate or 0.0)
+            )
         # P5: the spectrally matched records in place of the linear model's (the same ids,
         # step and length: the series and the runs are unchanged).
         if history_project is not None and nl_matched:
@@ -3586,6 +3600,32 @@ def _derive_fem(
                 }
                 summary["nodes"] = len(project["nodes"])
                 summary["elements"] = len(project["elements"])
+                # P6: the isolators as bearing elements in the nonlinear time history model.
+                if history_project is not None:
+                    from saengine.fem.isolation import isolated_types, nonlinear_bearings
+
+                    b.notes.extend(
+                        nonlinear_bearings(history_project, iso.summary, isolated_types(types))
+                    )
+    # ── alpha 9 P6: the damped design forces (saengine.fem.dampers), after the period and the
+    # isolation ──
+    dampers_json = None
+    if damper_braces and heights and values["Z"] and not special:
+        dampers_json, more = fem_dampers.apply_dampers(
+            project,
+            damper_braces,
+            summary,
+            settings,
+            values,
+            isolated=isolation_json is not None,
+        )
+        b.notes.extend(more)
+        if dampers_json.get("available"):
+            summary["dampers"] = {
+                a: {k: v for k, v in row.items() if k in ("beta", "B1D", "ratio", "Vdesign_kN")}
+                for a, row in dampers_json["byAxis"].items()
+                if row.get("available")
+            }
     # ── alpha 9 P2: the creep and shrinkage forces case CS (saengine.fem.staged), on the final
     # model; its fixed-end forces go beside the temperature case's (thermal.json, "more") ──
     td = getattr(options, "timeDependent", None)
@@ -3620,6 +3660,7 @@ def _derive_fem(
         ssi=ssi_json,
         faces=faces if faces and faces["elements"] else None,
         isolation=isolation_json,
+        dampers=dampers_json,
     )
 
 

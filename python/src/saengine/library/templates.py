@@ -120,6 +120,10 @@ TEMPLATES: dict[str, dict[str, Any]] = {
     "CompositeBeam": {"type": "compositeBeam", "concrete": "C20.7"},
     "CompositeColumn": {"type": "compositeColumn", "concrete": "C20.7"},
     "CompositeDeck": {},
+    # alpha 9 P8: composite slabs on deck (saengine.design.composite_slab) and the slab bars
+    # across a composite beam
+    "CompositeSlabDeck": {},
+    "SlabTransverseBars": {},
     # B38: buckling-restrained braces (β, ω from the qualifying tests) and steel plate walls
     "BucklingRestrainedBrace": {
         "type": "bucklingRestrained",

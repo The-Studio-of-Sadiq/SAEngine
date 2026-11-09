@@ -645,6 +645,8 @@ class SteelSet:
     grades: list[str] = field(default_factory=list)
     bolt_grades: list[str] = field(default_factory=list)
     electrodes: list[float] = field(default_factory=list)
+    # Alpha 9 P8: one note per composite member type (studs, deck, shoring, camber).
+    composite_notes: list[str] = field(default_factory=list)
 
 
 @dataclass
