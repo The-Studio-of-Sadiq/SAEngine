@@ -1,0 +1,231 @@
+{
+  "$defs": {
+    "AnnexBForm": {
+      "additionalProperties": false,
+      "description": "cf,0 = base C1 (1 - C2 ε + ε²) by cross-section.",
+      "properties": {
+        "base": {
+          "exclusiveMinimum": 0,
+          "title": "Base",
+          "type": "number"
+        },
+        "square": {
+          "description": "(C1, C2) of square towers.",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Square",
+          "type": "array"
+        },
+        "triangular": {
+          "description": "(C1, C2) of triangular towers.",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Triangular",
+          "type": "array"
+        }
+      },
+      "required": [
+        "base",
+        "square",
+        "triangular"
+      ],
+      "title": "AnnexBForm",
+      "type": "object"
+    },
+    "Quadratic": {
+      "additionalProperties": false,
+      "description": "a ε² + b ε + c.",
+      "properties": {
+        "a": {
+          "title": "A",
+          "type": "number"
+        },
+        "b": {
+          "title": "B",
+          "type": "number"
+        },
+        "c": {
+          "title": "C",
+          "type": "number"
+        }
+      },
+      "required": [
+        "a",
+        "b",
+        "c"
+      ],
+      "title": "Quadratic",
+      "type": "object"
+    },
+    "TowerLengths": {
+      "additionalProperties": false,
+      "description": "Effective length factors K of the tower's members.",
+      "properties": {
+        "legs": {
+          "exclusiveMinimum": 0,
+          "title": "Legs",
+          "type": "number"
+        },
+        "bracing": {
+          "exclusiveMinimum": 0,
+          "title": "Bracing",
+          "type": "number"
+        }
+      },
+      "required": [
+        "legs",
+        "bracing"
+      ],
+      "title": "TowerLengths",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Lattice towers: the face's force coefficient by its solidity ratio ε (``quadratic``: a ε²\n+ b ε + c by cross-section, × the round member factor; ``annexB``: base C1 (1 - C2 ε + ε²)),\nthe factor of a square tower's wind on the diagonal (base + k ε, at most the cap), the gust\nfactor on the velocity pressure, and the effective length factors.",
+  "properties": {
+    "source": {
+      "default": "",
+      "description": "Clause (and page) the table comes from.",
+      "title": "Source",
+      "type": "string"
+    },
+    "sources": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Clause references of single entries: {key: clause}.",
+      "title": "Sources",
+      "type": "object"
+    },
+    "clauses": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Short clause references the results cite, by key, without the code's name (e.g. 'Part 6 Sec 2.5.7.3'); read by saengine.codes.context.cite. A key the pack does not give is not cited.",
+      "title": "Clauses",
+      "type": "object"
+    },
+    "method": {
+      "enum": [
+        "quadratic",
+        "annexB"
+      ],
+      "title": "Method",
+      "type": "string"
+    },
+    "squareTower": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Quadratic"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "triangularTower": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Quadratic"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "roundTower": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Quadratic"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Round members: × (a ε² + b ε + c), at most 1."
+    },
+    "annexB": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/AnnexBForm"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "diagonalFactor": {
+      "description": "(k, cap): a square tower's wind on its diagonal × (base + k ε) <= cap.",
+      "maxItems": 2,
+      "minItems": 2,
+      "prefixItems": [
+        {
+          "type": "number"
+        },
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        }
+      ],
+      "title": "Diagonalfactor",
+      "type": "array"
+    },
+    "diagonalBase": {
+      "default": 1.0,
+      "description": "The base of the diagonal factor.",
+      "exclusiveMinimum": 0,
+      "title": "Diagonalbase",
+      "type": "number"
+    },
+    "gust": {
+      "description": "Gust effect factor on the velocity pressure.",
+      "exclusiveMinimum": 0,
+      "title": "Gust",
+      "type": "number"
+    },
+    "lengths": {
+      "$ref": "#/$defs/TowerLengths"
+    },
+    "antennaShielding": {
+      "default": 1.0,
+      "description": "On the antennas' effective projected areas.",
+      "exclusiveMinimum": 0,
+      "maximum": 1,
+      "title": "Antennashielding",
+      "type": "number"
+    }
+  },
+  "required": [
+    "method",
+    "diagonalFactor",
+    "gust",
+    "lengths"
+  ],
+  "title": "LatticeTowersTable",
+  "type": "object",
+  "$id": "saengine.codePack.latticeTowers/1"
+}

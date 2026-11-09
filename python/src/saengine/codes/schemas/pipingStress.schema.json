@@ -1,0 +1,188 @@
+{
+  "$defs": {
+    "PipeMaterial": {
+      "additionalProperties": false,
+      "description": "A pipe material: its basic allowable stress by temperature, modulus, expansion and\ndensity.",
+      "properties": {
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "allowable": {
+          "description": "(temperature °C, S MPa), linear between.",
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "minItems": 1,
+          "title": "Allowable",
+          "type": "array"
+        },
+        "modulus": {
+          "description": "E at installation [MPa].",
+          "exclusiveMinimum": 0,
+          "title": "Modulus",
+          "type": "number"
+        },
+        "expansion": {
+          "description": "Mean expansion coefficient [1/°C].",
+          "exclusiveMinimum": 0,
+          "title": "Expansion",
+          "type": "number"
+        },
+        "density": {
+          "default": 7850,
+          "description": "[kg/m³].",
+          "exclusiveMinimum": 0,
+          "title": "Density",
+          "type": "number"
+        }
+      },
+      "required": [
+        "label",
+        "allowable",
+        "modulus",
+        "expansion"
+      ],
+      "title": "PipeMaterial",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Piping flexibility and stress: sustained SL <= Sh, expansion SE <= SA = f (rangeShares[0]\nSc + rangeShares[1] Sh) (+ Sh - SL when ``liberal``), occasional SL + Socc <= k Sh, f =\ncoefficient N^exponent at most rangeFactorMax; the pressure design thickness t = P D / (2 (S\nE W + P Y)).",
+  "properties": {
+    "source": {
+      "default": "",
+      "description": "Clause (and page) the table comes from.",
+      "title": "Source",
+      "type": "string"
+    },
+    "sources": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Clause references of single entries: {key: clause}.",
+      "title": "Sources",
+      "type": "object"
+    },
+    "clauses": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Short clause references the results cite, by key, without the code's name (e.g. 'Part 6 Sec 2.5.7.3'); read by saengine.codes.context.cite. A key the pack does not give is not cited.",
+      "title": "Clauses",
+      "type": "object"
+    },
+    "method": {
+      "const": "allowableRange",
+      "default": "allowableRange",
+      "title": "Method",
+      "type": "string"
+    },
+    "materials": {
+      "additionalProperties": {
+        "$ref": "#/$defs/PipeMaterial"
+      },
+      "minProperties": 1,
+      "title": "Materials",
+      "type": "object"
+    },
+    "rangeCoefficient": {
+      "exclusiveMinimum": 0,
+      "title": "Rangecoefficient",
+      "type": "number"
+    },
+    "rangeExponent": {
+      "exclusiveMaximum": 0,
+      "title": "Rangeexponent",
+      "type": "number"
+    },
+    "rangeFactorMax": {
+      "exclusiveMinimum": 0,
+      "title": "Rangefactormax",
+      "type": "number"
+    },
+    "rangeShares": {
+      "maxItems": 2,
+      "minItems": 2,
+      "prefixItems": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        },
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        }
+      ],
+      "title": "Rangeshares",
+      "type": "array"
+    },
+    "liberal": {
+      "default": true,
+      "title": "Liberal",
+      "type": "boolean"
+    },
+    "sustainedIndex": {
+      "description": "Sustained SIF = this × i, at least 1.",
+      "exclusiveMinimum": 0,
+      "maximum": 1,
+      "title": "Sustainedindex",
+      "type": "number"
+    },
+    "occasionalFactor": {
+      "exclusiveMinimum": 0,
+      "title": "Occasionalfactor",
+      "type": "number"
+    },
+    "pressureY": {
+      "exclusiveMinimum": 0,
+      "title": "Pressurey",
+      "type": "number"
+    },
+    "elbowFlexibility": {
+      "description": "k = this / h.",
+      "exclusiveMinimum": 0,
+      "title": "Elbowflexibility",
+      "type": "number"
+    },
+    "elbowInPlane": {
+      "description": "ii = this / h^(2/3), at least 1.",
+      "exclusiveMinimum": 0,
+      "title": "Elbowinplane",
+      "type": "number"
+    },
+    "elbowOutPlane": {
+      "description": "io = this / h^(2/3), at least 1.",
+      "exclusiveMinimum": 0,
+      "title": "Elbowoutplane",
+      "type": "number"
+    }
+  },
+  "required": [
+    "materials",
+    "rangeCoefficient",
+    "rangeExponent",
+    "rangeFactorMax",
+    "rangeShares",
+    "sustainedIndex",
+    "occasionalFactor",
+    "pressureY",
+    "elbowFlexibility",
+    "elbowInPlane",
+    "elbowOutPlane"
+  ],
+  "title": "PipingStressTable",
+  "type": "object",
+  "$id": "saengine.codePack.pipingStress/1"
+}

@@ -11949,6 +11949,14 @@ class SnowTable(TableModel):
 # imperfection (and the steel groups of steelLimitState, in limit_state_tables).
 # Alpha 9 C9: steel by limit state design with partial factors and buckling curves.
 from saengine.codes.bar_schedule_tables import BarScheduleTable  # C14
+from saengine.codes.bridge_special_tables import (  # L9: bridges and special structures
+    BridgeDesignTable,
+    LatticeTowersTable,
+    MovingLoadsTable,
+    OffshoreTable,
+    PipingStressTable,
+    ShellStructuresTable,
+)
 from saengine.codes.capacity_tables import (  # C19
     AllowableStressTable,
     HorizontalCapacityTable,
@@ -12102,6 +12110,14 @@ TABLE_MODELS: dict[str, type[TableModel]] = {
     # Alpha 9 L4: nonlinear buckling (GMNIA) and cables; L6: finite element check of joints.
     "nonlinearStability": NonlinearStabilityTable,
     "connectionFe": ConnectionFeTable,
+    # Alpha 9 L9: bridges (traffic loads, girder checks, rating) and special structures
+    # (lattice towers, silos, chimneys, cooling towers, offshore structures, piping).
+    "movingLoads": MovingLoadsTable,
+    "bridgeDesign": BridgeDesignTable,
+    "latticeTowers": LatticeTowersTable,
+    "shellStructures": ShellStructuresTable,
+    "offshore": OffshoreTable,
+    "pipingStress": PipingStressTable,
 }
 
 

@@ -688,6 +688,12 @@ CommandsRegistry.registerCommand('saengine.fem.nonlinearStability', async (acces
 	return accessor.get(IFemSolverService).engine(python, 'fem/nonlinearStability', { outDir: resultsFolder(model).fsPath, projectPath: model.fsPath, run: !!run });
 });
 
+/** Alpha 9 L9: the bridges and special structures of Project Settings, kept beside the analysis model or computed anew (`run`). Internal. */
+CommandsRegistry.registerCommand('saengine.fem.specialStructures', async (accessor, model: URI, run?: boolean) => {
+	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
+	return accessor.get(IFemSolverService).engine(python, 'special/structures', { projectPath: model.fsPath, run: !!run });
+});
+
 /** Alpha 9 L6: the finite element (CBFEM) check of a steel member's end connection. Internal. */
 CommandsRegistry.registerCommand('saengine.fem.connectionFe', async (accessor, model: URI, member?: string) => {
 	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();

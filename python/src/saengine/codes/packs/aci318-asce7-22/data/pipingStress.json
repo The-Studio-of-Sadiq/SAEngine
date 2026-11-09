@@ -1,0 +1,44 @@
+{
+  "$schema": "../../../schemas/pipingStress.schema.json",
+  "$sources": [
+    "ASME B31.3 (Process Piping): para 302.3.5 (sustained and displacement stress range limits, f = 6.0 N^-0.2), 302.3.6 (occasional loads, 1.33 Sh), 304.1.2 (pressure design thickness, Y = 0.4), Table A-1 (basic allowable stresses), Appendix C (thermal expansion, moduli), Appendix D (flexibility and stress intensification factors of bends); see VERIFY.md"
+  ],
+  "source": "ASME B31.3 sustained, displacement stress range and occasional limits with the Appendix D factors of bends",
+  "method": "allowableRange",
+  "materials": {
+    "A106B": {
+      "label": "ASTM A106 Grade B seamless carbon steel",
+      "allowable": [[38, 137.9], [204, 137.9], [260, 130.3], [316, 119.3], [371, 113.8]],
+      "modulus": 203400,
+      "expansion": 1.17e-5,
+      "density": 7850
+    },
+    "A312TP304": {
+      "label": "ASTM A312 TP304 stainless steel",
+      "allowable": [[38, 137.9], [149, 137.9], [204, 128.2], [260, 120.7], [316, 114.5]],
+      "modulus": 195100,
+      "expansion": 1.71e-5,
+      "density": 8000
+    }
+  },
+  "rangeCoefficient": 6.0,
+  "rangeExponent": -0.2,
+  "rangeFactorMax": 1.0,
+  "rangeShares": [1.25, 0.25],
+  "liberal": true,
+  "sustainedIndex": 0.75,
+  "occasionalFactor": 1.33,
+  "pressureY": 0.4,
+  "elbowFlexibility": 1.65,
+  "elbowInPlane": 0.9,
+  "elbowOutPlane": 0.75,
+  "clauses": {
+    "code": "ASME B31.3",
+    "sustained": "para 302.3.5(c)",
+    "expansion": "para 302.3.5(d)",
+    "occasional": "para 302.3.6",
+    "pressure": "para 304.1.2",
+    "allowable": "Table A-1",
+    "sif": "Appendix D"
+  }
+}

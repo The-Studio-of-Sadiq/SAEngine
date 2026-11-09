@@ -41,6 +41,63 @@ here, newest first, with the date, the question, the decision, the reason and wh
 - **No unlicensed software.** ETABS, SAP2000 and STAAD are not used for cross-checks or cited.
   Open-source tools are used instead (2026-10-25).
 
+## 2026-11-09: bridges and special structures (alpha 9 track L9)
+
+Moving loads and influence lines, girder bridges (design, bearings, joints, load rating),
+lattice towers, silos, chimneys, cooling towers, offshore jackets and piping stress, entered in
+Project Settings → Bridges and Special Structures (`specialStructures`, left out of the file
+while empty) and computed by `python/src/saengine/special`. New tables `movingLoads`,
+`bridgeDesign`, `latticeTowers`, `shellStructures`, `offshore`, `pipingStress`; the default pack
+(BNBC 2020) has none of them, so its results do not change (the building's analysis only gains
+the wind of towers marked "on the roof").
+
+- **SAEngine practice (owner's brief), traffic loads without a pack table.** A pack without
+  `movingLoads` / `bridgeDesign` (BNBC 2020: buildings only; the RHD bridge loading is not
+  reliably known here) takes SAEngine's practice data on the HL-93 basis
+  (`special/data/movingLoads.json`, `bridgeDesign.json`: the HL-93 truck, tandem and lane load,
+  multiple presence, IM 33 %, Strength I 1.25 / 1.50 / 1.75 and the MBE rating factors), every
+  result naming it "SAEngine practice (HL-93 basis), not given by <pack>". This is the one
+  place a whole table falls back (the generic defaults never do); the girders' resistances stay
+  the pack's own concrete methods.
+- **SAEngine practice, influence lines.** A girder line is a continuous beam on knife-edge
+  supports with constant EI (the beam model of the post-tensioned slabs), unit loads at stations
+  at most 0.5 m apart; a grillage: girders of the tee section and transverse deck strips (the
+  station spacing wide, torsion b t³/6), unit loads at every girder node (OpenSees), wheels
+  shared by the lever rule between girders, all on the outer girder beyond it (no cantilever
+  overhang). Lanes side by side from either kerb, loads on their centre line; the code's lane
+  1, 2, ... loadings go to the lanes that give the most (every assignment up to six lanes).
+  Line girders share the traffic by Courbon's rigid cross-section; the dead loads are shared
+  equally among the girders in both models.
+- **SAEngine practice, girder checks.** Sagging flexure on the flange-wide rectangle (a note when
+  the neutral axis leaves the slab), hogging on the web with the top bars, shear on the web with
+  its stirrups without the prestress (on the safe side); prestressed girders: stresses at the
+  section of the largest sagging moment with the losses as entered (no time-step), strength
+  with fps of bonded strands from the pack's prestress rules (γp 0.28 where the pack has none).
+  A pack's `bridgeDesign` without prestress limits takes its building prestress limits (said).
+  Load rating only where the pack gives rating factors (the US pack; practice for BNBC):
+  RF = (φc φs φRn - γDC DC - γDW DW) / (γL (LL + IM)), φc φs at least the pack's least.
+- **SAEngine practice, towers.** Wind panel by panel at the corner nodes (no member wind
+  between), feed lines and ladders Ca 1.2, antennas by their EPA; the EN pack's Kθ at 45° is a
+  constant 1.11 (K1 0.55, K2 0.2) and its round members take the flat-member coefficient (on the
+  safe side). Members by the pack's steel method with |N| / NRd + |M| / MRd. A pack without
+  `latticeTowers` takes the trussed tower coefficients of its wind table (BNBC 2020 Figure
+  6.2.23). A rooftop tower adds its wind (normal to a face) to the roof level's storey force;
+  its weight is entered as joint loads and its base moment is not applied.
+- **SAEngine practice, shells.** Silo walls by Janssen's membrane forces (no FE): the wall's own
+  weight × 1.35 with the friction. Chimneys: vm = √(2 qz / ρ) at the top (on the safe side for
+  the vortex trigger), b the mean diameter of the top third, clat,0 log-linear in Re between
+  the pack's points. Cooling towers: a ShellMITC4 model fixed at its base ring with the cp of
+  EN 1991-1-4 Table 7.12 joined by cos² curves (SAEngine practice), internal suction -0.5.
+- **SAEngine practice, offshore.** The stream function wave (12 Fourier terms) is used for
+  "Stokes 5th"-type nonlinear waves; Airy with Wheeler stretching. Members fixed at the mudline
+  (no pile-soil), no buoyancy, load factors 1.1 / 1.35 and 0.9 / 1.35 (the table's and 0.9
+  practice), members by the pack's steel method (API WSD's allowable stress formulas are not
+  used).
+- **SAEngine practice, piping.** Bends as sharp corners (no flexibility factor: stiffer, on the
+  safe side for the expansion stresses at anchors), the larger of the in- and out-of-plane SIF
+  on the resultant moment, guides and stops on the run's nearer global axis, missing directions
+  held at the first support for stability (said).
+
 ## 2026-11-09: special members (alpha 9 track L7)
 
 Steel joists, castellated and cellular beams, aluminium joints, structural glass, tensile

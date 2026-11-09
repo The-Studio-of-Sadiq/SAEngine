@@ -1,0 +1,353 @@
+{
+  "$defs": {
+    "DynamicAllowance": {
+      "additionalProperties": false,
+      "description": "How the vehicles' loads are increased for their dynamic effect: ``constant`` (1 + this\nshare), ``spanFormula`` (1 + a / (b + L), L the span [m], by material, at most ``cap``) or\n``included`` (the load model's values include it).",
+      "properties": {
+        "method": {
+          "enum": [
+            "constant",
+            "spanFormula",
+            "included"
+          ],
+          "title": "Method",
+          "type": "string"
+        },
+        "constant": {
+          "default": 0.0,
+          "description": "The share added (0.33: 33 %).",
+          "minimum": 0,
+          "title": "Constant",
+          "type": "number"
+        },
+        "formula": {
+          "additionalProperties": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              },
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "description": "(a, b) of a / (b + L) by girder material ('concrete', 'steel').",
+          "title": "Formula",
+          "type": "object"
+        },
+        "cap": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The share added, at most.",
+          "title": "Cap"
+        }
+      },
+      "required": [
+        "method"
+      ],
+      "title": "DynamicAllowance",
+      "type": "object"
+    },
+    "LaneLoading": {
+      "additionalProperties": false,
+      "description": "What one lane carries: a vehicle (optionally a second one behind it, as two trucks for\nthe hogging moments), a line load along the lane and a load per m² of the lane's width.",
+      "properties": {
+        "vehicle": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Id in ``vehicles``.",
+          "title": "Vehicle"
+        },
+        "vehicleFactor": {
+          "default": 1.0,
+          "description": "On the vehicle's axle loads.",
+          "exclusiveMinimum": 0,
+          "title": "Vehiclefactor",
+          "type": "number"
+        },
+        "secondGap": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "A second vehicle behind the first, at least this far apart [m] (front axle to rear axle); none: one vehicle.",
+          "title": "Secondgap"
+        },
+        "lineLoad": {
+          "default": 0.0,
+          "description": "Along the lane [kN/m].",
+          "minimum": 0,
+          "title": "Lineload",
+          "type": "number"
+        },
+        "areaLoad": {
+          "default": 0.0,
+          "description": "Over the lane's width [kN/m²].",
+          "minimum": 0,
+          "title": "Areaload",
+          "type": "number"
+        },
+        "lineFactor": {
+          "default": 1.0,
+          "description": "On the line and area loads.",
+          "exclusiveMinimum": 0,
+          "title": "Linefactor",
+          "type": "number"
+        },
+        "dynamic": {
+          "default": true,
+          "description": "The dynamic allowance applies to the vehicle.",
+          "title": "Dynamic",
+          "type": "boolean"
+        }
+      },
+      "title": "LaneLoading",
+      "type": "object"
+    },
+    "LoadModel": {
+      "additionalProperties": false,
+      "description": "A traffic load model: what lane 1, lane 2, ... carry (the last entry repeats for further\nlanes), how many lanes it may load, and which effects it is for.",
+      "properties": {
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "lanes": {
+          "items": {
+            "$ref": "#/$defs/LaneLoading"
+          },
+          "minItems": 1,
+          "title": "Lanes",
+          "type": "array"
+        },
+        "maxLanes": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Lanes it loads, at most.",
+          "title": "Maxlanes"
+        },
+        "multiplePresence": {
+          "default": true,
+          "description": "The multiple presence factors apply.",
+          "title": "Multiplepresence",
+          "type": "boolean"
+        },
+        "only": {
+          "default": "all",
+          "description": "'hogging': only for the negative moments and the interior support reactions (two trucks).",
+          "enum": [
+            "all",
+            "hogging"
+          ],
+          "title": "Only",
+          "type": "string"
+        }
+      },
+      "required": [
+        "label",
+        "lanes"
+      ],
+      "title": "LoadModel",
+      "type": "object"
+    },
+    "Vehicle": {
+      "additionalProperties": false,
+      "description": "A design vehicle or axle group: its axles from the front, and the wheel gauge.",
+      "properties": {
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "axles": {
+          "items": {
+            "$ref": "#/$defs/VehicleAxle"
+          },
+          "minItems": 1,
+          "title": "Axles",
+          "type": "array"
+        },
+        "gauge": {
+          "default": 1.8,
+          "description": "Between the wheel lines [m].",
+          "exclusiveMinimum": 0,
+          "title": "Gauge",
+          "type": "number"
+        }
+      },
+      "required": [
+        "label",
+        "axles"
+      ],
+      "title": "Vehicle",
+      "type": "object"
+    },
+    "VehicleAxle": {
+      "additionalProperties": false,
+      "description": "One axle of a vehicle (both wheels).",
+      "properties": {
+        "load": {
+          "description": "Axle load [kN].",
+          "exclusiveMinimum": 0,
+          "title": "Load",
+          "type": "number"
+        },
+        "spacing": {
+          "default": 0.0,
+          "description": "From the axle before it [m] (the first axle: 0).",
+          "minimum": 0,
+          "title": "Spacing",
+          "type": "number"
+        },
+        "spacingMax": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "A variable spacing: from ``spacing`` up to this [m]; the spacing that gives the extreme effect is taken.",
+          "title": "Spacingmax"
+        }
+      },
+      "required": [
+        "load"
+      ],
+      "title": "VehicleAxle",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Traffic loads on bridges as lane load models (the code's design vehicles and lane loads,\nits notional lane width and multiple presence factors, its dynamic allowance).",
+  "properties": {
+    "source": {
+      "default": "",
+      "description": "Clause (and page) the table comes from.",
+      "title": "Source",
+      "type": "string"
+    },
+    "sources": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Clause references of single entries: {key: clause}.",
+      "title": "Sources",
+      "type": "object"
+    },
+    "clauses": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Short clause references the results cite, by key, without the code's name (e.g. 'Part 6 Sec 2.5.7.3'); read by saengine.codes.context.cite. A key the pack does not give is not cited.",
+      "title": "Clauses",
+      "type": "object"
+    },
+    "method": {
+      "const": "laneLoadModels",
+      "default": "laneLoadModels",
+      "title": "Method",
+      "type": "string"
+    },
+    "laneWidth": {
+      "description": "Width of a design (notional) lane [m].",
+      "exclusiveMinimum": 0,
+      "title": "Lanewidth",
+      "type": "number"
+    },
+    "narrow": {
+      "description": "(width, lanes): a carriageway narrower than the width has that many lanes (in increasing width); wider: the whole lanes of laneWidth that fit.",
+      "items": {
+        "maxItems": 2,
+        "minItems": 2,
+        "prefixItems": [
+          {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          {
+            "type": "integer"
+          }
+        ],
+        "type": "array"
+      },
+      "title": "Narrow",
+      "type": "array"
+    },
+    "vehicles": {
+      "additionalProperties": {
+        "$ref": "#/$defs/Vehicle"
+      },
+      "minProperties": 1,
+      "title": "Vehicles",
+      "type": "object"
+    },
+    "loadModels": {
+      "additionalProperties": {
+        "$ref": "#/$defs/LoadModel"
+      },
+      "minProperties": 1,
+      "title": "Loadmodels",
+      "type": "object"
+    },
+    "multiplePresence": {
+      "description": "Factor with 1, 2, 3, ... lanes loaded (the last repeats).",
+      "items": {
+        "exclusiveMinimum": 0,
+        "type": "number"
+      },
+      "minItems": 1,
+      "title": "Multiplepresence",
+      "type": "array"
+    },
+    "dynamic": {
+      "$ref": "#/$defs/DynamicAllowance"
+    }
+  },
+  "required": [
+    "laneWidth",
+    "vehicles",
+    "loadModels",
+    "multiplePresence",
+    "dynamic"
+  ],
+  "title": "MovingLoadsTable",
+  "type": "object",
+  "$id": "saengine.codePack.movingLoads/1"
+}

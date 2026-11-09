@@ -537,3 +537,23 @@ the parent's), with no IS 2502 minimum radius.
 | P2I4 | concreteTime.shrinkage.reinforcementCoefficient | 0 (no factor) | IS 456 gives none | The steel restrains it in the age-adjusted analysis | SAEngine practice |
 | P2I5 | concreteTime.analysis, ageing.chi | ageAdjusted, χ = 0.8 | none in IS 456 | Analysis method | SAEngine practice |
 | P2I6 | combinations.creepShrinkage | none | IS 875 (Part 5), IS 456 Table 18 | CS analysed but not designed for | Check (whether IS 875-5 takes creep and shrinkage with the temperature load) |
+
+
+## Bridges (alpha 9 L9) — `movingLoads.json`, `bridgeDesign.json`
+
+| # | Path | Value | Clause | Description | Status |
+|---|---|---|---|---|---|
+| L9I1 | movingLoads.narrow | < 5.3 m 1 lane, < 9.6 m 2, < 13.1 m 3, < 16.6 m 4, < 20.1 m 5, < 23.6 m 6 | IRC:6-2017 Table 6 | Lanes by carriageway width | Check |
+| L9I2 | movingLoads.vehicles.classA | 27, 27, 114, 114, 68, 68, 68, 68 kN at 1.1, 3.2, 1.2, 4.3, 3.0, 3.0, 3.0 m, gauge 1.8 m | Cl 204.1, Annex A | IRC Class A train | Sure (axles), Check (gauge) |
+| L9I3 | movingLoads.vehicles.class70RWheeled | 80, 120, 120, 170 × 4 kN at 3.96, 1.52, 2.13, 1.37, 3.05, 1.37 m, gauge 1.93 m | Annex A | Class 70R wheeled | Unsure |
+| L9I4 | movingLoads.vehicles.class70RTracked | 700 kN over 4.57 m as ten axles, gauge 2.06 m | Annex A | Class 70R tracked | Unsure (gauge; the ten axles are SAEngine practice) |
+| L9I5 | movingLoads.multiplePresence | 1.0, 1.0, 0.9, 0.8 | Cl 205 | Reduction for 3 and 4+ lanes | Check |
+| L9I6 | movingLoads.dynamic | 4.5 / (6 + L) RCC, 9 / (13.5 + L) steel, at most 0.5 | Cl 208 | Impact factor (Class A) | Check (70R's own impact not separate) |
+| L9I7 | movingLoads combinations | Class A in every lane; 70R in one lane alone | Cl 204.3 | Load models | Unsure (70R with Class A in the other lanes not modelled) |
+| L9I8 | bridgeDesign.strength | DL 1.35, surfacing 1.75, live 1.5 | IRC:6 Annex B Table B.2 | ULS basic combination | Check |
+| L9I9 | bridgeDesign.service | surfacing 1.2 | Table B.3 | SLS rare | Check |
+| L9I10 | bridgeDesign.prestress | 0.6 fck(t) transfer, 0.36 fck quasi-permanent, 0.48 fck rare, no tension | IRC:112 Cl 7.9.5, 12.2.1 | Stress limits | Unsure |
+| L9I11 | bridgeDesign.thermalCoefficient | 12 × 10⁻⁶ /°C | IRC:6 Cl 215 | Expansion joints | Check |
+
+Not covered by this pack: towers (they take the parent's wind open-structure coefficients),
+silos, chimneys, cooling towers, offshore, piping, load rating.

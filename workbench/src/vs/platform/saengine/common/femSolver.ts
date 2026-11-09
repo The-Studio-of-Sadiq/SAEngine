@@ -712,7 +712,12 @@ export type EngineMethod =
 	| 'worksheets/kinds' | 'worksheets/calculate' | 'worksheets/list' | 'worksheets/create'
 	// Strut-and-tie models of D-regions (`saengine.design.stm_model`): `design/strutAndTie`
 	// `{model, projectPath?}` and `design/strutAndTieTemplate` `{template, parameters?}`.
-	| 'design/strutAndTie' | 'design/strutAndTieTemplate';
+	| 'design/strutAndTie' | 'design/strutAndTieTemplate'
+	// Alpha 9 L4 / L6: the nonlinear stability analysis and the CBFEM check of joints.
+	| 'fem/nonlinearStability' | 'design/connectionFe'
+	// Alpha 9 L9: `special/structures` `{projectPath, run}` -> the bridges and special
+	// structures of Project Settings (`saengine.special.project`), kept or computed anew.
+	| 'special/structures';
 
 export interface IQgisOpenRequest {
 	/** Absolute path of the `.gpkg`, `.geojson` or `.json` file. */

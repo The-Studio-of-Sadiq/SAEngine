@@ -2732,6 +2732,8 @@ def _derive_fem(
                     sum(level_parts.get(h, {}).get(k, 0.0) for k in ("D", "SD")) / 1e3
                     for h in heights
                 ],
+                # Alpha 9 L9: the wind of the rooftop lattice towers (saengine.special.towers).
+                rooftop_towers=_rooftop_towers(settings, types, mats),
             )
         if values.get("windAltitudeFactor") is not None:  # Alpha 9 C15
             altitude = code_context.table("wind").altitude
@@ -4536,6 +4538,7 @@ def _wind_loads(
     story_names: dict[float, str] | None = None,
     settings: Any = None,
     dead_weights: list[float] | None = None,
+    rooftop_towers: Any = None,
 ) -> list[str]:
     """The equivalent static wind loads WX and WY (the default pack's Part 6 Sec 2.4.11.2) and the
     torsional cases WTX and WTY (Sec 2.4.11.3 and Figure 6.2.9, pp. 559 and 574-575) into
@@ -4581,7 +4584,7 @@ def _wind_loads(
     depth_of: dict[str, float] = {}
     # B22: topography (Kzt at each height) and rooftop equipment (added to the roof level).
     topography, rooftop = _wind_site_extras(
-        rel[-1], extents[-1], speed, exposure, importance, settings, notes
+        rel[-1], extents[-1], speed, exposure, importance, settings, notes, rooftop_towers
     )
     for axis, case in ((0, "WX"), (1, "WY")):
         across = 1 - axis
@@ -4815,6 +4818,7 @@ def _wind_site_extras(
     importance: float,
     settings: Any,
     notes: list[str],
+    rooftop_towers: Any = None,
 ) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
     """B22: the site's topography (Kzt of the code pack's topographic effects at the roof
     height ``roof`` [m]; every qz takes its own height's, :func:`saengine.fem.loads.
@@ -4867,14 +4871,15 @@ def _wind_site_extras(
                     f"roof (h = {roof:.1f} m)"
                 )
     items = list(getattr(settings, "rooftopEquipment", None) or [])
+    towers = (roof, speed, exposure, importance, notes)  # alpha 9 L9: rooftop lattice towers
     if not items or roof <= 0:
-        return topography, None
+        return topography, _add_rooftop_towers(None, rooftop_towers, *towers)
     if getattr(wind, "chimneys", None) is None:
         notes.append(
             "wind: the code pack has no force coefficients of rooftop equipment; the "
             f"{len(items)} rooftop item(s) carry no wind"
         )
-        return topography, None
+        return topography, _add_rooftop_towers(None, rooftop_towers, *towers)
     low, high = extent
     rooftop = ow.rooftop_equipment_wind(
         [
@@ -4900,7 +4905,42 @@ def _wind_site_extras(
         f"{rooftop['WX']:.1f} kN in X, {rooftop['WY']:.1f} kN in Y added to the roof level "
         f"(factor {', '.join(f'{f:g}' for f in factors)}), shared like its storey force"
     )
-    return topography, rooftop
+    return topography, _add_rooftop_towers(rooftop, rooftop_towers, *towers)
+
+
+def _rooftop_towers(settings: Any, types: dict[str, Any], mats: dict[str, Any]) -> Any:
+    """Alpha 9 L9: the wind of the project's rooftop lattice towers as a function of the roof
+    height and qz (:func:`saengine.special.towers.rooftop_forces`); None without any."""
+    special = getattr(settings, "specialStructures", None)
+    if special is None or not any(t.onRoof for t in special.towers):
+        return None
+    from saengine.special.towers import rooftop_forces
+
+    return rooftop_forces(settings, types, mats)
+
+
+def _add_rooftop_towers(
+    rooftop: dict[str, Any] | None,
+    towers: Any,
+    roof: float,
+    speed: float,
+    exposure: str,
+    importance: float,
+    notes: list[str],
+) -> dict[str, Any] | None:
+    """Alpha 9 L9: ``rooftop`` (the rooftop equipment's wind, or None) with the rooftop
+    towers' wind added to WX and WY [kN]."""
+    if towers is None or roof <= 0:
+        return rooftop
+    found = towers(roof, lambda z: fl.velocity_pressure(z, speed, exposure, importance))
+    notes.extend(found["notes"])
+    if not found["WX"] and not found["WY"]:
+        return rooftop
+    out = dict(rooftop) if rooftop else {"WX": 0.0, "WY": 0.0, "items": []}
+    out["WX"] = float(out["WX"]) + float(found["WX"])
+    out["WY"] = float(out["WY"]) + float(found["WY"])
+    out["towers"] = {"WX": float(found["WX"]), "WY": float(found["WY"])}
+    return out
 
 
 def _gust_factor_method(

@@ -1790,6 +1790,8 @@ def _results(
     out["nonstructural"] = _nonstructural(parts.root, warnings)
     # Alpha 9 L1: the precast pieces' handling, erection and connections, and their schedule.
     out["precast"] = _precast(parts.root, warnings)
+    # Alpha 9 L9: bridges and special structures (Project Settings).
+    out["specialStructures"] = _special_structures(parts.root, warnings)
     # B37: the isolation system of a seismically isolated building.
     out["isolation"] = _isolation(model_path.parent)
     # Alpha 9 P6: the supplemental dampers.
@@ -2794,6 +2796,18 @@ def _precast(root: Path, warnings: list[str]) -> dict[str, Any] | None:
         return precast.report_section(root)
     except Exception as e:  # noqa: BLE001 - one section must not stop the report
         warnings.append(f"Precast pieces: not computed ({e}).")
+        return None
+
+
+def _special_structures(root: Path, warnings: list[str]) -> dict[str, Any] | None:
+    """Alpha 9 L9: the section on bridges and special structures (:func:`saengine.special.
+    project.report_section`); None without any."""
+    from saengine.special import project as special
+
+    try:
+        return special.report_section(root)
+    except Exception as e:  # noqa: BLE001 - one section must not stop the report
+        warnings.append(f"Bridges and special structures: not computed ({e}).")
         return None
 
 

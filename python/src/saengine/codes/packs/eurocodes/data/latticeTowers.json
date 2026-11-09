@@ -1,0 +1,22 @@
+{
+  "$schema": "../../../schemas/latticeTowers.schema.json",
+  "$sources": [
+    "EN 1993-3-1:2006 Annex B.2.2 (force coefficient of lattice towers with flat-sided members: cf,S,0 = 1.76 C1 (1 - C2 φ + φ²), C1 2.25 / 1.9, C2 1.5 / 1.4 for square / triangular towers; the wind incidence factor Kθ), Annex H (effective lengths, taken as 1.0 here); EN 1991-1-4 (peak velocity pressure qp, cs cd taken as 1); see VERIFY.md"
+  ],
+  "source": "EN 1993-3-1 Annex B lattice tower force coefficients (flat-sided members) on the peak velocity pressure",
+  "method": "annexB",
+  "annexB": {"base": 1.76, "square": [2.25, 1.5], "triangular": [1.9, 1.4]},
+  "diagonalFactor": [0.0, 1.11],
+  "diagonalBase": 1.11,
+  "gust": 1.0,
+  "lengths": {"legs": 1.0, "bracing": 1.0},
+  "antennaShielding": 1.0,
+  "clauses": {
+    "code": "EN 1993-3-1",
+    "cf": "Annex B.2.2",
+    "direction": "Annex B.2.2 (Kθ)",
+    "gust": "EN 1991-1-4 6.1 (cs cd = 1)",
+    "lengths": "Annex H",
+    "members": "EN 1993-1-1 by the pack's steel member checks"
+  }
+}

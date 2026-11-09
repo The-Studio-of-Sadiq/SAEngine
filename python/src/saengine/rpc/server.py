@@ -1087,6 +1087,13 @@ def create_server() -> JsonRPCServer:
             args["outDir"], args["projectPath"], bool(args.get("run"))
         )
 
+    @server.feature("special/structures")
+    @_in_worker
+    def _special_structures(params: Any) -> dict[str, Any]:
+        # Alpha 9 L9: bridges and special structures, kept or computed anew (``run``).
+        args = _plain(params)
+        return handlers.special_structures(args["projectPath"], bool(args.get("run")))
+
     @server.feature("design/connectionFe")
     @_in_worker
     def _connection_fe(params: Any) -> dict[str, Any]:

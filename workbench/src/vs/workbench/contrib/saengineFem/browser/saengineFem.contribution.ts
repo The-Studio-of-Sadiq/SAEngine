@@ -607,6 +607,53 @@ registerPlannedFeature({
 	],
 });
 
+// Alpha 9 L9: bridges (traffic loads moved along influence lines, girders by the code pack's
+// concrete methods, bearings, joints and load rating), lattice towers, silos, chimneys, cooling
+// towers, offshore jackets and piping are built (Project Settings, Bridges and Special
+// Structures; results in the analysis charts). What stays planned:
+registerPlannedFeature({
+	id: FemPlanned.bridgeStages,
+	part: 'fem',
+	title: localize('planned.bridgeStages.title', "Bridge Construction Stages, Substructure and Fatigue"),
+	summary: localize('planned.bridgeStages.summary', "Girder and slab bridges are analysed and checked today for the code pack's traffic (line girders or a deck grillage), with their bearings, joints and load rating. Planned: staged (non-composite then composite) and segmental construction with creep and shrinkage, the deck slab's own design, skewed and curved decks, cantilever overhangs, fatigue and deflection of the girders, piers and abutments in 9 Substructure, and the choice of bearing and joint products."),
+	steps: [
+		localize('planned.bridgeStages.step1', "Set the construction stages and the times the girders are made composite."),
+		localize('planned.bridgeStages.step2', "Follow the stresses stage by stage with creep, shrinkage and relaxation."),
+		localize('planned.bridgeStages.step3', "Design the deck slab, the piers and the abutments for the bearings' reactions."),
+	],
+	inputs: [
+		{ label: localize('planned.bridgeStages.stage', "Stage duration"), unit: 'd', example: '28' },
+		{ label: localize('planned.bridgeStages.skew', "Skew angle"), unit: '°', example: '15' },
+	],
+	outputs: [
+		localize('planned.bridgeStages.out1', "Stresses at every stage and the long-term state"),
+		localize('planned.bridgeStages.out2', "Fatigue stress ranges and the deck slab's bars"),
+	],
+	references: [
+		localize('planned.bridgeStages.ref1', "AASHTO LRFD Bridge Design Specifications; EN 1992-2; IRC:112"),
+	],
+});
+
+registerPlannedFeature({
+	id: FemPlanned.specialStructuresMore,
+	part: 'fem',
+	title: localize('planned.specialStructuresMore.title', "More of the Special Structures"),
+	summary: localize('planned.specialStructuresMore.summary', "Lattice towers, silos, chimneys, cooling towers, offshore jackets and piping are designed today by the code packs that cover them. Planned: guyed masts and transmission towers (ASCE 10, IS 802), ice on towers, silo hoppers and eccentric discharge, the US and Indian packs' silo and chimney rules (ACI 313, ACI 307, IS 4998), cooling tower buckling, offshore fatigue, buoyancy and pile-soil interaction, and the flexibility of pipe bends and branch connections (ASME B31.1, B31.4, B31.8)."),
+	steps: [
+		localize('planned.specialStructuresMore.step1', "Add the structure's form and its code's loads to the code pack."),
+		localize('planned.specialStructuresMore.step2', "Check it under the pack's combinations as the built structures are."),
+	],
+	inputs: [
+		{ label: localize('planned.specialStructuresMore.ice', "Ice thickness"), unit: 'mm', example: '12' },
+	],
+	outputs: [
+		localize('planned.specialStructuresMore.out1', "The added structures' checks in the analysis charts and the report"),
+	],
+	references: [
+		localize('planned.specialStructuresMore.ref1', "ASCE 10-15; IS 802; ACI 313; ACI 307; API RP 2A; ASME B31.1"),
+	],
+});
+
 // B6: timber joints. Nailed, bolted (wooden splice plates), split-ring and disc-dowel joints are
 // checked with the code pack's timber table (saengine.design.timber.connections); wood screws and
 // steel side plates stay planned: the pack gives no design values for them.

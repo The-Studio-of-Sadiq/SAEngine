@@ -1,0 +1,37 @@
+{
+  "$schema": "../../../schemas/bridgeDesign.schema.json",
+  "$sources": [
+    "AASHTO LRFD Bridge Design Specifications (9th edition): Table 3.4.1-1 (Strength I, Service I and III), Art. 5.9.2.3 (stress limits of prestressed concrete), 5.4.2.2 (thermal coefficient); AASHTO Manual for Bridge Evaluation (3rd edition) Art. 6A.4.2 (load rating, LRFR); see VERIFY.md"
+  ],
+  "source": "AASHTO LRFD Strength I (1.25 DC + 1.50 DW + 1.75 (LL + IM)) and Service I/III, prestressed stress limits of Art. 5.9.2.3, load rating by the MBE (LRFR)",
+  "method": "loadFactors",
+  "strength": {"dc": 1.25, "dw": 1.5, "ll": 1.75},
+  "service": {"dc": 1.0, "dw": 1.0, "ll": 1.0},
+  "tensionLive": 0.8,
+  "prestress": {
+    "transferCompression": 0.65,
+    "transferTension": 0.25,
+    "permanentCompression": 0.45,
+    "totalCompression": 0.6,
+    "serviceTension": 0.5,
+    "tensionForm": "root",
+    "relaxedYield": 0.9
+  },
+  "rating": {
+    "dc": 1.25,
+    "dw": 1.5,
+    "dwMeasured": 1.25,
+    "inventory": 1.75,
+    "operating": 1.35,
+    "systemMin": 0.85
+  },
+  "thermalCoefficient": 1.08e-5,
+  "clauses": {
+    "code": "AASHTO LRFD",
+    "strength": "Table 3.4.1-1 (Strength I)",
+    "service": "Table 3.4.1-1 (Service I, Service III)",
+    "prestress": "Art. 5.9.2.3",
+    "rating": "MBE Art. 6A.4.2",
+    "thermal": "Art. 5.4.2.2"
+  }
+}
