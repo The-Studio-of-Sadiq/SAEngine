@@ -369,7 +369,41 @@ export interface IFemStoryResponse {
 	readonly nonlinearHistory?: IFemNonlinearHistory | null;
 	/** Alpha 9 P7: the floor vibration and wind comfort tables (`fem/floor_vibration.py`, `fem/wind_comfort.py`). */
 	readonly serviceSheets?: readonly IFemSheet[];
+	/** Alpha 9 L5: the floor response spectra (`fem/floor_spectra.py`), when the settings ask for them. */
+	readonly floorSpectra?: IFemFloorSpectra | null;
 	readonly notes: readonly string[];
+}
+
+/** Alpha 9 L5: one floor's spectrum in one direction at one component damping [g]. */
+export interface IFemFloorSpectrum {
+	readonly name: string;
+	readonly z: number;
+	readonly direction: 'X' | 'Y';
+	readonly damping: number;
+	/** Broadened. */
+	readonly sa: readonly number[];
+	readonly raw: readonly number[];
+	readonly zpa: number;
+	readonly peak: number;
+}
+
+/** Alpha 9 L5: the floor response spectra of a run. */
+export interface IFemFloorSpectra {
+	readonly available: boolean;
+	readonly reason?: string;
+	readonly method?: 'timeHistory' | 'spectrumToSpectrum';
+	readonly periods?: readonly number[];
+	readonly damping?: readonly number[];
+	readonly componentDamping?: number;
+	readonly broadening?: number;
+	readonly floors?: readonly IFemFloorSpectrum[];
+	readonly notes?: readonly string[];
+	readonly clause?: string;
+}
+
+/** Alpha 9 L5: the curves of one direction at one damping, a floor each (bottom up). */
+export function floorSpectrumCurves(found: IFemFloorSpectra, direction: 'X' | 'Y', damping: number): IFemFloorSpectrum[] {
+	return (found.floors ?? []).filter(f => f.direction === direction && Math.abs(f.damping - damping) < 1e-9).sort((a, b) => a.z - b.z);
 }
 
 /** One level of a column line: shortening below it [m] at the end of the service life. */

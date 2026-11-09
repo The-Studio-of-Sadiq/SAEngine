@@ -1,0 +1,25 @@
+{
+  "$schema": "../../../schemas/floorSpectra.schema.json",
+  "$replace": true,
+  "$sources": [
+    "ASCE 7-22 Chapter 13 (13.3.1: component forces; floor accelerations from a dynamic analysis may replace the height factor) and ASCE 4-16 Chapter 6 (in-structure response spectra, ±15 % broadening)"
+  ],
+  "source": "ASCE 4-16 Ch 6 in-structure response spectra (practice, ±15 % broadening); ASCE 7-22 Ch 13 component forces",
+  "methods": ["timeHistory", "spectrumToSpectrum"],
+  "broadening": 0.15,
+  "damping": [0.02, 0.03, 0.05, 0.07],
+  "componentDamping": 0.05,
+  "periods": [0.02, 4.0, 120],
+  "direct": { "duration": 20.0, "iterations": 8 },
+  "components": {
+    "method": "spectralAcceleration",
+    "rigidPeriod": 0.06,
+    "flexibleAlpha": 1.0,
+    "divideByR": true,
+    "bounds": true
+  },
+  "sources": {
+    "broadening": "ASCE 4-16 Sec 6.2 (peak broadening ±15 %); check against the printed standard",
+    "components": "SAEngine practice in the form of ASCE 7-16 Eq 13.3-4 (Fp = ai ap Wp / (Rp/Ip) Ax with the floor acceleration from the analysis) within the Eqs 13.3-2 and 13.3-3 bounds, the component amplification taken in the floor spectrum"
+  }
+}

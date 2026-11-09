@@ -1782,6 +1782,7 @@ def _results(
     out["serviceability"] = _serviceability(model_path, results_dir, warnings)
     # Alpha 9 P7: floor vibration and wind comfort (the storey response's, one computation).
     out["floorVibration"], out["windComfort"] = _comfort(model_path, results_dir, warnings)
+    out["floorSpectra"] = _floor_spectra(model_path, results_dir, warnings)  # Alpha 9 L5
     out["seismicDesign"] = _seismic_design(model_path, results_dir, settings, warnings)
     # B12: building irregularities, dynamic analysis, soft storeys, diaphragm connections.
     out["irregularity"] = _irregularity(model_path, results_dir, settings, warnings)
@@ -2626,6 +2627,22 @@ def _comfort(
         floor_vibration.report_rows(found.get("floorVibration")),
         wind_comfort.report_rows(found.get("windComfort")),
     )
+
+
+def _floor_spectra(
+    model_path: Path, results_dir: Path, warnings: list[str]
+) -> dict[str, Any] | None:
+    """Alpha 9 L5: the floor response spectra of the storey response
+    (:func:`saengine.fem.floor_spectra.report_rows`); None when not asked for."""
+    from saengine.fem import floor_spectra
+    from saengine.fem.story_response import story_response
+
+    try:
+        found = story_response(results_dir, model_path) or {}
+    except Exception as error:  # noqa: BLE001 - the report goes on without them
+        warnings.append(f"Floor response spectra could not be worked out: {error}")
+        return None
+    return floor_spectra.report_rows(found.get("floorSpectra"))
 
 
 def _nonstructural(root: Path, warnings: list[str]) -> dict[str, Any] | None:

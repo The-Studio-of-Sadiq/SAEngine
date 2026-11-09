@@ -644,3 +644,14 @@ length along the bar's centre line (SAEngine practice), with the mandrel diamete
 | L1E13 | handling.insertSafety | 2.5 | CEN/TR 15728 (order of its factors) | Unsure |
 | L1E14 | handling (multipliers), erection | as the default pack's L1B11-L1B19 | PCI Design Handbook 8th ed.; Mast | SAEngine practice |
 | L1E15 | integrity | not given: EN 1992-1-1 9.10 tying systems are the concreteMethods ties | none | Not covered here |
+
+## Floor response spectra (`floorSpectra`; alpha 9 L5)
+
+| # | Path | Value | Source | Sure? |
+|---|---|---|---|---|
+| L5-1 | methods | timeHistory, spectrumToSpectrum (time history first when the run has one) | none in the code | SAEngine practice |
+| L5-2 | broadening | ±15 % of the period | ASCE 4-16 Sec 6.2 / US NRC RG 1.122 practice | Check |
+| L5-3 | damping | 2, 3, 5, 7 % computed; 5 % for the components | none | SAEngine practice |
+| L5-4 | periods | 0.02-4 s, 120 on a log scale | none | SAEngine practice |
+| L5-5 | direct.duration / iterations | 20 s strong motion (Davenport peak factor), 8 iterations of the density | none | SAEngine practice |
+| L5-6 | components | F = Sa(Tc) Wc Ic / Rc within the nonstructural table's least and largest force; rigid (αc ≤ 1) at 0.06 s, flexible at the peak | the form of ASCE 7-16 Eq 13.3-4 / EN 1998-1 Eq 4.24 with the floor spectrum | SAEngine practice (off unless the project turns it on) |

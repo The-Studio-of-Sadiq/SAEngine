@@ -41,6 +41,26 @@ here, newest first, with the date, the question, the decision, the reason and wh
 - **No unlicensed software.** ETABS, SAP2000 and STAAD are not used for cross-checks or cited.
   Open-source tools are used instead (2026-10-25).
 
+## 2026-11-05: floor response spectra (alpha 9 track L5)
+
+- **Where it lives.** Project Settings, Analysis, Floor response spectra (off unless set):
+  `saengine.fem.floor_spectra` with the code pack's `floorSpectra` table; the results view's
+  chart and Summary table, and the report. No code in the default pack gives floor spectra
+  (BNBC 2020 Part 6 Sec 2.5.15 is by height only), so the method is SAEngine practice there.
+- **Methods by id.** `timeHistory`: the floors' absolute accelerations of the run's time-history
+  cases through oscillators, the mean of the spectra from the pack's `meanFrom` records (as
+  P5), else the largest. `spectrumToSpectrum`: the site's elastic spectrum (R = I = 1) as a
+  power spectral density, through the modal transfer function of the floor and the component's
+  oscillator, with the Davenport peak factor (20 s strong motion). "By the code pack" takes the
+  time history when the run has one.
+- **Broadening ±15 %** and component damping 2/3/5/7 % (5 % for the components): ASCE 4-16
+  practice, in the pack and overridable per project.
+- **Components.** With "Use for the components" on, the nonstructural components (the existing
+  nonstructural table, not a copy) take F = Sa(Tc) Wc Ic / Rc at their floor within the
+  table's least and largest force; their period is not entered, so a rigid one (αc = 1) takes
+  Sa at 0.06 s and a flexible one the spectrum's peak (on the safe side). Off by default:
+  existing results do not change.
+
 ## 2026-11-05: point-cloud references (alpha 9 track L2)
 
 - **Formats.** LAS 1.2-1.4 uncompressed (point formats 0-10) and text scans (XYZ, PTS) are read

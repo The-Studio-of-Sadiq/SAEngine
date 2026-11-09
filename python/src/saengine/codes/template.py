@@ -139,6 +139,10 @@ TABLE_HELP: dict[str, str] = {
     "redundantCharts). A group left out is not covered.",
     "compositeConcrete": "Composite concrete flexural members (precast and cast-in-place parts "
     "placed separately): the horizontal shear limits at the contact surface and the ties.",
+    "floorSpectra": "Floor response spectra (alpha 9 L5): the methods allowed (time history, "
+    "direct spectrum-to-spectrum), the peak broadening, the component damping ratios, the "
+    "direct method's duration and iterations, and how a nonstructural component's force "
+    "follows from the floor spectrum. A pack without it computes no floor spectra.",
     "precast": "Precast concrete pieces (alpha 9 L1): the bearing method (spanRatio or "
     "netBearing) and its values, dowels across joints (shearFriction or dowelAction), the corbel "
     "and weld methods of the connections, the least tension on a bearing, the integrity ties, "

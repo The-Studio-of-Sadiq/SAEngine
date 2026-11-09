@@ -375,6 +375,7 @@ SECTIONS: tuple[tuple[str, tuple[str, ...]], ...] = (
             "nonlinearHistory",
             "existing",
             "nonstructural",
+            "floorSpectra",
             "nonBuilding",
             "occupancyCategories",
         ),

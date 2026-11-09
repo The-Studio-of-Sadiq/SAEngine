@@ -9475,6 +9475,19 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 					description: 'Assessment of an existing building and its retrofit (P4): the knowledge level, the as-built strengths from tests, the members\' condition and the retrofit measures; the results check every member by the code pack\'s assessment rules (its existing table). Empty: a new building.',
 					title: 'Existing building',
 				},
+				floorSpectra: {
+					anyOf: [
+						{
+							$ref: '#/$defs/FloorSpectra',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Floor response spectra at chosen floors (alpha 9 L5), from the time histories or by the direct method, broadened; they can give the nonstructural components\' forces. Empty: not computed.',
+					title: 'Floor response spectra',
+				},
 				thermal: {
 					$ref: '#/$defs/Thermal',
 					title: 'Temperature',
@@ -10924,6 +10937,62 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 				},
 			},
 			title: 'FloodSite',
+			type: 'object',
+		},
+		FloorSpectra: {
+			additionalProperties: false,
+			description: 'Alpha 9 L5: floor (in-structure) response spectra at chosen floors\n(:mod:`saengine.fem.floor_spectra`), by the code pack\'s ``floorSpectra`` table.',
+			properties: {
+				method: {
+					default: 'pack',
+					description: 'From the run\'s time-history cases (the floors\' acceleration histories) or by the direct spectrum-to-spectrum method (the site\'s spectrum through the modes); by the code pack: its default, the time history when the run has one.',
+					enum: ['pack', 'timeHistory', 'spectrumToSpectrum'],
+					enumDescriptions: ['By the code pack', 'Time history', 'Spectrum to spectrum'],
+					title: 'Method',
+					type: 'string',
+				},
+				stories: {
+					description: 'The stories (ids of the floor plan) to compute; empty: every floor.',
+					items: {
+						maxLength: 64,
+						minLength: 1,
+						pattern: '^[A-Za-z0-9._-]+$',
+						type: 'string',
+					},
+					title: 'Stories',
+					type: 'array',
+				},
+				damping: {
+					description: 'Component damping ratios [-]; empty: the code pack\'s.',
+					items: {
+						type: 'number',
+					},
+					title: 'Damping',
+					type: 'array',
+				},
+				broadening: {
+					anyOf: [
+						{
+							exclusiveMaximum: 1,
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Peak broadening ± share of the period; empty: the code pack\'s (±15 %).',
+					title: 'Broadening',
+				},
+				useForComponents: {
+					default: false,
+					description: 'The nonstructural components\' forces follow from their floor\'s spectrum (within the code\'s least and largest force) in place of the height formula.',
+					title: 'Use for the components',
+					type: 'boolean',
+				},
+			},
+			title: 'FloorSpectra',
 			type: 'object',
 		},
 		Foundation: {

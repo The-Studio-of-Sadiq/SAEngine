@@ -38,7 +38,7 @@ import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
 import { EditorFrame, IEditorFrameStatus } from '../../saengineProject/browser/editorFrame.js';
 import { ChartColor, IChartSeries, renderChart, renderSheet } from './femChart.js';
-import { baseReactionTable, closedPmCurve, defaultChartResult, describeMode, elasticDriftLimit, orderLike, extremes, FEM_COLUMN_INTERACTION_COMMAND, FEM_MEMBER_FORCES_COMMAND, FEM_STORY_RESPONSE_COMMAND, FemAxis2, IFemColumnDiagram, IFemColumnShortening, hingeRowsOf, IFemHingeRow, IFemPushoverAcceptance, IFemPushoverCurve, IFemPushoverTarget, IFemColumnInteraction, IFemMemberForces, IFemNonlinearHingeRow, IFemNonlinearHistory, IFemStoryResponse, IFemStoryResult, IFemTimeHistoryDesign, isEarthquakeResult, MemberComponent, memberEnvelope, memberValues, modalTable, modesToReach, profilePeak, spectrumAt, storeyProfile, StoreyQuantity, storeyQuantityLabel, STOREY_QUANTITIES } from './femChartData.js';
+import { baseReactionTable, closedPmCurve, defaultChartResult, describeMode, elasticDriftLimit, orderLike, extremes, FEM_COLUMN_INTERACTION_COMMAND, floorSpectrumCurves, IFemFloorSpectra, FEM_MEMBER_FORCES_COMMAND, FEM_STORY_RESPONSE_COMMAND, FemAxis2, IFemColumnDiagram, IFemColumnShortening, hingeRowsOf, IFemHingeRow, IFemPushoverAcceptance, IFemPushoverCurve, IFemPushoverTarget, IFemColumnInteraction, IFemMemberForces, IFemNonlinearHingeRow, IFemNonlinearHistory, IFemStoryResponse, IFemStoryResult, IFemTimeHistoryDesign, isEarthquakeResult, MemberComponent, memberEnvelope, memberValues, modalTable, modesToReach, profilePeak, spectrumAt, storeyProfile, StoreyQuantity, storeyQuantityLabel, STOREY_QUANTITIES } from './femChartData.js';
 import { IFemDesignRequired, IFemSteelRequirement, resultsFolder, runDesignRequired } from './femDesign.js';
 import { assessmentHelp, assessmentTitle, checklistSheet, FEM_EXISTING_ASSESSMENT_COMMAND, hasExistingAssessment, hazardSheet, IFemExistingAssessment, memberSheet, strengthSheet } from './femExisting.js';
 import { appendPlannedChips, FemPlanned } from './femPlannedFeatures.js';
@@ -938,6 +938,9 @@ export class FemResultsEditor extends EditorPane {
 		if (response.nonlinearHistory) {
 			this.renderNonlinearHistory(response.nonlinearHistory);
 		}
+		if (response.floorSpectra) {
+			this.renderFloorSpectra(response.floorSpectra);
+		}
 		this.renderExisting();
 	}
 
@@ -1437,6 +1440,42 @@ export class FemResultsEditor extends EditorPane {
 			caption: modal.modes[0] ? describeMode(modal.modes[0], 1) : undefined,
 		});
 		renderSheet(section, modalTable(modal));
+	}
+
+	/**
+	 * Alpha 9 L5: the floor response spectra at the chosen floors, a chart per direction at the
+	 * code pack's component damping (broadened); the table of every damping is in the Summary.
+	 */
+	private renderFloorSpectra(found: IFemFloorSpectra): void {
+		const section = this.section(
+			localize('femResults.floorSpectraHeading', "Floor Response Spectra"),
+			localize('femResults.floorSpectraHelp', "In-structure spectra of the floors chosen in Project Settings (Analysis, Floor response spectra), by the code pack's method, the peaks broadened. With Use for the components on, the nonstructural components take their forces from them."),
+		);
+		if (!found.available) {
+			append(section, $('.fem-results-note', undefined, localize('femResults.noFloorSpectra', "No floor response spectra: {0}", found.reason ?? '')));
+			return;
+		}
+		const periods = found.periods ?? [];
+		const damping = found.componentDamping ?? found.damping?.[0] ?? 0.05;
+		const palette: ChartColor[] = ['blue', 'orange', 'green', 'red', 'purple', 'yellow'];
+		const grid = this.grid(section);
+		for (const direction of ['X', 'Y'] as const) {
+			const curves = floorSpectrumCurves(found, direction, damping);
+			if (!curves.length) {
+				continue;
+			}
+			renderChart(grid, {
+				title: localize('femResults.floorSpectraTitle', "Floor Spectra in {0}, {1} % Damping", direction, Math.round(damping * 1000) / 10),
+				xLabel: localize('femResults.periodAxis', "Period T [s]"),
+				yLabel: localize('femResults.floorSaAxis', "Sa [g]"),
+				series: curves.map((c, k) => ({ name: c.name, color: palette[k % palette.length], points: periods.map((t, i) => [t, c.sa[i]]) })),
+				caption: localize('femResults.floorSpectraCaption', "Highest floor peak {0} g ({1})", Math.max(...curves.map(c => c.peak)).toFixed(3), curves[curves.length - 1].name),
+			});
+		}
+		const notes = [found.clause ?? '', ...(found.notes ?? [])].filter(Boolean);
+		if (notes.length) {
+			append(section, $('.fem-results-help', undefined, notes.join(' · ')));
+		}
 	}
 
 	private renderSpectrum(response: IFemStoryResponse): void {

@@ -1479,6 +1479,7 @@ def _results(data: dict[str, Any], ctx: Context) -> dict[str, Any]:
     out += _serviceability_blocks(results.get("serviceability") or {})
     out += _comfort_blocks("Floor vibration from walking", results.get("floorVibration"))  # P7
     out += _comfort_blocks("Wind-induced motion and comfort", results.get("windComfort"))  # P7
+    out += _comfort_blocks("Floor response spectra", results.get("floorSpectra"))  # L5
     out += _irregularity_blocks(results.get("irregularity") or {})
     out += _nonstructural_blocks(results.get("nonstructural") or {})
     out += _precast_blocks(results.get("precast"))  # Alpha 9 L1

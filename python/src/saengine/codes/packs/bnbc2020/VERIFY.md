@@ -168,3 +168,14 @@ ASCE 41-17 basis: the same values as the aci318-asce7-22 pack's P4U1-P4U30 (see 
 | L1B17 | erection.windPressure | 0.5 kPa while erected | none (Sec 6.10.9.2 asks for bracing) | SAEngine practice |
 | L1B18 | erection.overturningSafety | 1.5 | none | SAEngine practice |
 | L1B19 | erection.hanging | FS 1.5, sweep L/960, insert tolerance 6 mm | Mast, PCI Journal 1989 and 1993; PCI sweep tolerance 1/8 in per 10 ft | Check |
+
+## Floor response spectra (`floorSpectra`; alpha 9 L5)
+
+| # | Path | Value | Source | Sure? |
+|---|---|---|---|---|
+| L5-1 | methods | timeHistory, spectrumToSpectrum (time history first when the run has one) | none in the code | SAEngine practice |
+| L5-2 | broadening | ±15 % of the period | ASCE 4-16 Sec 6.2 / US NRC RG 1.122 practice | Check |
+| L5-3 | damping | 2, 3, 5, 7 % computed; 5 % for the components | none | SAEngine practice |
+| L5-4 | periods | 0.02-4 s, 120 on a log scale | none | SAEngine practice |
+| L5-5 | direct.duration / iterations | 20 s strong motion (Davenport peak factor), 8 iterations of the density | none | SAEngine practice |
+| L5-6 | components | F = Sa(Tc) Wc Ic / Rc within the nonstructural table's least and largest force; rigid (αc ≤ 1) at 0.06 s, flexible at the peak | the form of ASCE 7-16 Eq 13.3-4 / EN 1998-1 Eq 4.24 with the floor spectrum | SAEngine practice (off unless the project turns it on) |

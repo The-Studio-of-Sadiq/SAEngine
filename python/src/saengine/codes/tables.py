@@ -11847,6 +11847,7 @@ from saengine.codes.capacity_tables import (  # C19
 )
 from saengine.codes.excavation_tables import ExcavationSupportTable  # P1: staged excavations
 from saengine.codes.existing_tables import ExistingTable  # P4: existing buildings
+from saengine.codes.floor_spectra_tables import FloorSpectraTable  # L5: floor spectra
 from saengine.codes.hazard_tables import HazardLookupTable  # C22: online hazard lookup
 from saengine.codes.limit_state_tables import SteelLimitStateTable
 from saengine.codes.material_method_tables import (
@@ -11959,6 +11960,8 @@ TABLE_MODELS: dict[str, type[TableModel]] = {
     "hazardLookup": HazardLookupTable,
     # Alpha 9 L1: precast pieces, their handling, erection and connections.
     "precast": PrecastTable,
+    # Alpha 9 L5: floor (in-structure) response spectra.
+    "floorSpectra": FloorSpectraTable,
 }
 
 

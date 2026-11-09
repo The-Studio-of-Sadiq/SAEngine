@@ -784,3 +784,14 @@ live answer before release.
 | L1U5 | connections.tensionShare | 0.2 Vu where none is entered | ACI 318-19 16.5.3.5 (corbels), applied to every bearing | SAEngine practice |
 | L1U6 | integrity | 4.4 kN/m; 1.4 Ag N; 2 × 44 kN per panel; 3 storeys: 22 kN/m at 3 m, 71 kN within 1.2 m, 44 kN/m | ACI 318-19 16.2.4.2, 16.2.4.3, 16.2.5.1 (300 lb/ft, 200 Ag lb, 10 kip, 1500 lb/ft, 10 ft, 16 kip, 4 ft, 3000 lb/ft) | Check (SI conversions) |
 | L1U7 | handling, erection | as the default pack's L1B11-L1B19 | PCI Design Handbook 8th ed.; Mast | Check / SAEngine practice |
+
+## Floor response spectra (`floorSpectra`; alpha 9 L5)
+
+| # | Path | Value | Source | Sure? |
+|---|---|---|---|---|
+| L5-1 | methods | timeHistory, spectrumToSpectrum (time history first when the run has one) | none in the code | SAEngine practice |
+| L5-2 | broadening | ±15 % of the period | ASCE 4-16 Sec 6.2 / US NRC RG 1.122 practice | Check |
+| L5-3 | damping | 2, 3, 5, 7 % computed; 5 % for the components | none | SAEngine practice |
+| L5-4 | periods | 0.02-4 s, 120 on a log scale | none | SAEngine practice |
+| L5-5 | direct.duration / iterations | 20 s strong motion (Davenport peak factor), 8 iterations of the density | none | SAEngine practice |
+| L5-6 | components | F = Sa(Tc) Wc Ic / Rc within the nonstructural table's least and largest force; rigid (αc ≤ 1) at 0.06 s, flexible at the peak | the form of ASCE 7-16 Eq 13.3-4 / EN 1998-1 Eq 4.24 with the floor spectrum | SAEngine practice (off unless the project turns it on) |

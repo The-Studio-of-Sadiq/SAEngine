@@ -1943,6 +1943,39 @@ class ExistingBuilding(_Model):
 FORMER_PATTERN_LIVE = {"bnbc": "adjacent", "bnbcAlternateFloors": "adjacentAlternateFloors"}
 
 
+class FloorSpectra(_Model):
+    """Alpha 9 L5: floor (in-structure) response spectra at chosen floors
+    (:mod:`saengine.fem.floor_spectra`), by the code pack's ``floorSpectra`` table."""
+
+    method: Literal["pack", "timeHistory", "spectrumToSpectrum"] = Field(
+        default="pack",
+        description="From the run's time-history cases (the floors' acceleration histories) or "
+        "by the direct spectrum-to-spectrum method (the site's spectrum through the modes); "
+        "by the code pack: its default, the time history when the run has one.",
+        json_schema_extra=_labels(["By the code pack", "Time history", "Spectrum to spectrum"]),
+    )
+    stories: list[Id] = Field(
+        default_factory=list,
+        description="The stories (ids of the floor plan) to compute; empty: every floor.",
+    )
+    damping: list[float] = Field(
+        default_factory=list,
+        description="Component damping ratios [-]; empty: the code pack's.",
+    )
+    broadening: float | None = Field(
+        default=None,
+        ge=0,
+        lt=1,
+        description="Peak broadening ± share of the period; empty: the code pack's (±15 %).",
+    )
+    useForComponents: bool = Field(
+        default=False,
+        title="Use for the components",
+        description="The nonstructural components' forces follow from their floor's spectrum "
+        "(within the code's least and largest force) in place of the height formula.",
+    )
+
+
 class Analysis(_Model):
     """How the analysis model (Part 8) represents the building."""
 
@@ -2405,6 +2438,14 @@ class Analysis(_Model):
         "knowledge level, the as-built strengths from tests, the members' condition and the "
         "retrofit measures; the results check every member by the code pack's assessment "
         "rules (its existing table). Empty: a new building.",
+    )
+    floorSpectra: FloorSpectra | None = Field(
+        default=None,
+        exclude_if=lambda value: value is None,
+        title="Floor response spectra",
+        description="Floor response spectra at chosen floors (alpha 9 L5), from the time "
+        "histories or by the direct method, broadened; they can give the nonstructural "
+        "components' forces. Empty: not computed.",
     )
     thermal: Thermal = Field(default_factory=Thermal, title="Temperature")
     settlement: Settlement = Field(default_factory=Settlement, title="Support settlement")
