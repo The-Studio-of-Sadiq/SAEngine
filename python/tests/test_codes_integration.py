@@ -159,11 +159,14 @@ def test_rpc_code_pack_methods(tmp_path):
 
     root = _project(tmp_path, "b", "example-region")
     packs = handlers.codes_list(str(root))
-    assert {(p["id"], p["scope"]) for p in packs} == {
-        ("bnbc2020", "builtin"),
-        ("aci318-asce7-22", "builtin"),  # C1: the US loads pack
-        ("eurocodes", "builtin"),
-        ("example-region", "project"),
+    # Every built-in pack folder (alpha 9 added the other countries' packs), plus the project's.
+    builtin = {
+        d.name
+        for d in (Path(registry.__file__).parent / "packs").iterdir()
+        if (d / "pack.json").is_file() and not d.name.startswith("saengine-")
+    }
+    assert {(p["id"], p["scope"]) for p in packs} == {(i, "builtin") for i in builtin} | {
+        ("example-region", "project")
     }
     shown = handlers.codes_show("example-region", str(root))
     assert shown["extends"] == "bnbc2020" and shown["licence"] == "AGPL-3.0-only"

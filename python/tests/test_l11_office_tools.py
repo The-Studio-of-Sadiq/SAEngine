@@ -225,7 +225,8 @@ def test_phase_status_and_bill() -> None:
     assert status_in(ph, "C2", "new") == "existing"
     assert status_in(ph, "C3", "new") == "new"
     assert status_in(ph, "C3", "existing") == "future"
-    assert visible_in(ph, ["C1", "C2", "C3"], "existing") == {"C1": "existing", "C2": "existing"}
+    # Built in the phase shown: new in it (status_in).
+    assert visible_in(ph, ["C1", "C2", "C3"], "existing") == {"C1": "new", "C2": "new"}
     bill = {"items": [{"code": "C.01", "group": "concrete", "description": "x", "unit": "m3",
                        "quantity": 3, "breakdown": [{"element": e, "quantity": 1}
                                                     for e in ("C1", "C2", "C3")]}]}  # fmt: skip

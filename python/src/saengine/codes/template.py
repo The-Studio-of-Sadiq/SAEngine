@@ -36,6 +36,11 @@ DEFAULT_PARENT = "bnbc2020"
 
 #: What each table holds (the skeleton's help, ``saengine codepack show``, docs/code-packs.md).
 TABLE_HELP: dict[str, str] = {
+    "aluminium": "Aluminium alloys with their strengths and heat-affected zone factors, buckling "
+    "classes and the partial factors of the code's aluminium member and joint checks.",
+    "barSchedule": "The bar bending schedule standard: shape codes, their dimension letters, "
+    "cutting-length formulas, bend radii, rounding, columns and the sheet title (and each "
+    "shape's CNC bending geometry). Point a pack at another standard to change the schedule.",
     "locations": "Towns and districts with their seismic zone and basic wind speed (the code's "
     "hazard maps as a list of places), keyed by a short id. Add your region's towns, or change "
     "the zone or wind speed of one.",

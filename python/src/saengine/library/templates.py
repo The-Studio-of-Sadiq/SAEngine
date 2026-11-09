@@ -270,6 +270,14 @@ TEMPLATES: dict[str, dict[str, Any]] = {
     },
     "BeamCorbels": {},
     "Helipad": {},
+    "CfdWind": {},  # alpha 9: optional sub-object
+    "HazardSource": {"provider": "manual", "service": "Entered by hand", "date": "2026-01-01"},  # alpha 9 C22 (normally written by the lookup)
+    "FloorSpectra": {},  # alpha 9: optional sub-object
+    "NonlinearStability": {},  # alpha 9: optional sub-object
+    "IsolatorPropertyModification": {},  # alpha 9: optional sub-object
+    "Cable": {"pretension": 10.0},  # alpha 9 L4: a cable brace
+    "SupplementalDamper": {"kind": "viscous", "coefficient": 500.0},  # alpha 9 P6: a viscous damper
+    "PrecastPiece": {"element": "beam"},  # alpha 9 L1: a precast piece
     "SnowDrift": {"upperLength": 10.0, "stepHeight": 2.0},  # alpha 9 C1: a roof step
     "SpectralSite": {},  # alpha 9 C1: the site's mapped spectral values, all optional
     "AirRaidShelter": {"storeysAbove": 1},

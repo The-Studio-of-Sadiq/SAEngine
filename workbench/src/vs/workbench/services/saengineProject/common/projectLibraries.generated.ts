@@ -23237,6 +23237,25 @@ export const TEMPLATES: { readonly [defName: string]: object } = {
 	},
 	BeamCorbels: {},
 	Helipad: {},
+	CfdWind: {},
+	HazardSource: {
+		provider: 'manual',
+		service: 'Entered by hand',
+		date: '2026-01-01',
+	},
+	FloorSpectra: {},
+	NonlinearStability: {},
+	IsolatorPropertyModification: {},
+	Cable: {
+		pretension: 10.0,
+	},
+	SupplementalDamper: {
+		kind: 'viscous',
+		coefficient: 500.0,
+	},
+	PrecastPiece: {
+		element: 'beam',
+	},
 	SnowDrift: {
 		upperLength: 10.0,
 		stepHeight: 2.0,
