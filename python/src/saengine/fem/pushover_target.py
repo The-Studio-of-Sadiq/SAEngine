@@ -690,6 +690,24 @@ def capacity_curve(analysis: dict[str, Any], results: Any) -> tuple[np.ndarray, 
     return sign * (d - d[0]), sign * v
 
 
+def stopped_early(analysis: dict[str, Any], results: Any, pushed: float) -> dict[str, Any] | None:
+    """``{"step", "steps", "requested"}`` when the pushover run stopped (did not converge)
+    before the roof displacement it was asked to reach, else None. Uses the run's step count
+    when kept, else compares the pushed displacement with the analysis's target."""
+    requested = abs(float(analysis.get("target_disp") or 0.0))
+    done = int(getattr(results, "n_steps", 0) or 0)
+    asked = int(getattr(results, "n_steps_requested", 0) or 0)
+    if asked > 0:
+        if 0 < done < asked:
+            return {"step": done, "steps": asked, "requested": requested}
+        return None
+    if requested > 0 and pushed < requested * (1 - 1e-3):
+        size = abs(float(analysis.get("step_size") or 0.0))
+        steps = round(requested / size) if size > 0 else 0
+        return {"step": done, "steps": steps or done, "requested": requested}
+    return None
+
+
 def spectrum_of(settings: Any, rule: Any) -> tuple[Callable[[float], float], dict[str, float]]:
     """Sa(T) [g] of the project's site with the pack's R and I for the target displacement,
     and the site class's corner periods."""
@@ -797,16 +815,36 @@ def evaluate(
             f"({clause('pattern')}); this pushover uses '{pattern or 'another'}': choose it in "
             "the project settings (Analysis, Pushover) and derive again."
         )
-    if found["beyondCurve"]:
+    stopped = stopped_early(analysis, results, checks["pushedTo"])
+    if stopped is not None:
+        notes.append(
+            f"The pushover did not converge: it stopped at step {stopped['step']} of "
+            f"{stopped['steps']} ({checks['pushedTo']:.3f} m of the requested "
+            f"{stopped['requested']:.3f} m roof displacement). Raising the target roof drift "
+            "does not help: the structure lost stability or the solver failed there; check "
+            "the hinges and members yielding at the last step, or use smaller steps."
+        )
+    if found["beyondCurve"] and stopped is None:
         notes.append(
             "The target displacement lies beyond the end of the capacity curve: push further "
             "(raise the target roof drift) or the structure cannot reach it."
         )
-    elif not checks["reached"]:
+    elif found["beyondCurve"]:
+        notes.append(
+            "The target displacement lies beyond the end of the capacity curve because the "
+            "pushover stopped early: the structure may not reach it."
+        )
+    elif not checks["reached"] and stopped is None:
         notes.append(
             f"The pushover must go to at least {rule.procedure.pushToTarget:g} × the target "
             f"displacement ({checks['required']:.3f} m) and stopped at "
             f"{checks['pushedTo']:.3f} m: raise the target roof drift ({clause('pushTo')})."
+        )
+    elif not checks["reached"]:
+        notes.append(
+            f"The pushover must go to at least {rule.procedure.pushToTarget:g} × the target "
+            f"displacement ({checks['required']:.3f} m) ({clause('pushTo')}) but did not "
+            f"converge beyond {checks['pushedTo']:.3f} m."
         )
     if checks["noDrop"] is False:
         notes.append(
@@ -851,6 +889,7 @@ def evaluate(
         "notes": notes,
         "pattern": pattern,
         "patternOk": pattern_ok,
+        "stoppedEarly": stopped,
         "ok": (
             pattern_ok
             and not found["beyondCurve"]

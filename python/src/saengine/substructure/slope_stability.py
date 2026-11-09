@@ -1469,6 +1469,14 @@ def run_case(
     )
 
 
+def fs_note(fs: float, required: float) -> str:
+    """W4B-18: "F = 1.640 ≥ 1.5 required", or "F = 1.235 < 1.5 required: fails" (the note
+    once read "F = 1.235 ≥ 1.5", a pass, on a failing slope)."""
+    if fs >= required:
+        return f"F = {fs:.3f} ≥ {required:g} required"
+    return f"F = {fs:.3f} < {required:g} required: fails"
+
+
 def method_lines() -> list[str]:
     """The method of the slope checks for the report, with the pack's clauses."""
     rules = table()
@@ -1552,7 +1560,7 @@ def design_slope(ctx: Any, slope: Any) -> dict[str, Any]:
                         )
                     )
                 continue
-            note = f"F = {row['fs']:.3f} ≥ {case.required:g} ({cite('required')})"
+            note = f"{fs_note(row['fs'], case.required)} ({cite('required')})"
             if row["lambda"] is not None:
                 note += f"; λ = {row['lambda']:.3f}"
             if row["note"]:

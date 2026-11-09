@@ -42,7 +42,7 @@ import { displayUnit } from '../../../services/saengineProject/common/displayUni
 import { appendPlannedFeatureChip } from '../../saengineProject/browser/plannedFeatureEditor.js';
 import { fieldPlaceholder, fieldUnitLabel, formatField, formatNumber, IFieldSpec, parseField } from '../../saengineSoil/browser/soilDocument.js';
 import {
-	addPiles, applyPileLayout, applyProposal, capPileType, connectGradeBeams, DEFAULT_SPACING_FACTOR, deletePiles, formatSpacings, foundationOf, gridLines, IPile, intersectionsInBox, makePileCap, MIN_SPACING_FACTOR, movePiles, newPileGrid, parseSpacings, PILE_GROUPS, pileAt, pileCaps, pilesInBox, placePileGroup, refitCap, setCapPileType, snapPoint, tied, formatPileBars, formatPileTies, minimumMesh, parsePileBars, parsePileTies, carriedAlready, checkStateText, checkSubstructure, documentSignatures, defaultFoundingLevel, EMPTY_CONTEXT, formatMesh, formatUtilisation, foundationCenter, foundationOutlines, foundationSize, foundationTypeLabel, FOUNDATION_TYPES, FoundationType, governingCheck, IColumnBase, IFoundation, IFoundationResult, IPileType, ISiteContext, ISiteTexts,
+	addPiles, applyPileLayout, applyProposal, capPileType, connectGradeBeams, DEFAULT_SPACING_FACTOR, deletePiles, formatSpacings, foundationOf, gridLines, IPile, intersectionsInBox, makePileCap, MIN_SPACING_FACTOR, movePiles, newPileGrid, parseSpacings, PILE_GROUPS, pileAt, pileCaps, pilesInBox, placePileGroup, refitCap, setCapPileType, snapPoint, tied, formatPileBars, formatPileTies, minimumMesh, parsePileBars, parsePileTies, carriedAlready, checkStateText, otherChecks, otherChecksText, otherResults, checkSubstructure, documentSignatures, defaultFoundingLevel, EMPTY_CONTEXT, formatMesh, formatUtilisation, foundationCenter, foundationOutlines, foundationSize, foundationTypeLabel, FOUNDATION_TYPES, FoundationType, governingCheck, IColumnBase, IFoundation, IFoundationResult, IPileType, ISiteContext, ISiteTexts,
 	ISizingProposal, ISubstructure, ISubstructureCheck, ISubstructureMigration, ISubstructureProblem, ISubstructureReport, ISubstructureRequest, IRetainingWall, ITieBeam, importFoundations, maxPressure, MESH_KEYS, MeshKey, newFooting, newPileCap, newPileType, newRaft, newRetainingWall, newTieBeam, parseIdList, parseMesh, parseSubstructure, PILE_FACTOR_OF_SAFETY, pileFactorsUsed, PILE_KINDS, PILE_LAYOUTS,
 	EXCAVATION_SUPPORTS, ExcavationSupport, excavationSupportLabel, IAdjoiningStructure, IExcavation, IExcavationLoad, IFormwork, newExcavation, newFormwork,
 	EMBEDDED_WALL_TYPES, EmbeddedWallType, embeddedWallTypeLabel, IExcavationStage, IWallSupport,
@@ -4093,13 +4093,31 @@ export class SubstructureEditor extends EditorPane {
 		const xs = all.map(p => p[0]);
 		const zs = [...all.map(p => p[1]), ...(base !== undefined ? [base] : [])];
 		const x0 = Math.min(...xs), x1 = Math.max(...xs), z0 = Math.min(...zs), z1 = Math.max(...zs);
-		const width = 680, pad = 24;
-		const scale = Math.min((width - 2 * pad) / Math.max(x1 - x0, 1), 300 / Math.max(z1 - z0, 1));
-		const height = Math.round((z1 - z0) * scale + 2 * pad);
-		const X = (x: number) => pad + (x - x0) * scale;
-		const Z = (z: number) => height - pad - (z - z0) * scale;
+		// W4B-18: room on the left and below for the axes' values in metres.
+		const width = 680, pad = 24, left = 44, below = 30;
+		const scale = Math.min((width - left - pad) / Math.max(x1 - x0, 1), 300 / Math.max(z1 - z0, 1));
+		const height = Math.round((z1 - z0) * scale + pad + below);
+		const X = (x: number) => left + (x - x0) * scale;
+		const Z = (z: number) => height - below - (z - z0) * scale;
 		const box = append(parent, $('.sub-slope-plot'));
 		const chart = svg(box, 'svg', { width, height, viewBox: `0 0 ${width} ${height}`, role: 'img', 'aria-label': localize('sub.slopePlot', "Section of {0}", slope.id) });
+		// The axes: distance and level [m] at a round step, to scale.
+		const step = (span: number) => [1, 2, 5, 10, 20, 50, 100].find(v => span / v <= 8) ?? 200;
+		const axis = { stroke: 'var(--vscode-descriptionForeground)', 'stroke-width': 0.5 };
+		const label = { fill: 'var(--vscode-descriptionForeground)', 'font-size': 10 };
+		svg(chart, 'line', { x1: X(x0), y1: Z(z0), x2: X(x1), y2: Z(z0), ...axis });
+		svg(chart, 'line', { x1: X(x0), y1: Z(z0), x2: X(x0), y2: Z(z1), ...axis });
+		const dx = step(x1 - x0), dz = step(z1 - z0);
+		for (let x = Math.ceil(x0 / dx) * dx; x <= x1 + 1e-9; x += dx) {
+			svg(chart, 'line', { x1: X(x), y1: Z(z0), x2: X(x), y2: Z(z0) + 4, ...axis });
+			svg(chart, 'text', { x: X(x), y: Z(z0) + 14, 'text-anchor': 'middle', ...label }, formatNumber(x, 0));
+		}
+		for (let z = Math.ceil(z0 / dz) * dz; z <= z1 + 1e-9; z += dz) {
+			svg(chart, 'line', { x1: X(x0) - 4, y1: Z(z), x2: X(x0), y2: Z(z), ...axis });
+			svg(chart, 'text', { x: X(x0) - 6, y: Z(z) + 3, 'text-anchor': 'end', ...label }, formatNumber(z, 0));
+		}
+		svg(chart, 'text', { x: X(x1), y: height - 4, 'text-anchor': 'end', ...label }, localize('sub.slopeAxisX', "distance [m]"));
+		svg(chart, 'text', { x: 2, y: 10, ...label }, localize('sub.slopeAxisZ', "level [m]"));
 		const line = (points: number[][], stroke: string, extra: Record<string, string | number> = {}) => {
 			if (points.length > 1) {
 				svg(chart, 'polyline', { points: points.map(p => `${X(p[0]).toFixed(1)},${Z(p[1]).toFixed(1)}`).join(' '), fill: 'none', stroke, 'stroke-width': 1.5, ...extra });
@@ -4137,9 +4155,25 @@ export class SubstructureEditor extends EditorPane {
 		for (const s of surfaces) {
 			line(s.points, colors[s.method] ?? 'var(--vscode-charts-red)', { 'stroke-width': 2 });
 		}
-		if (surfaces.length) {
-			const legend = append(box, $('div.sub-muted'));
-			legend.textContent = surfaces.map(s => slopeMethodLabel(s.method)).join(' · ');
+		// W4B-18: a legend of what is drawn, each with its colour.
+		const legend = append(box, $('div.sub-muted.sub-slope-legend'));
+		const key = (color: string, text: string, dashed = false) => {
+			const item = append(legend, $('span.sub-slope-key'));
+			append(item, $('span.sub-slope-swatch', { style: `border-top: 2px ${dashed ? 'dashed' : 'solid'} ${color}; display: inline-block; width: 18px; vertical-align: middle; margin: 0 4px 0 10px;` }));
+			append(item, $('span', undefined, text));
+		};
+		key('var(--vscode-foreground)', localize('sub.slopeKeyGround', "ground"));
+		if (strata.length) {
+			key('var(--vscode-descriptionForeground)', localize('sub.slopeKeyStrata', "strata"), true);
+		}
+		if (water.length) {
+			key('var(--vscode-charts-blue)', localize('sub.slopeKeyWater', "water table"), true);
+		}
+		if (grid.length) {
+			key('var(--vscode-charts-red)', localize('sub.slopeKeyCentres', "circle centres searched (darker: lower F)"));
+		}
+		for (const s of surfaces) {
+			key(colors[s.method] ?? 'var(--vscode-charts-red)', localize('sub.slopeKeySurface', "critical surface, {0}", slopeMethodLabel(s.method)));
 		}
 	}
 
@@ -4544,6 +4578,15 @@ export class SubstructureEditor extends EditorPane {
 		const state = this.checkState!;
 		const verdict = append(view, $(`p.sub-note.sub-verdict.${state.status === 'pass' ? 'ok' : state.status === 'fail' ? 'error' : 'warning'}`, { role: 'status' }));
 		verdict.textContent = checkStateText(state);
+		// W4B-6: the excavations, slopes and other checks beside the foundations' count.
+		const others = otherChecksText(otherChecks(report));
+		if (others) {
+			verdict.textContent += ` · ${others}`;
+			if (otherChecks(report).failed && state.status !== 'fail') {
+				verdict.classList.remove('ok', 'warning');
+				verdict.classList.add('error');
+			}
+		}
 		if (state.stale) {
 			append(verdict, $('span', undefined, ` · ${this.input?.isDirty()
 				? localize('sub.resultsUnsavedShort', "save to check the edits")
@@ -4556,7 +4599,8 @@ export class SubstructureEditor extends EditorPane {
 		this.renderTiles(view, document, state);
 		this.renderResultTable(view, document, report);
 		this.renderRetainingWallResults(view, document, report);
-		const selected = this.foundation ?? document.foundations.find(f => f.id === report.summary.governing);
+		this.renderOtherResults(view, document, report);
+		const selected =this.foundation ?? document.foundations.find(f => f.id === report.summary.governing);
 		const result = selected && this.resultOf(selected);
 		if (selected && result) {
 			this.renderFoundationDetail(view, selected, result);
@@ -4721,6 +4765,31 @@ export class SubstructureEditor extends EditorPane {
 		});
 	}
 
+	/**
+	 * W4B-6: every other checked item (excavations with their struts, slopes, ground slabs,
+	 * formwork, machine foundations, the building's flotation) with its governing check and all
+	 * its checks, so that what governs the substructure is always in Results.
+	 */
+	private renderOtherResults(view: HTMLElement, document: ISubstructure, report: ISubstructureReport): void {
+		const walls = new Set((document.retainingWalls ?? []).map(w => w.id));
+		const results = otherResults(report).filter(r => !walls.has(r.id)); // the walls are above
+		if (!results.length) {
+			return;
+		}
+		const failed = results.filter(r => !r.ok).length;
+		const section = this.resultSection(view, localize('sub.otherResults', "Excavations, slopes and other checks"), failed
+			? localize('sub.otherResultsFail', "{0} of {1} fail", failed, results.length)
+			: localize('sub.otherResultsDetail', "{0} checked", results.length));
+		for (const result of results) {
+			const governing = governingCheck(result);
+			const actions = result.checks.filter(c => c.action).map(c => c.name);
+			const heading = append(section, $(`p.sub-note${!result.ok ? '.error' : actions.length ? '.warning' : ''}`));
+			heading.textContent = localize('sub.otherGoverning', "{0} ({1}): {2}, utilisation {3}", result.id, result.type, governing?.name ?? '—', formatUtilisation(result.utilisation ?? 0))
+				+ (actions.length ? ` · ${localize('sub.otherActions', "action needed: {0}", actions.join(', '))}` : '');
+			this.appendCheckTable(section, result.checks, () => '');
+		}
+	}
+
 	/** "not checked: <the backend's reason>" for a foundation or tie beam the design skipped. */
 	private notCheckedText(id: string): string {
 		const reason = this.report?.skipped.find(s => s.id === id)?.reason;
@@ -4742,13 +4811,19 @@ export class SubstructureEditor extends EditorPane {
 		// The checks that count first, by utilisation; the ones only reported after them.
 		for (const check of [...checks].sort((a, b) => Number(a.flag) - Number(b.flag) || (b.utilisation ?? -1) - (a.utilisation ?? -1))) {
 			const row = append(body, $(check.flag ? 'tr.flag' : 'tr'));
-			append(row, $('td', undefined, check.flag ? localize('sub.flagged', "{0} (reported only)", check.name) : check.name));
+			append(row, $('td', undefined, check.action ? localize('sub.actionNeeded', "{0} (action needed)", check.name) : check.flag ? localize('sub.flagged', "{0} (reported only)", check.name) : check.name));
 			append(row, $('td.number', undefined, value(check.demand)));
 			const overlap = check.name === CLEARANCE_CHECK;
 			// The clearance between footings passes or fails; its "capacity" 0 mm and a ratio mean little (N-U12).
 			append(row, $('td.number', undefined, overlap ? '—' : value(check.capacity)));
 			append(row, $('td.sub-muted-cell', undefined, check.unit));
-			if (overlap && !check.ok) {
+			if (check.action) {
+				// W4B-7: an action to take, not a ratio.
+				append(append(row, $('td.number.sub-util-cell')), $('span.sub-util-value.band-warn', undefined, localize('sub.actionCell', "action needed")));
+			} else if (check.flag && check.utilisation === null) {
+				// W4B-8: a value reported without a capacity is not checked (not "1.000 OK").
+				append(append(row, $('td.number.sub-util-cell')), $('span.sub-util-value', undefined, localize('sub.notCheckedCell', "not checked")));
+			} else if (overlap && !check.ok) {
 				append(append(row, $('td.number.sub-util-cell')), $('span.sub-util-value.band-fail', undefined, localize('sub.overlapBy', "overlaps by {0} mm", formatNumber(check.demand ?? 0, 0))));
 			} else if (check.capacity === 0 && (check.utilisation ?? 0) >= 99) {
 				// Nothing provided (no bars in that layer): a ratio means nothing.

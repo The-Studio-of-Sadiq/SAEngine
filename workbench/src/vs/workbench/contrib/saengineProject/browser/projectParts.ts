@@ -133,6 +133,8 @@ export function partSections(partId: string): readonly IPartSection[] {
 		case 'fem': return [
 			{ id: 'model', label: localize('partSection.femModel', "Model and Analysis"), typeId: FEM_MODEL_INPUT, alsoTypeIds: [FEM_MEMBER_INPUT] },
 			{ id: 'results', label: localize('partSection.femResults', "Analysis Charts"), command: 'saengine.fem.showCharts', typeId: FEM_RESULTS_INPUT },
+			// W4B-3: the pushover model (08 FEM/pushover.osmodel), else found only by Quick Open.
+			{ id: 'pushover', label: localize('partSection.femPushover', "Pushover"), command: 'saengine.fem.openPushover' },
 			{ id: 'proposal', label: localize('partSection.femProposal', "Design Reinforcement"), command: 'saengine.fem.designReinforcement', typeId: FEM_PROPOSAL_INPUT },
 		];
 		default: return [];

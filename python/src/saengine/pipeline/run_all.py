@@ -23,6 +23,8 @@ The same steps, in the same order, reading and writing the same files as the wor
    the report check every member again;
 5. ``design``: the RC design checks, writing ``08 FEM/model.results/design-summary.json``. A
    run that checks nothing fails the step (it is not "0 pass, 0 fail");
+   ``pushover``: when the settings ask for pushovers, runs ``08 FEM/pushover.osmodel`` into
+   ``pushover.results`` (unless current), or says why there is no pushover model (W4B-3);
 6. ``mep``: the coordination of 7 MEP, its plumbing, HVAC (never starting EnergyPlus: its cached
    loads when they match, else the estimate), electrical and fire checks, writing
    ``07 MEP/mep.results/summary.json``;
@@ -84,6 +86,7 @@ STEPS: tuple[tuple[str, str], ...] = (
     ("ssi", "fixed-base run for the soil springs"),
     ("substructure", "foundation design"),
     ("design", "design checks"),
+    ("pushover", "pushover"),
     ("mep", "MEP coordination, plumbing, HVAC, electrical and fire checks"),
     ("boq", "bill of quantities"),
     ("report", "report"),
@@ -105,6 +108,7 @@ STEP_NEEDS: dict[str, tuple[str, ...]] = {
     "ssi": ("analysis",),
     "substructure": ("analysis",),
     "design": ("analysis",),
+    "pushover": ("derive",),
     "mep": ("bim",),
     "boq": ("bim",),
     "report": ("design",),
@@ -792,6 +796,87 @@ def _design(project: Project, step: StepResult) -> dict[str, Any]:
     return report
 
 
+# ─────────────────────────────── pushover ───────────────────────────────
+
+
+def pushover_asked(settings_text: str | None) -> bool:
+    """Whether the project settings ask for pushovers (Analysis model, Pushover ticked)."""
+    try:
+        value = json.loads(settings_text) if settings_text else None
+    except ValueError:
+        return False
+    analysis = value.get("analysis") if isinstance(value, dict) else None
+    return isinstance(analysis, dict) and bool(analysis.get("pushover"))
+
+
+def pushover_not_derived(folder: Path) -> list[str]:
+    """W4B-3: the notes of the last derivation (``08 FEM/model.derivation.json``) that say why
+    it gave no pushover model (members without fiber sections: no bars yet; no height)."""
+    try:
+        data = json.loads((folder / "model.derivation.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return []
+    notes = data.get("notes") if isinstance(data, dict) else None
+    pushover = [str(n) for n in notes or [] if str(n).startswith("pushover")]
+    if not any("no pushover model" in n or "no height" in n for n in pushover):
+        return []
+    return [n.removeprefix("pushover:").strip() for n in pushover if "elastic" in n or "no " in n]
+
+
+def pushover_early_stops(model: Path) -> list[str]:
+    """The pushover cases of the run beside ``model`` that stopped before their target
+    displacement (did not converge): their manifest warnings, or a line naming them."""
+    try:
+        manifest = json.loads((results_folder(model) / "manifest.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return []
+    stops = []
+    for entry in manifest.get("cases") or []:
+        if isinstance(entry, dict) and entry.get("early_stop"):
+            stops.append(
+                f"{entry.get('case_name')}: stopped at step {entry.get('completed_steps')} of "
+                f"{entry.get('n_steps_requested')} (did not converge)"
+            )
+    return stops
+
+
+def _pushover(project: Project, step: StepResult, report: Callable[[str], None]) -> None:
+    """W4B-3: runs ``08 FEM/pushover.osmodel`` when the settings ask for pushovers, after the
+    design checks; or says why it cannot (no pushover model: the derivation's reason)."""
+    if not pushover_asked(project.text("settings")):
+        step.message = "No pushover asked for (Project Settings, Analysis model)."
+        return
+    model = project.file("fem").parent / PUSHOVER_FILE
+    reasons = pushover_not_derived(model.parent)
+    if reasons or not model.is_file():
+        step.status = "warning"
+        step.counts = {"reasons": reasons}
+        step.message = (
+            "Pushover asked for but not run: no pushover model was derived"
+            + (f" ({'; '.join(reasons)})" if reasons else "")
+            + ". Members need bars for their fiber sections: give the object types bars "
+            "(Design Reinforcement in 8 FEM) and run again."
+        )
+        return
+    if results_current(model):
+        step.status = "skipped"
+        step.message = "The pushover results are current: the pushover model did not change."
+    else:
+        outcome = run_analysis(model, report)
+        if outcome["status"] != "done":
+            raise StepFailure(outcome.get("message") or outcome["status"])
+        keep_analysis_inputs(model)
+        step.status = "ok"
+        step.counts = {"cases": outcome["cases"]}
+        step.message = f"Pushover run: {outcome['cases']} case(s)."
+    step.outputs.append(_relative(project, results_folder(model)))
+    stops = pushover_early_stops(model)
+    if stops:
+        step.status = "warning"
+        step.counts["earlyStops"] = stops
+        step.message += " " + "; ".join(stops) + "."
+
+
 # ─────────────────────────────── 5: substructure ───────────────────────────────
 
 
@@ -844,6 +929,17 @@ def _substructure(project: Project, step: StepResult, add_bars: bool) -> dict[st
         f"foundations {file['checked']} of {file['total']} checked in full: "
         f"{file['passed']} pass, {file['failed']} fail"
     )
+    others = file.get("others")
+    if others and (others["failed"] or others["actions"]):
+        # W4B-6: the excavations, slopes and walls are said too, apart from the foundations.
+        step.counts["others"] = others
+        step.message += f"; other checks {others['checked']}: {others['failed']} fail"
+        if others["failing"]:
+            step.message += f" ({_short_list(others['failing'])})"
+        if others["actions"]:
+            step.message += f"; action needed: {_short_list(others['actions'])}"
+        if others["failed"] or others["actions"]:
+            step.status = "warning"
     summary = S.record(raw.get("summary"))
     added = [str(f) for f in summary.get("barsAdded") or []]
     if added:
@@ -1162,7 +1258,7 @@ def _summary(result: list[StepResult]) -> str:
     written", or, when a step failed, which one, why, and how many steps were not run."""
     by_id = {s.id: s for s in result}
     parts = []
-    for step_id in ("design", "substructure", "mep"):
+    for step_id in ("design", "pushover", "substructure", "mep"):
         step = by_id.get(step_id)
         if step and step.status in ("ok", "warning"):
             parts.append(step.message)
@@ -1277,6 +1373,8 @@ def _run_all(
                     _ssi(project, step)
                 case "design":
                     design_report = _design(project, step)
+                case "pushover":
+                    _pushover(project, step, report)
                 case "substructure":
                     _substructure(project, step, add_bars)
                 case "mep":

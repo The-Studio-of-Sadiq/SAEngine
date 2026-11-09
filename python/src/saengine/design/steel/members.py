@@ -1744,6 +1744,11 @@ def unsymmetric_interaction(
     return pa + fw + fz, mw, mz
 
 
+#: W4B-8: αPr / Pe1 beyond which B1 (then above 1/(1 - share) = 5 with Cm = 1) no longer
+#: amplifies a member's moments: the member buckles, which its axial check reports.
+BUCKLING_SHARE = 0.8
+
+
 def amplifier_b1(cm: float, pr: float, pe1: float) -> float:
     """B1 = Cm / (1 - αPr / Pe1) >= 1 (Eq 6.10.4, α = 1.0 for LRFD)."""
     if pr <= 0:
@@ -2339,8 +2344,25 @@ def _check_member(
                     alpha * p,
                     _euler_load(e1, shape.iy, ky * ly),
                 )
+            # W4B-8: αPr near or above Pe1 is not an amplification but a buckled member (B1 of
+            # 146 took 36.9 kN·m to 5397 kN·m): the moments are left as they are and the
+            # interaction carries the buckling (the axial ratio, at least αPr/Pe1).
+            buckled = max(b1x, b1y) > 1 / (1 - BUCKLING_SHARE)
+            if buckled:
+                pe_x = _euler_load(e1, shape.ix, kx * lx)
+                pe_y = _euler_load(e1, shape.iy, ky * ly)
+                pe_min = min(pe_x, pe_y)
+                b1x = b1y = 1.0
+                note_b1 = (
+                    f"; αPr = {alpha * p / 1e3:.1f} kN against Pe1 = {pe_min / 1e3:.1f} kN "
+                    f"(αPr/Pe1 = {alpha * p / pe_min:.2f}): the member buckles; its moments "
+                    "are not amplified (B1 has no meaning there) and the axial check governs"
+                    if pe_min > 0
+                    else "; the member buckles (no Euler load): the axial check governs"
+                )
             mrx, mry = abs(mx) * b1x, abs(my) * b1y
-            note_b1 = f"; B1 = {b1x:.2f} / {b1y:.2f}" if (b1x > 1 or b1y > 1) else ""
+            if not buckled:
+                note_b1 = f"; B1 = {b1x:.2f} / {b1y:.2f}" if (b1x > 1 or b1y > 1) else ""
             worst["mx"].offer(
                 _ratio(mrx, cap_mx.design),
                 mrx,
@@ -2383,6 +2405,8 @@ def _check_member(
                 v_minor.clause,
             )
             ratio, eq = interaction(p, pc, mrx, cap_mx.design, mry, m_minor.design)
+            if buckled:
+                ratio = max(ratio, _ratio(p, pc), alpha * p / pe_min if pe_min > 0 else 99.0)
             sense = "compression" if p > 0 else "tension"
             worst["h1"].offer(
                 ratio,

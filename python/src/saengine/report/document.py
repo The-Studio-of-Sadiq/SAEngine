@@ -864,6 +864,9 @@ def _pushover_blocks(pushovers: list[dict[str, Any]]) -> list[Block]:
         return []
     out: list[Block] = [h(2, "Nonlinear static (pushover) analysis")]
     for push in pushovers:
+        if push.get("stale"):  # W4B-11: out-of-date results are not reported
+            out.append(p(f"Results out of date, not reported: {push.get('reason', '')}."))
+            continue
         if not push.get("available"):
             out.append(p(f"{push['label']}: no target displacement ({push.get('reason', '')})."))
             out += _capacity_blocks(push)  # Alpha 9 C19

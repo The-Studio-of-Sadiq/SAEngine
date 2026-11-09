@@ -336,6 +336,32 @@ def foundation_counts(
     }
 
 
+#: W4B-6: the report's lists of checked items that are not foundations or tie beams.
+OTHER_RESULT_KEYS = (
+    "retainingWalls",
+    "groundSlabs",
+    "excavations",
+    "temporaryWorks",
+    "machineFoundations",
+    "slopes",
+)
+
+
+def other_checks(raw: dict[str, Any]) -> dict[str, Any]:
+    """``otherChecks`` of substructureDocument.ts (W4B-6): the substructure's checked items that
+    are not foundations or tie beams (walls and the building's flotation, ground slabs,
+    excavations, formwork, machine foundations, slopes): ``{"checked", "failed", "failing",
+    "actions"}`` (``actions``: those with an action needed, such as planning dewatering)."""
+    results = [r for key in OTHER_RESULT_KEYS for r in records(raw.get(key))]
+    failing = [js_string(r.get("id")) for r in results if r.get("ok") is False]
+    actions = [
+        js_string(r.get("id"))
+        for r in results
+        if any(c.get("action") is True for c in records(r.get("checks")))
+    ]
+    return {"checked": len(results), "failed": len(failing), "failing": failing, "actions": actions}
+
+
 def substructure_summary_file(
     document: dict[str, Any], raw: dict[str, Any], computed: datetime | None = None
 ) -> dict[str, Any]:
@@ -363,6 +389,11 @@ def substructure_summary_file(
     sources = string_sources(raw)
     if sources is not None:
         result["source"] = sources
+    others = other_checks(raw)
+    if others["failed"] and result["status"] != "none":
+        result["status"] = "fail"  # W4B-6: a failing excavation or slope fails it too
+    if others["checked"]:
+        result["others"] = others
     return result
 
 

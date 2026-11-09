@@ -36,7 +36,7 @@ import { hasHvac, HVAC_REPORT_COMMAND, hvacFailures, hvacSummaryFile, readHvacRe
 import { ELECTRICAL_REPORT_COMMAND, electricalFailures, electricalSummaryFile, hasElectrical, readElectricalReport } from '../../saengineMep/browser/electricalDocument.js';
 import { FIRE_REPORT_COMMAND, fireFailures, fireSummaryFile, hasFire, readFireReport } from '../../saengineMep/browser/fireDocument.js';
 import { DRAWINGS_GENERATE_COMMAND, DRAWINGS_LIST_COMMAND, readDrawingSet } from '../../saengineProject/browser/drawingsModel.js';
-import { ARCHITECTURE_DERIVATION_SOURCE, DERIVATION_INPUTS, deriveAnalysisModel, derivationState, FACES_FILE, LOADS_DERIVATION_SOURCE, partFile, SSI_FILE, THERMAL_FILE } from '../browser/femDerivationBar.js';
+import { ARCHITECTURE_DERIVATION_SOURCE, DERIVATION_INPUTS, deriveAnalysisModel, derivationState, FACES_FILE, LOADS_DERIVATION_SOURCE, partFile, PUSHOVER_FILE, SSI_FILE, THERMAL_FILE } from '../browser/femDerivationBar.js';
 import { SSI_COMPARE_COMMAND } from '../browser/femSsi.js';
 import { describeDesignCounts, describeNotChecked, DESIGN_REINFORCEMENT_COMMAND, DESIGN_SUMMARY_FILE, IFemDesignReport, IFemDesignRequired, resultsFolder, runDesign, runDesignRequired, shortElements, tooSmallElements, writeDesignSummary } from '../browser/femDesign.js';
 import { errorSummary, IFemRunOutcome, IFemRunTracker } from '../browser/femResultsBar.js';
@@ -83,7 +83,50 @@ const ENGINE_BUSY_MS = 60_000;
 
 const STATUS_ENTRY_ID = 'saengine.runAll.status';
 
-type StepId = 'bim' | 'derive' | 'analysis' | 'ssi' | 'substructure' | 'design' | 'mep' | 'boq' | 'report' | 'drawings';
+type StepId = 'bim' | 'derive' | 'analysis' | 'ssi' | 'substructure' | 'design' | 'pushover' | 'mep' | 'boq' | 'report' | 'drawings';
+
+/** Whether the project settings ask for pushovers (`analysis.pushover`; `pushover_asked` in Python). */
+export function pushoverAsked(settingsText: string | undefined): boolean {
+	try {
+		const analysis = settingsText ? JSON.parse(settingsText)?.analysis : undefined;
+		return !!analysis && typeof analysis === 'object' && !!analysis.pushover;
+	} catch {
+		return false;
+	}
+}
+
+/**
+ * W4B-3: the notes of the last derivation (`model.derivation.json`) that say why it gave no
+ * pushover model (members without fiber sections, no height); none when it gave one
+ * (`pushover_not_derived` in Python).
+ */
+export function pushoverNotDerived(derivationText: string | undefined): string[] {
+	let notes: unknown;
+	try {
+		notes = derivationText ? JSON.parse(derivationText)?.notes : undefined;
+	} catch {
+		notes = undefined;
+	}
+	const pushover = Array.isArray(notes) ? notes.map(String).filter(n => n.startsWith('pushover')) : [];
+	if (!pushover.some(n => n.includes('no pushover model') || n.includes('no height'))) {
+		return [];
+	}
+	return pushover.filter(n => n.includes('elastic') || n.includes('no ')).map(n => n.replace(/^pushover:\s*/, ''));
+}
+
+/** The pushover cases of a run's manifest that stopped before their target (did not converge). */
+export function pushoverEarlyStops(manifestText: string | undefined): string[] {
+	let cases: unknown;
+	try {
+		cases = manifestText ? JSON.parse(manifestText)?.cases : undefined;
+	} catch {
+		cases = undefined;
+	}
+	if (!Array.isArray(cases)) {
+		return [];
+	}
+	return cases.filter(c => c && typeof c === 'object' && c.early_stop).map(c => localize('runAll.pushoverStopped', "{0}: stopped at step {1} of {2} (did not converge)", String(c.case_name), String(c.completed_steps), String(c.n_steps_requested)));
+}
 
 interface IStep {
 	readonly id: StepId;
@@ -105,6 +148,7 @@ export const RUN_ALL_STEPS: readonly IStep[] = [
 	{ id: 'ssi', label: localize('runAll.step.ssi', "fixed-base run for the soil springs"), needs: ['analysis'] },
 	{ id: 'substructure', label: localize('runAll.step.substructure', "foundation design"), needs: ['analysis'] },
 	{ id: 'design', label: localize('runAll.step.design', "design checks"), needs: ['analysis'] },
+	{ id: 'pushover', label: localize('runAll.step.pushover', "pushover"), needs: ['derive'] },
 	{ id: 'mep', label: localize('runAll.step.mep', "MEP checks"), needs: ['bim'] },
 	{ id: 'boq', label: localize('runAll.step.boq', "bill of quantities"), needs: ['bim'] },
 	{ id: 'report', label: localize('runAll.step.report', "report"), needs: ['design'] },
@@ -476,6 +520,7 @@ export class RunAllService implements IRunAllService {
 			case 'ssi': return this.compareSoilSprings(context);
 			case 'substructure': return this.designSubstructure(context);
 			case 'design': return this.design(context);
+			case 'pushover': return this.pushover(context);
 			case 'mep': return this.checkMep(context);
 			case 'boq': return this.measure(context);
 			case 'report': return this.buildReport(context);
@@ -865,12 +910,56 @@ export class RunAllService implements IRunAllService {
 			notes.push(localize('runAll.foundationsUnsupported', "no foundation under {0}", shortList(summary.unsupported)));
 		}
 		const message = localize('runAll.foundationsCounts', "{0} of {1} checked in full: {2} pass, {3} fail", counts.checked, counts.total, counts.passed, counts.failed);
+		// W4B-6: the excavations, slopes and walls are said too, apart from the foundations.
+		const others = summary.others;
+		if (others && (others.failed || others.actions.length)) {
+			notes.push(localize('runAll.otherChecks', "other checks {0}: {1} fail{2}", others.checked, others.failed, others.failing.length ? ` (${shortList(others.failing)})` : ''));
+			if (others.actions.length) {
+				notes.push(localize('runAll.otherActions', "action needed: {0}", shortList(others.actions)));
+			}
+		}
+		const othersFailing = others?.failed ?? 0;
 		// N-G1: failing or unchecked foundations never get the ✓ of a clean step.
 		const unchecked = noQa.length + notChecked;
 		return {
-			status: notes.length || summary.failed > 0 || unchecked > 0 ? 'warning' : 'ok', message: [message, ...notes].join('; '), failing: summary.failed, notChecked: unchecked,
-			short: describeFoundationCounts(counts).join(', '),
+			status: notes.length || summary.failed > 0 || unchecked > 0 ? 'warning' : 'ok', message: [message, ...notes].join('; '), failing: summary.failed + othersFailing, notChecked: unchecked,
+			short: [...describeFoundationCounts(counts), ...othersFailing ? [localize('runAll.short.othersFail', "{0} other checks fail", othersFailing)] : []].join(', '),
 		};
+	}
+
+	/**
+	 * Step 7 (W4B-3): when the settings ask for pushovers (Analysis model, Pushover), runs
+	 * `08 FEM/pushover.osmodel` after the design checks (the runner keeps the cases whose model did
+	 * not change), or says why there is no pushover model (the derivation's notes: members without
+	 * fiber sections, that is without bars). Mirrors `_pushover` of `saengine.pipeline.run_all`.
+	 */
+	private async pushover(context: IRunContext): Promise<IStepResult> {
+		const { project, model, token } = context;
+		const settings = (await this.readParts(project, ['settings'])).get('settings');
+		if (!pushoverAsked(settings)) {
+			return { status: 'skipped', message: localize('runAll.noPushover', "no pushover asked for (Project Settings, Analysis model)") };
+		}
+		const folder = dirname(model);
+		const pushoverModel = joinPath(folder, PUSHOVER_FILE);
+		const reasons = pushoverNotDerived(await this.readText(joinPath(folder, 'model.derivation.json')));
+		if (reasons.length || !await this.fileService.exists(pushoverModel)) {
+			return {
+				status: 'warning',
+				message: localize('runAll.pushoverNotDerived', "pushover asked for but not run: no pushover model was derived{0}. Members need bars for their fiber sections: give the object types bars (Design Reinforcement in 8 FEM) and run again",
+					reasons.length ? ` (${reasons.join('; ')})` : ''),
+			};
+		}
+		const runner = this.instantiationService.createInstance(FemAnalysisRunner);
+		const outcome = await runner.run(pushoverModel, { quiet: true, token, onProgress: progress => this.report(progress.message) });
+		if (outcome.status === 'cancelled' && token.isCancellationRequested) {
+			throw new CancellationError();
+		}
+		if (outcome.status !== 'done') {
+			throw new StepFailure(outcome.message ?? outcome.status);
+		}
+		const stops = pushoverEarlyStops(await this.readText(joinPath(resultsFolder(pushoverModel), RESULTS_MANIFEST)));
+		const message = outcome.cases === 1 ? localize('runAll.pushoverOne', "1 pushover case run") : localize('runAll.pushoverRun', "{0} pushover cases run", outcome.cases);
+		return stops.length ? { status: 'warning', message: `${message}; ${stops.join('; ')}` } : { status: 'ok', message };
 	}
 
 	/**

@@ -25,7 +25,7 @@ suite('SAEngine - Run All', () => {
 				assert.ok(order.indexOf(need) < index, `${step.id} needs ${need}`);
 			}
 		}
-		assert.deepStrictEqual(order, ['bim', 'derive', 'analysis', 'ssi', 'substructure', 'design', 'mep', 'boq', 'report', 'drawings']);
+		assert.deepStrictEqual(order, ['bim', 'derive', 'analysis', 'ssi', 'substructure', 'design', 'pushover', 'mep', 'boq', 'report', 'drawings']);
 		assert.ok(order.indexOf('substructure') < order.indexOf('design'));
 	});
 

@@ -213,6 +213,37 @@ def _manifest(out_dir: str | Path) -> dict[str, Any] | None:
         return None
 
 
+def results_stale(out_dir: str | Path, project_path: str | Path) -> bool:
+    """Whether the run in ``out_dir`` was computed from another model than the one at
+    ``project_path`` now: by the per-case stamps the runner keeps (``case-stamps.json``, the
+    model without its meta and cases plus each case) when there are any, else by the files'
+    times (the model written after the run's manifest). A model written again unchanged (a
+    derivation that changed nothing it holds) keeps its results current."""
+    import json
+
+    out, model = Path(out_dir), Path(project_path)
+    manifest = out / "manifest.json"
+    if not manifest.is_file() or not model.is_file():
+        return False
+    try:
+        kept = json.loads((out / "case-stamps.json").read_text(encoding="utf-8"))
+        cases = {int(k): v for k, v in (kept.get("cases") or {}).items()}
+    except (OSError, ValueError, AttributeError, TypeError):
+        cases = {}
+    if cases:
+        try:
+            from opensees_studio.run import case_stamps
+            from opensees_studio.services.persistence import load_project
+
+            project = load_project(model)
+            now = case_stamps(project, [c for c in project.analyses if c.id in cases])
+        except Exception:  # noqa: BLE001 - unreadable: judged by the files' times
+            now = None
+        if now is not None:
+            return any(now.get(cid) != stamp for cid, stamp in cases.items())
+    return model.stat().st_mtime > manifest.stat().st_mtime
+
+
 _loaded: dict[str, tuple[float, dict[str, Any]]] = {}
 
 

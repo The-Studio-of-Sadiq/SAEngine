@@ -2509,6 +2509,8 @@ export interface ISubstructureCheck {
 	readonly note: string;
 	/** Reported only: does not make the foundation fail. */
 	readonly flag: boolean;
+	/** W4B-7: an action the engineer must take (plan dewatering): no utilisation, never governing. */
+	readonly action?: boolean;
 }
 
 /** The loads on one pile of a cap [kN]. */
@@ -2663,6 +2665,7 @@ function readCheck(raw: Record<string, unknown>): ISubstructureCheck {
 		ok: typeof raw.ok === 'boolean' ? raw.ok : utilisation === null || utilisation <= 1,
 		note: typeof raw.note === 'string' ? raw.note : '',
 		flag: raw.flag === true,
+		action: raw.action === true,
 	};
 }
 
@@ -3201,6 +3204,48 @@ export function checkStateText(state: ISubstructureCheckState): string {
 	return parts.join(' · ');
 }
 
+/**
+ * W4B-6: the substructure's checked items that are not foundations or tie beams (retaining walls
+ * and the building's flotation, ground slabs, excavations, formwork, machine foundations,
+ * slopes): how many were checked, which fail and which need an action (plan dewatering). They
+ * are counted apart from the foundations (R1-5) but never left out. `other_checks` in Python.
+ */
+export interface IOtherChecks {
+	readonly checked: number;
+	readonly failed: number;
+	readonly failing: readonly string[];
+	readonly actions: readonly string[];
+}
+
+export function otherResults(report: ISubstructureReport | undefined): IFoundationResult[] {
+	return [...report?.retainingWalls ?? [], ...report?.groundSlabs ?? [], ...report?.excavations ?? [], ...report?.temporaryWorks ?? [], ...report?.machineFoundations ?? [], ...report?.slopes ?? []];
+}
+
+export function otherChecks(report: ISubstructureReport | undefined): IOtherChecks {
+	const results = otherResults(report);
+	return {
+		checked: results.length,
+		failed: results.filter(r => !r.ok).length,
+		failing: results.filter(r => !r.ok).map(r => r.id),
+		actions: results.filter(r => r.checks.some(c => c.action)).map(r => r.id),
+	};
+}
+
+/** "3 other checks · 2 fail (EX1, SL1) · action needed: EX1", or undefined when there are none. */
+export function otherChecksText(others: IOtherChecks): string | undefined {
+	if (!others.checked) {
+		return undefined;
+	}
+	const parts = [others.checked === 1 ? localize('sub.otherOne', "1 other check") : localize('sub.others', "{0} other checks", others.checked)];
+	if (others.failed) {
+		parts.push(localize('sub.othersFail', "{0} fail ({1})", others.failed, others.failing.join(', ')));
+	}
+	if (others.actions.length) {
+		parts.push(localize('sub.othersAction', "action needed: {0}", others.actions.join(', ')));
+	}
+	return parts.join(' · ');
+}
+
 /** "6 foundations · 7 of 7 checked · 1 fail · max pressure 142 kPa (qa 150)" for the status line. */
 export function substructureSummary(document: ISubstructure, report: ISubstructureReport | undefined, state?: ISubstructureCheckState): string {
 	const count = document.foundations.length;
@@ -3217,11 +3262,11 @@ export function substructureSummary(document: ISubstructure, report: ISubstructu
 				? localize('sub.maxPressureQa', "max pressure {0} kPa (qa {1})", formatNumber(pressure.pressure, 0), formatNumber(pressure.allowable, 0))
 				: localize('sub.maxPressure', "max pressure {0} kPa", formatNumber(pressure.pressure, 0)));
 		}
-		// The retaining walls are counted too, not only the foundations (SM-2).
-		const walls = new Set((document.retainingWalls ?? []).map(w => w.id));
-		const wallsFailing = (report.retainingWalls ?? []).filter(r => walls.has(r.id) && !r.ok).length;
-		if (wallsFailing) {
-			parts.push(wallsFailing === 1 ? localize('sub.wallFails', "1 retaining wall fails") : localize('sub.wallsFail', "{0} retaining walls fail", wallsFailing));
+		// The retaining walls (SM-2), excavations, slopes and the rest are counted too, apart from
+		// the foundations (W4B-6: they were missing while one of them governed).
+		const others = otherChecksText(otherChecks(report));
+		if (others) {
+			parts.push(others);
 		}
 	}
 	return parts.join(' · ');
@@ -3250,15 +3295,21 @@ export interface ISubstructureSummaryFile {
 	readonly computed: string;
 	/** The stamps of the part files the checks read, by part id (see {@link ISubstructureReport.sources}). */
 	readonly source?: { readonly [part: string]: string };
+	/** W4B-6: the other checked items (excavations, slopes, walls, ...), when there are any. */
+	readonly others?: IOtherChecks;
 }
 
 /** The summary file of `report`, the checks of the saved `document`. */
 export function substructureSummaryFile(document: ISubstructure, report: ISubstructureReport, computed: Date): ISubstructureSummaryFile {
 	const { maxUtilisation, governing } = report.summary;
 	const state = substructureCheckState(document, report);
+	const others = otherChecks(report);
 	return {
 		foundations: document.foundations.length, checked: state.checked, total: state.total, passed: state.passed, failed: state.failed,
-		bearingUnchecked: state.bearingUnchecked, unsupported: state.unsupported, status: state.status,
+		bearingUnchecked: state.bearingUnchecked, unsupported: state.unsupported,
+		// W4B-6: a failing excavation or slope fails the substructure too.
+		status: others.failed && state.status !== 'none' ? 'fail' : state.status,
 		maxUtilisation, governing, computed: computed.toISOString(), source: report.sources,
+		...(others.checked ? { others } : {}),
 	};
 }

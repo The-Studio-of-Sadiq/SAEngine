@@ -27,7 +27,8 @@ SAMPLE = (
     Path(__file__).parents[2] / "workbench" / "resources" / "saengine" / "samples" / "Sample Frame"
 )
 STEPS = [
-    "bim", "derive", "analysis", "ssi", "substructure", "design", "mep", "boq", "report", "drawings"
+    "bim", "derive", "analysis", "ssi", "substructure", "design", "pushover", "mep", "boq", "report",
+    "drawings",
 ]  # fmt: skip
 
 
@@ -55,7 +56,7 @@ def test_every_step_ran_and_wrote_the_apps_files(ran):
     # Done ("ok"), or done with something to look at ("warning": a mesh, bars or coverage note).
     assert [(s["id"], "ok" if s["status"] == "warning" else s["status"])
             for s in document["steps"]] == [
-        (s, "skipped" if s in ("bim", "ssi", "drawings") else "ok") for s in STEPS
+        (s, "skipped" if s in ("bim", "ssi", "pushover", "drawings") else "ok") for s in STEPS
     ]  # fmt: skip
     # The sample's drawings were never generated: Run All leaves them to the engineer.
     assert document["steps"][-1]["message"].startswith("drawings not generated yet")
@@ -63,7 +64,7 @@ def test_every_step_ran_and_wrote_the_apps_files(ran):
     # The sample has failing members, a failing footing and failing plumbing and HVAC checks.
     assert code == EXIT_CHECKS
     assert {f["part"] for f in document["failures"]} == {"fem", "substructure", "mep"}
-    assert "[2/10] analysis model" in progress and "[9/10] report" in progress
+    assert "[2/11] analysis model" in progress and "[10/11] report" in progress
     # The results are kept with the stamp of the model they were computed from (X28).
     assert (root / "08 FEM/model.results/analysis-inputs.json").is_file()
     for relative in (
