@@ -351,6 +351,13 @@ export interface ISoilTemplate {
 	readonly problems?: readonly string[];
 }
 
+/** The AGS4 or DIGGS file written, with what it could not hold (alpha 9 L8). */
+export interface ISoilExport {
+	readonly path?: string;
+	readonly notes?: readonly string[];
+	readonly problems?: readonly string[];
+}
+
 /** Net allowable bearing pressure of one footing (`saengine.soil.allowable_bearing`). Lengths in mm. */
 export interface ISoilBearingRequest {
 	readonly soilText: string;
@@ -518,6 +525,9 @@ export interface IFemSolverService {
 
 	/** Writes the borehole import template (.csv or .xlsx by the extension of `path`). */
 	soilTemplate(python: string, path: string): Promise<ISoilTemplate>;
+
+	/** Writes the soil report's boreholes as AGS4 (.ags) or DIGGS (.xml) by the extension of `path` (alpha 9 L8). */
+	exportSoil(python: string, path: string, soilText: string): Promise<ISoilExport>;
 
 	/** Where the site class and the allowable bearing pressure come from, for Project Settings. */
 	soilSources(python: string, soilText: string | undefined, settingsText: string | undefined, projectRoot?: string): Promise<ISoilSources>;
@@ -721,7 +731,12 @@ export type EngineMethod =
 	// `cfd/detect` `{openfoam?, distribution?}`, `cfd/write` `{projectRoot, installation?}`,
 	// `cfd/start` `{projectRoot, openfoam?, distribution?}` (the background run), `cfd/status`,
 	// `cfd/cancel` and `cfd/results` `{projectRoot}`.
-	| 'cfd/detect' | 'cfd/write' | 'cfd/start' | 'cfd/status' | 'cfd/cancel' | 'cfd/results';
+	| 'cfd/detect' | 'cfd/write' | 'cfd/start' | 'cfd/status' | 'cfd/cancel' | 'cfd/results'
+	// Alpha 9 L4 / L6: the nonlinear stability analysis and the CBFEM check of joints.
+	| 'fem/nonlinearStability' | 'design/connectionFe'
+	// Alpha 9 L9: `special/structures` `{projectPath, run}` -> the bridges and special
+	// structures of Project Settings (`saengine.special.project`), kept or computed anew.
+	| 'special/structures';
 
 export interface IQgisOpenRequest {
 	/** Absolute path of the `.gpkg`, `.geojson` or `.json` file. */

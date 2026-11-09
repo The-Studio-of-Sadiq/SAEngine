@@ -63,7 +63,7 @@ its top.* if a row is shifted).
 
 ## 3. Import BH-2 from a file
 
-1. Click **Import CSV/Excel...** and pick `tutorial-boreholes.csv`. SAEngine reports *Imported
+1. Click **Import CSV, Excel, AGS4, DIGGS...** and pick `tutorial-boreholes.csv`. SAEngine reports *Imported
    tutorial-boreholes.csv: 1 new borehole(s).*
 2. Look at the file in Excel: one row per record, `Record` = `layer` or `spt`, the borehole's
    position and water table on its first row. **Save Template...** writes an empty template in

@@ -11093,6 +11093,45 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 			title: 'Analysis',
 			type: 'object',
 		},
+		Antenna: {
+			additionalProperties: false,
+			description: 'An antenna, dish or platform on the tower.',
+			properties: {
+				name: {
+					default: '',
+					title: 'Name',
+					type: 'string',
+				},
+				elevation: {
+					description: 'Above the tower\'s base [m].',
+					minimum: 0,
+					title: 'Elevation',
+					type: 'number',
+				},
+				area: {
+					description: 'EPA = Ca × A of the antenna (its data sheet) [m²].',
+					minimum: 0,
+					title: 'Effective projected area',
+					type: 'number',
+				},
+				weight: {
+					default: 0,
+					description: '[kN].',
+					minimum: 0,
+					title: 'Weight',
+					type: 'number',
+				},
+				count: {
+					default: 1,
+					minimum: 1,
+					title: 'Number of bars',
+					type: 'integer',
+				},
+			},
+			required: ['elevation', 'area'],
+			title: 'Antenna',
+			type: 'object',
+		},
 		AreaLoad: {
 			additionalProperties: false,
 			description: 'Loads on floor area of one use: live load and superimposed dead loads.',
@@ -11140,6 +11179,196 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 			},
 			required: ['id', 'name', 'live'],
 			title: 'AreaLoad',
+			type: 'object',
+		},
+		Bridge: {
+			additionalProperties: false,
+			description: 'A girder (or slab) bridge: spans along the bridge, girders across it under a deck slab.',
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				name: {
+					default: '',
+					title: 'Name',
+					type: 'string',
+				},
+				spans: {
+					description: 'Span lengths in order [m].',
+					items: {
+						description: '[m]',
+						exclusiveMinimum: 0,
+						type: 'number',
+					},
+					minItems: 1,
+					title: 'Spans',
+					type: 'array',
+				},
+				continuity: {
+					default: 'simple',
+					description: 'Simply supported spans, or one girder continuous over the supports.',
+					enum: ['simple', 'continuous'],
+					enumDescriptions: ['Simply supported spans', 'Continuous'],
+					title: 'Continuity',
+					type: 'string',
+				},
+				carriageway: {
+					description: 'Width between the kerbs [m].',
+					exclusiveMinimum: 0,
+					title: 'Carriageway',
+					type: 'number',
+				},
+				girders: {
+					default: 4,
+					description: 'Girders across the bridge.',
+					maximum: 20,
+					minimum: 1,
+					title: 'Girders',
+					type: 'integer',
+				},
+				girderSpacing: {
+					default: 2.5,
+					description: '[m].',
+					exclusiveMinimum: 0,
+					title: 'Girder spacing',
+					type: 'number',
+				},
+				deckThickness: {
+					default: 200,
+					description: '[mm].',
+					exclusiveMinimum: 0,
+					title: 'Deck slab thickness',
+					type: 'number',
+				},
+				wearingSurface: {
+					default: 1.1,
+					description: 'Surfacing and utilities (DW) [kN/m²].',
+					minimum: 0,
+					title: 'Wearing surface',
+					type: 'number',
+				},
+				barrier: {
+					default: 7.0,
+					description: 'Each side, barrier or parapet (DC) [kN/m].',
+					minimum: 0,
+					title: 'Barrier',
+					type: 'number',
+				},
+				analysis: {
+					default: 'grillage',
+					description: 'Line girder (rigid cross-section share, Courbon) or deck grillage.',
+					enum: ['lineGirder', 'grillage'],
+					enumDescriptions: ['Line girder (Courbon share)', 'Deck grillage'],
+					title: 'Analysis',
+					type: 'string',
+				},
+				girder: {
+					$ref: '#/$defs/GirderSection',
+					title: 'Girder',
+				},
+				bearings: {
+					description: 'Bearing kinds by support line; a line not listed: guided, the first: fixed.',
+					items: {
+						$ref: '#/$defs/BridgeBearing',
+					},
+					title: 'Bearings',
+					type: 'array',
+				},
+				thermalRange: {
+					default: 40,
+					description: 'From the setting temperature to the extreme, each way [°C].',
+					minimum: 0,
+					title: 'Temperature range',
+					type: 'number',
+				},
+				material: {
+					default: 'concrete',
+					description: 'For a dynamic allowance by span formula.',
+					enum: ['concrete', 'steel'],
+					title: 'Girder material (dynamic allowance)',
+					type: 'string',
+				},
+				loadModels: {
+					description: 'Ids of the code pack\'s traffic load models to use; empty: all.',
+					items: {
+						type: 'string',
+					},
+					title: 'Load models',
+					type: 'array',
+				},
+				rating: {
+					anyOf: [
+						{
+							$ref: '#/$defs/BridgeRating',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Rate this existing bridge (load rating).',
+					title: 'Rating',
+				},
+			},
+			required: ['id', 'spans', 'carriageway', 'girder'],
+			title: 'Bridge',
+			type: 'object',
+		},
+		BridgeBearing: {
+			additionalProperties: false,
+			description: 'The bearings under every girder at one support line (0: the first abutment).',
+			properties: {
+				support: {
+					description: 'Support line, 0 at the first abutment.',
+					minimum: 0,
+					title: 'Support',
+					type: 'integer',
+				},
+				kind: {
+					default: 'guided',
+					description: 'Fixed: held in every direction; guided: free along the bridge only; free: free in plan (vertical support only).',
+					enum: ['fixed', 'guided', 'free'],
+					enumDescriptions: ['Fixed (pinned)', 'Guided (free along the bridge)', 'Free (sliding)'],
+					title: 'Kind',
+					type: 'string',
+				},
+			},
+			required: ['support'],
+			title: 'BridgeBearing',
+			type: 'object',
+		},
+		BridgeRating: {
+			additionalProperties: false,
+			description: 'Load rating of an existing bridge (the code pack\'s ``bridgeDesign.rating``).',
+			properties: {
+				condition: {
+					default: 1.0,
+					description: 'φc of the members.',
+					exclusiveMinimum: 0,
+					maximum: 1,
+					title: 'Condition factor',
+					type: 'number',
+				},
+				system: {
+					default: 1.0,
+					description: 'φs of the girders.',
+					exclusiveMinimum: 0,
+					maximum: 1.2,
+					title: 'System factor',
+					type: 'number',
+				},
+				wearingMeasured: {
+					default: false,
+					description: 'The wearing surface thickness was measured on the bridge.',
+					title: 'Wearing surface measured',
+					type: 'boolean',
+				},
+			},
+			title: 'BridgeRating',
 			type: 'object',
 		},
 		CastDay: {
@@ -11305,6 +11534,92 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 			title: 'ChecklistAnswer',
 			type: 'object',
 		},
+		Chimney: {
+			additionalProperties: false,
+			description: 'A free-standing circular chimney or stack, tapering linearly (a cantilever).',
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				name: {
+					default: '',
+					title: 'Name',
+					type: 'string',
+				},
+				height: {
+					description: '[m]',
+					exclusiveMinimum: 0,
+					title: 'Height',
+					type: 'number',
+				},
+				baseDiameter: {
+					description: 'Outside [m].',
+					exclusiveMinimum: 0,
+					title: 'Base diameter',
+					type: 'number',
+				},
+				topDiameter: {
+					description: 'Outside [m].',
+					exclusiveMinimum: 0,
+					title: 'Top diameter',
+					type: 'number',
+				},
+				baseThickness: {
+					description: 'Shell [mm].',
+					exclusiveMinimum: 0,
+					title: 'Base thickness',
+					type: 'number',
+				},
+				topThickness: {
+					description: 'Shell [mm].',
+					exclusiveMinimum: 0,
+					title: 'Top thickness',
+					type: 'number',
+				},
+				material: {
+					description: 'Steel or concrete material (03 Materials).',
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Material',
+					type: 'string',
+				},
+				kind: {
+					default: 'concrete',
+					description: 'Kind of chimney for its damping, an id of the code pack\'s chimney damping (e.g. steelWelded, steelInsulated, concrete).',
+					title: 'Kind',
+					type: 'string',
+				},
+				liningWeight: {
+					default: 0,
+					description: 'Per m of height [kN/m].',
+					minimum: 0,
+					title: 'Lining weight',
+					type: 'number',
+				},
+				frequency: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: '[Hz]; empty: worked out from the shell\'s stiffness and mass.',
+					title: 'First frequency',
+				},
+			},
+			required: ['id', 'height', 'baseDiameter', 'topDiameter', 'baseThickness', 'topThickness', 'material'],
+			title: 'Chimney',
+			type: 'object',
+		},
 		CladdingRoof: {
 			additionalProperties: false,
 			description: 'The building\'s roof as the components-and-cladding figures see it (B14;\n:func:`saengine.fem.loads.cladding_pressures`).',
@@ -11442,6 +11757,104 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 				},
 			},
 			title: 'Construction',
+			type: 'object',
+		},
+		CoolingTower: {
+			additionalProperties: false,
+			description: 'A hyperbolic natural draught cooling tower shell (concrete), on a fixed base ring.',
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				name: {
+					default: '',
+					title: 'Name',
+					type: 'string',
+				},
+				height: {
+					description: '[m]',
+					exclusiveMinimum: 0,
+					title: 'Height',
+					type: 'number',
+				},
+				baseRadius: {
+					description: 'Mid-surface [m].',
+					exclusiveMinimum: 0,
+					title: 'Base radius',
+					type: 'number',
+				},
+				throatRadius: {
+					description: 'Mid-surface [m].',
+					exclusiveMinimum: 0,
+					title: 'Throat radius',
+					type: 'number',
+				},
+				throatHeight: {
+					description: 'Above the base [m].',
+					exclusiveMinimum: 0,
+					title: 'Throat height',
+					type: 'number',
+				},
+				topRadius: {
+					description: 'Mid-surface [m].',
+					exclusiveMinimum: 0,
+					title: 'Top radius',
+					type: 'number',
+				},
+				thickness: {
+					default: 200,
+					description: 'Shell [mm].',
+					exclusiveMinimum: 0,
+					title: 'Thickness',
+					type: 'number',
+				},
+				concrete: {
+					description: 'Concrete material (03 Materials).',
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Concrete',
+					type: 'string',
+				},
+				rebar: {
+					anyOf: [
+						{
+							maxLength: 64,
+							minLength: 1,
+							pattern: '^[A-Za-z0-9._-]+$',
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Reinforcing bar material (03 Materials), for the steel the shell\'s tension needs; empty: forces only.',
+					title: 'Rebar',
+				},
+				rings: {
+					default: 24,
+					description: 'Elements up the shell.',
+					maximum: 120,
+					minimum: 4,
+					title: 'Rings',
+					type: 'integer',
+				},
+				segments: {
+					default: 36,
+					description: 'Elements round the shell.',
+					maximum: 180,
+					minimum: 8,
+					title: 'Segments',
+					type: 'integer',
+				},
+			},
+			required: ['id', 'height', 'baseRadius', 'throatRadius', 'throatHeight', 'topRadius', 'concrete'],
+			title: 'CoolingTower',
 			type: 'object',
 		},
 		CraneRunway: {
@@ -12932,6 +13345,204 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 			title: 'FrpWrap',
 			type: 'object',
 		},
+		GirderPrestress: {
+			additionalProperties: false,
+			description: 'The bonded strands of a prestressed girder (pretensioned or bonded post-tensioned).',
+			properties: {
+				area: {
+					description: 'Aps of all strands [mm²].',
+					exclusiveMinimum: 0,
+					title: 'Strand area',
+					type: 'number',
+				},
+				depth: {
+					description: 'From the top of the deck to the strands\' centroid at midspan, dp [mm].',
+					exclusiveMinimum: 0,
+					title: 'Strand depth',
+					type: 'number',
+				},
+				endDepth: {
+					anyOf: [
+						{
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'dp at the supports [mm] (draped or harped); empty: as at midspan.',
+					title: 'Strand depth at the ends',
+				},
+				fpu: {
+					default: 1860,
+					description: 'Tensile strength of the strand [MPa].',
+					exclusiveMinimum: 0,
+					title: 'Fpu',
+					type: 'number',
+				},
+				jacking: {
+					default: 0.75,
+					description: 'Jacking stress as a share of fpu.',
+					exclusiveMinimum: 0,
+					maximum: 0.95,
+					title: 'Jacking',
+					type: 'number',
+				},
+				initialLoss: {
+					default: 0.08,
+					description: 'Share of the jacking force lost at transfer (elastic shortening, set).',
+					exclusiveMaximum: 1,
+					minimum: 0,
+					title: 'Loss at transfer',
+					type: 'number',
+				},
+				totalLoss: {
+					default: 0.2,
+					description: 'Share of the jacking force lost in all (with creep, shrinkage and relaxation).',
+					exclusiveMaximum: 1,
+					minimum: 0,
+					title: 'Total loss',
+					type: 'number',
+				},
+				transferStrength: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Concrete strength at transfer [MPa]; empty: 0.7 × f\'c.',
+					title: 'f\'ci',
+				},
+			},
+			required: ['area', 'depth'],
+			title: 'GirderPrestress',
+			type: 'object',
+		},
+		GirderSection: {
+			additionalProperties: false,
+			description: 'A girder of the deck as a tee: its web below the deck slab and its share of the slab as\nthe flange (the effective flange width).',
+			properties: {
+				depth: {
+					description: 'Overall, with the deck slab [mm].',
+					exclusiveMinimum: 0,
+					title: 'Depth',
+					type: 'number',
+				},
+				webWidth: {
+					description: 'bw [mm].',
+					exclusiveMinimum: 0,
+					title: 'Web width',
+					type: 'number',
+				},
+				flangeWidth: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: '[mm]; empty: the girder spacing.',
+					title: 'Effective flange width',
+				},
+				concrete: {
+					description: 'Concrete material (03 Materials).',
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Concrete',
+					type: 'string',
+				},
+				rebar: {
+					description: 'Reinforcing bar material (03 Materials).',
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Rebar',
+					type: 'string',
+				},
+				bottomBars: {
+					default: 6,
+					description: 'Count.',
+					minimum: 0,
+					title: 'Bottom bars',
+					type: 'integer',
+				},
+				bottomDiameter: {
+					default: 32,
+					description: '[mm].',
+					exclusiveMinimum: 0,
+					title: 'Bottom bar diameter',
+					type: 'number',
+				},
+				topBars: {
+					default: 0,
+					description: 'Over the interior supports, count.',
+					minimum: 0,
+					title: 'Top bars',
+					type: 'integer',
+				},
+				topDiameter: {
+					default: 25,
+					description: '[mm].',
+					exclusiveMinimum: 0,
+					title: 'Top bar diameter',
+					type: 'number',
+				},
+				stirrupDiameter: {
+					default: 12,
+					description: '[mm].',
+					exclusiveMinimum: 0,
+					title: 'Stirrup diameter',
+					type: 'number',
+				},
+				stirrupLegs: {
+					default: 2,
+					minimum: 1,
+					title: 'Stirrup legs',
+					type: 'integer',
+				},
+				stirrupSpacing: {
+					default: 150,
+					description: '[mm].',
+					exclusiveMinimum: 0,
+					title: 'Stirrup spacing',
+					type: 'number',
+				},
+				cover: {
+					default: 40,
+					description: 'Clear cover to the stirrups [mm].',
+					exclusiveMinimum: 0,
+					title: 'Cover',
+					type: 'number',
+				},
+				prestress: {
+					anyOf: [
+						{
+							$ref: '#/$defs/GirderPrestress',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Bonded strands; empty: a reinforced concrete girder.',
+					title: 'Prestress',
+				},
+			},
+			required: ['depth', 'webWidth', 'concrete', 'rebar'],
+			title: 'GirderSection',
+			type: 'object',
+		},
 		HazardSource: {
 			additionalProperties: false,
 			description: 'Alpha 9 C22: where the site\'s hazard values came from when they were looked up online by\nthe site\'s coordinates (:mod:`saengine.gis.hazard_lookup`): the service, the date, the\nquery sent and the values it gave, kept in the project so that reopening it needs no\nnetwork. The values applied are in their own fields (``site.spectral`` etc.) and stay\neditable; the report names this source beside each value that still equals the service\'s.',
@@ -13039,6 +13650,133 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 				},
 			},
 			title: 'Helipad',
+			type: 'object',
+		},
+		LatticeTower: {
+			additionalProperties: false,
+			description: 'A self-supporting lattice tower: legs at the corners, bracing in every face.',
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				name: {
+					default: '',
+					title: 'Name',
+					type: 'string',
+				},
+				height: {
+					description: '[m]',
+					exclusiveMinimum: 0,
+					title: 'Height',
+					type: 'number',
+				},
+				baseWidth: {
+					description: 'Face width at the base [m].',
+					exclusiveMinimum: 0,
+					title: 'Base width',
+					type: 'number',
+				},
+				topWidth: {
+					description: 'Face width at the top [m].',
+					exclusiveMinimum: 0,
+					title: 'Top width',
+					type: 'number',
+				},
+				section: {
+					default: 'square',
+					enum: ['square', 'triangular'],
+					title: 'Section',
+					type: 'string',
+				},
+				panels: {
+					default: 10,
+					description: 'Panels up the height.',
+					maximum: 200,
+					minimum: 1,
+					title: 'Panels',
+					type: 'integer',
+				},
+				bracing: {
+					default: 'x',
+					description: 'X bracing or a single diagonal in each panel of a face.',
+					enum: ['x', 'single'],
+					enumDescriptions: ['X bracing', 'Single diagonal'],
+					title: 'Bracing',
+					type: 'string',
+				},
+				legType: {
+					description: 'Column or brace type (04 Objects).',
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Leg type',
+					type: 'string',
+				},
+				bracingType: {
+					description: 'Brace type (04 Objects).',
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Bracing type',
+					type: 'string',
+				},
+				horizontalType: {
+					anyOf: [
+						{
+							maxLength: 64,
+							minLength: 1,
+							pattern: '^[A-Za-z0-9._-]+$',
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Horizontals at the panel points; empty: none (single diagonals need them).',
+					title: 'Horizontal type',
+				},
+				antennas: {
+					items: {
+						$ref: '#/$defs/Antenna',
+					},
+					title: 'Antennas',
+					type: 'array',
+				},
+				linearArea: {
+					default: 0,
+					description: 'Their projected area per m of height [m²/m].',
+					minimum: 0,
+					title: 'Feed lines and ladder area',
+					type: 'number',
+				},
+				linearWeight: {
+					default: 0,
+					description: '[kN/m].',
+					minimum: 0,
+					title: 'Feed lines and ladder weight',
+					type: 'number',
+				},
+				onRoof: {
+					default: false,
+					description: 'Its wind goes to the roof level of the building\'s analysis model.',
+					title: 'On the building\'s roof',
+					type: 'boolean',
+				},
+				baseElevation: {
+					default: 0,
+					description: 'Of the tower\'s base above the ground [m] (the roof height for a rooftop tower).',
+					minimum: 0,
+					title: 'Base elevation',
+					type: 'number',
+				},
+			},
+			required: ['id', 'height', 'baseWidth', 'topWidth', 'legType', 'bracingType'],
+			title: 'LatticeTower',
 			type: 'object',
 		},
 		LoadCombination: {
@@ -13517,6 +14255,145 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 			title: 'Occupancy',
 			type: 'object',
 		},
+		OffshoreStructure: {
+			additionalProperties: false,
+			description: 'A fixed offshore jacket (four legs, X-braced bays) or monopile, fixed at the mudline.',
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				name: {
+					default: '',
+					title: 'Name',
+					type: 'string',
+				},
+				kind: {
+					default: 'jacket',
+					enum: ['jacket', 'monopile'],
+					title: 'Kind',
+					type: 'string',
+				},
+				waterDepth: {
+					description: 'At still water [m].',
+					exclusiveMinimum: 0,
+					title: 'Water depth',
+					type: 'number',
+				},
+				deckElevation: {
+					description: 'Of the jacket\'s top above still water [m].',
+					exclusiveMinimum: 0,
+					title: 'Deck elevation',
+					type: 'number',
+				},
+				baseWidth: {
+					default: 20,
+					description: 'Between the legs at the mudline [m].',
+					exclusiveMinimum: 0,
+					title: 'Base width',
+					type: 'number',
+				},
+				topWidth: {
+					default: 12,
+					description: 'Between the legs at the top [m].',
+					exclusiveMinimum: 0,
+					title: 'Top width',
+					type: 'number',
+				},
+				bays: {
+					default: 4,
+					description: 'Braced bays up the jacket.',
+					maximum: 20,
+					minimum: 1,
+					title: 'Bays',
+					type: 'integer',
+				},
+				legType: {
+					description: 'Tubular column type (04 Objects); the monopile\'s pile.',
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Leg type',
+					type: 'string',
+				},
+				braceType: {
+					anyOf: [
+						{
+							maxLength: 64,
+							minLength: 1,
+							pattern: '^[A-Za-z0-9._-]+$',
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Tubular brace type (04 Objects).',
+					title: 'Brace type',
+				},
+				waveHeight: {
+					description: 'Design wave H [m].',
+					exclusiveMinimum: 0,
+					title: 'Wave height',
+					type: 'number',
+				},
+				wavePeriod: {
+					description: 'T [s].',
+					exclusiveMinimum: 0,
+					title: 'Wave period',
+					type: 'number',
+				},
+				waveTheory: {
+					default: 'streamFunction',
+					description: 'Airy (linear, Wheeler stretched) or the nonlinear stream function (Fourier) wave, as accurate as Stokes\' fifth order.',
+					enum: ['airy', 'streamFunction'],
+					enumDescriptions: ['Airy (linear)', 'Stream function (nonlinear)'],
+					title: 'Wave theory',
+					type: 'string',
+				},
+				waveDirection: {
+					default: 0,
+					description: 'From the x axis in plan [°].',
+					title: 'Wave direction',
+					type: 'number',
+				},
+				current: {
+					default: 0,
+					description: 'Surface current speed [m/s].',
+					minimum: 0,
+					title: 'Current',
+					type: 'number',
+				},
+				marineGrowth: {
+					default: 50,
+					description: 'Thickness on the members [mm].',
+					minimum: 0,
+					title: 'Marine growth',
+					type: 'number',
+				},
+				deckLoad: {
+					default: 0,
+					description: 'Topsides weight on the legs [kN].',
+					minimum: 0,
+					title: 'Deck load',
+					type: 'number',
+				},
+				deckWindForce: {
+					default: 0,
+					description: 'Wind on the topsides, along the wave [kN].',
+					minimum: 0,
+					title: 'Deck wind force',
+					type: 'number',
+				},
+			},
+			required: ['id', 'waterDepth', 'deckElevation', 'legType', 'waveHeight', 'wavePeriod'],
+			title: 'OffshoreStructure',
+			type: 'object',
+		},
 		OpenStructureWind: {
 			additionalProperties: false,
 			description: 'Wind on the members of a special structure by force coefficients (the default pack\'s Part 6 Sec\n2.4, design wind loads on other structures: open signs and lattice frameworks, trussed\ntowers; :mod:`saengine.fem.open_wind`).',
@@ -13624,6 +14501,179 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 				},
 			},
 			title: 'PDeltaFactors',
+			type: 'object',
+		},
+		PipePoint: {
+			additionalProperties: false,
+			description: 'A point of the pipe\'s route [m]; a corner is a bend.',
+			properties: {
+				x: {
+					title: 'X',
+					type: 'number',
+				},
+				y: {
+					title: 'Y',
+					type: 'number',
+				},
+				z: {
+					title: 'Z',
+					type: 'number',
+				},
+			},
+			required: ['x', 'y', 'z'],
+			title: 'PipePoint',
+			type: 'object',
+		},
+		PipeSupport: {
+			additionalProperties: false,
+			description: 'A support at a point of the route.',
+			properties: {
+				at: {
+					description: 'Index of the route point (0: the first).',
+					minimum: 0,
+					title: 'At',
+					type: 'integer',
+				},
+				kind: {
+					default: 'rest',
+					description: 'Anchor: held in every direction (a nozzle or a fixed point); rest: vertical only; guide: vertical and across the pipe; limit: along the pipe only.',
+					enum: ['anchor', 'rest', 'guide', 'limit'],
+					enumDescriptions: ['Anchor (fixed, nozzle)', 'Rest (vertical)', 'Guide', 'Axial limit stop'],
+					title: 'Kind',
+					type: 'string',
+				},
+				nozzle: {
+					default: false,
+					description: 'An equipment nozzle: its loads are reported.',
+					title: 'Nozzle',
+					type: 'boolean',
+				},
+			},
+			required: ['at'],
+			title: 'PipeSupport',
+			type: 'object',
+		},
+		PipingSystem: {
+			additionalProperties: false,
+			description: 'A pipe run: its route, the pipe and its design conditions, and its supports.',
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				name: {
+					default: '',
+					title: 'Name',
+					type: 'string',
+				},
+				route: {
+					items: {
+						$ref: '#/$defs/PipePoint',
+					},
+					minItems: 2,
+					title: 'Route',
+					type: 'array',
+				},
+				outsideDiameter: {
+					description: '[mm].',
+					exclusiveMinimum: 0,
+					title: 'Outside diameter',
+					type: 'number',
+				},
+				wallThickness: {
+					description: 'Nominal [mm].',
+					exclusiveMinimum: 0,
+					title: 'Wall thickness',
+					type: 'number',
+				},
+				corrosion: {
+					default: 1.5,
+					description: 'Plus mill tolerance [mm].',
+					minimum: 0,
+					title: 'Corrosion allowance',
+					type: 'number',
+				},
+				material: {
+					default: 'A106B',
+					description: 'Pipe material, an id of the code pack\'s piping table.',
+					title: 'Material',
+					type: 'string',
+				},
+				bendRadius: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Of the bends at the corners [mm]; empty: 1.5 × the outside diameter.',
+					title: 'Bend radius',
+				},
+				pressure: {
+					default: 0,
+					description: '[MPa].',
+					minimum: 0,
+					title: 'Design pressure',
+					type: 'number',
+				},
+				temperature: {
+					default: 150,
+					description: '[°C].',
+					title: 'Design temperature',
+					type: 'number',
+				},
+				installation: {
+					default: 21,
+					description: '[°C].',
+					title: 'Installation temperature',
+					type: 'number',
+				},
+				contentDensity: {
+					default: 1000,
+					description: '[kg/m³].',
+					minimum: 0,
+					title: 'Content density',
+					type: 'number',
+				},
+				insulationWeight: {
+					default: 0,
+					description: '[kN/m].',
+					minimum: 0,
+					title: 'Insulation weight',
+					type: 'number',
+				},
+				occasional: {
+					default: 0.0,
+					description: 'Seismic or wind load across the pipe as a share of its weight (g).',
+					minimum: 0,
+					title: 'Occasional lateral load',
+					type: 'number',
+				},
+				cycles: {
+					default: 7000,
+					description: 'Full thermal cycles in the life (for f).',
+					exclusiveMinimum: 0,
+					title: 'Cycles',
+					type: 'number',
+				},
+				supports: {
+					items: {
+						$ref: '#/$defs/PipeSupport',
+					},
+					minItems: 1,
+					title: 'Supports',
+					type: 'array',
+				},
+			},
+			required: ['id', 'route', 'outsideDiameter', 'wallThickness', 'supports'],
+			title: 'PipingSystem',
 			type: 'object',
 		},
 		ProjectInfo: {
@@ -14170,6 +15220,97 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 			title: 'SettlementSupport',
 			type: 'object',
 		},
+		Silo: {
+			additionalProperties: false,
+			description: 'A circular reinforced concrete silo for a stored solid (its walls checked for hoop\ntension).',
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				name: {
+					default: '',
+					title: 'Name',
+					type: 'string',
+				},
+				diameter: {
+					description: 'Inside [m].',
+					exclusiveMinimum: 0,
+					title: 'Diameter',
+					type: 'number',
+				},
+				height: {
+					description: 'Of the vertical wall, from the hopper transition to the top of the stored solid\'s surface [m].',
+					exclusiveMinimum: 0,
+					title: 'Height',
+					type: 'number',
+				},
+				hopperHeight: {
+					default: 0,
+					description: '[m].',
+					minimum: 0,
+					title: 'Hopper height',
+					type: 'number',
+				},
+				solid: {
+					default: 'wheat',
+					description: 'Stored solid, an id of the code pack\'s silo solids.',
+					title: 'Solid',
+					type: 'string',
+				},
+				wall: {
+					default: 'D2',
+					description: 'D1 polished, D2 smooth (concrete), D3 rough (corrugated).',
+					enum: ['D1', 'D2', 'D3'],
+					enumDescriptions: ['D1 polished', 'D2 smooth', 'D3 rough'],
+					title: 'Wall surface',
+					type: 'string',
+				},
+				wallThickness: {
+					default: 250,
+					description: '[mm].',
+					exclusiveMinimum: 0,
+					title: 'Wall thickness',
+					type: 'number',
+				},
+				concrete: {
+					description: 'Concrete material (03 Materials).',
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Concrete',
+					type: 'string',
+				},
+				rebar: {
+					description: 'Reinforcing bar material (03 Materials).',
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Rebar',
+					type: 'string',
+				},
+				hoopDiameter: {
+					default: 16,
+					description: '[mm].',
+					exclusiveMinimum: 0,
+					title: 'Hoop bar diameter',
+					type: 'number',
+				},
+				hoopSpacing: {
+					default: 150,
+					description: 'Each face, the two faces together [mm].',
+					exclusiveMinimum: 0,
+					title: 'Hoop spacing',
+					type: 'number',
+				},
+			},
+			required: ['id', 'diameter', 'height', 'concrete', 'rebar'],
+			title: 'Silo',
+			type: 'object',
+		},
 		Site: {
 			additionalProperties: false,
 			properties: {
@@ -14495,6 +15636,63 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 				},
 			},
 			title: 'SnowSite',
+			type: 'object',
+		},
+		SpecialStructures: {
+			additionalProperties: false,
+			description: 'The project\'s bridges and special structures (alpha 9 L9).',
+			properties: {
+				bridges: {
+					items: {
+						$ref: '#/$defs/Bridge',
+					},
+					title: 'Bridges',
+					type: 'array',
+				},
+				towers: {
+					items: {
+						$ref: '#/$defs/LatticeTower',
+					},
+					title: 'Lattice towers',
+					type: 'array',
+				},
+				silos: {
+					items: {
+						$ref: '#/$defs/Silo',
+					},
+					title: 'Silos',
+					type: 'array',
+				},
+				chimneys: {
+					items: {
+						$ref: '#/$defs/Chimney',
+					},
+					title: 'Chimneys',
+					type: 'array',
+				},
+				coolingTowers: {
+					items: {
+						$ref: '#/$defs/CoolingTower',
+					},
+					title: 'Cooling towers',
+					type: 'array',
+				},
+				offshore: {
+					items: {
+						$ref: '#/$defs/OffshoreStructure',
+					},
+					title: 'Offshore structures',
+					type: 'array',
+				},
+				piping: {
+					items: {
+						$ref: '#/$defs/PipingSystem',
+					},
+					title: 'Piping systems',
+					type: 'array',
+				},
+			},
+			title: 'SpecialStructures',
 			type: 'object',
 		},
 		SpectralSite: {
@@ -15405,6 +16603,11 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 			},
 			title: 'Crane runways',
 			type: 'array',
+		},
+		specialStructures: {
+			$ref: '#/$defs/SpecialStructures',
+			description: 'Bridges (traffic loads, girders, bearings, rating), lattice towers, silos, chimneys, cooling towers, offshore jackets and piping, by the code pack\'s methods.',
+			title: 'Bridges and Special Structures',
 		},
 		analysis: {
 			$ref: '#/$defs/Analysis',
@@ -23082,10 +24285,211 @@ export const TEMPLATES: { readonly [defName: string]: object } = {
 		},
 		rotation: 0.0,
 	},
+	DeckGrillage: {
+		kind: 'deckGrillage',
+		spans: [20000.0, 20000.0],
+		girders: 4,
+		girderSpacing: 2500.0,
+		divisions: 10,
+		memberType: 'MEMBER',
+		supports: 'pinned',
+		origin: {
+			x: 0.0,
+			y: 0.0,
+			z: 0.0,
+		},
+		rotation: 0.0,
+	},
+	TrussTower: {
+		kind: 'trussTower',
+		height: 40000.0,
+		baseWidth: 6000.0,
+		topWidth: 1500.0,
+		section: 'square',
+		panels: 10,
+		bracing: 'x',
+		memberType: 'MEMBER',
+		supports: 'fixed',
+		origin: {
+			x: 0.0,
+			y: 0.0,
+			z: 0.0,
+		},
+		rotation: 0.0,
+	},
+	RevolutionShell: {
+		kind: 'revolutionShell',
+		profile: 'cylinder',
+		height: 24000.0,
+		baseRadius: 4000.0,
+		rings: 12,
+		segments: 24,
+		panelType: 'PANEL',
+		supports: 'fixed',
+		origin: {
+			x: 0.0,
+			y: 0.0,
+			z: 0.0,
+		},
+		rotation: 0.0,
+	},
+	JacketFrame: {
+		kind: 'jacketFrame',
+		form: 'jacket',
+		height: 42000.0,
+		baseWidth: 20000.0,
+		topWidth: 12000.0,
+		bays: 4,
+		memberType: 'MEMBER',
+		supports: 'fixed',
+		origin: {
+			x: 0.0,
+			y: 0.0,
+			z: 0.0,
+		},
+		rotation: 0.0,
+	},
 	BuiltUpMember: {
 		connectors: 'snugTight',
 		spacing: 600,
 		component: 'L 75x75x6',
+	},
+	Bridge: {
+		id: 'BR1',
+		name: 'Two-lane girder bridge',
+		spans: [20.0],
+		carriageway: 7.5,
+		girders: 4,
+		girderSpacing: 2.5,
+		girder: {
+			depth: 1500,
+			webWidth: 400,
+			concrete: 'C24.1',
+			rebar: 'B420DWR',
+			bottomBars: 8,
+			bottomDiameter: 32,
+			topBars: 0,
+			topDiameter: 25,
+		},
+	},
+	GirderSection: {
+		depth: 1500,
+		webWidth: 400,
+		concrete: 'C24.1',
+		rebar: 'B420DWR',
+		bottomBars: 8,
+		bottomDiameter: 32,
+		topBars: 0,
+		topDiameter: 25,
+	},
+	GirderPrestress: {
+		area: 2800,
+		depth: 1350,
+	},
+	BridgeBearing: {
+		support: 0,
+		kind: 'fixed',
+	},
+	BridgeRating: {
+		condition: 1.0,
+		system: 1.0,
+	},
+	LatticeTower: {
+		id: 'TW1',
+		name: 'Telecom tower',
+		height: 40.0,
+		baseWidth: 6.0,
+		topWidth: 1.5,
+		panels: 10,
+		legType: 'TOWER-LEG',
+		bracingType: 'TOWER-BRACE',
+	},
+	Antenna: {
+		name: 'Panel antenna',
+		elevation: 38.0,
+		area: 0.8,
+		weight: 0.3,
+	},
+	Silo: {
+		id: 'SL1',
+		name: 'Grain silo',
+		diameter: 8.0,
+		height: 24.0,
+		concrete: 'C24.1',
+		rebar: 'B420DWR',
+	},
+	Chimney: {
+		id: 'CH1',
+		name: 'Chimney',
+		height: 60.0,
+		baseDiameter: 5.0,
+		topDiameter: 3.0,
+		baseThickness: 300,
+		topThickness: 200,
+		material: 'C24.1',
+	},
+	CoolingTower: {
+		id: 'CT1',
+		name: 'Cooling tower',
+		height: 100.0,
+		baseRadius: 40.0,
+		throatRadius: 26.0,
+		throatHeight: 80.0,
+		topRadius: 28.0,
+		concrete: 'C24.1',
+	},
+	OffshoreStructure: {
+		id: 'OS1',
+		name: 'Four-leg jacket',
+		waterDepth: 30.0,
+		deckElevation: 12.0,
+		legType: 'JACKET-LEG',
+		braceType: 'JACKET-BRACE',
+		waveHeight: 10.0,
+		wavePeriod: 10.0,
+	},
+	PipingSystem: {
+		id: 'P1',
+		name: 'Steam line',
+		route: [
+			{
+				x: 0,
+				y: 0,
+				z: 3,
+			},
+			{
+				x: 12,
+				y: 0,
+				z: 3,
+			},
+			{
+				x: 12,
+				y: 6,
+				z: 3,
+			},
+		],
+		outsideDiameter: 168.3,
+		wallThickness: 7.11,
+		supports: [
+			{
+				at: 0,
+				kind: 'anchor',
+				nozzle: true,
+			},
+			{
+				at: 2,
+				kind: 'anchor',
+			},
+		],
+	},
+	PipePoint: {
+		x: 0,
+		y: 0,
+		z: 0,
+	},
+	PipeSupport: {
+		at: 0,
+		kind: 'rest',
 	},
 };
 
@@ -23360,6 +24764,110 @@ export const SHAPE_SCHEMA: IJSONSchema = {
 			title: 'CableNet',
 			type: 'object',
 		},
+		DeckGrillage: {
+			additionalProperties: false,
+			description: 'A bridge deck as a grillage: girders along x (the spans), transverse members across y\nat every station (the deck slab\'s strips and the diaphragms), supported under every\ngirder at each support line. The origin is the first girder\'s start; girders are\n``girderSpacing`` apart along +y.',
+			properties: {
+				kind: {
+					const: 'deckGrillage',
+					default: 'deckGrillage',
+					title: 'Kind',
+					type: 'string',
+				},
+				spans: {
+					description: 'Span lengths in order [mm].',
+					items: {
+						exclusiveMinimum: 0,
+						type: 'number',
+					},
+					minItems: 1,
+					title: 'Spans',
+					type: 'array',
+				},
+				girders: {
+					description: 'Girders across the deck.',
+					maximum: 20,
+					minimum: 1,
+					title: 'Girders',
+					type: 'integer',
+				},
+				girderSpacing: {
+					description: '[mm].',
+					exclusiveMinimum: 0,
+					title: 'Girder spacing',
+					type: 'number',
+				},
+				divisions: {
+					default: 10,
+					description: 'Elements of each girder in each span.',
+					maximum: 100,
+					minimum: 2,
+					title: 'Divisions',
+					type: 'integer',
+				},
+				memberType: {
+					description: 'Object type of the girders.',
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Girder type',
+					type: 'string',
+				},
+				crossType: {
+					anyOf: [
+						{
+							maxLength: 64,
+							minLength: 1,
+							pattern: '^[A-Za-z0-9._-]+$',
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Object type of the transverse members (deck strips, diaphragms); none uses the girder type.',
+					title: 'Transverse type',
+				},
+				panelType: {
+					anyOf: [
+						{
+							maxLength: 64,
+							minLength: 1,
+							pattern: '^[A-Za-z0-9._-]+$',
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Slab or wall type of the cladding panels between the members; none adds no panels.',
+					title: 'Panel type',
+				},
+				supports: {
+					default: 'pinned',
+					description: 'Supports added where the shape meets the ground.',
+					enum: ['none', 'pinned', 'fixed'],
+					title: 'Supports',
+					type: 'string',
+				},
+				origin: {
+					$ref: '#/$defs/Point',
+					description: 'Where the shape\'s own origin is placed [mm].',
+					title: 'Origin',
+				},
+				rotation: {
+					default: 0,
+					description: 'Rotation in plan about the origin [°].',
+					title: 'Rotation',
+					type: 'number',
+				},
+			},
+			required: ['spans', 'girders', 'girderSpacing', 'memberType'],
+			title: 'DeckGrillage',
+			type: 'object',
+		},
 		Dome: {
 			additionalProperties: false,
 			description: 'A spherical dome (a cap of a sphere) on a circular base centred on the origin.',
@@ -23464,6 +24972,97 @@ export const SHAPE_SCHEMA: IJSONSchema = {
 			},
 			required: ['radius', 'rise', 'rings', 'segments', 'memberType'],
 			title: 'Dome',
+			type: 'object',
+		},
+		JacketFrame: {
+			additionalProperties: false,
+			description: 'A fixed offshore structure from the mudline (z = 0, the origin at its centre): a\nfour-legged jacket with battered legs, a horizontal frame at every bay level and X braces\nin every face, or a monopile (one vertical pile).',
+			properties: {
+				kind: {
+					const: 'jacketFrame',
+					default: 'jacketFrame',
+					title: 'Kind',
+					type: 'string',
+				},
+				form: {
+					default: 'jacket',
+					enum: ['jacket', 'monopile'],
+					title: 'Form',
+					type: 'string',
+				},
+				height: {
+					description: 'From the mudline to the top [mm].',
+					exclusiveMinimum: 0,
+					title: 'Height',
+					type: 'number',
+				},
+				baseWidth: {
+					default: 20000,
+					description: 'Legs apart [mm].',
+					exclusiveMinimum: 0,
+					title: 'Base width',
+					type: 'number',
+				},
+				topWidth: {
+					default: 12000,
+					description: 'Legs apart [mm].',
+					exclusiveMinimum: 0,
+					title: 'Top width',
+					type: 'number',
+				},
+				bays: {
+					default: 4,
+					description: 'Braced bays up the jacket.',
+					maximum: 40,
+					minimum: 1,
+					title: 'Bays',
+					type: 'integer',
+				},
+				memberType: {
+					description: 'Object type of the legs or the pile.',
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Leg type',
+					type: 'string',
+				},
+				braceType: {
+					anyOf: [
+						{
+							maxLength: 64,
+							minLength: 1,
+							pattern: '^[A-Za-z0-9._-]+$',
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Object type of the braces; none uses the member type.',
+					title: 'Brace type',
+				},
+				supports: {
+					default: 'fixed',
+					description: 'Supports added where the shape meets the ground.',
+					enum: ['none', 'pinned', 'fixed'],
+					title: 'Supports',
+					type: 'string',
+				},
+				origin: {
+					$ref: '#/$defs/Point',
+					description: 'Where the shape\'s own origin is placed [mm].',
+					title: 'Origin',
+				},
+				rotation: {
+					default: 0,
+					description: 'Rotation in plan about the origin [°].',
+					title: 'Rotation',
+					type: 'number',
+				},
+			},
+			required: ['height', 'memberType'],
+			title: 'JacketFrame',
 			type: 'object',
 		},
 		PlaneTruss: {
@@ -23859,6 +25458,139 @@ export const SHAPE_SCHEMA: IJSONSchema = {
 			title: 'PortalFrame',
 			type: 'object',
 		},
+		RevolutionShell: {
+			additionalProperties: false,
+			description: 'A shell of revolution about the vertical axis through the origin, as flat facets\nbetween rings and meridians: a cylinder (silo, tank), a cone (chimney) or a hyperboloid of\none sheet (cooling tower, its throat at ``throatHeight``).',
+			properties: {
+				kind: {
+					const: 'revolutionShell',
+					default: 'revolutionShell',
+					title: 'Kind',
+					type: 'string',
+				},
+				profile: {
+					default: 'cylinder',
+					enum: ['cylinder', 'cone', 'hyperboloid'],
+					title: 'Profile',
+					type: 'string',
+				},
+				height: {
+					description: '[mm]',
+					exclusiveMinimum: 0,
+					title: 'Height',
+					type: 'number',
+				},
+				baseRadius: {
+					description: 'Of the mid-surface [mm].',
+					exclusiveMinimum: 0,
+					title: 'Base radius',
+					type: 'number',
+				},
+				topRadius: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Cone, hyperboloid [mm].',
+					title: 'Top radius',
+				},
+				throatRadius: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Hyperboloid [mm].',
+					title: 'Throat radius',
+				},
+				throatHeight: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Hyperboloid, above the base [mm].',
+					title: 'Throat height',
+				},
+				rings: {
+					default: 12,
+					description: 'Facets up the height.',
+					maximum: 200,
+					minimum: 1,
+					title: 'Rings',
+					type: 'integer',
+				},
+				segments: {
+					default: 24,
+					description: 'Facets round the shell.',
+					maximum: 360,
+					minimum: 6,
+					title: 'Segments',
+					type: 'integer',
+				},
+				panelType: {
+					description: 'Wall type of the shell.',
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Shell type',
+					type: 'string',
+				},
+				memberType: {
+					anyOf: [
+						{
+							maxLength: 64,
+							minLength: 1,
+							pattern: '^[A-Za-z0-9._-]+$',
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Object type of ring beams at the top and the base; none: no ring beams.',
+					title: 'Ring beam type',
+				},
+				supports: {
+					default: 'fixed',
+					description: 'Supports added where the shape meets the ground.',
+					enum: ['none', 'pinned', 'fixed'],
+					title: 'Supports',
+					type: 'string',
+				},
+				origin: {
+					$ref: '#/$defs/Point',
+					description: 'Where the shape\'s own origin is placed [mm].',
+					title: 'Origin',
+				},
+				rotation: {
+					default: 0,
+					description: 'Rotation in plan about the origin [°].',
+					title: 'Rotation',
+					type: 'number',
+				},
+			},
+			required: ['height', 'baseRadius', 'panelType'],
+			title: 'RevolutionShell',
+			type: 'object',
+		},
 		SpaceTruss: {
 			additionalProperties: false,
 			description: 'A double-layer grid (square on square, offset): a flat roof spanning both ways.',
@@ -23953,6 +25685,116 @@ export const SHAPE_SCHEMA: IJSONSchema = {
 			title: 'SpaceTruss',
 			type: 'object',
 		},
+		TrussTower: {
+			additionalProperties: false,
+			description: 'A self-supporting lattice tower, tapering linearly from its base to its top: legs at the\ncorners, X or single-diagonal bracing in every face of every panel, optional horizontals.\nThe origin is the centre of its base.',
+			properties: {
+				kind: {
+					const: 'trussTower',
+					default: 'trussTower',
+					title: 'Kind',
+					type: 'string',
+				},
+				height: {
+					description: '[mm]',
+					exclusiveMinimum: 0,
+					title: 'Height',
+					type: 'number',
+				},
+				baseWidth: {
+					description: 'Face width at the base [mm].',
+					exclusiveMinimum: 0,
+					title: 'Base width',
+					type: 'number',
+				},
+				topWidth: {
+					description: 'Face width at the top [mm].',
+					exclusiveMinimum: 0,
+					title: 'Top width',
+					type: 'number',
+				},
+				section: {
+					default: 'square',
+					enum: ['square', 'triangular'],
+					title: 'Section',
+					type: 'string',
+				},
+				panels: {
+					description: 'Panels up the height.',
+					maximum: 200,
+					minimum: 1,
+					title: 'Panels',
+					type: 'integer',
+				},
+				bracing: {
+					default: 'x',
+					enum: ['x', 'single'],
+					title: 'Bracing',
+					type: 'string',
+				},
+				memberType: {
+					description: 'Object type of the legs.',
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Leg type',
+					type: 'string',
+				},
+				bracingType: {
+					anyOf: [
+						{
+							maxLength: 64,
+							minLength: 1,
+							pattern: '^[A-Za-z0-9._-]+$',
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Object type of the bracings; none uses the member type.',
+					title: 'Bracing type',
+				},
+				horizontalType: {
+					anyOf: [
+						{
+							maxLength: 64,
+							minLength: 1,
+							pattern: '^[A-Za-z0-9._-]+$',
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Object type of the horizontals at the panel points; none: no horizontals (the top is closed with the bracing type).',
+					title: 'Horizontal type',
+				},
+				supports: {
+					default: 'fixed',
+					description: 'Supports added where the shape meets the ground.',
+					enum: ['none', 'pinned', 'fixed'],
+					title: 'Supports',
+					type: 'string',
+				},
+				origin: {
+					$ref: '#/$defs/Point',
+					description: 'Where the shape\'s own origin is placed [mm].',
+					title: 'Origin',
+				},
+				rotation: {
+					default: 0,
+					description: 'Rotation in plan about the origin [°].',
+					title: 'Rotation',
+					type: 'number',
+				},
+			},
+			required: ['height', 'baseWidth', 'topWidth', 'panels', 'memberType'],
+			title: 'TrussTower',
+			type: 'object',
+		},
 	},
 	additionalProperties: false,
 	description: 'What the modeller\'s Generate panel edits: one shape.',
@@ -23979,6 +25821,18 @@ export const SHAPE_SCHEMA: IJSONSchema = {
 				},
 				{
 					$ref: '#/$defs/PortalFrame',
+				},
+				{
+					$ref: '#/$defs/DeckGrillage',
+				},
+				{
+					$ref: '#/$defs/TrussTower',
+				},
+				{
+					$ref: '#/$defs/RevolutionShell',
+				},
+				{
+					$ref: '#/$defs/JacketFrame',
 				},
 			],
 			title: 'Shape',
@@ -30043,6 +31897,807 @@ export const SUBSTRUCTURE_SCHEMA: IJSONSchema = {
 			title: 'RetainingWallBars',
 			type: 'object',
 		},
+		Slope: {
+			additionalProperties: false,
+			description: 'A slope checked on a 2D section by limit equilibrium (the code pack\'s ``slopeStability``\nmethods) and, optionally, by 2D finite elements. The section is drawn (its surface, strata\nand soils) or cut from the site\'s strata (the stratigraphy of 01 Soil Report along a line\nbetween two plan points, its units\' values from the boreholes\' layers).',
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				name: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Name',
+				},
+				section: {
+					default: 'drawn',
+					description: 'Drawn, or cut from the stratigraphy of the soil report along start-end.',
+					enum: ['drawn', 'strata'],
+					enumDescriptions: ['Drawn', 'Cut from the site\'s strata'],
+					title: 'Section',
+					type: 'string',
+				},
+				start: {
+					anyOf: [
+						{
+							description: '[x, y] in mm.',
+							items: {
+								type: 'number',
+							},
+							maxItems: 2,
+							minItems: 2,
+							type: 'array',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Cut from the strata: the section\'s start in plan [x, y] mm.',
+					title: 'Start',
+				},
+				end: {
+					anyOf: [
+						{
+							description: '[x, y] in mm.',
+							items: {
+								type: 'number',
+							},
+							maxItems: 2,
+							minItems: 2,
+							type: 'array',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Cut from the strata: the section\'s end in plan [x, y] mm.',
+					title: 'End',
+				},
+				surface: {
+					description: 'The ground surface [[x, level], ...] mm, left to right; cut from the strata it is the ground of the boreholes when empty, else a designed surface (a cut or a fill) over the strata.',
+					items: {
+						description: '[x, level] mm: along the section, and the level in the project datum.',
+						items: {
+							type: 'number',
+						},
+						maxItems: 2,
+						minItems: 2,
+						type: 'array',
+					},
+					title: 'Surface',
+					type: 'array',
+				},
+				strata: {
+					description: 'Drawn: the strata from the top down.',
+					items: {
+						$ref: '#/$defs/SlopeStratum',
+					},
+					title: 'Strata',
+					type: 'array',
+				},
+				soils: {
+					items: {
+						$ref: '#/$defs/SlopeSoil',
+					},
+					title: 'Soils',
+					type: 'array',
+				},
+				base: {
+					anyOf: [
+						{
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'The section\'s base (firm ground) [mm, project datum]; empty: the deepest boundary less the slope\'s height.',
+					title: 'Base',
+				},
+				water: {
+					anyOf: [
+						{
+							items: {
+								description: '[x, level] mm: along the section, and the level in the project datum.',
+								items: {
+									type: 'number',
+								},
+								maxItems: 2,
+								minItems: 2,
+								type: 'array',
+							},
+							type: 'array',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'The phreatic line [[x, level], ...] mm; empty: none drawn (cut from the strata: the boreholes\' water table).',
+					title: 'Water line',
+				},
+				ru: {
+					anyOf: [
+						{
+							exclusiveMaximum: 1,
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Of every soil.',
+					title: 'Pore pressure ratio ru',
+				},
+				surcharges: {
+					items: {
+						$ref: '#/$defs/SlopeSurcharge',
+					},
+					title: 'Surcharges',
+					type: 'array',
+				},
+				nails: {
+					description: 'Resisting forces.',
+					items: {
+						$ref: '#/$defs/SlopeNail',
+					},
+					title: 'Nails and anchors',
+					type: 'array',
+				},
+				temporary: {
+					default: false,
+					description: 'A temporary slope (the temporary factor of safety).',
+					title: 'Temporary',
+					type: 'boolean',
+				},
+				seismic: {
+					default: false,
+					description: 'Check also under the pseudo-static seismic coefficients of the code pack.',
+					title: 'Seismic',
+					type: 'boolean',
+				},
+				kh: {
+					anyOf: [
+						{
+							maximum: 1,
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Seismic coefficient kh [g]; empty: the pack\'s.',
+					title: 'Kh',
+				},
+				kv: {
+					anyOf: [
+						{
+							maximum: 1,
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Seismic coefficient kv [g]; empty: the pack\'s.',
+					title: 'Kv',
+				},
+				requiredFS: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Overrides the code pack\'s (factor of safety verification).',
+					title: 'Required factor of safety',
+				},
+				direction: {
+					default: 'auto',
+					description: 'The way the slope fails; auto: down from the higher end of the section.',
+					enum: ['auto', 'left', 'right'],
+					enumDescriptions: ['Down the slope', 'To the left', 'To the right'],
+					title: 'Direction',
+					type: 'string',
+				},
+				methods: {
+					anyOf: [
+						{
+							items: {
+								enum: ['bishop', 'janbu', 'spencer', 'morgensternPrice'],
+								type: 'string',
+							},
+							type: 'array',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'The methods run; empty: the code pack\'s.',
+					title: 'Methods',
+				},
+				search: {
+					$ref: '#/$defs/SlopeSearch',
+					title: 'Search',
+				},
+				fe: {
+					anyOf: [
+						{
+							$ref: '#/$defs/SlopeFE',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: '2D FE',
+				},
+				note: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Note',
+				},
+			},
+			required: ['id'],
+			title: 'Slope',
+			type: 'object',
+		},
+		SlopeFE: {
+			additionalProperties: false,
+			description: 'The 2D finite element analysis of the section (plane strain, for experienced users).',
+			properties: {
+				run: {
+					default: false,
+					description: 'Run the 2D FE with the limit equilibrium.',
+					title: 'Run',
+					type: 'boolean',
+				},
+				meshSize: {
+					default: 1000,
+					description: '[mm]',
+					exclusiveMinimum: 0,
+					title: 'Mesh size',
+					type: 'number',
+				},
+				strengthReduction: {
+					default: true,
+					description: 'Find the factor of safety by reducing c\' and tan φ\' (cu) to failure.',
+					title: 'Strength reduction',
+					type: 'boolean',
+				},
+				excavation: {
+					anyOf: [
+						{
+							maxLength: 64,
+							minLength: 1,
+							pattern: '^[A-Za-z0-9._-]+$',
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'An excavation of 9 Substructure whose embedded wall, stages and supports are modelled in this section (the half of a symmetric excavation).',
+					title: 'Excavation',
+				},
+				wallX: {
+					anyOf: [
+						{
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Of the excavation\'s wall along the section [mm].',
+					title: 'Wall position',
+				},
+				side: {
+					default: 'right',
+					description: 'The side of the wall that is dug out (to the edge of the section).',
+					enum: ['left', 'right'],
+					enumDescriptions: ['Left', 'Right'],
+					title: 'Side',
+					type: 'string',
+				},
+				steps: {
+					default: 10,
+					description: 'Load steps of each stage.',
+					maximum: 100,
+					minimum: 1,
+					title: 'Steps',
+					type: 'integer',
+				},
+			},
+			title: 'SlopeFE',
+			type: 'object',
+		},
+		SlopeNail: {
+			additionalProperties: false,
+			description: 'A soil nail or ground anchor of the slope, repeated at its spacing along the slope; a\nresisting force where the slip surface crosses it.',
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				kind: {
+					default: 'nail',
+					description: 'A soil nail (bonded over its whole length) or a ground anchor (bonded over its fixed length at the far end).',
+					enum: ['nail', 'anchor'],
+					enumDescriptions: ['Soil nail', 'Ground anchor'],
+					title: 'Kind',
+					type: 'string',
+				},
+				x: {
+					description: 'Its head along the section [mm].',
+					title: 'X',
+					type: 'number',
+				},
+				level: {
+					description: 'Its head [mm, project datum].',
+					title: 'Level',
+					type: 'number',
+				},
+				inclination: {
+					default: 15.0,
+					description: 'Below the horizontal, into the slope [°].',
+					exclusiveMaximum: 90,
+					minimum: 0,
+					title: 'Inclination',
+					type: 'number',
+				},
+				length: {
+					description: 'Total length [mm].',
+					exclusiveMinimum: 0,
+					title: 'Length',
+					type: 'number',
+				},
+				fixedLength: {
+					anyOf: [
+						{
+							description: '[mm]',
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Anchors: the bonded length at the far end [mm]; empty: a third of the length.',
+					title: 'Fixed length',
+				},
+				spacing: {
+					default: 1500,
+					description: 'Along the slope [mm].',
+					exclusiveMinimum: 0,
+					title: 'Spacing',
+					type: 'number',
+				},
+				capacity: {
+					description: 'Characteristic tensile capacity of the bar or tendon [kN].',
+					exclusiveMinimum: 0,
+					title: 'Capacity',
+					type: 'number',
+				},
+				bond: {
+					description: 'Ultimate grout-ground bond (unit skin friction) qs [kPa].',
+					exclusiveMinimum: 0,
+					title: 'Bond',
+					type: 'number',
+				},
+				diameter: {
+					default: 100,
+					description: 'Drill hole (grout) diameter [mm].',
+					exclusiveMinimum: 0,
+					title: 'Diameter',
+					type: 'number',
+				},
+				headCapacity: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Nails: of the facing at the head [kN]; empty: as the tensile capacity.',
+					title: 'Head capacity',
+				},
+			},
+			required: ['id', 'x', 'level', 'length', 'capacity', 'bond'],
+			title: 'SlopeNail',
+			type: 'object',
+		},
+		SlopeSearch: {
+			additionalProperties: false,
+			description: 'How the critical slip surface is searched for.',
+			properties: {
+				surface: {
+					default: 'circular',
+					description: 'Circular arcs over a grid of centres and radii, or non-circular surfaces optimised from the critical circle (and any given surfaces).',
+					enum: ['circular', 'nonCircular'],
+					enumDescriptions: ['Circular', 'Non-circular'],
+					title: 'Surface',
+					type: 'string',
+				},
+				method: {
+					anyOf: [
+						{
+							enum: ['bishop', 'janbu', 'spencer', 'morgensternPrice'],
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'The method of the search; empty: Bishop for circles, Janbu for non-circular surfaces. Every method of the check is then run on the best surfaces found.',
+					enumDescriptions: ['Bishop simplified', 'Janbu simplified (corrected)', 'Spencer', 'Morgenstern-Price (half-sine)'],
+					title: 'Method',
+				},
+				centres: {
+					anyOf: [
+						{
+							items: {
+								type: 'number',
+							},
+							maxItems: 4,
+							minItems: 4,
+							type: 'array',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: '[x left, level bottom, x right, level top] mm of the grid of centres; empty: above the slope, worked out from its height.',
+					title: 'Centre grid',
+				},
+				grid: {
+					default: 10,
+					description: 'Centres along each side.',
+					maximum: 40,
+					minimum: 3,
+					title: 'Grid',
+					type: 'integer',
+				},
+				radii: {
+					default: 8,
+					description: 'Radii per centre.',
+					maximum: 40,
+					minimum: 2,
+					title: 'Radii',
+					type: 'integer',
+				},
+				minDepth: {
+					default: 1000,
+					description: 'Slip surfaces shallower than this below the ground are left out [mm].',
+					minimum: 0,
+					title: 'Least depth',
+					type: 'number',
+				},
+				slices: {
+					default: 40,
+					maximum: 200,
+					minimum: 10,
+					title: 'Slices',
+					type: 'integer',
+				},
+				surfaces: {
+					description: 'Slip surfaces to check besides the search, each [[x, level], ...] mm from where it leaves the ground to where it comes out.',
+					items: {
+						items: {
+							description: '[x, level] mm: along the section, and the level in the project datum.',
+							items: {
+								type: 'number',
+							},
+							maxItems: 2,
+							minItems: 2,
+							type: 'array',
+						},
+						type: 'array',
+					},
+					title: 'Surfaces',
+					type: 'array',
+				},
+			},
+			title: 'SlopeSearch',
+			type: 'object',
+		},
+		SlopeSoil: {
+			additionalProperties: false,
+			description: 'A soil of a slope\'s section. In a section cut from the site\'s strata a soil whose id is\na unit of the stratigraphy (U1, U2, ...) overrides the values worked out from the boreholes\'\nlayers of that unit; an empty value keeps the boreholes\'.',
+			properties: {
+				id: {
+					description: 'Its id; in a section cut from the strata, a unit id (U1, ...).',
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				name: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Name',
+				},
+				unitWeight: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							maximum: 30,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Above the water [kN/m³].',
+					title: 'Unit weight γ',
+				},
+				saturatedUnitWeight: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							maximum: 30,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: '[kN/m³]',
+					title: 'Saturated unit weight γsat',
+				},
+				c: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: '[kPa]',
+					title: 'Effective cohesion c\'',
+				},
+				phi: {
+					anyOf: [
+						{
+							maximum: 50,
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: '[°]',
+					title: 'Friction angle φ\'',
+				},
+				cu: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: '[kPa]',
+					title: 'Undrained shear strength cu',
+				},
+				strength: {
+					anyOf: [
+						{
+							enum: ['drained', 'undrained'],
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Drained (c\', φ\', the pore pressures) or undrained (cu, φ = 0, total stresses); empty: drained when φ\' is known, else undrained.',
+					enumDescriptions: ['Drained (c\', φ\')', 'Undrained (cu)'],
+					title: 'Strength',
+				},
+				ru: {
+					anyOf: [
+						{
+							exclusiveMaximum: 1,
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'u = ru × the overburden at the slip surface in this soil; empty: the section\'s water line or ru.',
+					title: 'Pore pressure ratio ru',
+				},
+				E: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'For the 2D FE [MPa].',
+					title: 'Young\'s modulus E',
+				},
+				poisson: {
+					anyOf: [
+						{
+							exclusiveMaximum: 0.5,
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'For the 2D FE; empty: K0 / (1 + K0), so the elastic gravity stage gives the at-rest stresses.',
+					title: 'Poisson\'s ratio ν',
+				},
+				dilatancy: {
+					anyOf: [
+						{
+							maximum: 30,
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'For the 2D FE [°]; empty 0.',
+					title: 'Dilatancy ψ',
+				},
+				model: {
+					anyOf: [
+						{
+							enum: ['mohrCoulomb', 'multiYield', 'vonMises'],
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Of the 2D FE; empty: Mohr-Coulomb.',
+					enumDescriptions: ['Mohr-Coulomb (Drucker-Prager matched in plane strain)', 'Hardening: pressure-dependent multi-yield (sand) or pressure-independent (clay)', 'Von Mises with linear hardening (undrained clay)'],
+					title: 'FE soil model',
+				},
+			},
+			required: ['id'],
+			title: 'SlopeSoil',
+			type: 'object',
+		},
+		SlopeStratum: {
+			additionalProperties: false,
+			description: 'A stratum of a drawn section: its soil and the line of its top, from the left of the\nsection to the right. The first stratum\'s top is the ground surface (its points may be\nleft empty); each stratum reaches down to the next one\'s top, the last to the section\'s\nbase.',
+			properties: {
+				soil: {
+					description: 'A soil of the slope (its id).',
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Soil',
+					type: 'string',
+				},
+				points: {
+					description: 'Its top boundary [[x, level], ...] mm, left to right; the part above the ground surface is cut off.',
+					items: {
+						description: '[x, level] mm: along the section, and the level in the project datum.',
+						items: {
+							type: 'number',
+						},
+						maxItems: 2,
+						minItems: 2,
+						type: 'array',
+					},
+					title: 'Points',
+					type: 'array',
+				},
+			},
+			required: ['soil'],
+			title: 'SlopeStratum',
+			type: 'object',
+		},
+		SlopeSurcharge: {
+			additionalProperties: false,
+			description: 'A strip load on the ground surface of the section.',
+			properties: {
+				start: {
+					description: 'Left end along the section [mm].',
+					title: 'Start',
+					type: 'number',
+				},
+				end: {
+					description: 'Right end along the section [mm].',
+					title: 'End',
+					type: 'number',
+				},
+				pressure: {
+					description: 'Vertical pressure [kPa].',
+					exclusiveMinimum: 0,
+					title: 'Pressure',
+					type: 'number',
+				},
+				permanent: {
+					default: false,
+					description: 'A permanent load (the design approach\'s factor on permanent actions); else variable.',
+					title: 'Permanent',
+					type: 'boolean',
+				},
+			},
+			required: ['start', 'end', 'pressure'],
+			title: 'SlopeSurcharge',
+			type: 'object',
+		},
 		SpliceZone: {
 			additionalProperties: false,
 			description: 'Hoops or ties over the lap splices (the default pack\'s Part 6 Sec 8.3.4.2(b), Figure 6.8.8).',
@@ -30559,6 +33214,14 @@ export const SUBSTRUCTURE_SCHEMA: IJSONSchema = {
 			title: 'Machine foundations',
 			type: 'array',
 		},
+		slopes: {
+			description: 'Slopes checked on 2D sections by limit equilibrium and, optionally, 2D FE (alpha 9 L8).',
+			items: {
+				$ref: '#/$defs/Slope',
+			},
+			title: 'Slopes',
+			type: 'array',
+		},
 	},
 	title: 'SAEngine substructure',
 	type: 'object',
@@ -30597,6 +33260,7 @@ export const DEFAULT_SUBSTRUCTURE: object = {
 	},
 	excavations: [],
 	machineFoundations: [],
+	slopes: [],
 };
 
 export const MEP_SCHEMA: IJSONSchema = {

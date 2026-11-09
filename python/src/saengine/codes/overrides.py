@@ -353,6 +353,11 @@ SECTIONS: tuple[tuple[str, tuple[str, ...]], ...] = (
             "glass",
             "membranes",
             "compositePlateWalls",
+            "bridgeDesign",  # alpha 9 L9: bridges and special structures
+            "latticeTowers",
+            "shellStructures",
+            "offshore",
+            "pipingStress",
             "precast",
             "masonry",
             "timber",
@@ -376,6 +381,7 @@ SECTIONS: tuple[tuple[str, tuple[str, ...]], ...] = (
             "wind",
             "flood",
             "cranes",
+            "movingLoads",  # alpha 9 L9: traffic loads on bridges
             "isolation",
             "dampers",
             "pushover",
@@ -399,6 +405,7 @@ SECTIONS: tuple[tuple[str, tuple[str, ...]], ...] = (
             "construction",
             "embeddedWalls",
             "excavationSupport",
+            "slopeStability",
             "materials",
         ),
     ),

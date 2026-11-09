@@ -27,6 +27,23 @@ from saengine.codes.registry import DEFAULT_PACK, CodePack, CodePackError
 from saengine.library import code_data
 from saengine.library.labels import field_title
 from saengine.library.materials import Id
+from saengine.library.special_structures import (  # noqa: F401 - alpha 9 L9, the editors' $defs
+    Antenna,
+    Bridge,
+    BridgeBearing,
+    BridgeRating,
+    Chimney,
+    CoolingTower,
+    GirderPrestress,
+    GirderSection,
+    LatticeTower,
+    OffshoreStructure,
+    PipePoint,
+    PipeSupport,
+    PipingSystem,
+    Silo,
+    SpecialStructures,
+)
 
 SCHEMA_ID = "saengine.projectSettings/1"
 
@@ -3333,6 +3350,15 @@ class ProjectSettings(_Model):
         title="Crane runways",
         description="Overhead and monorail cranes: wheel loads with impact, lateral and "
         "longitudinal forces, runway beam checks and the loads on the columns.",
+    )
+    # Alpha 9 L9: bridges and special structures (saengine.special); left out of the file
+    # while empty, so the settings of projects without them stay as they were.
+    specialStructures: SpecialStructures = Field(
+        default_factory=SpecialStructures,
+        exclude_if=lambda value: value.is_empty(),
+        title="Bridges and Special Structures",
+        description="Bridges (traffic loads, girders, bearings, rating), lattice towers, silos, "
+        "chimneys, cooling towers, offshore jackets and piping, by the code pack's methods.",
     )
     analysis: Analysis = Field(default_factory=Analysis, title="Analysis model")
     foundation: Foundation = Field(

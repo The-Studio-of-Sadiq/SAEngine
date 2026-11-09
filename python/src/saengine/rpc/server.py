@@ -1002,6 +1002,11 @@ def create_server() -> JsonRPCServer:
     def _soil_template(params: Any) -> dict[str, Any]:
         return handlers.soil_template(_plain(params)["path"])
 
+    @server.feature("soil/export")  # Alpha 9 L8: AGS4 or DIGGS
+    def _soil_export(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.export_soil(args["path"], args["soilText"])
+
     @server.feature("soil/settlement")
     def _soil_settlement(params: Any) -> dict[str, Any]:
         args = _plain(params)
@@ -1118,6 +1123,13 @@ def create_server() -> JsonRPCServer:
         return handlers.nonlinear_stability(
             args["outDir"], args["projectPath"], bool(args.get("run"))
         )
+
+    @server.feature("special/structures")
+    @_in_worker
+    def _special_structures(params: Any) -> dict[str, Any]:
+        # Alpha 9 L9: bridges and special structures, kept or computed anew (``run``).
+        args = _plain(params)
+        return handlers.special_structures(args["projectPath"], bool(args.get("run")))
 
     @server.feature("design/connectionFe")
     @_in_worker

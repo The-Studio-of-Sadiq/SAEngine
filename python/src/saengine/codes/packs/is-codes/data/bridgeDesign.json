@@ -1,0 +1,27 @@
+{
+  "$schema": "../../../schemas/bridgeDesign.schema.json",
+  "$sources": [
+    "IRC:6-2017 Annex B Table B.2 (ULS basic combination: dead load 1.35, surfacing 1.75, traffic 1.5) and Table B.3 (SLS rare combination: surfacing 1.2); IRC:112-2020 Cl 12.2.1 (compressive stress <= 0.48 fck rare, 0.36 fck quasi-permanent), Cl 7.9.5 (0.6 fck(t) at transfer), no tension at service (SAEngine practice for Class 1 prestressed members); see VERIFY.md"
+  ],
+  "source": "IRC:6 Annex B load factors and IRC:112 stress limits",
+  "method": "loadFactors",
+  "strength": {"dc": 1.35, "dw": 1.75, "ll": 1.5},
+  "service": {"dc": 1.0, "dw": 1.2, "ll": 1.0},
+  "prestress": {
+    "transferCompression": 0.6,
+    "transferTension": 0.0,
+    "permanentCompression": 0.36,
+    "totalCompression": 0.48,
+    "serviceTension": 0.0,
+    "tensionForm": "absolute",
+    "relaxedYield": 0.87
+  },
+  "thermalCoefficient": 1.2e-5,
+  "clauses": {
+    "code": "IRC:6 / IRC:112",
+    "strength": "IRC:6 Annex B, Table B.2",
+    "service": "IRC:6 Annex B, Table B.3",
+    "prestress": "IRC:112 Cl 12.2.1, Cl 7.9.5",
+    "thermal": "IRC:6 Cl 215"
+  }
+}

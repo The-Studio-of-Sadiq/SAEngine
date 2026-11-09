@@ -124,7 +124,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: SOIL_IMPORT_FILE_COMMAND,
-			title: localize2('saengine.soil.importFile', "Import Boreholes from CSV/Excel..."),
+			title: localize2('saengine.soil.importFile', "Import Boreholes from CSV, Excel, AGS4 or DIGGS..."),
 			category: localize2('saengine.category', "SAEngine"),
 			icon: Codicon.cloudDownload,
 			f1: true,

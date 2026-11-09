@@ -60,6 +60,13 @@
 	font-weight: 600;
 }
 
+/* Alpha 9 L9: a structure's heading within the bridges and special structures section. */
+.saengine-fem-results-view .fem-results-subheading {
+	margin: var(--sa-space-2, 8px) 0 var(--sa-space-1, 4px);
+	font-size: var(--sa-font-m, 13px);
+	font-weight: 600;
+}
+
 .saengine-fem-results-view .fem-results-help,
 .saengine-fem-results-view .fem-results-note {
 	margin-bottom: var(--sa-space-2, 8px);

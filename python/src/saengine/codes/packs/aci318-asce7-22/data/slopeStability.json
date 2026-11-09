@@ -1,0 +1,18 @@
+{
+  "$schema": "../../../schemas/slopeStability.schema.json",
+  "$sources": [
+    "SAEngine practice (IBC 2021 Sec 1804 and 1808.7 and ASCE 7-22 give no slope stability method): factors of safety of USACE EM 1110-2-1902 (2003) Table 3-1 (1.5 long-term, 1.3 end of construction), pseudo-static FS 1.1 with kh = 0.5 PGA (FHWA-NHI-11-032 Sec 6.3, Hynes-Griffin and Franklin 1984), kv = 0; soil nails by FHWA-NHI-14-007 (FHWA GEC No. 7, 2015) tensile and pull-out factors; see VERIFY.md"
+  ],
+  "source": "SAEngine practice where IBC 2021 and ASCE 7-22 are silent: limit equilibrium with the factors of safety of USACE EM 1110-2-1902 and the pseudo-static coefficient of FHWA-NHI-11-032",
+  "reinforcement": {
+    "standard": "FHWA-NHI-14-007 (FHWA GEC No. 7, soil nail walls) and PTI DC35.1 anchors (SAEngine practice)",
+    "tendonFactor": 1.8,
+    "bondFactor": 2.0
+  },
+  "clauses": {
+    "required": "USACE EM 1110-2-1902 Table 3-1 (SAEngine practice; IBC 2021 and ASCE 7-22 give no slope factor of safety)",
+    "method": "SAEngine practice: limit equilibrium of slices (Bishop, Janbu, Spencer, Morgenstern-Price)",
+    "seismic": "FHWA-NHI-11-032 Sec 6.3: kh = 0.5 PGA, FS 1.1 (SAEngine practice), PGA by the pack's seismic settings",
+    "reinforcement": "FHWA-NHI-14-007 (FHWA GEC No. 7): tensile and pull-out factors of soil nails"
+  }
+}

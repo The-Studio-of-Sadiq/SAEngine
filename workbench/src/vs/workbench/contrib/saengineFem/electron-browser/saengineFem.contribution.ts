@@ -395,6 +395,12 @@ CommandsRegistry.registerCommand('saengine.soil.template', async (accessor, args
 	return accessor.get(IFemSolverService).soilTemplate(python, args.path);
 });
 
+/** Writes the soil report's boreholes as AGS4 or DIGGS (alpha 9 L8). Internal: the Soil Report editor calls it by id. */
+CommandsRegistry.registerCommand('saengine.soil.export', async (accessor, args: { path: string; soilText: string }) => {
+	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
+	return accessor.get(IFemSolverService).exportSoil(python, args.path, args.soilText);
+});
+
 /** Net allowable bearing pressure of one footing from the soil report (lengths in mm). */
 CommandsRegistry.registerCommand('saengine.soil.allowableBearing', async (accessor, request: ISoilBearingRequest) => {
 	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
@@ -733,6 +739,12 @@ CommandsRegistry.registerCommand('saengine.fem.existingAssessment', async (acces
 CommandsRegistry.registerCommand('saengine.fem.nonlinearStability', async (accessor, model: URI, run?: boolean) => {
 	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
 	return accessor.get(IFemSolverService).engine(python, 'fem/nonlinearStability', { outDir: resultsFolder(model).fsPath, projectPath: model.fsPath, run: !!run });
+});
+
+/** Alpha 9 L9: the bridges and special structures of Project Settings, kept beside the analysis model or computed anew (`run`). Internal. */
+CommandsRegistry.registerCommand('saengine.fem.specialStructures', async (accessor, model: URI, run?: boolean) => {
+	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
+	return accessor.get(IFemSolverService).engine(python, 'special/structures', { projectPath: model.fsPath, run: !!run });
 });
 
 /** Alpha 9 L6: the finite element (CBFEM) check of a steel member's end connection. Internal. */

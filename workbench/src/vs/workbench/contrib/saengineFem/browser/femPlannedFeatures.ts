@@ -41,6 +41,9 @@ export const FemPlanned = {
 	/** Alpha 9 L7: what stays planned of the special members: US aluminium (Aluminum Design Manual) and membrane cutting patterns. */
 	aluminiumAdm: 'fem.aluminiumAdm',
 	membranePatterns: 'fem.membranePatterns',
+	/** Alpha 9 L9: what stays planned of the bridges and special structures (the core is built: Project Settings, Bridges and Special Structures). */
+	bridgeStages: 'fem.bridgeStages',
+	specialStructuresMore: 'fem.specialStructuresMore',
 } as const;
 
 /** The planned steel connection features, shown with the steel members' checks. */

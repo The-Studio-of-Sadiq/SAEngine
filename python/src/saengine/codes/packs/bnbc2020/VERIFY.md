@@ -216,3 +216,19 @@ adopts; the results label them so.
 | L10-B2 | (record) | header j r i p l n e d g s v, l = the cutting length, e = mass of one bar, s = 2 x the bend radius; checksum 96 - (sum of ASCII codes up to and including C) mod 32 | BVBS guideline, header and checksum blocks; checked against its examples (C72, C71, C82; "abcde@C" = 78) | Check (l: the cutting length, where the guideline's examples print the sum of the legs) |
 
 BS 8666 shapes 00, 01, 11, 12, 13, 21, 22, 23, 31, 41, 51 have a BVBS geometry; 15, 26, 33, 63, 77, 99 are sent without one. The bolt holes drilled are the steel table's standard holes (`steel` connections).
+
+## Slope stability (`slopeStability`; alpha 9 L8)
+
+BNBC 2020 gives no slope method or factor of safety (Part 6 Sec 3.21 p. 817 lists landslides as a geo-hazard; Sec 3.14 p. 803 the stability of adjoining buildings, FS 1.5 against overturning and sliding of the building). Every value below is SAEngine practice.
+
+| # | Path | Value | Source | Sure? |
+|---|---|---|---|---|
+| L8B1 | methods / checked | Bishop, Janbu, Spencer, Morgenstern-Price run; Bishop, Spencer, Morgenstern-Price checked, Janbu reported | none in the code | SAEngine practice |
+| L8B2 | verification | factors of safety | none in the code | SAEngine practice |
+| L8B3 | required.permanent | 1.5 | USACE EM 1110-2-1902 (2003) Table 3-1, long-term steady seepage | Check (table and condition) |
+| L8B4 | required.temporary | 1.3 | USACE EM 1110-2-1902 Table 3-1, end of construction | Check |
+| L8B5 | required.seismic | 1.1 | common pseudo-static practice (e.g. California SP 117A, FHWA-NHI-11-032) | Check |
+| L8B6 | seismic.khFactor | kh = 0.5 PGA | Hynes-Griffin and Franklin (1984) | Check (some practice uses 0.5-0.67 PGA) |
+| L8B7 | seismic.kvRatio | 0 | Hynes-Griffin and Franklin (1984) neglect kv | SAEngine practice |
+| L8B8 | reinforcement.tendonFactor | 1.8 on the nail's tensile capacity | FHWA-NHI-14-007 (GEC 7, 2015) Table 5.x (tensile resistance, static) | Unsure (value and table: the GEC 7 LRFD/ASD equivalents) |
+| L8B9 | reinforcement.bondFactor | 2.0 on the pull-out | FHWA-NHI-14-007 (GEC 7, 2015), pull-out FS 2.0 (static) | Check |

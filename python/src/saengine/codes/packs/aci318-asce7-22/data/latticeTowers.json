@@ -1,0 +1,24 @@
+{
+  "$schema": "../../../schemas/latticeTowers.schema.json",
+  "$sources": [
+    "ANSI/TIA-222-H (2017): Sec 2.6.11.2 (force coefficients of lattice structures, Cf = 4.0 ε² - 5.9 ε + 4.0 square, 3.4 ε² - 4.7 ε + 3.4 triangular), Table 2-6 (wind direction factors), Sec 2.6.7 (gust effect factor), Sec 4.5 (effective lengths); see VERIFY.md"
+  ],
+  "source": "TIA-222-H lattice structures: Cf by solidity ratio, round member factor, wind direction factor, Gh = 0.85",
+  "method": "quadratic",
+  "squareTower": {"a": 4.0, "b": -5.9, "c": 4.0},
+  "triangularTower": {"a": 3.4, "b": -4.7, "c": 3.4},
+  "roundTower": {"a": 0.51, "b": 0.0, "c": 0.57},
+  "diagonalFactor": [0.75, 1.2],
+  "diagonalBase": 1.0,
+  "gust": 0.85,
+  "lengths": {"legs": 1.0, "bracing": 1.0},
+  "antennaShielding": 1.0,
+  "clauses": {
+    "code": "TIA-222-H",
+    "cf": "Sec 2.6.11.2",
+    "direction": "Table 2-6",
+    "gust": "Sec 2.6.7",
+    "lengths": "Sec 4.5",
+    "members": "Sec 4 (by the pack's steel member checks)"
+  }
+}

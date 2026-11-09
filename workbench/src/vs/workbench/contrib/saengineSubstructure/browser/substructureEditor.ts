@@ -46,6 +46,7 @@ import {
 	ISizingProposal, ISubstructure, ISubstructureCheck, ISubstructureMigration, ISubstructureProblem, ISubstructureReport, ISubstructureRequest, IRetainingWall, ITieBeam, importFoundations, maxPressure, MESH_KEYS, MeshKey, newFooting, newPileCap, newPileType, newRaft, newRetainingWall, newTieBeam, parseIdList, parseMesh, parseSubstructure, PILE_FACTOR_OF_SAFETY, pileFactorsUsed, PILE_KINDS, PILE_LAYOUTS,
 	EXCAVATION_SUPPORTS, ExcavationSupport, excavationSupportLabel, IAdjoiningStructure, IExcavation, IExcavationLoad, IFormwork, newExcavation, newFormwork,
 	EMBEDDED_WALL_TYPES, EmbeddedWallType, embeddedWallTypeLabel, IExcavationStage, IWallSupport,
+	formatSectionPoints, ISlope, ISlopeNail, ISlopeResult, ISlopeSoil, ISlopeStratum, ISlopeSurcharge, newSlope, parseSectionPoints, SLOPE_METHODS, SlopeMethod, slopeMethodLabel,
 	IMachineFoundation, MACHINE_KINDS, MACHINE_SPRINGS, MachineKind, machineKindLabel, MachineSpring, machineSpringLabel, newMachineFoundation,
 	errorSummary, formatTestCurve, IPileLoadTest, newLoadTest, parseTestCurve, pilePlacementLabel, PILE_PLACEMENTS, PILE_TEST_KINDS, PILE_TEST_STAGES, pileTestKindLabel, pileTestStageLabel, pileFixityLabel, PILE_FIXITIES, pileShapeLabel, PILE_SHAPES, FOOTING_SECTIONS, FootingSection, footingSectionLabel, ISubstructureDesign, newGroundSlab, pileKindLabel, Point, proposalFor, RAFT_MESH_SIZE, readSiteContext, readSizingProposal, readSubstructureReport, serializeSubstructure, SUBSTRUCTURE_ENSURE_COMMAND, SUBSTRUCTURE_MIGRATE_COMMAND, SUBSTRUCTURE_REPORT_COMMAND, SUBSTRUCTURE_REPORT_FILE, SUBSTRUCTURE_SIZE_COMMAND, SUBSTRUCTURE_SUMMARY_FILE, substructureCheckState, substructureSummary, substructureSummaryFile, foundationSignature, ISubstructureCheckState, tieBeamSignature, uncoveredBases, uncoveredColumns, utilisationBand,
 } from './substructureDocument.js';
@@ -1541,7 +1542,7 @@ export class SubstructureEditor extends EditorPane {
 		const document = this.document;
 		const version = ++this.reportVersion;
 		const request = this.request();
-		if (!document || !request || !document.foundations.length) {
+		if (!document || !request || !(document.foundations.length || document.slopes?.length)) {
 			this.setBusy('report', false);
 			this.report = undefined;
 			this.reportState = 'idle';
@@ -1716,8 +1717,9 @@ export class SubstructureEditor extends EditorPane {
 			? localize('sub.deleteNamed', "Delete {0}", this.document?.tieBeams[this.selectedTieBeam]?.id ?? '')
 			: this.selectedFoundations.length === 1 ? localize('sub.deleteNamed', "Delete {0}", this.document?.foundations[this.selectedFoundations[0]]?.id ?? '')
 				: localize('sub.delete', "Delete");
-		this.recomputeAction.enabled = !!this.document?.foundations.length;
-		this.saveAndCheckAction.enabled = !!this.document?.foundations.length;
+		const checkable = !!(this.document?.foundations.length || this.document?.slopes?.length);
+		this.recomputeAction.enabled = checkable;
+		this.saveAndCheckAction.enabled = checkable;
 		this.saveAndCheckAction.tooltip = this.input?.isDirty()
 			? localize('sub.saveAndCheckDirty', "Save the edits and check the foundations (the checks read the saved file)")
 			: localize('sub.saveAndCheckClean', "Check the foundations again");
@@ -1750,13 +1752,15 @@ export class SubstructureEditor extends EditorPane {
 				text: this.parseError,
 				actions: [{ label: localize('sub.openText', "Open as Text"), primary: true, run: () => void this.openAsText() }],
 			});
-		} else if (this.document && !this.document.foundations.length && !this.document.piles.length && !this.document.pileGrid && !this.proposal && !this.context.columns.length) {
+		} else if (this.document && !this.document.foundations.length && !this.document.piles.length && !this.document.pileGrid && !this.proposal && !this.document.slopes?.length && !this.context.columns.length) {
 			this.frame.setEmpty({
 				icon: Codicon.symbolStructure,
 				title: localize('sub.emptyNoColumns', "No columns to found yet"),
 				text: localize('sub.emptyNoColumnsText', "The foundations stand under the columns of the building model. Build the building model (6 BIM) first; its columns on the base level then appear here."),
+				// Alpha 9 L8: a slope of the site can be checked before the building.
+				link: { label: localize('sub.emptySlope', "Check a Slope of the Site"), run: () => this.addSlope() },
 			});
-		} else if (this.document && !this.document.foundations.length && !this.document.piles.length && !this.document.pileGrid && !this.proposal) {
+		} else if (this.document && !this.document.foundations.length && !this.document.piles.length && !this.document.pileGrid && !this.proposal && !this.document.slopes?.length) {
 			this.frame.setEmpty({
 				icon: Codicon.symbolStructure,
 				title: localize('sub.emptyTitle', "No foundations yet"),
@@ -1942,6 +1946,18 @@ export class SubstructureEditor extends EditorPane {
 		this.renderRetainingWallTable(document);
 		this.renderExcavationSupport(document);
 		this.renderMachineFoundations(document);
+		this.renderSlopes(document);
+	}
+
+	/** Alpha 9 L8: adds a drawn slope and shows it in the data view. */
+	private addSlope(): void {
+		const document = this.document;
+		if (!document) {
+			return;
+		}
+		document.slopes = [...(document.slopes ?? []), newSlope(document, this.context)];
+		this.view = 'data';
+		this.changed(true);
 	}
 
 	private renderRetainingWallTable(document: ISubstructure): void {
@@ -3433,6 +3449,728 @@ export class SubstructureEditor extends EditorPane {
 		for (const s of skipped) {
 			append(section, $('p.sub-muted', undefined, localize('sub.machineSkipped', "{0} not checked: {1}", s.id, s.reason)));
 		}
+	}
+
+	// ───────────────────────────── alpha 9 L8: slopes ─────────────────────────────
+
+	/**
+	 * Slopes on 2D sections, drawn or cut from the site's strata (01 Soil Report), checked by the
+	 * code pack's slope stability methods (limit equilibrium of slices), with an optional 2D FE.
+	 */
+	private renderSlopes(document: ISubstructure): void {
+		const slopes = document.slopes ?? [];
+		const section = this.section(localize('sub.slopes', "Slopes"), slopes.length, {
+			label: localize('sub.addSlope', "Add Slope"),
+			run: () => this.addSlope(),
+		});
+		const table = append(append(section, $('.sub-table-scroll')), $('table.sub-table'));
+		const points = (key: string, label: string): IFieldSpec => ({ key, label, kind: 'text' });
+		const surface = points('surface', localize('sub.f.slopeSurface', "Ground surface (x, level; …)"));
+		const water = points('water', localize('sub.f.slopeWater', "Water line (x, level; …)"));
+		const start = points('start', localize('sub.f.slopeStart', "Start (x, y)"));
+		const end = points('end', localize('sub.f.slopeEnd', "End (x, y)"));
+		const base: IFieldSpec = { key: 'base', label: localize('sub.f.slopeBase', "Base"), unit: M, kind: 'length' };
+		const numbers: IFieldSpec[] = [
+			{ key: 'ru', label: localize('sub.f.slopeRu', "ru"), kind: 'number', min: 0, max: 0.99 },
+			{ key: 'kh', label: localize('sub.f.slopeKh', "kh"), unit: 'g', kind: 'number', min: 0, max: 1 },
+			{ key: 'kv', label: localize('sub.f.slopeKv', "kv"), unit: 'g', kind: 'number', min: 0, max: 1 },
+			{ key: 'requiredFS', label: localize('sub.f.slopeFs', "Required F"), kind: 'number', min: 0 },
+		];
+		const minDepth: IFieldSpec = { key: 'minDepth', label: localize('sub.f.slopeMinDepth', "Least depth"), unit: M, kind: 'length', min: 0 };
+		const centres = points('centres', localize('sub.f.slopeCentres', "Centre grid (x, level; x, level)"));
+		const columns = [
+			{ label: localize('sub.f.id', "ID"), width: 64 }, { label: localize('sub.f.slopeSection', "Section"), width: 150 },
+			{ label: start.label, unit: M, width: 110 }, { label: end.label, unit: M, width: 110 },
+			{ label: surface.label, unit: M, width: 240 }, { label: base.label, unit: M, numeric: true, width: 72 }, { label: water.label, unit: M, width: 200 },
+			...numbers.map(f => ({ label: f.label, unit: f.unit, numeric: true, width: 64 })),
+			{ label: localize('sub.f.slopeTemporary', "Temporary"), width: 72 }, { label: localize('sub.f.slopeSeismic', "Seismic"), width: 64 },
+			{ label: localize('sub.f.slopeDirection', "Fails"), width: 110 }, { label: localize('sub.f.slopeSearch', "Slip surfaces"), width: 120 },
+			{ label: localize('sub.f.slopeSearchMethod', "Search method"), width: 150 }, { label: minDepth.label, unit: M, numeric: true, width: 72 },
+			{ label: centres.label, unit: M, width: 160 },
+			...SLOPE_METHODS.map(m => ({ label: slopeMethodLabel(m), width: 72 })),
+			{ label: localize('sub.f.utilisation', "Utilisation"), numeric: true, width: 120 }, { label: '', width: 28 },
+		];
+		this.tableHead(table, columns);
+		const body = append(table, $('tbody'));
+		const sections = [
+			{ value: 'drawn', label: localize('sub.slopeSection.drawn', "Drawn") },
+			{ value: 'strata', label: localize('sub.slopeSection.strata', "Cut from the site's strata") },
+		];
+		const directions = [
+			{ value: 'auto', label: localize('sub.slopeDirection.auto', "Down the slope") },
+			{ value: 'left', label: localize('sub.slopeDirection.left', "To the left") },
+			{ value: 'right', label: localize('sub.slopeDirection.right', "To the right") },
+		];
+		const surfaces = [
+			{ value: 'circular', label: localize('sub.slopeSurface.circular', "Circular") },
+			{ value: 'nonCircular', label: localize('sub.slopeSurface.nonCircular', "Non-circular") },
+		];
+		const methods = SLOPE_METHODS.map(m => ({ value: m, label: slopeMethodLabel(m) }));
+		slopes.forEach((slope: ISlope, index) => {
+			const row = append(body, $('tr'));
+			const path = (field: string) => `slopes.${index}.${field}`;
+			append(append(row, $('td')), this.textInput({ key: 'id', label: localize('sub.f.id', "ID"), kind: 'text' }, slope.id, value => {
+				slope.id = String(value ?? '');
+				this.changed(false);
+			}, path('id')));
+			append(append(row, $('td')), this.selectInput(sections, slope.section ?? 'drawn', value => {
+				slope.section = value as ISlope['section'];
+				this.changed(true);
+			}, path('section'), localize('sub.f.slopeSection', "Section")));
+			const strata = slope.section === 'strata';
+			for (const field of [start, end]) {
+				const current = slope[field.key] as Point | undefined;
+				const input = this.pointsInput(field, current ? [current] : undefined, found => {
+					if (found) {
+						slope[field.key] = found[0];
+					} else {
+						delete slope[field.key];
+					}
+					return true;
+				}, path(field.key), true);
+				input.disabled = !strata;
+				append(append(row, $('td')), input);
+			}
+			append(append(row, $('td')), this.pointsInput(surface, slope.surface, found => {
+				if (found) {
+					slope.surface = found;
+				} else {
+					delete slope.surface;
+				}
+				return true;
+			}, path('surface'), false, strata ? localize('sub.slopeSurfaceFromStrata', "the boreholes' ground") : undefined));
+			this.fieldCell(row, slope, base, path('base'));
+			append(append(row, $('td')), this.pointsInput(water, slope.water, found => {
+				if (found) {
+					slope.water = found;
+				} else {
+					delete slope.water;
+				}
+				return true;
+			}, path('water'), false, strata ? localize('sub.slopeWaterFromStrata', "the boreholes' water table") : localize('sub.slopeNoWater', "none")));
+			for (const field of numbers) {
+				this.fieldCell(row, slope, field, path(field.key));
+			}
+			for (const flag of ['temporary', 'seismic'] as const) {
+				append(append(row, $('td')), this.checkInput(slope[flag], value => {
+					if (value) {
+						slope[flag] = true;
+					} else {
+						delete slope[flag];
+					}
+					this.changed(false);
+				}, path(flag), flag === 'temporary' ? localize('sub.f.slopeTemporary', "Temporary") : localize('sub.f.slopeSeismic', "Seismic")));
+			}
+			append(append(row, $('td')), this.selectInput(directions, slope.direction ?? 'auto', value => {
+				if (value === 'auto') {
+					delete slope.direction;
+				} else {
+					slope.direction = value as ISlope['direction'];
+				}
+				this.changed(false);
+			}, path('direction'), localize('sub.f.slopeDirection', "Fails")));
+			// The search's settings: created on the first edit (the file keeps only what was set).
+			const search = (): NonNullable<ISlope['search']> => slope.search ??= {};
+			append(append(row, $('td')), this.selectInput(surfaces, slope.search?.surface ?? 'circular', value => {
+				search().surface = value as 'circular' | 'nonCircular';
+				this.changed(false);
+			}, path('search.surface'), localize('sub.f.slopeSearch', "Slip surfaces")));
+			append(append(row, $('td')), this.selectInput(methods, slope.search?.method ?? '', value => {
+				if (value) {
+					search().method = value as SlopeMethod;
+				} else {
+					delete search().method;
+				}
+				this.changed(false);
+			}, path('search.method'), localize('sub.f.slopeSearchMethod', "Search method"), true));
+			append(append(row, $('td')), this.textInput(minDepth, slope.search?.minDepth, value => {
+				if (typeof value === 'number') {
+					search().minDepth = value;
+				} else {
+					delete search().minDepth;
+				}
+				this.changed(false);
+			}, path('search.minDepth')));
+			const given = slope.search?.centres;
+			const box: Point[] | undefined = given?.length === 4 ? [[given[0], given[1]], [given[2], given[3]]] : undefined;
+			append(append(row, $('td')), this.pointsInput(centres, box, found => {
+				if (found && found.length !== 2) {
+					return false;
+				}
+				if (found) {
+					search().centres = [found[0][0], found[0][1], found[1][0], found[1][1]];
+				} else {
+					delete search().centres;
+				}
+				return true;
+			}, path('search.centres'), false, localize('sub.slopeCentresAuto', "above the slope")));
+			for (const method of SLOPE_METHODS) {
+				append(append(row, $('td')), this.checkInput(slope.methods?.includes(method), value => {
+					const chosen = new Set(slope.methods ?? []);
+					if (value) {
+						chosen.add(method);
+					} else {
+						chosen.delete(method);
+					}
+					if (chosen.size) {
+						slope.methods = SLOPE_METHODS.filter(m => chosen.has(m));
+					} else {
+						delete slope.methods; // none ticked: the code pack's methods
+					}
+					this.changed(false);
+				}, path(`methods.${method}`), slopeMethodLabel(method)));
+			}
+			const result = this.report?.slopes?.find(r => r.id === slope.id);
+			this.utilisationCell(row, result?.utilisation);
+			this.removeButton(row, () => {
+				document.slopes = slopes.filter((_, i) => i !== index);
+				this.changed(true);
+			});
+		});
+		if (!slopes.length) {
+			append(append(body, $('tr')), $('td.sub-muted', { colspan: String(columns.length) }, localize('sub.noSlopes', "None yet. A slope is checked on a 2D section, drawn or cut from the site's strata, by the code pack's limit equilibrium methods (Bishop, Janbu, Spencer, Morgenstern-Price) against its required factor of safety or partial factors, with the water, surcharges, the pseudo-static seismic coefficients and soil nails or anchors.")));
+		} else {
+			this.renderSlopeSoils(section, slopes);
+			this.renderSlopeStrata(section, slopes);
+			this.renderSlopeLoads(section, slopes);
+			this.renderSlopeNails(section, slopes);
+			this.renderSlopeFe(section, document, slopes);
+			this.renderSlopeResults(section, slopes);
+		}
+		append(section, $('p.sub-muted', undefined, localize('sub.slopesNote', "Points are typed as x, level pairs in m separated by semicolons (x along the section from its left end). Tick methods to run only those; none ticked runs the code pack's. A section cut from the strata takes its soils from the boreholes' layers of each unit (U1, U2, …): a soil row with the unit's id overrides single values, and a soil FILL gives a designed fill its own values.")));
+	}
+
+	/** A text input of section points ("x, level; …" in m, stored in mm); `store` returns false to refuse. */
+	private pointsInput(field: IFieldSpec, points: readonly Point[] | undefined, store: (points: Point[] | undefined) => boolean, key: string, single = false, placeholder?: string): HTMLInputElement {
+		return this.textInput(field, formatSectionPoints(points), value => {
+			const found = parseSectionPoints(String(value ?? ''));
+			if (found === null || (single && found && found.length !== 1) || !store(found ?? undefined)) {
+				this.notificationService.warn(localize('sub.badPoints', "{0}: type x, level pairs in m separated by semicolons, e.g. 0, 10; 20, 0.", field.label));
+				return;
+			}
+			this.changed(false);
+		}, key, placeholder);
+	}
+
+	/** Alpha 9 L8: the soils of each slope (a unit's id overrides the boreholes' values). */
+	private renderSlopeSoils(section: HTMLElement, slopes: ISlope[]): void {
+		const heading = append(section, $('.sub-section-heading'));
+		append(heading, $('span.sub-section-title', undefined, localize('sub.slopeSoils', "Slope soils")));
+		this.addRowButton(heading, localize('sub.addSlopeSoil', "Add Soil"), () => {
+			const slope = slopes[slopes.length - 1];
+			const taken = (slope.soils ?? []).map(s => s.id);
+			let n = 1;
+			while (taken.includes(`S${n}`)) {
+				n++;
+			}
+			slope.soils = [...(slope.soils ?? []), { id: `S${n}`, unitWeight: 18, c: 0, phi: 30 }];
+			this.changed(true);
+		});
+		const table = append(append(section, $('.sub-table-scroll')), $('table.sub-table'));
+		const fields: IFieldSpec[] = [
+			{ key: 'name', label: localize('sub.f.soilName', "Name"), kind: 'text' },
+			{ key: 'unitWeight', label: localize('sub.f.soilGamma', "γ"), unit: 'kN/m³', kind: 'number', min: 0 },
+			{ key: 'saturatedUnitWeight', label: localize('sub.f.soilGammaSat', "γsat"), unit: 'kN/m³', kind: 'number', min: 0 },
+			{ key: 'c', label: localize('sub.f.soilC', "c'"), unit: 'kPa', kind: 'number', min: 0 },
+			{ key: 'phi', label: localize('sub.f.soilPhi', "φ'"), unit: '°', kind: 'number', min: 0, max: 50 },
+			{ key: 'cu', label: localize('sub.f.soilCu', "cu"), unit: 'kPa', kind: 'number', min: 0 },
+			{ key: 'ru', label: localize('sub.f.soilRu', "ru"), kind: 'number', min: 0, max: 0.99 },
+			{ key: 'E', label: localize('sub.f.soilE', "E (FE)"), unit: 'MPa', kind: 'number', min: 0 },
+			{ key: 'poisson', label: localize('sub.f.soilNu', "ν (FE)"), kind: 'number', min: 0, max: 0.49 },
+			{ key: 'dilatancy', label: localize('sub.f.soilPsi', "ψ (FE)"), unit: '°', kind: 'number', min: 0, max: 30 },
+		];
+		const strengths = [
+			{ value: 'drained', label: localize('sub.soilStrength.drained', "Drained (c', φ')") },
+			{ value: 'undrained', label: localize('sub.soilStrength.undrained', "Undrained (cu)") },
+		];
+		const models = [
+			{ value: 'mohrCoulomb', label: localize('sub.soilModel.mc', "Mohr-Coulomb") },
+			{ value: 'multiYield', label: localize('sub.soilModel.multiYield', "Hardening (multi-yield)") },
+			{ value: 'vonMises', label: localize('sub.soilModel.vonMises', "Von Mises (undrained)") },
+		];
+		this.tableHead(table, [
+			{ label: localize('sub.f.slope', "Slope"), width: 64 }, { label: localize('sub.f.id', "ID"), width: 64 },
+			...fields.map(f => ({ label: f.label, unit: f.unit, numeric: f.kind !== 'text', width: f.kind === 'text' ? 120 : 64 })),
+			{ label: localize('sub.f.soilStrength', "Strength"), width: 130 }, { label: localize('sub.f.soilModel', "FE model"), width: 150 }, { label: '', width: 28 },
+		]);
+		const body = append(table, $('tbody'));
+		slopes.forEach((slope, s) => {
+			(slope.soils ?? []).forEach((soil: ISlopeSoil, index) => {
+				const row = append(body, $('tr'));
+				const path = (field: string) => `slopes.${s}.soils.${index}.${field}`;
+				append(row, $('td', undefined, slope.id));
+				append(append(row, $('td')), this.textInput({ key: 'id', label: localize('sub.f.id', "ID"), kind: 'text' }, soil.id, value => {
+					const old = soil.id;
+					soil.id = String(value ?? '');
+					for (const stratum of slope.strata ?? []) {
+						if (stratum.soil === old) {
+							stratum.soil = soil.id;
+						}
+					}
+					this.changed(false);
+				}, path('id')));
+				for (const field of fields) {
+					this.fieldCell(row, soil, field, path(field.key));
+				}
+				append(append(row, $('td')), this.selectInput(strengths, soil.strength ?? '', value => {
+					if (value) {
+						soil.strength = value as ISlopeSoil['strength'];
+					} else {
+						delete soil.strength;
+					}
+					this.changed(false);
+				}, path('strength'), localize('sub.f.soilStrength', "Strength"), true));
+				append(append(row, $('td')), this.selectInput(models, soil.model ?? '', value => {
+					if (value) {
+						soil.model = value as ISlopeSoil['model'];
+					} else {
+						delete soil.model;
+					}
+					this.changed(false);
+				}, path('model'), localize('sub.f.soilModel', "FE model"), true));
+				this.removeButton(row, () => {
+					slope.soils = (slope.soils ?? []).filter((_, i) => i !== index);
+					this.changed(true);
+				});
+			});
+		});
+	}
+
+	/** Alpha 9 L8: the strata of the drawn sections, from the top down (the first's top is the ground). */
+	private renderSlopeStrata(section: HTMLElement, slopes: ISlope[]): void {
+		const drawn = slopes.filter(s => (s.section ?? 'drawn') === 'drawn');
+		if (!drawn.length) {
+			return;
+		}
+		const heading = append(section, $('.sub-section-heading'));
+		append(heading, $('span.sub-section-title', undefined, localize('sub.slopeStrata', "Slope strata")));
+		this.addRowButton(heading, localize('sub.addSlopeStratum', "Add Stratum"), () => {
+			const slope = drawn[drawn.length - 1];
+			const soil = slope.soils?.[slope.soils.length - 1]?.id ?? 'S1';
+			slope.strata = [...(slope.strata ?? []), { soil }];
+			this.changed(true);
+		});
+		const table = append(append(section, $('.sub-table-scroll')), $('table.sub-table'));
+		const top: IFieldSpec = { key: 'points', label: localize('sub.f.stratumTop', "Top line (x, level; …)"), kind: 'text' };
+		this.tableHead(table, [
+			{ label: localize('sub.f.slope', "Slope"), width: 64 }, { label: localize('sub.f.stratumSoil', "Soil"), width: 120 },
+			{ label: top.label, unit: M, width: 320 }, { label: '', width: 28 },
+		]);
+		const body = append(table, $('tbody'));
+		for (const slope of drawn) {
+			const s = (this.document?.slopes ?? []).indexOf(slope);
+			const soils = (slope.soils ?? []).map(soil => ({ value: soil.id, label: soil.name ? `${soil.id} (${soil.name})` : soil.id }));
+			(slope.strata ?? []).forEach((stratum: ISlopeStratum, index) => {
+				const row = append(body, $('tr'));
+				const path = (field: string) => `slopes.${s}.strata.${index}.${field}`;
+				append(row, $('td', undefined, slope.id));
+				append(append(row, $('td')), this.selectInput(soils, stratum.soil, value => {
+					stratum.soil = value;
+					this.changed(false);
+				}, path('soil'), localize('sub.f.stratumSoil', "Soil")));
+				const input = this.pointsInput(top, stratum.points, found => {
+					if (found) {
+						stratum.points = found;
+					} else {
+						delete stratum.points;
+					}
+					return true;
+				}, path('points'), false, index === 0 ? localize('sub.stratumGround', "the ground surface") : undefined);
+				input.disabled = index === 0;
+				append(append(row, $('td')), input);
+				this.removeButton(row, () => {
+					slope.strata = (slope.strata ?? []).filter((_, i) => i !== index);
+					this.changed(true);
+				});
+			});
+		}
+	}
+
+	/** Alpha 9 L8: strip loads on the slopes' ground. */
+	private renderSlopeLoads(section: HTMLElement, slopes: ISlope[]): void {
+		const heading = append(section, $('.sub-section-heading'));
+		append(heading, $('span.sub-section-title', undefined, localize('sub.slopeLoads', "Slope surcharges")));
+		this.addRowButton(heading, localize('sub.addSlopeLoad', "Add Surcharge"), () => {
+			const slope = slopes[slopes.length - 1];
+			const x = slope.surface?.[0]?.[0] ?? 0;
+			slope.surcharges = [...(slope.surcharges ?? []), { start: x, end: x + 5000, pressure: 10 }];
+			this.changed(true);
+		});
+		const table = append(append(section, $('.sub-table-scroll')), $('table.sub-table'));
+		const fields: IFieldSpec[] = [
+			{ key: 'start', label: localize('sub.f.slopeLoadStart', "From x"), unit: M, kind: 'length' },
+			{ key: 'end', label: localize('sub.f.slopeLoadEnd', "To x"), unit: M, kind: 'length' },
+			{ key: 'pressure', label: localize('sub.f.slopeLoadPressure', "Pressure"), unit: 'kPa', kind: 'number', min: 0 },
+		];
+		this.tableHead(table, [
+			{ label: localize('sub.f.slope', "Slope"), width: 64 }, ...fields.map(f => ({ label: f.label, unit: f.unit, numeric: true, width: 84 })),
+			{ label: localize('sub.f.slopeLoadPermanent', "Permanent"), width: 72 }, { label: '', width: 28 },
+		]);
+		const body = append(table, $('tbody'));
+		slopes.forEach((slope, s) => {
+			(slope.surcharges ?? []).forEach((load: ISlopeSurcharge, index) => {
+				const row = append(body, $('tr'));
+				const path = (field: string) => `slopes.${s}.surcharges.${index}.${field}`;
+				append(row, $('td', undefined, slope.id));
+				for (const field of fields) {
+					append(append(row, $('td')), this.textInput(field, load[field.key], value => {
+						if (typeof value === 'number') {
+							load[field.key] = value;
+							this.changed(false);
+						}
+					}, path(field.key)));
+				}
+				append(append(row, $('td')), this.checkInput(load.permanent, value => {
+					if (value) {
+						load.permanent = true;
+					} else {
+						delete load.permanent;
+					}
+					this.changed(false);
+				}, path('permanent'), localize('sub.f.slopeLoadPermanent', "Permanent")));
+				this.removeButton(row, () => {
+					slope.surcharges = (slope.surcharges ?? []).filter((_, i) => i !== index);
+					this.changed(true);
+				});
+			});
+		});
+	}
+
+	/** Alpha 9 L8: soil nails and ground anchors of the slopes (resisting forces). */
+	private renderSlopeNails(section: HTMLElement, slopes: ISlope[]): void {
+		const heading = append(section, $('.sub-section-heading'));
+		append(heading, $('span.sub-section-title', undefined, localize('sub.slopeNails', "Soil nails and anchors")));
+		this.addRowButton(heading, localize('sub.addSlopeNail', "Add Nail"), () => {
+			const slope = slopes[slopes.length - 1];
+			const taken = (slope.nails ?? []).map(n => n.id);
+			let n = 1;
+			while (taken.includes(`N${n}`)) {
+				n++;
+			}
+			const [x, level] = slope.surface?.[1] ?? [0, this.context.groundLevel];
+			slope.nails = [...(slope.nails ?? []), { id: `N${n}`, kind: 'nail', x, level: level - 1000, inclination: 15, length: 8000, spacing: 1500, capacity: 250, bond: 100, diameter: 100 }];
+			this.changed(true);
+		});
+		const table = append(append(section, $('.sub-table-scroll')), $('table.sub-table'));
+		const fields: IFieldSpec[] = [
+			{ key: 'x', label: localize('sub.f.nailX', "Head x"), unit: M, kind: 'length' },
+			{ key: 'level', label: localize('sub.f.nailLevel', "Head level"), unit: M, kind: 'length' },
+			{ key: 'inclination', label: localize('sub.f.nailAngle', "Below horizontal"), unit: '°', kind: 'number', min: 0, max: 89 },
+			{ key: 'length', label: localize('sub.f.nailLength', "Length"), unit: M, kind: 'length', min: 0 },
+			{ key: 'fixedLength', label: localize('sub.f.nailFixed', "Fixed length"), unit: M, kind: 'length', min: 0 },
+			{ key: 'spacing', label: localize('sub.f.nailSpacing', "Spacing"), unit: MM, kind: 'number', min: 0 },
+			{ key: 'capacity', label: localize('sub.f.nailCapacity', "Tensile capacity"), unit: 'kN', kind: 'number', min: 0 },
+			{ key: 'bond', label: localize('sub.f.nailBond', "Bond qs"), unit: 'kPa', kind: 'number', min: 0 },
+			{ key: 'diameter', label: localize('sub.f.nailDiameter', "Hole Ø"), unit: MM, kind: 'number', min: 0 },
+			{ key: 'headCapacity', label: localize('sub.f.nailHead', "Head capacity"), unit: 'kN', kind: 'number', min: 0 },
+		];
+		const required = new Set(['x', 'level', 'length', 'capacity', 'bond']);
+		const kinds = [
+			{ value: 'nail', label: localize('sub.nailKind.nail', "Soil nail") },
+			{ value: 'anchor', label: localize('sub.nailKind.anchor', "Ground anchor") },
+		];
+		this.tableHead(table, [
+			{ label: localize('sub.f.slope', "Slope"), width: 64 }, { label: localize('sub.f.id', "ID"), width: 64 }, { label: localize('sub.f.nailKind', "Kind"), width: 120 },
+			...fields.map(f => ({ label: f.label, unit: f.unit, numeric: true, width: 76 })), { label: '', width: 28 },
+		]);
+		const body = append(table, $('tbody'));
+		slopes.forEach((slope, s) => {
+			(slope.nails ?? []).forEach((nail: ISlopeNail, index) => {
+				const row = append(body, $('tr'));
+				const path = (field: string) => `slopes.${s}.nails.${index}.${field}`;
+				append(row, $('td', undefined, slope.id));
+				append(append(row, $('td')), this.textInput({ key: 'id', label: localize('sub.f.id', "ID"), kind: 'text' }, nail.id, value => {
+					nail.id = String(value ?? '');
+					this.changed(false);
+				}, path('id')));
+				append(append(row, $('td')), this.selectInput(kinds, nail.kind ?? 'nail', value => {
+					nail.kind = value as ISlopeNail['kind'];
+					this.changed(true);
+				}, path('kind'), localize('sub.f.nailKind', "Kind")));
+				for (const field of fields) {
+					append(append(row, $('td')), this.textInput(field, nail[field.key], value => {
+						if (typeof value === 'number') {
+							nail[field.key] = value;
+						} else if (!required.has(field.key)) {
+							delete nail[field.key];
+						} else {
+							return;
+						}
+						this.changed(false);
+					}, path(field.key)));
+				}
+				this.removeButton(row, () => {
+					slope.nails = (slope.nails ?? []).filter((_, i) => i !== index);
+					this.changed(true);
+				});
+			});
+		});
+	}
+
+	/** Alpha 9 L8: the optional 2D FE of each slope's section (for experienced users). */
+	private renderSlopeFe(section: HTMLElement, document: ISubstructure, slopes: ISlope[]): void {
+		const heading = append(section, $('.sub-section-heading'));
+		append(heading, $('span.sub-section-title', undefined, localize('sub.slopeFe', "2D FE (plane strain, for experienced users)")));
+		const table = append(append(section, $('.sub-table-scroll')), $('table.sub-table'));
+		const meshSize: IFieldSpec = { key: 'meshSize', label: localize('sub.f.feMesh', "Mesh size"), unit: MM, kind: 'number', min: 100 };
+		const wallX: IFieldSpec = { key: 'wallX', label: localize('sub.f.feWallX', "Wall x"), unit: M, kind: 'length' };
+		const steps: IFieldSpec = { key: 'steps', label: localize('sub.f.feSteps', "Load steps"), kind: 'number', min: 1, max: 100 };
+		const walls = (document.excavations ?? []).filter(e => e.wall?.wallType).map(e => ({ value: e.id, label: e.id }));
+		const sides = [
+			{ value: 'right', label: localize('sub.feSide.right', "Dug out to the right") },
+			{ value: 'left', label: localize('sub.feSide.left', "Dug out to the left") },
+		];
+		this.tableHead(table, [
+			{ label: localize('sub.f.slope', "Slope"), width: 64 }, { label: localize('sub.f.feRun', "Run"), width: 48 },
+			{ label: meshSize.label, unit: MM, numeric: true, width: 80 }, { label: localize('sub.f.feSrm', "Strength reduction"), width: 90 },
+			{ label: localize('sub.f.feExcavation', "Excavation (P1 wall and stages)"), width: 170 }, { label: wallX.label, unit: M, numeric: true, width: 80 },
+			{ label: localize('sub.f.feSide', "Side"), width: 150 }, { label: steps.label, numeric: true, width: 72 },
+		]);
+		const body = append(table, $('tbody'));
+		slopes.forEach((slope, s) => {
+			const row = append(body, $('tr'));
+			const path = (field: string) => `slopes.${s}.fe.${field}`;
+			const fe = slope.fe;
+			append(row, $('td', undefined, slope.id));
+			append(append(row, $('td')), this.checkInput(fe?.run, value => {
+				if (value) {
+					slope.fe = { ...(slope.fe ?? {}), run: true };
+				} else if (slope.fe) {
+					delete slope.fe.run;
+				}
+				this.changed(true);
+			}, path('run'), localize('sub.f.feRun', "Run")));
+			this.fieldCell(row, fe, meshSize, path('meshSize'), !fe?.run);
+			const srm = this.checkInput(fe?.strengthReduction !== false, value => {
+				if (!slope.fe) {
+					return;
+				}
+				if (value) {
+					delete slope.fe.strengthReduction;
+				} else {
+					slope.fe.strengthReduction = false;
+				}
+				this.changed(false);
+			}, path('strengthReduction'), localize('sub.f.feSrm', "Strength reduction"));
+			srm.disabled = !fe?.run;
+			append(append(row, $('td')), srm);
+			const excavation = this.selectInput(walls, fe?.excavation ?? '', value => {
+				if (!slope.fe) {
+					return;
+				}
+				if (value) {
+					slope.fe.excavation = value;
+				} else {
+					delete slope.fe.excavation;
+				}
+				this.changed(true);
+			}, path('excavation'), localize('sub.f.feExcavation', "Excavation (P1 wall and stages)"), true);
+			excavation.disabled = !fe?.run;
+			append(append(row, $('td')), excavation);
+			this.fieldCell(row, fe, wallX, path('wallX'), !fe?.excavation);
+			const side = this.selectInput(sides, fe?.side ?? 'right', value => {
+				if (slope.fe) {
+					slope.fe.side = value as 'left' | 'right';
+					this.changed(false);
+				}
+			}, path('side'), localize('sub.f.feSide', "Side"));
+			side.disabled = !fe?.excavation;
+			append(append(row, $('td')), side);
+			this.fieldCell(row, fe, steps, path('steps'), !fe?.run);
+		});
+		append(section, $('p.sub-muted', undefined, localize('sub.slopeFeNote', "The 2D FE meshes the section with Gmsh and analyses it with OpenSees in plane strain: gravity on the elastic soil for the at-rest stresses, then the soil models (Mohr-Coulomb by default), the excavation's stages with its wall and supports when one is linked (the half of a symmetric excavation, dug out to the section's edge), and the factor of safety by reducing c' and tan φ' until the analysis fails. It is reported beside the limit equilibrium, which is the check; it runs with every check of the substructure, so it slows them down.")));
+	}
+
+	/** A small "Add …" button in a sub-heading. */
+	private addRowButton(heading: HTMLElement, label: string, run: () => void): void {
+		const button = append(heading, $<HTMLButtonElement>('button.sub-add', { type: 'button' }));
+		append(button, $(ThemeIcon.asCSSSelector(Codicon.add)));
+		append(button, $('span', undefined, label));
+		this.viewDisposables.add(addDisposableListener(button, EventType.CLICK, run));
+	}
+
+	/** Alpha 9 L8: each slope's section with its critical surfaces, the factors of safety and the 2D FE. */
+	private renderSlopeResults(section: HTMLElement, slopes: ISlope[]): void {
+		for (const slope of slopes) {
+			const found = this.report?.slopes?.find(r => r.id === slope.id);
+			const result = found?.slope;
+			const heading = append(section, $('.sub-section-heading'));
+			append(heading, $('span.sub-section-title', undefined, localize('sub.slopeResults', "{0}: section and slip surfaces", slope.id)));
+			this.slopePlot(section, slope, result);
+			if (!result) {
+				const reason = found?.checks.find(c => !c.ok)?.note;
+				append(section, $('p.sub-muted', undefined, reason ?? localize('sub.slopeNoResult', "The factors of safety appear here after the check (the section above is as drawn).")));
+				continue;
+			}
+			append(section, $('p.sub-muted', undefined, localize('sub.slopeSource', "{0}; fails to the {1}.", result.section.source, result.direction === 'left' ? localize('sub.left', "left") : localize('sub.right', "right"))));
+			const table = append(append(section, $('.sub-table-scroll')), $('table.sub-table'));
+			this.tableHead(table, [
+				{ label: localize('sub.f.slopeCase', "Case"), width: 220 }, { label: localize('sub.f.slopeMethod', "Method"), width: 190 },
+				{ label: 'F', numeric: true, width: 64 }, { label: localize('sub.f.slopeRequired', "Required"), numeric: true, width: 72 },
+				{ label: 'λ', numeric: true, width: 64 }, { label: localize('sub.f.slopeNote', "Note"), width: 320 },
+			]);
+			const body = append(table, $('tbody'));
+			for (const c of result.cases) {
+				for (const r of c.results) {
+					const row = append(body, $('tr'));
+					const fs = r.fs === null ? '–' : formatNumber(r.fs, 3);
+					const cell = append(row, $('td', undefined, c.name));
+					cell.title = c.note;
+					append(row, $('td', undefined, slopeMethodLabel(r.method)));
+					const fsCell = append(row, $('td.number', undefined, fs));
+					if (r.fs !== null) {
+						fsCell.classList.add(`band-${utilisationBand(c.required / Math.max(r.fs, 1e-9))}`);
+					}
+					append(row, $('td.number', undefined, formatNumber(c.required, 2)));
+					append(row, $('td.number', undefined, r.lambda === null ? '–' : formatNumber(r.lambda, 3)));
+					append(row, $('td', undefined, r.note));
+				}
+			}
+			if (result.soils.length) {
+				const soils = append(append(section, $('.sub-table-scroll')), $('table.sub-table'));
+				this.tableHead(soils, [
+					{ label: localize('sub.f.soilId', "Soil"), width: 120 }, { label: 'γ', unit: 'kN/m³', numeric: true }, { label: 'γsat', unit: 'kN/m³', numeric: true },
+					{ label: localize('sub.f.soilCOrCu', "c' or cu"), unit: 'kPa', numeric: true }, { label: localize('sub.f.soilPhiResult', "φ'"), unit: '°', numeric: true }, { label: localize('sub.f.soilFrom', "From"), width: 360 },
+				]);
+				const rows = append(soils, $('tbody'));
+				for (const soil of result.soils) {
+					const row = append(rows, $('tr'));
+					for (const cell of [soil.name || soil.id, formatNumber(soil.gamma, 1), formatNumber(soil.gammaSat, 1), formatNumber(soil.undrained ? soil.cu ?? soil.c : soil.c, 1), soil.undrained ? '–' : formatNumber(soil.phi, 1), soil.source]) {
+						append(row, $('td', undefined, cell));
+					}
+				}
+			}
+			const fe = result.fe;
+			if (fe?.error) {
+				append(section, $('p.sub-muted', undefined, fe.error));
+			} else if (fe) {
+				append(section, $('p.sub-muted', undefined, localize('sub.slopeFeSummary', "2D FE: largest displacement {0} mm, {1} plastic points; strength reduction {2}.",
+					formatNumber(fe.maxDisplacement ?? 0, 1), fe.plasticPoints ?? 0, fe.fs !== null && fe.fs !== undefined ? `F = ${formatNumber(fe.fs, 2)} (${fe.fsHow ?? ''})` : fe.fsHow ?? '–')));
+				this.slopeFePlot(section, fe);
+				if (fe.stages?.length) {
+					const ids = Object.keys(fe.stages[fe.stages.length - 1].forces ?? {});
+					const stages = append(append(section, $('.sub-table-scroll')), $('table.sub-table'));
+					this.tableHead(stages, [
+						{ label: localize('sub.f.stageName', "Stage"), width: 170 }, { label: localize('sub.f.dig', "Dig"), unit: M, numeric: true },
+						{ label: 'M+', unit: 'kN·m/m', numeric: true }, { label: 'M-', unit: 'kN·m/m', numeric: true }, { label: 'V', unit: 'kN/m', numeric: true },
+						{ label: localize('sub.f.wallTop', "Wall top"), unit: MM, numeric: true }, { label: localize('sub.f.largest', "Largest"), unit: MM, numeric: true },
+						...ids.map(id => ({ label: id, unit: 'kN/m', numeric: true })),
+					]);
+					const rows = append(stages, $('tbody'));
+					for (const stage of fe.stages) {
+						const row = append(rows, $('tr'));
+						for (const cell of [stage.name, formatNumber(stage.level, 2), formatNumber(stage.Mmax, 1), formatNumber(stage.Mmin, 1), formatNumber(stage.Vmax, 1),
+							stage.wallTop === null ? '–' : formatNumber(stage.wallTop, 1), formatNumber(stage.maxDisplacement, 1), ...ids.map(id => stage.forces[id] === undefined ? '–' : formatNumber(stage.forces[id], 1))]) {
+							append(row, $('td', undefined, cell));
+						}
+					}
+				}
+			}
+		}
+	}
+
+	/**
+	 * The section of a slope to scale: its ground, strata, base and water, nails and surcharges,
+	 * the circle centres searched (shaded by their lowest F) and each method's critical surface of
+	 * the first case. Before a check, the drawn section as entered.
+	 */
+	private slopePlot(parent: HTMLElement, slope: ISlope, result: ISlopeResult | undefined): void {
+		const mm = (points: readonly Point[] | undefined) => (points ?? []).map(([x, z]) => [x / 1000, z / 1000]);
+		const surface = result ? result.section.surface.map(p => [p[0], p[1]]) : mm(slope.surface);
+		if (surface.length < 2) {
+			return;
+		}
+		const strata = result ? result.section.strata.slice(1).map(s => s.top.map(p => [p[0], p[1]])) : (slope.strata ?? []).slice(1).map(s => mm(s.points));
+		const water = result ? (result.section.water ?? []).map(p => [p[0], p[1]]) : mm(slope.water);
+		const base = result ? result.section.base : typeof slope.base === 'number' ? slope.base / 1000 : undefined;
+		const surfaces: { method: string; points: number[][] }[] = [];
+		for (const r of result?.cases[0]?.results ?? []) {
+			if (r.surface) {
+				surfaces.push({ method: r.method, points: r.surface.points.map(p => [p[0], p[1]]) });
+			}
+		}
+		const all = [...surface, ...strata.flat(), ...water, ...surfaces.flatMap(s => s.points)];
+		const xs = all.map(p => p[0]);
+		const zs = [...all.map(p => p[1]), ...(base !== undefined ? [base] : [])];
+		const x0 = Math.min(...xs), x1 = Math.max(...xs), z0 = Math.min(...zs), z1 = Math.max(...zs);
+		const width = 680, pad = 24;
+		const scale = Math.min((width - 2 * pad) / Math.max(x1 - x0, 1), 300 / Math.max(z1 - z0, 1));
+		const height = Math.round((z1 - z0) * scale + 2 * pad);
+		const X = (x: number) => pad + (x - x0) * scale;
+		const Z = (z: number) => height - pad - (z - z0) * scale;
+		const box = append(parent, $('.sub-slope-plot'));
+		const chart = svg(box, 'svg', { width, height, viewBox: `0 0 ${width} ${height}`, role: 'img', 'aria-label': localize('sub.slopePlot', "Section of {0}", slope.id) });
+		const line = (points: number[][], stroke: string, extra: Record<string, string | number> = {}) => {
+			if (points.length > 1) {
+				svg(chart, 'polyline', { points: points.map(p => `${X(p[0]).toFixed(1)},${Z(p[1]).toFixed(1)}`).join(' '), fill: 'none', stroke, 'stroke-width': 1.5, ...extra });
+			}
+		};
+		// The ground as a filled body down to the base.
+		const bottom = base ?? z0;
+		const body = [...surface, [surface[surface.length - 1][0], bottom], [surface[0][0], bottom]];
+		svg(chart, 'polygon', { points: body.map(p => `${X(p[0]).toFixed(1)},${Z(p[1]).toFixed(1)}`).join(' '), fill: 'var(--vscode-editorWidget-background)', stroke: 'none' });
+		for (const top of strata) {
+			line(top, 'var(--vscode-descriptionForeground)', { 'stroke-dasharray': '4 3', 'stroke-width': 1 });
+		}
+		if (base !== undefined) {
+			line([[x0, base], [x1, base]], 'var(--vscode-descriptionForeground)', { 'stroke-width': 1 });
+		}
+		line(water, 'var(--vscode-charts-blue)', { 'stroke-dasharray': '6 3' });
+		line(surface, 'var(--vscode-foreground)');
+		for (const nail of result?.section.nails ?? []) {
+			line([[nail.head[0], nail.head[1]], [nail.end[0], nail.end[1]]], 'var(--vscode-charts-purple)', { 'stroke-width': 2 });
+		}
+		for (const load of result?.section.surcharges ?? []) {
+			const zTop = Math.max(...surface.map(p => p[1]));
+			svg(chart, 'rect', { x: X(load.start), y: Z(zTop) - 10, width: Math.max(X(load.end) - X(load.start), 1), height: 6, fill: 'var(--vscode-charts-orange)', opacity: 0.7 });
+		}
+		const grid = result?.grid ?? [];
+		const values = grid.map(g => g[2]).filter((v): v is number => typeof v === 'number');
+		const lo = values.length ? Math.min(...values) : 0, hi = values.length ? Math.max(...values) : 1;
+		for (const [gx, gz, f] of grid) {
+			if (typeof gx === 'number' && typeof gz === 'number' && gx >= x0 && gx <= x1 && gz >= z0 && gz <= z1) {
+				const shade = typeof f === 'number' ? 1 - (f - lo) / Math.max(hi - lo, 1e-9) : 0;
+				svg(chart, 'circle', { cx: X(gx), cy: Z(gz), r: 2, fill: 'var(--vscode-charts-red)', opacity: (0.15 + 0.6 * shade).toFixed(2) });
+			}
+		}
+		const colors: Record<string, string> = { bishop: 'var(--vscode-charts-red)', janbu: 'var(--vscode-charts-orange)', spencer: 'var(--vscode-charts-green)', morgensternPrice: 'var(--vscode-charts-blue)' };
+		for (const s of surfaces) {
+			line(s.points, colors[s.method] ?? 'var(--vscode-charts-red)', { 'stroke-width': 2 });
+		}
+		if (surfaces.length) {
+			const legend = append(box, $('div.sub-muted'));
+			legend.textContent = surfaces.map(s => slopeMethodLabel(s.method)).join(' · ');
+		}
+	}
+
+	/** The 2D FE's mesh shaded by the displacement at the end, its plastic points in red. */
+	private slopeFePlot(parent: HTMLElement, fe: NonNullable<ISlopeResult['fe']>): void {
+		const mesh = fe.mesh;
+		if (!mesh || !mesh.nodes.length) {
+			return;
+		}
+		const xs = mesh.nodes.map(n => n[0]), zs = mesh.nodes.map(n => n[1]);
+		const x0 = Math.min(...xs), x1 = Math.max(...xs), z0 = Math.min(...zs), z1 = Math.max(...zs);
+		const width = 680, pad = 12;
+		const scale = Math.min((width - 2 * pad) / Math.max(x1 - x0, 1), 300 / Math.max(z1 - z0, 1));
+		const height = Math.round((z1 - z0) * scale + 2 * pad);
+		const X = (x: number) => pad + (x - x0) * scale;
+		const Z = (z: number) => height - pad - (z - z0) * scale;
+		const magnitude = mesh.displacement.map(d => Math.hypot(d[0], d[1]));
+		const top = Math.max(...magnitude, 1e-9);
+		const box = append(parent, $('.sub-slope-plot'));
+		append(box, $('div.sub-muted', undefined, localize('sub.slopeFePlot', "2D FE: displacement at the end (darker is larger, largest {0} mm) and plastic points (red)", formatNumber(top, 1))));
+		const chart = svg(box, 'svg', { width, height, viewBox: `0 0 ${width} ${height}`, role: 'img', 'aria-label': localize('sub.slopeFeAria', "2D FE mesh") });
+		mesh.elements.forEach((element, index) => {
+			const share = element.reduce((sum, n) => sum + magnitude[n], 0) / element.length / top;
+			const points = element.map(n => `${X(mesh.nodes[n][0]).toFixed(1)},${Z(mesh.nodes[n][1]).toFixed(1)}`).join(' ');
+			svg(chart, 'polygon', { points, fill: 'var(--vscode-charts-blue)', 'fill-opacity': (0.05 + 0.8 * share).toFixed(2), stroke: 'var(--vscode-editorWidget-border)', 'stroke-width': 0.3 });
+			if (mesh.plastic[index]) {
+				const cx = element.reduce((sum, n) => sum + mesh.nodes[n][0], 0) / element.length;
+				const cz = element.reduce((sum, n) => sum + mesh.nodes[n][1], 0) / element.length;
+				svg(chart, 'circle', { cx: X(cx), cy: Z(cz), r: 1.5, fill: 'var(--vscode-charts-red)' });
+			}
+		});
 	}
 
 	private tieSpan(tie: ITieBeam): string {

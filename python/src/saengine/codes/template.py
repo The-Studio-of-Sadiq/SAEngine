@@ -212,6 +212,10 @@ TABLE_HELP: dict[str, str] = {
     "subgrade modulus, the struts' temperature and buckling length, the ground anchors' factors, "
     "test and lock-off loads and bond stresses, and the basal heave and piping factors. A pack "
     "without it does not analyse staged excavations or design their supports.",
+    "slopeStability": "Slope stability (alpha 9 L8): the limit equilibrium methods run and "
+    "checked (Bishop, Janbu, Spencer, Morgenstern-Price), the verification by factors of safety or "
+    "by the partial factors of the design approach, the pseudo-static seismic coefficients and the "
+    "factors on soil nails and anchors. A pack without it does not check slopes.",
     "allowableStress": "Allowable stress design of members (alpha 9 C19): the combination "
     "rows of the long-term allowable stresses, the allowable concrete stresses as shares of Fc, "
     "the modular ratio and lever arm, the bars' allowable stresses by grade, the allowable "
@@ -278,6 +282,26 @@ TABLE_HELP: dict[str, str] = {
     "tees and web posts, the Vierendeel length of circular openings, the web post buckling "
     "method and the geometry limits. A pack without it does not design beams with web "
     "openings.",
+    "movingLoads": "Traffic loads on bridges (alpha 9 L9): the design vehicles (axles and "
+    "spacings), what each lane carries (a vehicle, a line load, a load per m²), the notional "
+    "lane width, the multiple presence factors and the dynamic allowance. A pack without it "
+    "takes SAEngine's practice loads on the HL-93 basis, named as such in the results.",
+    "bridgeDesign": "Bridge girders (alpha 9 L9): the strength and service load factors of the "
+    "components, the wearing surface and the traffic, the prestressed girders' stress limits "
+    "and the load rating factors. A pack without it takes SAEngine's practice factors.",
+    "latticeTowers": "Lattice towers (alpha 9 L9): the force coefficient of a face by its "
+    "solidity ratio, the round member and diagonal wind factors, the gust factor and the "
+    "members' effective lengths. Without it a tower takes the trussed tower coefficients of "
+    "the pack's wind table, if it has them.",
+    "shellStructures": "Silos, chimneys and cooling towers (alpha 9 L9): the stored solids and "
+    "the silo pressure factors, vortex shedding of chimneys and the wind pressure around "
+    "cooling tower shells. A pack without a group does not cover that structure.",
+    "offshore": "Fixed offshore structures (alpha 9 L9): Morison's drag and inertia "
+    "coefficients, the wave kinematics and current blockage factors and the load factors of "
+    "the member checks. A pack without it does not cover offshore structures.",
+    "pipingStress": "Piping stress (alpha 9 L9): the pipe materials' allowable stresses, the "
+    "stress range factor and the sustained, expansion and occasional limits. A pack without "
+    "it does not cover piping.",
     "cranes": "Crane loads: the vertical impact allowance and the lateral and longitudinal "
     "forces of crane runways by kind of crane, and how they combine. A pack without it does not "
     "cover cranes.",

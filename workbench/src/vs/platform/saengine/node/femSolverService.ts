@@ -18,7 +18,7 @@ import { authenticodeProblem, authenticodeSignature } from './authenticode.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { localize } from '../../../nls.js';
 import { ILogService } from '../../log/common/log.js';
-import { FemRunEvent, IFemBackendInfo, IFemCaseResults, IFemProjectValidation, IFemResultList, IFemResultView, IFemRunEventMessage, IBuildingIfc, IBuildingIfcRequest, IFemDerivation, IFemDeriveRequest, IGeneratedBuilding, ILibraryProblem, LibraryFileKind, IFemRunExit, IFemRunRequest, IFemSolverService, IEngineBusy, IEngineJob, IStructureEdit, IStructureGeometry, IStructureScriptResult, StructureGeometryResult, IBoqComputation, IBoqComputeRequest, IReportBuild, IReportBuildOptions, IReportTemplates, ISoilBearing, ISoilBearingRequest, ISoilImport, ISoilSources, ISoilTemplate, ISubstructureMigration, IMepServiceParams, MepServiceMethod, ICadOpenRequest, ICadOpenResult, ICadProgram, ISetupRunRequest, ISetupRunResult, SETUP_COMPONENTS, ProjectPlatformMethod, EngineMethod, IQgisOpenRequest, IQgisOpenResult } from '../common/femSolver.js';
+import { FemRunEvent, IFemBackendInfo, IFemCaseResults, IFemProjectValidation, IFemResultList, IFemResultView, IFemRunEventMessage, IBuildingIfc, IBuildingIfcRequest, IFemDerivation, IFemDeriveRequest, IGeneratedBuilding, ILibraryProblem, LibraryFileKind, IFemRunExit, IFemRunRequest, IFemSolverService, IEngineBusy, IEngineJob, IStructureEdit, IStructureGeometry, IStructureScriptResult, StructureGeometryResult, IBoqComputation, IBoqComputeRequest, IReportBuild, IReportBuildOptions, IReportTemplates, ISoilBearing, ISoilBearingRequest, ISoilExport, ISoilImport, ISoilSources, ISoilTemplate, ISubstructureMigration, IMepServiceParams, MepServiceMethod, ICadOpenRequest, ICadOpenResult, ICadProgram, ISetupRunRequest, ISetupRunResult, SETUP_COMPONENTS, ProjectPlatformMethod, EngineMethod, IQgisOpenRequest, IQgisOpenResult } from '../common/femSolver.js';
 
 interface IRun {
 	readonly child: cp.ChildProcess;
@@ -219,6 +219,10 @@ export class FemSolverService extends Disposable implements IFemSolverService {
 
 	soilTemplate(python: string, path: string): Promise<ISoilTemplate> {
 		return this.request(python, 'soil/template', { path });
+	}
+
+	exportSoil(python: string, path: string, soilText: string): Promise<ISoilExport> {
+		return this.request(python, 'soil/export', { path, soilText });
 	}
 
 	soilSources(python: string, soilText: string | undefined, settingsText: string | undefined, projectRoot?: string): Promise<ISoilSources> {

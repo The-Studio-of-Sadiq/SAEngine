@@ -71,7 +71,8 @@
     "precast",
     "floorSpectra",
     "cfdWind",
-    "fabrication"
+    "fabrication",
+    "slopeStability"
   ],
   "description": "Bangladesh National Building Code 2020: Part 6 (Structural Design: loads, wind and earthquake, load combinations, reinforced concrete, seismic detailing, structural steel and foundations), Part 8 (plumbing, air-conditioning, electrical services), Part 4 (fire protection) and the standard steel sections SAEngine designs with. The values SAEngine used before code packs, transcribed from its modules; every table names its clauses and pages.",
   "sources": [
@@ -94,6 +95,9 @@
     ],
     "connectionFe": [
       "BNBC 2020 gives no FE design of joints: SAEngine practice (EN 1993-1-5 C.8 strain limit, EN 1993-1-8 Table 6.11, AISC 360-05 Commentary B3.6)"
+    ],
+    "slopeStability": [
+      "BNBC 2020 Part 6 Sec 3.21 (p. 817) lists landslides as a geo-hazard and Sec 3.14 (p. 803) asks for the stability of adjoining buildings, with no slope method: limit equilibrium and the factors of safety are SAEngine practice (Bishop, Janbu, Spencer, Morgenstern-Price; FS 1.5 / 1.3 / 1.1, kh = 0.5 PGA)"
     ],
     "floorSpectra": [
       "SAEngine practice where BNBC 2020 Part 6 Sec 2.5.15 gives no floor spectra: time history or direct spectrum-to-spectrum, ±15 % broadening (ASCE 4-16 Ch 6)"

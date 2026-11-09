@@ -768,3 +768,46 @@ EN 1993-1-1 checks. Concrete-filled plate walls: not covered (no `compositePlate
 | L10-B2 | (record) | header j r i p l n e d g s v, l = the cutting length, e = mass of one bar, s = 2 x the bend radius; checksum 96 - (sum of ASCII codes up to and including C) mod 32 | BVBS guideline, header and checksum blocks; checked against its examples (C72, C71, C82; "abcde@C" = 78) | Check (l: the cutting length, where the guideline's examples print the sum of the legs) |
 
 EN ISO 3766 shapes 00, 11, 12, 13, 21, 23, 31, 41, 51 have a BVBS geometry; 26, 77, 99 are sent without one. The bolt holes drilled are the steel table's standard holes (`steel` connections).
+
+## Slope stability (`slopeStability`; alpha 9 L8)
+
+| # | Path | Value | Source | Sure? |
+|---|---|---|---|---|
+| L8E1 | verification | partial factors of the design approach (geotechnicalMethods.designApproach, DA1 here) | EN 1997-1 11.5.1 with 2.4.7.3.4 | Sure |
+| L8E2 | partialFactors.resistances | γR;e R1 1.0, R2 1.1, R3 1.0 | EN 1997-1 Annex A Table A.14 (slopes and overall stability) | Check |
+| L8E3 | partialFactors.soilWeight | 1.0 (the soil's weight not factored; γγ of the M set still divides it) | EN 1997-1 2.4.2(9)P note (single source) | SAEngine practice |
+| L8E4 | checked | all four methods | EN 1997-1 11.5.1(1)P-(6) | SAEngine practice |
+| L8E5 | seismic.khFactor | 0.5 (FH = 0.5 α S W) | EN 1998-5 4.1.3.3(3), Eq 4.1 | Sure |
+| L8E6 | seismic.kvRatio | 0.5 (FV = ± 0.5 FH; 0.33 where avg/ag ≤ 0.6) | EN 1998-5 4.1.3.3(4), Eq 4.2 | Check (0.5 taken for every site) |
+| L8E7 | seismic.materials / required | M2 (γφ' 1.25, γc' 1.25, γcu 1.4), F ≥ 1.0 | EN 1998-5 3.1(3) Note | Check |
+| L8E8 | reinforcement | as the parent (FHWA-NHI-14-007 factors) | none in EN 1997-1 for soil nails | SAEngine practice |
+| L8E9 | topographic amplification ST | not applied (kh by α S of the seismic settings) | EN 1998-5 4.1.3.3 / EN 1998-5 Annex A | Not built |
+
+
+## Bridges and special structures (alpha 9 L9) — `movingLoads.json`, `bridgeDesign.json`, `latticeTowers.json`, `shellStructures.json`, `offshore.json`
+
+| # | Path | Value | Clause | Status |
+|---|---|---|---|---|
+| L9E1 | movingLoads.laneWidth, narrow | 3 m; < 5.4 m one lane; 5.4-6 m two lanes of w/2 | EN 1991-2 4.2.3, Table 4.1 | Sure |
+| L9E2 | movingLoads.vehicles ts1-ts3 | 2 × 300, 200, 100 kN at 1.2 m, gauge 2.0 m | Table 4.2, Figure 4.2a | Sure |
+| L9E3 | movingLoads lm1 areaLoad | 9.0, 2.5, 2.5, 2.5 kN/m² | Table 4.2 | Sure |
+| L9E4 | movingLoads lm2 | one axle 400 kN (βQ = 1), gauge 2.0 m | 4.3.3 | Sure |
+| L9E5 | movingLoads multiplePresence, dynamic | αQ = αq = 1; dynamic amplification included | 4.3.2 (recommended), 4.3.1 | Check (National Annexes change α) |
+| L9E6 | bridgeDesign.strength | 1.35 G (incl. surfacing), 1.35 Q (road traffic) | EN 1990 A2 Table A2.4(B) | Check (some NAs use 1.2 for surfacing) |
+| L9E7 | bridgeDesign.prestress | 0.6 fck(t) at transfer; 0.45 fck permanent; 0.6 fck characteristic; no tension (0 MPa) at transfer and service | EN 1992-1-1 5.10.2.2(5); EN 1992-2 7.2(102), 7.2(3) | Unsure (no tension is SAEngine practice for the decompression of Table 7.101N) |
+| L9E8 | bridgeDesign.prestress.relaxedYield | fp0,1k = 0.88 fpk | EN 1992-1-1 3.3 (typical) | Check |
+| L9E9 | latticeTowers.annexB | cf,0 = 1.76 C1 (1 - C2 φ + φ²), C1 2.25 / 1.9, C2 1.5 / 1.4 | EN 1993-3-1 B.2.2.2 | Check |
+| L9E10 | latticeTowers diagonal | Kθ = 1.11 at 45° (K1 0.55, K2 0.2) | B.2.2.? | Unsure |
+| L9E11 | latticeTowers gust | cs cd = 1 on qp | EN 1991-1-4 6.1 | Practice |
+| L9E12 | shellStructures.silos solids | wheat 9.0 kN/m³, φim 30°, Km 0.54, aK 1.11, μ 0.24/0.38/0.57, aμ 1.16; maize 8.4, 31, 0.53, 1.14, 0.22/0.36/0.53, 1.24; cement 16.0, 30, 0.54, 1.20, 0.41/0.46/0.51, 1.07 | EN 1991-4 Annex E Table E.1 | Unsure (every value) |
+| L9E13 | shellStructures.silos discharge | Ch 1.15, Cw 1.10 (AAC 1) | EN 1991-4 5.2.4.3.1 | Unsure |
+| L9E14 | shellStructures.silos.loadFactor | γF 1.5 | EN 1991-4 Annex A | Check |
+| L9E15 | shellStructures.chimneys | St 0.18, K 0.13, Kw ≤ 0.6, Lj/b 6 / 4.8 + 12 yF/b / 12, vcrit < 1.25 vm | EN 1991-1-4 E.1.3.2, E.1.5.2, Tables E.4, E.5 | Check |
+| L9E16 | shellStructures.chimneys.lateral | clat,0 0.7 to Re 3e5, 0.2 from 5e5 to 5e6, 0.3 from 1e7 | Figure E.2 | Unsure (read off a figure) |
+| L9E17 | shellStructures.chimneys.damping | δs 0.012 welded steel, 0.020 insulated, 0.03 concrete | Annex F Table F.2 | Check |
+| L9E18 | shellStructures.coolingTowers.rows | Re 5e5: 85°, -2.2, 135°, -0.4; 2e6: 80°, -1.9, 120°, -0.7; 1e7: 75°, -1.5, 105°, -0.8 | EN 1991-1-4 Table 7.12 | Check |
+| L9E19 | shellStructures.coolingTowers.internal | -0.5 | none (VGB practice) | Practice |
+| L9E20 | offshore | Cd 0.65 / 1.05, Cm 1.6 / 1.2, kinematics 0.9, blockage as the US pack, 1.1 G + 1.35 E | ISO 19902 9.4, 9.5, Table 9.10-1 | Unsure (clause numbers, the kinematics factor) |
+
+Not covered by this pack: piping (`pipingStress`; EN 13480-3 planned) and load rating (EN
+gives no rating method).

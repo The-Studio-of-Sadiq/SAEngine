@@ -121,6 +121,63 @@ here, newest first, with the date, the question, the decision, the reason and wh
   a code wind tunnel test, with the pack's own requirement (BNBC 2020 Part 6 Sec 2.4.16, ASCE 7-22
   Ch 31, EN 1991-1-4 Sec 1.5, IS 875-3 Sec 10).
 
+## 2026-11-09: bridges and special structures (alpha 9 track L9)
+
+Moving loads and influence lines, girder bridges (design, bearings, joints, load rating),
+lattice towers, silos, chimneys, cooling towers, offshore jackets and piping stress, entered in
+Project Settings → Bridges and Special Structures (`specialStructures`, left out of the file
+while empty) and computed by `python/src/saengine/special`. New tables `movingLoads`,
+`bridgeDesign`, `latticeTowers`, `shellStructures`, `offshore`, `pipingStress`; the default pack
+(BNBC 2020) has none of them, so its results do not change (the building's analysis only gains
+the wind of towers marked "on the roof").
+
+- **SAEngine practice (owner's brief), traffic loads without a pack table.** A pack without
+  `movingLoads` / `bridgeDesign` (BNBC 2020: buildings only; the RHD bridge loading is not
+  reliably known here) takes SAEngine's practice data on the HL-93 basis
+  (`special/data/movingLoads.json`, `bridgeDesign.json`: the HL-93 truck, tandem and lane load,
+  multiple presence, IM 33 %, Strength I 1.25 / 1.50 / 1.75 and the MBE rating factors), every
+  result naming it "SAEngine practice (HL-93 basis), not given by <pack>". This is the one
+  place a whole table falls back (the generic defaults never do); the girders' resistances stay
+  the pack's own concrete methods.
+- **SAEngine practice, influence lines.** A girder line is a continuous beam on knife-edge
+  supports with constant EI (the beam model of the post-tensioned slabs), unit loads at stations
+  at most 0.5 m apart; a grillage: girders of the tee section and transverse deck strips (the
+  station spacing wide, torsion b t³/6), unit loads at every girder node (OpenSees), wheels
+  shared by the lever rule between girders, all on the outer girder beyond it (no cantilever
+  overhang). Lanes side by side from either kerb, loads on their centre line; the code's lane
+  1, 2, ... loadings go to the lanes that give the most (every assignment up to six lanes).
+  Line girders share the traffic by Courbon's rigid cross-section; the dead loads are shared
+  equally among the girders in both models.
+- **SAEngine practice, girder checks.** Sagging flexure on the flange-wide rectangle (a note when
+  the neutral axis leaves the slab), hogging on the web with the top bars, shear on the web with
+  its stirrups without the prestress (on the safe side); prestressed girders: stresses at the
+  section of the largest sagging moment with the losses as entered (no time-step), strength
+  with fps of bonded strands from the pack's prestress rules (γp 0.28 where the pack has none).
+  A pack's `bridgeDesign` without prestress limits takes its building prestress limits (said).
+  Load rating only where the pack gives rating factors (the US pack; practice for BNBC):
+  RF = (φc φs φRn - γDC DC - γDW DW) / (γL (LL + IM)), φc φs at least the pack's least.
+- **SAEngine practice, towers.** Wind panel by panel at the corner nodes (no member wind
+  between), feed lines and ladders Ca 1.2, antennas by their EPA; the EN pack's Kθ at 45° is a
+  constant 1.11 (K1 0.55, K2 0.2) and its round members take the flat-member coefficient (on the
+  safe side). Members by the pack's steel method with |N| / NRd + |M| / MRd. A pack without
+  `latticeTowers` takes the trussed tower coefficients of its wind table (BNBC 2020 Figure
+  6.2.23). A rooftop tower adds its wind (normal to a face) to the roof level's storey force;
+  its weight is entered as joint loads and its base moment is not applied.
+- **SAEngine practice, shells.** Silo walls by Janssen's membrane forces (no FE): the wall's own
+  weight × 1.35 with the friction. Chimneys: vm = √(2 qz / ρ) at the top (on the safe side for
+  the vortex trigger), b the mean diameter of the top third, clat,0 log-linear in Re between
+  the pack's points. Cooling towers: a ShellMITC4 model fixed at its base ring with the cp of
+  EN 1991-1-4 Table 7.12 joined by cos² curves (SAEngine practice), internal suction -0.5.
+- **SAEngine practice, offshore.** The stream function wave (12 Fourier terms) is used for
+  "Stokes 5th"-type nonlinear waves; Airy with Wheeler stretching. Members fixed at the mudline
+  (no pile-soil), no buoyancy, load factors 1.1 / 1.35 and 0.9 / 1.35 (the table's and 0.9
+  practice), members by the pack's steel method (API WSD's allowable stress formulas are not
+  used).
+- **SAEngine practice, piping.** Bends as sharp corners (no flexibility factor: stiffer, on the
+  safe side for the expansion stresses at anchors), the larger of the in- and out-of-plane SIF
+  on the resultant moment, guides and stops on the run's nearer global axis, missing directions
+  held at the first support for stability (said).
+
 ## 2026-11-09: special members (alpha 9 track L7)
 
 Steel joists, castellated and cellular beams, aluminium joints, structural glass, tensile
@@ -169,6 +226,52 @@ the default pack (BNBC 2020) has none of them, so its results do not change.
   US pack only: shear Vn = (Ks + Kc) / √(3 Ks² + Kc²) As Fy, Pno, the plastic in-plane flexure
   at the axial force, and the detailing limits. The plates' end closures are not counted. The
   wall's analysis stiffness is the fill's (set its modifiers for the composite stiffness).
+
+## 2026-11-09: slope stability, 2D geotechnical FE and AGS4/DIGGS exchange (alpha 9 track L8)
+
+- **Where it lives.** Slopes are a list of 9 Substructure (`substructure.json` `slopes`), next to
+  the excavations whose wall, stages and supports (P1) the 2D FE reuses; the section cut from the
+  site's strata reads 01 Soil Report's stratigraphy (linked, never copied). The AGS4 and DIGGS
+  exchange lives in 01 Soil Report beside the CSV/Excel import (one import command, by the file's
+  extension; the fields it cannot map are listed as notes).
+- **Code pack table `slopeStability`.** BNBC 2020 gives no slope method or factor of safety (Part
+  6 Sec 3.21 lists landslides as a geo-hazard, Sec 3.14 the stability of adjoining buildings):
+  the default pack's values are **SAEngine practice**: factors of safety 1.5 (permanent), 1.3
+  (temporary), 1.1 (pseudo-static) as in USACE EM 1110-2-1902 Table 3-1 practice, kh = 0.5 PGA
+  (Hynes-Griffin and Franklin 1984), kv = 0; Bishop, Spencer and Morgenstern-Price checked,
+  Janbu reported. The Eurocodes pack checks by the partial factors of its design approach
+  (geotechnicalMethods: M sets on the strengths, A sets on the variable surcharges, F ≥ γR;e of
+  Annex A Table A.14) and EN 1998-5 4.1.3.3 (kh = 0.5 α S, kv = ± 0.5 kh) on M2; the US pack
+  keeps the factors of safety with US sources. Other packs inherit through `extends`.
+- **SAEngine practice in the methods.** The soil's own weight is not factored under partial
+  factors (single-source principle, `partialFactors.soilWeight` 1.0); a slice with mα < 0.2 makes
+  its surface unreliable and it is left out of the search (Whitman and Bailey 1967); Bishop's
+  method is run on circles only; Janbu's corrected factor uses b1 of Abramson et al. (2002);
+  Spencer and Morgenstern-Price find λ by bisection between ±2; pore pressures from a phreatic
+  line are hydrostatic below it (no seepage correction); free water above the ground is not
+  weighed; nails and anchors act as resisting forces along their axis where the slip surface
+  crosses them, min(tensile / 1.8, pull-out / 2.0) per metre (FHWA-NHI-14-007 factors in the
+  default pack); a vertical seismic coefficient is checked with both signs.
+- **The search.** Circles over a grid of centres above the slope (or the box given) and radii
+  tangent to levels down to the base, refined twice about the best; non-circular surfaces by a
+  random walk (seeded, so results repeat) of eight vertices from the critical circle, kept
+  concave and under the ground; every method of the check then runs on the best surfaces and
+  reports its lowest factor.
+- **2D FE (optional, for experienced users).** Plane strain on a Gmsh mesh of the section
+  (`saengine.fem.mesh`), OpenSees quad/tri31 with Drucker-Prager matched to Mohr-Coulomb in plane
+  strain (or PDMY/PIMY multi-yield, or J2 for undrained clay), K0 stresses from an elastic gravity
+  stage with ν = K0/(1+K0) when ν is not given, P1's wall (EI per metre, EA of a solid plate of
+  that EI, no weight, bonded to the soil) wished in place with its forces reported as the change
+  after gravity, P1's supports as springs to fixed points (compression-only struts and rakers,
+  tension-only anchors) placed at their stage, excavated elements released over the stage's load
+  steps, the excavation taken as half of a symmetric one. The strength reduction factor (each
+  trial a fresh analysis, Griffiths and Lane 1999) is reported beside the limit equilibrium as a
+  flagged row: the limit equilibrium is the check.
+- **AGS4 / DIGGS.** SAEngine keeps the SPT's 150 mm increments, AGS4 the 75 mm ones: the export
+  writes N1, N2, a refusal without its penetration and the sample number into `ISPT_REM`, the
+  soil type and USCS group into `GEOL_REM`, the method into `LOCA_REM` (read back by the import);
+  positions in a national grid other than BTM come in relative to the first borehole. DIGGS
+  output is written by the 2.6 element names as known and is not validated against the schema.
 
 ## 2026-11-09: nonlinear buckling (GMNIA), cables and the FE check of steel joints (alpha 9 tracks L4 and L6)
 
@@ -801,6 +904,9 @@ lists them with their clauses and marks the uncertain ones.
 
 ## 2026-11-09
 
+- **Bridges under BNBC: HL-93 traffic as SAEngine practice** (owner). BNBC carries no traffic
+  loading and the RHD loading is not entered, so a pack without a traffic table uses SAEngine's
+  HL-93-based data, named as such in every result (alpha 9 track L9).
 - **Point clouds: LAZ and E57 are read** (owner). `lazrs` (MIT) decompresses LAZ scans and
   `pye57` (MIT, with libE57Format under BSL-1.0) reads E57 scans, every scan in its own pose, in
   metres. Both are dependencies of the backend and ship in the bundled Python. Before, these
