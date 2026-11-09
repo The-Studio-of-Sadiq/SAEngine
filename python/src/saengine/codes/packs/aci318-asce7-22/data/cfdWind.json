@@ -1,0 +1,23 @@
+{
+  "$schema": "../../../schemas/cfdWind.schema.json",
+  "$replace": true,
+  "$sources": [
+    "ASCE/SEI 7-22 Ch 31 (wind tunnel procedure), Sec 31.4.3 (limitations on loads); Commentary Table C26.7-1 (z0 of the exposures); see VERIFY.md"
+  ],
+  "source": "ASCE/SEI 7-22 Ch 31 (wind tunnel procedure); SAEngine practice for the number of directions",
+  "directionStep": 30,
+  "roughness": { "B": 0.3, "C": 0.02, "D": 0.005 },
+  "lowerLimit": 0.8,
+  "validation": "ASCE 7-22 Ch 31 accepts wind loads from a boundary-layer wind tunnel test meeting its test conditions (Sec 31.2, by ASCE/SEI 49), the main wind-force resisting system's loads not below 80 % of the analytical procedure's (Sec 31.4.3). A CFD simulation is not such a test.",
+  "sources": {
+    "directionStep": "SAEngine practice: 12 directions every 30° (wind tunnel tests usually take 10° to 15°)",
+    "roughness": "ASCE 7-22 Commentary Table C26.7-1: typical z0 of exposures B, C, D",
+    "lowerLimit": "ASCE 7-22 Sec 31.4.3: the MWFRS loads at least 80 % of those of Part 1 of Ch 27 or Ch 28",
+    "validation": "ASCE 7-22 Sec 31.2 (test conditions) and ASCE/SEI 49-21"
+  },
+  "clauses": {
+    "procedure": "Ch 31",
+    "conditions": "Sec 31.2",
+    "lowerLimit": "Sec 31.4.3"
+  }
+}

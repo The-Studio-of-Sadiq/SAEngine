@@ -143,6 +143,12 @@ TABLE_HELP: dict[str, str] = {
     "direct spectrum-to-spectrum), the peak broadening, the component damping ratios, the "
     "direct method's duration and iterations, and how a nonstructural component's force "
     "follows from the floor spectrum. A pack without it computes no floor spectra.",
+    "cfdWind": "The CFD wind tunnel link (alpha 9 L3; OpenFOAM installed by the user): the wind "
+    "directions computed (every directionStep degrees), the inlet boundary layer's roughness "
+    "length z0 by exposure id, the least share of the code's wind base shear the CFD storey "
+    "forces are scaled up to when the analysis uses them (lowerLimit), and what the code asks "
+    "of a wind tunnel test (validation). A pack without it gives no z0 (the project enters one) "
+    "and no lower limit.",
     "precast": "Precast concrete pieces (alpha 9 L1): the bearing method (spanRatio or "
     "netBearing) and its values, dowels across joints (shearFriction or dowelAction), the corbel "
     "and weld methods of the connections, the least tension on a bearing, the integrity ties, "

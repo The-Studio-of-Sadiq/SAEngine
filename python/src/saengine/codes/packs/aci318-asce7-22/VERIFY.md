@@ -834,3 +834,12 @@ live answer before release.
 | P8U2 | floorVibration.compositeDynamicModulus | Ec,dyn = 1.35 Ec, full interaction | AISC Design Guide 11 2nd ed. Sec 3.2 (the dynamic modulus, the transformed moment of inertia with full composite action) | Check |
 
 Not covered by this pack: composite slabs on steel deck (the compositeSlab table; the ANSI/SDI C-2017 values are not entered). A slab type's composite deck is reported as not checked.
+
+## CFD wind tunnel (`cfdWind`; alpha 9 L3)
+
+| # | Path | Value | Source | Sure? |
+|---|---|---|---|---|
+| L3-1 | directionStep | 30° | none in the code | SAEngine practice |
+| L3-2 | roughness.B / C / D | z0 = 0.3 / 0.02 / 0.005 m | ASCE 7-22 Commentary Table C26.7-1 (typical values) | Check |
+| L3-3 | lowerLimit | 0.8 | ASCE 7-22 Sec 31.4.3 (MWFRS loads at least 80 % of Part 1 of Ch 27 / Ch 28; the 50 % relaxation without influential nearby buildings is not used) | Check |
+| L3-4 | validation / clauses | Ch 31, Sec 31.2, ASCE/SEI 49-21 | ASCE 7-22 Ch 31 | Check |

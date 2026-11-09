@@ -273,6 +273,32 @@ Members* in the results, or the Command Palette):
 
 The models are saved in `08 FEM/strut-and-tie.json` and printed in the design report.
 
+## CFD wind tunnel (OpenFOAM, optional)
+
+**CFD Wind Tunnel** (Project menu or Command Palette) computes the building's wind by a steady
+CFD simulation with **your own OpenFOAM**: SAEngine neither installs nor downloads it. On Windows
+it runs in WSL: install WSL with Ubuntu (`wsl --install -d Ubuntu-24.04`), then OpenFOAM in
+Ubuntu (the page shows the steps). **Find OpenFOAM** looks for it; Settings > SAEngine > CFD Wind
+can name its `etc/bashrc` and the WSL distribution.
+
+1. Set the options in Project Settings > Wind > *CFD wind tunnel* (directions, z0, turbulence
+   model, mesh, iterations); empty values take the code pack's (directions every 30°, z0 of the
+   wind exposure).
+2. **Run CFD...** writes one OpenFOAM case per direction in `08 FEM/cfd-wind/cases` and runs them
+   one after the other in the background (it goes on when the page or the app is closed). The page
+   shows each direction's step and iteration; **Cancel Run** stops it. **Write Cases** only
+   writes them (to run or check them yourself).
+3. The results: per direction the base shears and torsion against the code's static wind; per
+   storey the force coefficients and forces F = q·CF (q the code's design velocity pressure at the
+   roof times its gust factor); per facade zone and storey the pressure coefficients.
+4. *Use in the analysis* (Project Settings) makes them the wind cases WX, WY, WXN, WYN and their
+   variants (WX2, ...) in place of the code's, at least the code pack's share (80 %) of the code's
+   base shear. Derive the model again after a new CFD run.
+
+These are **engineer-supplied loads**: a steady simulation gives mean pressures of the building
+alone; codes ask for a boundary-layer wind tunnel test before such loads are used. The page and
+the report say so with the code pack's requirement.
+
 ## Commands
 
 | Command (category SAEngine) | Does |
@@ -283,6 +309,7 @@ The models are saved in `08 FEM/strut-and-tie.json` and printed in the design re
 | Show Analysis Log | The *SAEngine Analysis* output |
 | Design Reinforcement | The design proposal |
 | Strut-and-Tie Models | Strut-and-tie models of D-regions |
+| CFD Wind Tunnel | Wind by CFD with your own OpenFOAM (optional) |
 | Check Python Runtime | Checks the backend |
 
 ## Files

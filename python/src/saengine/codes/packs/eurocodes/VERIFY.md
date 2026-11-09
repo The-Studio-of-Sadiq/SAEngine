@@ -703,3 +703,12 @@ length along the bar's centre line (SAEngine practice), with the mandrel diamete
 | P8E19 | composite.beam.camber | 80 % of the wet-concrete deflection on the steel alone, 5 mm steps, none below 20 mm | none (EN 1994-1-1 gives no camber rule) | SAEngine practice |
 | P8E20 | floorVibration.compositeDynamicModulus | Ec,dyn = 1.1 Ecm, full interaction | SCI P354 (the dynamic modulus of normal-weight concrete) | Unsure (check the factor of SCI P354) |
 | P8E21 | deck profiles | DECK_PROFILES: generic trapezoidal 46/150, 60/300, 80/300 (geometry only) | none (not a product's) | SAEngine practice: replace by the product's data |
+
+## CFD wind tunnel (`cfdWind`; alpha 9 L3)
+
+| # | Path | Value | Source | Sure? |
+|---|---|---|---|---|
+| L3-1 | directionStep | 30° | none in the code | SAEngine practice |
+| L3-2 | roughness | none here: the wind table's z0 of terrain categories 0-IV (0.003, 0.01, 0.05, 0.3, 1.0 m) | EN 1991-1-4 Table 4.1 | Sure |
+| L3-3 | lowerLimit | 0.8 | after ASCE 7-22 Sec 31.4.3; EN 1991-1-4 gives none (a National Annex may) | SAEngine practice |
+| L3-4 | validation / clauses | wind tunnel tests and properly validated numerical methods allowed | EN 1991-1-4:2005 Sec 1.5(2) | Check (wording) |

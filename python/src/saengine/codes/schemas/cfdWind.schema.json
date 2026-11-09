@@ -1,0 +1,71 @@
+{
+  "additionalProperties": false,
+  "description": "The CFD wind tunnel (see the module notes).",
+  "properties": {
+    "source": {
+      "default": "",
+      "description": "Clause (and page) the table comes from.",
+      "title": "Source",
+      "type": "string"
+    },
+    "sources": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Clause references of single entries: {key: clause}.",
+      "title": "Sources",
+      "type": "object"
+    },
+    "clauses": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Short clause references the results cite, by key, without the code's name (e.g. 'Part 6 Sec 2.5.7.3'); read by saengine.codes.context.cite. A key the pack does not give is not cited.",
+      "title": "Clauses",
+      "type": "object"
+    },
+    "directionStep": {
+      "description": "Wind directions every this many degrees from +X [°].",
+      "exclusiveMinimum": 0,
+      "maximum": 90,
+      "title": "Directionstep",
+      "type": "number"
+    },
+    "roughness": {
+      "additionalProperties": {
+        "exclusiveMinimum": 0,
+        "type": "number"
+      },
+      "description": "Roughness length z0 [m] of the inlet boundary layer by exposure id.",
+      "title": "Roughness",
+      "type": "object"
+    },
+    "lowerLimit": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "The CFD base shear along each axis at least this share of the code's.",
+      "title": "Lowerlimit"
+    },
+    "validation": {
+      "default": "",
+      "description": "What the code asks of a wind tunnel test, in a few words (the report).",
+      "title": "Validation",
+      "type": "string"
+    }
+  },
+  "required": [
+    "directionStep"
+  ],
+  "title": "CfdWindTable",
+  "type": "object",
+  "$id": "saengine.codePack.cfdWind/1"
+}

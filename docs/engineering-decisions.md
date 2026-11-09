@@ -41,6 +41,50 @@ here, newest first, with the date, the question, the decision, the reason and wh
 - **No unlicensed software.** ETABS, SAP2000 and STAAD are not used for cross-checks or cited.
   Open-source tools are used instead (2026-10-25).
 
+## 2026-11-09: CFD wind tunnel as an optional OpenFOAM link (alpha 9 track L3)
+
+- **OpenFOAM is the user's.** SAEngine does not bundle or download OpenFOAM (GPL, large; the
+  owner decides later). It finds an installed one: in WSL on Windows (the distribution set in
+  Settings > SAEngine > CFD Wind, else the default), on the host on Linux/macOS; the location
+  setting (`etc/bashrc` or the install folder), then the login shell's PATH, then the usual
+  install places. Otherwise it shows how to install it. Nothing runs until the user presses Run.
+- **Where it lives.** FEM part: SAEngine > CFD Wind Tunnel (Project menu). Settings in Project
+  Settings > Wind > CFD wind tunnel (one home); the page shows them read-only with a link.
+  Files: `08 FEM/cfd-wind/results.json` (kept, versioned and archived) and
+  `08 FEM/cfd-wind/cases/` (OpenFOAM cases, logs, run status; computed, left out of archives).
+- **The case (SAEngine practice).** Envelope from the BIM slabs per level (else columns/walls,
+  else the analysis nodes), storeys of one outline joined; courtyards filled. Domain 5H
+  upstream, 15H downstream, 5H to the sides and above; cubic background cells of
+  H / 8 (coarsened to 4 million at most), 3 halvings at the building, 1 in a wake box;
+  snappyHexMesh without layers (wall functions). Log-law inlet (`atmBoundaryLayerInlet*`),
+  Uref 10 m/s at H (Reynolds only: the loads scale with the code's pressure), rough ground with
+  the same z0; k-ε by default or k-ω SST; simpleFoam (or `foamRun -solver incompressibleFluid`
+  on OpenFOAM.org 11+), 1500 iterations or p residual 1e-4; one case per direction, the
+  building turned so the wind is along +x. Every file is written from Python templates.
+- **Code-dependent values in the pack (`cfdWind`).** Directions every 30° (SAEngine practice in
+  every pack), z0 by exposure (BNBC A/B/C read as ASCE 7 B/C/D: 0.3/0.02/0.005 m; ASCE 7-22
+  Commentary; EN terrain categories from the wind table; IS 875-3 categories 1-4), the lower
+  limit 0.8 of the code's base shear (ASCE 7-22 Sec 31.4.3; SAEngine practice in the others),
+  and the code's wind-tunnel requirement for the report. All overridable per project.
+- **Post-processing.** Cp = p / (½ Uref²) of every building face (zero-gradient p: the cells'
+  values, read from the ASCII mesh and fields); per level band (half storey below and above, the
+  base the lower half of the first storey, as the code's storey forces): CF = Σ Cp A [m²],
+  CMz about the plan's centre, Cf along the wind; Cp mean/min/max per facade zone (X+, X-, Y+,
+  Y-, roof, soffit) and storey, with its role (windward, leeward, side).
+- **Design forces.** F = q·CF, q = the code's velocity pressure at H × its gust factor, with
+  the project's overrides (a quasi-steady scaling of mean coefficients; no peak or dynamic
+  response: stated in the report).
+- **"CFD wind" cases.** Off by default (existing results unchanged). With Project Settings >
+  Wind > CFD wind tunnel > Use in the analysis, each direction becomes the wind case of its
+  nearest axis (WX, WY, WXN, WYN, the largest along-axis base shear first, the others WX2,
+  WX3, ...), so the existing wind combinations (opposite-direction cases, variants) take every
+  direction; scaled up to the pack's lower limit; the code's torsional cases WTX/WTY are kept on
+  top; a flexible building's gust factor scales them with WX/WY. Results for other levels than
+  the model's are refused (the code's wind is used, with a note).
+- **Validation.** The page and the report say first that these are engineer-supplied loads, not
+  a code wind tunnel test, with the pack's own requirement (BNBC 2020 Part 6 Sec 2.4.16, ASCE 7-22
+  Ch 31, EN 1991-1-4 Sec 1.5, IS 875-3 Sec 10).
+
 ## 2026-11-05: floor response spectra (alpha 9 track L5)
 
 - **Where it lives.** Project Settings, Analysis, Floor response spectra (off unless set):

@@ -712,7 +712,12 @@ export type EngineMethod =
 	| 'worksheets/kinds' | 'worksheets/calculate' | 'worksheets/list' | 'worksheets/create'
 	// Strut-and-tie models of D-regions (`saengine.design.stm_model`): `design/strutAndTie`
 	// `{model, projectPath?}` and `design/strutAndTieTemplate` `{template, parameters?}`.
-	| 'design/strutAndTie' | 'design/strutAndTieTemplate';
+	| 'design/strutAndTie' | 'design/strutAndTieTemplate'
+	// Alpha 9 L3, the CFD wind tunnel (`saengine.fem.cfd_wind`; OpenFOAM installed by the user):
+	// `cfd/detect` `{openfoam?, distribution?}`, `cfd/write` `{projectRoot, installation?}`,
+	// `cfd/start` `{projectRoot, openfoam?, distribution?}` (the background run), `cfd/status`,
+	// `cfd/cancel` and `cfd/results` `{projectRoot}`.
+	| 'cfd/detect' | 'cfd/write' | 'cfd/start' | 'cfd/status' | 'cfd/cancel' | 'cfd/results';
 
 export interface IQgisOpenRequest {
 	/** Absolute path of the `.gpkg`, `.geojson` or `.json` file. */
@@ -769,6 +774,9 @@ export type ProjectPlatformMethod =
 	// `cad/convertPdf` `{path, page?, cache?, pagesOnly?}` -> `{ok, dxf, page, pages, vector, size, segments, warnings, cached, scale}`
 	// (`pagesOnly`: `{ok, pages}`, without converting a page).
 	| 'cad/convertPdf'
+	// Alpha 9 L2, point clouds as underlays (`saengine.library.point_cloud`): `cad/convertPointCloud`
+	// `{path, cut, thickness, voxel?, tolerance?, trace?}` and `cad/pointCloudView` `{path, voxel?, limit?}`.
+	| 'cad/convertPointCloud' | 'cad/pointCloudView'
 	// DXF files the app wrote, repaired in place by ezdxf's auditor (`saengine.library.dxf_audit`):
 	// `cad/cleanDxf` `{paths}` -> `{ok, files: [{path, fixed, errors}]}`.
 	| 'cad/cleanDxf'

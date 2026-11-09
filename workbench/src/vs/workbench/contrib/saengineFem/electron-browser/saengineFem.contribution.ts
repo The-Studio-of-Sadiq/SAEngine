@@ -27,6 +27,7 @@ import { IEditorService } from '../../../services/editor/common/editorService.js
 import { Extensions as OutputExtensions, IOutputChannelRegistry } from '../../../services/output/common/output.js';
 import { ISaengineProjectService, partById } from '../../../services/saengineProject/common/saengineProject.js';
 import { resultsFolder } from '../browser/femResultsBar.js';
+import { CFD_CANCEL_COMMAND, CFD_DETECT_COMMAND, CFD_OPENFOAM_SETTING, CFD_RESULTS_COMMAND, CFD_START_COMMAND, CFD_STATUS_COMMAND, CFD_WRITE_COMMAND, CFD_WSL_SETTING } from '../browser/femCfdWind.js';
 import { FemModelEditorInput } from '../browser/femModelEditorInput.js';
 import { MAP_TILE_ATTRIBUTION_SETTING, MAP_TILE_URL_SETTING, QGIS_PROGRAM_SETTING } from '../../saengineSoil/browser/soilDocument.js';
 import { OSM_TILE_URL } from '../../saengineSoil/browser/soilMap.js';
@@ -70,6 +71,21 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			scope: ConfigurationScope.MACHINE,
 			restricted: true,
 			markdownDescription: localize('saengine.qgis.program', "The QGIS that **Open in QGIS** starts (the full path of `qgis-bin.exe`, `qgis-ltr-bin.exe` or an OSGeo4W `qgis.bat`). When empty, an installed QGIS is looked for (the Windows uninstall entries, Program Files and OSGeo4W). QGIS is not part of SAEngine."),
+		},
+		// Alpha 9 L3: the user's own OpenFOAM, which SAEngine runs: only from this machine's settings.
+		[CFD_OPENFOAM_SETTING]: {
+			type: 'string',
+			default: '',
+			scope: ConfigurationScope.MACHINE,
+			restricted: true,
+			markdownDescription: localize('saengine.cfdWind.openfoam', "The OpenFOAM the **CFD Wind Tunnel** runs: its `etc/bashrc` or its installation folder, as a Linux path (inside WSL on Windows, for example `/usr/lib/openfoam/openfoam2412/etc/bashrc`). When empty, OpenFOAM is looked for on the login shell's PATH and in the usual install places. OpenFOAM is not part of SAEngine: SAEngine neither installs nor downloads it."),
+		},
+		[CFD_WSL_SETTING]: {
+			type: 'string',
+			default: '',
+			scope: ConfigurationScope.MACHINE,
+			restricted: true,
+			markdownDescription: localize('saengine.cfdWind.wslDistribution', "Windows: the WSL distribution OpenFOAM is installed in (as `wsl -l` lists it, for example `Ubuntu-24.04`). When empty, WSL's default distribution."),
 		},
 	},
 });
@@ -648,6 +664,37 @@ CommandsRegistry.registerCommand('saengine.design.strutAndTieTemplate', async (a
 	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
 	return accessor.get(IFemSolverService).engine(python, 'design/strutAndTieTemplate', { template: args.template, parameters: args.parameters });
 });
+
+/**
+ * Alpha 9 L3, the CFD wind tunnel (CFD Wind Tunnel, femCfdWind.ts): finding the user's OpenFOAM
+ * (this computer's settings name its location and WSL distribution), writing the cases, the
+ * background run (started only by the page's Run), its status and cancel, and the results.
+ * Internal: called by id with `{projectRoot, installation?}`.
+ */
+interface ICfdCommandArgs {
+	readonly projectRoot?: string;
+	readonly installation?: object;
+}
+
+function cfdMachine(accessor: ServicesAccessor): { openfoam: string; distribution: string } {
+	const configuration = accessor.get(IConfigurationService);
+	return {
+		openfoam: configuration.getValue<string>(CFD_OPENFOAM_SETTING)?.trim() ?? '',
+		distribution: configuration.getValue<string>(CFD_WSL_SETTING)?.trim() ?? '',
+	};
+}
+
+function cfdEngine(accessor: ServicesAccessor, method: 'cfd/detect' | 'cfd/write' | 'cfd/start' | 'cfd/status' | 'cfd/cancel' | 'cfd/results', params: object): Promise<unknown> {
+	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
+	return accessor.get(IFemSolverService).engine(python, method, params);
+}
+
+CommandsRegistry.registerCommand(CFD_DETECT_COMMAND, (accessor) => cfdEngine(accessor, 'cfd/detect', cfdMachine(accessor)));
+CommandsRegistry.registerCommand(CFD_WRITE_COMMAND, (accessor, args: ICfdCommandArgs) => cfdEngine(accessor, 'cfd/write', { projectRoot: args?.projectRoot, installation: args?.installation }));
+CommandsRegistry.registerCommand(CFD_START_COMMAND, (accessor, args: ICfdCommandArgs) => cfdEngine(accessor, 'cfd/start', { projectRoot: args?.projectRoot, ...cfdMachine(accessor) }));
+CommandsRegistry.registerCommand(CFD_STATUS_COMMAND, (accessor, args: ICfdCommandArgs) => cfdEngine(accessor, 'cfd/status', { projectRoot: args?.projectRoot }));
+CommandsRegistry.registerCommand(CFD_CANCEL_COMMAND, (accessor, args: ICfdCommandArgs) => cfdEngine(accessor, 'cfd/cancel', { projectRoot: args?.projectRoot }));
+CommandsRegistry.registerCommand(CFD_RESULTS_COMMAND, (accessor, args: ICfdCommandArgs) => cfdEngine(accessor, 'cfd/results', { projectRoot: args?.projectRoot }));
 
 /**
  * The earthquake design from the response spectrum of a run (scaling to 85 % of the static base

@@ -168,6 +168,12 @@ Methods:
   ``{outDir, projectPath, path, keys?, tables?, extra?}`` -> the chosen tables streamed to a
   workbook, ``fem/exportProgress`` / ``fem/exportCancel`` ``{}`` while it runs
   (``saengine.fem.result_tables``; worker, except progress and cancel)
+- Alpha 9 L3, the CFD wind tunnel (``saengine.fem.cfd_wind``; OpenFOAM installed by the user):
+  ``cfd/detect`` ``{openfoam?, distribution?}`` -> the installation found and how to install one;
+  ``cfd/write`` ``{projectRoot, installation?}`` -> the cases written (nothing runs);
+  ``cfd/start`` ``{projectRoot, openfoam?, distribution?}`` -> the background run started;
+  ``cfd/status`` / ``cfd/cancel`` ``{projectRoot}`` (answered at once); ``cfd/results``
+  ``{projectRoot}`` -> the coefficients, storey forces and the code comparison
 - ``mep/report`` ``{projectRoot, outDir?, mepText?}`` -> the MEP coordination report
 - ``mep/suggestSleeves`` ``{projectRoot, mepText?, allowance?}`` -> sleeves for the clashes
 - ``mep/importIfc`` ``{projectRoot, path, copy?}`` -> what an MEP IFC model holds
@@ -1144,6 +1150,42 @@ def create_server() -> JsonRPCServer:
             )
         except result_tables.ExportCancelled:
             return {"cancelled": True}
+
+    # Alpha 9 L3: the CFD wind tunnel (saengine.fem.cfd_wind.service). Finding OpenFOAM, writing
+    # the cases and starting the run in a worker; the run itself is a process of its own, its
+    # status and cancel answered at once.
+    @server.feature("cfd/detect")
+    @_in_worker
+    def _cfd_detect(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.cfd_detect(args.get("openfoam"), args.get("distribution"))
+
+    @server.feature("cfd/write")
+    @_in_worker
+    def _cfd_write(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.cfd_write(args["projectRoot"], args.get("installation"))
+
+    @server.feature("cfd/start")
+    @_in_worker
+    def _cfd_start(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.cfd_start(
+            args["projectRoot"], args.get("openfoam"), args.get("distribution")
+        )
+
+    @server.feature("cfd/status")
+    def _cfd_status(params: Any) -> dict[str, Any]:
+        return handlers.cfd_status(_plain(params)["projectRoot"])
+
+    @server.feature("cfd/cancel")
+    def _cfd_cancel(params: Any) -> dict[str, Any]:
+        return handlers.cfd_cancel(_plain(params)["projectRoot"])
+
+    @server.feature("cfd/results")
+    @_in_worker
+    def _cfd_results(params: Any) -> dict[str, Any]:
+        return handlers.cfd_results(_plain(params)["projectRoot"])
 
     @server.feature("fem/exportProgress")
     def _export_progress(params: Any) -> dict[str, Any]:

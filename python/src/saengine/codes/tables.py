@@ -11953,6 +11953,7 @@ from saengine.codes.capacity_tables import (  # C19
     AllowableStressTable,
     HorizontalCapacityTable,
 )
+from saengine.codes.cfd_wind_tables import CfdWindTable  # L3: CFD wind tunnel
 from saengine.codes.composite_slab_tables import (  # P8: composite slabs, beam groups
     CompositeCamber,
     CompositeLongitudinalShear,
@@ -12079,6 +12080,8 @@ TABLE_MODELS: dict[str, type[TableModel]] = {
     "precast": PrecastTable,
     # Alpha 9 L5: floor (in-structure) response spectra.
     "floorSpectra": FloorSpectraTable,
+    # Alpha 9 L3: the CFD wind tunnel link (OpenFOAM, installed by the user).
+    "cfdWind": CfdWindTable,
     # Alpha 9 P8: composite slabs on profiled steel deck.
     "compositeSlab": CompositeSlabTable,
 }

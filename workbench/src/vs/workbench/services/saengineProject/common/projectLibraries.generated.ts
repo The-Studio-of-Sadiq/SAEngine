@@ -10160,6 +10160,121 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 			title: 'CastDay',
 			type: 'object',
 		},
+		CfdWind: {
+			additionalProperties: false,
+			description: 'Alpha 9 L3: the CFD wind tunnel (:mod:`saengine.fem.cfd_wind`): an OpenFOAM case per wind\ndirection around the building\'s envelope, run by the user\'s own OpenFOAM installation (not\npart of SAEngine), and its surface pressures as storey forces. The results are\nengineer-supplied: they need validation (a wind tunnel test) before design use.',
+			properties: {
+				directions: {
+					description: 'Wind directions [°]: where the wind blows to, counter-clockwise from the model\'s +X (0° along +X, 90° along +Y). Empty: every direction step.',
+					items: {
+						type: 'number',
+					},
+					title: 'Directions',
+					type: 'array',
+				},
+				directionStep: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							maximum: 90,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Directions every this many degrees [°] when none are listed. Empty: the code pack\'s (30° where it gives none).',
+					title: 'Direction step',
+				},
+				roughness: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							maximum: 5,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Aerodynamic roughness length z0 [m] of the approaching boundary layer. Empty: the code pack\'s for the wind exposure (Project Settings > Wind).',
+					title: 'Roughness length z0',
+				},
+				turbulence: {
+					default: 'kEpsilon',
+					description: 'The RANS turbulence model of the steady simulation.',
+					enum: ['kEpsilon', 'kOmegaSST'],
+					enumDescriptions: ['k-ε (standard)', 'k-ω SST'],
+					title: 'Turbulence model',
+					type: 'string',
+				},
+				cellsPerHeight: {
+					default: 8,
+					description: 'Background mesh cells over the building\'s height (the domain\'s cells are cubes of H / this).',
+					maximum: 40,
+					minimum: 4,
+					title: 'Cells per building height',
+					type: 'integer',
+				},
+				surfaceLevel: {
+					default: 3,
+					description: 'Levels of halving of the background cells at the building\'s surface (snappyHexMesh).',
+					maximum: 6,
+					minimum: 0,
+					title: 'Refinement at the building',
+					type: 'integer',
+				},
+				wakeLevel: {
+					default: 1,
+					description: 'Levels of halving in a box around the building and its wake.',
+					maximum: 4,
+					minimum: 0,
+					title: 'Refinement around the building',
+					type: 'integer',
+				},
+				maxCells: {
+					default: 4000000,
+					description: 'The background mesh is made coarser until it has at most this many cells.',
+					minimum: 100000,
+					title: 'Most background cells',
+					type: 'integer',
+				},
+				iterations: {
+					default: 1500,
+					description: 'Most iterations of the steady solver per direction.',
+					maximum: 50000,
+					minimum: 100,
+					title: 'Iterations',
+					type: 'integer',
+				},
+				residual: {
+					default: 0.0001,
+					description: 'The solver stops earlier once the pressure residual is below this.',
+					exclusiveMaximum: 0.1,
+					exclusiveMinimum: 0,
+					title: 'Residual target',
+					type: 'number',
+				},
+				processors: {
+					default: 1,
+					description: 'Parallel processes of the solver (MPI); 1: serial.',
+					maximum: 256,
+					minimum: 1,
+					title: 'Processors',
+					type: 'integer',
+				},
+				useInAnalysis: {
+					default: false,
+					description: 'The wind cases WX, WY (and the other directions as the wind variants WXN, WYN, WX2, ...) take the CFD storey forces in place of the code\'s, scaled with the code\'s design velocity pressure at the roof and at least the code pack\'s share of the code\'s base shear. Engineer-supplied loads: validate them first.',
+					title: 'Use in the analysis',
+					type: 'boolean',
+				},
+			},
+			title: 'CfdWind',
+			type: 'object',
+		},
 		ChecklistAnswer: {
 			additionalProperties: false,
 			description: 'P4: the engineer\'s answer to one statement of the code pack\'s screening checklist.',
@@ -13890,6 +14005,19 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 					},
 					title: 'Rooftop equipment',
 					type: 'array',
+				},
+				cfd: {
+					anyOf: [
+						{
+							$ref: '#/$defs/CfdWind',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Wind on the building\'s envelope by a steady CFD simulation (OpenFOAM, installed separately) per wind direction: surface pressure coefficients, storey forces, and optionally the wind cases from them. Empty: not used.',
+					title: 'CFD wind tunnel',
 				},
 			},
 			title: 'Wind',

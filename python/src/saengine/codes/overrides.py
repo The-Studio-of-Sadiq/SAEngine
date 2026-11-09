@@ -378,6 +378,7 @@ SECTIONS: tuple[tuple[str, tuple[str, ...]], ...] = (
             "existing",
             "nonstructural",
             "floorSpectra",
+            "cfdWind",
             "nonBuilding",
             "occupancyCategories",
         ),

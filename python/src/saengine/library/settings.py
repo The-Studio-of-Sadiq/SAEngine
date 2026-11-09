@@ -779,6 +779,102 @@ class CladdingRoof(_Model):
     )
 
 
+#: Alpha 9 L3: wind directions every this many degrees when neither the project nor the code
+#: pack's ``cfdWind`` table gives a step (SAEngine practice: 12 directions).
+CFD_DIRECTION_STEP = 30.0
+
+
+class CfdWind(_Model):
+    """Alpha 9 L3: the CFD wind tunnel (:mod:`saengine.fem.cfd_wind`): an OpenFOAM case per wind
+    direction around the building's envelope, run by the user's own OpenFOAM installation (not
+    part of SAEngine), and its surface pressures as storey forces. The results are
+    engineer-supplied: they need validation (a wind tunnel test) before design use."""
+
+    directions: list[float] = Field(
+        default_factory=list,
+        description="Wind directions [°]: where the wind blows to, counter-clockwise from the "
+        "model's +X (0° along +X, 90° along +Y). Empty: every direction step.",
+    )
+    directionStep: float | None = Field(
+        default=None,
+        gt=0,
+        le=90,
+        title="Direction step",
+        description="Directions every this many degrees [°] when none are listed. Empty: the "
+        "code pack's (30° where it gives none).",
+    )
+    roughness: float | None = Field(
+        default=None,
+        gt=0,
+        le=5,
+        title="Roughness length z0",
+        description="Aerodynamic roughness length z0 [m] of the approaching boundary layer. "
+        "Empty: the code pack's for the wind exposure (Project Settings > Wind).",
+    )
+    turbulence: Literal["kEpsilon", "kOmegaSST"] = Field(
+        default="kEpsilon",
+        title="Turbulence model",
+        description="The RANS turbulence model of the steady simulation.",
+        json_schema_extra=_labels(["k-ε (standard)", "k-ω SST"]),
+    )
+    cellsPerHeight: int = Field(
+        default=8,
+        ge=4,
+        le=40,
+        title="Cells per building height",
+        description="Background mesh cells over the building's height (the domain's cells are "
+        "cubes of H / this).",
+    )
+    surfaceLevel: int = Field(
+        default=3,
+        ge=0,
+        le=6,
+        title="Refinement at the building",
+        description="Levels of halving of the background cells at the building's surface "
+        "(snappyHexMesh).",
+    )
+    wakeLevel: int = Field(
+        default=1,
+        ge=0,
+        le=4,
+        title="Refinement around the building",
+        description="Levels of halving in a box around the building and its wake.",
+    )
+    maxCells: int = Field(
+        default=4_000_000,
+        ge=100_000,
+        title="Most background cells",
+        description="The background mesh is made coarser until it has at most this many cells.",
+    )
+    iterations: int = Field(
+        default=1500,
+        ge=100,
+        le=50_000,
+        description="Most iterations of the steady solver per direction.",
+    )
+    residual: float = Field(
+        default=1e-4,
+        gt=0,
+        lt=0.1,
+        title="Residual target",
+        description="The solver stops earlier once the pressure residual is below this.",
+    )
+    processors: int = Field(
+        default=1,
+        ge=1,
+        le=256,
+        description="Parallel processes of the solver (MPI); 1: serial.",
+    )
+    useInAnalysis: bool = Field(
+        default=False,
+        title="Use in the analysis",
+        description="The wind cases WX, WY (and the other directions as the wind variants "
+        "WXN, WYN, WX2, ...) take the CFD storey forces in place of the code's, scaled with the "
+        "code's design velocity pressure at the roof and at least the code pack's share of the "
+        "code's base shear. Engineer-supplied loads: validate them first.",
+    )
+
+
 class Wind(_Model):
     exposure: ExposureId = Field(  # type: ignore[valid-type]
         default="A",
@@ -899,6 +995,15 @@ class Wind(_Model):
         description="Tanks, plant, stair and lift rooms and similar structures on the roof: "
         "their wind force (with the code pack's increase on low buildings) is added to the "
         "roof level's wind.",
+    )
+    # Alpha 9 L3: the CFD wind tunnel (OpenFOAM installed by the user).
+    cfd: CfdWind | None = Field(
+        default=None,
+        exclude_if=lambda value: value is None,
+        title="CFD wind tunnel",
+        description="Wind on the building's envelope by a steady CFD simulation (OpenFOAM, "
+        "installed separately) per wind direction: surface pressure coefficients, storey "
+        "forces, and optionally the wind cases from them. Empty: not used.",
     )
 
 
