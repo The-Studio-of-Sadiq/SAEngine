@@ -2733,6 +2733,26 @@ def _derive_fem(
                     for h in heights
                 ],
             )
+            # Alpha 9 L3: the CFD wind tunnel's storey forces in place of WX, WY (and their
+            # variants), when the project asks for them (wind.cfd.useInAnalysis).
+            cfd = getattr(settings.wind, "cfd", None)
+            if cfd is not None and cfd.useInAnalysis:
+                from saengine.fem.cfd_wind.loads import apply_cfd_wind
+
+                wind_notes += apply_cfd_wind(
+                    model_dir=model_dir,
+                    heights=heights,
+                    base_m=base_m,
+                    coords=b.coords,
+                    level_shares=level_shares,
+                    retained_of=retained_of,
+                    torsion_forces=_torsion_forces,
+                    patterns=patterns,
+                    summary=summary,
+                    speed=float(values["windSpeed"]),
+                    exposure=settings.wind.exposure,
+                    importance=float(values["windImportance"]),
+                )
         if values.get("windAltitudeFactor") is not None:  # Alpha 9 C15
             altitude = code_context.table("wind").altitude
             b.notes.append(
@@ -2990,6 +3010,7 @@ def _derive_fem(
     cases += [p.name for p in live_cases]
     extra_labels = {p.name: p.label for p in live_cases}
     extra_labels.update((summary.get("cladWind") or {}).get("labels") or {})
+    extra_labels.update((summary.get("cfdWind") or {}).get("labels") or {})  # Alpha 9 L3
     # The moving crane load cases (saengine.fem.cranes) after them.
     cases += [code for code, _ in crane_cases]
     extra_labels.update(dict(crane_cases))
@@ -4903,6 +4924,13 @@ def _wind_site_extras(
     return topography, rooftop
 
 
+def _cfd_cases(summary: dict[str, Any], axis: str, case: str) -> list[str]:
+    """Alpha 9 L3: the CFD wind cases of plan axis ``axis`` besides ``case`` (its WX2, WXN, ...
+    scale with WX by the flexible building's gust factor); none without CFD wind."""
+    cases = ((summary.get("cfdWind") or {}).get("axisCases") or {}).get(axis) or []
+    return [c for c in cases if c != case]
+
+
 def _gust_factor_method(
     project: dict[str, Any],
     summary: dict[str, Any],
@@ -4947,7 +4975,7 @@ def _gust_factor_method(
             round(row["z"], 6): gust_response.level_ratio(row["z"] - base, terms["G"], exposure)
             for row in levels
         }
-        for name in (case, fl.WIND_TORSION_CASES[case]):
+        for name in (case, fl.WIND_TORSION_CASES[case], *_cfd_cases(summary, axis, case)):
             pattern = by_name.get(name)
             for load in (pattern or {}).get("nodal_loads", []):
                 f = ratio.get(z_of.get(load["node_id"]), terms["G"])
@@ -5074,11 +5102,11 @@ def _wind_gust(
                 "(give the shear centre offset eR in Project Settings > Wind for the flexible e)"
             )
         z_of = {n["id"]: round(float(n["coords"][2]), 6) for n in project.get("nodes", [])}
-        for name in (case, fl.WIND_TORSION_CASES[case]):
+        for name in (case, fl.WIND_TORSION_CASES[case], *_cfd_cases(summary, axis, case)):
             pattern = by_name.get(name)
             for load in (pattern or {}).get("nodal_loads", []):
                 f = factor
-                if twist and name != case:
+                if twist and name == fl.WIND_TORSION_CASES[case]:
                     f *= twist["ratio"].get(z_of.get(load["node_id"]), 1.0)
                 load["forces"] = [round(float(v) * f, 3) for v in load["forces"]]
         for row in levels:

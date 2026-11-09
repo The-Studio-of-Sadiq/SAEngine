@@ -24,6 +24,7 @@ import { registerPlannedFeature } from '../../../services/saengineProject/common
 import { ISaengineProjectService, partById } from '../../../services/saengineProject/common/saengineProject.js';
 import { PROJECT_MENU, ProjectOpenContext } from '../../saengineProject/browser/projectMenu.js';
 import { DESIGN_REINFORCEMENT_COMMAND, STRUT_AND_TIE_COMMAND } from './femDesign.js';
+import { CFD_WIND_COMMAND, FemCfdWindEditor, FemCfdWindInput, FemCfdWindInputSerializer } from './femCfdWind.js';
 import { FemPlanned } from './femPlannedFeatures.js';
 import { FemDesignProposalEditor } from './femDesignProposalEditor.js';
 import { FemDesignProposalInput, FemDesignProposalInputSerializer } from './femDesignProposalInput.js';
@@ -63,6 +64,13 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane
 );
 Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(FemStrutAndTieInput.ID, FemStrutAndTieInputSerializer);
 
+// Alpha 9 L3: the CFD wind tunnel (an optional link to the user's own OpenFOAM).
+Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
+	EditorPaneDescriptor.create(FemCfdWindEditor, FemCfdWindInput.EDITOR_ID, localize('femCfdWindEditor', "CFD Wind Tunnel")),
+	[new SyncDescriptor(FemCfdWindInput)]
+);
+Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(FemCfdWindInput.ID, FemCfdWindInputSerializer);
+
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
 	EditorPaneDescriptor.create(FemResultsEditor, FemResultsInput.EDITOR_ID, localize('femResultsEditor', "Analysis Results")),
 	[new SyncDescriptor(FemResultsInput)]
@@ -99,6 +107,33 @@ registerAction2(class extends Action2 {
 		const target = analysisModel(accessor, model);
 		if (target) {
 			await accessor.get(IEditorService).openEditor(new FemResultsInput(target, { kind: 'charts' }), { pinned: true });
+		}
+	}
+});
+
+/**
+ * Alpha 9 L3: opens CFD Wind Tunnel: the building's wind by a steady CFD simulation with the
+ * user's own OpenFOAM (found in WSL on Windows; never bundled or downloaded), run only when the
+ * user presses Run; pressure coefficients, storey forces and the code comparison.
+ */
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: CFD_WIND_COMMAND,
+			title: localize2('saengine.fem.cfdWind', "CFD Wind Tunnel"),
+			metadata: { description: localize2('saengine.fem.cfdWind.description', "Wind pressure coefficients and storey forces of the building by a steady CFD simulation (OpenFOAM, installed separately), per wind direction, compared with the code's wind; optionally the wind cases of the analysis. Engineer-supplied loads that need validation.") },
+			category: localize2('saengine.category', "SAEngine"),
+			icon: Codicon.symbolEvent,
+			f1: true,
+			precondition: ProjectOpenContext,
+			menu: { id: PROJECT_MENU, group: '1_project', order: 7 },
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const project = accessor.get(ISaengineProjectService).project;
+		if (project) {
+			await accessor.get(IEditorService).openEditor(new FemCfdWindInput(project.root), { pinned: true });
 		}
 	}
 });
@@ -558,6 +593,52 @@ registerPlannedFeature({
 	references: [
 		localize('planned.compositeFire.ref1', "EN 1994-1-2 (structural fire design of composite members)"),
 		localize('planned.compositeFire.ref2', "AISC 360 Appendix 4 (structural design for fire conditions)"),
+	],
+});
+
+// Alpha 9 L7: steel joists, castellated and cellular beams, aluminium joints (EN 1999), glass,
+// tensile membranes and concrete-filled composite plate walls are designed by the code pack's
+// tables (04 Objects); aluminium by the US Aluminum Design Manual and membrane cutting patterns
+// stay planned.
+registerPlannedFeature({
+	id: FemPlanned.aluminiumAdm,
+	part: 'fem',
+	title: localize('planned.aluminiumAdm.title', "Aluminium by the Aluminum Design Manual"),
+	summary: localize('planned.aluminiumAdm.summary', "Aluminium members and joints are designed today by a code pack with partial-factor aluminium rules (EN 1999-1-1 in the Eurocodes pack). Planned: the US Aluminum Design Manual's member and connection checks in the US pack (its buckling constants by alloy and temper, element slenderness limits, welded members)."),
+	steps: [
+		localize('planned.aluminiumAdm.step1', "Pick the alloy and temper of the US pack's aluminium table."),
+		localize('planned.aluminiumAdm.step2', "Check the members by the manual's limit states and the joints by its bolt and weld rules."),
+	],
+	inputs: [
+		{ label: localize('planned.aluminiumAdm.alloy', "Alloy and temper"), example: '6061-T6' },
+	],
+	outputs: [
+		localize('planned.aluminiumAdm.out1', "Aluminium member and joint utilisations by the US pack"),
+	],
+	references: [
+		localize('planned.aluminiumAdm.ref1', "Aluminum Design Manual 2020 (Specification for Aluminum Structures)"),
+	],
+});
+
+registerPlannedFeature({
+	id: FemPlanned.membranePatterns,
+	part: 'fem',
+	title: localize('planned.membranePatterns.title', "Membrane Cutting Patterns and Free Shapes"),
+	summary: localize('planned.membranePatterns.summary', "Tensile membranes and cable nets on four corners are form found, loaded and checked today (04 Objects, membrane types). Planned: boundaries of any number of corners, masts and ridge cables inside the surface, and the cutting patterns of the fabric with its compensation."),
+	steps: [
+		localize('planned.membranePatterns.step1', "Draw the boundary, the masts and the ridge and valley cables."),
+		localize('planned.membranePatterns.step2', "Find the form and check it under the code pack's cases."),
+		localize('planned.membranePatterns.step3', "Cut the surface into panels along geodesic seams and flatten them with the compensation."),
+	],
+	inputs: [
+		{ label: localize('planned.membranePatterns.width', "Fabric width"), unit: 'mm', example: '2500' },
+		{ label: localize('planned.membranePatterns.compensation', "Compensation"), unit: '%', example: '1.0' },
+	],
+	outputs: [
+		localize('planned.membranePatterns.out1', "Cutting patterns as DXF"),
+	],
+	references: [
+		localize('planned.membranePatterns.ref1', "TensiNet European Design Guide for Tensile Surface Structures"),
 	],
 });
 

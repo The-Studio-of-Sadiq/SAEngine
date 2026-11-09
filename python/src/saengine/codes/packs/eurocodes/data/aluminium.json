@@ -35,7 +35,30 @@
   },
   "netTension": 0.9,
   "shearSlenderness": 39,
+  "joints": {
+    "gammaM2": 1.25,
+    "gammaMw": 1.25,
+    "bolts": {
+      "4.6": {"fub": 400, "alphaV": 0.6},
+      "8.8": {"fub": 800, "alphaV": 0.6},
+      "10.9": {"fub": 1000, "alphaV": 0.5},
+      "A4-70": {"fub": 700, "alphaV": 0.5},
+      "A4-80": {"fub": 800, "alphaV": 0.5}
+    },
+    "bearingK1Max": 2.5,
+    "holeClearance": 1.0,
+    "weldStrength": {
+      "5356": 210,
+      "4043": 190,
+      "EN AW-6063 T6|5356": 160,
+      "EN AW-6063 T6|4043": 150
+    },
+    "weldCriterion": 3.0
+  },
   "clauses": {
+    "bolts": "EN 1999-1-1 8.5.5, Table 8.5 (shear and bearing)",
+    "welds": "EN 1999-1-1 8.6.3.3, Table 8.8 (fillet welds, fw)",
+    "haz": "EN 1999-1-1 8.6.3.4 (heat-affected zone beside the weld)",
     "chapter": "EN 1999-1-1 Sections 3, 6",
     "tension": "EN 1999-1-1 6.2.3",
     "compression": "EN 1999-1-1 6.2.4, 6.1.4-6.1.5",

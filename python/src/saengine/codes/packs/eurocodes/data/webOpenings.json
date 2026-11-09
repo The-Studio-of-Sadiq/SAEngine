@@ -1,0 +1,43 @@
+{
+  "$schema": "../../../schemas/webOpenings.schema.json",
+  "$sources": [
+    "SCI P355 Design of composite and non-composite cellular beams (2011) on EN 1993-1-1 resistances; EN 1993-1-13 (beams with large web openings) not entered"
+  ],
+  "source": "Castellated and cellular beams by the SCI P355 method on the EN 1993-1-1 resistances (γM0, γM1 = 1.0): tees under axial force and Vierendeel bending, tee shear, web post horizontal shear, web post buckling as a strut on curve c; see VERIFY.md",
+  "method": "teeChords",
+  "factors": {
+    "axial": 1.0,
+    "flexure": 1.0,
+    "shear": 1.0,
+    "horizontalShear": 1.0,
+    "webPost": 1.0
+  },
+  "shearYield": 0.57735,
+  "circularLength": 0.45,
+  "interaction": "linear",
+  "webPost": {
+    "method": "strut",
+    "strutAlpha": 0.49,
+    "strutPlateau": 0.2,
+    "strutLength": 0.5,
+    "wardCoefficients": []
+  },
+  "geometry": {
+    "openingDepthMax": 0.8,
+    "openingDepthMin": 0.5,
+    "postWidthMin": 0.1,
+    "teeStemMin": 30,
+    "endPostMin": 0.5
+  },
+  "vierendeelDeflection": 0.1,
+  "clauses": {
+    "code": "SCI P355",
+    "teeAxial": "SCI P355 Sec 3 (tee axial and bending), EN 1993-1-1 6.2.9",
+    "vierendeel": "SCI P355 Sec 3 (Vierendeel bending, le = 0.45 d0)",
+    "shear": "SCI P355 Sec 3 (tee shear), EN 1993-1-1 6.2.6",
+    "horizontalShear": "SCI P355 Sec 3 (web post horizontal shear)",
+    "webPost": "SCI P355 Sec 3 (web post buckling, strut), EN 1993-1-1 6.3.1 curve c",
+    "chordBuckling": "EN 1993-1-1 6.3.1 (the compression tee between lateral restraints)",
+    "geometry": "SCI P355 Sec 2 (geometry limits)"
+  }
+}

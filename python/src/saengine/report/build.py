@@ -1269,6 +1269,18 @@ def _derivation_rows(values: dict[str, Any], root: Path) -> list[list[str]]:
         rows.append(["Wind design cases", f"Cases 1 and 3 only{_c.paren('windDesignCasesExempt')}"])
     rows += _wind_gust_rows(wind.get("gust") or {})
     rows += _wind_cladding_rows(wind.get("cladding") or {})
+    cfd = values.get("cfdWind") or {}  # Alpha 9 L3: the CFD wind cases in place of the code's
+    if cfd.get("cases"):
+        rows.append(
+            [
+                "Wind cases from the CFD wind tunnel",
+                "engineer-supplied, to be validated (see CFD wind tunnel): "
+                + ", ".join(f"{case} toward {angle:g}°" for case, angle in cfd["cases"].items())
+                + f"; F = q·CF with q = {fmt(cfd.get('q_kPa', 0), 3)} kN/m²"
+                + (f" × {fmt(cfd['scale'], 3)} (lower limit)" if cfd.get("scale", 1) > 1 else "")
+                + "; the rows above are the code's own wind, kept for its torsional cases",
+            ]
+        )
     rows += _flood_rows(values.get("flood") or {}, values.get("specialLoads") or {})  # B16
     live = values.get("patternLive") or {}
     if live.get("cases"):
@@ -1783,6 +1795,7 @@ def _results(
     # Alpha 9 P7: floor vibration and wind comfort (the storey response's, one computation).
     out["floorVibration"], out["windComfort"] = _comfort(model_path, results_dir, warnings)
     out["floorSpectra"] = _floor_spectra(model_path, results_dir, warnings)  # Alpha 9 L5
+    out["cfdWind"] = _cfd_wind(model_path, warnings)  # Alpha 9 L3
     out["seismicDesign"] = _seismic_design(model_path, results_dir, settings, warnings)
     # B12: building irregularities, dynamic analysis, soft storeys, diaphragm connections.
     out["irregularity"] = _irregularity(model_path, results_dir, settings, warnings)
@@ -2770,6 +2783,18 @@ def _floor_spectra(
         warnings.append(f"Floor response spectra could not be worked out: {error}")
         return None
     return floor_spectra.report_rows(found.get("floorSpectra"))
+
+
+def _cfd_wind(model_path: Path, warnings: list[str]) -> dict[str, Any] | None:
+    """Alpha 9 L3: the CFD wind tunnel's section (:func:`saengine.fem.cfd_wind.service.
+    report_section`); None when the project has no CFD run."""
+    from saengine.fem.cfd_wind import service
+
+    try:
+        return service.report_section(model_path.parent.parent)
+    except Exception as error:  # noqa: BLE001 - the report goes on without it
+        warnings.append(f"The CFD wind tunnel results could not be read: {error}")
+        return None
 
 
 def _nonstructural(root: Path, warnings: list[str]) -> dict[str, Any] | None:

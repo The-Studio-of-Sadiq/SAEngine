@@ -41,6 +41,99 @@ here, newest first, with the date, the question, the decision, the reason and wh
 - **No unlicensed software.** ETABS, SAP2000 and STAAD are not used for cross-checks or cited.
   Open-source tools are used instead (2026-10-25).
 
+## 2026-11-09: CFD wind tunnel as an optional OpenFOAM link (alpha 9 track L3)
+
+- **OpenFOAM is the user's.** SAEngine does not bundle or download OpenFOAM (GPL, large; the
+  owner decides later). It finds an installed one: in WSL on Windows (the distribution set in
+  Settings > SAEngine > CFD Wind, else the default), on the host on Linux/macOS; the location
+  setting (`etc/bashrc` or the install folder), then the login shell's PATH, then the usual
+  install places. Otherwise it shows how to install it. Nothing runs until the user presses Run.
+- **Where it lives.** FEM part: SAEngine > CFD Wind Tunnel (Project menu). Settings in Project
+  Settings > Wind > CFD wind tunnel (one home); the page shows them read-only with a link.
+  Files: `08 FEM/cfd-wind/results.json` (kept, versioned and archived) and
+  `08 FEM/cfd-wind/cases/` (OpenFOAM cases, logs, run status; computed, left out of archives).
+- **The case (SAEngine practice).** Envelope from the BIM slabs per level (else columns/walls,
+  else the analysis nodes), storeys of one outline joined; courtyards filled. Domain 5H
+  upstream, 15H downstream, 5H to the sides and above; cubic background cells of
+  H / 8 (coarsened to 4 million at most), 3 halvings at the building, 1 in a wake box;
+  snappyHexMesh without layers (wall functions). Log-law inlet (`atmBoundaryLayerInlet*`),
+  Uref 10 m/s at H (Reynolds only: the loads scale with the code's pressure), rough ground with
+  the same z0; k-ε by default or k-ω SST; simpleFoam (or `foamRun -solver incompressibleFluid`
+  on OpenFOAM.org 11+), 1500 iterations or p residual 1e-4; one case per direction, the
+  building turned so the wind is along +x. Every file is written from Python templates.
+- **Code-dependent values in the pack (`cfdWind`).** Directions every 30° (SAEngine practice in
+  every pack), z0 by exposure (BNBC A/B/C read as ASCE 7 B/C/D: 0.3/0.02/0.005 m; ASCE 7-22
+  Commentary; EN terrain categories from the wind table; IS 875-3 categories 1-4), the lower
+  limit 0.8 of the code's base shear (ASCE 7-22 Sec 31.4.3; SAEngine practice in the others),
+  and the code's wind-tunnel requirement for the report. All overridable per project.
+- **Post-processing.** Cp = p / (½ Uref²) of every building face (zero-gradient p: the cells'
+  values, read from the ASCII mesh and fields); per level band (half storey below and above, the
+  base the lower half of the first storey, as the code's storey forces): CF = Σ Cp A [m²],
+  CMz about the plan's centre, Cf along the wind; Cp mean/min/max per facade zone (X+, X-, Y+,
+  Y-, roof, soffit) and storey, with its role (windward, leeward, side).
+- **Design forces.** F = q·CF, q = the code's velocity pressure at H × its gust factor, with
+  the project's overrides (a quasi-steady scaling of mean coefficients; no peak or dynamic
+  response: stated in the report).
+- **"CFD wind" cases.** Off by default (existing results unchanged). With Project Settings >
+  Wind > CFD wind tunnel > Use in the analysis, each direction becomes the wind case of its
+  nearest axis (WX, WY, WXN, WYN, the largest along-axis base shear first, the others WX2,
+  WX3, ...), so the existing wind combinations (opposite-direction cases, variants) take every
+  direction; scaled up to the pack's lower limit; the code's torsional cases WTX/WTY are kept on
+  top; a flexible building's gust factor scales them with WX/WY. Results for other levels than
+  the model's are refused (the code's wind is used, with a note).
+- **Validation.** The page and the report say first that these are engineer-supplied loads, not
+  a code wind tunnel test, with the pack's own requirement (BNBC 2020 Part 6 Sec 2.4.16, ASCE 7-22
+  Ch 31, EN 1991-1-4 Sec 1.5, IS 875-3 Sec 10).
+
+## 2026-11-09: special members (alpha 9 track L7)
+
+Steel joists, castellated and cellular beams, aluminium joints, structural glass, tensile
+membranes and concrete-filled composite plate shear walls. New tables `steelJoists`,
+`webOpenings`, `glass`, `membranes`, `compositePlateWalls` and the `aluminium.joints` group;
+the default pack (BNBC 2020) has none of them, so its results do not change.
+
+- **SAEngine practice, joists.** A joist is a beam type with a `joist` (04 Objects): placed like
+  a beam, analysed with the type's profile (a light I section of about the joist's weight), then
+  designed as a parallel-chord truss from the member's M and V: chords N = M / d, webs V / sin θ,
+  each part by the pack's own steel member method (`design/steel/pack_resistance.py`: the
+  buckling-curve, limit-state or φ/Ω family the pack chooses). Two angles back to back are taken
+  as a tee of their legs (the gap neglected, on the safe side). Without a `steelJoists` table the
+  truss is checked alone (top chord panel moment w l² / 8 of a simple panel, linear interaction);
+  with it, the joist specification's slenderness, panel moments, least web shear, bridging and
+  catalogue load tables apply. The deflection uses the pack's serviceability limits on the
+  analysis deflection × I(profile) / I(effective), the effective I being the chords' reduced for
+  the webs' shear deformation by virtual work. The SJI load tables are not copied: the US pack's
+  `loadTables` is empty (project data).
+- **SAEngine practice, castellated and cellular beams.** The type's I profile is the finished
+  (expanded) section. The tees are checked at each opening centre (axial force and Vierendeel
+  moment on the tee at the opening's centre, the elastic modulus: on the safe side); the
+  deflection is scaled by the net-section stiffness along the openings plus the table's
+  Vierendeel share (0.1 in both packs). The design mode does not propose sections for these
+  types. A pack without `webOpenings` fails the beam with a "not covered" row (the gross-section
+  checks alone would be unsafe).
+- **SAEngine practice, aluminium joints.** The joint is checked for the largest resultant end
+  force; fillet welds and the heat-affected zone take the whole force as shear (the criterion's
+  least favourable direction). The US Aluminum Design Manual is not built (planned feature): the
+  US pack does not cover aluminium.
+- **SAEngine practice, glass.** Glass panels, floors, balustrades and fins are designed per type
+  from their own size and actions (characteristic wind, snow, live load; balustrades the pack's
+  barrier line load), on linear plate theory (Timoshenko's simply supported plate; no
+  large-deflection relief, on the safe side). Laminated glass by the Wölfel-Bennison ω; for more
+  than two plies SAEngine's generalisation (Is about the package's centroid, hs between the outer
+  plies). The ASTM E1300 load charts are approximated by an allowable 3 s surface stress of
+  annealed glass (23.3 MPa) × the glass type and load duration factors: owner to check against
+  the charts before release. Deflection limits span / 60 (US) or / 65 (EU), 25 or 50 mm, and the
+  fins' Mcr × 1 / (2.0 or 1.5) are SAEngine practice.
+- **SAEngine practice, membranes.** Four-corner membranes and cable nets only (other boundaries,
+  masts inside the surface and cutting patterns are planned). Form found by force density, then
+  each pack case is analysed on the found form by dynamic relaxation with tension-only links at
+  characteristic loads; the fabric's strip strength / 4 (short) or / 6 (long) and the cables'
+  breaking force / 2.2 (both packs, after the TensiNet guide; not code values).
+- **Code value (to verify), filled plate walls.** AISC 341-22 H7 / AISC 360-22 Chapter I in the
+  US pack only: shear Vn = (Ks + Kc) / √(3 Ks² + Kc²) As Fy, Pno, the plastic in-plane flexure
+  at the axial force, and the detailing limits. The plates' end closures are not counted. The
+  wall's analysis stiffness is the fill's (set its modifiers for the composite stiffness).
+
 ## 2026-11-09: slope stability, 2D geotechnical FE and AGS4/DIGGS exchange (alpha 9 track L8)
 
 - **Where it lives.** Slopes are a list of 9 Substructure (`substructure.json` `slopes`), next to

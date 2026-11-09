@@ -537,3 +537,12 @@ the parent's), with no IS 2502 minimum radius.
 | P2I4 | concreteTime.shrinkage.reinforcementCoefficient | 0 (no factor) | IS 456 gives none | The steel restrains it in the age-adjusted analysis | SAEngine practice |
 | P2I5 | concreteTime.analysis, ageing.chi | ageAdjusted, χ = 0.8 | none in IS 456 | Analysis method | SAEngine practice |
 | P2I6 | combinations.creepShrinkage | none | IS 875 (Part 5), IS 456 Table 18 | CS analysed but not designed for | Check (whether IS 875-5 takes creep and shrinkage with the temperature load) |
+
+## CFD wind tunnel (`cfdWind`; alpha 9 L3)
+
+| # | Path | Value | Source | Sure? |
+|---|---|---|---|---|
+| L3-1 | directionStep | 30° | none in the code | SAEngine practice |
+| L3-2 | roughness.1 / 2 / 3 / 4 | z0 = 0.002 / 0.02 / 0.2 / 2.0 m | IS 875 (Part 3):2015 Sec 6.3.2.1 (the same values as the gust factor's roughness) | Check (clause number) |
+| L3-3 | lowerLimit | 0.8 | after ASCE 7-22 Sec 31.4.3; IS 875 (Part 3) gives none | SAEngine practice |
+| L3-4 | validation / clauses | wind tunnel studies of tall or unusual buildings | IS 875 (Part 3):2015 Sec 10 | Check (clause number) |

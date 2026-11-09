@@ -196,6 +196,15 @@ adopts; the results label them so.
 | L5-5 | direct.duration / iterations | 20 s strong motion (Davenport peak factor), 8 iterations of the density | none | SAEngine practice |
 | L5-6 | components | F = Sa(Tc) Wc Ic / Rc within the nonstructural table's least and largest force; rigid (αc ≤ 1) at 0.06 s, flexible at the peak | the form of ASCE 7-16 Eq 13.3-4 / EN 1998-1 Eq 4.24 with the floor spectrum | SAEngine practice (off unless the project turns it on) |
 
+## CFD wind tunnel (`cfdWind`; alpha 9 L3)
+
+| # | Path | Value | Source | Sure? |
+|---|---|---|---|---|
+| L3-1 | directionStep | 30° | none in the code | SAEngine practice |
+| L3-2 | roughness.A / B / C | z0 = 0.3 / 0.02 / 0.005 m | BNBC exposures A, B, C (Sec 2.4.6.3) read as ASCE 7 exposures B, C, D; typical z0 of ASCE 7-22 Commentary Table C26.7-1 | Check (the commentary's typical values and the exposure mapping) |
+| L3-3 | lowerLimit | 0.8 of the code's base shear on each axis | after ASCE 7-22 Sec 31.4.3; BNBC Sec 2.4.16 has no limit | SAEngine practice |
+| L3-4 | validation / clauses | Method 3 wind tunnel procedure, test conditions | Part 6 Sec 2.4.16, 2.4.16.2 (printed pp. 563-564, PDF pp. 566-567), Sec 1.5.3.5 (printed p. 496) | Check (page numbers) |
+
 ## Slope stability (`slopeStability`; alpha 9 L8)
 
 BNBC 2020 gives no slope method or factor of safety (Part 6 Sec 3.21 p. 817 lists landslides as a geo-hazard; Sec 3.14 p. 803 the stability of adjoining buildings, FS 1.5 against overturning and sliding of the building). Every value below is SAEngine practice.

@@ -344,6 +344,9 @@ def design_member(
         lengths = MemberLengths.simple(float(s[-1] - s[0]))
     stations = member_stations(pieces, combinations, turned)
     checks, summary = check_member(shape, material, stations, lengths, kind)
+    joint = getattr(object_type, "aluminiumJoint", None)
+    if joint is not None:  # alpha 9 L7: the bolted or welded end joints
+        checks += joint_checks(joint, material, stations)
     strength = [c for c in checks if not c["flag"]]
     return {
         "id": member_id,
@@ -358,11 +361,160 @@ def design_member(
     }
 
 
+def _joint_row(name: str, demand: float, capacity: float, combo: str | None, note: str, key: str):
+    u = demand / capacity if capacity > 0 else (0.0 if demand <= 0 else math.inf)
+    u = round(u, 3) if math.isfinite(u) else 99.0
+    return {
+        "name": name,
+        "demand": round(demand / 1e3, 2),
+        "capacity": round(capacity / 1e3, 2),
+        "unit": "kN",
+        "utilisation": u,
+        "combination": combo,
+        "ok": bool(u <= 1.0),
+        "note": note,
+        "flag": False,
+        "clause": _clause(key),
+    }
+
+
+def end_force(stations: Sequence[Any]) -> tuple[float, str | None]:
+    """The largest resultant end force [N] (axial and shear at either end) and its
+    combination."""
+    worst, combo = 0.0, None
+    for st in stations:
+        if len(st.s) == 0:
+            continue
+        for k in (0, len(st.s) - 1):
+            v = math.hypot(float(st.Vy[k]), float(st.Vx[k]))
+            f = math.hypot(float(st.P[k]), v)
+            if f > worst:
+                worst, combo = f, st.combination
+    return worst, combo
+
+
+def joint_checks(joint: Any, material: Any, stations: Sequence[Any]) -> list[dict[str, Any]]:
+    """Alpha 9 L7: the end joint of an aluminium member (EN 1999 type, the pack's
+    ``aluminium.joints``) under the largest resultant end force: bolts in shear and bearing,
+    or fillet welds by their throat and the heat-affected zone beside them. A pack without
+    the joints group: one row saying they are not covered."""
+    t = table()
+    j = getattr(t, "joints", None) if t is not None else None
+    force, combo = end_force(stations)
+    if j is None:
+        return [
+            {
+                "name": "Joint",
+                "demand": 0.0,
+                "capacity": 0.0,
+                "unit": "kN",
+                "utilisation": 0.0,
+                "combination": None,
+                "ok": True,
+                "note": "aluminium joints are not covered by the code pack: check by hand",
+                "flag": True,
+                "clause": "",
+            }
+        ]
+    key, alloy = alloy_of(material)
+    fu = float(alloy.fu)
+    rho_u = float(alloy.rhoHazUltimate)
+    g2, gw = float(j.gammaM2), float(j.gammaMw)
+    rows: list[dict[str, Any]] = []
+    if joint.kind == "bolted":
+        bolt = j.bolts.get(joint.boltMaterial)
+        if bolt is None:
+            raise AluminiumDesignError(
+                f"bolt material '{joint.boltMaterial}' is not in the code pack's aluminium joints"
+            )
+        d = float(joint.boltDiameter)
+        d0 = d + float(j.holeClearance)
+        n = int(joint.bolts)
+        per_bolt = force / n
+        a_s = float(bolt.stressArea) * math.pi * d**2 / 4
+        fv = float(bolt.alphaV) * float(bolt.fub) * a_s / g2 * int(joint.shearPlanes)
+        rows.append(
+            _joint_row(
+                "Joint: bolt shear",
+                per_bolt,
+                fv,
+                combo,
+                f"{n} bolts M{d:g} {joint.boltMaterial}, αv fub As / γM2 × {joint.shearPlanes} "
+                f"plane(s), As = {a_s:.0f} mm²",
+                "bolts",
+            )
+        )
+        fu_b = fu * rho_u if material.aluminium.welded else fu
+        alpha_b = min(
+            float(joint.endDistance) / (3 * d0),
+            float(joint.pitch) / (3 * d0) - 0.25,
+            float(bolt.fub) / fu_b,
+            1.0,
+        )
+        k1 = min(2.8 * float(joint.edgeDistance) / d0 - 1.7, float(j.bearingK1Max))
+        fb = max(k1, 0.0) * max(alpha_b, 0.0) * fu_b * d * float(joint.plate) / g2
+        rows.append(
+            _joint_row(
+                "Joint: bearing on the aluminium",
+                per_bolt,
+                fb,
+                combo,
+                f"k1 = {k1:.2f}, αb = {alpha_b:.2f}, fu = {fu_b:g} MPa, t = {joint.plate:g} mm",
+                "bolts",
+            )
+        )
+        return rows
+    fw = j.weldStrength.get(f"{key}|{joint.filler}") or j.weldStrength.get(joint.filler)
+    if fw is None:
+        raise AluminiumDesignError(
+            f"filler '{joint.filler}' is not in the code pack's aluminium weld strengths"
+        )
+    a, length = float(joint.throat), float(joint.weldLength)
+    c = math.sqrt(float(j.weldCriterion))
+    # The whole force as shear along the throat: the criterion's least favourable direction.
+    rows.append(
+        _joint_row(
+            "Joint: fillet welds",
+            c * force,
+            float(fw) * a * length / gw,
+            combo,
+            f"√{float(j.weldCriterion):g} F / (a L) ≤ fw / γMw, a = {a:g} mm, L = {length:g} mm, "
+            f"fw = {float(fw):g} MPa ({joint.filler})",
+            "welds",
+        )
+    )
+    t_haz = float(joint.hazThickness or joint.plate)
+    rows.append(
+        _joint_row(
+            "Joint: heat-affected zone at the weld",
+            c * force,
+            rho_u * fu * t_haz * length / gw,
+            combo,
+            f"fu,haz = ρu,haz fu = {rho_u:g} × {fu:g} MPa on t = {t_haz:g} mm along the welds "
+            "(the force as shear: on the safe side)",
+            "haz",
+        )
+    )
+    return rows
+
+
 def method_lines() -> list[str]:
     t = table()
     if t is None:
         return []
-    return [
+    if getattr(t, "joints", None) is not None:
+        joints = [
+            (
+                f"Aluminium joints ({_clause('bolts')}; {_clause('welds')}; {_clause('haz')}): bolts "
+                f"in shear αv fub As / γM2 and bearing k1 αb fu d t / γM2 (γM2 = "
+                f"{float(t.joints.gammaM2):g}), fillet welds and the heat-affected zone beside them "
+                f"against fw and fu,haz over γMw = {float(t.joints.gammaMw):g}, under the largest "
+                "resultant end force."
+            )
+        ]
+    else:
+        joints = []
+    return joints + [
         (
             f"Aluminium members by partial factors ({_clause('chapter')}): γM1 = {float(t.gammaM1):g}, "
             f"γM2 = {float(t.gammaM2):g}, f0 and fu of the alloy (the heat-affected zone's over the "

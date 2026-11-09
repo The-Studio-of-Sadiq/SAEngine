@@ -724,6 +724,39 @@ length along the bar's centre line (SAEngine practice), with the mandrel diamete
 | P8E20 | floorVibration.compositeDynamicModulus | Ec,dyn = 1.1 Ecm, full interaction | SCI P354 (the dynamic modulus of normal-weight concrete) | Unsure (check the factor of SCI P354) |
 | P8E21 | deck profiles | DECK_PROFILES: generic trapezoidal 46/150, 60/300, 80/300 (geometry only) | none (not a product's) | SAEngine practice: replace by the product's data |
 
+## CFD wind tunnel (`cfdWind`; alpha 9 L3)
+
+| # | Path | Value | Source | Sure? |
+|---|---|---|---|---|
+| L3-1 | directionStep | 30° | none in the code | SAEngine practice |
+| L3-2 | roughness | none here: the wind table's z0 of terrain categories 0-IV (0.003, 0.01, 0.05, 0.3, 1.0 m) | EN 1991-1-4 Table 4.1 | Sure |
+| L3-3 | lowerLimit | 0.8 | after ASCE 7-22 Sec 31.4.3; EN 1991-1-4 gives none (a National Annex may) | SAEngine practice |
+| L3-4 | validation / clauses | wind tunnel tests and properly validated numerical methods allowed | EN 1991-1-4:2005 Sec 1.5(2) | Check (wording) |
+
+## Alpha 9 L7: special members — `webOpenings`, `glass`, `membranes`, `aluminium.joints`
+
+| # | Key | Value | Source | Status |
+|---|---|---|---|---|
+| L7E1 | webOpenings.factors | γM0 = γM1 = 1.0, τy = fy/√3 | EN 1993-1-1 6.1 (recommended), 6.2.6 | Sure |
+| L7E2 | webOpenings.circularLength | le = 0.45 d0 | SCI P355 | Check |
+| L7E3 | webOpenings.webPost | strut, curve c (α 0.49, λ̄0 0.2), length 0.5 √(w0² + h0²) | SCI P355 (as read), EN 1993-1-1 6.3.1 | Unsure (the strut length) |
+| L7E4 | webOpenings.geometry | d0/dg 0.5–0.8, w0/d0 ≥ 0.1, tee stem ≥ 30 mm, end post ≥ 0.5 d0 | SCI P355 | Unsure |
+| L7E5 | webOpenings.vierendeelDeflection | +10 % | none | SAEngine practice |
+| L7E6 | glass.partialFactors | γM;A 1.8, γM;v 1.2, fg;k 45, fb;k 70 / 120 / 150 MPa, ksp 1.0 / 0.75 / 1.0, kv 1.0 | EN 16612:2019 Sec 7, Table 4 | Check |
+| L7E7 | glass.partialFactors.kmod | wind 0.74, barrier 0.89, snow 0.44, floors 0.5, permanent 0.29 | EN 16612:2019 Table 2 | Unsure (snow and floor durations) |
+| L7E8 | glass.actionFactors | 1.5 variable, 1.35 permanent | EN 1990 A1 (set B) | Sure |
+| L7E9 | glass.interlayers | PVB 0.44 / 0.05 MPa, ionoplast 100 / 10, EVA 3 / 0.5 | manufacturers' typical values (CEN/TS 19100 families) | SAEngine practice |
+| L7E10 | glass.deflection, finBuckling | span/65, span/100, height/65, 50 mm; fin Mcr ≥ 1.5 M | none (National Annexes) | SAEngine practice |
+| L7E11 | membranes | as the US pack (L7U19) | TensiNet guide; CEN/TS 19102 not entered | SAEngine practice |
+| L7E12 | aluminium.joints.gamma | γM2 1.25, γMw 1.25 | EN 1999-1-1 Table 6.1 (recommended) | Sure |
+| L7E13 | aluminium.joints.bolts | αv 0.6 (4.6, 8.8), 0.5 (10.9, A4-70, A4-80); As = 0.78 π d²/4 | EN 1999-1-1 Table 8.5 | Check |
+| L7E14 | aluminium.joints.bearing | k1 ≤ 2.5, d0 = d + 1 mm | EN 1999-1-1 Table 8.5 | Check (the hole clearance is SAEngine practice) |
+| L7E15 | aluminium.joints.weldStrength | fw: 5356 filler 210 MPa, 4043 190 MPa, with 6063 160 / 150 MPa | EN 1999-1-1 Table 8.8 | Unsure |
+| L7E16 | aluminium.joints.haz | fu,haz = ρu,haz fu of the alloy, the force as shear | EN 1999-1-1 8.6.3.4 | Check |
+
+Steel joists: no `steelJoists` table; joists are designed as generic open-web trusses by the
+EN 1993-1-1 checks. Concrete-filled plate walls: not covered (no `compositePlateWalls`).
+
 ## Slope stability (`slopeStability`; alpha 9 L8)
 
 | # | Path | Value | Source | Sure? |

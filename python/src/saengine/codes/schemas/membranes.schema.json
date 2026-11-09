@@ -1,0 +1,139 @@
+{
+  "$defs": {
+    "MembraneCase": {
+      "additionalProperties": false,
+      "description": "A load case on the found form: prestress × ``prestress`` + snow × ``snow`` + wind ×\n``wind`` (``windSign`` +1 pressure, -1 suction), checked with the strength factor of\n``duration``.",
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "prestress": {
+          "minimum": 0,
+          "title": "Prestress",
+          "type": "number"
+        },
+        "snow": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Snow",
+          "type": "number"
+        },
+        "wind": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Wind",
+          "type": "number"
+        },
+        "windSign": {
+          "default": 1,
+          "enum": [
+            1,
+            -1
+          ],
+          "title": "Windsign",
+          "type": "integer"
+        },
+        "duration": {
+          "enum": [
+            "short",
+            "long"
+          ],
+          "title": "Duration",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "prestress",
+        "duration"
+      ],
+      "title": "MembraneCase",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Tensile membranes and cable nets: the found form's load cases and the strength\nreductions of the fabric (its strip tensile strength over the factor of the case's\nduration) and of the cables (their breaking force over a factor).",
+  "properties": {
+    "source": {
+      "default": "",
+      "description": "Clause (and page) the table comes from.",
+      "title": "Source",
+      "type": "string"
+    },
+    "sources": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Clause references of single entries: {key: clause}.",
+      "title": "Sources",
+      "type": "object"
+    },
+    "clauses": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Short clause references the results cite, by key, without the code's name (e.g. 'Part 6 Sec 2.5.7.3'); read by saengine.codes.context.cite. A key the pack does not give is not cited.",
+      "title": "Clauses",
+      "type": "object"
+    },
+    "method": {
+      "const": "forceDensity",
+      "default": "forceDensity",
+      "title": "Method",
+      "type": "string"
+    },
+    "cases": {
+      "items": {
+        "$ref": "#/$defs/MembraneCase"
+      },
+      "minItems": 1,
+      "title": "Cases",
+      "type": "array"
+    },
+    "fabricFactors": {
+      "additionalProperties": {
+        "exclusiveMinimum": 0,
+        "type": "number"
+      },
+      "description": "Fabric strength reduction (overall factor) by duration.",
+      "propertyNames": {
+        "enum": [
+          "short",
+          "long"
+        ]
+      },
+      "title": "Fabricfactors",
+      "type": "object"
+    },
+    "cableFactor": {
+      "description": "Cable breaking force / this ≥ the cable force.",
+      "exclusiveMinimum": 0,
+      "title": "Cablefactor",
+      "type": "number"
+    },
+    "wrinkleShare": {
+      "description": "A fabric stress below this share of the prestress is slack (wrinkling).",
+      "exclusiveMinimum": 0,
+      "maximum": 1,
+      "title": "Wrinkleshare",
+      "type": "number"
+    },
+    "deflectionLimit": {
+      "description": "Largest movement under a case as span / this (0: not checked).",
+      "minimum": 0,
+      "title": "Deflectionlimit",
+      "type": "number"
+    }
+  },
+  "required": [
+    "cases",
+    "fabricFactors",
+    "cableFactor",
+    "wrinkleShare",
+    "deflectionLimit"
+  ],
+  "title": "MembranesTable",
+  "type": "object",
+  "$id": "saengine.codePack.membranes/1"
+}

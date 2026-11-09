@@ -67,6 +67,9 @@ COMPUTED_PATHS: tuple[str, ...] = (
     "08 FEM/ssi-compare.json",
     # ... and the analysis results with the design checks' summary (design-summary.json).
     "08 FEM/*.results/",
+    # ... and the CFD wind tunnel's OpenFOAM cases, logs and run status (alpha 9 L3,
+    # saengine.fem.cfd_wind; its coefficients, cfd-wind/results.json, are kept).
+    "08 FEM/cfd-wind/cases/",
     # 7 MEP: the coordination summary, the tank designs and their models (plumbing.project),
     # the EnergyPlus loads (hvac.report).
     "07 MEP/mep.results/",

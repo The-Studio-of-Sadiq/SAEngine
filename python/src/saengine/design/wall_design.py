@@ -296,8 +296,12 @@ def design_walls(
     ready = []
     masonry_ready: list[tuple[Any, Any, Any]] = []
     plate_ready: list[tuple[Any, Any, Any]] = []  # B38: steel plate shear walls
+    filled_ready: list[tuple[Any, Any, Any]] = []  # alpha 9 L7: concrete-filled plate walls
     for e, t in candidates:
         concrete = mats.get(t.material)
+        if getattr(t, "filledPlate", None) is not None:
+            filled_ready.append((e, t, concrete))
+            continue
         if concrete is not None and concrete.category == Category.STEEL:
             plate_ready.append((e, t, concrete))
             continue
@@ -320,7 +324,7 @@ def design_walls(
             skip(e, f"unknown reinforcement material '{t.reinforcement.material}'")
             continue
         ready.append((e, t, bars, concrete, steel))
-    if not ready and not masonry_ready and not plate_ready:
+    if not ready and not masonry_ready and not plate_ready and not filled_ready:
         return {"elements": [], "skipped": skipped, "notes": notes, "designed": False}
 
     # The pier forces, with the combinations of check.py (the Ω0 ones for the response spectrum
@@ -347,7 +351,7 @@ def design_walls(
             ]
         found = wall_forces.wall_forces(project, building, out_dir, found_combos, seismic, signs)
     except (OSError, ValueError, KeyError) as error:
-        for e, *_ in [*ready, *masonry_ready, *plate_ready]:
+        for e, *_ in [*ready, *masonry_ready, *plate_ready, *filled_ready]:
             skip(e, f"the wall forces could not be found: {error}")
         return {"elements": [], "skipped": skipped, "notes": notes, "designed": False}
     notes += [f"walls: {n}" for n in found["notes"]]
@@ -386,6 +390,15 @@ def design_walls(
         elements += found_plates
         notes += plate_notes
         plate_walls = bool(found_plates)
+    if filled_ready:  # alpha 9 L7: saengine.design.composite_plate_walls
+        from saengine.design import composite_plate_walls
+
+        found_filled, filled_skipped, filled_notes = composite_plate_walls.design_walls(
+            filled_ready, sections_of, mats
+        )
+        elements += found_filled
+        skipped += filled_skipped
+        notes += filled_notes
 
     stacks = wall_stacks(building)
     levels = sorted(s.elevation for s in building.stories)

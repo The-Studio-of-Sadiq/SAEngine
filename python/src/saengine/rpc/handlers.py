@@ -2627,6 +2627,48 @@ def drawings_dwg(project_root: str, sheets: list[str] | None = None) -> dict[str
         return {"written": [], "folder": None, "problems": [_first_line(error)]}
 
 
+def cfd_detect(openfoam: str | None, distribution: str | None) -> dict[str, Any]:
+    """Alpha 9 L3: the user's OpenFOAM (WSL on Windows), or how to install it."""
+    from saengine.fem.cfd_wind import service
+
+    return service.detect(openfoam, distribution)
+
+
+def cfd_write(project_root: str, installation: dict[str, Any] | None) -> dict[str, Any]:
+    """Alpha 9 L3: the CFD wind tunnel's cases written, nothing run."""
+    from saengine.fem.cfd_wind import service
+
+    return service.write_cases(project_root, installation)
+
+
+def cfd_start(project_root: str, openfoam: str | None, distribution: str | None) -> dict[str, Any]:
+    """Alpha 9 L3: the CFD wind tunnel's run started in the background (the user pressed Run)."""
+    from saengine.fem.cfd_wind import service
+
+    return service.start(project_root, openfoam, distribution)
+
+
+def cfd_status(project_root: str) -> dict[str, Any]:
+    """Alpha 9 L3: the CFD run's status and progress."""
+    from saengine.fem.cfd_wind import service
+
+    return service.status(project_root)
+
+
+def cfd_cancel(project_root: str) -> dict[str, Any]:
+    """Alpha 9 L3: asks the CFD run to stop."""
+    from saengine.fem.cfd_wind import service
+
+    return service.cancel(project_root)
+
+
+def cfd_results(project_root: str) -> dict[str, Any]:
+    """Alpha 9 L3: the CFD coefficients, storey forces and the code comparison."""
+    from saengine.fem.cfd_wind import service
+
+    return service.results(project_root)
+
+
 def drawings_progress(project_root: str) -> dict[str, Any]:
     """Where a generation of the project is (``{running: false}`` when none runs)."""
     from saengine.pipeline.drawings import progress

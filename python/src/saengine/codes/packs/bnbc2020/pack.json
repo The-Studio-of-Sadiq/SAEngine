@@ -70,6 +70,7 @@
     "connectionFe",
     "precast",
     "floorSpectra",
+    "cfdWind",
     "slopeStability"
   ],
   "description": "Bangladesh National Building Code 2020: Part 6 (Structural Design: loads, wind and earthquake, load combinations, reinforced concrete, seismic detailing, structural steel and foundations), Part 8 (plumbing, air-conditioning, electrical services), Part 4 (fire protection) and the standard steel sections SAEngine designs with. The values SAEngine used before code packs, transcribed from its modules; every table names its clauses and pages.",
@@ -82,6 +83,9 @@
     }
   ],
   "clauses": {
+    "cfdWind": [
+      "BNBC 2020 Part 6 Sec 2.4.16 (Method 3, wind tunnel procedure) and Sec 1.5.3.5: the CFD wind tunnel link (OpenFOAM installed by the user) gives engineer-supplied wind loads to be validated; directions, z0 and the 80 % lower limit are SAEngine practice"
+    ],
     "nonlinearStability": [
       "BNBC 2020 gives no GMNIA method (Part 6 Chapter 10, AISC 360-05 basis): SAEngine practice (AISC 360 Appendix 7 imperfections, EN 1993-1-5 Annex C, EN 1993-1-11)"
     ],

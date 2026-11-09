@@ -868,6 +868,33 @@ def _design_run(
         # Integrator glue: structural steel beams, columns and braces (default pack BNBC 2020 Part 6 Ch 10,
         # saengine.design.steel_design), with their types' simple connections.
         steel_material = mats.get(object_type.material)
+        # Alpha 9 L7: open-web steel joists and joist girders (saengine.design.steel_joists):
+        # trusses by the pack's steel checks, not the rolled beam's (and not in the design mode).
+        if (
+            isinstance(object_type, Beam)
+            and getattr(object_type, "joist", None) is not None
+            and steel_design.is_steel(steel_material)
+        ):
+            from saengine.design import steel_joists
+
+            if not own:
+                skip("not in the analysis results")
+                continue
+            if not combinations:
+                skip("no load combination could be formed")
+                continue
+            try:
+                joist_entry = steel_joists.design_member(
+                    member_id, object_type, steel_material, own, combinations,
+                    _turned(element, exact),
+                )  # fmt: skip
+            except (steel_joists.JoistDesignError, SteelDesignError) as error:
+                skip(str(error))
+                continue
+            _steel_deflection(joist_entry, own, service, project, object_type)
+            checked.append(joist_entry)
+            steel_seen = True
+            continue
         if isinstance(object_type, (Beam, Column, Brace)) and steel_design.is_steel(steel_material):
             if not own:
                 skip("not in the analysis results")
@@ -947,7 +974,9 @@ def _design_run(
                         entry,
                     )
                 )
-            if collect is not None:
+            # Alpha 9 L7: a beam with web openings keeps its section (the design mode's
+            # candidates are plain rolled beams).
+            if collect is not None and getattr(object_type, "webOpenings", None) is None:
                 collect.setdefault("steel", []).append(steel_collected)
             continue
         # Integrator glue (T45): timber beams, columns and braces (default pack BNBC 2020 Part 6 Ch 11,
@@ -1004,6 +1033,10 @@ def _design_run(
             continue
         if not isinstance(object_type, (Beam, Column)):
             skip(f"{object_type.kind} members are not designed here")
+            continue
+        if getattr(getattr(steel_material, "category", None), "value", None) == "glass":
+            # Alpha 9 L7: glass fins are designed per type (saengine.design.glass).
+            skip("glass members are designed per type (glass fins)")
             continue
         concrete = mats.get(object_type.material)
         if concrete is None or concrete.category != Category.CONCRETE or not concrete.concrete:
@@ -1612,6 +1645,16 @@ def _design_run(
         into[0].extend(walls_found["elements"])
         into[1].extend(walls_found["skipped"])
         into[2].extend(walls_found["notes"])
+    # Alpha 9 L7: glass types and tensile membranes, designed per type from their own data
+    # (saengine.design.glass, saengine.design.membranes).
+    from saengine.design import glass as glass_design
+    from saengine.design import membranes as membrane_design
+
+    for found in (glass_design.design_types(types, mats), membrane_design.design_types(types)):
+        for into in sinks:
+            into[0].extend(found[0])
+            into[1].extend(found[1])
+            into[2].extend(found[2])
     # Integrator glue: lintels over the openings of masonry and partition walls
     # (saengine.design.lintels; hand design, not in the analysis model).
     from saengine.design import lintels as lintel_design
@@ -2048,6 +2091,11 @@ def _steel_deflection(
     from saengine.design.steel import composite  # B32: a composite beam's stiffness
 
     profiles = composite.scale_profiles(entry, profiles)
+    # Alpha 9 L7: a joist's truss stiffness, a beam's web openings.
+    from saengine.design import steel_joists
+    from saengine.design.steel import web_openings
+
+    profiles = web_openings.scale_profiles(entry, steel_joists.scale_profiles(entry, profiles))
     rows = deflection_checks(
         s,
         axis,
@@ -2062,6 +2110,33 @@ def _steel_deflection(
     strength = [c for c in entry["checks"] if not c["flag"]]
     entry["utilisation"] = max((c["utilisation"] for c in strength), default=0.0)
     entry["ok"] = all(c["ok"] for c in strength)
+
+
+def _special_member_lines(checked: list[dict[str, Any]]) -> list[str]:
+    """Alpha 9 L7: the method lines of the special members the report has (joists, web
+    openings, glass, membranes, concrete-filled plate walls)."""
+    lines: list[str] = []
+    if any("joist" in e for e in checked):
+        from saengine.design import steel_joists
+
+        lines += steel_joists.method_lines()
+    if any((e.get("webOpenings") or {}).get("covered") for e in checked):
+        from saengine.design.steel import web_openings
+
+        lines += web_openings.method_lines()
+    if any(e.get("kind") in ("glassPanel", "glassFin") for e in checked):
+        from saengine.design import glass
+
+        lines += glass.method_lines()
+    if any(e.get("kind") == "membrane" for e in checked):
+        from saengine.design import membranes
+
+        lines += membranes.method_lines()
+    if any(e.get("wallType") == "filledPlate" for e in checked):
+        from saengine.design import composite_plate_walls
+
+        lines += composite_plate_walls.method_lines()
+    return lines
 
 
 def _assemble(
@@ -2162,6 +2237,7 @@ def _assemble(
         from saengine.design import aluminium as aluminium_design
 
         method += aluminium_design.method_lines()
+    method += _special_member_lines(checked)  # alpha 9 L7
     if timber_seen:
         from saengine.design import timber as timber_design
         from saengine.design.timber import limit_state as timber_limit_state

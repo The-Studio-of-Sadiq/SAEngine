@@ -38,6 +38,9 @@ export const FemPlanned = {
 	coldFormedSteel: 'fem.coldFormedSteel',
 	/** T44 / P8: what stays planned of composite members: their fire resistance (beams, columns and slabs on deck are built). */
 	compositeFire: 'fem.compositeFire',
+	/** Alpha 9 L7: what stays planned of the special members: US aluminium (Aluminum Design Manual) and membrane cutting patterns. */
+	aluminiumAdm: 'fem.aluminiumAdm',
+	membranePatterns: 'fem.membranePatterns',
 } as const;
 
 /** The planned steel connection features, shown with the steel members' checks. */

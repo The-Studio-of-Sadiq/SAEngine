@@ -11953,6 +11953,7 @@ from saengine.codes.capacity_tables import (  # C19
     AllowableStressTable,
     HorizontalCapacityTable,
 )
+from saengine.codes.cfd_wind_tables import CfdWindTable  # L3: CFD wind tunnel
 from saengine.codes.composite_slab_tables import (  # P8: composite slabs, beam groups
     CompositeCamber,
     CompositeLongitudinalShear,
@@ -11983,6 +11984,13 @@ from saengine.codes.practice_tables import (  # P7: checks the code gives no met
 )
 from saengine.codes.precast_tables import PrecastTable  # L1: precast pieces
 from saengine.codes.slope_tables import SlopeStabilityTable  # L8: slope stability
+from saengine.codes.special_member_tables import (  # L7: special members
+    CompositePlateWallsTable,
+    GlassTable,
+    MembranesTable,
+    SteelJoistsTable,
+    WebOpeningsTable,
+)
 from saengine.codes.stability_tables import (  # L4, L6: GMNIA and cables, CBFEM joints
     ConnectionFeTable,
     NonlinearStabilityTable,
@@ -12084,8 +12092,17 @@ TABLE_MODELS: dict[str, type[TableModel]] = {
     "precast": PrecastTable,
     # Alpha 9 L5: floor (in-structure) response spectra.
     "floorSpectra": FloorSpectraTable,
+    # Alpha 9 L3: the CFD wind tunnel link (OpenFOAM, installed by the user).
+    "cfdWind": CfdWindTable,
     # Alpha 9 P8: composite slabs on profiled steel deck.
     "compositeSlab": CompositeSlabTable,
+    # Alpha 9 L7: special members (steel joists, castellated and cellular beams, glass,
+    # membranes, concrete-filled composite plate shear walls).
+    "steelJoists": SteelJoistsTable,
+    "webOpenings": WebOpeningsTable,
+    "glass": GlassTable,
+    "membranes": MembranesTable,
+    "compositePlateWalls": CompositePlateWallsTable,
     # Alpha 9 L4: nonlinear buckling (GMNIA) and cables; L6: finite element check of joints.
     "nonlinearStability": NonlinearStabilityTable,
     "connectionFe": ConnectionFeTable,

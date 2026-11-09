@@ -1318,6 +1318,34 @@ def _comfort_blocks(title: str, found: dict[str, Any] | None) -> list[Block]:
     return out
 
 
+def _cfd_wind_blocks(cfd: dict[str, Any] | None) -> list[Block]:
+    """Alpha 9 L3: the CFD wind tunnel (:func:`saengine.fem.cfd_wind.service.report_section`):
+    the engineer-supplied statement and the code's requirement first, then the directions'
+    base forces against the code's, the governing direction's storeys and facade zones."""
+    if not cfd:
+        return []
+    intro = [str(x) for x in cfd.get("intro") or []]
+    out: list[Block] = [h(2, str(cfd.get("title") or "CFD wind tunnel"))]
+    if intro:
+        out.append(note(intro[0], "Engineer-supplied loads, not validated."))
+        out += [p(text) for text in intro[1:]]
+    for head, rows in (
+        ("columns", "rows"),
+        ("storeyColumns", "storeyRows"),
+        ("zoneColumns", "zoneRows"),
+    ):
+        if not cfd.get(rows):
+            continue
+        title = {"storeyColumns": "storeyTitle", "zoneColumns": "zoneTitle"}.get(head)
+        if title and cfd.get(title):
+            out.append(p(str(cfd[title])))
+        n = len(cfd[head])
+        out.append(table(cfd[head], cfd[rows], ["auto"] * n, "l" * n))
+    if cfd.get("notes"):
+        out.append(bullets([str(x) for x in cfd["notes"]], 8.5))
+    return out
+
+
 def _nonstructural_blocks(ns: dict[str, Any]) -> list[Block]:
     """B15: seismic forces on nonstructural components and the anchorage of structural walls."""
     if not ns:
@@ -1629,6 +1657,7 @@ def _results(data: dict[str, Any], ctx: Context) -> dict[str, Any]:
     out += _comfort_blocks("Floor vibration from walking", results.get("floorVibration"))  # P7
     out += _comfort_blocks("Wind-induced motion and comfort", results.get("windComfort"))  # P7
     out += _comfort_blocks("Floor response spectra", results.get("floorSpectra"))  # L5
+    out += _cfd_wind_blocks(results.get("cfdWind"))  # Alpha 9 L3
     out += _irregularity_blocks(results.get("irregularity") or {})
     out += _nonstructural_blocks(results.get("nonstructural") or {})
     out += _precast_blocks(results.get("precast"))  # Alpha 9 L1
