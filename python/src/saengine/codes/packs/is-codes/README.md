@@ -128,7 +128,8 @@ parent's rules stay where IS has no counterpart in SAEngine's checks, named afte
 the notes: HSS joints, ponding, eccentrically braced frames, the composite columns and deck
 rules (IS 800:2007 and IS 11384:1985 have none), reinforced masonry (IS 1905 covers unreinforced masonry only), the IS 1343 flexural strength,
 shear and anchorage zones (the parent's ACI 318 based rules) and the strength design of tank sections. The report names the pack
-as "BNBC 2020 (bnbc2020), modified by: Indian Standards (IS)".
+as "Indian Standards (IS) (is-codes), ...; extends BNBC 2020 (bnbc2020) for the tables it does
+not give".
 
 Also not covered inside the loads: cladding and roof pressures (IS 875-3 Tables 5-8), the
 across-wind response, the IS 16700 slenderness and acceleration limits.

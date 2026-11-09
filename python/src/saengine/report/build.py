@@ -753,8 +753,9 @@ def _concrete_code(settings: Any) -> str:
 
 def code_pack_text(settings: Any) -> str:
     """The code pack the project follows, as the report's front matter states it: "<name>
-    (<id>), <edition>, pack version <v>", with "modified by: <pack>" when it extends another
-    pack, and where a user or project copy replaces a built-in pack."""
+    (<id>), <edition>, pack version <v>", with "; extends <pack> for the tables it does not
+    give" when it extends another pack, and where a user or project copy replaces a built-in
+    pack."""
     from saengine.codes import CodePackError
     from saengine.library.settings import code_pack
 
@@ -768,11 +769,12 @@ def code_pack_text(settings: Any) -> str:
         text += f", {facts['edition']}"
     text += f", pack version {facts['version']}"
     if facts["extends"] and facts["extends"] != facts["id"]:
+        # Walk 4: the active pack first; the pack it extends only for the tables it inherits.
         try:
             base = code_context.pack_for({"codePack": facts["extends"]})
-            text = f"{base.name} ({base.id}), modified by: {text}"
+            text += f"; extends {base.name} ({base.id}) for the tables it does not give"
         except CodePackError:
-            text += f", extends {facts['extends']}"
+            text += f"; extends {facts['extends']}"
     if facts["replacesBuiltin"]:
         text += f" - a {facts['scope']} copy at {facts['path']}, modified from the built-in code"
     if pack.missing:
@@ -848,6 +850,11 @@ def _construction_basis(settings: Any, parts: _Parts, pack: Any) -> list[list[st
     rated = ", ".join(
         f"{names[k]} {h:g} h" for k, h in summary["ratings"].items() if h and k in names
     )
+    if summary.get("covered") is False:  # walk 4: the pack declares the table not applicable
+        return [
+            ["Construction type", summary["label"]],
+            ["Fire resistance checked", f"not covered by the code pack {pack.name}"],
+        ]
     return [
         ["Construction type", summary["label"]],
         ["Concrete aggregate", summary["aggregate"]],
@@ -885,6 +892,8 @@ def _basis(settings: Any, parts: _Parts, model: dict[str, Any], manifest: dict[s
         # the tables it inherits (named after the pack that supplies them).
         basis["packVerification"] = _pack_verification(pack)
         basis["inheritedTables"] = _inherited_tables(pack)
+        # Walk 4: the extended pack's tables that do not apply under the pack's code.
+        basis["notApplicableTables"] = list(getattr(pack, "not_applicable", []) or [])
         location = pack.table("locations").locations.get(settings.site.location)
         category = pack.table("occupancyCategories").categories.get(settings.occupancy.category)
         system = pack.table("seismic").systems.get(settings.seismic.system)
@@ -1216,7 +1225,15 @@ def _model_summary(
                     "s",
                 ),
                 ("Cs", "Normalised spectral acceleration Cs", 3, ""),
-                ("Sa_g", "Design spectral acceleration Sa", 4, "g"),
+                (
+                    "Sa_g",
+                    # Walk 4: with the site's mapped values the coefficient is Cs (V = Cs W).
+                    "Seismic response coefficient Cs"
+                    if values.get("spectral")
+                    else "Design spectral acceleration Sa",
+                    4,
+                    "g",
+                ),
                 ("base_shear_kN", "Equivalent static base shear V", 1, "kN"),
                 ("wind_X_kN", "Total wind force in X", 1, "kN"),
                 ("wind_Y_kN", "Total wind force in Y", 1, "kN"),
@@ -4115,6 +4132,22 @@ def _scwb_text(scwb: Any) -> str:
     return text + (" (n.r.)" if scwb.get("notRequired") else "")
 
 
+#: Walk 4: the key of each seismic provision of the design (its default-pack section id) in the
+#: pack's ``designClauses.seismicProvisions`` (the section) and ``seismicProvisionPages``.
+PROVISION_ROWS = {
+    "8.3.3": "general",
+    "8.3.4": "smfBeams",
+    "8.3.5": "smfColumns",
+    "8.3.6": "walls",
+    "8.3.7": "joints",
+    "8.3.8": "shear",
+    "8.3.9": "omf",
+    "8.3.10": "imf",
+    "8.3.11": "foundations",
+    "8.3.12": "gravity",
+}
+
+
 def _seismic_detailing(report: dict[str, Any]) -> dict[str, Any]:
     """The "Seismic detailing" chapter (the code pack's seismic detailing; BNBC 2020 Part 6 Sec
     8.3 in the default pack) from the design report's
@@ -4122,13 +4155,23 @@ def _seismic_detailing(report: dict[str, Any]) -> dict[str, Any]:
     scope = report.get("seismic")
     if not isinstance(scope, dict) or not scope.get("detailingLevel"):
         return {"available": False, "failedChecks": 0}
+    from saengine.design.clauses import Own
+
     level = {"special": "Special", "intermediate": "Intermediate", "ordinary": "Ordinary"}
+    # Walk 4: the clauses of this chapter from the pack in force (designClauses
+    # seismicReport, seismicProvisions); a zone only under a pack with seismic zones.
+    own = Own("seismicReport")
+    zone = (
+        [["Zone", str(scope.get("zone") or "–")]]
+        if code_context.current().has("zoneCoefficients")
+        else []
+    )
     lines = [
         [
             "Seismic Design Category",
             f"{scope.get('sdc') or '–'}" + _default_ref("Sec 2.5.5.2, Table 6.2.18"),
         ],
-        ["Zone", str(scope.get("zone") or "–")],
+        *zone,
         [
             "Structural system",
             f"{scope.get('systemName')}"
@@ -4141,7 +4184,8 @@ def _seismic_detailing(report: dict[str, Any]) -> dict[str, Any]:
         [
             "Detailing level",
             (
-                f"{level.get(scope['detailingLevel'], scope['detailingLevel'])} (Sec 8.3.2; the "
+                f"{level.get(scope['detailingLevel'], scope['detailingLevel'])} "
+                f"({Own('seismicReport', '{}; ')['levels']}the "
                 f"category requires {scope.get('requiredFrameType') or '–'}, the system's frames are "
                 f"{scope.get('systemFrameType') or 'not part of the system'})"
             ),
@@ -4150,11 +4194,13 @@ def _seismic_detailing(report: dict[str, Any]) -> dict[str, Any]:
     checks = scope.get("checks", [])
     check_rows = [[str(c.get("name")), _result_label(c), str(c.get("note", ""))] for c in checks]
     check_bad = [_result_label(c) == "FAIL" for c in checks]
+    sections = Own("seismicProvisions")
+    pages = Own("seismicProvisionPages")
     applies = [
         [
-            k,
+            sections[PROVISION_ROWS.get(k, k)] or "–",
             str(v.get("title", "")),
-            f"p. {v.get('page')}",
+            pages[PROVISION_ROWS.get(k, k)] or "–",
             "yes" if v.get("applies") else "no",
             str(v.get("members", "")) if v.get("applies") else "–",
         ]
@@ -4262,7 +4308,8 @@ def _seismic_detailing(report: dict[str, Any]) -> dict[str, Any]:
         + (
             [
                 (
-                    "Sec 8.3.11 (foundations: column bars into the footing, grade beam ties, pile "
+                    f"{own['foundations'] or 'The seismic rules of foundations'} (foundations: "
+                    "column bars into the footing, grade beam ties, pile "
                     "confinement) is not checked yet: 9 Substructure designs the foundations without "
                     "it."
                 )

@@ -1,0 +1,17 @@
+{
+  "$schema": "../../../schemas/slabCoefficients.schema.json",
+  "$sources": [
+    "ACI 318-63 Method 3 two-way slab coefficients, permitted under ACI 318-19 Sec 8.2.1 (any procedure satisfying equilibrium and geometric compatibility): SAEngine practice",
+    "ACI 318-19 Sec 6.5 and Table 6.5.2 (one-way approximate moments)",
+    "ACI 318-19 Sec 7.7.2.3, 8.7.2.2 and 24.4.3.3 (largest bar spacing)"
+  ],
+  "source": "ACI 318-19 (one-way coefficients, bar spacing) and the ACI 318-63 Method 3 two-way coefficients as SAEngine practice under ACI 318-19 Sec 8.2.1; the same values as the extended pack",
+  "sources": {
+    "twoWay": "ACI 318-63 Method 3 moment coefficients (negative, dead load positive, live load positive, load ratios Wa, Wb): SAEngine practice under ACI 318-19 Sec 8.2.1; la, lb clear spans",
+    "twoWay.cases": "Case figures of the Method 3 tables: [continuous long edges, continuous short edges] (long edges have length lb and bound the short span la)",
+    "twoWayLimits": "ACI 318-63 Method 3 scope (two-way panels on beams, la/lb at least 0.5): SAEngine practice under ACI 318-19 Sec 8.2.1",
+    "oneWay": "ACI 318-19 Sec 6.5.2, Table 6.5.2 (approximate moments) and Sec 6.5.4 (approximate shears): M = w ln^2 / divisor, V = factor w ln / 2",
+    "maxSpacing": "ACI 318-19 Sec 8.7.2.2 (two-way: 2h and 18 in), 7.7.2.3 (one-way: 3h and 18 in), 24.4.3.3 (shrinkage and temperature: 5h and 18 in); 18 in (457 mm) taken as 450 mm, on the safe side",
+    "discontinuousEdgeShare": "SAEngine practice (the ACI 318-63 coefficient method's rule): top bars at a discontinuous edge for this share of the positive moment of the same direction"
+  }
+}

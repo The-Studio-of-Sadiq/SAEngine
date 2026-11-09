@@ -43,6 +43,13 @@ CLAUSES: Clauses = Clauses("seismicRules")
 R = Rows("seismicRulesRows")
 
 
+def _own_note(key: str) -> str:
+    """Walk 4: the pack's own text ``seismicRulesNotes.<key>`` ("" when it gives none)."""
+    from saengine.design.clauses import own_text
+
+    return own_text("seismicRulesNotes", key)
+
+
 def _sec(label: str, key: str) -> str:
     """``label (Sec <clause>)`` of :data:`R` ``key``; ``label`` alone without it."""
     found = R.ref(key)
@@ -485,9 +492,11 @@ def material_checks(
                 fy,
                 fy_max,
                 "MPa",
-                f"{grade}, fy {fy:g} MPa, in {used}: only ASTM A706 Grade 420, BDS ISO 6935-2 "
-                "Grades 300, 350, 400, 420 or ASTM A615 Grades 275, 420 may resist earthquake-"
-                "induced flexure and axial force" + remark,
+                f"{grade}, fy {fy:g} MPa, in {used}: "
+                # Walk 4: the permitted grades in the pack's words (designClauses).
+                + (_own_note("gradesText") or "only the code pack's permitted grades")
+                + " may resist earthquake-induced flexure and axial force"
+                + remark,
                 flag=near,
                 utilisation=None if exact or near or fy > fy_max else 99.0,
             )

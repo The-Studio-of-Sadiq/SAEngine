@@ -3,15 +3,15 @@
   "$sources": [
     "ACI 318-19 (concrete members, walls, slabs, foundations, seismic detailing) and ASCE 7-22 (the load and seismic system clauses the design notes cite): the clause references of the member design checks"
   ],
-  "source": "ACI 318-19 and ASCE 7-22: the clause of each check of the concrete member design (saengine.design), grouped by module, without the code's name. Groups and keys not given here (steel members) are the pack this one extends. The two-way slab coefficient method, the stair spans and the masonry lintel rules are kept from the extended pack and cited as its own (pack.json tableCodes, shortNames).",
+  "source": "ACI 318-19 and ASCE 7-22: the clause of each check of the concrete member design (saengine.design), grouped by module, without the code's name. Groups and keys not given here (steel members) are the pack this one extends. The two-way slab coefficients are the ACI 318-63 Method 3 ones (SAEngine practice under ACI 318-19 8.2.1); the stair spans and the masonry lintel wind rule are kept from the extended pack and cited as its own (pack.json tableCodes, shortNames).",
   "shortName": "ACI 318",
   "shortNames": {
-    "slab.twoWay": "BNBC",
-    "slab.rectangular": "BNBC",
-    "slab.supports": "BNBC",
-    "slab.scope": "BNBC",
-    "slab.aspect": "BNBC",
-    "slab.stiffness": "BNBC",
+    "slab.twoWay": "ACI 318-63",
+    "slab.rectangular": "ACI 318-63",
+    "slab.supports": "ACI 318-63",
+    "slab.scope": "ACI 318-63",
+    "slab.aspect": "ACI 318-63",
+    "slab.stiffness": "ACI 318-63",
     "stairs.twoRiserTread": "BNBC",
     "stairs.spans": "BNBC",
     "stairs.liveTable": "ASCE 7",
@@ -54,7 +54,8 @@
     "seismicRulesNotes": {
       "reinforcementD": "20.2.2.5",
       "chapter": "Chapter 18",
-      "confinement": "Table 20.2.2.4(a)"
+      "confinement": "Table 20.2.2.4(a)",
+      "gradesText": "only ASTM A706 Grades 420 and 550, or ASTM A615 Grades 280 and 420 meeting ACI 318-19 20.2.2.5(b)"
     },
     "faceForces": {
       "face": "9.4.2.1",
@@ -192,7 +193,21 @@
       "oneWayEqual": "6.5.1(e)",
       "minimum": "7.6.1.1, 8.6.1.1, 24.4.3.2",
       "spacingTwoWay": "8.7.2.2",
-      "spacingOneWay": "7.7.2.3"
+      "spacingOneWay": "7.7.2.3",
+      "twoWay": "Method 3",
+      "twoWayMethod": "Method 3 (SAEngine practice under ACI 318-19 8.2.1)",
+      "rectangular": "Method 3 scope",
+      "supports": "Method 3 scope",
+      "scope": "Method 3 scope",
+      "aspect": "Method 3 scope",
+      "stiffness": "Method 3 scope",
+      "coefficientTables": "ACI 318-63 Method 3 tables",
+      "coefficientShearTable": "ACI 318-63 Method 3 load ratios Wa, Wb",
+      "coefficientOneWayShear": "6.5.4",
+      "coefficientMinimum": "24.4.3.2",
+      "coefficientSpacingTwoWay": "8.7.2.2",
+      "coefficientSpacingAlong": "7.7.2.3",
+      "coefficientSpacingAcross": "24.4.3.3"
     },
     "columnShear": {
       "minimum": "10.6.2.1"
@@ -429,6 +444,76 @@
       "methodFlexure": "Flexure: Sections F2-F11 by shape (yielding, lateral-torsional buckling with Cb from the moment diagram, flange and web local buckling; tees by Lp, Lr and stem local buckling, Sec F9; rectangular HSS also lateral-torsional buckling, Sec F7.4); a slab braces the top flange.",
       "methodShear": "Shear: Chapter G (webs by Cv1 of Sec G2.1 with kv = 5.34 unstiffened; tension field action by Sec G2.2); combined forces: Sec H1.1 (Eqs H1-1a, H1-1b), moments amplified by B1 (Appendix 8).",
       "methodConnections": "Steel connections (when the object type sets one): fin plate, shear end plate or brace gusset checked for the member's end shears or axial forces to AISC 360-22 Chapter J (bolts J3, bearing and tearout J3.10, block shear J4.3, welds J2, the Whitmore section); listed as 'Connection: ...' checks of the member. The analysis pins these member ends (no end moment); an end kept rigid is flagged as 'end moment at a simple connection'. Flange-plate moment connections (with the column flange, web and panel zone checks of Sec J10), cover-plate splices (Sec J6), column base plates on concrete (bearing Sec J8, anchor rods J9) and welded HSS joints (Chapter K) are checked the same way when the type sets them; also slip-critical bolts (Sec J3.8), end plates under axial tension (prying), the column stiffeners and doublers (Sec J10.8-J10.9), plates and cap plates on HSS and HSS moment connections (Chapter K, Secs K2-K5)."
+    },
+    "generator": {
+      "occupancy": "ASCE 7-22 Table 1.5-1",
+      "siteClass": "ASCE 7-22 Chapter 20 (Table 20.2-1)",
+      "spectrum": "ASCE 7-22 Sec 11.4",
+      "sdcTable": "ASCE 7-22 Tables 11.6-1 and 11.6-2",
+      "liveTable": "ASCE 7-22 Table 4.3-1",
+      "detailingLevels": "ACI 318-19 18.2.1",
+      "systemsTable": "ASCE 7-22 Table 12.2-1",
+      "gravitySystem": "ACI 318-19 18.14",
+      "deltaS": "ACI 318-19 6.6.4.6.2",
+      "beamDepth": "ACI 318-19 Table 9.3.1.1",
+      "beamWidth": "ACI 318-19 18.6.2.1(b)",
+      "beamProportions": "ACI 318-19 18.6.2.1",
+      "beamWidthColumn": "ACI 318-19 18.6.2.1(c)",
+      "oneWaySlab": "ACI 318-19 Table 7.3.1.1",
+      "oneWaySlabPage": "ACI 318-19 Table 7.3.1.1",
+      "slabsWithBeams": "ACI 318-19 Table 8.3.1.2",
+      "slabStiffBeams": "ACI 318-19 Table 8.3.1.2(c)",
+      "slabBeams": "ACI 318-19 Table 8.3.1.2(b)",
+      "flatPlate": "ACI 318-19 Table 8.3.1.1",
+      "flatPlatePage": "ACI 318-19 Table 8.3.1.1",
+      "flatPlateSec": "ACI 318-19 8.3.1.1",
+      "edgeBeam": "ACI 318-19 Table 8.3.1.2(d)",
+      "verticalIrregularity": "ASCE 7-22 Table 12.3-2 (vertical irregularities, soft and weak storeys)",
+      "driftLimit": "ASCE 7-22 Table 12.12-1",
+      "driftSec": "ASCE 7-22 Sec 12.12.1",
+      "driftRule": "ASCE 7-22 Sec 12.12.1",
+      "crackedStiffness": "ACI 318-19 Table 6.6.3.1.1(a) for the factored lateral loads",
+      "designDrift": "ASCE 7-22 Sec 12.8.6",
+      "serviceStiffness": "ACI 318-19 6.6.3.2.2",
+      "periodCap": "ASCE 7-22 Sec 12.8.2, Table 12.8-1",
+      "periodFormula": "ASCE 7-22 Sec 12.8.2.1, Table 12.8-2",
+      "columnLeast": "ACI 318-19 18.7.2.1(a)",
+      "strongColumn": "ACI 318-19 18.7.3.2",
+      "jointShear": "ACI 318-19 18.8.4"
+    },
+    "proposal": {
+      "jointThrough": "ACI 318-19 18.8.2.3",
+      "columnTies": "ACI 318-19 18.7.5.2",
+      "jointShear": "ACI 318-19 18.8.4",
+      "jointForce": "ACI 318-19 18.8.2.1",
+      "strongColumnEq": "ACI 318-19 18.7.3.2, Eq 18.7.3.2",
+      "strongColumn": "ACI 318-19 18.7.3.2",
+      "beamWidth": "ACI 318-19 18.6.2.1(b), (c)",
+      "columnLeast": "ACI 318-19 18.7.2.1(a)",
+      "columnRatio": "ACI 318-19 18.7.2.1(b)",
+      "capacityShear": "ACI 318-19 18.6.5, 18.7.6 / 18.4.2.3",
+      "beamBars": "ACI 318-19 18.6.3.1, 18.6.3.2"
+    },
+    "seismicReport": {
+      "levels": "18.2.1",
+      "general": "18.2",
+      "strongColumn": "18.7.3.2, Eq 18.7.3.2",
+      "jointShear": "18.8.4",
+      "probable": "18.6.5.1, 18.7.6.1.1",
+      "twoE": "18.4.2.3, 18.4.3.1",
+      "foundations": "18.13"
+    },
+    "seismicProvisions": {
+      "general": "18.2",
+      "smfBeams": "18.6",
+      "smfColumns": "18.7",
+      "walls": "18.10",
+      "joints": "18.8",
+      "shear": "18.6.5, 18.7.6",
+      "omf": "18.3",
+      "imf": "18.4",
+      "foundations": "18.13",
+      "gravity": "18.14"
     }
   }
 }

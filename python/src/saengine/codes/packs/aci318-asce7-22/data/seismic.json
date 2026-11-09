@@ -164,7 +164,7 @@
       "inPlaneDiscontinuity": "Table 12.3-2 type 4",
       "weak": "Table 12.3-2 type 5a",
       "extremeWeak": "Table 12.3-2 type 5b",
-      "strength": "ACI 318-19 Sec 22.5.5.1 and 22.5.8.5.3 (shear strength of the columns and walls); the BNBC 2020 Chapter 6 form SAEngine uses until the ACI pack",
+      "strength": "ACI 318-19 Sec 22.5.5.1 (the Table 22.5.5.1(a) form, without the size effect) and 22.5.8.5.3 (shear strength of the columns and walls)",
       "orthogonal": "Sec 12.5.3.1"
     }
   },

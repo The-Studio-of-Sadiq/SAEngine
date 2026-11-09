@@ -76,6 +76,15 @@ from saengine.library.substructure import SUBSTRUCTURE_FILE, Substructure
 from saengine.library.templates import TEMPLATES
 
 
+def _g(key: str, form: str = "{}", empty: str = "") -> str:
+    """Walk 4: the clause ``key`` the generator's notes cite (the pack's
+    ``designClauses.generator`` group) in ``form``, where the pack in force gives it itself;
+    ``empty`` otherwise, so a note never shows another code's clause number."""
+    from saengine.design.clauses import Own
+
+    return Own("generator", form, empty)[key]
+
+
 def _live_in_w(settings: Any) -> str:
     """The floor live load's share in W and how the partition allowance counts, in words (as
     the analysis model counts them, :func:`saengine.library.settings.seismic_weight_rule`)."""
@@ -424,9 +433,10 @@ def _system(kind: str, sdc: str | None, height_m: float) -> tuple[str, bool, lis
         if kind == "flatSlab" and walls:
             notes.append(
                 f"Seismic Design Category {category}: a flat slab-column frame is not a moment "
-                f"frame of the detailing the category needs (Sec 8.3.2); core walls are added "
-                f"and the system is {row.name} (Table 6.2.19 row {row.row}): the slab-column "
-                "frame is a gravity system (Sec 8.3.12)."
+                "frame of the detailing the category needs"
+                f"{_g('detailingLevels', ' ({})')}; core walls are added "
+                f"and the system is {row.name} ({_g('systemsTable', '{} ')}row {row.row}): the "
+                f"slab-column frame is a gravity system{_g('gravitySystem', ' ({})')}."
             )
             if row.dual:
                 notes.append(
@@ -850,8 +860,12 @@ def lateral_column_sizes(
         levels = [(base[k] / 1000, weights[k - 1]) for k in range(1, n + 1)]
         forces["EX"] = forces["EY"] = fl.vertical_distribution(levels, v, period)
         out.baseShear["E"] = round(v, 1)
+        # Walk 4: with the site's mapped spectral values the coefficient is Cs (V = Cs W).
+        from saengine.fem.spectral_hazard import uses_mapped
+
+        symbol = "Cs" if uses_mapped() else "Sa"
         out.notes.append(
-            f"Earthquake: T = {period:.2f} s, Sa = {sa:.4f} g, W = {sum(weights):.0f} kN (dead "
+            f"Earthquake: T = {period:.2f} s, {symbol} = {sa:.4f} g, W = {sum(weights):.0f} kN (dead "
             f"and superimposed dead of the levels, {_live_in_w(settings)} and the beams at full depth"
             ", as the analysis model counts it), "
             f"V = {v:.0f} kN each way (the "
@@ -1223,7 +1237,7 @@ def lateral_column_sizes(
             )
             if stiff > side:
                 side = min(ceil_to(stiff, 50), MAX_SIDE)
-                why = f"sway: δs ≤ {slender.DELTA_S_MAX:g} (Sec 6.3.10.7.3)"
+                why = f"sway: δs ≤ {slender.DELTA_S_MAX:g}{_g('deltaS', ' ({})')}"
             tried: dict[float, float] = {}
 
             def fits(trial: float, members: list = members, tried: dict = tried) -> float:
@@ -1307,19 +1321,34 @@ def lateral_column_sizes(
         out.notes.append(
             f"Storeys {where}: δs = 1/(1 - Q) stays above {slender.DELTA_S_MAX:g} however stiff "
             "the columns are (the beams of the floor above are too flexible): the design will "
-            "ask for a second-order analysis (Sec 6.3.10.7.3); deepen the beams or add walls."
+            f"ask for a second-order analysis{_g('deltaS', ' ({})')}; deepen the beams or add "
+            "walls."
         )
     return out
 
 
-@code_context.in_project_pack()
 def settings_patch(
     s: BuildingSpec, settings: Any, notes: list[str]
 ) -> tuple[dict[str, Any], dict[str, Any], str | None, int | None]:
     """(the starting settings as JSON, the patch of the occupancy, site and floor live load,
     the Seismic Design Category and zone) of ``spec`` on ``settings`` (see
     :func:`generate_building`); the assumptions go to ``notes``. Shared by the generators of
-    the RC systems and of masonry buildings (:mod:`saengine.library.masonry_building`)."""
+    the RC systems and of masonry buildings (:mod:`saengine.library.masonry_building`).
+
+    Under the pack the settings choose; walk 4: without settings, under the spec's own pack
+    (its ``codePack``), so the notes cite that code and never the default pack's clauses."""
+    if settings is None and s.codePack:
+        from saengine.codes import registry
+
+        with code_context.using(registry.load(s.codePack, code_context.project_root())):
+            return _settings_patch(s, settings, notes)
+    return code_context.in_project_pack()(_settings_patch)(s, settings, notes)
+
+
+def _settings_patch(
+    s: BuildingSpec, settings: Any, notes: list[str]
+) -> tuple[dict[str, Any], dict[str, Any], str | None, int | None]:
+    """:func:`settings_patch` under the pack in force."""
     if settings is None:
         base = default_project_settings(s.name)
     elif isinstance(settings, ProjectSettings):
@@ -1335,8 +1364,8 @@ def settings_patch(
         if CATEGORY_RANK.index(own) > CATEGORY_RANK.index(category):
             category = own
         notes.append(
-            f"Occupancy category {category} assumed for {s.occupancy} use (Table 6.1.1, pp. "
-            "480-481: health care with surgery or emergency treatment IV; schools, day care, "
+            f"Occupancy category {category} assumed for {s.occupancy} use "
+            f"({_g('occupancy', '{}: ')}health care with surgery or emergency treatment IV; schools, day care, "
             "assembly of over 300 people and health care with 50 or more resident patients III; "
             "else II): CONFIRM it in 02 Project Settings, since it sets the Seismic Design "
             "Category, the structural system and the member limits below."
@@ -1350,11 +1379,12 @@ def settings_patch(
         # "entered"): "soilReport" keeps the assumed class only until 1 Soil Report gives one.
         site.update(siteClass=s.siteClass, siteClassSource="soilReport")
         notes.append(
-            f"Site class {s.siteClass} ASSUMED (no soil report yet): the default pack's Part 6 Table "
-            "6.2.13 (p. 609) classes the site by the average properties of the top 30 m "
+            f"Site class {s.siteClass} ASSUMED (no soil report yet): "
+            f"{_g('siteClass', '{}', 'the code pack')} classes the site by the average "
+            "properties of the top 30 m "
             "(shear wave velocity, SPT N or undrained shear strength). It sets the "
-            "spectrum (Table 6.2.16, p. 616), the Seismic Design Category (Table 6.2.18, p. "
-            "617) and so the system and the sizes below. 02 Project Settings take the class "
+            f"spectrum{_g('spectrum', ' ({})')}, the Seismic Design Category"
+            f"{_g('sdcTable', ' ({})')} and so the system and the sizes below. 02 Project Settings take the class "
             "from 1 Soil Report once its boreholes give one; until then the settings and the "
             "report show this assumed class as entered: confirm it with a soil investigation."
         )
@@ -1368,7 +1398,7 @@ def settings_patch(
     live = max(s.live or code_live, code_live)
     if s.live is not None and s.live < code_live:
         notes.append(
-            f"Live load {s.live:g} kN/m² is below the Table 6.2.3 minimum for "
+            f"Live load {s.live:g} kN/m² is below the {_g('liveTable', '{} ')}minimum for "
             f"{code_data.AREA_USES[use].name.lower()}; {code_live:g} kN/m² is used."
         )
     area_loads = [
@@ -1470,7 +1500,12 @@ def generate_building(spec: BuildingSpec | dict[str, Any], settings: Any = None)
         from saengine.codes import registry
 
         pack = registry.load(s.codePack, code_context.project_root())
-        if pack.has("seismic") and getattr(pack.table("seismic"), "defaultSystem", None):
+        # Walk 4: a pack that extends another (aci318-asce7-22 on bnbc2020) is generated
+        # under itself too, so its systems, limits and clause texts are the notes' (never the
+        # default pack's under another code).
+        if (pack.has("seismic") and getattr(pack.table("seismic"), "defaultSystem", None)) or len(
+            pack.chain
+        ) > 1:
             with code_context.using(pack):
                 return _generate_building(s, settings)
     return _generate_building(s, settings)
@@ -1555,8 +1590,10 @@ def _generate_building(s: BuildingSpec, settings: Any) -> dict[str, Any]:
     q_floor_weight = seismic_weight_rule(final).weight(
         floor_load.live, floor_load.partitions, floor_load.use
     ) - (floor_load.partitions if part_case == "SD" else 0.0)
+    # Walk 4: the zone only under a pack with seismic zones (mapped values have none).
+    zone_text = f"zone {zone or '-'}, " if code_context.current().has("zoneCoefficients") else ""
     notes.append(
-        f"Seismic Design Category {sdc or '-'} (zone {zone or '-'}, site class "
+        f"Seismic Design Category {sdc or '-'} ({zone_text}site class "
         f"{final.site.siteClass}"
         f"{' assumed' if s.siteClass is not None and s.siteClassSource == 'assumed' else ''}"
         f", occupancy category {final.occupancy.category}); system "
@@ -1622,7 +1659,7 @@ def _generate_building(s: BuildingSpec, settings: Any) -> dict[str, Any]:
                 width = ceil_to(b_min, 25)
                 beam_size[(a, b)] = (width, h)
         beam_rule.append(
-            "Beams: depth h = max(Table 6.6.1 minimum "
+            f"Beams: depth h = max({_g('beamDepth', '{} ', 'the code pack ')}minimum "
             + ", ".join(f"l/{v:g}" for v in beam_divisors)
             + " for 0, 1, 2 continuous "
             f"ends x (0.4 + fy/700) = x{fy_factor(fy):.3f}, "
@@ -1635,9 +1672,10 @@ def _generate_building(s: BuildingSpec, settings: Any) -> dict[str, Any]:
             + "300 mm), l the centre-to-centre span, rounded up to 25 mm; width b = max(250 mm, "
             "0.3 h) rounded up to 25 mm"
             + (
-                " (Sec 8.3.4.1(c), (d)(i), special moment frames)."
+                f" ({_g('beamWidth', '{}, ')}special moment frames)."
                 if special
-                else " (the special-frame proportions of Sec 8.3.4.1 as a practice rule)."
+                else " (the special-frame proportions"
+                f"{_g('beamProportions', ' of {}')} as a practice rule)."
             )
         )
 
@@ -1682,7 +1720,7 @@ def _generate_building(s: BuildingSpec, settings: Any) -> dict[str, Any]:
             return (
                 t,
                 "oneWay",
-                f"one-way (beta {beta:.2f} > 2): Table 6.6.1 l/{one_way_slab[ends]:g}",
+                f"one-way (beta {beta:.2f} > 2): {_g('oneWaySlab', '{} ')}l/{one_way_slab[ends]:g}",
             )
         hs = 150.0
         how = ""
@@ -1700,17 +1738,17 @@ def _generate_building(s: BuildingSpec, settings: Any) -> dict[str, Any]:
             factor = 0.8 + fy / 1400
             if afm > 2.0:
                 h_req = max(ln * factor / (36 + 9 * beta), 90.0)
-                how = f"eq. 6.6.6 (alpha_fm {afm:.1f} > 2, beta {beta:.2f})"
+                how = f"{_g('slabStiffBeams', '{} ')}(alpha_fm {afm:.1f} > 2, beta {beta:.2f})"
             elif afm > 0.2:
                 h_req = max(ln * factor / (36 + 5 * beta * (afm - 0.2)), 125.0)
-                how = f"eq. 6.6.5 (alpha_fm {afm:.2f}, beta {beta:.2f})"
+                how = f"{_g('slabBeams', '{} ')}(alpha_fm {afm:.2f}, beta {beta:.2f})"
             else:
                 exterior = i in (0, nx - 2) or j in (0, ny - 2)
                 h_req = max(ln / flat_divisor(fy, 1 if exterior else 2), 125.0)
-                how = f"Table 6.6.3 (alpha_fm {afm:.2f} <= 0.2)"
+                how = f"{_g('flatPlate', '{} ')}(alpha_fm {afm:.2f} <= 0.2)"
             if weak_edge:
                 h_req *= 1.1
-                how += ", +10 % for an edge beam with alpha_f < 0.8 (6.2.5.3.3(d))"
+                how += f", +10 % for an edge beam with alpha_f < 0.8{_g('edgeBeam', ' ({})')}"
             new = ceil_to(max(h_req, s.minSlab), 25)
             if new == hs:
                 break
@@ -1824,9 +1862,10 @@ def _generate_building(s: BuildingSpec, settings: Any) -> dict[str, Any]:
                         kind_name = "exterior panel without edge beams" if exterior else "interior"
             flat_t = ceil_to(max(worst, 125.0, s.minSlab), 25)
             flat_how = (
-                f"Table 6.6.3 ln/{flat_divisor(fy, 0):.1f} ({kind_name}, fy {fy:g} MPa), ln the "
-                f"longest clear span face to face of the {least:g} mm columns, at least 125 mm "
-                "(Sec 6.2.5.3.2), one thickness for every panel"
+                f"{_g('flatPlate', '{} ')}ln/{flat_divisor(fy, 0):.1f} ({kind_name}, fy "
+                f"{fy:g} MPa), ln the "
+                f"longest clear span face to face of the {least:g} mm columns, at least 125 mm"
+                f"{_g('flatPlateSec', ' ({})')}, one thickness for every panel"
             )
             for i in range(nx - 1):
                 for j in range(ny - 1):
@@ -2090,8 +2129,8 @@ def _generate_building(s: BuildingSpec, settings: Any) -> dict[str, Any]:
         notes.append(
             f"Column transitions: a storey group's columns at most {MAX_COLUMN_STEP:.0%} smaller "
             "than the ones below (rounded up to 50 mm; SAEngine practice, to avoid a sudden "
-            "stiffness and strength step, cf. the soft and weak storeys of the default pack's Part 6 Sec "
-            "2.5.5.3.2, vertical irregularities; its page is not in the code pack: check it): "
+            "stiffness and strength step, cf. the soft and weak storeys of "
+            f"{_g('verticalIrregularity', '{}', 'the code pack (vertical irregularities)')}): "
             + ", ".join(stepped_up)
             + "."
         )
@@ -2147,8 +2186,8 @@ def _generate_building(s: BuildingSpec, settings: Any) -> dict[str, Any]:
             )
         rigid = final.analysis.rigidZoneFactor if final.analysis.endOffsets else 0.0
         limit = (
-            f"Δa/ρ = {first_estimate.driftLimit:.3f} hsx (Table 6.2.21, p. 648, occupancy "
-            f"category {final.occupancy.category}; Sec 2.5.14.1, p. 647), Cd = "
+            f"Δa/ρ = {first_estimate.driftLimit:.3f} hsx ({_g('driftLimit', '{}, ')}occupancy "
+            f"category {final.occupancy.category}{_g('driftSec', '; {}')}), Cd = "
             f"{first_estimate.cd:g}"
             if first_estimate.driftLimit
             else "not checked (no seismic zone coefficient)"
@@ -2167,8 +2206,7 @@ def _generate_building(s: BuildingSpec, settings: Any) -> dict[str, Any]:
             "columns): the frames as a shear building of Wilbur's storey stiffnesses (columns "
             f"{cracked.column:g} Ig, beams {cracked.beam:g} Ig without the slab flange"
             + (f", flat plate {cracked.plate:g} Ig" if flat else "")
-            + ", the default pack's Part 6 Sec 6.3.10.4.1, p. 912, for the factored lateral loads as "
-            "Sec 6.1.10.2, p. 893; "
+            + _g("crackedStiffness", ", {}; ", "; ")
             + (
                 f"the analysis model's rigid end zones, factor {rigid:g}"
                 if rigid
@@ -2176,20 +2214,20 @@ def _generate_building(s: BuildingSpec, settings: Any) -> dict[str, Any]:
             )
             + "), every frame line of a direction alike, the seismic weight as the analysis "
             "model counts it. Checked: (1) the earthquake design drift Cd δe / I of every "
-            f"storey (Sec 2.5.7.7, p. 631) against {limit}, δe under the equivalent static "
+            f"storey{_g('designDrift', ' ({})')} against {limit}, δe under the equivalent static "
             f"forces at Ta = {first_estimate.ta:.2f} s (the analysis' default period); (2) the "
             + (
                 f"roof sway under the service wind ({sway[1]:g} W, the analysis model's wind "
-                f"forces; members at {SERVICE_STIFFNESS:g} x those stiffnesses, Sec 6.1.10.1, "
-                f"p. 893) against H/{1 / sway[0]:.0f} ({sway[2]}); "
+                f"forces; members at {SERVICE_STIFFNESS:g} x those stiffnesses"
+                f"{_g('serviceStiffness', ', {}')}) against H/{1 / sway[0]:.0f} ({sway[2]}); "
                 if sway is not None
                 else "roof sway under wind: not covered by the code pack; "
             )
             + (
                 "(3) the period by Rayleigh's quotient against "
                 f"{PERIOD_TARGET:g} Cu Ta = {PERIOD_TARGET * first_estimate.periodLimit:.2f} s "
-                f"(Cu Ta = {first_estimate.periodLimit:.2f} s, Sec 2.5.7.2 (a), p. 627; Ta = Ct "
-                "hn^m, eq. 6.2.38, Table 6.2.20, p. 628). Cu Ta caps the period the static "
+                f"(Cu Ta = {first_estimate.periodLimit:.2f} s{_g('periodCap', ', {}')}; Ta = Ct "
+                f"hn^m{_g('periodFormula', ', {}')}). Cu Ta caps the period the static "
                 "forces may use and is no limit on the structure; an estimate above "
                 f"{PERIOD_TARGET:g} Cu Ta is taken as a frame too flexible (SAEngine practice). "
                 if first_estimate.periodLimit is not None
@@ -2217,12 +2255,12 @@ def _generate_building(s: BuildingSpec, settings: Any) -> dict[str, Any]:
             )
             + " Assumed (not checked here): rigid floors, no accidental torsion, no P-delta, "
             "no infill walls, the slabs' flanges and stiffness left out; the analysis "
-            "(modal periods, drifts of Sec 2.5.14.1) is the check."
+            f"(modal periods, drifts{_g('driftRule', ' of {}')}) is the check."
         )
     elif lateral_on and walls_on:
         stiffness_note = (
             "Stiffness: the drift and period are not estimated here (the core walls take the "
-            "storey shear); the analysis checks them (Sec 2.5.14.1, p. 647)."
+            f"storey shear); the analysis checks them{_g('driftSec', ' ({})')}."
         )
 
     if special:
@@ -2235,8 +2273,8 @@ def _generate_building(s: BuildingSpec, settings: Any) -> dict[str, Any]:
         if narrow:
             notes.append(
                 f"{len(narrow)} beams are wider than a supporting column somewhere up the "
-                "building: Sec 8.3.4.1(d)(ii) limits the width to the column width plus "
-                "extensions; check them in Design mode."
+                f"building: {_g('beamWidthColumn', '{}', 'the code pack')} limits the width to "
+                "the column width plus extensions; check them in Design mode."
             )
 
     # ── walls ──
@@ -2676,15 +2714,20 @@ def _generate_building(s: BuildingSpec, settings: Any) -> dict[str, Any]:
             for (t, system), (i, j) in sorted(governing_panels.items())
         )
         notes.append(
-            "Slabs with beams: Sec 6.2.5.3.3 (p. 903) with alpha_f of the rectangular beam "
+            "Slabs with beams: "
+            f"{_g('slabsWithBeams', '{} ', 'the minimum thickness ')}with alpha_f of the "
+            "rectangular beam "
             "section (no slab flange, on the low side, as Design mode's slab check takes it) "
-            "over the slab strip it carries; one-way panels (beta > 2) by Table 6.6.1 (p. 900); "
+            "over the slab strip it carries; one-way panels (beta > 2) by "
+            f"{_g('oneWaySlabPage', '{}', 'the one-way slab minimum')}; "
             f"at least {s.minSlab:g} mm (SAEngine practice), rounded up to 25 mm. The thickness "
             "follows the beams' stiffness: with alpha_fm > 2 (beams of about span/12 and "
-            "deeper) eq. 6.6.6 gives ln (0.8 + fy/1400) / (36 + 9 beta), about ln/43 for a "
-            "6 x 5 m panel; shallower beams (alpha_fm <= 2) fall to eq. 6.6.5 and towards the "
-            "flat-plate ln/30 to ln/33 of Table 6.6.3 (p. 902), +10 % at an edge beam with "
-            f"alpha_f < 0.8. {panels}."
+            f"deeper) {_g('slabStiffBeams', '{}', 'the code')} gives ln (0.8 + fy/1400) / "
+            "(36 + 9 beta), about ln/43 for a "
+            "6 x 5 m panel; shallower beams (alpha_fm <= 2) fall to "
+            f"{_g('slabBeams', '{}', 'the intermediate rule')} and towards the "
+            f"flat-plate ln/30 to ln/33{_g('flatPlatePage', ' of {}')}, +10 % at an edge beam "
+            f"with alpha_f < 0.8. {panels}."
         )
     else:
         notes.append(
@@ -2697,7 +2740,7 @@ def _generate_building(s: BuildingSpec, settings: Any) -> dict[str, Any]:
         "area to the bay centre lines, plus the columns' own weight; no live load reduction) "
         f"and k = 1.0 interior, 1.25 edge, 1.5 corner for bending (a preliminary rule of "
         f"thumb), side rounded up to 50 mm, at least {col_min:g} mm"
-        + (" (Sec 8.3.5.1(a))" if special else "")
+        + (_g("columnLeast", " ({})") if special else "")
         + f"; one type per {s.columnGroupStoreys} storeys (groups "
         + ", ".join(f"{story_ids[g[0]]}-{story_ids[g[-1]]}" for g in groups)
         + ") and position, never larger above than below."
@@ -2731,14 +2774,16 @@ def _generate_building(s: BuildingSpec, settings: Any) -> dict[str, Any]:
             "Δo/(Vus lc) with Δo of the frames by Wilbur's storey stiffness (columns 0.7 Ig, "
             "beams 0.35 Ig) (largest "
             f"{', '.join(f'{k} {v:.2f}' for k, v in lateral.swayFactor.items())}"
-            "), the columns of a storey made stiff enough for δs ≤ 1.5 (Sec 6.3.10.7.3: above "
+            "), the columns of a storey made stiff enough for δs ≤ 1.5 ("
+            f"{_g('deltaS', '{}: ')}above "
             "it the design asks for a second-order analysis), M2,min on each axis; every member of a column type carried on the design's "
             f"interaction surface (biaxial) with ρ ≤ {s.columnRho:g}"
             + (
-                ", and strong column / weak beam ΣMnc ≥ 1.2 ΣMnb (Sec 8.3.5.2) with the beams' "
+                ", and strong column / weak beam ΣMnc ≥ 1.2 ΣMnb"
+                f"{_g('strongColumn', ' ({})')} with the beams' "
                 "Mn from the bars their portal and gravity moments need (+15 % for rounding) "
                 "and the column type's least layout, and the joint shear with those bars "
-                "(Sec 8.3.7.3: Vj = 1.25 fy As - Vcol against φ γ √f'c Aj)"
+                f"({_g('jointShear', '{}: ')}Vj = 1.25 fy As - Vcol against φ γ √f'c Aj)"
                 if special
                 else ""
             )

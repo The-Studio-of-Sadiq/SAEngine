@@ -160,6 +160,7 @@ _SHALLOW_METHOD = [
 
 def _tie_beam_method() -> str:
     """The tie beams' method line, with the pack in force's rules and clauses."""
+    from saengine.codes import context as code_context
     from saengine.substructure import shallow_rules
 
     ties = _tie_rules()
@@ -181,8 +182,10 @@ def _tie_beam_method() -> str:
     zones = ", ".join(str(z) for z in ties.zones[:-1]) + (
         f" and {ties.zones[-1]}" if len(ties.zones) > 1 else str(ties.zones[0])
     )
+    # Walk 4: the zones only under a pack with seismic zones (mapped values have none).
+    where = f" (seismic zones {zones})" if code_context.current().has("zoneCoefficients") else ""
     return (
-        f"Tie beams: {clause} (seismic zones {zones}): the strut ties between footings resist "
+        f"Tie beams: {clause}{where}: the strut ties between footings resist "
         f"in tension or compression at least {ties.forceShare * 100:g} % of the larger footing "
         "or column load (here the largest factored compression of either foundation, all its "
         "columns and walls together, or of any one column on them), unless friction and passive "

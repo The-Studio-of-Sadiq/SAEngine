@@ -139,6 +139,14 @@ class BeamLoads:
         )
 
 
+def _p(key: str, form: str = " ({})") -> str:
+    """Walk 4: ``form`` with the clause ``key`` the proposal's notes cite (the pack's
+    ``designClauses.proposal``) where the pack in force gives it itself; '' otherwise."""
+    from saengine.design.clauses import Own
+
+    return Own("proposal", form)[key]
+
+
 def _least_strain(fy: float) -> float:
     """The least net tensile strain of a beam section: 0.004 (ACI 9.3.3.1), or with the pack's
     member limits (alpha 9 C8, IS 456 38.1(f)) fyd / Es + their ``neutralAxisStrain``."""
@@ -282,7 +290,7 @@ class BeamDesigner:
         if any(not passes(d) for d in sizes):
             parts.append(
                 f"the column depth {room.through:.0f} mm they pass through in {room.through_at} "
-                f"is at least {ratio} db (Sec 8.3.7.1(d))"
+                f"is at least {ratio} db{_p('jointThrough')}"
             )
         return fit, f"bars at most Ø{max(fit):g}: " + "; ".join(parts)
 
@@ -755,7 +763,7 @@ def _detailed_column_pick(
                 0.0,
                 too_small=(
                     "no bar layout lets the ties hold every corner and alternate bar with hx ≤ "
-                    "350 mm and the hoops at the least spacing (Sec 8.3.5.4)"
+                    f"350 mm and the hoops at the least spacing{_p('columnTies')}"
                 ),
                 suggestion=_bigger_column(search, points),
             )
@@ -1615,7 +1623,8 @@ def _joint_too_small(found: _TypeResult, joint_ids: list[str], suggestion: str) 
             (
                 f"bars for its axial forces and moments: {bars['text']}; not proposed, the joints "
                 + _capacity_text(
-                    "need a larger column (joint shear φ γ √f'c Aj, Sec 8.3.7.3, does not depend "
+                    "need a larger column (joint shear φ γ √f'c Aj"
+                    f"{_p('jointShear', ', {}')}, does not depend "
                     "on the column's bars; the beams' bars give Vj = 1.25 fy As - Vcol, judged on "
                     "each beam type's shared bars)",
                     "need a larger column (joint shear η fcd √(1 - νd/η) bj hjc does not depend "
@@ -2205,7 +2214,8 @@ def propose(
                     *trial.entry["notes"],
                     (
                         "the lightest bars that pass, for the joint shear at "
-                        f"{_some_joints(fixed)} (Vj from 1.25 fy of the beam bars, Sec 8.3.7.1(a))"
+                        f"{_some_joints(fixed)} (Vj from 1.25 fy of the beam bars"
+                        f"{_p('jointForce', ', {}')})"
                     ),
                 ]
                 beam_results[type_id] = trial
@@ -2251,7 +2261,7 @@ def propose(
                 (
                     f"bars raised for strong column / weak beam at {', '.join(joint_ids)}: "
                     + _capacity_text(
-                        "ΣMnc ≥ 1.2 ΣMnb (Sec 8.3.5.2(b), Eq. 6.8.5)",
+                        f"ΣMnc ≥ 1.2 ΣMnb{_p('strongColumnEq')}",
                         "ΣMRc ≥ 1.3 ΣMRb",
                         "strongColumn",
                     )
@@ -2269,7 +2279,7 @@ def propose(
                 "suggestion": (
                     "no bars up to the largest ρ give "
                     + _capacity_text(
-                        "ΣMnc ≥ 1.2 ΣMnb (Sec 8.3.5.2(b))", "ΣMRc ≥ 1.3 ΣMRb", "strongColumn"
+                        f"ΣMnc ≥ 1.2 ΣMnb{_p('strongColumn')}", "ΣMRc ≥ 1.3 ΣMRb", "strongColumn"
                     )
                     + ": a larger column, or lighter beam bars from deeper beams"
                 ),
@@ -2509,17 +2519,18 @@ def seismic_transverse(
         if kind == "beam" and b < need["width"] - 1e-6:
             too_small.append(
                 f"width {b:g} mm below max(250 mm, 0.3 h) = {need['width']:g} mm of a special "
-                "moment frame beam (Sec 8.3.4.1(c), (d))"
+                f"moment frame beam{_p('beamWidth')}"
             )
         if kind == "column":
             if min(b, h) < need["least"] - 1e-6:
                 too_small.append(
                     f"least dimension {min(b, h):g} mm below 300 mm of a special moment frame "
-                    "column (Sec 8.3.5.1(a))"
+                    f"column{_p('columnLeast')}"
                 )
             if min(b, h) / max(b, h) < need["ratio"] - 1e-9:
                 too_small.append(
-                    f"{b:g} x {h:g} mm: least to perpendicular dimension below 0.4 (Sec 8.3.5.1(b))"
+                    f"{b:g} x {h:g} mm: least to perpendicular dimension below 0.4"
+                    f"{_p('columnRatio')}"
                 )
             rho = section.steel_area / section.gross_area
             if rho > dm._column_rho()[1] + 1e-9:
@@ -2689,12 +2700,12 @@ def seismic_transverse(
     needed = {axis: value for axis, value in sorted(av_s.items()) if value > 1e-9}
     if needed:
         notes.append(
-            "hoops for the capacity shear Ve (Sec 8.3.8 / 8.3.10.3): Av/s "
+            f"hoops for the capacity shear Ve{_p('capacityShear')}: Av/s "
             + ", ".join(f"{axis} {value:.2f} mm²/mm" for axis, value in needed.items())
         )
     elif av_s:
         notes.append(
-            "capacity shear Ve (Sec 8.3.8 / 8.3.10.3): φ Vc carries it, the confinement rules "
+            f"capacity shear Ve{_p('capacityShear')}: φ Vc carries it, the confinement rules "
             "set the hoops"
         )
     result = {**reinforcement, "transverse": transverse}
@@ -2810,10 +2821,10 @@ def _beam_positive_moment(
                     new_hog = max(new_hog, floor(need, d))
                 else:
                     new_sag = max(new_sag, floor(need, d))
-                why.append(f"{'top' if top else 'bottom'} bars at least ρmin (Sec 8.3.4.2(a))")
+                why.append(f"{'top' if top else 'bottom'} bars at least ρmin{_p('beamBars')}")
         if sag.mn < 0.5 * hog.mn - 1e-6:
             new_sag = max(new_sag, 0.5 * hog.phi_mn * 1.02)
-            why.append("bottom bars for Mn+ ≥ Mn-/2 (Sec 8.3.4.2(a))")
+            why.append(f"bottom bars for Mn+ ≥ Mn-/2{_p('beamBars')}")
         if not why:
             return pick
         loads = dataclasses.replace(loads, sag=new_sag, hog=new_hog)
@@ -2824,7 +2835,7 @@ def _beam_positive_moment(
         pick = again
     _, sag, hog, _ = designer._analyse(pick.reinforcement)
     if sag.mn < 0.5 * hog.mn - 1e-6:
-        note = "Mn+ ≥ Mn-/2 at the faces not reached (Sec 8.3.4.2(a))"
+        note = f"Mn+ ≥ Mn-/2 at the faces not reached{_p('beamBars')}"
         pick = dataclasses.replace(pick, notes=[*pick.notes, note])
     return pick
 

@@ -498,8 +498,12 @@ def generate(
             raise DrawingsError("The drawings of this project are being generated already.")
         _RUNNING[key] = {"step": "", "index": 0, "count": len(STEPS), "message": "",
                          "started": time.time()}  # fmt: skip
+    # Walk 4: the project's code pack in force while the set is drawn (its notes and clauses;
+    # before, the default pack's under every code).
+    from saengine.report.clauses import in_force
+
     try:
-        with recording_tables() as read:
+        with in_force(root), recording_tables() as read:
             return _generate(
                 root, sheets, size, design_report, required, use_design, progress, issuing, read
             )

@@ -4158,6 +4158,8 @@
     "designCases": "Part 6 Figure 6.2.9",
     "designCasesExemption": "Sec 2.4.11.3",
     "gust": "Part 6 Sec 2.4.8",
-    "flexible": "Part 6 Sec 2.4.8.2"
+    "flexible": "Part 6 Sec 2.4.8.2",
+    "gustRigid": "Sec 2.4.8.1",
+    "gustFlexible": "Sec 2.4.8.2"
   }
 }

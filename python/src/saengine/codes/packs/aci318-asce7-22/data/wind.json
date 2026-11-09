@@ -34,12 +34,20 @@
     "directionality": "ASCE 7-22 Table 26.6-1: buildings, MWFRS and C&C, Kd = 0.85 (applied in the pressures; the product is the same)",
     "gust": "ASCE 7-22 Sec 26.11.4: G = 0.85 for rigid buildings",
     "topography": "ASCE 7-22 Sec 26.8.1-26.8.2, Figure 26.8-1: K1/(H/Lh), gamma and mu; H at least 60 ft (18.3 m) in exposure B and 15 ft (4.5 m) in C and D",
-    "elevation": "ASCE 7-22 Sec 26.9: Ke = 1.0 (permitted for all sites; not applied otherwise)"
+    "elevation": "ASCE 7-22 Sec 26.9: Ke = 1.0 (permitted for all sites; not applied otherwise)",
+    "designCases": "ASCE 7-22 Sec 27.3.5 and Figure 27.3-8 (design wind load cases)",
+    "flexible": "ASCE 7-22 Sec 26.11.5 (flexible or dynamically sensitive buildings, Gf)",
+    "internalPressure": "ASCE 7-22 Sec 26.13, Table 26.13-1 (GCpi by enclosure classification)",
+    "mwfrs": "ASCE 7-22 Chapter 27 (directional procedure, Figure 27.3-1) and Chapter 28 (envelope procedure, Figure 28.3-1); coefficients as the extended pack gives them (see VERIFY.md)",
+    "cladding": "ASCE 7-22 Chapter 30 (components and cladding): walls Figure 30.3-1; roofs by the coefficients the extended pack gives (the ASCE 7-05 values; ASCE 7-16 and 7-22 revised the roof zones, see VERIFY.md)",
+    "openStructures": "ASCE 7-22 Chapter 29 (other structures: Sec 29.4, open signs, lattice frameworks and trussed towers)"
   },
   "clauses": {
     "designCases": "Figure 27.3-8",
     "designCasesExemption": "Appendix D",
     "gust": "Sec 26.11",
-    "flexible": "Sec 26.11.5"
+    "flexible": "Sec 26.11.5",
+    "gustRigid": "Sec 26.11.4",
+    "gustFlexible": "Sec 26.11.5"
   }
 }

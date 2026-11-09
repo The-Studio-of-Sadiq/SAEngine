@@ -51,7 +51,10 @@ def towns() -> tuple[Town, ...]:
 
 
 def zones() -> dict[float, int]:
-    """The zone of each coefficient Z (the pack's ``zoneCoefficients``, inverted)."""
+    """The zone of each coefficient Z (the pack's ``zoneCoefficients``, inverted); empty under
+    a pack without seismic zones (walk 4: one that declares the table not applicable)."""
+    if not code_context.current().has("zoneCoefficients"):
+        return {}
     table = code_context.table("zoneCoefficients")
     return {float(z): int(zone) for zone, z in table.zones.items()}
 

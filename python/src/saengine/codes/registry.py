@@ -468,6 +468,37 @@ class CodePack:
         return name in self._tables or name in self._broken
 
     @property
+    def not_applicable(self) -> list[str]:
+        """Walk 4: the tables of an extended pack this pack declares not applicable under its
+        code (``notApplicable``): left out, so the features reading them are not covered."""
+        return not_applicable(self._chain)
+
+    def own_source(self, name: str, text: str, key: str) -> str:
+        """Walk 4: ``text``, a source or clause string read from inside table ``name`` (a row's
+        ``source``), unless this pack's own file for the table does not give it while a pack it
+        extends does: then the pack's own ``sources[key]`` (its wording of what it adopts), or
+        ``text`` when it gives none. A pack without a parent always gets ``text``."""
+        if not text or len(self._chain) < 2:
+            return text
+        own = self._chain[0].tables.get(name)
+        if own is not None and text in _strings(own.data):
+            return text
+        if not any(
+            f.tables.get(name) is not None and text in _strings(f.tables[name].data)
+            for f in self._chain[1:]
+        ):
+            return text
+        data = own.data if own is not None else None
+        sources = data.get("sources") if isinstance(data, dict) else None
+        found = sources.get(key) if isinstance(sources, dict) else None
+        return found if isinstance(found, str) and found else text
+
+    def declares_not_applicable(self, name: str) -> bool:
+        """Walk 4: whether table ``name`` is one of :attr:`not_applicable` (never fall back to
+        the default pack's table for it)."""
+        return name in self.not_applicable
+
+    @property
     def broken(self) -> dict[str, list[Problem]]:
         """Tables that failed to merge or validate, with their problems; empty for a sound pack."""
         return {name: list(problems) for name, problems in self._broken.items()}
@@ -721,6 +752,50 @@ class CodePack:
 
     def __repr__(self) -> str:
         return f"CodePack({self.id!r}, scope={self.scope!r}, chain={self.chain!r})"
+
+
+_STRINGS: dict[int, tuple[Any, frozenset[str]]] = {}
+
+
+def _strings(data: Any) -> frozenset[str]:
+    """Every string value inside ``data`` (a table file's raw data), cached by identity."""
+    cached = _STRINGS.get(id(data))
+    if cached is not None and cached[0] is data:
+        return cached[1]
+    found: set[str] = set()
+    stack = [data]
+    while stack:
+        value = stack.pop()
+        if isinstance(value, str):
+            found.add(value)
+        elif isinstance(value, dict):
+            stack.extend(value.values())
+        elif isinstance(value, list):
+            stack.extend(value)
+    result = frozenset(found)
+    _STRINGS[id(data)] = (data, result)
+    return result
+
+
+def _applies(chain: list[_Found], name: str) -> bool:
+    """Walk 4: whether table ``name`` is part of the pack ``chain[0]`` resolves to: False when
+    a pack of the chain declares it ``notApplicable`` before (nearer the pack than) any pack
+    that gives the table itself."""
+    for found in chain:
+        if name in found.tables:
+            return True
+        if found.manifest is not None and name in (found.manifest.notApplicable or []):
+            return False
+    return True
+
+
+def not_applicable(chain: list[_Found]) -> list[str]:
+    """Walk 4: the tables a pack of ``chain`` declares not applicable and no nearer pack gives
+    (sorted): those the resolved pack leaves out."""
+    declared = {
+        name for f in chain if f.manifest is not None for name in (f.manifest.notApplicable or [])
+    }
+    return sorted(name for name in declared if not _applies(chain, name))
 
 
 def gives_table(found: Any, name: str) -> bool:
@@ -1098,7 +1173,9 @@ class Registry:
             return _Resolved(found, chain, problems, None)
 
         validators = _validators()
-        names = sorted({name for f in chain for name in f.tables})
+        names = sorted(
+            name for name in {name for f in chain for name in f.tables} if _applies(chain, name)
+        )
         tables: dict[str, Any] = {}
         validated: dict[str, Any] = {}
         sources: dict[str, list[Any]] = {}

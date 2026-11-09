@@ -241,6 +241,15 @@ class PackManifest(BaseModel):
         "code without earthquake design): the conformance check (saengine codepack check) "
         "accepts that they are missing.",
     )
+    # Walk 4 (US pack): tables of the extended pack that do not apply under this code.
+    notApplicable: list[str] = Field(
+        default_factory=list,
+        description="Tables of the pack this one extends that do not apply under its code (e.g. "
+        "['zoneCoefficients', 'planning'] for a code without seismic zones or the parent's "
+        "planning rules): they are not inherited, so the features that read them say the code "
+        "pack does not cover them and the report lists them as not applicable. A table the "
+        "pack gives itself is not affected.",
+    )
     # Alpha 9 C26: the pack's verification status (Project Settings, New Building, report).
     verified: bool | str | None = Field(
         default=None,

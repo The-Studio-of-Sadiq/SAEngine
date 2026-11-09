@@ -293,6 +293,13 @@ def _basis(data: dict[str, Any], ctx: Context) -> dict[str, Any]:
             ),
             table(["From", "Tables"], basis["inheritedTables"], ["auto", "1fr"]),
         ]
+    if basis.get("notApplicableTables"):  # walk 4
+        out.append(
+            p(
+                "Tables of the extended pack that do not apply under this code (the features "
+                f"reading them are not covered): {', '.join(basis['notApplicableTables'])}."
+            )
+        )
     if basis.get("codeOverrides"):
         out += [
             h(2, "Code values overridden in this project"),
@@ -2366,6 +2373,14 @@ def _design(data: dict[str, Any], ctx: Context) -> dict[str, Any]:
 # ─────────────────────────────────────── seismic detailing ───────────────────────────────────
 
 
+def _seismic_ref(key: str, form: str) -> str:
+    """Walk 4: ``form`` with the clause ``key`` of the seismic detailing chapter
+    (``designClauses.seismicReport``) where the pack in force gives it itself; '' otherwise."""
+    from saengine.design.clauses import Own
+
+    return Own("seismicReport", form)[key]
+
+
 @register_section("seismic")
 def _seismic(data: dict[str, Any], ctx: Context) -> dict[str, Any] | None:
     design = data["design"]
@@ -2378,7 +2393,8 @@ def _seismic(data: dict[str, Any], ctx: Context) -> dict[str, Any] | None:
             'design (their names start with "Detailing:").'
         ),
         pairs(sd["lines"], "45%"),
-        h(2, "General requirements (Sec 8.3.2, 8.3.3)"),
+        # Walk 4: the clauses of the pack in force (designClauses.seismicReport).
+        h(2, f"General requirements{_seismic_ref('general', ' ({})')}"),
         table(
             ["Requirement", "Result", "Note"],
             sd["checks"],
@@ -2430,9 +2446,11 @@ def _seismic(data: dict[str, Any], ctx: Context) -> dict[str, Any] | None:
         out += full(
             h(2, "Beam-column joints"),
             p(
-                'Strong column / weak beam ΣMnc / ΣMnb ≥ 1.2 (Sec 8.3.5.2, Eq. 6.8.5; "n.r.": '
+                "Strong column / weak beam ΣMnc / ΣMnb ≥ 1.2 ("
+                + _seismic_ref("strongColumn", "{}; ")
+                + '"n.r.": '
                 "not required, the columns carry at most 0.1 Ag f'c) and joint shear Vj against "
-                "φVn = 0.85 γ √f'c Aj (Sec 8.3.7.3) [kN]."
+                f"φVn = 0.85 γ √f'c Aj{_seismic_ref('jointShear', ' ({})')} [kN]."
             ),
             table(
                 ["Joint", "Type", "Beams", "SCWB x", "SCWB y", "Vj", "φVn", "Util.", "Result"],
@@ -2447,8 +2465,10 @@ def _seismic(data: dict[str, Any], ctx: Context) -> dict[str, Any] | None:
         out += full(
             h(2, "Capacity-design shear"),
             p(
-                "Ve from the probable moments Mpr (1.25 fy, Sec 8.3.8.1) or the 2E combinations "
-                "(Sec 8.3.10.3) against φVn [kN]; columns: the larger of their two directions."
+                "Ve from the probable moments Mpr (1.25 fy"
+                f"{_seismic_ref('probable', ', {}')}) or the 2E combinations"
+                f"{_seismic_ref('twoE', ' ({})')} against φVn [kN]; columns: the larger of their "
+                "two directions."
             ),
             table(
                 ["Member", "Kind", "Ve", "φVn", "Util.", "Result"],
