@@ -734,6 +734,30 @@ export class CodePacksEditor extends EditorPane {
 		}
 	}
 
+	/** Alpha 9 C26: asks before the online hazard lookup services a user or project pack names may be asked, or stops trusting them. */
+	async setLookupTrust(pack: ICodePackInfo, trusted: boolean): Promise<void> {
+		if (!pack.effective || !this.ensureBackend(CODES_TRUST_COMMAND)) {
+			return;
+		}
+		if (trusted) {
+			const { confirmed } = await this.dialogService.confirm({
+				type: 'warning',
+				message: localize('codePacks.lookupTrustMessage', "Trust the hazard lookup services of {0}?", pack.name),
+				detail: localize('codePacks.lookupTrustDetail', "This pack names online services that look up seismic or wind values by the site's coordinates. Once trusted, the hazard lookup may send the site's latitude and longitude and the project's risk category and site class to the addresses in its hazardLookup file (each request is still confirmed, and only when online lookups are allowed in the settings). Trust it only if you know who wrote the pack and checked the service's address. Editing the file revokes the trust."),
+				primaryButton: localize('codePacks.lookupTrustButton', "&&Trust Lookup Services"),
+			});
+			if (!confirmed) {
+				return;
+			}
+		}
+		try {
+			await this.commandService.executeCommand(CODES_TRUST_COMMAND, { id: pack.id, trusted, root: this.root?.fsPath, kind: pack.kind, what: 'lookup' });
+			await this.load();
+		} catch (error) {
+			this.notificationService.error(localize('codePacks.lookupTrustFailed', "Could not change the trust of the lookup services: {0}", toErrorMessage(error)));
+		}
+	}
+
 	private async openManifest(): Promise<void> {
 		const pack = this.selected;
 		if (pack?.path) {
@@ -1182,6 +1206,23 @@ export class CodePacksEditor extends EditorPane {
 		} else if (pack.trust !== 'none' && pack.scope !== 'builtin') {
 			appendPropertyNote(panel, localize('codePacks.hooksNote', "Hooks are Python code that replaces SAEngine's design functions. They run only when trusted, with your permissions."));
 			this.detailButton(panel, pack.trust === 'trusted' ? localize('codePacks.untrust', "Stop Trusting Hooks") : localize('codePacks.trust', "Trust This Pack's Hooks..."), () => this.setTrust(pack, pack.trust !== 'trusted'), true);
+		}
+
+		// Alpha 9 C26: whether the values were checked against the printed code.
+		if (pack.verification) {
+			appendPropertyHeading(panel, localize('codePacks.verification', "Verification"));
+			appendPropertyNote(panel, pack.verification.status === 'verified'
+				? localize('codePacks.verified', "Values verified against the printed code.")
+				: pack.verification.status === 'unverified'
+					? localize('codePacks.unverifiedDetail', "Values not yet verified against the printed code: {0}. Check them in its VERIFY.md before design use.", pack.verification.message)
+					: localize('codePacks.unstated', "The pack does not state whether its values were checked against the printed code."));
+		}
+		// Alpha 9 C26: a user or project pack's hazard lookup services need a trust step.
+		const untrustedLookups = pack.untrustedLookups ?? [];
+		if (untrustedLookups.length && pack.effective) {
+			appendPropertyHeading(panel, localize('codePacks.lookups', "Hazard Lookup Services"));
+			appendPropertyNote(panel, localize('codePacks.lookupsUntrusted', "Not trusted: the online lookup services named by {0} are never asked until you trust them.", untrustedLookups.map(id => this.packs.find(p => p.id === id)?.name ?? id).join(', ')));
+			this.detailButton(panel, localize('codePacks.trustLookups', "Trust Lookup Services..."), () => this.setLookupTrust(pack, true), true);
 		}
 	}
 

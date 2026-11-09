@@ -218,7 +218,7 @@ Methods:
   project's, shadowed ones included); ``codes/show`` ``{id, root?}`` -> the pack in force with
   its manifest; ``codes/new`` ``{id, name, extends, scope?, dest?, root?}`` -> ``{path}`` of a new
   pack's skeleton; ``codes/install`` ``{path, scope, root?}``; ``codes/validate`` ``{path,
-  root?}``; ``codes/trust`` ``{id, trusted, root?}`` (``saengine.codes``). Every request with a
+  root?}``; ``codes/trust`` ``{id, trusted, root?, kind?, what?}`` (``saengine.codes``). Every request with a
   ``projectRoot``/``root``/``projectPath``/``modelFolder``/``outDir`` runs with that project's
   own code packs available (:mod:`saengine.codes.context`).
 - ``versions/status`` ``{projectRoot}``, ``versions/list`` ``{projectRoot, limit?}``,
@@ -1602,7 +1602,11 @@ def create_server() -> JsonRPCServer:
     def _codes_trust(params: Any) -> dict[str, Any]:
         args = _plain(params)
         return handlers.codes_trust(
-            args["id"], bool(args.get("trusted")), args.get("root"), args.get("kind")
+            args["id"],
+            bool(args.get("trusted")),
+            args.get("root"),
+            args.get("kind"),
+            args.get("what"),  # Alpha 9 C26: "lookup" trusts the pack's hazard services
         )
 
     @server.feature("codes/codedGeometry")

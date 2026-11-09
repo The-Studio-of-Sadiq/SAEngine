@@ -38,3 +38,12 @@ export function activeCodeName(): string {
 export function defaultCodeName(): string {
 	return DEFAULT_CODE_TABLES.edition;
 }
+
+/**
+ * Alpha 9 C26: a help text's reference to a clause of the default pack ("Part 6 Sec 2.5.9.2"):
+ * "BNBC 2020 Part 6 Sec 2.5.9.2" while the open project follows the default pack, else the name
+ * of the code it follows without the number (the default pack's number would be another code's).
+ */
+export function defaultClause(clause: string): string {
+	return !active.id || active.id === DEFAULT_CODE_PACK_ID ? `${defaultCodeName()} ${clause}` : activeCodeName();
+}

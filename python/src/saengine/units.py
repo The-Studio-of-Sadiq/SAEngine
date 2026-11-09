@@ -272,12 +272,18 @@ class Units:
 
     system: str = "SI"
     choices: Mapping[str, str] = field(default_factory=dict)
-    #: The code pack's bar names by diameter text ("16" -> "#5"), used in US customary units.
+    #: The code pack's bar names by diameter text ("16" -> "#5"), used in every unit system
+    #: (alpha 9 C26; C13 used them in US customary units only).
     bar_names: Mapping[str, str] = field(default_factory=dict)
 
     @property
     def si(self) -> bool:
         return self.system != "USCustomary"
+
+    @property
+    def plain(self) -> bool:
+        """Alpha 9 C26: whether texts print as they are made (SI without pack bar names)."""
+        return self.si and not self.bar_names
 
     def unit(self, kind: str) -> str:
         """The unit ``kind`` is shown in."""
@@ -333,11 +339,11 @@ class Units:
         return feet_inches(mm) if self.unit("dimension") == "ft" else inches_text(mm)
 
     def bar(self, dia: float) -> str:
-        """A bar size: "Ø16" in SI, the pack's name ("#5") in US units when it has one."""
-        if not self.si:
-            name = self.bar_names.get(f"{dia:g}")
-            if name:
-                return name
+        """A bar size: the pack's name ("#5", "N16", "HD16", "16M") when it has one, in every
+        unit system (alpha 9 C26), else "Ø16"."""
+        name = self.bar_names.get(f"{dia:g}")
+        if name:
+            return name
         return f"Ø{dia:g}"
 
 
@@ -393,10 +399,9 @@ def units_json(units: Units) -> str:
 
 def project_units(settings: Any) -> Units:
     """The display units of project settings (a model or its JSON dict) with the bar names of
-    the code pack they choose; SI (without loading a pack) when they choose SI."""
+    the code pack they choose (alpha 9 C26: in SI too, so a pack's bar names show in every
+    unit system; plain SI for a pack without names)."""
     units = units_of(settings)
-    if units.si:
-        return units
     try:
         from saengine.codes import context as code_context
 
@@ -473,9 +478,12 @@ def _is_change(text: str, at: int) -> bool:
 
 def convert_text(text: str, units: Units) -> str:
     """``text`` with every SI quantity it prints ("250 mm", "300 × 500 mm", "4.5 kN/m²") in
-    the display units, and bar sizes ("Ø16 @ 150") by the pack's names; as it is in SI."""
-    if units.si or not text:
+    the display units, and bar sizes ("Ø16 @ 150") by the pack's names; as it is in SI
+    (alpha 9 C26: but for the bar sizes of a pack that names them)."""
+    if units.plain or not text:
         return text
+    if units.si:
+        return si_bar_names(text, units)
 
     def quantity(match: re.Match[str]) -> str:
         unit = match.group(3)
@@ -501,6 +509,26 @@ def convert_text(text: str, units: Units) -> str:
         return f"{name} @ {spacing} {units.unit('dimension')}"
 
     return _BAR.sub(bar, _QUANTITY.sub(quantity, text))
+
+
+def si_bar_names(text: str, units: Units) -> str:
+    """Alpha 9 C26: ``text`` with its bar sizes ("Ø16", "4Ø16", "Ø16 @ 150") by the pack's
+    names in SI ("N16", "4-N16", "N16 @ 150"); a size the pack does not name as it is."""
+    if not text or not units.bar_names:
+        return text
+
+    def bar(match: re.Match[str]) -> str:
+        name = units.bar_names.get(f"{float(match.group(3)):g}")
+        if not name:
+            return match.group(0)
+        if match.group(1) is not None:
+            gap = match.group(2) if name.startswith("Ø") else "-"
+            name = f"{match.group(1)}{gap}{name}"
+        if match.group(4) is None:
+            return name
+        return f"{name} @ {match.group(4)}"
+
+    return _BAR.sub(bar, text)
 
 
 #: Sizes in mm a drawing writes without a unit ("300x500", "500 x 500 x 600"); not a section
@@ -548,9 +576,26 @@ def convert_mm_table(
     """A drawing's table (columns ``{"title", ...}``, rows of text) in the display units: the
     numbers of its "(mm)" columns by :meth:`Units.size_text` (a bar size column "Ø (mm)" by
     the pack's bar names), their titles with the unit, the other cells by
-    :func:`convert_text`; the same table in SI."""
-    if units.si:
+    :func:`convert_text`; the same table in SI (alpha 9 C26: but for the bar sizes of a pack
+    that names them)."""
+    if units.plain:
         return columns, rows
+    if units.si:
+        bars = {i for i, c in enumerate(columns) if "Ø (mm)" in str(c.get("title") or "")}
+        out_columns = [
+            {**c, "title": str(c.get("title") or "").replace("Ø (mm)", "size")} if i in bars else c
+            for i, c in enumerate(columns)
+        ]
+        out_rows = [
+            [
+                _MM_CELL.sub(lambda m: units.bar(float(m.group(1))), str(c))
+                if i in bars
+                else si_bar_names(str(c), units)
+                for i, c in enumerate(row)
+            ]
+            for row in rows
+        ]
+        return out_columns, out_rows
     shown = units.unit("dimension")
     kinds: dict[int, str] = {}
     out_columns = []
@@ -714,6 +759,18 @@ def convert_block(block: dict[str, Any], units: Units) -> dict[str, Any]:
     return out
 
 
+def _si_bar_document(value: Any, units: Units) -> Any:
+    """Alpha 9 C26: every text of a report document with its bar sizes by the pack's names
+    (:func:`si_bar_names`); the numbers stay as they are (SI)."""
+    if isinstance(value, str):
+        return si_bar_names(value, units) if "Ø" in value else value
+    if isinstance(value, list):
+        return [_si_bar_document(v, units) for v in value]
+    if isinstance(value, dict):
+        return {k: _si_bar_document(v, units) for k, v in value.items()}
+    return value
+
+
 #: What the report says of its units in US customary units.
 UNITS_NOTE = (
     "Values are computed in SI and printed in US customary units (3 significant figures). "
@@ -725,9 +782,12 @@ UNITS_NOTE = (
 
 def convert_document(document: dict[str, Any], units: Units) -> dict[str, Any]:
     """The report document (:func:`saengine.report.document.report_document`) in the display
-    units; the same document in SI. Its numbers were computed in SI: only their text changes."""
-    if units.si:
+    units; the same document in SI. Its numbers were computed in SI: only their text changes.
+    Alpha 9 C26: in SI the bar sizes of a pack that names them ("N16") are named so."""
+    if units.plain:
         return document
+    if units.si:
+        return _si_bar_document(document, units)
     sections = []
     for section in document.get("sections", []):
         blocks = [convert_block(b, units) for b in section.get("blocks", [])]

@@ -17,6 +17,7 @@
     "tank": [11.3, 16.0, 19.5, 25.2],
     "foundation": [16.0, 19.5, 25.2, 29.9]
   },
+  "barMasses": {"$replace": true},
   "barNames": {
     "$replace": true,
     "11.3": "10M", "16": "15M", "19.5": "20M", "25.2": "25M",
@@ -34,7 +35,7 @@
   },
   "sources": {
     "barDiameters": "CSA G30.18: the metric bar sizes 10M to 55M by their nominal diameters (SAEngine's sets by use: SAEngine practice)",
-    "barNames": "CSA G30.18 bar designations (shown in US customary display units; SI shows the diameter)",
+    "barNames": "CSA G30.18 bar designations (shown in every display unit system, alpha 9 C26)",
     "shrinkage": "CSA A23.3-19 7.8.1: 0.002 Ag of shrinkage and temperature reinforcement in each direction, every grade"
   }
 }

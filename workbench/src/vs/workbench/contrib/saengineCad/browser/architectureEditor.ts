@@ -49,7 +49,7 @@ import { acquireCadEditor, cadBackground, forCanvas, isLightCanvas, releaseCadEd
 import { FLOOR_PLAN_LAYERS, floorPlanDrawing } from './floorPlanDrawing.js';
 import { siblingPartFile } from './floorPlanEditorInput.js';
 import { ISnap, SNAP_NAMES, snapLinear, snapMarker, squareMarker } from './floorPlanSnap.js';
-import { defaultCodeName } from '../../../services/saengineProject/common/activeCodePack.js';
+import { defaultClause } from '../../../services/saengineProject/common/activeCodePack.js';
 import { convertTextNodes } from '../../saengineProject/browser/displayUnitsTable.js';
 import { displayUnit, inputText, isConverted, parseQuantity } from '../../../services/saengineProject/common/displayUnits.js';
 
@@ -1159,7 +1159,7 @@ export class ArchitectureEditor extends EditorPane {
 					});
 				}
 				this.occupancyRow(panel, roof.id, roof.occupancy, change);
-				appendPropertyNote(panel, localize('arch.roofNote', "Its covering is superimposed dead load over its outline on this story's slab, instead of the floor's flat finish there (rooms on the roof keep theirs); an occupancy gives its live load ({0} Part 6 Table 6.2.3).", defaultCodeName()));
+				appendPropertyNote(panel, localize('arch.roofNote', "Its covering is superimposed dead load over its outline on this story's slab, instead of the floor's flat finish there (rooms on the roof keep theirs); an occupancy gives its live load ({0}).", defaultClause('Part 6 Table 6.2.3')));
 				break;
 			}
 			case 'ramps': {

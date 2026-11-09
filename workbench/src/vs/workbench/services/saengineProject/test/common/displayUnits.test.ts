@@ -76,12 +76,19 @@ suite('SAEngine - display units (C13)', () => {
 		setActiveBarNames({ '10': '#3', '16': '#5' });
 		try {
 			assert.strictEqual(barName(16, US), '#5');
-			assert.strictEqual(barName(16, SI_UNITS_SETTING), 'Ø16');
+			// Alpha 9 C26: the pack's names in SI too; a size it does not name stays "Ø".
+			assert.strictEqual(barName(16, SI_UNITS_SETTING), '#5');
+			assert.strictEqual(barName(12, SI_UNITS_SETTING), 'Ø12');
 			const text = 'ΔTu = ±20 °C; supply 13 °C; 4Ø16 and Ø10 @ 150; 250 mm, 4.8 kN/m²';
 			assert.strictEqual(convertText(text, US), 'ΔTu = ±36 °F; supply 55.4 °F; 4-#5 and #3 @ 5.91 in; 9.84 in, 100 psf');
-			assert.strictEqual(convertText(text, SI_UNITS_SETTING), text);
+			assert.strictEqual(convertText(text, SI_UNITS_SETTING), 'ΔTu = ±20 °C; supply 13 °C; 4-#5 and #3 @ 150; 250 mm, 4.8 kN/m²');
+			assert.strictEqual(convertText('Ø12 @ 200', SI_UNITS_SETTING), 'Ø12 @ 200');
 		} finally {
 			setActiveBarNames(undefined);
 		}
+		// Without names (the default pack) SI text is as it is.
+		assert.strictEqual(barName(16, SI_UNITS_SETTING), 'Ø16');
+		const plain = '4Ø16 and Ø10 @ 150';
+		assert.strictEqual(convertText(plain, SI_UNITS_SETTING), plain);
 	});
 });

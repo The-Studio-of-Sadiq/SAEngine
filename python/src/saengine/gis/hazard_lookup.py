@@ -96,8 +96,24 @@ def providers(pack: Any) -> list[HazardProvider]:
     table = _table(pack)
     if table is None:
         return []
+    # Alpha 9 C26: a user or project pack's services only once trusted (default untrusted).
+    if not getattr(pack, "lookup_trusted", True):
+        return []
     own = pack.provided_by(TABLE) == pack.id
     return [p for p in table.providers if own or p.inheritable]
+
+
+def untrusted_note(pack: Any) -> str:
+    """Alpha 9 C26: why a pack's lookup services are not offered: the user or project pack
+    that names them is not trusted; '' when they may be asked (or there are none)."""
+    if _table(pack) is None or getattr(pack, "lookup_trusted", True):
+        return ""
+    owner = getattr(pack, "lookup_owner", None) or pack.id
+    return (
+        f"The code pack '{owner}' names an online lookup service that is not trusted on this "
+        "computer: a user or project pack's service is asked only after you trust it (Packages, "
+        "Trust Lookup Service). Enter the values by hand meanwhile."
+    )
 
 
 def coordinates(
@@ -428,6 +444,8 @@ def offers(
         "params": params,
         "providers": out,
         "manualNote": table.manualNote if table is not None else "",
+        # Alpha 9 C26: the trust step of a user or project pack's services.
+        "untrusted": untrusted_note(pack),
     }
 
 
@@ -461,6 +479,9 @@ def lookup(
         return {"ok": False, "code": "codePack", "message": str(error)}
     provider = next((p for p in providers(pack) if p.id == provider_id), None)
     if provider is None:
+        untrusted = untrusted_note(pack)  # Alpha 9 C26
+        if untrusted:
+            return {"ok": False, "code": "untrusted", "message": untrusted}
         return {
             "ok": False,
             "code": "provider",

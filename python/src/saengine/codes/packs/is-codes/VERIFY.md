@@ -577,3 +577,9 @@ IS 2502 shapes 00, 11, 21, 23, 31, 41, 51 have a BVBS geometry; 13 (its B is not
 
 Not covered by this pack: towers (they take the parent's wind open-structure coefficients),
 silos, chimneys, cooling towers, offshore, piping, load rating.
+
+## Column construction joints (alpha 9 C26, owner decision 2026-11-04)
+
+| # | Path | Value | Source | Sure? |
+|---|---|---|---|---|
+| C26-1 | detailing.clauses.shearFriction | the parent's shear-friction check of column construction joints kept, labelled SAEngine practice under IS 456:2000 13.4 | IS 456:2000 13.4 (places joints only); SAEngine practice | Practice |

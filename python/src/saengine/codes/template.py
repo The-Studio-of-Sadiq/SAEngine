@@ -374,6 +374,16 @@ MANIFEST_HELP: dict[str, str] = {
     '{"bnbc2020": ">=1.0.0"}}; SAEngine refuses or flags a pack whose needs are not met.',
     "contents": 'Optional: the pack\'s files, default ["data/*.json"].',
     "preview": "Optional: a small card image in the pack folder (preview.png).",
+    "units": 'Optional: the display units a new project with the pack starts in, "SI" (the '
+    'default) or "USCustomary".',
+    "tableCodes": "Optional: how results name the code of a table's clauses when the pack bundles "
+    'several codes, {"concrete": "XS 123:2021", "designClauses.steelMembers": "XS 456"}.',
+    "notCovered": 'Optional: areas the code does not design for, ["seismic"] for a code without '
+    "earthquake design; the conformance check accepts that they are missing.",
+    "verified": "Set it once every row of VERIFY.md has been checked against the printed code: "
+    'true, or the date of the check ("2026-11-20"). Until then SAEngine shows "values not yet '
+    'verified against the printed code" in Project Settings, the New Building wizard and the '
+    "report.",
 }
 
 
@@ -597,17 +607,125 @@ def _write_skeleton(
     keys = "\n".join(f"- `{key}`: {text}" for key, text in MANIFEST_HELP.items())
     listed = "\n".join(f"- `{t}`: {TABLE_HELP.get(t, '')}" for t in tables if t in parent_data)
     parent_line = f" extending {parent_name} (`{extends}`)" if extends else ""
+    parent_id = extends or DEFAULT_PARENT
     readme = (
         f"# {title}\n\n"
-        f"A SAEngine design code pack{parent_line}. See docs/code-packs.md in SAEngine.\n\n"
+        f'A SAEngine design code pack{parent_line}. See "Write your own country\'s pack" '
+        "(docs/code-packs.md) in SAEngine.\n\n"
         "- `pack.json`: what the pack is, what it covers, where its values come from.\n"
-        "- `data/<table>.json`: the values; each file starts with its help under `$help`.\n"
+        "- `data/<table>.json`: the values; each file starts with its help under `$help`. A "
+        "file with only `$help` and `$example` changes nothing.\n"
+        "- `examples/`: worked examples of overrides (not read by SAEngine): copy what you need "
+        "into `data/`.\n"
+        "- `VERIFY.md`: every value you enter, with its clause, to check against the printed "
+        "code.\n"
         "- `docs/`: notes, extracts of the code you may share, calculations.\n\n"
-        "Check it with `saengine codepack validate <this folder>`, and compare it with its "
-        f"parent with `saengine codepack diff {extends or DEFAULT_PARENT} <this folder>`.\n\n"
+        "## What to override first\n\n"
+        "1. `locations` (your towns with their seismic zone or mapped values and basic wind "
+        "speed) and `occupancyCategories` (importance factors).\n"
+        "2. `combinations` (the load factors and combinations), `areaLoads` (live loads) and "
+        "`deadLoads` (unit weights).\n"
+        "3. `seismic` (spectrum, site classes, structural systems with their R or q, drift "
+        "limits) and `wind` (the pressure method and its factors).\n"
+        "4. The materials: `concrete` (bar sizes and names, covers, limits), `factors` "
+        "(resistance or partial factors), `steel`.\n"
+        "5. The clause references the results print: `designClauses`, and `$sources` in every "
+        "file you change.\n\n"
+        "Everything you leave out comes from the parent and the report says so: tables "
+        "inherited are listed under the design basis, named after the pack that supplies them.\n\n"
+        "## Check it\n\n"
+        f"- `saengine codepack validate <this folder>`: the files load and every value is valid.\n"
+        f"- `saengine codepack check <this folder>`: the conformance checks every pack must pass "
+        "(coverage declared, sources given, no other code's clause text, earthquake and wind "
+        "combinations or `notCovered`, bar names of the pack's sizes).\n"
+        f"- `saengine codepack diff {parent_id} <this folder>`: what you changed.\n"
+        "- Install it (Packages > Install, or `saengine codepack install <this folder>`), make a "
+        "small building with it in the New Building wizard and run Design Reinforcement.\n\n"
+        "## Verify it\n\n"
+        "List every value you enter in `VERIFY.md` with its clause, table or equation. Once a "
+        "second engineer has checked a row against the printed code, write `Verified <date>` in "
+        'its last column. When every row is ticked, set `"verified": "<date>"` in '
+        '`pack.json`; until then SAEngine shows "values not yet verified against the printed '
+        'code" with the pack.\n\n'
+        "## Share it\n\n"
+        "Zip the folder (or keep it in the project's `02 Project Settings/code-packs/`, which "
+        "travels with the project). To publish it for other offices, offer it to the SAEngine "
+        "marketplace index (docs/marketplace-plan.md): packs are reviewed, signed and listed "
+        "by kind. Do not copy the code's text or tables as printed: numbers and short clause "
+        "references only.\n\n"
         f"## The keys of pack.json\n\n{keys}\n\n## The tables (data/)\n\n{listed}\n"
     )
     (folder / "README.md").write_text(readme, encoding="utf-8")
+    _write_verify(folder, title, parent_name)
+    _write_examples(folder, parent_data)
+
+
+#: Alpha 9 C26: the VERIFY.md of a new pack (one example row; the checker ticks the last column).
+VERIFY_TEMPLATE = """# {title}: values to verify
+
+Every value this pack enters, with the clause, table or equation it comes from. A second
+engineer checks each row against the printed code and writes `Verified <date>` in the last
+column. Rows without it count as not verified: until every row is ticked (or `pack.json` says
+`"verified": "<date>"`), SAEngine shows "values not yet verified against the printed code" with
+the pack. Values the pack does not enter come from {parent} and are not listed here.
+
+| # | Table and key | Value | Clause / table / equation | Checked |
+|---|---|---|---|---|
+| 1 | combinations.strength (example: replace this row) | 1.2D + 1.6L | (clause) | |
+"""
+
+
+def _write_verify(folder: Path, title: str, parent_name: str) -> None:
+    """Alpha 9 C26: VERIFY.md of a new pack."""
+    text = VERIFY_TEMPLATE.format(title=title, parent=parent_name)
+    (folder / "VERIFY.md").write_text(text, encoding="utf-8")
+
+
+def _write_examples(folder: Path, parent_data: dict[str, Any]) -> None:
+    """Alpha 9 C26: worked examples of overrides in ``examples/`` (not read by SAEngine: the
+    pack reads ``data/*.json`` only), each a complete data file to copy into ``data/``."""
+    out = folder / "examples"
+    out.mkdir(exist_ok=True)
+    examples: dict[str, Any] = {
+        "locations.json": {
+            "$sources": ["(your code's hazard map, table or annex)"],
+            "$comment": "Adds a town; the parent's towns stay. Keys are short ids.",
+            "locations": {
+                "example-town": {
+                    "name": "Example Town",
+                    "zone": 2,
+                    "windSpeed": 50.0,
+                }
+            },
+        },
+        "concrete.json": {
+            "$sources": ["(your bar standard, its table of sizes and nominal masses)"],
+            "$comment": "Bar names by size [mm] (shown in every unit system) and, where a size's "
+            "key is a designation rather than its nominal diameter, its nominal mass [kg/m].",
+            "barNames": {"$replace": True, "10": "T10", "12": "T12", "16": "T16", "20": "T20"},
+            "barMasses": {"$replace": True},
+        },
+        "combinations.json": {
+            "$sources": ["(your code's clause of the strength combinations)"],
+            "$comment": "Strength rows are matched by name: a row with a parent's name changes "
+            "it, a new name is added, {'name': ..., '$remove': true} drops one (to replace the "
+            "list whole, give the whole table with '$replace': true). Kinds: D, L, Lr, W, E, "
+            "S, T, F, H (W and E expand to the plan directions and signs). The rows with E also "
+            "give the response spectrum design combinations.",
+            "strength": [
+                {
+                    "id": "5",
+                    "name": "1.2D + 1.0E + 1.0L",
+                    "factors": {"D": 1.2, "E": 1.25, "L": 1.0},
+                    "source": "(your clause: an earthquake factor of 1.25, for example)",
+                },
+                {"name": "1.4D", "$remove": True},
+            ],
+        },
+    }
+    for name, content in examples.items():
+        if name.removesuffix(".json") in parent_data:
+            _write_json(out / name, content)
 
 
 # ─────────────────────────────── validation ───────────────────────────────

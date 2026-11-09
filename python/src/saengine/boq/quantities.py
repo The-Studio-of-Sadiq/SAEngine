@@ -331,8 +331,11 @@ EMBEDDED_WALL_CONVENTIONS = [
 
 
 def bar_mass(dia: float) -> float:
-    """Mass of a bar [kg/m] of diameter ``dia`` [mm] (7850 kg/m³)."""
-    return dia * dia / 162
+    """Mass of a bar [kg/m] of size ``dia`` [mm]: the code pack's nominal mass of the size
+    (alpha 9 C26, :func:`saengine.codes.bars.bar_mass`), else d²/162 (7850 kg/m³)."""
+    from saengine.codes.bars import bar_mass as pack_bar_mass
+
+    return pack_bar_mass(dia)
 
 
 def bar_length(length: float, dia: float) -> float:

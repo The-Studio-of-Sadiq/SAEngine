@@ -39,7 +39,7 @@ def register(commands: Any, common: argparse.ArgumentParser) -> argparse.Argumen
     sub = commands.add_parser(
         "codepack",
         aliases=list(ALIASES),
-        help="design code packs and other packages: list, show, new, validate, diff",
+        help="design code packs and other packages: list, show, new, validate, check, diff",
         description="Design code packs: the code's reference data and factors, as a folder "
         "(see docs/code-packs.md); with --kind, the other packages: structure and building "
         "templates (see docs/marketplace-plan.md).",
@@ -76,6 +76,10 @@ def register(commands: Any, common: argparse.ArgumentParser) -> argparse.Argumen
     parser = action("validate", "check a pack folder; exit 1 when it has errors")
     parser.add_argument("path", help="the pack folder")
     kind(parser)
+    parser = action(
+        "check", "the conformance checks every pack must pass; exit 1 when it does not conform"
+    )
+    parser.add_argument("pack", help="pack id or pack folder")
     parser = action("diff", "the table/key differences of two packs")
     parser.add_argument("a", help="pack id or folder")
     parser.add_argument("b", help="pack id or folder")
@@ -199,6 +203,8 @@ def cmd_new(args: argparse.Namespace, out: Any) -> int:
     out.line(f"created {folder}")
     out.line(f"  edit {folder / 'pack.json'} and the tables you change in {folder / 'data'}")
     out.line(f'  then: saengine codepack validate "{folder}"')
+    out.line(f'  and:  saengine codepack check "{folder}"   (the conformance checks)')
+    out.line(f"  list what you enter, with its clause, in {folder / 'VERIFY.md'}")
     out.document("codepack new", EXIT_OK, {"path": str(folder.resolve()),
                                             "manifest": str((folder / 'pack.json').resolve())})  # fmt: skip
     return EXIT_OK
@@ -216,6 +222,34 @@ def cmd_validate(args: argparse.Namespace, out: Any) -> int:
              f" ({errors} error{'s' * (errors != 1)}, {warnings} warning{'s' * (warnings != 1)})")  # fmt: skip
     code = EXIT_OK if result.ok else EXIT_CHECKS
     out.document("codepack validate", code, result.to_json())
+    return code
+
+
+def cmd_check(args: argparse.Namespace, out: Any) -> int:
+    """Alpha 9 C26: the conformance checks (:mod:`saengine.codes.conformance`) of a pack, by id
+    or folder; exit 1 when it has an error."""
+    from saengine.codes import registry
+    from saengine.codes.conformance import check_pack, errors
+
+    root = _root(args)
+    folder = Path(args.pack)
+    is_folder = (folder / "pack.json").is_file()
+    pack = registry.load_path(folder, root) if is_folder else registry.load(args.pack, root)
+    findings = check_pack(pack)
+    for finding in findings:
+        out.line(str(finding))
+    bad = errors(findings)
+    warnings = len(findings) - len(bad)
+    out.line(f"{pack.id}: {'conforms' if not bad else 'does not conform'}"
+             f" ({len(bad)} error{'s' * (len(bad) != 1)}, {warnings} warning{'s' * (warnings != 1)});"
+             f" {pack.verification.message}")  # fmt: skip
+    code = EXIT_OK if not bad else EXIT_CHECKS
+    out.document("codepack check", code, {
+        "id": pack.id,
+        "conforms": not bad,
+        "findings": [f.as_dict() for f in findings],
+        "verification": pack.verification.model_dump(),
+    })  # fmt: skip
     return code
 
 
@@ -256,6 +290,7 @@ ACTIONS = {
     "show": cmd_show,
     "new": cmd_new,
     "validate": cmd_validate,
+    "check": cmd_check,
     "diff": cmd_diff,
     "install": cmd_install,
     "remove": cmd_remove,

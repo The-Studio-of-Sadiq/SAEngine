@@ -432,6 +432,30 @@
       "default": null,
       "description": "Card image of the package: a small .png, .jpg or .webp in its folder.",
       "title": "Preview"
+    },
+    "notCovered": {
+      "description": "Areas the pack declares the code does not cover (e.g. ['seismic'] for a code without earthquake design): the conformance check (saengine codepack check) accepts that they are missing.",
+      "items": {
+        "type": "string"
+      },
+      "title": "Notcovered",
+      "type": "array"
+    },
+    "verified": {
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Set once every value has been checked against the printed code: true, or the date of the check ('2026-11-20'). Without it, a pack whose VERIFY.md has rows not ticked (a cell 'Verified', '✓' or '[x]') shows 'values not yet verified against the printed code'.",
+      "title": "Verified"
     }
   },
   "required": [

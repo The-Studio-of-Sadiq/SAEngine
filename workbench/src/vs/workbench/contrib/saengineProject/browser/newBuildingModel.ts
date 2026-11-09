@@ -5,7 +5,7 @@
 
 import { localize } from '../../../../nls.js';
 import { gridLabel, IGridLine } from '../../../services/saengineProject/common/gridLabels.js';
-import { DEFAULT_CODE_PACK_ID, defaultCodeName } from '../../../services/saengineProject/common/activeCodePack.js';
+import { DEFAULT_CODE_PACK_ID } from '../../../services/saengineProject/common/activeCodePack.js';
 
 /*
  * The New Building wizard's model: the grid spacings and storey heights as engineers type them
@@ -34,7 +34,7 @@ export const SYSTEM_CHOICES: readonly { readonly value: StructuralSystemChoice; 
 	{ value: 'rcFrame', label: localize('system.rcFrame', "RC frame"), description: localize('system.rcFrame.description', "Columns at every grid intersection, beams on every grid line, a slab in every bay.") },
 	{ value: 'rcFrameCore', label: localize('system.rcFrameCore', "RC frame + core walls"), description: localize('system.rcFrameCore.description', "The frame, with shear walls around the central bay for the lift and stair core.") },
 	{ value: 'flatSlab', label: localize('system.flatSlab', "Flat slab"), description: localize('system.flatSlab.description', "Columns and flat plates only, no beams (no drop panels or edge beams); core walls where Seismic Design Category D needs them.") },
-	{ value: 'masonry', label: localize('system.masonry', "Load-bearing masonry (low-rise)"), description: localize('system.masonry.description', "Brick walls on every grid line carrying two-way slabs, strip footings, no columns or beams; plain masonry in Seismic Design Category B, reinforced in C, not permitted in D ({0} Table 6.2.19).", defaultCodeName()) },
+	{ value: 'masonry', label: localize('system.masonry', "Load-bearing masonry (low-rise)"), description: localize('system.masonry.description', "Brick walls on every grid line carrying two-way slabs, strip footings, no columns or beams; plain masonry where the design code's seismic category allows it, reinforced above that, not permitted where its structural system table excludes it.") },
 	// Alpha 9 C3b: steel systems; the code pack's systems decide the frame's ductility (ordinary, intermediate or special).
 	{ value: 'steelMomentFrame', label: localize('system.steelMomentFrame', "Steel moment frame"), description: localize('system.steelMomentFrame.description', "Steel columns and beams with moment connections on every grid line, RC slabs on the beams; the design code's ordinary, intermediate or special moment frame that the Seismic Design Category and height permit.") },
 	{ value: 'steelBracedFrame', label: localize('system.steelBracedFrame', "Steel braced frame"), description: localize('system.steelBracedFrame.description', "Steel columns and beams with X braces in one bay of each outer frame line, RC slabs on the beams; the design code's ordinary or special concentrically braced frame that the Seismic Design Category and height permit.") },

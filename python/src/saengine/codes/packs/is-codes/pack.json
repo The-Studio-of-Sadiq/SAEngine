@@ -8,6 +8,8 @@
   "extends": "bnbc2020",
   "covers": [
     "locations",
+    "detailing",
+    "plumbing",
     "zoneCoefficients",
     "occupancyCategories",
     "areaLoads",
@@ -280,6 +282,7 @@
   "licence": "AGPL-3.0-only",
   "hooks": null,
   "tableCodes": {
-    "concrete": "IS 1343:1980"
+    "concrete": "IS 1343:1980",
+    "detailing.shearFriction": "IS 456:2000"
   }
 }

@@ -3862,6 +3862,14 @@ class ConcreteTable(TableModel):
         "written in barDiameters ('16' -> '#5'), printed in US customary display units; "
         "None: 'Ø' and the diameter.",
     )
+    # Alpha 9 C26: the bar standard's nominal masses where a size's key in barDiameters is a
+    # designation, not the nominal diameter (ASTM A615M No. 10 is 9.5 mm: 0.560 kg/m).
+    barMasses: dict[str, Annotated[float, Field(gt=0)]] | None = Field(
+        default=None,
+        description="Nominal mass [kg/m] of each bar size by its key in barDiameters ('10' -> "
+        "0.560), for the bill of quantities and the bar schedules; a size without an entry: "
+        "d²/162 of its diameter (7850 kg/m³).",
+    )
     spacingStep: float
     minSlabSpacing: float
     minStirrupSpacing: float

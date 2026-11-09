@@ -403,7 +403,7 @@ export function sizeText(mm: number, units: IDisplayUnits = activeDisplayUnits()
 
 let barNames: { readonly [dia: string]: string } = {};
 
-/** Records the code pack's bar names by diameter (`concrete.barNames`: "16" → "#5"), which US customary units show. */
+/** Records the code pack's bar names by diameter (`concrete.barNames`: "16" → "#5"), shown in every unit system (alpha 9 C26). */
 export function setActiveBarNames(names: unknown): void {
 	const out: { [dia: string]: string } = {};
 	if (typeof names === 'object' && names !== null && !Array.isArray(names)) {
@@ -416,15 +416,24 @@ export function setActiveBarNames(names: unknown): void {
 	barNames = out;
 }
 
-/** A bar size: "Ø16" in SI, the pack's name ("#5") in US units when it has one (saengine.units.Units.bar). */
-export function barName(dia: number, units: IDisplayUnits = activeDisplayUnits()): string {
-	if (units.system === 'USCustomary') {
-		const name = barNames[String(dia)];
-		if (name) {
-			return name;
+/**
+ * A bar size: the pack's name ("#5", "N16", "HD16", "16M") when it has one, in every unit system
+ * (alpha 9 C26), else "Ø16" (saengine.units.Units.bar).
+ */
+export function barName(dia: number, _units: IDisplayUnits = activeDisplayUnits()): string {
+	return barNames[String(dia)] || `Ø${dia}`;
+}
+
+/** Alpha 9 C26: `text` with its bar sizes by the pack's names in SI ("4Ø16 @ 150" → "4-N16 @ 150"); the numbers as they are (saengine.units.si_bar_names). */
+function siBarNames(text: string): string {
+	return text.replace(BAR, (whole: string, count: string | undefined, gap: string | undefined, dia: string, spacing: string | undefined) => {
+		const own = barNames[String(Number(dia))];
+		if (!own) {
+			return whole;
 		}
-	}
-	return `Ø${dia}`;
+		const name = count !== undefined ? `${count}${own.startsWith('Ø') ? gap ?? '' : '-'}${own}` : own;
+		return spacing === undefined ? name : `${name} @ ${spacing}`;
+	});
 }
 
 const NUM = String.raw`(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?`;
@@ -446,8 +455,12 @@ function numberOf(text: string): number {
  * backend's `saengine.units.convert_text` (a temperature after "Δ", "±", "by" ... is a change).
  */
 export function convertText(text: string, units: IDisplayUnits = activeDisplayUnits()): string {
-	if (units.system !== 'USCustomary' || !text) {
+	if (!text) {
 		return text;
+	}
+	if (units.system !== 'USCustomary') {
+		// Alpha 9 C26: SI as it is, but for the bar sizes of a pack that names them.
+		return Object.keys(barNames).length ? siBarNames(text) : text;
 	}
 	const quantities = text.replace(QUANTITY, (_whole: string, first: string, rest: string, unit: string, at: number) => {
 		// the words before it in its own clause (up to a ; , : ( ) or the temperature before it)

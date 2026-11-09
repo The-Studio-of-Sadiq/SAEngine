@@ -132,4 +132,17 @@ suite('SAEngine - Code packs', () => {
 		assert.strictEqual(readPackLists(undefined), undefined);
 		assert.strictEqual(readPackLists({ choices: {} }), undefined);
 	});
+
+	test('alpha 9 C26: a pack not yet verified against the printed code says so in the selector', () => {
+		const packs = readCodePacks([
+			{ id: 'checked', name: 'Checked', scope: 'user', covers: [], verification: { status: 'verified', message: 'values verified against the printed code' } },
+			{ id: 'fresh', name: 'Fresh', scope: 'user', covers: [], verification: { status: 'unverified', message: 'values not yet verified against the printed code (3 of 9 rows of VERIFY.md not ticked)' }, untrustedLookups: ['fresh'] },
+			{ id: 'old', name: 'Old', scope: 'user', covers: [], verification: { status: 'bogus' } },
+		]);
+		assert.deepStrictEqual(packs.map(p => p.verification?.status), ['verified', 'unverified', undefined]);
+		assert.deepStrictEqual(packs[1].untrustedLookups, ['fresh']);
+		const options = packOptions(packs, 'fresh');
+		assert.strictEqual(options.find(o => o.id === 'checked')?.description.includes('not yet verified'), false);
+		assert.strictEqual(options.find(o => o.id === 'fresh')?.description.includes('values not yet verified against the printed code'), true);
+	});
 });

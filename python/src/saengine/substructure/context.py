@@ -225,6 +225,13 @@ def load_context(
             loads = base_loads(project, out, building, settings)
         except ValueError:
             no_loads = "there are no analysis results; run the analysis in 8 FEM first"
+        if loads is not None and loads.unscaled_strength:
+            # Alpha 9 C26: the pack's capacity design of foundations with Ω from each base's
+            # column (EN 1998-1 4.4.2.6 type; none under the default pack).
+            from saengine.substructure import foundation_capacity
+
+            note = foundation_capacity.apply_member_omegas(loads, objects, materials, settings)
+            loads.capacity_note = note or loads.capacity_note
     return Context(
         substructure,
         building,

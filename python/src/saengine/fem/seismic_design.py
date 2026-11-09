@@ -103,6 +103,7 @@ from typing import Any, Literal
 import numpy as np
 
 from saengine.codes import context as code_context
+from saengine.codes.registry import CodePackError
 
 #: Folder of the modal-force run inside the analysis results folder.
 RS_FOLDER = "rs-design"
@@ -1726,9 +1727,11 @@ def seismic_combinations(
     torsion: bool,
     amplification: dict[str, float] | None = None,
 ) -> list[dict[str, Any]]:
-    """The strength combinations with the response spectrum E (Sec 2.7.3.1 combinations 5 and
-    7, E = Eh ± Ev): ``[{"name", "loads": {case factors of a LoadCombination}, "envelope":
-    {part: factor}, "clause"}]`` (:class:`saengine.fem.combinations.DesignCombination`).
+    """The strength combinations with the response spectrum E (the pack's strength rows with E:
+    the default pack's Sec 2.7.3.1 combinations 5 and 7, E = Eh ± Ev; :func:`_earthquake_rows`;
+    E's factor of the row on every envelope part): ``[{"name", "loads": {case factors of a
+    LoadCombination}, "envelope": {part: factor}, "clause"}]``
+    (:class:`saengine.fem.combinations.DesignCombination`).
 
     With ``torsion`` and 100 % + 30 %, each direction pair appears twice: with the 5 % shift
     across the principal force (AX with EX + 0.3EY) and with the shift along it (0.3·AY: the
@@ -1757,28 +1760,90 @@ def seismic_combinations(
             ("EX", {"RX": 1.0} | ({"AX": tx} if torsion else {})),
             ("EY", {"RY": 1.0} | ({"AY": ty} if torsion else {})),
         ]
-    upper, lower = round(1.2 + ev, 4), round(0.9 - ev, 4)
+    # Alpha 9 C26: the pack's strength combinations with E (was 1.2D/0.9D ± 1.0E for every
+    # pack); the default pack's rows 5 and 7 give the same combinations as before.
     result = []
-    for label, envelope in directions:
-        live_text = f" + {live:.1f}L" if live else ""
-        result.append(
-            {
-                "name": f"{upper:g}D{live_text} ± 1.0E(RS {label})",
-                "loads": {"D": upper, "L": live},
-                "envelope": envelope,
-                "clause": f"{CLAUSES['combinations']} no. 5, E = Eh + Ev",
-            }
-        )
-    for label, envelope in directions:
-        result.append(
-            {
-                "name": f"{lower:g}D ± 1.0E(RS {label})",
-                "loads": {"D": lower},
-                "envelope": envelope,
-                "clause": f"{CLAUSES['combinations']} no. 7, E = Eh − Ev",
-            }
-        )
+    seen: set[tuple[float, float, float]] = set()
+    for row, sign in _earthquake_rows():
+        d, fe = float(row.factors.get("D", 0.0)), float(row.factors.get("E", 1.0))
+        dead = round(d + sign * fe * ev, 4)
+        has_live = "L" in row.factors
+        live_factor = _row_live_factor(settings, options, row, live) if has_live else 0.0
+        key = (dead, live_factor, fe)
+        if key in seen:
+            continue
+        seen.add(key)
+        number = row.id or row.name
+        part = "E = Eh + Ev" if sign > 0 else "E = Eh − Ev"
+        for label, envelope in directions:
+            live_text = f" + {live_factor:.1f}L" if live_factor else ""
+            factored = envelope if fe == 1.0 else {k: round(fe * v, 4) for k, v in envelope.items()}
+            result.append(
+                {
+                    "name": f"{dead:g}D{live_text} ± {fe:.1f}E(RS {label})",
+                    "loads": {"D": dead, "L": live_factor} if has_live else {"D": dead},
+                    "envelope": factored,
+                    "clause": f"{CLAUSES['combinations']} no. {number}, {part}",
+                }
+            )
     return result
+
+
+@dataclass(frozen=True)
+class _EarthquakeRow:
+    """A strength combination with E (the generic default when the pack has none)."""
+
+    id: str | None
+    name: str
+    factors: dict[str, float]
+
+
+#: Alpha 9 C26: the generic default when the pack in force gives no strength combination with
+#: E (SAEngine practice: the default pack's combinations 5 and 7).
+_GENERIC_EARTHQUAKE_ROWS = (
+    _EarthquakeRow("5", "1.2D + 1.0E + 1.0L", {"D": 1.2, "E": 1.0, "L": 1.0}),
+    _EarthquakeRow("7", "0.9D + 1.0E", {"D": 0.9, "E": 1.0}),
+)
+
+
+def _earthquake_rows() -> list[tuple[Any, int]]:
+    """Alpha 9 C26: the pack's strength combinations with E (its ``combinations.strength``,
+    the chosen ``strengthSet`` included), each with the sign of the vertical component Ev: +1
+    (E = Eh + Ev) where the dead load adds to the earthquake effect, -1 (E = Eh - Ev) for the
+    rows with the least dead load factor (the dead load counteracts). Where every row has the
+    same dead load factor (EN 1990 6.4.3.4: G + AEd + ψ2 Q) each row is formed with both signs.
+    The rows with + Ev come first, in the pack's order (the default pack: combination 5 with
+    + Ev, then 7 with - Ev, as before). Without any row, :data:`_GENERIC_EARTHQUAKE_ROWS`."""
+    rows: list[Any] = []
+    try:
+        rows = [c for c in code_context.table("combinations").strength if c.factors.get("E")]
+    except (KeyError, CodePackError):
+        rows = []
+    if not rows:
+        rows = list(_GENERIC_EARTHQUAKE_ROWS)
+    deads = {round(float(r.factors.get("D", 0.0)), 6) for r in rows}
+    if len(deads) == 1:
+        return [(r, 1) for r in rows] + [(r, -1) for r in rows]
+    least = min(deads)
+    upper = [(r, 1) for r in rows if round(float(r.factors.get("D", 0.0)), 6) != least]
+    lower = [(r, -1) for r in rows if round(float(r.factors.get("D", 0.0)), 6) == least]
+    return upper + lower
+
+
+def _row_live_factor(settings: Any, options: SeismicOptions, row: Any, fallback: float) -> float:
+    """Alpha 9 C26: the live load factor of an earthquake row: the option's, else that of the
+    project's static earthquake combination with the row's dead load factor (the engineer's
+    edits kept), else for a row with D > 1 ``fallback`` (:func:`_live_factor`, as before),
+    else the row's own."""
+    if options.liveFactor is not None:
+        return float(options.liveFactor)
+    d = round(float(row.factors.get("D", 0.0)), 4)
+    for c in getattr(settings, "combinations", []):
+        if (c.EX or c.EY) and round(float(c.D), 4) == d:
+            return float(c.L)
+    if d > 1.0 and any((c.EX or c.EY) and c.D > 1.0 for c in getattr(settings, "combinations", [])):
+        return fallback
+    return float(row.factors.get("L", 0.0))
 
 
 # ─────────────────────────────────────── the design ───────────────────────────────────────

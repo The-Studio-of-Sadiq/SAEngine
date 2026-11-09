@@ -260,8 +260,42 @@ def cite(table_name: str, key: str, pack: CodePack | None = None) -> str:
     text = clause(table_name, key, p)
     if not text:
         return ""
+    # Alpha 9 C26: SAEngine practice a pack inherits names the pack that supplies it.
+    if text.startswith(PRACTICE) and inherited(table_name, key, p):
+        return attribute(text, table_name, key, pack=p)
     owner = p.clause_code(table_name, key) if hasattr(p, "clause_code") else None
     return f"{owner or code_name(p)} {text}"
+
+
+#: How a choice that is not a value of the code starts in the packs' clause texts.
+PRACTICE = "SAEngine practice"
+
+
+def inherited(table_name: str, key: str = "", pack: CodePack | None = None, sub: str = "") -> str:
+    """Alpha 9 C26: the code name of the pack that ``pack`` (default: the pack in force)
+    inherits table ``table_name`` (its clause or source ``key``, grouped ``sub``) from; '' when
+    the pack supplies it itself."""
+    p = pack or current()
+    if not hasattr(p, "inherited_from"):
+        return ""
+    return p.inherited_from(table_name, key, sub) or ""
+
+
+def attribute(
+    text: str, table_name: str, key: str = "", sub: str = "", pack: CodePack | None = None
+) -> str:
+    """Alpha 9 C26: ``text`` (a clause, source or note of table ``table_name``) labelled with
+    the pack that supplies it when ``pack`` (default: the pack in force) inherits it, so a
+    parent's wording such as "SAEngine practice where BNBC 2020 is silent" never reads as the
+    pack in force's own: "<text> [inherited from BNBC 2020; not given by <code>]". ``text`` as
+    it is when the pack supplies it itself (the default pack's results unchanged)."""
+    if not text:
+        return text
+    p = pack or current()
+    owner = inherited(table_name, key, p, sub)
+    if not owner:
+        return text
+    return f"{text} [inherited from {owner}; not given by {code_name(p)}]"
 
 
 def cited(table_name: str, key: str, pack: CodePack | None = None, sep: str = ", ") -> str:
@@ -281,7 +315,11 @@ def source_ref(table_name: str, key: str, pack: CodePack | None = None) -> str:
     text = str((getattr(p.table(table_name), "sources", None) or {}).get(key) or "")
     for stop in (" (", ";", ":", ","):
         text = text.split(stop, 1)[0]
-    return text.strip()
+    text = text.strip()
+    # Alpha 9 C26: SAEngine practice a pack inherits names the pack that supplies it.
+    if text.startswith(PRACTICE):
+        return attribute(text, table_name, key, pack=p)
+    return text
 
 
 class TableNames:
@@ -377,4 +415,6 @@ def front_matter(pack: CodePack) -> dict[str, Any]:
         "overrides": [o.as_dict() for o in pack.overrides],
         "genericDefaults": [f.as_dict() for f in pack.fallbacks],
         "missing": pack.missing,
+        # Alpha 9 C26: whether the values were checked against the printed code.
+        "verification": pack.verification.model_dump() if hasattr(pack, "verification") else None,
     }

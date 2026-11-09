@@ -61,6 +61,8 @@ export interface IHazardOffers {
 	readonly coordinates?: { readonly latitude: number; readonly longitude: number };
 	readonly providers: readonly IHazardOffer[];
 	readonly manualNote: string;
+	/** Alpha 9 C26: why a user or project pack's services are not offered (not trusted); '' otherwise. */
+	readonly untrusted?: string;
 }
 
 /** `hazard/offers`'s answer; undefined for a refusal or no answer. */
@@ -74,6 +76,7 @@ export function readHazardOffers(raw: unknown): IHazardOffers | undefined {
 		codeName: text(answer.codeName),
 		coordinates: typeof at.latitude === 'number' && typeof at.longitude === 'number' ? { latitude: at.latitude, longitude: at.longitude } : undefined,
 		manualNote: text(answer.manualNote),
+		untrusted: text(answer.untrusted) || undefined,
 		providers: answer.providers.map(bag).filter(p => text(p.id)).map(p => ({
 			id: text(p.id),
 			service: text(p.service) || text(p.id),
@@ -177,7 +180,7 @@ export async function lookUpHazardValues(services: IHazardLookupServices, reques
 	if (!offers.providers.length) {
 		await dialogs.info(
 			localize('hazard.none', "Enter values by hand"),
-			offers.manualNote || localize('hazard.noneDetail', "{0} names no online hazard service. Take the site's values from the code's maps or hazard tool and type them in Project Settings > Site.", offers.codeName),
+			offers.untrusted || offers.manualNote || localize('hazard.noneDetail', "{0} names no online hazard service. Take the site's values from the code's maps or hazard tool and type them in Project Settings > Site.", offers.codeName),
 		);
 		return undefined;
 	}

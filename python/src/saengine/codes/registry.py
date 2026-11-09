@@ -66,6 +66,7 @@ from saengine.codes.manifest import (
     PackManifest,
     Problem,
     Scope,
+    Verification,
     version_satisfies,
 )
 from saengine.codes.merge import TableFile, parse_table_file, resolve_table
@@ -536,6 +537,58 @@ class CodePack:
                 break
         return None
 
+    def value_owner(self, name: str, key: str = "", sub: str = "") -> tuple[str, str] | None:
+        """Alpha 9 C26: (id, code name) of the pack whose own data file supplies table ``name``
+        (the nearest in the chain with a file for it); with ``key``, the nearest whose file
+        gives ``clauses[key]`` or ``sources[key]``; with ``sub`` too, the grouped clause
+        ``clauses[key][sub]``. The code name is the owner's ``tableCodes`` entry, else its
+        edition (else name). None when no pack in the chain gives it."""
+        for found in self._chain:
+            table = found.tables.get(name)
+            if table is not None and found.manifest is not None and gives_table(found, name):
+                data = table.data
+                if not key or (isinstance(data, dict) and _gives(data, key, sub)):
+                    return found.id, found.manifest.table_code(name, key, sub)
+            if table is not None and table.replace:
+                break
+        return None
+
+    def inherited_from(self, name: str, key: str = "", sub: str = "") -> str | None:
+        """Alpha 9 C26: the code name of the pack this one inherits table ``name`` (or its
+        clause ``key``, ``sub``) from, for a label such as "inherited from BNBC 2020"; None
+        when this pack (or a pack of the same code name, a working copy) supplies it itself."""
+        owner = self.value_owner(name, key, sub)
+        if owner is None or owner[0] == self.id:
+            return None
+        own = self.info.table_code(name, key, sub)
+        return None if owner[1] == own else owner[1]
+
+    @property
+    def verification(self) -> Verification:
+        """Alpha 9 C26: whether the pack's own values were checked against the printed code
+        (:func:`verification_status`)."""
+        found = self.__dict__.get("_verification")
+        if found is None:
+            found = verification_status(self._found)
+            self._verification = found
+        return found
+
+    @property
+    def lookup_owner(self) -> str | None:
+        """Alpha 9 C26: the id of the pack whose own data file gives the hazard lookup
+        providers this pack uses (``hazardLookup``); None when none does."""
+        owner = self.value_owner(LOOKUP_TABLE)
+        return owner[0] if owner is not None else None
+
+    @property
+    def lookup_trusted(self) -> bool:
+        """Alpha 9 C26: whether the hazard lookup services this pack names may be asked: a
+        built-in pack's always; a user or project pack's only once the user trusted its
+        ``hazardLookup`` file as it is now (:meth:`Registry.set_lookup_trusted`; editing the
+        file revokes it). True without a lookup table."""
+        found = next((f for f in self._chain if gives_table(f, LOOKUP_TABLE)), None)
+        return found is None or self._registry._is_lookup_trusted(found)
+
     @property
     def trusted(self) -> bool:
         """Whether every pack in the chain with hooks is trusted (True without hooks)."""
@@ -668,6 +721,120 @@ class CodePack:
 
     def __repr__(self) -> str:
         return f"CodePack({self.id!r}, scope={self.scope!r}, chain={self.chain!r})"
+
+
+def gives_table(found: Any, name: str) -> bool:
+    """Alpha 9 C26: whether ``found`` (a pack as read) has a data file for table ``name`` that
+    changes it: ``$replace``, or any key that is not a ``$`` help key (a help-only file of
+    ``saengine codepack new`` changes nothing)."""
+    table = found.tables.get(name)
+    if table is None:
+        return False
+    if table.replace:
+        return True
+    data = table.data
+    if isinstance(data, dict):
+        return any(not str(k).startswith("$") for k in data)
+    return data is not None
+
+
+def _gives(data: dict[str, Any], key: str, sub: str) -> bool:
+    """Whether a pack's own table file ``data`` gives the table (no ``key``), its
+    ``clauses[key]`` or ``sources[key]``, or the grouped ``clauses[key][sub]``."""
+    if not key:
+        return True
+    for group_name in ("clauses", "sources"):
+        group = data.get(group_name)
+        entry = group.get(key) if isinstance(group, dict) else None
+        if sub:
+            if isinstance(entry, dict) and sub in entry:
+                return True
+        elif entry:
+            return True
+    return False
+
+
+#: Alpha 9 C26: the table naming online hazard lookup services (alpha 9 C22), and the suffix of
+#: its entries in the trust store (beside the hooks' entries of the same pack id).
+LOOKUP_TABLE = "hazardLookup"
+LOOKUP_TRUST_SUFFIX = "#hazardLookup"
+
+
+def lookup_digest(found: Any) -> str:
+    """Alpha 9 C26: SHA-256 of a pack's own ``hazardLookup`` data as read (keys sorted), so any
+    edit of an endpoint, query or region revokes the trust."""
+    table = found.tables.get(LOOKUP_TABLE)
+    data = table.data if table is not None else None
+    text = json.dumps(data, sort_keys=True, ensure_ascii=False, default=str)
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+#: Alpha 9 C26: the file that lists a pack's values to check against the printed code.
+VERIFY_FILE = "VERIFY.md"
+#: A cell that ticks a VERIFY.md row (case does not matter for 'verified').
+_TICKS = ("✓", "✔", "[x]", "[X]")
+NOT_VERIFIED = "values not yet verified against the printed code"
+
+
+def verify_rows(text: str) -> tuple[int, int]:
+    """Alpha 9 C26: (value rows, rows not ticked) of a VERIFY.md: every Markdown table row
+    but the headers and separators; a row is ticked when a cell is 'Verified...' or holds
+    '✓', '✔' or '[x]'."""
+    lines = [line.strip() for line in text.splitlines()]
+    rows = unchecked = 0
+    for i, line in enumerate(lines):
+        if not line.startswith("|"):
+            continue
+        cells = [c.strip() for c in line.strip("|").split("|")]
+        if all(set(c) <= set("-: ") for c in cells):
+            continue  # a separator
+        following = lines[i + 1] if i + 1 < len(lines) else ""
+        if following.startswith("|") and set(following) <= set("|-: "):
+            continue  # a header (its separator follows)
+        rows += 1
+        ticked = any(any(t in c for t in _TICKS) or c.lower().startswith("verified") for c in cells)
+        unchecked += 0 if ticked else 1
+    return rows, unchecked
+
+
+def verification_status(found: Any) -> Verification:
+    """Alpha 9 C26: the verification status of a pack as read from disk (``_Found``): its
+    manifest's ``verified`` (true or a date), else its VERIFY.md's rows not ticked; a pack
+    without either does not state it."""
+    m = found.manifest
+    stated = getattr(m, "verified", None) if m is not None else None
+    if stated is not None and stated is not False:
+        date = stated if isinstance(stated, str) and stated.lower() != "true" else None
+        return Verification(
+            status="verified",
+            date=date,
+            message="values verified against the printed code" + (f" ({date})" if date else ""),
+        )
+    try:
+        text = (Path(found.path) / VERIFY_FILE).read_text(encoding="utf-8")
+    except OSError:
+        text = None
+    rows, unchecked = verify_rows(text) if text is not None else (0, 0)
+    if not rows:
+        if stated is False:
+            return Verification(status="unverified", message=NOT_VERIFIED)
+        return Verification(
+            status="unstated",
+            message="the pack does not state whether its values were checked against the "
+            "printed code",
+        )
+    if unchecked == 0 and stated is not False:
+        return Verification(
+            status="verified", rows=rows, message="values verified against the printed code"
+        )
+    return Verification(
+        status="unverified",
+        rows=rows,
+        unchecked=unchecked,
+        message=f"{NOT_VERIFIED} ({unchecked} of {rows} rows of {VERIFY_FILE} not ticked)"
+        if rows
+        else NOT_VERIFIED,
+    )
 
 
 #: The tables read while :func:`recording_tables` is in force (in this context), else None.
@@ -1134,6 +1301,12 @@ class Registry:
             missingRequires=_missing_requires(found, candidates),
             contents=list(found.contents),
             preview=str(found.preview) if found.preview else None,
+            verification=verification_status(found) if m else None,
+            untrustedLookups=[
+                f.id
+                for f in resolved.chain
+                if gives_table(f, LOOKUP_TABLE) and not self._is_lookup_trusted(f)
+            ],
             usable=resolved.complete,
             problems=resolved.problems + self._notes(found, winner, candidates),
         )
@@ -1411,6 +1584,38 @@ class Registry:
 
     # trust and hooks
 
+    def _is_lookup_trusted(self, found: _Found) -> bool:
+        """Alpha 9 C26: whether ``found``'s own hazard lookup table may be used (built-in, or
+        trusted as it is now)."""
+        if found.scope == "builtin" or not gives_table(found, LOOKUP_TABLE):
+            return True
+        return self.trust.is_trusted(found.id + LOOKUP_TRUST_SUFFIX, lookup_digest(found))
+
+    def set_lookup_trusted(
+        self, pack_id: str, trusted: bool, project_root: Path | None = None
+    ) -> PackInfo:
+        """Alpha 9 C26: trust (or stop trusting) the hazard lookup services the effective pack
+        ``pack_id`` names, as its ``hazardLookup`` files are now (its own and those of the
+        user or project packs it extends; built-in ones are always trusted). Until then the
+        services of a user or project pack are never asked (default: untrusted)."""
+        with self._lock:
+            candidates = self._discover(project_root)
+            found = self._effective(candidates, DEFAULT_KIND).get(pack_id)
+            if found is None:
+                raise CodePackError(_not_installed(pack_id, DEFAULT_KIND))
+            chain = self._resolved(found, candidates).chain
+            targets = [f for f in chain if gives_table(f, LOOKUP_TABLE) and f.scope != "builtin"]
+            if not targets:
+                raise CodePackError(
+                    f"code pack '{pack_id}' names no hazard lookup service to trust"
+                )
+            for f in targets:
+                self.trust.set_trusted(
+                    f.id + LOOKUP_TRUST_SUFFIX, lookup_digest(f), trusted, str(f.path)
+                )
+            self.generation += 1
+            return self._info(self._resolved(found, candidates), candidates)
+
     def _is_trusted(self, found: _Found) -> bool:
         if not found.manifest or not found.manifest.hooks:
             return True
@@ -1639,6 +1844,11 @@ def set_trusted(
     pack_id: str, trusted: bool, project_root: Path | None = None, kind: Kind = DEFAULT_KIND
 ) -> PackInfo:
     return _default.set_trusted(pack_id, trusted, project_root, kind)
+
+
+def set_lookup_trusted(pack_id: str, trusted: bool, project_root: Path | None = None) -> PackInfo:
+    """Alpha 9 C26: :meth:`Registry.set_lookup_trusted` of the default registry."""
+    return _default.set_lookup_trusted(pack_id, trusted, project_root)
 
 
 def install(

@@ -947,3 +947,14 @@ below is from the author's knowledge and must be checked against the printed tex
 
 Not covered by this pack: silos, chimney vortex shedding and cooling towers (`shellStructures`;
 ACI 313 / ACI 307 planned).
+
+## Nominal bar masses (alpha 9 C26, `concrete.barMasses`)
+
+The bill of quantities and the bar schedules weighed US bars as d²/162 of the soft-metric number
+(No. 10 as 10 mm: 0.617 kg/m); they now take the nominal masses below.
+
+| # | Path | Value | Source | Sure? |
+|---|---|---|---|---|
+| C26-1 | concrete.barMasses 10, 13, 16 | 0.560, 0.994, 1.552 kg/m (No. 3, 4, 5) | ASTM A615/A615M Table 1 | Sure |
+| C26-2 | concrete.barMasses 19, 22, 25 | 2.235, 3.042, 3.973 kg/m (No. 6, 7, 8) | ASTM A615/A615M Table 1 | Sure |
+| C26-3 | concrete.barMasses 29, 32, 36 | 5.060, 6.404, 7.907 kg/m (No. 9, 10, 11) | ASTM A615/A615M Table 1 | Sure |

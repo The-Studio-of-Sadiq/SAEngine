@@ -282,6 +282,17 @@ def _basis(data: dict[str, Any], ctx: Context) -> dict[str, Any]:
     out: list[Block] = []
     if "codes" in basis:
         out += [h(2, "Codes and method"), pairs(basis["codes"])]
+    # Alpha 9 C26: the pack's verification status and the tables it inherits.
+    if basis.get("packVerification"):
+        out.append(p(f"Code pack status: {basis['packVerification']}."))
+    if basis.get("inheritedTables"):
+        out += [
+            p(
+                "Tables the code pack does not give itself, inherited from the pack it extends "
+                "(their clause texts are that pack's):"
+            ),
+            table(["From", "Tables"], basis["inheritedTables"], ["auto", "1fr"]),
+        ]
     if basis.get("codeOverrides"):
         out += [
             h(2, "Code values overridden in this project"),

@@ -17,6 +17,7 @@
     "tank": [10.0, 12.0, 14.0, 16.0, 20.0],
     "foundation": [12.0, 14.0, 16.0, 18.0, 20.0, 22.0, 25.0]
   },
+  "barMasses": {"$replace": true},
   "barNames": {
     "$replace": true,
     "8": "Φ8",

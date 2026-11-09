@@ -21,6 +21,10 @@
     "10": "#3", "13": "#4", "16": "#5", "19": "#6", "22": "#7",
     "25": "#8", "29": "#9", "32": "#10", "36": "#11"
   },
+  "barMasses": {
+    "10": 0.560, "13": 0.994, "16": 1.552, "19": 2.235, "22": 3.042,
+    "25": 3.973, "29": 5.060, "32": 6.404, "36": 7.907
+  },
   "slabStrainMin": 0.005,
   "cover": {
     "lintel": 40.0,
@@ -99,6 +103,7 @@
     "aggregates": "ACI 318-19 19.2.4.1, Table 19.2.4.2: λ = 0.85 sand-lightweight, 0.75 all-lightweight, 1.0 normal weight; ACI has no brick aggregate rule: brick aggregate concrete is taken as normal weight (Ec 4700 √f'c, shrinkage steel × 1.0)",
     "modulus": "ACI 318-19 19.2.2.1: Ec = 0.043 wc^1.5 √f'c for wc 1440-2560 kg/m³ (a), 4700 √f'c for normal weight (b)",
     "shrinkage": "ACI 318-19 24.4.3.2, Table 24.4.3.2: 0.0018 for deformed bars and welded wire of every grade (the 0.0020 of grades below 420 MPa and the 420/fy reduction of earlier editions are gone)",
+    "barMasses": "ASTM A615/A615M Table 1: nominal masses of bars No. 10-36 (No. 3-11), 0.560-7.907 kg/m (alpha 9 C26; the soft-metric number is not the nominal diameter: No. 10 is 9.5 mm)",
     "barNames": "ASTM A615/A615M Table 1: inch-pound bar designations No. 3-11 of the soft-metric sizes No. 10-36 (C13, printed in US customary units)",
     "barDiameters": "ASTM A615/A706 bar sizes as soft-metric diameters (No. 10, 13, 16, 19, 22, 25, 29, 32, 36): SAEngine practice for US projects",
     "spacingStep": "SAEngine practice",

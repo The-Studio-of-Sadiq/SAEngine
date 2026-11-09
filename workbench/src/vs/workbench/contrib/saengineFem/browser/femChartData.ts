@@ -12,7 +12,7 @@
 import { safeIntl } from '../../../../base/common/date.js';
 import { localize } from '../../../../nls.js';
 import { FemTableCell } from '../../../../platform/saengine/common/femSolver.js';
-import { defaultCodeName } from '../../../services/saengineProject/common/activeCodePack.js';
+import { defaultClause } from '../../../services/saengineProject/common/activeCodePack.js';
 import { activeDisplayUnits, displayUnit, IDisplayUnits, kindOfUnit, toDisplay } from '../../../services/saengineProject/common/displayUnits.js';
 
 /** `(model: URI) => IFemStoryResponse`: the storey response and curves of the last run. */
@@ -1055,7 +1055,7 @@ export function modalTable(modal: NonNullable<IFemStoryResponse['modal']>): IFem
 			localize('femTable.ux', "UX [%]"), localize('femTable.uy', "UY [%]"), localize('femTable.sumUx', "Sum UX [%]"), localize('femTable.sumUy', "Sum UY [%]"),
 		],
 		rows: modal.modes.map(m => [m.number, m.period ?? '', m.frequency ?? '', pct(m.uX), pct(m.uY), pct(m.sumUX), pct(m.sumUY)]),
-		notes: [localize('femTable.modalNote', "{1} Part 6 Sec 2.5.9.2: the modes included must reach {0} % of the mass in each direction.", Math.round(100 * modal.required), defaultCodeName())],
+		notes: [localize('femTable.modalNote', "{1}: the modes included must reach {0} % of the mass in each direction.", Math.round(100 * modal.required), defaultClause('Part 6 Sec 2.5.9.2'))],
 	};
 }
 

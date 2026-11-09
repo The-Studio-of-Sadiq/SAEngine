@@ -780,6 +780,42 @@ def _code_value(value: Any) -> str:
     return "–" if value is None else str(value)
 
 
+def _default_ref(ref: str, table: str = "seismic", pack: Any = None) -> str:
+    """Alpha 9 C26: " (<ref>)" for a label that quotes the default pack's table or clause number
+    (BNBC 2020 Table 6.2.13), when the pack in force takes ``table`` from the default pack (with
+    its code's name when it inherits it: " (BNBC 2020 Table 6.2.13)"); "" under a pack with a
+    table of its own, whose numbering is another code's."""
+    from saengine.codes.registry import DEFAULT_PACK
+
+    p = pack or code_context.current()
+    owner = p.value_owner(table) if hasattr(p, "value_owner") else None
+    if owner is None or owner[0] != DEFAULT_PACK:
+        return "" if owner is not None else f" ({ref})"
+    return f" ({ref})" if p.id == DEFAULT_PACK else f" ({owner[1]} {ref})"
+
+
+def _pack_verification(pack: Any) -> str:
+    """Alpha 9 C26: the design basis's statement of the pack's verification status ("values
+    not yet verified against the printed code ..."); '' for a pack checked against it."""
+    found = getattr(pack, "verification", None)
+    if found is None or found.status == "verified":
+        return ""
+    return f"{pack.name}: {found.message}"
+
+
+def _inherited_tables(pack: Any) -> list[list[str]]:
+    """Alpha 9 C26: [owner code, its tables] of the tables the pack in force inherits from a
+    pack it extends (none for a pack without a parent)."""
+    owners: dict[str, list[str]] = {}
+    if len(getattr(pack, "chain", [])) < 2:
+        return []
+    for name in pack.tables():
+        owner = pack.inherited_from(name)
+        if owner:
+            owners.setdefault(owner, []).append(name)
+    return [[owner, ", ".join(names)] for owner, names in owners.items()]
+
+
 def _construction_basis(settings: Any, parts: _Parts, pack: Any) -> list[list[str]]:
     """B18: the construction type, the concrete aggregate and the fire ratings the members are
     checked for (saengine.design.fire_resistance); its warnings go to the report's warnings."""
@@ -831,6 +867,10 @@ def _basis(settings: Any, parts: _Parts, model: dict[str, Any], manifest: dict[s
             for o in pack.overrides
         ]
         basis["genericDefaults"] = [[f.path, _code_value(f.value), f.note] for f in pack.fallbacks]
+        # Alpha 9 C26: whether the pack's values were checked against the printed code, and
+        # the tables it inherits (named after the pack that supplies them).
+        basis["packVerification"] = _pack_verification(pack)
+        basis["inheritedTables"] = _inherited_tables(pack)
         location = pack.table("locations").locations.get(settings.site.location)
         category = pack.table("occupancyCategories").categories.get(settings.occupancy.category)
         system = pack.table("seismic").systems.get(settings.seismic.system)
@@ -843,7 +883,7 @@ def _basis(settings: Any, parts: _Parts, model: dict[str, Any], manifest: dict[s
                 + (f": {category.description}" if category is not None else ""),
             ],
             ["Location", location.name if location else "Custom"],
-            ["Site class (Table 6.2.13)", _site_class_text(parts)],
+            ["Site class" + _default_ref("Table 6.2.13", pack=pack), _site_class_text(parts)],
             ["Seismic zone", str(values["zone"]) if values["zone"] else "–"],
             ["Seismic zone coefficient Z", fmt(values["Z"], 2)],
             ["Basic wind speed V", f"{fmt(values['windSpeed'], 1)} m/s"],
@@ -857,7 +897,7 @@ def _basis(settings: Any, parts: _Parts, model: dict[str, Any], manifest: dict[s
         basis["site"] += _construction_basis(settings, parts, pack)  # B18
         basis["seismic"] = [
             [
-                "Structural system (Table 6.2.19)",
+                "Structural system" + _default_ref("Table 6.2.19", pack=pack),
                 system.name if system else settings.seismic.system,
             ],
             ["Response reduction factor R", fmt(values["R"], 1)],
@@ -1142,7 +1182,12 @@ def _model_summary(
             for key, label, digits, unit in (
                 ("levels", "Levels", 0, ""),
                 ("weight_kN", "Seismic weight W", 1, "kN"),
-                ("period_s", "Approximate period Ta = Ct·hn^m (Table 6.2.20)", 3, "s"),
+                (
+                    "period_s",
+                    "Approximate period Ta = Ct·hn^m" + _default_ref("Table 6.2.20"),
+                    3,
+                    "s",
+                ),
                 ("Cs", "Normalised spectral acceleration Cs", 3, ""),
                 ("Sa_g", "Design spectral acceleration Sa", 4, "g"),
                 ("base_shear_kN", "Equivalent static base shear V", 1, "kN"),
@@ -4037,11 +4082,15 @@ def _seismic_detailing(report: dict[str, Any]) -> dict[str, Any]:
         return {"available": False, "failedChecks": 0}
     level = {"special": "Special", "intermediate": "Intermediate", "ordinary": "Ordinary"}
     lines = [
-        ["Seismic Design Category", f"{scope.get('sdc') or '–'} (Sec 2.5.5.2, Table 6.2.18)"],
+        [
+            "Seismic Design Category",
+            f"{scope.get('sdc') or '–'}" + _default_ref("Sec 2.5.5.2, Table 6.2.18"),
+        ],
         ["Zone", str(scope.get("zone") or "–")],
         [
             "Structural system",
-            f"{scope.get('systemName')} (Table 6.2.19 row {scope.get('systemRow') or '–'})",
+            f"{scope.get('systemName')}"
+            + _default_ref(f"Table 6.2.19 row {scope.get('systemRow') or '–'}"),
         ],
         [
             "R, Ω0, Cd",

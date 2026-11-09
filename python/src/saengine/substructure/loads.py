@@ -341,6 +341,12 @@ class BaseLoads:
     #: of the column it is (:func:`reduce_live_loads`); 1 when not reduced.
     live_factors: dict[str, float] = field(default_factory=dict)
     live_notes: dict[str, str] = field(default_factory=dict)
+    #: Alpha 9 C26: the strength combinations before the pack's capacity design of foundations
+    #: scaled their earthquake cases (None without the rule), and each base's γRd Ω
+    #: (:func:`saengine.substructure.foundation_capacity.apply_member_omegas`).
+    unscaled_strength: list[tuple[str, dict[str, float]]] | None = None
+    capacity: dict[str, Any] = field(default_factory=dict)
+    capacity_note: str | None = None
 
     def reaction(self, node: int, factors: dict[str, float]) -> np.ndarray:
         """The combined reaction of one support node [N, N·m]."""
@@ -412,15 +418,20 @@ def base_loads(
     # Alpha 9 C5c: the pack's capacity design of foundations (EN 1998-1 4.4.2.6 type).
     from saengine.substructure import foundation_capacity
 
-    strength, _how = foundation_capacity.capacity_combinations(strength, settings)
+    unscaled = strength
+    strength, how = foundation_capacity.capacity_combinations(strength, settings)
     level = is_strength_level_wind(strength)
     dead = {name: factors.get("D", factors.get("SD", 0.0)) for name, factors in strength}
     from saengine.fem.flood import zone_kind
 
     flood = zone_kind(getattr(getattr(settings.site, "flood", None), "zone", None))
-    return BaseLoads(
+    loads = BaseLoads(
         cases, bases, strength, service_combinations(cases, level, flood), dead, level, unsupported
     )
+    if how is not None:  # Alpha 9 C26: for Ω from the columns (substructure.context)
+        loads.unscaled_strength = unscaled
+        loads.capacity_note = how
+    return loads
 
 
 def reduce_live_loads(loads: BaseLoads, building: BuildingModel, settings: ProjectSettings) -> None:

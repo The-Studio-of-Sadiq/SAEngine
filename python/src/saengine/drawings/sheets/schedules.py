@@ -153,7 +153,7 @@ def table_specs(
     customary units (:data:`TABLE_UNITS`) its "(mm)" columns in feet and inches (C13b; the bar
     bending schedule is in them already)."""
     units = TABLE_UNITS.get()
-    if not units.si and not key.startswith("bbs:"):
+    if not units.plain and not key.startswith("bbs:"):  # alpha 9 C26: bar names in SI too
         columns, rows = convert_mm_table(table.columns, table.rows, units)
         table = Table(convert_text(table.title, units), columns, rows, table.groups, table.notes)
     table, widths, _ = fit_table(table, None if max_width is None else max_width - 4.0)

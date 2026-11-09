@@ -126,10 +126,15 @@ def clause(key: str) -> str:
 
 
 def cite(key: str) -> str:
-    """``clause`` after the pack's code name (SAEngine practice as it is)."""
+    """``clause`` after the pack's code name (SAEngine practice as it is; alpha 9 C26: named
+    after the pack that supplies it when the pack in force inherits it)."""
     text = clause(key)
-    if not text or text.startswith("SAEngine practice"):
+    if not text:
         return text
+    if text.startswith(code_context.PRACTICE):
+        found = table()
+        own_key = key if (getattr(found, "clauses", None) or {}).get(key) else ""
+        return code_context.attribute(text, "slopeStability", own_key)
     return code_context.cite("slopeStability", key) or text
 
 

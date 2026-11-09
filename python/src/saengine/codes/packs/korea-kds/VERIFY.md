@@ -25,3 +25,10 @@ does not set is the base pack's (`aci318-asce7-22`, its VERIFY.md).
 | K14 | factors.phi (others) | the base pack's (tied 0.65, shear 0.75, bearing 0.65, strut-and-tie 0.75) | KDS 14 20 10 4.2.3 | Other φ | Check |
 | K15 | concrete rules | the base pack's ACI 318-19 | KDS 14 20 (2021) | Stress block, shear, development | Uncertain (KDS 14 20 20:2021 changed the stress block: εcu 0.0033 with its own α, β by fck; not set) |
 | K16 | combinations, areaLoads | the base pack's ASCE 7-22 | KDS 41 10 15 | Combinations and live loads | Check (1.2D + 1.6L, 1.2D + 1.0E + 1.0L, 0.9D + 1.0E believed the same) |
+
+## Nominal bar masses (alpha 9 C26, `concrete.barMasses`)
+
+| # | Path | Value | Source | Sure? |
+|---|---|---|---|---|
+| C26-1 | concrete.barMasses 10, 13, 16, 19 | 0.560, 0.995, 1.56, 2.25 kg/m (D10-D19, nominal 9.53-19.1 mm) | KS D 3504 table of nominal dimensions | Check |
+| C26-2 | concrete.barMasses 22, 25, 29, 32 | 3.04, 3.98, 5.04, 6.23 kg/m (D22-D32, nominal 22.2-31.8 mm) | KS D 3504 table of nominal dimensions | Check |

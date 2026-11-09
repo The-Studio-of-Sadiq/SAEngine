@@ -14,7 +14,11 @@
     "strongColumnRatio": 1.4,
     "gamma": {"4": 1.5, "3": 1.2, "opposite": 1.2, "other": 1.0}
   },
+  "clauses": {
+    "shearFriction": "13.4 (places the construction joints, gives no shear-friction rule): the column construction joint keeps the shear-friction check as SAEngine practice (owner decision 2026-11-04), with the parent's mu, limits and phi"
+  },
   "sources": {
+    "shearFriction": "SAEngine practice under IS 456:2000 13.4 (owner decision 2026-11-04): shear friction across column construction joints by the parent's rule (BNBC 2020 Part 6 Sec 6.4.5, Eq 6.6.66)",
     "special.axialShare": "IS 13920:2016 6.1 / 7.1: flexural members with Pu at most 0.08 fck Ag (columns above it)",
     "special.beamMinWidth": "IS 13920:2016 6.1.2: b >= 200 mm",
     "special.columnRho": "IS 13920:2016 7.3.1: 0.8 % to 4 %",

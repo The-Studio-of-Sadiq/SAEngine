@@ -101,6 +101,7 @@
       25
     ]
   },
+  "barMasses": {"$replace": true},
   "barNames": {
     "$replace": true
   },

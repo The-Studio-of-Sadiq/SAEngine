@@ -80,8 +80,11 @@ LETTERS = ("A", "B", "C", "D", "E")
 
 
 def bar_mass(dia: float) -> float:
-    """Mass of a bar [kg/m] of diameter ``dia`` [mm] (7850 kg/m³)."""
-    return dia * dia / 162
+    """Mass of a bar [kg/m] of size ``dia`` [mm]: the code pack's nominal mass of the size
+    (alpha 9 C26, :func:`saengine.codes.bars.bar_mass`), else d²/162 (7850 kg/m³)."""
+    from saengine.codes.bars import bar_mass as pack_bar_mass
+
+    return pack_bar_mass(dia)
 
 
 def round_up(length: float, step: float | None = None) -> float:
@@ -198,10 +201,17 @@ def _heading(text: str) -> str:
 
 
 def _size(label: str, dia: float) -> str:
-    """The standard's size label of ``dia`` ("Ø{d}"); the pack's bar name in US units."""
+    """The standard's size label of ``dia`` ("Ø{d}"); the pack's bar name where it gives one
+    (alpha 9 C26: in SI too; C13 named them in US units only)."""
     units = _DISPLAY.get()
-    if units is not None and f"{dia:g}" in units.bar_names:
-        return units.bar_names[f"{dia:g}"]
+    if units is not None:
+        names = units.bar_names
+    else:
+        from saengine.units import pack_bar_names
+
+        names = pack_bar_names()
+    if f"{dia:g}" in names:
+        return names[f"{dia:g}"]
     return label.replace("{d}", f"{dia:g}")
 
 

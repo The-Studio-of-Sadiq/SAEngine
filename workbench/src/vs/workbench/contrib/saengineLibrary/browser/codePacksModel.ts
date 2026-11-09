@@ -88,6 +88,28 @@ export interface ICodePackInfo {
 	readonly tables: readonly { readonly name: string; readonly from: string }[];
 	/** Required packages that are not installed in a fitting version (`missingRequires`). */
 	readonly missingRequires: readonly string[];
+	/**
+	 * Alpha 9 C26: whether the pack's values were checked against the printed code (the backend's
+	 * `verification`: its pack.json `verified`, else the rows of its VERIFY.md not ticked).
+	 */
+	readonly verification?: ICodePackVerification;
+	/** Alpha 9 C26: user or project packs of the chain whose hazard lookup services are not trusted (never asked until trusted). */
+	readonly untrustedLookups?: readonly string[];
+}
+
+/** Alpha 9 C26: a pack's verification status. */
+export interface ICodePackVerification {
+	readonly status: 'verified' | 'unverified' | 'unstated';
+	/** The backend's text ("values not yet verified against the printed code (12 of 40 rows ...)"). */
+	readonly message: string;
+}
+
+function verificationOf(value: unknown): ICodePackVerification | undefined {
+	if (!isRaw(value)) {
+		return undefined;
+	}
+	const status = value.status === 'verified' || value.status === 'unverified' || value.status === 'unstated' ? value.status : undefined;
+	return status ? { status, message: text(value.message) } : undefined;
 }
 
 /** A group of the Code Packs page: Built-in, Your packs, This project. */
@@ -230,6 +252,8 @@ export function readCodePack(value: unknown): ICodePackInfo | undefined {
 		sources: sourcesOf(field('sources') ?? field('clauses')),
 		tables: tablesOf(value.tables),
 		missingRequires: texts(value.missingRequires),
+		verification: verificationOf(value.verification),
+		untrustedLookups: texts(value.untrustedLookups),
 	};
 }
 
@@ -442,6 +466,10 @@ export function packDescription(pack: ICodePackInfo, packs: readonly ICodePackIn
 	}
 	if (pack.covers.length) {
 		parts.push(localize('codePacks.provides', "provides {0}", pack.covers.map(coverageLabel).join(', ')));
+	}
+	// Alpha 9 C26: a pack whose values were not checked against the printed code says so.
+	if (pack.verification?.status === 'unverified') {
+		parts.push(localize('codePacks.unverified', "values not yet verified against the printed code"));
 	}
 	return parts.join(' · ');
 }

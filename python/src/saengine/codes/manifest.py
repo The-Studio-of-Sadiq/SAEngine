@@ -234,6 +234,21 @@ class PackManifest(BaseModel):
         default=None,
         description="Card image of the package: a small .png, .jpg or .webp in its folder.",
     )
+    # Alpha 9 C26: areas the code does not design for (the conformance check accepts them).
+    notCovered: list[str] = Field(
+        default_factory=list,
+        description="Areas the pack declares the code does not cover (e.g. ['seismic'] for a "
+        "code without earthquake design): the conformance check (saengine codepack check) "
+        "accepts that they are missing.",
+    )
+    # Alpha 9 C26: the pack's verification status (Project Settings, New Building, report).
+    verified: bool | str | None = Field(
+        default=None,
+        description="Set once every value has been checked against the printed code: true, or "
+        "the date of the check ('2026-11-20'). Without it, a pack whose VERIFY.md has rows "
+        "not ticked (a cell 'Verified', '✓' or '[x]') shows 'values not yet verified against "
+        "the printed code'.",
+    )
 
     def table_code(self, table: str, key: str = "", sub: str = "") -> str:
         """How results name the code of clause ``key`` (of a grouped table: entry ``sub`` of
@@ -264,6 +279,21 @@ class Problem(BaseModel):
     message: str
     file: str | None = None
     table: str | None = None
+
+
+VerificationStatus = Literal["verified", "unverified", "unstated"]
+
+
+class Verification(BaseModel):
+    """Alpha 9 C26: whether a pack's values were checked against the printed code: its
+    ``pack.json`` ``verified`` (true or a date), else the rows of its ``VERIFY.md`` not yet
+    ticked."""
+
+    status: VerificationStatus
+    message: str = Field(description="How the UI and the report state it.")
+    date: str | None = Field(default=None, description="Date of the check, when given.")
+    unchecked: int = Field(default=0, description="Rows of VERIFY.md not ticked.")
+    rows: int = Field(default=0, description="Value rows of VERIFY.md.")
 
 
 # "folder": a pack read straight from a folder (validate, load_path), above every other scope.
@@ -323,6 +353,17 @@ class PackInfo(BaseModel):
         default_factory=list, description="The package's files of its kind (relative paths)."
     )
     preview: str | None = Field(default=None, description="Full path of the card image.")
+    # Alpha 9 C26: hazard lookup services named by user or project packs need a trust step.
+    untrustedLookups: list[str] = Field(
+        default_factory=list,
+        description="Ids of the user or project packs in the chain whose hazard lookup services "
+        "(hazardLookup) are not trusted: they are never asked until trusted.",
+    )
+    # Alpha 9 C26.
+    verification: Verification | None = Field(
+        default=None,
+        description="Whether the pack's values were checked against the printed code.",
+    )
     usable: bool = True
     problems: list[Problem] = Field(default_factory=list)
 

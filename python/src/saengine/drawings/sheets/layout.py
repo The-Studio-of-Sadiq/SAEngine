@@ -609,6 +609,8 @@ class Sheet:
             text = convert_levels(
                 convert_sizes(convert_text(text, self.units), self.units), self.units
             )
+        elif not self.units.plain:  # alpha 9 C26: the pack's bar names in SI
+            text = convert_text(text, self.units)
         if self.language != "en":
             text = i18n.translate(text, self.language)
         lines = text.split("\n")

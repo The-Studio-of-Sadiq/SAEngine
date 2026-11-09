@@ -41,6 +41,67 @@ here, newest first, with the date, the question, the decision, the reason and wh
 - **No unlicensed software.** ETABS, SAP2000 and STAAD are not used for cross-checks or cited.
   Open-source tools are used instead (2026-10-25).
 
+## 2026-11-09: any-code readiness (alpha 9 track C26)
+
+Owner, 2026-11-04: "make sure our software works at ease with any country code".
+
+- **Response spectrum combinations from the pack** (behaviour change for packs other than the
+  default). The response spectrum design forms its combinations from the pack's strength rows
+  with E (the chosen `strengthSet` included), E's factor on every spectrum part: the rows with
+  the least dead load factor take E = Eh - Ev, the others Eh + Ev; where every row has the same
+  dead load factor (EN 1990 6.4.3.4: G + AEd + ψ2 Q) each row is formed with both signs of Ev
+  (SAEngine practice). Before, every pack got 1.2D + L ± 1.0E and 0.9D ± 1.0E. The default
+  pack's combinations 5 and 7 give exactly the same combinations as before. A pack without any
+  row with E keeps those two as the generic default (SAEngine practice). The live load factor is
+  the project's static earthquake combination's of the same dead load factor, else the row's.
+- **Inherited clause text names its owner.** A clause or source text a pack inherits that
+  starts "SAEngine practice" (such as "SAEngine practice where BNBC 2020 is silent" under the
+  IS, BS 8110 and other packs that extend BNBC 2020) is printed with "[inherited from BNBC
+  2020; not given by <code>]"; the report's design basis lists the tables each pack inherits,
+  by the pack that supplies them, and its labels quote the default pack's table numbers only
+  where the pack takes that table from it ("Site class (BNBC 2020 Table 6.2.13)" under BS 8110,
+  "Site class" under the IS pack). The default pack's texts are unchanged.
+- **Bar names in every unit system.** A pack's bar names (#5, N16, HD16, 16M, D16, Φ16) show in
+  SI too, not only in US customary units; a size the pack does not name stays "Ø16". The
+  default pack has none: its texts are unchanged.
+- **Bar masses from the pack** (owner, test-pass item of C14). The bill of quantities, the bar
+  schedules, the precast pieces and the BVBS files weigh a bar by the pack's nominal mass of its
+  size (`concrete.barMasses`), else d²/162 as before. The US pack gives the ASTM A615 masses
+  (No. 10 is 0.560 kg/m, not 0.617); Korea the KS D 3504 masses; packs that extend the US pack
+  with metric bars at the same keys replace them with none (d²/162 of their diameters).
+- **Eurocode foundation capacity design: Ω from the dissipative members** (owner, 2026-11-04;
+  EN 1998-1 4.4.2.6(2)P, (3)). Each foundation takes Ω = MRd / MEd of the base section of the
+  column it carries in the seismic design situation, the least over the strength combinations
+  with earthquake (MRd at each combination's axial force, from the column's bars), at least 1
+  (SAEngine practice), with γRd Ω at most q. A base without such a ratio (a wall, a steel
+  column, a column without bars) keeps the pack's Ω, else q. The two ways the global moments may
+  map onto the section's axes give two ratios: the larger is taken (on the safe side). Packs
+  without the rule (the default) are unchanged.
+- **IS column construction joints** (owner, 2026-11-04). Under the IS pack the column
+  construction joint keeps the parent's shear-friction check, labelled "IS 456:2000 13.4 (places
+  the construction joints, gives no shear-friction rule): ... SAEngine practice".
+- **Pack verification status** (owner). A pack whose `VERIFY.md` has rows not ticked
+  ("Verified <date>", ✓ or [x] in a cell) shows "values not yet verified against the printed
+  code" in the pack chooser (Project Settings, the New Building wizard), on the Packages page and
+  in the report's design basis, until its `pack.json` says `"verified": true` or a date. Every
+  built-in pack, the default one included, shows it today: their VERIFY.md rows are not ticked.
+- **Hazard lookup trust** (owner question pending; built as asked: a trust step, default
+  untrusted). A user or project pack that names an online hazard lookup service is asked only
+  after the user trusts its `hazardLookup` file on the Packages page (stored with the hooks'
+  trust, keyed by the file's content: any edit revokes it). Built-in packs need no trust.
+- **Conformance checks and `notCovered`.** `saengine codepack check` and the test over every
+  installed pack check coverage, sources, clause ownership, earthquake and wind combinations,
+  bar names and masses, and the verification status. A pack may declare areas its code does not
+  design for in `pack.json` `notCovered` (BS 8110 and its children: seismic).
+- **Project Settings under another pack** no longer shows the default pack's preview of the
+  site and seismic values (BNBC 2020 tables) or its structural-system check; the values come
+  from the chosen pack when the project is analysed.
+- Where it lives: `fem/seismic_design.py` (`_earthquake_rows`), `codes/context.py`
+  (`attribute`), `codes/registry.py` (`value_owner`, `inherited_from`, `verification_status`,
+  `set_lookup_trusted`), `codes/bars.py`, `codes/conformance.py`, `units.py`
+  (`si_bar_names`), `substructure/foundation_capacity.py`, `codes/template.py`, the packs'
+  `concrete.json` / `detailing.json`, `docs/code-packs.md` ("Write your own country's pack").
+
 ## 2026-11-09: steel shop drawings, NC files (DSTV) and rebar CNC (BVBS) (alpha 9 track L10)
 
 - **Made only when asked.** Three rows of 11 Exports: Steel Shop Drawings (`11 Exports/Shop

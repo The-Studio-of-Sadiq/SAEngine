@@ -1900,8 +1900,18 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 				this.valuesDisposables.add(addDisposableListener(chip, EventType.CLICK, () => void this.commands.executeCommand('saengine.codePacks.show')));
 			}
 		}
-		const table = append(panel, $('.settings-values', { role: 'table', 'aria-label': localize('settings.codeValues', "Code Values") }));
+		// Alpha 9 C26: a pack whose values were not checked against the printed code says so.
+		if (pack?.verification?.status === 'unverified') {
+			append(panel, $('.sa-props-note.settings-values-problem', undefined, localize('settings.packUnverified', "{0}: values not yet verified against the printed code (see its VERIFY.md on the Packages page).", pack.name)));
+		}
 		const soil = this.sources?.soil;
+		// Alpha 9 C26: the preview rows below are the default pack's tables (BNBC 2020 table
+		// numbers); under another pack its own values apply when the project is analysed.
+		if (chosenPackId(this.document) !== DEFAULT_CODE_PACK) {
+			append(panel, $('.sa-props-note', undefined, localize('settings.valuesOwnPack', "The site, seismic and wind values of {0} are worked out from its own tables when the project is analysed; the analysis summary and the design report state them.", this.codeName)));
+			return;
+		}
+		const table = append(panel, $('.settings-values', { role: 'table', 'aria-label': localize('settings.codeValues', "Code Values") }));
 		const problems: string[] = [];
 		for (const value of codeValues(this.document, soil?.class ? { class: soil.class, label: soil.label } : undefined)) {
 			const row = append(table, $('.sa-props-row', { role: 'row' }));
@@ -1939,9 +1949,6 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 			this.valuesDisposables.add(button.onDidClick(() => void this.switchSystem(category.alternative!)));
 		}
 		append(panel, $('.sa-props-note', undefined, localize('settings.valuesNote', "From the {0} tables for the site, occupancy and structural system. * overridden in the settings. Hover a value for its source.", DEFAULT_CODE_TABLES.edition)));
-		if (chosenPackId(this.document) !== DEFAULT_CODE_PACK) {
-			append(panel, $('.sa-props-note', undefined, localize('settings.valuesOtherPack', "These preview values come from the {0} tables built into this editor; the tables of {1} apply when the project is analysed and designed.", DEFAULT_CODE_TABLES.edition, this.codeName)));
-		}
 	}
 
 	protected renderProblems(): void {
@@ -1985,7 +1992,8 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 		}
 		const items: IPartCheckItem[] = this.problems.map(p => ({ severity: 'error', message: p.message, ...(p.path ? { where: p.path } : {}) }));
 		const soil = this.sources?.soil;
-		const system = codeValues(document, soil?.class ? { class: soil.class, label: soil.label } : undefined).find(v => v.problem);
+		// Alpha 9 C26: the default pack's system check only under it (its tables, its categories).
+		const system = chosenPackId(document) === DEFAULT_CODE_PACK ? codeValues(document, soil?.class ? { class: soil.class, label: soil.label } : undefined).find(v => v.problem) : undefined;
 		if (system?.problem && !this.problems.some(p => p.path.startsWith('seismic'))) {
 			items.push({ severity: 'error', message: system.problem, where: 'seismic.system' });
 		}

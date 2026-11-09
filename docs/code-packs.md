@@ -9,6 +9,7 @@ JSON files that you can copy, change, check and share, without changing SAEngine
 You do not need to be a programmer to write a pack. Most packs start from BNBC 2020 and change
 only what differs in their region: a few towns, a wind speed, a combination factor.
 
+- [Write your own country's pack](#write-your-own-countrys-pack)
 - [What a pack is](#what-a-pack-is)
 - [Start a pack](#start-a-pack)
 - [The tables](#the-tables)
@@ -20,6 +21,75 @@ only what differs in their region: a few towns, a wind speed, a combination fact
 - [The pack in the report](#the-pack-in-the-report)
 - [Limits of this version](#limits-of-this-version)
 - [Command reference](#command-reference)
+
+## Write your own country's pack
+
+This is the office's route from "our code is not in SAEngine" to a pack every engineer in the
+office can choose in Project Settings. SAEngine has some 35 built-in packs (BNBC 2020, the US
+codes, the Eurocodes and their National Annexes, the Indian Standards, and packs for most
+countries in Asia, the Middle East, the Americas and Africa); start from the one closest to
+your code, so you change the least.
+
+**1. Choose the parent.** A pack *extends* another and changes only what differs. If your code
+adopts ACI 318 / ASCE 7 with local values (as Saudi Arabia, Pakistan or the Philippines do),
+extend `aci318-asce7-22`; for a National Annex, extend `eurocodes`; for a code derived from the
+British Standards, `bs8110`; for Indian practice, `is-codes`; otherwise `bnbc2020`.
+
+```console
+> saengine codepack new xx-nbc --name "Example National Building Code 2026" --extends aci318-asce7-22 --edition "XNBC 2026" --country XX --dest .
+```
+
+The folder holds `pack.json`, one help-only file per table in `data/`, `examples/` (worked
+overrides to copy into `data/`: a town, the bar names and masses, a combination row),
+`VERIFY.md` (the list to check against the printed code) and a README with these steps.
+
+**2. Override, in this order.** What changes most results first:
+
+1. `locations` (towns with their seismic zone or mapped values and basic wind speed) and
+   `occupancyCategories` (importance factors);
+2. `combinations` (load factors; the rows with E also give the response spectrum
+   combinations, the rows with W the wind ones), `areaLoads` (live loads), `deadLoads`;
+3. `seismic` (the spectrum and its method, site classes, structural systems with their R or q,
+   Cd and Ω0, drift limits) and `wind` (the pressure method and its factors);
+4. the materials: `concrete` (bar sizes with their names, nominal masses where a size's key is a
+   designation, covers, limits), `factors` (resistance or partial factors), `steel`;
+5. the clause references the results print: `designClauses`, the `clauses` of each table and
+   `$sources` in every file you change. A method your code adds (a new wind or spectrum form)
+   is a generic engine module picked by id: ask for it, never write `if code == ...`.
+
+Everything you leave out comes from the parent and the report says so: under the design basis
+it lists the tables inherited, named after the pack that supplies them, and a clause text a
+pack inherits ("SAEngine practice where BNBC 2020 is silent") is printed with "[inherited from
+BNBC 2020; not given by <your code>]", never as your code's. Values neither gives fall back to
+the named generic defaults, also listed. If your code does not design for earthquakes (or
+wind), say so: `"notCovered": ["seismic"]` in `pack.json`.
+
+**3. Check.** `saengine codepack validate <folder>` (every value against its model) and
+`saengine codepack check <folder>`, the conformance checks every pack, built-in or yours, must
+pass: the tables in `covers` are the ones it gives, every table it gives has sources, no text of
+its own speaks for another code, earthquake and wind combinations exist (or are declared not
+covered), the bar names and masses are of its bar sizes, and its verification is stated. Then
+install it, make a one-bay building with it in the New Building wizard, run the analysis and
+Design Reinforcement, and read the report's design basis. The test suite runs the same checks
+over every installed pack (`tests/test_codes_conformance.py`; with `-m slow` it also derives
+and designs a generated building under each).
+
+**4. Verify.** Every value you enter goes into `VERIFY.md` with its clause, table or equation,
+one row each. A second engineer checks each row against the printed code and writes `Verified
+<date>` (or ✓) in its last column. Until every row is ticked, or `pack.json` says
+`"verified": "<date>"`, SAEngine shows **values not yet verified against the printed code**
+beside the pack in Project Settings, in the New Building wizard, on the Packages page and in the
+report's design basis. Built-in packs follow the same rule: their `VERIFY.md` lists what their
+authors entered without the printed code at hand.
+
+**5. Share.** Keep the pack in the project (`02 Project Settings/code-packs/`: it travels with
+the project and its `.civil` archive), install it in the user folder of each engineer, or zip
+it. To publish it for other offices, offer it to the SAEngine marketplace index
+([marketplace plan](marketplace-plan.md)): packages are reviewed, signed and listed by kind. A
+pack that names an online hazard lookup service (`hazardLookup`) is asked only after each user
+trusts that service on the Packages page (Trust Lookup Services...; editing the file revokes
+it), the same step as hooks. Never copy the code's text, tables as printed or figures: numbers
+and short clause references only.
 
 ## What a pack is
 
@@ -942,8 +1012,9 @@ the SAEngine commit it names).
 | `saengine codepack show <id or folder> [--kind KIND] [--root PROJECT]` | A pack's details: inheritance, tables (own or inherited) with their clauses, requires, contents, hooks and trust, problems. |
 | `saengine codepack new <id> --dest <dir> [--name N] [--extends bnbc2020] [--edition E] [--country C] [--author A]` | Creates `<dir>/<id>/`, a pack that extends `--extends` (`--extends ""` for none). |
 | `saengine codepack validate <folder> [--kind KIND] [--root PROJECT]` | Checks a pack; exit code 1 when it has errors, or with `--kind` when it is of another kind. |
+| `saengine codepack check <id or folder> [--root PROJECT]` | The conformance checks every pack must pass (covers, sources, clause ownership, earthquake and wind combinations or `notCovered`, bar names and masses, verification stated); exit code 1 when it does not conform. |
 | `saengine codepack diff <a> <b> [--root PROJECT]` | The differences of two packs (ids or folders), table by table and key by key: `+` only in b, `-` only in a, `~` changed. |
 
 `saengine package ...` is the same command. Every command takes `--json` (one JSON document on stdout, as the other `saengine` commands)
 and `-q`. Exit codes: 0 ok, 1 the pack has errors (`validate`), 2 usage (unknown pack, bad id,
-existing folder), 3 error.
+existing folder), 3 error. `check` exits 1 when the pack does not conform.

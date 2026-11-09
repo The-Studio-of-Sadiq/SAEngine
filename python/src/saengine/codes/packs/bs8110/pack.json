@@ -6,6 +6,7 @@
   "country": "GB",
   "version": "0.1.0",
   "extends": "bnbc2020",
+  "notCovered": ["seismic"],
   "covers": [
     "locations",
     "zoneCoefficients",

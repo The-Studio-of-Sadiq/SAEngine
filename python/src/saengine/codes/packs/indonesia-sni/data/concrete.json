@@ -3,6 +3,7 @@
   "$sources": [
     "SNI 2052:2017 (deformed bars D10-D36, named D + diameter)"
   ],
+  "barMasses": {"$replace": true},
   "barNames": {
     "$replace": true,
     "10": "D10",

@@ -9,6 +9,7 @@
   "extends": "bnbc2020",
   "covers": [
     "locations",
+    "foundations",
     "zoneCoefficients",
     "occupancyCategories",
     "areaLoads",

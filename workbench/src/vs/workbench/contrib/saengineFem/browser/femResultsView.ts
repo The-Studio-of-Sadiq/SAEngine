@@ -46,7 +46,7 @@ import { assessmentHelp, assessmentTitle, checklistSheet, FEM_EXISTING_ASSESSMEN
 import { appendPlannedChips, FemPlanned } from './femPlannedFeatures.js';
 import { errorSummary, FEM_RESULT_LIST_COMMAND, IFemRunTracker } from './femResultsBar.js';
 import { formatNumber } from '../../../services/saengineProject/common/formatting.js';
-import { activeCodeName, defaultCodeName } from '../../../services/saengineProject/common/activeCodePack.js';
+import { activeCodeName, defaultClause } from '../../../services/saengineProject/common/activeCodePack.js';
 import { activeDisplayUnits, displayFactor, displayUnit, IDisplayUnits, SI_UNITS_SETTING, toDisplay } from '../../../services/saengineProject/common/displayUnits.js';
 
 const chartsIcon = registerIcon('saengine-fem-results-label-icon', Codicon.graph, localize('femResultsLabelIcon', "Icon of the analysis charts and member pages."));
@@ -1617,8 +1617,8 @@ export class FemResultsEditor extends EditorPane {
 			!spectrum
 				? localize('femResults.storeyHelp', "Displacements are the largest at each level; drift is the largest inter-storey drift ratio over the plan positions; forces are the lateral loads at the levels.")
 				: scale !== undefined
-					? localize('femResults.spectrumScaledHelp', "Peak values of the response spectrum case (no signs). Storey forces, shears and overturning are scaled by {0} to 0.85·V as the design uses them ({1}); displacements and drifts are unscaled, as {2} requires for drift. Drifts combine the modal drifts, as the spectrum design does.", scale.toFixed(3), response.spectrumDesign?.clause ?? `${defaultCodeName()} Part 6 Sec 2.5.9.4`, activeCodeName())
-					: localize('femResults.spectrumUnscaledHelp', "Peak values of the response spectrum case (no signs), unscaled: the response spectrum design (Design Utilisation) has not been worked out for this run, so the forces are not yet scaled to 0.85·V ({0} Part 6 Sec 2.5.9.4). Drifts combine the modal drifts, as the spectrum design does.", defaultCodeName()),
+					? localize('femResults.spectrumScaledHelp', "Peak values of the response spectrum case (no signs). Storey forces, shears and overturning are scaled by {0} to 0.85·V as the design uses them ({1}); displacements and drifts are unscaled, as {2} requires for drift. Drifts combine the modal drifts, as the spectrum design does.", scale.toFixed(3), response.spectrumDesign?.clause ?? defaultClause('Part 6 Sec 2.5.9.4'), activeCodeName())
+					: localize('femResults.spectrumUnscaledHelp', "Peak values of the response spectrum case (no signs), unscaled: the response spectrum design (Design Utilisation) has not been worked out for this run, so the forces are not yet scaled to 0.85·V ({0}). Drifts combine the modal drifts, as the spectrum design does.", defaultClause('Part 6 Sec 2.5.9.4')),
 		);
 		const grid = this.grid(section);
 		const limit = elasticDriftLimit(response.driftLimit);
@@ -1699,7 +1699,7 @@ export class FemResultsEditor extends EditorPane {
 
 	private renderModal(response: IFemStoryResponse): void {
 		const modal = response.modal!;
-		const section = this.section(localize('femResults.modalHeading', "Modal Periods and Mass Participation"), localize('femResults.modalHelp', "{0} Part 6 Sec 2.5.9.2: include enough modes to reach 90 % of the mass in each direction.", defaultCodeName()));
+		const section = this.section(localize('femResults.modalHeading', "Modal Periods and Mass Participation"), localize('femResults.modalHelp', "{0}: include enough modes to reach the mass participation the code asks in each direction (90 % in most codes).", defaultClause('Part 6 Sec 2.5.9.2')));
 		const grid = this.grid(section);
 		const required = 100 * modal.required;
 		const series: IChartSeries[] = [];
@@ -1914,7 +1914,7 @@ export class FemResultsEditor extends EditorPane {
 	}
 
 	private renderInteraction(member: string): void {
-		const section = this.section(localize('femResults.pmHeading', "P–M Interaction"), localize('femResults.pmHelp', "φ-factored capacities of the column's section and bars (SAEngine's design checks: the strength design of {0} Part 6 Chapter 6) with the demand of every load combination: the largest axial force and the largest moments of each.", defaultCodeName()));
+		const section = this.section(localize('femResults.pmHeading', "P–M Interaction"), localize('femResults.pmHelp', "φ-factored capacities of the column's section and bars (SAEngine's design checks: the strength design of {0}) with the demand of every load combination: the largest axial force and the largest moments of each.", defaultClause('Part 6 Chapter 6')));
 		const diagram = this.interaction;
 		if (!diagram) {
 			const note = this.interactionState === 'loading'

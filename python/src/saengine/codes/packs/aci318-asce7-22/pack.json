@@ -9,6 +9,9 @@
   "extends": "bnbc2020",
   "covers": [
     "locations",
+    "flood",
+    "plumbing",
+    "transfer",
     "occupancyCategories",
     "areaLoads",
     "liveReduction",

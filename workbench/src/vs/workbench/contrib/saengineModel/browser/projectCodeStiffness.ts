@@ -84,7 +84,7 @@ export class ProjectCodeStiffnessContribution extends Disposable implements IWor
 		}
 		const packId = isObject(settings) && typeof settings.codePack === 'string' ? settings.codePack : DEFAULT_PACK;
 		let crackedTable: Json | undefined;
-		// C13b: the pack's bar names (concrete.barNames), which US customary display units show
+		// C13b: the pack's bar names (concrete.barNames), shown in every unit system (alpha 9 C26)
 		let barNames: Json = {};
 		let packName: string | undefined;
 		try {
@@ -99,7 +99,8 @@ export class ProjectCodeStiffnessContribution extends Disposable implements IWor
 					crackedTable = { ...crackedTable, ...table.crackedStiffness };
 				}
 				if (isObject(table) && isObject(table.barNames)) {
-					barNames = { ...barNames, ...table.barNames };
+					// Alpha 9 C26: a pack's "$replace" drops its parent's names (Myanmar's metric bars are not US No. 3 ...).
+					barNames = table.barNames.$replace === true ? { ...table.barNames } : { ...barNames, ...table.barNames };
 				}
 			}
 		} catch {

@@ -275,7 +275,8 @@ def _c5c_lines() -> list[str]:
         lines.append(
             "Capacity design of the foundations: the earthquake parts of their strength "
             f"combinations × γRd Ω (γRd {capacity.gammaLow:g} for q up to {capacity.qLimit:g}, "
-            f"{capacity.gammaHigh:g} above; Ω "
+            f"{capacity.gammaHigh:g} above; Ω = MRd/MEd of the column at each base, at least "
+            "1, else "
             + (f"{capacity.omega:g}" if capacity.omega is not None else "taken as q, the elastic "
                "response, on the safe side")
             + f"), at most q ({code_context.cite('seismic', 'foundationCapacity')})."

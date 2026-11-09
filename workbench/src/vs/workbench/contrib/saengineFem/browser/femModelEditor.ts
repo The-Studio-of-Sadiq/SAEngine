@@ -54,7 +54,7 @@ import { jointGoverning, jointGoverningName, jointHeading, jointOk, jointsOf } f
 import { chartUnits } from './femResultsView.js';
 import { cameraOf, FemViewChoice, formatPlanPath, freeTopColumns, gridLines, IFilterModel, parsePlanPath, perimeterPath, viewChoices, visibleElements } from './femViewFilter.js';
 import { loadViewerModule } from './viewerModule.js';
-import { defaultCodeName } from '../../../services/saengineProject/common/activeCodePack.js';
+import { defaultClause } from '../../../services/saengineProject/common/activeCodePack.js';
 
 /** The building member an analysis element belongs to (`C3#2` -> `C3`). */
 export function memberOf(name: string): string {
@@ -1348,8 +1348,8 @@ export class FemModelEditor extends EditorPane {
 		if (cladding.parapet) {
 			appendPropertyRow(panel, localize('femEditor.windParapet', "Parapet"), localize('femEditor.windParapetValue', "A {0}, B {1} kN/m²", cladding.parapet.caseA_kPa.toFixed(2), cladding.parapet.caseB_kPa.toFixed(2)));
 		}
-		appendPropertyNote(panel, localize('femEditor.windCladdingNote', "Components and cladding ({3} Part 6 Sec 2.4.11.5): p = qh·[(GCp) − (±GCpi)], GCpi ±{0}; zones 5 and 3 lie within a = {1} m of corners, zone 2 of roof edges. Effective wind area: {2}.",
-			cladding.GCpi.toFixed(2), cladding.a_m.toFixed(2), cladding.area_m2 ? localize('femEditor.windArea', "{0} m²", cladding.area_m2.toFixed(2)) : localize('femEditor.windAreaSmallest', "the smallest (largest pressures)"), defaultCodeName()));
+		appendPropertyNote(panel, localize('femEditor.windCladdingNote', "Components and cladding ({3}): p = qh·[(GCp) − (±GCpi)], GCpi ±{0}; zones 5 and 3 lie within a = {1} m of corners, zone 2 of roof edges. Effective wind area: {2}.",
+			cladding.GCpi.toFixed(2), cladding.a_m.toFixed(2), cladding.area_m2 ? localize('femEditor.windArea', "{0} m²", cladding.area_m2.toFixed(2)) : localize('femEditor.windAreaSmallest', "the smallest (largest pressures)"), defaultClause('Part 6 Sec 2.4.11.5')));
 	}
 
 	/**

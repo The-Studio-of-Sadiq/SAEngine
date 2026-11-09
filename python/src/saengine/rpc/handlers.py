@@ -3009,14 +3009,24 @@ def codes_validate(path: str, root: str | None = None) -> dict[str, Any]:
 
 
 def codes_trust(
-    pack_id: str, trusted: bool, root: str | None = None, kind: str | None = None
+    pack_id: str,
+    trusted: bool,
+    root: str | None = None,
+    kind: str | None = None,
+    what: str | None = None,
 ) -> dict[str, Any]:
     """Trusts (or stops trusting) the hooks of the package in force with this id and kind (a
-    design code by default; a structure template's coded templates, round M5)."""
+    design code by default; a structure template's coded templates, round M5); with ``what``
+    "lookup" (alpha 9 C26), the online hazard lookup services its pack names."""
     from saengine.codes import CodePackError, registry
     from saengine.codes.manifest import KINDS
 
     base = _pack_root(root)
+    if what == "lookup":
+        try:
+            return _pack_info(registry.set_lookup_trusted(pack_id, bool(trusted), base), base)
+        except CodePackError as error:
+            return _refusal(error)
     try:
         info = registry.set_trusted(
             pack_id, bool(trusted), base, kind if kind in KINDS else "designCode"
