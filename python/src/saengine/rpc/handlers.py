@@ -2117,10 +2117,16 @@ def mesh_check(project_root: str) -> dict[str, Any]:
     """The mesh convergence check of Run All (``saengine.fem.mesh_check``): the beams' gravity
     end moments on the project's mesh and on one twice as coarse, written to ``08 FEM/
     model.results/mesh-check.json``; ``{"skipped": why}`` when the project needs none,
-    ``{"problems"}`` when it could not be run."""
+    ``{"problems"}`` when it could not be run; ``{"implausible": why}`` when the results are not
+    plausible (:mod:`saengine.fem.results_check`; Run All fails its analysis step)."""
     from saengine.fem import mesh_check as mc
+    from saengine.fem.results_check import implausible
 
     root = Path(project_root)
+    # W4B-1: the results' plausibility first (Run All fails its analysis step on it).
+    problem = implausible(root / "08 FEM" / "model.osmodel", root / "08 FEM" / "model.results")
+    if problem:
+        return {"implausible": problem}
     try:
         why = mc.needs_check(root)
         if why is not None:

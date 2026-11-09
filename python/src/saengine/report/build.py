@@ -674,6 +674,20 @@ def fmt(value: float | None, digits: int = 1) -> str:
     return f"{value:,.{digits}f}"
 
 
+#: W4B-2: a utilisation above this is printed as ">100" (a check with almost no capacity: the
+#: raw value stays in the data).
+UTILISATION_SHOWN_UP_TO = 100.0
+
+
+def fmt_utilisation(value: float | None, digits: int = 3) -> str:
+    """A utilisation as the tables print it: :func:`fmt`, but ">100" above
+    :data:`UTILISATION_SHOWN_UP_TO` (a sliding check under no vertical load printed
+    1,500,000)."""
+    if value is not None and float(value) > UTILISATION_SHOWN_UP_TO:
+        return f">{UTILISATION_SHOWN_UP_TO:g}"
+    return fmt(value, digits)
+
+
 def _factor(value: float) -> str:
     return "" if not value else f"{value:g}"
 
@@ -4861,7 +4875,7 @@ def _check_rows(checks: list[dict[str, Any]]) -> tuple[list[list[str]], list[boo
             fmt(c.get("demand"), 2),
             fmt(c.get("capacity"), 2),
             str(c.get("unit", "")),
-            fmt(c.get("utilisation"), 3),
+            fmt_utilisation(c.get("utilisation"), 3),
             str(c.get("combination") or "–"),
             _result_label(c),
             str(c.get("note", "")),
@@ -4918,7 +4932,7 @@ def _foundations(parts: _Parts) -> dict[str, Any]:
                 ", ".join(map(str, result.get("columns", []))) or "–",
                 _size_text(result) if kind != "tieBeam" else "–",
                 str(check.get("name", "")) if check else "–",
-                fmt(result.get("utilisation"), 3),
+                fmt_utilisation(result.get("utilisation"), 3),
                 str(check.get("combination") or "–") if check else "–",
                 "OK" if result.get("ok") else "FAIL",
             ]

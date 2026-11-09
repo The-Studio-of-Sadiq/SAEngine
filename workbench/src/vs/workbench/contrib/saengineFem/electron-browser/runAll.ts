@@ -53,6 +53,8 @@ interface IMeshCheck {
 	readonly maxChangePercent?: number;
 	readonly coarseSize_mm?: number;
 	readonly skipped?: string;
+	/** W4B-1: the results are not plausible (`saengine.fem.results_check`): the step fails. */
+	readonly implausible?: string;
 }
 
 /** Desktop commands that build the building model from its source (see the building editor). */
@@ -757,22 +759,29 @@ export class RunAllService implements IRunAllService {
 			context.analysisLog = outcome.status === 'failed';
 			throw new StepFailure(outcome.message ?? outcome.status);
 		}
+		// W4B-1: the results' plausibility comes with the mesh check; implausible results fail
+		// the step and are not kept as current (no analysis inputs stamp).
+		this.report(localize('runAll.meshCheck', "mesh check"));
+		const mesh = await this.checkMesh(context, project);
+		if (mesh?.failure) {
+			throw new StepFailure(mesh.failure);
+		}
 		const done = await this.readText(joinPath(results, RESULTS_MANIFEST));
 		if (stamp && done !== undefined) {
 			await this.fileService.writeFile(joinPath(results, ANALYSIS_INPUTS_FILE), VSBuffer.fromString(JSON.stringify({ stamp, manifest: sourceStamp(done) }) + '\n'));
 		}
-		this.report(localize('runAll.meshCheck', "mesh check"));
-		const mesh = await this.checkMesh(context, project);
 		const message = outcome.cases === 1 ? localize('runAll.analysedOne', "1 case analysed") : localize('runAll.analysed', "{0} cases analysed", outcome.cases);
-		return mesh ? { status: 'warning', message: `${message}; ${mesh}` } : { status: 'ok', message };
+		return mesh?.warning ? { status: 'warning', message: `${message}; ${mesh.warning}` } : { status: 'ok', message };
 	}
 
 	/**
 	 * The mesh convergence check (`analysis.meshCheck`, `saengine.fem.mesh_check`): a warning
 	 * when a beam's gravity end moment changes by more than 5 % on a mesh twice as coarse; never
-	 * fails the step (mirrors `_analysis` of `saengine.pipeline.run_all`).
+	 * fails the step (mirrors `_analysis` of `saengine.pipeline.run_all`). W4B-1: the same
+	 * backend call first checks the results are plausible (`saengine.fem.results_check`);
+	 * `failure` says why they are not, and the step fails on it.
 	 */
-	private async checkMesh(context: IRunContext, project: ISaengineProject): Promise<string | undefined> {
+	private async checkMesh(context: IRunContext, project: ISaengineProject): Promise<{ readonly warning?: string; readonly failure?: string } | undefined> {
 		let result: IMeshCheck | undefined;
 		try {
 			result = await this.backend(context, this.commandService.executeCommand<IMeshCheck>(MESH_CHECK_COMMAND, { projectRoot: project.root.fsPath }));
@@ -780,10 +789,13 @@ export class RunAllService implements IRunAllService {
 			if (context.token.isCancellationRequested) {
 				throw error;
 			}
-			return localize('runAll.meshCheckFailed', "the mesh check could not be run: {0}", errorSummary(error));
+			return { warning: localize('runAll.meshCheckFailed', "the mesh check could not be run: {0}", errorSummary(error)) };
+		}
+		if (result?.implausible) {
+			return { failure: result.implausible };
 		}
 		return result?.warning
-			? localize('runAll.meshWarning', "mesh not converged: the beams' gravity end moments change by up to {0} % on a mesh twice as coarse ({1} mm); make Mesh Size smaller in Project Settings, Analysis model", (result.maxChangePercent ?? 0).toFixed(1), result.coarseSize_mm ?? 0)
+			? { warning: localize('runAll.meshWarning', "mesh not converged: the beams' gravity end moments change by up to {0} % on a mesh twice as coarse ({1} mm); make Mesh Size smaller in Project Settings, Analysis model", (result.maxChangePercent ?? 0).toFixed(1), result.coarseSize_mm ?? 0) }
 			: undefined;
 	}
 
