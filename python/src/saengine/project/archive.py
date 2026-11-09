@@ -88,7 +88,7 @@ COMPUTED_PATHS: tuple[str, ...] = (
     # Alpha 9 L12: the record of the last office server job (saengine.office.client) and the
     # working copies of a design study's variants (saengine.automation.studies; the study and
     # its comparison table are kept).
-    ".saengine-office-job.json",
+    "**/.saengine-office-job.json",  # the office server job of the project (alpha 9 L12)
     "12 Automation/studies/*/variants/",
 )
 

@@ -1,0 +1,24 @@
+{
+  "name": "Shell of revolution",
+  "description": "Silo, chimney or cooling-tower shell at the Generate panel's starting values.",
+  "shape": {
+    "kind": "revolutionShell",
+    "profile": "cylinder",
+    "height": 24000.0,
+    "baseRadius": 4000.0,
+    "topRadius": null,
+    "throatRadius": null,
+    "throatHeight": null,
+    "rings": 12,
+    "segments": 24,
+    "panelType": "PANEL",
+    "memberType": null,
+    "supports": "fixed",
+    "origin": {
+      "x": 0.0,
+      "y": 0.0,
+      "z": 0.0
+    },
+    "rotation": 0.0
+  }
+}

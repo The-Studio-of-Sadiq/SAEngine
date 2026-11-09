@@ -202,4 +202,6 @@ def test_generated_building_derives_and_designs(pack_id: str, tmp_path: Path):
     report = json.loads(
         (root / "08 FEM/model.results/design-report.json").read_text(encoding="utf-8")
     )
-    assert report.get("members"), "no member was designed"
+    # The kept report wraps the design result with its stamp: {stamp, computed, result}.
+    result = report.get("result", report)
+    assert result.get("members"), "no member was designed"

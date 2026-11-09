@@ -247,7 +247,8 @@ def test_bridge_rating_us_pack():
     assert ("flexure", "inventory") in levels and ("flexure", "operating") in levels
     inv = next(r for r in found["rating"] if r["effect"] == "flexure" and r["level"] == "inventory")
     op = next(r for r in found["rating"] if r["effect"] == "flexure" and r["level"] == "operating")
-    assert op["rf"] == pytest.approx(inv["rf"] * 1.75 / 1.35, rel=1e-6)
+    # Both factors are reported to two decimals.
+    assert op["rf"] == pytest.approx(inv["rf"] * 1.75 / 1.35, abs=0.01)
 
 
 def test_bridge_grillage_runs():

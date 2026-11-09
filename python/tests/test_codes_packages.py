@@ -421,7 +421,8 @@ def test_builtin_shapes_presets_are_the_generate_panel_defaults(user_data):
         for rel in info.contents
     }
     defaults = (
-        "space-truss", "plane-truss", "arch", "dome", "barrel-vault", "cable-net", "portal-frame"
+        "space-truss", "plane-truss", "arch", "dome", "barrel-vault", "cable-net", "portal-frame",
+        "deck-grillage", "truss-tower", "revolution-shell", "jacket-frame",  # alpha 9 L9
     )  # fmt: skip
     # One preset per shape at the Generate panel's starting values (change both together).
     assert [presets[name].shape for name in defaults] == list(_SHAPES)

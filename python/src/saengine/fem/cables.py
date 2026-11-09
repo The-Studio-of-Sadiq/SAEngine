@@ -171,7 +171,9 @@ def add_cable(
         )
     a, b = (np.asarray(c, dtype=float) for c in coords)
     base = tags["material"]
-    ops.uniaxialMaterial("Elastic", base, float(modulus), 0.0, 0.0)  # E, eta, Eneg = 0
+    # E, eta, Eneg: a negligible slack stiffness (1e-6 E) keeps the tangent regular when a
+    # segment goes slack during the iterations (as cable_fe).
+    ops.uniaxialMaterial("Elastic", base, float(modulus), 0.0, float(modulus) * 1e-6)
     ops.uniaxialMaterial("InitStrainMaterial", base + 1, base, float(pretension / (modulus * area)))
     tags["material"] = base + 2
     nodes = [ends[0]]
@@ -268,30 +270,43 @@ def cable_fe(
     modulus = ea / area
     ops.wipe()
     ops.model("basic", "-ndm", 2, "-ndf", 2)
-    # The starting shape: a parabola with the inextensible sag and 2 % more, else the chord.
-    f = 1.02 * math.sqrt(3 * chord * (length - chord) / 8) if length > chord else 0.0
+    # The starting shape: the parabola whose length is the unstressed length stretched by the
+    # tension its own sag would carry (H = w L^2 / 8 f), so the chain starts near equilibrium
+    # under its whole weight (a much longer or shorter start leaves Newton far from it).
+    f0 = math.sqrt(3 * chord * (length - chord) / 8) if length > chord else 0.0
+    stretch = w * span**2 / (8 * f0 * ea) if f0 > 0 else 1e-6
+    stretched = length * (1 + stretch)
+    f = math.sqrt(3 * chord * (stretched - chord) / 8) if stretched > chord else 0.0
     xs = np.linspace(0.0, span, segments + 1)
     zs = rise * xs / span - 4 * f * xs / span * (1 - xs / span)
     for k, (x, z) in enumerate(zip(xs, zs, strict=True)):
         ops.node(k + 1, float(x), float(z))
     ops.fix(1, 1, 1)
     ops.fix(segments + 1, 1, 1)
-    l0 = length / segments
+    # Each segment's unstressed length is its share of the cable's, in proportion to its length
+    # in the start shape: every segment then starts in the same tension (equal unstressed
+    # lengths would leave the parabola's flatter middle segments in compression, without
+    # stiffness in a tension-only cable, and the first tangent singular).
+    drawn = [math.hypot(xs[k + 1] - xs[k], zs[k + 1] - zs[k]) for k in range(segments)]
+    unstressed = [lg * length / sum(drawn) for lg in drawn]
     for k in range(segments):
-        lg = math.hypot(xs[k + 1] - xs[k], zs[k + 1] - zs[k])
-        ops.uniaxialMaterial("Elastic", 2 * k + 1, modulus, 0.0, 0.0)
-        ops.uniaxialMaterial("InitStrainMaterial", 2 * k + 2, 2 * k + 1, lg / l0 - 1.0)
+        # Slack: a negligible stiffness (1e-6 E) keeps the tangent regular while a segment
+        # goes slack during the iterations; it carries no compression of any size.
+        ops.uniaxialMaterial("Elastic", 2 * k + 1, modulus, 0.0, modulus * 1e-6)
+        ops.uniaxialMaterial(
+            "InitStrainMaterial", 2 * k + 2, 2 * k + 1, drawn[k] / unstressed[k] - 1.0
+        )
         ops.element("corotTruss", k + 1, k + 1, k + 2, area, 2 * k + 2)
     ops.timeSeries("Linear", 1)
     ops.pattern("Plain", 1, 1)
-    for k in range(2, segments + 1):
-        ops.load(k, 0.0, -w * l0)
+    for k in range(2, segments + 1):  # each node carries the weight of its half-segments
+        ops.load(k, 0.0, -w * (unstressed[k - 2] + unstressed[k - 1]) / 2)
     ops.constraints("Plain")
     ops.numberer("RCM")
     ops.system("UmfPack")
     ops.test("NormDispIncr", 1e-10, 200)
     ops.algorithm("Newton")
-    steps = 20
+    steps = 1  # the start is near equilibrium under the whole weight (above)
     ops.integrator("LoadControl", 1.0 / steps)
     ops.analysis("Static")
     if ops.analyze(steps) != 0:

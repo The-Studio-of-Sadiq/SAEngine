@@ -150,7 +150,8 @@ def spec_from_wizard(spec: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
     # C4, C1: the design code the wizard chose, and the site values of a pack without towns.
     code = spec.get("designCode")
     if code:
-        out["codePack"] = str(code)
+        # Earlier wizards sent "bnbc" for the default pack: read it as the pack it meant.
+        out["codePack"] = DEFAULT_PACK if str(code) == "bnbc" else str(code)
     for key in ("zoneCoefficient", "windSpeed"):
         if site.get(key) not in (None, ""):
             out[key] = float(site[key])

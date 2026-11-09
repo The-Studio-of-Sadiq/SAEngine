@@ -1,0 +1,24 @@
+{
+  "name": "Deck grillage",
+  "description": "Two-span girder deck grillage at the Generate panel's starting values.",
+  "shape": {
+    "kind": "deckGrillage",
+    "spans": [
+      20000.0,
+      20000.0
+    ],
+    "girders": 4,
+    "girderSpacing": 2500.0,
+    "divisions": 10,
+    "memberType": "MEMBER",
+    "crossType": null,
+    "panelType": null,
+    "supports": "pinned",
+    "origin": {
+      "x": 0.0,
+      "y": 0.0,
+      "z": 0.0
+    },
+    "rotation": 0.0
+  }
+}

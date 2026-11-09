@@ -155,7 +155,9 @@
     "strutAndTie.compressionSteel": "ACI 318-19 Chapter 23 (Sec 23.2-23.9, Tables 23.4.3(a) and 23.9.2): the value of the default pack, whose strut-and-tie appendix follows ACI 318; βs of interior struts without the distributed reinforcement 0.4 (Table 23.4.3(a))",
     "strutAndTie.nodeArea": "ACI 318-19 Chapter 23 (Sec 23.2-23.9, Tables 23.4.3(a) and 23.9.2): the value of the default pack, whose strut-and-tie appendix follows ACI 318; βs of interior struts without the distributed reinforcement 0.4 (Table 23.4.3(a))",
     "strutAndTie.equilibrium": "ACI 318-19 Chapter 23 (Sec 23.2-23.9, Tables 23.4.3(a) and 23.9.2): the value of the default pack, whose strut-and-tie appendix follows ACI 318; βs of interior struts without the distributed reinforcement 0.4 (Table 23.4.3(a))",
-    "strutAndTie.anchorage": "ACI 318-19 Chapter 23 (Sec 23.2-23.9, Tables 23.4.3(a) and 23.9.2): the value of the default pack, whose strut-and-tie appendix follows ACI 318; βs of interior struts without the distributed reinforcement 0.4 (Table 23.4.3(a))"
+    "strutAndTie.anchorage": "ACI 318-19 Chapter 23 (Sec 23.2-23.9, Tables 23.4.3(a) and 23.9.2): the value of the default pack, whose strut-and-tie appendix follows ACI 318; βs of interior struts without the distributed reinforcement 0.4 (Table 23.4.3(a))",
+    "piles.lateral.soilFailure": "SAEngine practice, Broms (1964) where IBC 2021 Sec 1810.2 and ACI 318-19 give no method: Broms (1964a, 1964b, ASCE JSMFD 90 SM2, SM3): cohesive soil 9 cu D below 1.5 D, granular 3 Kp γ' D z, short or long pile, free or fixed head; allowable Hu / 2.5 (SAEngine practice)",
+    "piles.lateral.pyAnalysis": "SAEngine practice, p-y springs where IBC 2021 Sec 1810.2.1 asks the lateral analysis and gives no method: Matlock (1970) soft clay, Welch and Reese (1972) stiff clay, API RP 2GEO (2011) sand; a beam on nonlinear springs solved by finite elements"
   },
   "source": "IBC 2021 Chapter 18, ASCE 7-22 Sec 2.4, ACI 318-19 Chapters 13, 16, 23",
   "shallow": {
