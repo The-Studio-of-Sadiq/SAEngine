@@ -55,7 +55,8 @@ suite('SAEngine - Office tools (alpha 9 L11)', () => {
 	test('phase states mirror saengine.project.phasing', () => {
 		const phasing = parsePhasing(JSON.stringify({ phases: [{ id: 'existing', name: 'Existing' }, { id: 'new', name: 'New' }], defaultPhase: 'new', elements: { C1: { created: 'existing', demolished: 'new' }, C2: { created: 'existing' } } }));
 		assert.deepStrictEqual(phaseStates(phasing, ['C1', 'C2', 'C3'], 'new'), { C1: 'demolished', C2: 'existing', C3: 'new' });
-		assert.deepStrictEqual(phaseStates(phasing, ['C1', 'C2', 'C3'], 'existing'), { C1: 'existing', C2: 'existing' });
+		// Built in the phase shown: new in it (as the backend's status_in rules).
+		assert.deepStrictEqual(phaseStates(phasing, ['C1', 'C2', 'C3'], 'existing'), { C1: 'new', C2: 'new' });
 		assert.strictEqual(parsePhasing('not json').phases.length, 2);
 	});
 

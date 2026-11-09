@@ -73,7 +73,7 @@ suite('SAEngine - Grids and stories editor', () => {
 				['Label', 'Position (mm)'],
 				['Label', 'Position (mm)'],
 				['ID', 'Name', 'Elevation (mm)', 'Similar to'],
-				['Story', 'File', 'Page', 'Offset X (mm)', 'Offset Y (mm)', 'Scale', 'Rotation (°)', 'Visible', 'Locked'],
+				['Story', 'File', 'Page', 'Offset X (mm)', 'Offset Y (mm)', 'Scale', 'Rotation (°)', 'Visible', 'Locked', 'Cut height (mm)', 'Slice thickness (mm)', 'Point spacing (mm)', 'Scan elevation of ±0'],
 			],
 			x: [{ label: 'A', position: 0 }, { label: 'B', position: 6000 }, { label: 'C', position: 12000 }],
 			changes: ['grids.x'],

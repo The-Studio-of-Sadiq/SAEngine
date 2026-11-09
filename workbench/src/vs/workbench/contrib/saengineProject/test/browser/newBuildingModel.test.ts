@@ -209,6 +209,8 @@ suite('SAEngine - New Building wizard model', () => {
 		assert.deepStrictEqual(DEFAULT_FORM, {
 			name: '', gridX: '3×6000', gridY: '2×5000', storyCount: '6', groundHeight: '3600', typicalHeight: '3200', heights: '',
 			system: 'rcFrame', concrete: 'C27.6', rebar: 'B420DWR', footing: 'isolated', location: 'dhaka', siteClass: 'SD', use: 'residential', category: 'II',
+			// Alpha 9: the design code pack and the values a pack without towns asks for.
+			designCode: 'bnbc2020', exposure: '', windSpeed: '', zoneCoefficient: '', sds: '', sd1: '', s1: '', tl: '',
 		});
 		// The name typed is kept; explicit storeys become the heights; unknown values are ignored.
 		const form = formFromSpec({ gridsX: [7000], stories: [{ name: 'L1', height: 4000 }, { name: 'L2', height: 3000 }], system: 'shellRoof', footing: 'mat' }, { ...DEFAULT_FORM, name: 'Clinic' });

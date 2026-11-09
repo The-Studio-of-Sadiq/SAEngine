@@ -61,7 +61,7 @@ suite('SAEngine - project parts', () => {
 			// The architecture is 05 Floor Plan's file in its own editor, listed under 6 BIM.
 			architecture: [entry('bim', 'architecture').command, isSectionActive(entry('bim', 'architecture'), architecture, undefined), isPartEditor('bim', architecture), isPartEditor('floorPlan', architecture)],
 		}, {
-			parts: ['code loads seismic wind combinations foundation drawings report codeValues', 'plan grids members', '3d additions summary architecture', 'coordination plumbing hvac electrical fire', 'model results proposal', ''],
+			parts: ['code loads special seismic wind combinations foundation drawings report codeValues', 'plan grids members', '3d additions summary architecture', 'coordination plumbing hvac electrical fire', 'model results proposal', ''],
 			seismic: true,
 			analysis: true,
 			wind: false,
