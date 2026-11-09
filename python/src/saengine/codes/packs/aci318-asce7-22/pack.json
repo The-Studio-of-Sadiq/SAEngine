@@ -59,6 +59,7 @@
     "precast",
     "floorSpectra",
     "cfdWind",
+    "fabrication",
     "slopeStability",
     "movingLoads",
     "bridgeDesign",
@@ -285,6 +286,9 @@
     ],
     "nonBuilding": [
       "ASCE/SEI 7-22 Chapter 15 (Sec 15.3, 15.4, Tables 15.4-1 and 15.4-2)"
+    ],
+    "fabrication": [
+      "AISC 303 practice: AWS A2.4 weld symbols; SAEngine practice drilling allowances for the shop drawings and NC files"
     ]
   },
   "basis": {

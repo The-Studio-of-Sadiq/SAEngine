@@ -88,6 +88,14 @@ class BarShape(_Group):
         description="straight: a bar with only a length is scheduled as A; special: as detailed.",
     )
     sketch: ShapeSketch | None = None
+    # Alpha 9 L10: the shape for bending machines (BVBS, :mod:`saengine.fabrication.bvbs`).
+    bvbs: list[tuple[Literal["l", "r", "w"], str]] | None = Field(
+        default=None,
+        description="The shape as BVBS geometry: in order, the legs ('l', outside length), the "
+        "arcs ('r', inside radius) and the bend angles after them ('w', degrees, one sign for "
+        "one bending direction; the last 'w' is 0), each an expression in the letters, d and r. "
+        "None: the bar is sent without its geometry (the machine operator enters it).",
+    )
 
 
 class BarScheduleColumn(_Group):

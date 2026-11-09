@@ -48,6 +48,7 @@
     "precast",
     "floorSpectra",
     "cfdWind",
+    "fabrication",
     "slopeStability",
     "movingLoads",
     "bridgeDesign",
@@ -289,6 +290,9 @@
     ],
     "embeddedWalls": [
       "EN 1997-1 Section 9 (9.7.4, 9.3.2.2), Annex A (A2, M2)"
+    ],
+    "fabrication": [
+      "EN 1090-2 / EN ISO 2553 system A weld symbols; SAEngine practice drilling allowances for the shop drawings and NC files"
     ]
   },
   "basis": {

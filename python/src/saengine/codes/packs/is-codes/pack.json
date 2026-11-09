@@ -33,6 +33,7 @@
     "barSchedule",
     "concreteTime",
     "cfdWind",
+    "fabrication",
     "movingLoads",
     "bridgeDesign"
   ],
@@ -264,6 +265,9 @@
     ],
     "plumbing": [
       "IS 3370 (Parts 1-2):2009 (the RC water tanks only; the building services are the default pack's)"
+    ],
+    "fabrication": [
+      "IS 813 weld symbols drawn as ISO 2553 system A; SAEngine practice drilling allowances for the shop drawings and NC files"
     ]
   },
   "basis": {

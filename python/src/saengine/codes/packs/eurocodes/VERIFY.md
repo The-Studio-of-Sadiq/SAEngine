@@ -757,6 +757,18 @@ length along the bar's centre line (SAEngine practice), with the mandrel diamete
 Steel joists: no `steelJoists` table; joists are designed as generic open-web trusses by the
 EN 1993-1-1 checks. Concrete-filled plate walls: not covered (no `compositePlateWalls`).
 
+## Steel fabrication (`fabrication`) and rebar CNC (`barSchedule` bvbs; alpha 9 L10)
+
+| # | Path | Value | Source | Sure? |
+|---|---|---|---|---|
+| L10-1 | weldSymbols | isoA | EN ISO 2553:2019 system A (dashed identification line), as EN 1090-2 drawings use it | Check |
+| L10-2 | anchorHoleClearance | rod + 6 mm in base plates | none in the code (AISC Design Guide 1 Table 2.3 gives larger holes with plate washers) | SAEngine practice |
+| L10-3 | copeClearance | 10 mm from the supporting flange and root | none in the code | SAEngine practice |
+| L10-B1 | barSchedule.standards.*.shapes.*.bvbs | BVBS legs (outside dimensions), arcs (inside radius) and bend angles of each shape; one sign for one bending direction, the last angle 0 | BVBS guideline (Bundesverband Bausoftware) "Data exchange of reinforcement data", geometry block G (legs l, radius r, angle w; outer dimensions for 2D shapes) | Check (the shape's legs against the printed shape code; the sign convention of the angles) |
+| L10-B2 | (record) | header j r i p l n e d g s v, l = the cutting length, e = mass of one bar, s = 2 x the bend radius; checksum 96 - (sum of ASCII codes up to and including C) mod 32 | BVBS guideline, header and checksum blocks; checked against its examples (C72, C71, C82; "abcde@C" = 78) | Check (l: the cutting length, where the guideline's examples print the sum of the legs) |
+
+EN ISO 3766 shapes 00, 11, 12, 13, 21, 23, 31, 41, 51 have a BVBS geometry; 26, 77, 99 are sent without one. The bolt holes drilled are the steel table's standard holes (`steel` connections).
+
 ## Slope stability (`slopeStability`; alpha 9 L8)
 
 | # | Path | Value | Source | Sure? |

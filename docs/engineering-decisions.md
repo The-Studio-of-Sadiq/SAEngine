@@ -77,6 +77,42 @@ here, newest first, with the date, the question, the decision, the reason and wh
   tagged so Undo Drawing Automation takes it back; regenerating the drawing set drops them, as any
   hand edit. The AI assistant calls them only while AI edits are allowed.
 
+## 2026-11-09: steel shop drawings, NC files (DSTV) and rebar CNC (BVBS) (alpha 9 track L10)
+
+- **Made only when asked.** Three rows of 11 Exports: Steel Shop Drawings (`11 Exports/Shop
+  Drawings/`, sheets `SD-101` on, DXF per sheet and one PDF), NC Files (DSTV, `11 Exports/nc/`,
+  one `.nc1` per part mark) and Rebar CNC (BVBS, `11 Exports/bvbs/`, one `.abs`). The structural
+  drawing set and its connection details are unchanged. Options: Project Settings > Drawings >
+  Fabrication (weld symbols, marks' prefixes, end clearance, sheet size, NC order and phase,
+  part marking, BVBS schedule number).
+- **Code independence.** The pack's `fabrication` table picks the weld symbols (AWS A2.4 in
+  the default pack, ISO 2553 system A in the Eurocodes and IS packs), the anchor hole clearance
+  and the cope clearance; a pack without it takes the default pack's; the project can override
+  each. Bolt holes are the pack's steel table's standard holes. The BVBS shape geometry is data
+  of the pack's bar schedule standard (`bvbs` of each shape code); a shape without it is sent
+  without geometry, which the guideline allows.
+- **Assemblies (SAEngine practice).** One assembly per member (two at a cover-plate splice).
+  Parts welded in the shop go with the member they are welded to: end plates, tabs, base and
+  cap plates with the member; fin plates, gussets, flange plates, column stiffeners and doublers
+  with the supporting member, else loose with a note. Splice plates are loose. A beam framing
+  into a beam at the same level is coped (the supporting flange and root radius plus the cope
+  clearance). A bolted end plate drills the support to match. A tab slot of a hollow brace is
+  stated on the drawing, not cut in the NC contour.
+- **Cut lengths (SAEngine practice).** To the face of the support: the end clearance (12 mm by
+  default) for fin plates, gussets of channels and angles and members without a designed
+  connection; the end plate's thickness; the flange plate connection's setback; the gusset
+  geometry of the connection details for braces. Cap plate welds take the wall thickness as
+  their leg.
+- **Marks.** Identical parts (profile or plate, grade, length, holes, cuts, outline) share one
+  part mark (`p1`, ...; main parts first); identical assemblies one assembly mark (`B1`, `C1`,
+  `BR1`). The marking plans are the structural steel plans and braced elevations with the
+  assembly marks.
+- **Formats.** DSTV NC after the DSTV standard description (7th edition, 1998): ST, BO, AK,
+  SI, EN; a plate's thickness written in the flange width and both thicknesses, AK for every
+  plate. BVBS BF2D records after the BVBS guideline with its checksum; `l` is the scheduled
+  cutting length, `s` twice the bend radius. Both files are ASCII with CR LF line ends. The
+  details to verify are listed in the PR and the packs' VERIFY.md.
+
 ## 2026-11-09: CFD wind tunnel as an optional OpenFOAM link (alpha 9 track L3)
 
 - **OpenFOAM is the user's.** SAEngine does not bundle or download OpenFOAM (GPL, large; the
@@ -904,6 +940,9 @@ lists them with their clauses and marks the uncertain ones.
 
 ## 2026-11-09
 
+- **Bridges under BNBC: HL-93 traffic as SAEngine practice** (owner). BNBC carries no traffic
+  loading and the RHD loading is not entered, so a pack without a traffic table uses SAEngine's
+  HL-93-based data, named as such in every result (alpha 9 track L9).
 - **Point clouds: LAZ and E57 are read** (owner). `lazrs` (MIT) decompresses LAZ scans and
   `pye57` (MIT, with libE57Format under BSL-1.0) reads E57 scans, every scan in its own pose, in
   metres. Both are dependencies of the backend and ship in the bundled Python. Before, these

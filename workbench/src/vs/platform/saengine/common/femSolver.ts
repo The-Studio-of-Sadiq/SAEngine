@@ -714,6 +714,10 @@ export type EngineMethod =
 	// `revit/export` `{projectRoot, outPath?}`, `revit/preview` `{projectRoot, path}` and
 	// `revit/apply` `{projectRoot, path, changes}`.
 	| 'revit/export' | 'revit/preview' | 'revit/apply'
+	// Alpha 9 L10, the fabrication exports (`saengine.fabrication.export`, in a worker thread):
+	// `fabrication/shopDrawings`, `fabrication/nc` and `fabrication/bvbs` `{projectRoot}` ->
+	// `{folder, files, notes, problems}` or `{error}`.
+	| 'fabrication/shopDrawings' | 'fabrication/nc' | 'fabrication/bvbs'
 	| 'section/analyse' | 'architecture/importIfc' | 'architecture/inspectDrawing' | 'architecture/importDrawing' | 'architecture/check' | 'architecture/ramps'
 	| 'boq/cost' | 'boq/templates' | 'boq/exportXlsx'
 	// Calculation worksheets (`saengine.report.worksheets`): `worksheets/kinds` `{}`,

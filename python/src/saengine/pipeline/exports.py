@@ -17,7 +17,10 @@ the Exports page writes them.
   sizes). The app writes the DXF with its CAD editor's writer and this module with ezdxf, so the
   files hold the same drawing but are not byte-identical (header, handles);
 - ``drawings``: the structural drawing set, ``11 Exports/Drawings/`` (sheet DXFs, ``drawings.pdf``,
-  ``previews/``, ``bbs.csv``; :mod:`saengine.pipeline.drawings`, as the Exports page's Generate).
+  ``previews/``, ``bbs.csv``; :mod:`saengine.pipeline.drawings`, as the Exports page's Generate);
+- ``shop``, ``nc``, ``bvbs`` (alpha 9 L10): the steel shop drawings, ``11 Exports/Shop
+  Drawings/``, the DSTV NC files of the parts, ``11 Exports/nc/``, and the BVBS rebar files,
+  ``11 Exports/bvbs/`` (:mod:`saengine.fabrication.export`, as the Exports page's rows).
 """
 
 from __future__ import annotations
@@ -31,7 +34,7 @@ from typing import Any
 from saengine.pipeline.project import Project, write_text
 
 EXPORTS_FOLDER = "11 Exports"
-FORMATS = ("pdf", "docx", "ifc", "dxf", "csv", "xlsx", "drawings")
+FORMATS = ("pdf", "docx", "ifc", "dxf", "csv", "xlsx", "drawings", "shop", "nc", "bvbs")
 _UNSAFE = re.compile(r'[\\/:*?"<>|]')
 
 
@@ -548,6 +551,31 @@ def export_drawings(
     return copies
 
 
+def export_fabrication(project: Project, fmt: str, out: Path | None = None) -> list[Path]:
+    """The steel shop drawings (``shop``), the NC files (``nc``) or the BVBS files (``bvbs``)
+    into their folders of ``11 Exports`` (:mod:`saengine.fabrication.export`), then, with
+    ``out``, copied into that folder."""
+    import shutil
+
+    from saengine.fabrication import export as fab
+
+    writers = {"shop": fab.export_shop_drawings, "nc": fab.export_nc, "bvbs": fab.export_bvbs}
+    try:
+        answer = writers[fmt](project.root)
+    except fab.FabricationError as error:
+        raise ExportError(str(error)) from error
+    written = [Path(f) for f in answer.get("files") or []]
+    if out is None:
+        return written
+    copies = []
+    for path in written:
+        target = out / path.name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(path, target)
+        copies.append(target)
+    return copies
+
+
 def export(project: Project, fmt: str, out: Path | None = None, **options: Any) -> list[Path]:
     """Writes export ``fmt`` (:data:`FORMATS`) of ``project``; the files written. ``options``:
     ``size`` (A1, A2, A3) for the drawings; ``template`` the report template of the design
@@ -556,6 +584,8 @@ def export(project: Project, fmt: str, out: Path | None = None, **options: Any) 
         return export_drawings(project, out, options.get("size"))
     if fmt in ("pdf", "docx"):
         return export_pdf(project, out, fmt, options.get("template"))
+    if fmt in ("shop", "nc", "bvbs"):
+        return export_fabrication(project, fmt, out)
     writers = {"ifc": export_ifc, "csv": export_csv, "xlsx": export_xlsx,
                "dxf": export_dxf}  # fmt: skip
     if fmt not in writers:
