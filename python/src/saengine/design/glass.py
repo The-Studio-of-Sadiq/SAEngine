@@ -53,8 +53,9 @@ PLATE = (
     (3.0, 0.7134, 0.1335),
     (4.0, 0.7410, 0.1400),
     (5.0, 0.7476, 0.1417),
-    (1e9, 0.7500, 0.1421),
 )
+#: The infinitely long plate (a strip in one-way bending): β = 6/8, α = 12 (1 - ν²) 5/384.
+PLATE_LONG = (0.7500, 0.1421)
 
 
 class GlassDesignError(ValueError):
@@ -80,12 +81,23 @@ def is_glass(material: Any) -> bool:
 
 
 def plate_coefficients(ratio: float) -> tuple[float, float]:
-    """(β, α) of a four-edge plate of aspect ratio b/a ≥ 1 (interpolated)."""
+    """(β, α) of a four-edge plate of aspect ratio b/a ≥ 1: interpolated in the table, and
+    beyond its last row the gap to the long strip closes exponentially at the rate of the last
+    two rows (the Lévy series' end-edge terms decay as 1/cosh(mπb/2a)); a straight line to the
+    strip at b/a = ∞ would keep the b/a = 5 values for any longer plate."""
     r = max(1.0, ratio)
     xs = [p[0] for p in PLATE]
-    return float(np.interp(r, xs, [p[1] for p in PLATE])), float(
-        np.interp(r, xs, [p[2] for p in PLATE])
-    )
+    if r <= xs[-1]:
+        return float(np.interp(r, xs, [p[1] for p in PLATE])), float(
+            np.interp(r, xs, [p[2] for p in PLATE])
+        )
+    (x4, *last4), (x5, *last5) = PLATE[-2], PLATE[-1]
+    out = []
+    for k, long in enumerate(PLATE_LONG):
+        gap4, gap5 = long - last4[k], long - last5[k]
+        rate = gap5 / gap4 if gap4 > 0 else 0.0
+        out.append(long - gap5 * rate ** ((r - x5) / (x5 - x4)))
+    return float(out[0]), float(out[1])
 
 
 def effective_thickness(

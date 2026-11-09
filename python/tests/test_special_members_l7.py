@@ -365,7 +365,12 @@ def test_membrane_checks_under_the_pack_cases(us):
     assert "Fabric warp stress: Prestress + snow" in names
     assert "Edge cables: Prestress + wind suction" in names
     assert len(entry["membrane"]["reactions"]) == 4
-    assert entry["membrane"]["area"] > 100  # m², the 10 m x 10 m sail's surface
+    # m²: the 10 m x 10 m hypar is 102.9 m² with straight edges (plan 100 m²), but its edge
+    # cables (30 kN on 2 kN/m: radius 15 m) sag about 0.9 m into each 10.4 m edge, so the
+    # sail is smaller than its plan square and still more than its own plan area
+    membrane_out = entry["membrane"]
+    assert membrane_out["planArea"] < membrane_out["area"] < 100
+    assert membrane_out["area"] > 75
 
 
 def test_membranes_not_covered_by_the_default_pack(bnbc):
