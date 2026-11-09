@@ -492,7 +492,8 @@ def from_osmodel(
     # ── elements ──
     element_ids: dict[int, str] = {}
     vecxz_of: dict[str, Any] = {}
-    released: dict[str, list[set[str]]] = {}
+    # One name space for members and plates (the .s2k file's frames and areas, SAF's members).
+    taken_ids: set[str] = set()
     for e in osmodel.get("elements", []):
         etype = e.get("type")
         eid = int(e["id"])
@@ -507,7 +508,7 @@ def from_osmodel(
             if i == j:
                 report.skip("members of zero length", label)
                 continue
-            mid = _unique_member(label, model.members)
+            mid = _unique_member(label, taken_ids)
             a, b = model.nodes[i].xyz, model.nodes[j].xyz
             vertical = is_vertical(a, b)
             kind = "column" if vertical else ("beam" if abs(a[2] - b[2]) < 1e-3 else "brace")
@@ -521,7 +522,6 @@ def from_osmodel(
             for k, node in enumerate(raw[:2]):
                 if node in twin_of:
                     ends[k] |= {"M2", "M3"}
-            released[mid] = ends
             model.members.append(
                 Member(
                     mid,
@@ -544,7 +544,7 @@ def from_osmodel(
                 report.skip("plates without an elastic plate section", label)
                 continue
             nodes = [merged(int(v)) for v in e["nodes"]]
-            pid = _unique_member(label, model.plates)  # type: ignore[arg-type]
+            pid = _unique_member(label, taken_ids)
             model.plates.append(Plate(pid, nodes, pname, _source(str(e.get("name", "")))))
             element_ids[eid] = pid
             report.count("plates")
@@ -557,9 +557,10 @@ def from_osmodel(
     for c in osmodel.get("mp_constraints", []):
         if c.get("type") == "RigidDiaphragm":
             master = int(c.get("master_node") or c.get("retained_node") or c.get("master") or 0)
-            slaves = [
-                merged(int(v)) for v in c.get("slave_nodes") or c.get("constrained_nodes") or []
-            ]
+            slaves = sorted(
+                {merged(int(v)) for v in c.get("slave_nodes") or c.get("constrained_nodes") or []}
+                - {master}
+            )
             if master in model.nodes and slaves:
                 model.diaphragms.append(Diaphragm(f"D{len(model.diaphragms) + 1}", master, slaves))
                 report.count("diaphragms")
@@ -567,6 +568,7 @@ def from_osmodel(
             report.skip("multi-point constraints other than rigid diaphragms", str(c.get("type")))
 
     # ── load cases ──
+    members_by_id = {m.id: m for m in model.members}
     labels = {}
     for a in osmodel.get("analyses", []):
         if a.get("type") == "Static" and len(a.get("pattern_ids") or []) == 1:
@@ -575,6 +577,10 @@ def from_osmodel(
         case_name = str(p.get("name") or p.get("id"))
         if case_name.startswith("D, stage"):
             report.skip("construction-stage dead loads (the D case carries the full dead load)")
+            continue
+        if re.fullmatch(r"TO\d+", case_name):
+            # saengine.fem.tension_only: unit release cases of SAEngine's own combination rule.
+            report.skip("tension-only release cases (SAEngine's combination method)", case_name)
             continue
         kind = _CASE_KINDS.get(case_name, "other")
         case = LoadCase(case_name, kind, labels.get(int(p.get("id", 0)), ""))
@@ -588,7 +594,7 @@ def from_osmodel(
                 prev[k] += forces[k]
         for el in p.get("element_loads", []):
             mid = element_ids.get(int(el.get("element_id", 0)))
-            member = next((m for m in model.members if m.id == mid), None) if mid else None
+            member = members_by_id.get(mid) if mid else None
             if member is None:
                 report.skip("element loads on elements not exported", case_name)
                 continue
@@ -653,11 +659,12 @@ def _unique(name: str, taken: dict[str, Any]) -> str:
     return out
 
 
-def _unique_member(label: str, items: list[Any]) -> str:
-    taken = {getattr(x, "id", None) for x in items}
+def _unique_member(label: str, taken: set[str]) -> str:
+    """``label``, or ``label_2``, ``label_3``... when taken; recorded in ``taken``."""
     out, k = label, 2
     while out in taken:
         out, k = f"{label}_{k}", k + 1
+    taken.add(out)
     return out
 
 
@@ -696,6 +703,7 @@ def physical_members(model: AnalyticalModel) -> list[PhysicalMember]:
             order.append(key)
         groups[key].append(m)
     out: list[PhysicalMember] = []
+    names: set[str] = set()
     for key in order:
         pending = list(groups[key])
         while pending:
@@ -713,7 +721,7 @@ def physical_members(model: AnalyticalModel) -> list[PhysicalMember]:
                     pending.remove(other)
                     grown = True
             first, last = chain[0], chain[-1]
-            name = key[0] if not any(p.id == key[0] for p in out) else f"{key[0]}_{len(out) + 1}"
+            name = _unique_member(key[0], names)
             out.append(
                 PhysicalMember(
                     name,
