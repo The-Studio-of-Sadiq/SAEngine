@@ -46,7 +46,7 @@ import { ISaengineProjectService, partById, PROJECT_TYPES, ProjectType } from '.
 import { appendPropertyRow, EditorFrame } from '../../saengineProject/browser/editorFrame.js';
 import { IReportTemplateInfo, IReportTemplates, REPORT_TEMPLATES_COMMAND_ID } from '../../saengineReport/browser/reportBuild.js';
 import './media/codePacks.css';
-import { changePackWarning, chosenPackId, CODES_CHOICES_COMMAND, CODES_LIST_COMMAND, coverageLabel, DEFAULT_CODE_PACK, ICodePackInfo, ICodePackOption, packOptionBlock, packOptions, readCodePacks, readPackLists } from './codePacksModel.js';
+import { changePackWarning, chosenPackId, CODES_CHOICES_COMMAND, CODES_COMBINATIONS_COMMAND, CODES_LIST_COMMAND, coverageLabel, DEFAULT_CODE_PACK, ICodePackInfo, ICodePackOption, IPackCombinations, packOptionBlock, packOptions, readCodePacks, readPackCombinations, readPackLists } from './codePacksModel.js';
 import { CODE_OVERRIDES_KEY, codeOverrides, CODES_VALUES_COMMAND, codeValueUnit, filterCodeValues, formatCodeValue, ICodeValueRow, ICodeValues, parseCodeValue, readCodeValues, setCodeOverride } from './codeValuesModel.js';
 import { applyHazardValues, HAZARD_OFFERS_COMMAND, hazardOffers, hazardSourceSummary, IHazardOffers, lookUpHazardValues } from './hazardLookup.js';
 import { clone, IDocumentFrameActions, IShapeError, isObject, JsonDocumentEditor } from './jsonDocumentEditor.js';
@@ -693,6 +693,8 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 			document.codePack = option.id;
 			this.changed(true);
 			void this.refreshPackLists();
+			this.updateResetAction();
+			await this.offerPackCombinations(document, fromLabel);
 		} else {
 			this.renderCodePack();
 		}
@@ -1289,25 +1291,99 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 		return { ...clone(TEMPLATES.AreaLoad as JsonObject), id: `AL${n}` };
 	}
 
-	/** Replaces every load combination with the code's, after asking (it can also be undone). */
+	/** W4A-2: the ... menu's action names the pack the settings choose. */
+	private updateResetAction(): void {
+		const name = this.codeName;
+		this.resetAction.label = localize('settings.resetCombinationsEllipsis', "Reset Combinations to {0}...", name);
+		this.resetAction.tooltip = localize('settings.resetTitle', "Replace the load combinations with the {0} strength design combinations", name);
+	}
+
+	/**
+	 * W4A-2: the strength combinations the pack the settings choose generates for the project
+	 * (`saengine.codes.combinations`); the default pack's tables of this build without a backend.
+	 * Throws when the backend refuses (a pack that cannot be loaded).
+	 */
+	private async packCombinations(document: JsonObject): Promise<IPackCombinations | undefined> {
+		const isDefault = chosenPackId(document) === DEFAULT_CODE_PACK;
+		if (isDefault || !CommandsRegistry.getCommand(CODES_COMBINATIONS_COMMAND)) {
+			// The default pack's combinations as this build lists them (unchanged); another pack needs the backend.
+			if (!isDefault) {
+				return undefined;
+			}
+			const combinations = codeCombinations(document);
+			return { name: this.codeName, combinations: combinations as unknown as object[], fromPack: JSON.stringify(combinations) === JSON.stringify(document.combinations ?? []) };
+		}
+		const answer = await this.commands.executeCommand<unknown>(CODES_COMBINATIONS_COMMAND, { settingsText: JSON.stringify(document), root: this.project.project?.root.fsPath });
+		const read = readPackCombinations(answer);
+		if (!read) {
+			const message = answer && typeof answer === 'object' && typeof (answer as { message?: unknown }).message === 'string' ? (answer as { message: string }).message : undefined;
+			throw new Error(message ?? localize('settings.combinationsNoAnswer', "The backend gave no combinations."));
+		}
+		return { ...read, name: read.name || this.codeName };
+	}
+
+	/** Replaces every load combination with the active pack's, after asking (it can also be undone). */
 	private async resetCombinations(): Promise<void> {
-		if (!this.document) {
+		const document = this.document;
+		if (!document) {
 			return;
 		}
-		const current = Array.isArray(this.document.combinations) ? this.document.combinations.length : 0;
+		let generated: IPackCombinations | undefined;
+		try {
+			generated = await this.packCombinations(document);
+		} catch (error) {
+			await this.dialogService.error(localize('settings.combinationsFailed', "The {0} combinations could not be generated.", this.codeName), error instanceof Error ? error.message : String(error));
+			return;
+		}
+		if (!generated) {
+			await this.dialogService.error(localize('settings.combinationsNoBackend', "The {0} combinations could not be generated.", this.codeName), localize('settings.combinationsNoBackendDetail', "Generating the combinations of this design code needs the SAEngine Python backend, which is not running."));
+			return;
+		}
+		const name = generated.name;
+		const current = Array.isArray(document.combinations) ? document.combinations.length : 0;
 		const { confirmed } = await this.dialogService.confirm({
-			message: localize('settings.resetConfirm', "Replace the load combinations with the {0} combinations?", DEFAULT_CODE_TABLES.edition),
+			message: localize('settings.resetConfirm', "Replace the load combinations with the {0} combinations?", name),
 			detail: current === 1
-				? localize('settings.resetDetailOne', "The 1 load combination of this project is replaced by the {0} strength design combinations. Edit > Undo brings it back.", DEFAULT_CODE_TABLES.edition)
-				: localize('settings.resetDetail', "All {0} load combinations of this project are replaced by the {1} strength design combinations. Edit > Undo brings them back.", current, DEFAULT_CODE_TABLES.edition),
+				? localize('settings.resetDetailOne', "The 1 load combination of this project is replaced by the {0} strength design combinations. Edit > Undo brings it back.", name)
+				: localize('settings.resetDetail', "All {0} load combinations of this project are replaced by the {1} strength design combinations. Edit > Undo brings them back.", current, name),
 			primaryButton: localize('settings.resetButton', "&&Replace Combinations"),
 		});
-		const document = this.document;
-		if (confirmed && document) {
-			document.combinations = codeCombinations(document);
-			this.sectionId = 'combinations';
-			this._onDidChangePartSection.fire();
-			this.changed(true);
+		if (confirmed && this.document === document) {
+			this.applyCombinations(document, generated);
+		}
+	}
+
+	private applyCombinations(document: JsonObject, generated: IPackCombinations): void {
+		document.combinations = clone(generated.combinations as unknown as JsonValue) as JsonValue[];
+		this.sectionId = 'combinations';
+		this._onDidChangePartSection.fire();
+		this.changed(true);
+	}
+
+	/**
+	 * W4A-2: after a pack change, offers to replace the combinations kept from the previous pack
+	 * with the new pack's (nothing to offer when they are the new pack's already).
+	 */
+	private async offerPackCombinations(document: JsonObject, fromLabel: string): Promise<void> {
+		let generated: IPackCombinations | undefined;
+		try {
+			generated = await this.packCombinations(document);
+		} catch (error) {
+			await this.dialogService.error(localize('settings.combinationsFailed', "The {0} combinations could not be generated.", this.codeName), error instanceof Error ? error.message : String(error));
+			return;
+		}
+		if (!generated || generated.fromPack || this.document !== document) {
+			return;
+		}
+		const { confirmed } = await this.dialogService.confirm({
+			type: 'question',
+			message: localize('settings.packCombinationsMessage', "Replace the load combinations with those of {0}?", generated.name),
+			detail: localize('settings.packCombinationsDetail', "The project's load combinations are still those of {0} (or edited). Analysis, design and the report use the project's combinations, so the factors of {1} only apply once they are replaced. Edit > Undo brings the old ones back.", fromLabel, generated.name),
+			primaryButton: localize('settings.packCombinationsButton', "&&Replace Combinations"),
+			cancelButton: localize('settings.packCombinationsKeep', "Keep the Current Ones"),
+		});
+		if (confirmed && this.document === document) {
+			this.applyCombinations(document, generated);
 		}
 	}
 
@@ -1391,11 +1467,12 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 			return;
 		}
 		void this.refreshPackLists(); // once per pack: the chosen pack's lists
+		this.updateResetAction();
 		const title = append(this.page, $('.sa-form-page-title', undefined, section.title));
 		if (section.id === 'combinations') {
 			// The code's combinations, one click from the section (also in the ... menu).
 			const button = this.pageDisposables.add(new Button(append(title, $('span.settings-generate')), { ...defaultButtonStyles, secondary: true, supportIcons: true, title: this.resetAction.tooltip }));
-			button.label = `$(${Codicon.sync.id}) ${localize('settings.generateCombinations', "Generate from {0}", DEFAULT_CODE_TABLES.edition)}`;
+			button.label = `$(${Codicon.sync.id}) ${localize('settings.generateCombinations', "Generate from {0}", this.codeName)}`;
 			this.pageDisposables.add(button.onDidClick(() => void this.resetCombinations()));
 			append(this.page, $('.sa-props-note.settings-section-note', undefined, localize('settings.combinationsNote', "Factors on the load cases. D includes the superimposed dead load SD (the finishes). The partition allowance is in L or in SD, as set in Analysis Model › Partition allowance as. T applies to the temperature case (Analysis Model › Temperature) and is 0 elsewhere; F, on the fluid loads of 07 MEP, follows D when empty. These are the base combinations: the analysis expands those with earthquake or wind into more (both signs of each direction, the 100 % + 30 % orthogonal pairs, the accidental eccentricities, and the vertical earthquake on D, so 1.2D shows as 1.29D, say), so the analysis lists more combinations than this table. Hover a column heading for its meaning.")));
 		}

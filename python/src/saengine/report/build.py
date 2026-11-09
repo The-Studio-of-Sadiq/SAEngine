@@ -933,10 +933,23 @@ def _basis(settings: Any, parts: _Parts, model: dict[str, Any], manifest: dict[s
         if any(a.get("name", "").startswith("F:") for a in model.get("analyses", [])):
             used.append("F")  # the fluid case, only in a model with equipment contents
         combination_table = pack.table("combinations")
+        # W4A-3: the text describes the rows of the table: the pack's basis only where the
+        # project's combinations are the ones the pack generates.
+        from saengine.library.settings import combinations_from_pack
+
+        from_pack = combinations_from_pack(settings, pack)
         basis["combinations"] = {
-            "source": combination_table.source,
+            "source": combination_table.source
+            if from_pack
+            else "entered for this project; they are NOT the combinations "
+            f"{pack.edition or pack.name} generates (kept from another code pack or edited), "
+            "so the code pack's basis does not apply to them: Project Settings > Load "
+            "Combinations > Generate replaces them with the code pack's",
+            "fromPack": from_pack,
             # The pack's notes on its rows (what a row adds beyond the code).
-            "notes": sorted({r.note for r in combination_table.strength if r.note}),
+            "notes": sorted({r.note for r in combination_table.strength if r.note})
+            if from_pack
+            else [],
             "columns": used,
             "rows": [
                 [k.name, *(_factor(getattr(k, c) or 0.0) for c in used)]

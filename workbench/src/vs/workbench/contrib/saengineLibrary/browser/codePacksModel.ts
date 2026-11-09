@@ -30,6 +30,28 @@ export const CODES_VALIDATE_COMMAND = 'saengine.codes.validate';
 export const CODES_TRUST_COMMAND = 'saengine.codes.trust';
 /** `{ id, root? }` → `{ id, name, choices: { list: [{ id, label }] } }`: the Project Settings lists (towns, area uses, systems, site classes) under the pack. */
 export const CODES_CHOICES_COMMAND = 'saengine.codes.choices';
+/** `{ settingsText, root? }` → `{ id, name, combinations, fromPack }`: the strength combinations the pack the settings choose generates for the project, and whether the settings' combinations are those already. */
+export const CODES_COMBINATIONS_COMMAND = 'saengine.codes.combinations';
+
+/** The answer of `saengine.codes.combinations`; undefined for a refusal or another shape. */
+export interface IPackCombinations {
+	readonly name: string;
+	readonly combinations: object[];
+	readonly fromPack: boolean;
+}
+
+export function readPackCombinations(raw: unknown): IPackCombinations | undefined {
+	if (!raw || typeof raw !== 'object') {
+		return undefined;
+	}
+	const answer = raw as { name?: unknown; id?: unknown; combinations?: unknown; fromPack?: unknown };
+	if (!Array.isArray(answer.combinations)) {
+		return undefined;
+	}
+	const combinations = answer.combinations.filter((c): c is object => !!c && typeof c === 'object' && !Array.isArray(c));
+	const name = typeof answer.name === 'string' && answer.name ? answer.name : typeof answer.id === 'string' ? answer.id : '';
+	return { name, combinations, fromPack: answer.fromPack === true };
+}
 
 /** The pack a project uses when its settings name none (and every project before code packs). */
 export const DEFAULT_CODE_PACK = DEFAULT_CODE_PACK_ID;
@@ -478,7 +500,7 @@ export function packDescription(pack: ICodePackInfo, packs: readonly ICodePackIn
 export function changePackWarning(from: string, to: ICodePackOption): { readonly message: string; readonly detail: string } {
 	return {
 		message: localize('codePacks.changeMessage', "Use {0} as the design code of this project?", to.label),
-		detail: localize('codePacks.changeDetail', "The site and hazard values, importance factors, structural system factors, live load minimums and the seismic and wind coefficients come from the chosen pack, together with its resistance factors and detailing limits, so loads and design results will change (the project keeps its own load combinations and its code value overrides). Run the analysis and design again (Run All) before using any result. The project currently uses {0}; Edit > Undo switches back.", from),
+		detail: localize('codePacks.changeDetail', "The site and hazard values, importance factors, structural system factors, live load minimums and the seismic and wind coefficients come from the chosen pack, together with its resistance factors and detailing limits, so loads and design results will change (the project keeps its code value overrides; replacing its load combinations with the chosen pack's is offered next). Run the analysis and design again (Run All) before using any result. The project currently uses {0}; Edit > Undo switches back.", from),
 	};
 }
 

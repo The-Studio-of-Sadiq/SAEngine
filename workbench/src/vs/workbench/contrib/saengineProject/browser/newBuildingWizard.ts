@@ -528,7 +528,7 @@ export class NewBuildingWizard extends EditorPane {
 			const error = folderError(this.folder, isWindows);
 			folderMessage.textContent = error ?? '';
 			target.textContent = !error && this.form.name.trim() && !this.opener.validateName(this.form.name)
-				? localize('newBuilding.target', "Created in {0}", joinPath(URI.file(this.folder.trim()), this.form.name.trim()).fsPath) : '';
+				? localize('newBuilding.target', "Will be created in {0}", joinPath(URI.file(this.folder.trim()), this.form.name.trim()).fsPath) : '';
 			updateCreate();
 		};
 		this.pageDisposables.add(name.onDidChange(updateTarget));
@@ -666,6 +666,8 @@ export class NewBuildingWizard extends EditorPane {
 		cancel.label = localize('newBuilding.cancel', "Cancel");
 		this.pageDisposables.add(cancel.onDidClick(() => this.close()));
 		const status = append(actions, $('span.status', { 'aria-live': 'polite' }));
+		// W4A-1: a failure stays on the form (the notification may be closed or time out) until the next try.
+		const failure = append(form, $('p.error.create-failure', { role: 'alert' }));
 
 		const submit = async () => {
 			if (this.busy || !this.available) {
@@ -687,6 +689,7 @@ export class NewBuildingWizard extends EditorPane {
 			}
 			this.busy = true;
 			updateCreate();
+			failure.textContent = '';
 			status.textContent = localize('newBuilding.creating', "Creating the building...");
 			let outcome: IGenerateOutcome;
 			const parent = this.folder.trim();
@@ -703,7 +706,11 @@ export class NewBuildingWizard extends EditorPane {
 			if (outcome.error || !outcome.root) {
 				updateCreate();
 				status.textContent = '';
-				this.notificationService.error(localize('newBuilding.failed', "The building could not be created: {0}", outcome.error ?? ''));
+				// Nothing was created: the form says so instead of where it would have gone.
+				target.textContent = '';
+				const message = localize('newBuilding.failed', "The building could not be created: {0}", outcome.error ?? '');
+				failure.textContent = message;
+				this.notificationService.notify({ severity: Severity.Error, message, sticky: true });
 				return;
 			}
 			this.wizardStorage.store(LAST_FOLDER_STORAGE_KEY, parent, StorageScope.APPLICATION, StorageTarget.MACHINE);
