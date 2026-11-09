@@ -2434,3 +2434,8 @@ Each is a pack value or method id, overridable in Code Values; the default pack 
   works (kept, not priced). Design options are saved versions (id, label, tag or branch)
   measured from their own files and priced with the current rates; results are compared only
   for the current files (results are not kept with versions).
+- **Solver fixes may change default-pack results (2026-11-09).** "bnbc2020 results unchanged"
+  guards code-independence work, not bug fixes in shared solvers. The GNIA arc-length phase now
+  starts from at least the displacement-control step, so paths that used to run out of steps
+  early now reach the limit load (a pin-ended column reaches 0.99 of the elastic critical
+  factor); projects on any pack, bnbc2020 included, may report a higher, more accurate λu.
