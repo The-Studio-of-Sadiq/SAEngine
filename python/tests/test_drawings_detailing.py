@@ -821,6 +821,32 @@ def test_footing_development_uses_the_real_column_position() -> None:
     assert bx["shape"] == "U"
 
 
+def test_footing_under_a_steel_i_column_is_detailed() -> None:
+    """Walk 4 W4C-1: a footing under a steel I-section column failed the drawings (and the
+    Revit export's bars) with "'IShapeProfile' object has no attribute 'xDim'". The column's
+    face is its bounding rectangle (flange width by depth); the steel column gets no bars."""
+    steel = {
+        "id": "W300", "name": "W 300", "kind": "column", "material": "A992",
+        "profile": {"shape": "I", "overallWidth": 200, "overallDepth": 300,
+                    "webThickness": 8, "flangeThickness": 12},
+    }  # fmt: skip
+    bim = json.loads(_frame())
+    for e in bim["elements"]:
+        if e["kind"] == "column":
+            e["type"] = "W300"
+    sub = {"schema": "saengine.substructure/1", "foundations": [_isolated("F1", "C1", 300)]}
+    texts = {"bim": json.dumps(bim), "objects": _objects([steel]), "materials": MATERIALS,
+             "substructure": json.dumps(sub)}  # fmt: skip
+    model = detailing_model(texts=texts)
+    f1 = _element(model, "F1")
+    # x: the 200 mm flanges along x, 750 - 300 - 100 from the near face; y: 750 - 150
+    along_x = next(c for c in f1["checks"] if c["name"].startswith("bottom X"))
+    assert along_x["provided"] == pytest.approx(750 - 300 - 100 - 75)
+    along_y = next(c for c in f1["checks"] if c["name"].startswith("bottom Y"))
+    assert along_y["provided"] == pytest.approx(750 - 150 - 75)
+    assert not any(e["kind"] == "column" and e["bars"] for e in model["elements"])
+
+
 def test_general_development_form_is_used_when_chosen() -> None:
     simple = _element(_model(), "B1+B2")
     general = _element(_model(options={"method": "general"}), "B1+B2")

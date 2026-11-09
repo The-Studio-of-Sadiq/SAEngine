@@ -159,6 +159,8 @@ from typing import Any
 
 import numpy as np
 
+from saengine.fem.end_zones import profile_extent
+
 SCHEMA_ID = "saengine.detailing/1"
 #: Computed lengths (development, laps, extents, hook tails) are rounded up to this [mm].
 ROUND = 25.0
@@ -3732,15 +3734,17 @@ def _detail_foundations(ctx: _Ctx) -> list[dict[str, Any]]:
             prof = getattr(t, "profile", None)
             if prof is None:
                 continue
-            if getattr(prof, "shape", "") == "circle":
-                c_along = {0: 2 * prof.radius, 1: 2 * prof.radius}
+            extent = profile_extent(prof)
+            if extent is None:
+                continue
+            if getattr(prof, "shape", "") in ("circle", "circleHollow"):
+                c_along = {0: extent[0], 1: extent[0]}
             else:
+                # the bounding rectangle of any profile (a steel I-shape's flanges by its depth)
+                bx, by = extent
                 rel = math.radians((c.rotation or 0.0) - (rotation or 0.0))
                 ca, sa = abs(math.cos(rel)), abs(math.sin(rel))
-                c_along = {
-                    0: prof.xDim * ca + prof.yDim * sa,
-                    1: prof.xDim * sa + prof.yDim * ca,
-                }
+                c_along = {0: bx * ca + by * sa, 1: bx * sa + by * ca}
             dx = float(c.position[0]) - (centre[0] if centre is not None else c.position[0])
             dy = float(c.position[1]) - (centre[1] if centre is not None else c.position[1])
             local = {0: dx * ux[0] + dy * ux[1], 1: dx * uy[0] + dy * uy[1]}

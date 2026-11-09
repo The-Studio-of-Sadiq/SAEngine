@@ -208,6 +208,25 @@ def test_saf_rows_of_the_two_bay_frame() -> None:
     ]
 
 
+def test_saf_diaphragm_master_on_a_column_node() -> None:
+    """Walk 4 W4C-2: the steel generator puts a storey's diaphragm master on a structural node
+    (a column top that members meet); SAF left the masters out and failed with KeyError on
+    the members at that node. Only a master of its own (a centre-of-mass node) is left out."""
+    from saengine.exporters.analytical import Diaphragm
+
+    m = two_bay_frame()
+    m.nodes[7] = Node(7, (6.0, 0.0, 3.5))  # a centre-of-mass master of its own
+    m.diaphragms = [Diaphragm("D1", 5, [4, 6]), Diaphragm("D2", 7, [4, 5, 6])]
+    m.cases.append(LoadCase("EX", "E", nodal={5: [9000.0, 0, 0, 0, 0, 0], 7: [1.0, 0, 0, 0, 0, 0]}))
+    rows = saf_rows(m)
+    assert ["N5", 6.0, 0.0, 3.5] in rows["StructuralPointConnection"]
+    assert not any(r[0] == "N7" for r in rows["StructuralPointConnection"])
+    beam = next(r for r in rows["StructuralCurveMember"] if r[0] == "B2")
+    assert beam[3] == "N5;N6"
+    actions = [r for r in rows["StructuralPointAction"] if r[6] == "EX"]
+    assert [r[4] for r in actions] == ["N5"]
+
+
 def test_saf_round_trip(tmp_path) -> None:
     path = write_saf(two_bay_frame(), tmp_path / "TwoBay.xlsx")
     model = read_saf(path)

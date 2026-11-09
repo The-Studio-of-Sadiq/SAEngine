@@ -52,8 +52,10 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 import threading
 import time
+import traceback
 from collections.abc import Callable, Sequence
 from datetime import UTC, datetime
 from pathlib import Path
@@ -501,6 +503,18 @@ def generate(
             return _generate(
                 root, sheets, size, design_report, required, use_design, progress, issuing, read
             )
+    except DrawingsError:
+        raise
+    except Exception as error:  # a readable message, not a traceback
+        with _GUARD:
+            doing = (_RUNNING.get(key) or {}).get("message") or "starting"
+        traceback.print_exc(file=sys.stderr)  # the full story for the log
+        text = str(error).strip().splitlines()[0] if str(error).strip() else ""
+        raise DrawingsError(
+            f"The drawings could not be made: an internal error while {doing} "
+            f"({type(error).__name__}{': ' + text if text else ''}). The drawing set was not "
+            "completed; the log has the details."
+        ) from error
     finally:
         with _GUARD:
             _RUNNING.pop(key, None)

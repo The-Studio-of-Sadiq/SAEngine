@@ -23209,6 +23209,24 @@ export const TEMPLATES: { readonly [defName: string]: object } = {
 	SteelSplice: {
 		type: 'coverPlate',
 	},
+	FinPlateConnection: {
+		type: 'finPlate',
+	},
+	EndPlateConnection: {
+		type: 'endPlate',
+	},
+	BraceGussetConnection: {
+		type: 'gusset',
+	},
+	FlangePlateConnection: {
+		type: 'flangePlate',
+	},
+	HssJointConnection: {
+		type: 'hssJoint',
+	},
+	HssMomentConnection: {
+		type: 'hssMoment',
+	},
 	ColumnBasePlate: {},
 	HssCapPlate: {},
 	SeismicIsolator: {},

@@ -50,6 +50,19 @@ OTHER_PARTS: dict[str, tuple[str, str] | None] = {
 }
 
 
+def starting_file(part: str) -> str:
+    """The text a part's main file starts with in a new project. The soil report is a valid
+    empty report (no boreholes yet, "not started"): the readers of its site (sun and shadows,
+    daylight) validate it as a report. The other parts keep the placeholder their editors and
+    readers know (``{"schema": 1, "part": ...}``)."""
+    if part == "soil":
+        from saengine.library.soil import SoilReport
+        from saengine.soil.report import dumps
+
+        return dumps(SoilReport())
+    return json.dumps({"schema": 1, "part": part}, indent="\t") + "\n"
+
+
 #: The wizard's site classes (the default pack's Part 6 Table 6.2.13, p. 609; S1 and S2 need a
 #: site-specific study, Sec 2.5.3.1, and are not offered).
 SITE_CLASSES = ("SA", "SB", "SC", "SD", "SE")
@@ -227,9 +240,7 @@ def create_building(
         (root / folder).mkdir(exist_ok=True)
         if main is not None and not (root / folder / main[0]).exists():
             path = root / folder / main[0]
-            path.write_text(
-                json.dumps({"schema": 1, "part": main[1]}, indent="\t") + "\n", encoding="utf-8"
-            )
+            path.write_text(starting_file(main[1]), encoding="utf-8")
             files.append(path)
     return {
         "root": str(root),

@@ -9,7 +9,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { DEFAULT_MATERIALS, MATERIALS_SCHEMA, TEMPLATES } from '../../../../services/saengineProject/common/projectLibraries.generated.js';
 import { setActiveDisplayUnits } from '../../../../services/saengineProject/common/displayUnits.js';
-import { JsonObject, placeholderText, SchemaForm } from '../../browser/schemaForm.js';
+import { JsonObject, placeholderText, SchemaForm, unionEntry } from '../../browser/schemaForm.js';
 
 suite('SAEngine - SchemaForm', () => {
 
@@ -98,5 +98,12 @@ suite('SAEngine - SchemaForm', () => {
 		type('Compressive strength f\'c', '');
 
 		assert.deepStrictEqual({ ft: (item.concrete as JsonObject).ft, fc: (item.concrete as JsonObject).fc }, { ft: undefined, fc: 24.1 });
+	});
+
+	test('W4C-4: a union alternative chosen in its select names its discriminator', () => {
+		// A steel beam's Connection: End plate gave `{}` (no "type"), which pydantic rejects.
+		assert.deepStrictEqual(unionEntry({}, 'type', 'endPlate'), { type: 'endPlate' });
+		assert.deepStrictEqual(unionEntry(JSON.parse(JSON.stringify(TEMPLATES['EndPlateConnection'])), 'type', 'endPlate'), { type: 'endPlate' });
+		assert.deepStrictEqual(unionEntry({ xDim: 450, yDim: 450 }, 'shape', 'rectangle'), { xDim: 450, yDim: 450, shape: 'rectangle' });
 	});
 });
