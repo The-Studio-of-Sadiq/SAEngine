@@ -79,10 +79,13 @@ def test_las_round_trip(tmp_path: Path, fmt: int, minor: int) -> None:
     assert cloud.intensity is not None and cloud.intensity[0] == 100
 
 
-def test_laz_and_e57_need_a_library(tmp_path: Path) -> None:
+def test_laz_and_e57_are_read_and_bad_files_say_so(tmp_path: Path) -> None:
+    # Owner 2026-11-09: LAZ (lazrs) and E57 (pye57) are dependencies; a damaged file is refused
+    # with the reason, never with a crash.
+    assert {".laz", ".e57"} <= set(pcl.READABLE)
     for name in ("scan.laz", "scan.e57"):
         (tmp_path / name).write_bytes(b"x")
-        with pytest.raises(pcl.PointCloudError, match="does not bundle"):
+        with pytest.raises(pcl.PointCloudError):
             pcl.read_cloud(tmp_path / name)
 
 

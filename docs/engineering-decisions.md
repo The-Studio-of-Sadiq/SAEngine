@@ -624,6 +624,13 @@ lists them with their clauses and marks the uncertain ones.
   interaction by its conservative linear form, the shear buckling by the family's post-critical
   method in place of αv = (82/λw)².
 
+## 2026-11-09
+
+- **Point clouds: LAZ and E57 are read** (owner). `lazrs` (MIT) decompresses LAZ scans and
+  `pye57` (MIT, with libE57Format under BSL-1.0) reads E57 scans, every scan in its own pose, in
+  metres. Both are dependencies of the backend and ship in the bundled Python. Before, these
+  files were refused with a message (alpha 9 track L2).
+
 ## 2026-11-04: Canada and Mexico City packs (alpha 9 track C17)
 
 - **What was built.** `canada-nbcc` (NBCC 2020 Part 4, CSA A23.3-19, CSA S16-19) and

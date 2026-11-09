@@ -4,9 +4,9 @@ building model view, with snap and trace tools for as-built input.
 **Formats.** LAS 1.2-1.4, uncompressed, point data formats 0-10 (:func:`read_las`, numpy only:
 the header, the scaled X, Y, Z of every record, the intensity and the classification) and text
 scans: XYZ / TXT / CSV (``x y z ...`` per line) and PTS (a count line first) (:func:`read_text`).
-LAZ (compressed LAS) and E57 need a library that is not bundled (``lazrs`` or ``laszip`` for
-LAZ, ``pye57`` for E57): they are refused with a message saying so, until the owner adds the
-dependency.
+LAZ (compressed LAS) is read with ``lazrs`` (the record bytes are decompressed, then read as an
+uncompressed file's), and E57 with ``pye57`` (every scan of the file, in its own transform, in
+metres) (owner, 2026-11-09: both are dependencies).
 
 **Decimation** (:func:`decimate`): one point per cube of ``voxel`` (the first one met: the scan
 order, no averaging), then at most ``limit`` points by an even stride.
@@ -61,8 +61,7 @@ CACHE_FOLDER = ".cloud-cache"
 #: Bumped when the output changes, so older cached copies convert again.
 VERSION = 1
 #: Text and LAS scans this module reads; the others need a library.
-READABLE = (".las", ".xyz", ".txt", ".csv", ".pts")
-NEEDS_LIBRARY = {".laz": "lazrs or laszip", ".e57": "pye57"}
+READABLE = (".las", ".laz", ".e57", ".xyz", ".txt", ".csv", ".pts")
 #: At most this many points go into a plan slice's DXF and into the 3D view.
 MAX_SLICE_POINTS = 40000
 MAX_VIEW_POINTS = 200000
@@ -112,11 +111,7 @@ def read_las(path: str | Path, limit: int | None = None) -> Cloud:
     origin = np.array(fields[24:27])
     if major != 1 or minor not in (0, 1, 2, 3, 4):
         raise PointCloudError(f"{path.name}: LAS {major}.{minor} is not supported (1.0-1.4)")
-    if fmt_byte & 0xC0:
-        raise PointCloudError(
-            f"{path.name} is compressed (LAZ): it needs {NEEDS_LIBRARY['.laz']}, which SAEngine "
-            "does not bundle; ask the owner before adding it, or save the scan as LAS"
-        )
+    compressed = bool(fmt_byte & 0xC0)
     fmt = fmt_byte & 0x3F
     if fmt > 10:
         raise PointCloudError(f"{path.name}: point data format {fmt} is not supported (0-10)")
@@ -124,8 +119,9 @@ def read_las(path: str | Path, limit: int | None = None) -> Cloud:
     if minor >= 4 and header_size >= 255 and len(head) >= 255:
         (count14,) = struct.unpack_from("<Q", head, 247)
         count = int(count14) or count
-    size = path.stat().st_size
-    count = min(count, (size - offset) // length) if length else 0
+    if not compressed:
+        size = path.stat().st_size
+        count = min(count, (size - offset) // length) if length else 0
     if count <= 0:
         return Cloud(np.zeros((0, 3)), notes=[f"{path.name} has no points"])
     class_at = 16 if fmt >= 6 else 15
@@ -137,7 +133,12 @@ def read_las(path: str | Path, limit: int | None = None) -> Cloud:
             "itemsize": length,
         }
     )
-    records = np.memmap(path, dtype=dtype, mode="r", offset=offset, shape=(count,))
+    if compressed:
+        records = np.frombuffer(
+            _decompress_laz(path, header_size, _vlrs, offset, length, count), dtype=dtype
+        )
+    else:
+        records = np.memmap(path, dtype=dtype, mode="r", offset=offset, shape=(count,))
     if limit is not None and count > limit:
         records = records[:: math.ceil(count / limit)]
     xyz = np.column_stack([records["x"], records["y"], records["z"]]).astype(float)
@@ -148,6 +149,80 @@ def read_las(path: str | Path, limit: int | None = None) -> Cloud:
     out = Cloud(points, np.asarray(records["intensity"], dtype=float), classification)
     del records
     return out
+
+
+#: The LASzip VLR: its user id and record id.
+_LASZIP_VLR = (b"laszip encoded", 22204)
+
+
+def _decompress_laz(
+    path: Path, header_size: int, vlrs: int, offset: int, length: int, count: int
+) -> bytes:
+    """The uncompressed point records (``count`` × ``length`` bytes) of a LAZ file (lazrs, with
+    the file's LASzip VLR)."""
+    try:
+        import lazrs
+    except ImportError as e:  # the dependency is missing from this installation
+        raise PointCloudError(f"{path.name} is compressed (LAZ) and lazrs is not installed") from e
+    with path.open("rb") as f:
+        f.seek(header_size)
+        laszip = None
+        for _ in range(vlrs):
+            head = f.read(54)
+            if len(head) < 54:
+                break
+            user = head[2:18].rstrip(b"\x00")
+            record = int.from_bytes(head[18:20], "little")
+            size = int.from_bytes(head[20:22], "little")
+            data = f.read(size)
+            if (user, record) == _LASZIP_VLR:
+                laszip = data
+        if laszip is None:
+            raise PointCloudError(f"{path.name} is compressed but has no LASzip record")
+        out = bytearray(count * length)
+        f.seek(offset)
+        try:
+            lazrs.LasZipDecompressor(f, laszip).decompress_many(out)
+        except Exception as e:  # lazrs raises its own error type on a damaged stream
+            raise PointCloudError(f"{path.name}: the compressed points do not read ({e})") from e
+    return bytes(out)
+
+
+# ─────────────────────────────────────── E57 ───────────────────────────────────────
+
+
+def read_e57(path: str | Path, limit: int | None = None) -> Cloud:
+    """The points of every scan of an E57 file (pye57), each placed by its own pose, in metres;
+    the intensity when the scans have it."""
+    path = Path(path)
+    try:
+        import pye57
+    except ImportError as e:  # the dependency is missing from this installation
+        raise PointCloudError(f"{path.name} is an E57 scan and pye57 is not installed") from e
+    try:
+        e57 = pye57.E57(str(path))
+        parts: list[np.ndarray] = []
+        levels: list[np.ndarray] = []
+        for index in range(e57.scan_count):
+            scan = e57.read_scan(index, intensity=True, ignore_missing_fields=True)
+            xyz = np.column_stack(
+                [scan["cartesianX"], scan["cartesianY"], scan["cartesianZ"]]
+            ).astype(float)
+            parts.append(xyz)
+            value = scan.get("intensity")
+            levels.append(
+                np.asarray(value, dtype=float) if value is not None else np.full(len(xyz), np.nan)
+            )
+    except Exception as e:  # libE57 raises its own exceptions on unreadable files
+        raise PointCloudError(f"{path.name} is not a readable E57 file ({e})") from e
+    if not parts:
+        return Cloud(np.zeros((0, 3)), units="m", notes=[f"{path.name} has no scans"])
+    points, intensity = np.vstack(parts), np.concatenate(levels)
+    if limit is not None and len(points) > limit:
+        stride = math.ceil(len(points) / limit)
+        points, intensity = points[::stride], intensity[::stride]
+    notes = [f"{e57.scan_count} scans"] if e57.scan_count > 1 else []
+    return Cloud(points, None if np.all(np.isnan(intensity)) else intensity, units="m", notes=notes)
 
 
 # ─────────────────────────────────────── text scans ───────────────────────────────────────
@@ -182,16 +257,12 @@ def read_cloud(path: str | Path, limit: int | None = None) -> Cloud:
     """A scan of any format this module reads (see the module notes)."""
     path = Path(path)
     suffix = path.suffix.lower()
-    if suffix in NEEDS_LIBRARY:
-        raise PointCloudError(
-            f"{path.name}: {suffix[1:].upper()} scans need {NEEDS_LIBRARY[suffix]}, which "
-            "SAEngine does not bundle; ask the owner before adding it, or save the scan as LAS "
-            "or XYZ"
-        )
     if not path.is_file():
         raise PointCloudError(f"{path.name} does not exist")
-    if suffix == ".las":
+    if suffix in (".las", ".laz"):
         return read_las(path, limit)
+    if suffix == ".e57":
+        return read_e57(path, limit)
     if suffix in READABLE:
         return read_text(path, limit)
     raise PointCloudError(
