@@ -546,3 +546,15 @@ the parent's), with no IS 2502 minimum radius.
 | L3-2 | roughness.1 / 2 / 3 / 4 | z0 = 0.002 / 0.02 / 0.2 / 2.0 m | IS 875 (Part 3):2015 Sec 6.3.2.1 (the same values as the gust factor's roughness) | Check (clause number) |
 | L3-3 | lowerLimit | 0.8 | after ASCE 7-22 Sec 31.4.3; IS 875 (Part 3) gives none | SAEngine practice |
 | L3-4 | validation / clauses | wind tunnel studies of tall or unusual buildings | IS 875 (Part 3):2015 Sec 10 | Check (clause number) |
+
+## Steel fabrication (`fabrication`) and rebar CNC (`barSchedule` bvbs; alpha 9 L10)
+
+| # | Path | Value | Source | Sure? |
+|---|---|---|---|---|
+| L10-1 | weldSymbols | isoA | IS 813 drawn as ISO 2553 system A (Indian practice may use system B: the project can choose it) | Check |
+| L10-2 | anchorHoleClearance | rod + 6 mm in base plates | none in the code (AISC Design Guide 1 Table 2.3 gives larger holes with plate washers) | SAEngine practice |
+| L10-3 | copeClearance | 10 mm from the supporting flange and root | none in the code | SAEngine practice |
+| L10-B1 | barSchedule.standards.*.shapes.*.bvbs | BVBS legs (outside dimensions), arcs (inside radius) and bend angles of each shape; one sign for one bending direction, the last angle 0 | BVBS guideline (Bundesverband Bausoftware) "Data exchange of reinforcement data", geometry block G (legs l, radius r, angle w; outer dimensions for 2D shapes) | Check (the shape's legs against the printed shape code; the sign convention of the angles) |
+| L10-B2 | (record) | header j r i p l n e d g s v, l = the cutting length, e = mass of one bar, s = 2 x the bend radius; checksum 96 - (sum of ASCII codes up to and including C) mod 32 | BVBS guideline, header and checksum blocks; checked against its examples (C72, C71, C82; "abcde@C" = 78) | Check (l: the cutting length, where the guideline's examples print the sum of the legs) |
+
+IS 2502 shapes 00, 11, 21, 23, 31, 41, 51 have a BVBS geometry; 13 (its B is not the outside width of BS 8666), 26, 77, 99 are sent without one. The bolt holes drilled are the steel table's standard holes (`steel` connections).

@@ -977,6 +977,23 @@ CommandsRegistry.registerCommand('saengine.export.e2k', async (accessor, args: {
 });
 
 /**
+ * Alpha 9 L10: the backends of the fabrication exports (the Exports page calls them by id):
+ * `saengine.export.shopDrawings`, `saengine.export.nc` and `saengine.export.bvbs` `{projectRoot}`
+ * write the steel shop drawings, the DSTV NC files and the BVBS rebar files into `11 Exports`
+ * (saengine.fabrication.export) and answer `{folder, files, notes, problems}`, or `{error}`.
+ */
+for (const [command, method] of [
+	['saengine.export.shopDrawings', 'fabrication/shopDrawings'],
+	['saengine.export.nc', 'fabrication/nc'],
+	['saengine.export.bvbs', 'fabrication/bvbs'],
+] as const) {
+	CommandsRegistry.registerCommand(command, async (accessor, args: { readonly projectRoot: string }) => {
+		const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
+		return accessor.get(IFemSolverService).engine(python, method, { projectRoot: args.projectRoot });
+	});
+}
+
+/**
  * Integrator glue: the backend of the Revit link (revitLink.ts calls them by id). `revit/export`
  * writes `11 Exports/Revit/<project>.exchange.json` (saengine.exporters.revit_link) and answers
  * `{path, counts, notes}`; `revit/preview` lists the changes in a file written back from Revit

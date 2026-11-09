@@ -11962,6 +11962,7 @@ from saengine.codes.composite_slab_tables import (  # P8: composite slabs, beam 
 from saengine.codes.damper_tables import DampersTable  # P6: structures with damping systems
 from saengine.codes.excavation_tables import ExcavationSupportTable  # P1: staged excavations
 from saengine.codes.existing_tables import ExistingTable  # P4: existing buildings
+from saengine.codes.fabrication_tables import FabricationTable  # L10: steel fabrication
 from saengine.codes.floor_spectra_tables import FloorSpectraTable  # L5: floor spectra
 from saengine.codes.hazard_tables import HazardLookupTable  # C22: online hazard lookup
 from saengine.codes.limit_state_tables import SteelLimitStateTable
@@ -12105,6 +12106,8 @@ TABLE_MODELS: dict[str, type[TableModel]] = {
     # Alpha 9 L4: nonlinear buckling (GMNIA) and cables; L6: finite element check of joints.
     "nonlinearStability": NonlinearStabilityTable,
     "connectionFe": ConnectionFeTable,
+    # Alpha 9 L10: steel fabrication (shop drawings, DSTV NC files).
+    "fabrication": FabricationTable,
 }
 
 

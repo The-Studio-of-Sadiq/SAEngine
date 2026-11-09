@@ -76,10 +76,31 @@ export const EXPORT_BOQ_XLSX_COMMAND = 'saengine.boq.exportXlsx';
 export const EXPORT_E2K_COMMAND = 'saengine.export.e2k';
 /** The folder of `11 Exports` the ETABS export writes to. */
 export const EXPORT_E2K_FOLDER = 'ETABS';
+/**
+ * Alpha 9 L10, the fabrication exports (`saengine.fabrication.export`): the steel shop drawings
+ * (`11 Exports/Shop Drawings`), the DSTV NC files of the parts (`11 Exports/nc`) and the BVBS files
+ * of the bar marks (`11 Exports/bvbs`). Each command takes `{projectRoot}` and answers
+ * `{folder, files, notes, problems}` or `{error}`.
+ */
+export const EXPORT_SHOP_DRAWINGS_COMMAND = 'saengine.export.shopDrawings';
+export const EXPORT_NC_COMMAND = 'saengine.export.nc';
+export const EXPORT_BVBS_COMMAND = 'saengine.export.bvbs';
+/** The folders of `11 Exports` they write to, and the files a row lists. */
+export const EXPORT_SHOP_FOLDER = 'Shop Drawings';
+export const SHOP_DRAWINGS_PDF = 'shop-drawings.pdf';
+export const EXPORT_NC_FOLDER = 'nc';
+export const EXPORT_BVBS_FOLDER = 'bvbs';
+/** Project Settings (part 2): the fabrication options are under Drawings, Fabrication. */
+const OPEN_SETTINGS_COMMAND = 'saengine.project.openSettings';
+/** A row lists at most this many files; more are counted (the NC files: one per part). */
+const MAX_LISTED_FILES = 8;
 /** The file explorer's "Reveal in File Explorer" (desktop only). */
 const REVEAL_IN_OS_COMMAND = 'revealFileInOS';
 
-type ExportKind = 'report' | 'word' | 'ifc' | 'dxf' | 'e2k' | 'revit' | 'csv' | 'xlsx';
+type ExportKind = 'report' | 'word' | 'ifc' | 'dxf' | 'e2k' | 'revit' | 'csv' | 'xlsx' | 'shop' | 'nc' | 'bvbs';
+
+/** The fabrication exports (alpha 9 L10): made by their command with the project's root. */
+const FABRICATION_KINDS: ReadonlySet<ExportKind> = new Set<ExportKind>(['shop', 'nc', 'bvbs']);
 
 interface IExportFile {
 	readonly resource: URI;
@@ -149,6 +170,32 @@ export function readE2kExport(value: unknown): IE2kExportOutcome {
 	};
 }
 
+/** A fabrication export's answer (alpha 9 L10), read defensively. */
+export interface IFabricationExportOutcome {
+	readonly folder?: string;
+	readonly files: number;
+	readonly notes: readonly string[];
+	readonly problems: readonly string[];
+	readonly error?: string;
+}
+
+export function readFabricationExport(value: unknown): IFabricationExportOutcome {
+	const record = typeof value === 'object' && value !== null ? value as { readonly [key: string]: unknown } : {};
+	const texts = (key: string) => Array.isArray(record[key]) ? (record[key] as unknown[]).filter((v): v is string => typeof v === 'string') : [];
+	const outcome = {
+		files: Array.isArray(record.files) ? (record.files as unknown[]).length : 0,
+		notes: texts('notes'),
+		problems: texts('problems'),
+	};
+	if (typeof record.error === 'string' && record.error) {
+		return { ...outcome, error: record.error };
+	}
+	if (typeof record.folder !== 'string') {
+		return { ...outcome, error: localize('exports.fabricationNoAnswer', "The backend did not say where it wrote the files.") };
+	}
+	return { ...outcome, folder: record.folder };
+}
+
 /** "memberLineLoads" -> "member line loads", as the export report's counts are keyed. */
 function countWords(key: string): string {
 	return key.replace(/([a-z])([A-Z])/g, '$1 $2').toLowerCase();
@@ -204,6 +251,9 @@ export class ExportsEditor extends EditorPane {
 	private readonly dxfAction = this._register(new Action('saengine.exports.dxf', localize('exports.exportDxf', "Export DXF Floor Plans"), undefined, true, () => this.make('dxf')));
 	private readonly csvAction = this._register(new Action('saengine.exports.csv', localize('exports.exportCsv', "Export Bill of Quantities as CSV..."), undefined, true, () => this.make('csv')));
 	private readonly xlsxAction = this._register(new Action('saengine.exports.xlsx', localize('exports.exportXlsx', "Export Bill of Quantities to Excel..."), undefined, true, () => this.make('xlsx')));
+	private readonly shopAction = this._register(new Action('saengine.exports.shopDrawings', localize('exports.makeShopDrawings', "Make Steel Shop Drawings"), undefined, true, () => this.make('shop')));
+	private readonly ncAction = this._register(new Action('saengine.exports.nc', localize('exports.makeNc', "Write NC Files (DSTV)"), undefined, true, () => this.make('nc')));
+	private readonly bvbsAction = this._register(new Action('saengine.exports.bvbs', localize('exports.makeBvbs', "Write Rebar CNC Files (BVBS)"), undefined, true, () => this.make('bvbs')));
 	private readonly e2kAction = this._register(new Action('saengine.exports.e2k', localize('exports.exportE2k', "Export to ETABS (.e2k)"), undefined, true, () => this.make('e2k')));
 	private readonly revitAction = this._register(new Action('saengine.exports.revit', localize('exports.exportRevit', "Export for Revit"), undefined, true, () => this.make('revit')));
 	private readonly revitImportAction = this._register(new Action('saengine.exports.revitImport', localize('exports.revitImport', "Import Changes from Revit..."), undefined, true, () => this.importFromRevit()));
@@ -231,7 +281,8 @@ export class ExportsEditor extends EditorPane {
 		super(ExportsEditor.ID, group, telemetryService, themeService, storage);
 		this._register(this.storage.onDidChangeValue(StorageScope.WORKSPACE, LAST_ARCHIVE_STORAGE_KEY, this._store)(() => this.scanScheduler.schedule(0)));
 		this._register(CommandsRegistry.onDidRegisterCommand(id => {
-			if (id === ARCHIVE_EXPORT_COMMAND || id === ARCHIVE_IMPORT_COMMAND || id === CAD_OPEN_COMMAND || id === DRAWINGS_GENERATE_COMMAND || id === EXPORT_E2K_COMMAND || id === REVIT_EXPORT_COMMAND) {
+			if (id === ARCHIVE_EXPORT_COMMAND || id === ARCHIVE_IMPORT_COMMAND || id === CAD_OPEN_COMMAND || id === DRAWINGS_GENERATE_COMMAND || id === EXPORT_E2K_COMMAND || id === REVIT_EXPORT_COMMAND
+				|| id === EXPORT_SHOP_DRAWINGS_COMMAND || id === EXPORT_NC_COMMAND || id === EXPORT_BVBS_COMMAND) {
 				this.render();
 			}
 		}));
@@ -246,7 +297,7 @@ export class ExportsEditor extends EditorPane {
 		}));
 		this.frame.element.classList.add('saengine-exports-editor');
 		this.frame.setTitle(localize('exports.title', "Exports"));
-		this.frame.setHelp(localize('exports.help', "What the project hands over: the design report, the building model as IFC, the floor plans as DXF, the analysis model for ETABS (.e2k), the exchange file of the Revit link, the structural drawings (DXF sheets for LibreCAD, one PDF set and the bar bending schedule) and the bill of quantities as CSV. Each is made from its part and written to the 11 Exports folder. The project archive (.civil) holds the whole project in one file."));
+		this.frame.setHelp(localize('exports.help', "What the project hands over: the design report, the building model as IFC, the floor plans as DXF, the analysis model for ETABS (.e2k), the exchange file of the Revit link, the structural drawings (DXF sheets for LibreCAD, one PDF set and the bar bending schedule), the steel shop drawings with the NC files (DSTV) of the parts and the rebar CNC files (BVBS) for fabricators, and the bill of quantities as CSV. Each is made from its part and written to the 11 Exports folder. The project archive (.civil) holds the whole project in one file."));
 		this.list = $('.exports-list');
 		this.scrollable = this._register(new DomScrollableElement(this.list, { horizontal: ScrollbarVisibility.Hidden, vertical: ScrollbarVisibility.Auto }));
 		append(this.frame.main, this.scrollable.getDomNode()).classList.add('exports-scroll');
@@ -319,7 +370,11 @@ export class ExportsEditor extends EditorPane {
 			try {
 				const stat = await this.fileService.resolve(path ? joinPath(folder, path) : folder, { resolveMetadata: true });
 				for (const child of stat.children ?? []) {
+					const name = child.name.toLowerCase();
 					const kind = !child.isFile ? undefined
+						: path === EXPORT_SHOP_FOLDER ? (name === SHOP_DRAWINGS_PDF ? 'shop' : undefined)
+						: path === EXPORT_NC_FOLDER ? (name.endsWith('.nc1') ? 'nc' : undefined)
+						: path === EXPORT_BVBS_FOLDER ? (name.endsWith('.abs') ? 'bvbs' : undefined)
 						: path === EXPORT_E2K_FOLDER ? (child.name.toLowerCase().endsWith('.e2k') ? 'e2k' : undefined)
 							: path === EXPORT_REVIT_FOLDER ? (child.name.toLowerCase().endsWith(EXCHANGE_SUFFIX) ? 'revit' : undefined)
 							: !path && child.name.toLowerCase() === WORD_REPORT_FILE ? 'word'
@@ -334,7 +389,7 @@ export class ExportsEditor extends EditorPane {
 				// Not made yet: the folder is created by the first export.
 			}
 		};
-		const [archive, bimElements] = await Promise.all([this.findLastArchive(), this.countBimElements(), ...['', EXPORT_IFC_FOLDER, EXPORT_DXF_FOLDER, EXPORT_E2K_FOLDER, EXPORT_REVIT_FOLDER].map(read)]);
+		const [archive, bimElements] = await Promise.all([this.findLastArchive(), this.countBimElements(), ...['', EXPORT_IFC_FOLDER, EXPORT_DXF_FOLDER, EXPORT_E2K_FOLDER, EXPORT_REVIT_FOLDER, EXPORT_SHOP_FOLDER, EXPORT_NC_FOLDER, EXPORT_BVBS_FOLDER].map(read)]);
 		if (version !== this.scanVersion) {
 			return;
 		}
@@ -505,6 +560,41 @@ export class ExportsEditor extends EditorPane {
 			blocked: boq ? blockedBy('boq', localize('exports.csvBlocked', "Measure the bill of quantities ({0}) first.", partName(boq))) : undefined,
 			runningLabel: localize('exports.xlsxRunning', "Exporting the workbook..."),
 		});
+		// Alpha 9 L10: for the fabricators, made only when asked (the drawing set is not touched).
+		const steelBlocked = emptyModel ?? (bim ? blockedBy('bim', localize('exports.fabricationBlocked', "Build the building model ({0}) first.", partName(bim))) : undefined);
+		kinds.push({
+			kind: 'shop', icon: Codicon.tools,
+			title: localize('exports.shopDrawings', "Steel Shop Drawings"),
+			description: localize('exports.shopDrawingsDescription', "For the steel fabricator: the assembly and part marks, a drawing of each assembly (cut length, copes, hole groups from the member's ends, weld symbols, bill of materials), the plates' part drawings and the marking plans, as DXF sheets and one PDF. Weld symbols, marks and clearances: Options."),
+			location: `${exportsFolder}/${EXPORT_SHOP_FOLDER}`,
+			makeLabel: localize('exports.makeShopDrawingsShort', "Make Shop Drawings"),
+			againLabel: localize('exports.makeShopDrawingsAgain', "Make Shop Drawings Again"),
+			command: EXPORT_SHOP_DRAWINGS_COMMAND,
+			blocked: steelBlocked,
+			runningLabel: localize('exports.shopDrawingsRunning', "Drawing the shop drawings..."),
+		});
+		kinds.push({
+			kind: 'nc', icon: Codicon.gear,
+			title: localize('exports.nc', "NC Files (DSTV)"),
+			description: localize('exports.ncDescription', "One DSTV file (.nc1) per steel part for the fabricator's saws, drills and plate cutters: header, holes, plate outlines and the part mark to scribe."),
+			location: `${exportsFolder}/${EXPORT_NC_FOLDER}`,
+			makeLabel: localize('exports.makeNcShort', "Write NC Files"),
+			againLabel: localize('exports.makeNcAgain', "Write NC Files Again"),
+			command: EXPORT_NC_COMMAND,
+			blocked: steelBlocked,
+			runningLabel: localize('exports.ncRunning', "Writing the NC files..."),
+		});
+		kinds.push({
+			kind: 'bvbs', icon: Codicon.symbolRuler,
+			title: localize('exports.bvbs', "Rebar CNC (BVBS)"),
+			description: localize('exports.bvbsDescription', "The bar marks of the bar bending schedule as BVBS records (.abs) for rebar bending machines: size, grade, count, length and the bent shape, as the drawings detail the bars."),
+			location: `${exportsFolder}/${EXPORT_BVBS_FOLDER}`,
+			makeLabel: localize('exports.makeBvbsShort', "Write BVBS File"),
+			againLabel: localize('exports.makeBvbsAgain', "Write BVBS File Again"),
+			command: EXPORT_BVBS_COMMAND,
+			blocked: steelBlocked,
+			runningLabel: localize('exports.bvbsRunning', "Writing the BVBS file..."),
+		});
 		return kinds;
 	}
 
@@ -559,11 +649,14 @@ export class ExportsEditor extends EditorPane {
 		this.revitImportAction.enabled = has('revit') && !this.running.has('revit') && RevitLinkFlows.available();
 		this.csvAction.enabled = can('csv');
 		this.xlsxAction.enabled = can('xlsx');
+		this.shopAction.enabled = can('shop') && !!CommandsRegistry.getCommand(EXPORT_SHOP_DRAWINGS_COMMAND);
+		this.ncAction.enabled = can('nc') && !!CommandsRegistry.getCommand(EXPORT_NC_COMMAND);
+		this.bvbsAction.enabled = can('bvbs') && !!CommandsRegistry.getCommand(EXPORT_BVBS_COMMAND);
 		this.drawingsAction.enabled = !!kinds && !!CommandsRegistry.getCommand(DRAWINGS_GENERATE_COMMAND) && !this.emptyModel();
 		this.revealFolderAction.enabled = !!kinds;
 		this.archiveAction.enabled = !!kinds && !!CommandsRegistry.getCommand(ARCHIVE_EXPORT_COMMAND);
 		this.openArchiveAction.enabled = !!CommandsRegistry.getCommand(ARCHIVE_IMPORT_COMMAND);
-		const secondary: IAction[] = [this.printAction, ...(CommandsRegistry.getCommand(CONFIGURE_REPORT_COMMAND) ? [this.configureReportAction] : []), this.ifcAction, ...(has('dxf') ? [this.dxfAction] : []), this.e2kAction, this.revitAction, this.revitImportAction, this.drawingsAction, this.csvAction, this.xlsxAction, new Separator(), this.archiveAction, this.openArchiveAction, new Separator(), this.refreshAction];
+		const secondary: IAction[] = [this.printAction, ...(CommandsRegistry.getCommand(CONFIGURE_REPORT_COMMAND) ? [this.configureReportAction] : []), this.ifcAction, ...(has('dxf') ? [this.dxfAction] : []), this.e2kAction, this.revitAction, this.revitImportAction, this.drawingsAction, this.csvAction, this.xlsxAction, this.shopAction, this.ncAction, this.bvbsAction, new Separator(), this.archiveAction, this.openArchiveAction, new Separator(), this.refreshAction];
 		const key = secondary.map(a => a.id).join();
 		if (key !== this.actionsKey) {
 			this.actionsKey = key;
@@ -613,6 +706,11 @@ export class ExportsEditor extends EditorPane {
 			back.setTitle(localize('exports.revitImportTitle', "Import Changes from Revit... (a file written back by the add-in: preview, then apply to the floor plan)"));
 			back.enabled = !running;
 		}
+		if (FABRICATION_KINDS.has(kind.kind) && CommandsRegistry.getCommand(OPEN_SETTINGS_COMMAND)) {
+			// Weld symbols, marks, clearances and the files' headers: Project Settings, Drawings, Fabrication.
+			const options = this.textButton(actions, localize('exports.fabricationOptions', "Options..."), () => void this.commandService.executeCommand(OPEN_SETTINGS_COMMAND));
+			options.setTitle(localize('exports.fabricationOptionsTitle', "Project Settings, Drawings, Fabrication: weld symbols, marks, clearances and the files' headers"));
+		}
 		const showRunning = () => {
 			clearNode(when);
 			append(when, $(`span${ThemeIcon.asCSSSelector(ThemeIcon.modify(Codicon.loading, 'spin'))}`));
@@ -657,6 +755,15 @@ export class ExportsEditor extends EditorPane {
 		when.classList.add('muted');
 		if (running) {
 			showRunning();
+		}
+		if (files.length > MAX_LISTED_FILES) {
+			// Many files (one NC file per part): counted, with their folder.
+			const folder = this.exportsFolder;
+			if (folder && CommandsRegistry.getCommand(REVEAL_IN_OS_COMMAND)) {
+				const where = joinPath(folder, kind.location.split('/').slice(1).join('/'));
+				this.textButton(actions, localize('exports.revealFolderShort', "Show Folder"), () => void this.reveal(where)).setTitle(localize('exports.reveal', "Reveal in File Explorer"));
+			}
+			return;
 		}
 		const list = append(section, $('ul.exports-files'));
 		for (const file of files) {
@@ -725,6 +832,8 @@ export class ExportsEditor extends EditorPane {
 				try {
 					if (kindId === 'e2k') {
 						await this.exportE2k(project);
+					} else if (FABRICATION_KINDS.has(kindId)) {
+						await this.exportFabrication(project, kind);
 					} else if (kindId === 'revit') {
 						await this.instantiationService.createInstance(RevitLinkFlows).export();
 					} else {
@@ -776,6 +885,26 @@ export class ExportsEditor extends EditorPane {
 		]);
 	}
 
+	/** A fabrication export (alpha 9 L10), with its progress, and a notice of what it wrote. */
+	private async exportFabrication(project: ISaengineProject, kind: IExportKind): Promise<void> {
+		const answer = await this.progressService.withProgress({
+			location: ProgressLocation.Notification,
+			title: kind.runningLabel,
+		}, () => this.commandService.executeCommand(kind.command, { projectRoot: project.root.fsPath }));
+		const outcome = readFabricationExport(answer);
+		if (outcome.error || !outcome.folder) {
+			this.notificationService.error(localize('exports.fabricationFailed', "{0}: {1}", kind.title, outcome.error ?? ''));
+			return;
+		}
+		const folder = URI.file(outcome.folder);
+		const remarks = [...outcome.problems, ...outcome.notes];
+		const message = localize('exports.fabricationDone', "{0}: {1} files written to {2}.{3}", kind.title, outcome.files, kind.location,
+			remarks.length ? ` ${remarks.slice(0, 3).join(' ')}${remarks.length > 3 ? ' ...' : ''}` : '');
+		this.notificationService.prompt(outcome.problems.length ? Severity.Warning : Severity.Info, message, [
+			...(CommandsRegistry.getCommand(REVEAL_IN_OS_COMMAND) ? [{ label: localize('exports.reveal', "Reveal in File Explorer"), run: () => void this.reveal(folder) }] : []),
+		]);
+	}
+
 	/** Changes made in Revit, back into the floor plan after their preview. */
 	private async importFromRevit(): Promise<void> {
 		if (this.running.has('revit')) {
@@ -806,7 +935,7 @@ export class ExportsEditor extends EditorPane {
 
 	/** Drawings open in SAEngine's CAD editor; the report, IFC and CSV in the system's own application. */
 	private async openFile(file: IExportFile, kind: IExportKind): Promise<void> {
-		if (kind.kind === 'dxf' || kind.kind === 'e2k' || kind.kind === 'revit') {
+		if (kind.kind === 'dxf' || kind.kind === 'e2k' || kind.kind === 'revit' || kind.kind === 'nc' || kind.kind === 'bvbs') {
 			await this.editorService.openEditor({ resource: file.resource, options: { pinned: true } });
 		} else {
 			// The system's viewer can take seconds to appear: the page says it is on its way.

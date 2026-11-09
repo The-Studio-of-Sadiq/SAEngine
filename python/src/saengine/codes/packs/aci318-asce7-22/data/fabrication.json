@@ -1,0 +1,16 @@
+{
+  "$schema": "../../../schemas/fabrication.schema.json",
+  "$replace": true,
+  "$sources": [
+    "AISC 360-22 and the AISC Code of Standard Practice (AISC 303) use AWS A2.4 weld symbols; the drilling allowances and the cope clearance are SAEngine practice; see VERIFY.md"
+  ],
+  "source": "AWS A2.4 weld symbols (AISC 303 practice); SAEngine practice for the allowances",
+  "weldSymbols": "aws",
+  "anchorHoleClearance": 6,
+  "copeClearance": 10,
+  "sources": {
+    "weldSymbols": "AWS A2.4 (the symbols of AISC 303 shop drawings)",
+    "anchorHoleClearance": "SAEngine practice: rod + 6 mm in the base plate (AISC Design Guide 1 Table 2.3 gives larger holes with plate washers)",
+    "copeClearance": "SAEngine practice: 10 mm clear of the supporting beam's flange and root"
+  }
+}

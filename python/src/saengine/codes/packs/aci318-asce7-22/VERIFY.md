@@ -887,3 +887,15 @@ Not covered by this pack: composite slabs on steel deck (the compositeSlab table
 | L7U23 | compositePlateWalls.limits | tsc 230–1520 mm, ρ 1–10 %, tp ≥ 9.5 mm | AISC 341-22 H7.4 | Unsure |
 
 Not covered by this pack: aluminium (the Aluminum Design Manual; a planned feature).
+
+## Steel fabrication (`fabrication`) and rebar CNC (`barSchedule` bvbs; alpha 9 L10)
+
+| # | Path | Value | Source | Sure? |
+|---|---|---|---|---|
+| L10-1 | weldSymbols | aws | AWS A2.4 (AISC 303 shop drawing practice) | Check |
+| L10-2 | anchorHoleClearance | rod + 6 mm in base plates | none in the code (AISC Design Guide 1 Table 2.3 gives larger holes with plate washers) | SAEngine practice |
+| L10-3 | copeClearance | 10 mm from the supporting flange and root | none in the code | SAEngine practice |
+| L10-B1 | barSchedule.standards.*.shapes.*.bvbs | BVBS legs (outside dimensions), arcs (inside radius) and bend angles of each shape; one sign for one bending direction, the last angle 0 | BVBS guideline (Bundesverband Bausoftware) "Data exchange of reinforcement data", geometry block G (legs l, radius r, angle w; outer dimensions for 2D shapes) | Check (the shape's legs against the printed shape code; the sign convention of the angles) |
+| L10-B2 | (record) | header j r i p l n e d g s v, l = the cutting length, e = mass of one bar, s = 2 x the bend radius; checksum 96 - (sum of ASCII codes up to and including C) mod 32 | BVBS guideline, header and checksum blocks; checked against its examples (C72, C71, C82; "abcde@C" = 78) | Check (l: the cutting length, where the guideline's examples print the sum of the legs) |
+
+ACI 315 shapes STR, 1, 2, 3, T1 have a BVBS geometry; 4 (truss bar), SP (spiral), 99 are sent without one. The bolt holes drilled are the steel table's standard holes (`steel` connections).

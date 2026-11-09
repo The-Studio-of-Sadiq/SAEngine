@@ -1,0 +1,16 @@
+{
+  "$schema": "../../../schemas/fabrication.schema.json",
+  "$replace": true,
+  "$sources": [
+    "EN 1090-2 execution of steel structures refers to EN ISO 2553 for weld symbols; the drilling allowances and the cope clearance are SAEngine practice; see VERIFY.md"
+  ],
+  "source": "EN ISO 2553 weld symbols (system A, the European practice); SAEngine practice for the allowances",
+  "weldSymbols": "isoA",
+  "anchorHoleClearance": 6,
+  "copeClearance": 10,
+  "sources": {
+    "weldSymbols": "EN ISO 2553:2019 system A (dashed identification line), as EN 1090-2 drawings use it",
+    "anchorHoleClearance": "SAEngine practice: rod + 6 mm in the base plate",
+    "copeClearance": "SAEngine practice: 10 mm clear of the supporting beam's flange and root"
+  }
+}

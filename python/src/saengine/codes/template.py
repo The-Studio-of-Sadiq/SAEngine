@@ -143,6 +143,10 @@ TABLE_HELP: dict[str, str] = {
     "direct spectrum-to-spectrum), the peak broadening, the component damping ratios, the "
     "direct method's duration and iterations, and how a nonstructural component's force "
     "follows from the floor spectrum. A pack without it computes no floor spectra.",
+    "fabrication": "Steel fabrication (alpha 9 L10): the weld symbols of the shop drawings (AWS "
+    "A2.4 or ISO 2553 system A or B), the anchor rod holes' clearance in base plates and the "
+    "clearance of a coped beam from the supporting flange. A pack without it takes the default "
+    "pack's.",
     "cfdWind": "The CFD wind tunnel link (alpha 9 L3; OpenFOAM installed by the user): the wind "
     "directions computed (every directionStep degrees), the inlet boundary layer's roughness "
     "length z0 by exposure id, the least share of the code's wind base shear the CFD storey "

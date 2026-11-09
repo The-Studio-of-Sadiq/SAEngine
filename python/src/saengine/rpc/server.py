@@ -85,6 +85,10 @@ Methods:
 - ``export/e2k`` ``{projectRoot, outPath?, units?, lateral?}`` -> the project as an ETABS text
   model in ``11 Exports/ETABS`` with its export report (``{path, reportPath, report}`` or
   ``{error}``; ``saengine.exporters.etabs``; in a worker thread)
+- ``fabrication/shopDrawings``, ``fabrication/nc``, ``fabrication/bvbs`` ``{projectRoot}`` -> the
+  steel shop drawings (``11 Exports/Shop Drawings``), the DSTV NC files (``11 Exports/nc``) and
+  the BVBS rebar files (``11 Exports/bvbs``): ``{folder, files, notes, problems}`` or
+  ``{error}`` (``saengine.fabrication.export``, alpha 9 L10; in a worker thread)
 - ``library/generateBuilding`` ``{spec, destParent, name?, overwrite?, site?}`` -> a new building
   project generated from its grids and storeys (``{root, name, notes, summary, settingsPatch,
   files}`` or ``{error}``; ``saengine.project.new_building``; in a worker thread)
@@ -774,6 +778,28 @@ def create_server() -> JsonRPCServer:
         from saengine.exporters.etabs import rpc_export_e2k
 
         return rpc_export_e2k(_plain(params))
+
+    # Alpha 9 L10: the fabrication exports of 11 Exports (saengine.fabrication.export).
+    @server.feature("fabrication/shopDrawings")
+    @_in_worker  # draws and renders the shop drawing sheets (seconds to minutes)
+    def _fabrication_shop_drawings(params: Any) -> dict[str, Any]:
+        from saengine.fabrication.export import rpc_shop_drawings
+
+        return rpc_shop_drawings(_plain(params))
+
+    @server.feature("fabrication/nc")
+    @_in_worker
+    def _fabrication_nc(params: Any) -> dict[str, Any]:
+        from saengine.fabrication.export import rpc_nc
+
+        return rpc_nc(_plain(params))
+
+    @server.feature("fabrication/bvbs")
+    @_in_worker  # details the reinforcement (seconds)
+    def _fabrication_bvbs(params: Any) -> dict[str, Any]:
+        from saengine.fabrication.export import rpc_bvbs
+
+        return rpc_bvbs(_plain(params))
 
     @server.feature("revit/export")
     @_in_worker  # details the reinforcement cages (seconds)

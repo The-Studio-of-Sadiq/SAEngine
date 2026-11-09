@@ -944,17 +944,28 @@ def weld_symbol(
     both: bool = True,
     tail: str = "",
     tries: Sequence[tuple[float, float]] | None = None,
+    *,
+    size_text: str | None = None,
+    identification: bool = False,
+    all_round: bool = False,
+    groove: bool = False,
 ) -> tuple[float, float] | None:
     """A fillet weld symbol (AWS A2.4) whose arrow points at the real point ``at``: the
     reference line, the triangle (below: arrow side; above too when ``both``), the leg size
     left of it, the length right of it and ``tail`` (a note). Placed at the first of the paper
-    offsets ``tries`` (of the reference line's arrow end) where it is clear; returns it."""
+    offsets ``tries`` (of the reference line's arrow end) where it is clear; returns it.
+
+    Alpha 9 L10 (the shop drawings, every one off by default): ``size_text`` the size as
+    written (ISO 2553: "z6"); ``identification`` the dashed identification line of ISO 2553
+    system A (above the reference line, for a weld on the arrow side only); ``all_round`` the
+    weld-all-round circle; ``groove`` a complete joint penetration bevel groove in place of the
+    fillet triangle."""
     sheet = view.sheet
     labels = sheet.labels
     ax, ay = view.p(*at)
     ref = 18.0
     tri = 2.5
-    size_text = f"{size:g}"
+    size_text = f"{size:g}" if size_text is None else size_text
     length_text = f"{length:.0f}" if length else ""
     tail_w = text_width(tail, TEXT) + 4 if tail else 0.0
     candidates = [*(tries or []), *(
@@ -1003,10 +1014,22 @@ def weld_symbol(
         a = ang + side * math.radians(15)
         line((ax, ay), (ax + 2.2 * math.cos(a), ay + 2.2 * math.sin(a)))
     line((xs[0], y0), (xs[1], y0))
-    # the triangles: perpendicular leg on the left
+    if identification and not both:
+        # ISO 2553 system A: the dashed identification line on the other side
+        y1 = y0 + 1.2
+        for k in range(int(ref // 2)):
+            x_a = xs[0] + 2 * k
+            line((x_a, y1), (min(x_a + 1.2, xs[1]), y1))
+    if all_round:
+        end_x = xs[1] if left else xs[0]
+        sheet.msp.add_circle(sheet.m(end_x, y0), 1.0 * sheet.scale, dxfattribs={"layer": "S-WELD"})
+    # the triangles: perpendicular leg on the left (a groove: the bevel's)
     for sign in (-1, 1) if both else (-1,):
         line((tx, y0), (tx, y0 + sign * tri))
-        line((tx, y0 + sign * tri), (tx + tri, y0))
+        if groove:
+            line((tx + 0.4, y0), (tx + 0.4 + tri, y0 + sign * tri))
+        else:
+            line((tx, y0 + sign * tri), (tx + tri, y0))
         # the texts stand on the line (other side) or hang from it (arrow side)
         v = "B" if sign > 0 else "T"
         ty = y0 + sign * 0.4

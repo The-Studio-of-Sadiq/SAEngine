@@ -12168,6 +12168,10 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 					description: 'Layers, font, arrows, sheet numbers and title block lines of the office.',
 					title: 'Office standard',
 				},
+				fabrication: {
+					$ref: '#/$defs/Fabrication',
+					description: 'Steel shop drawings, NC files (DSTV) and rebar CNC files (BVBS) of 11 Exports: marks, weld symbols, clearances and the files\' headers.',
+				},
 			},
 			title: 'Drawings',
 			type: 'object',
@@ -12385,6 +12389,99 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 			},
 			required: ['weight'],
 			title: 'ExtraMass',
+			type: 'object',
+		},
+		Fabrication: {
+			additionalProperties: false,
+			description: 'Alpha 9 L10: the steel shop drawings, the DSTV NC files and the BVBS rebar files of 11\nExports (saengine.fabrication). Every field has a default: nothing needs entering.',
+			properties: {
+				orderNumber: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'The fabrication order in the NC files\' headers; empty: the project number.',
+					title: 'Order number',
+				},
+				phase: {
+					default: '1',
+					description: 'The erection phase in the NC files\' headers (DSTV).',
+					title: 'Phase',
+					type: 'string',
+				},
+				weldSymbols: {
+					default: 'pack',
+					description: 'The weld symbols of the shop drawings: the code pack\'s choice, AWS A2.4, or ISO 2553 system A or B.',
+					enum: ['pack', 'aws', 'isoA', 'isoB'],
+					enumDescriptions: ['The code pack\'s', 'AWS A2.4', 'ISO 2553 system A', 'ISO 2553 system B'],
+					title: 'Weld symbols',
+					type: 'string',
+				},
+				sheetSize: {
+					default: 'A3',
+					description: 'ISO sheet of the shop drawings.',
+					enum: ['A1', 'A2', 'A3'],
+					title: 'Shop drawing sheet size',
+					type: 'string',
+				},
+				endClearance: {
+					default: 12,
+					description: 'Gap between a beam\'s cut end and the face it frames into [mm] (fin plates, flange plates, gussets; an end plate is cut to the face less its thickness).',
+					maximum: 50,
+					minimum: 0,
+					title: 'Beam end clearance',
+					type: 'number',
+				},
+				beamPrefix: {
+					default: 'B',
+					minLength: 1,
+					title: 'Beam assembly marks',
+					type: 'string',
+				},
+				columnPrefix: {
+					default: 'C',
+					minLength: 1,
+					title: 'Column assembly marks',
+					type: 'string',
+				},
+				bracePrefix: {
+					default: 'BR',
+					minLength: 1,
+					title: 'Brace assembly marks',
+					type: 'string',
+				},
+				partPrefix: {
+					default: 'p',
+					minLength: 1,
+					title: 'Part marks',
+					type: 'string',
+				},
+				ncMarking: {
+					default: true,
+					description: 'The NC files carry the part mark to scribe on each part (DSTV SI block).',
+					title: 'Mark the parts',
+					type: 'boolean',
+				},
+				bvbsDrawing: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'The bar schedule\'s number in the BVBS files; empty: \'BBS\'.',
+					title: 'BVBS schedule number',
+				},
+			},
+			title: 'Fabrication',
 			type: 'object',
 		},
 		FireResistance: {
@@ -15924,6 +16021,17 @@ export const DEFAULT_SETTINGS: object = {
 			electricalPrefix: 'E-',
 			firePrefix: 'FP-',
 			coordinationPrefix: 'MC-',
+		},
+		fabrication: {
+			phase: '1',
+			weldSymbols: 'pack',
+			sheetSize: 'A3',
+			endClearance: 12.0,
+			beamPrefix: 'B',
+			columnPrefix: 'C',
+			bracePrefix: 'BR',
+			partPrefix: 'p',
+			ncMarking: true,
 		},
 	},
 	report: {
