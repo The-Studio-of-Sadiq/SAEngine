@@ -817,3 +817,9 @@ gives no rating method).
 | # | Path | Value | Source | Sure? |
 |---|---|---|---|---|
 | S1 | detailing.special.columnSplice* (inherited) | BNBC 2020's: min(least dimension / 4, 100 mm); not used while concreteMethods.seismic is curvatureDuctility | EN 1998-1 5.6.3 (laps in critical regions) | Check (not entered) |
+
+## Beam splice hoops (pack follow-up 2026-11-10)
+
+| # | Path | Value | Source | Sure? |
+|---|---|---|---|---|
+| B1 | detailing.bars.splices.hoopDepthShare, hoopMax (inherited) | the default pack's 0.25 and 100 mm: hoops over the lap splices of special moment frame beams at min(d/4, 100 mm), the check and Design Reinforcement now read them as the drawings do (values unchanged) | EN 1998-1 5.6.3 / EN 1992-1-1 8.7.4 (transverse bars at laps) | Check |

@@ -79,3 +79,9 @@ is the US pack's (`aci318-asce7-22`, its VERIFY.md).
 | # | Path | Value | Source | Sure? |
 |---|---|---|---|---|
 | S1 | detailing.special.columnSplice* (inherited) | the ACI 318-19 pack's: ties over the lap splices of special moment frame columns at the end zones' spacing (least dimension / 4, 6 db, so) | NTC-Concreto (ductile columns, lap splices) | Check (the NTC rule not entered) |
+
+## Beam splice hoops (pack follow-up 2026-11-10)
+
+| # | Path | Value | Source | Sure? |
+|---|---|---|---|---|
+| B1 | detailing.bars.splices.hoopDepthShare, hoopMax (inherited) | the default pack's 0.25 and 100 mm: hoops over the lap splices of special moment frame beams at min(d/4, 100 mm), the check and Design Reinforcement now read them as the drawings do (values unchanged) | NTC-Concreto (ductile beams, lap splices) | Check |

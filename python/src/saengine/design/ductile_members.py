@@ -30,8 +30,9 @@ Beams of special moment frames (8.3.4, p. 1090-1094)
   top and bottom (all bars of an object type run its full length here); Mn+ >= Mn- / 2 at the
   joint face; Mn+ and Mn- >= max Mn / 4 at any section (one bar layout per type: the faces
   and every section have the same strengths).
-- 8.3.4.2(b) hoops over lap splices at <= min(d/4, 100 mm); splice locations (not within the
-  joint or 2h of its face) are not modelled: said in the notes.
+- 8.3.4.2(b) hoops over lap splices at <= min(d/4, 100 mm) (the pack's ``detailing.bars.splices``
+  ``hoopDepthShare``, ``hoopMax``: :func:`beam_splice_spacing`); splice locations (not within
+  the joint or 2h of its face) are not modelled: said in the notes.
 - 8.3.4.3(a) hoops over 2h from each face; (b) first hoop <= 50 mm from the face, spacing <=
   min(d/4, 8 db,min, 24 dh, 300 mm); (c) elsewhere <= d/2; perimeter bars in the hoop zones
   laterally supported per 8.1.9.4(c) (every corner and alternate bar held by a hoop leg, no
@@ -156,6 +157,16 @@ _CLAUSES = {
     "intermediate": "imfBeams",
     "ordinary": "omf",
 }
+
+
+def beam_splice_spacing(d: float) -> tuple[float, str]:
+    """The largest spacing of the hoops over the lap splices of a special moment frame beam of
+    effective depth ``d``, and its rule, from the pack's ``detailing.bars.splices`` (the rule
+    the drawings' bar schedules also follow): d x ``hoopDepthShare``, at most ``hoopMax`` [mm]
+    (default pack BNBC 2020 8.3.4.2(b): min(d/4, 100 mm))."""
+    sp = code_context.pack_table("detailing").bars.splices
+    share, cap = float(sp.hoopDepthShare), float(sp.hoopMax)
+    return min(d * share, cap), f"min(d/{1 / share:g}, {cap:g} mm)"
 
 
 def splice_note() -> str:
@@ -448,7 +459,7 @@ def beam_need(section: RcSection, frame: str, transverse_dia: float, lateral: bo
         first=_special("beamFirstHoop") if zone else None,
         outside_spacing=outside,
         outside_rule="d/2" if outside is not None else "",
-        splice_spacing=min(d / 4, 100.0) if longitudinal and frame == "special" else None,
+        splice_spacing=beam_splice_spacing(d)[0] if longitudinal and frame == "special" else None,
         min_width=max(_special("beamMinWidth"), _special("beamMinRatio") * h)
         if frame == "special" and lateral
         else None,
@@ -644,7 +655,7 @@ def beam_checks(
                     zones.splice_spacing,
                     need.splice_spacing,
                     "mm",
-                    "min(d/4, 100 mm)",
+                    beam_splice_spacing(need.d)[1],
                 )
             )
         out.notes.append(

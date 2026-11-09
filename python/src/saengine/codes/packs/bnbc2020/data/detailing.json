@@ -149,6 +149,8 @@
     "special.columnSpliceDivisor": "BNBC 2020 Part 6 Sec 8.3.5.3(b) with Figures 6.8.7-6.8.8 (pp. 1099-1102): ties over the lap splices of special moment frame columns at most the least dimension / 4",
     "special.columnSpliceCap": "BNBC 2020 Part 6 Sec 8.3.5.3(b) with Figures 6.8.7-6.8.8 (pp. 1099-1102): and at most 100 mm",
     "special.columnSpliceZone": "BNBC 2020 Part 6 Sec 8.3.5.3(b), Figure 6.8.8: the splice ties are set by their own limits (least dimension / 4, 100 mm), not by the end zone's spacing of Sec 8.3.5.4(b)",
+    "bars.splices.hoopDepthShare": "BNBC 2020 Part 6 Sec 8.3.4.2(b), Figure 6.8.3 (p. 1091): the transverse reinforcement over the lap splices of special moment frame beams at most d / 4",
+    "bars.splices.hoopMax": "BNBC 2020 Part 6 Sec 8.3.4.2(b), Figure 6.8.3 (p. 1091): and at most 100 mm",
     "joints": "BNBC 2020 Part 6 Sec 8.3.5.2(b), 8.3.7 (pp. 1096, 1108-1110), 8.3.8.2(a) (p. 1112)",
     "walls": "BNBC 2020 Part 6 Sec 8.3.6.2, 8.3.6.6 (pp. 1100-1105), 8.3.6.7(d) (pp. 1108-1109), 8.3.6.8 (pp. 1109-1110); the code does not define a wall pier's proportions: pierLengthRatioMax and pierHeightRatioMin are ACI 318-19 2.3's",
     "lintels": "SAEngine lintel design (design/lintels.py CLAUSES)",

@@ -359,3 +359,9 @@ check every row (a city's districts can differ).
 | # | Path | Value | Source | Sure? |
 |---|---|---|---|---|
 | S1 | detailing.special.columnSplice* (inherited) | BNBC 2020's: min(least dimension / 4, 100 mm) | GB 50010 8.4.6 / GB 50011 6.3 (stirrups over laps of seismic columns) | Check (the GB rule not entered) |
+
+## Beam splice hoops (pack follow-up 2026-11-10)
+
+| # | Path | Value | Source | Sure? |
+|---|---|---|---|---|
+| B1 | detailing.bars.splices.hoopDepthShare, hoopMax (inherited) | the default pack's 0.25 and 100 mm: hoops over the lap splices of special moment frame beams at min(d/4, 100 mm), the check and Design Reinforcement now read them as the drawings do (values unchanged) | GB 50010 11.1.8 type (lap length hoops of seismic members) | Check |

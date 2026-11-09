@@ -966,3 +966,10 @@ The bill of quantities and the bar schedules weighed US bars as d²/162 of the s
 | S1 | detailing.special.columnSpliceDivisor | 4 (the parent's) | ACI 318-19 18.7.4.3, 18.7.5.3(a) | Sure |
 | S2 | detailing.special.columnSpliceCap | none (the parent's 100 mm is BNBC 2020's) | ACI 318-19 18.7.4.3 | Sure |
 | S3 | detailing.special.columnSpliceZone | true: the splices enclosed by the transverse reinforcement of 18.7.5.2 and 18.7.5.3 | ACI 318-19 18.7.4.3 | Sure |
+
+## Beam splice hoops (pack follow-up 2026-11-10)
+
+| # | Path | Value | Source | Sure? |
+|---|---|---|---|---|
+| B1 | detailing.bars.splices.hoopDepthShare | 0.25 (the parent's): hoops over the lap splices of special moment frame beams at most d / 4 | ACI 318-19 18.6.3.3 | Sure |
+| B2 | detailing.bars.splices.hoopMax | 100 mm (the parent's) | ACI 318-19 18.6.3.3 | Sure |

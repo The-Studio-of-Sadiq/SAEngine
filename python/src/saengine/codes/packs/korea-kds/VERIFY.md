@@ -38,3 +38,9 @@ does not set is the base pack's (`aci318-asce7-22`, its VERIFY.md).
 | # | Path | Value | Source | Sure? |
 |---|---|---|---|---|
 | S1 | detailing.special.columnSplice* (inherited) | the ACI 318-19 pack's: ties over the lap splices of special moment frame columns at the end zones' spacing (least dimension / 4, 6 db, so) | KDS 14 20 80 (special moment frame columns, lap splices) | Check (ACI 318 type; not confirmed) |
+
+## Beam splice hoops (pack follow-up 2026-11-10)
+
+| # | Path | Value | Source | Sure? |
+|---|---|---|---|---|
+| B1 | detailing.bars.splices.hoopDepthShare, hoopMax (inherited) | the default pack's 0.25 and 100 mm: hoops over the lap splices of special moment frame beams at min(d/4, 100 mm), the check and Design Reinforcement now read them as the drawings do (values unchanged) | KDS 14 20 80 (special moment frame beams, the ACI 318 type) | Check |
