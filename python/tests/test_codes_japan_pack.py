@@ -300,7 +300,9 @@ def test_generated_building_through_the_primary_design(tmp_path):
 
     model_path = root / "08 FEM/model.osmodel"
     model = json.loads(model_path.read_text(encoding="utf-8"))
-    with code_context.project(root):
+    # code_context.project() only says where the project's packs are; the caller puts the pack
+    # in force (as the report and the pushover check run it).
+    with code_context.project(root), code_context.using(registry.load(PACK_ID)):
         shape = hc.stiffness_eccentricity(model, root / "08 FEM/model.results", model_path)
     assert {r["direction"] for r in shape["rows"]} == {"X", "Y"}
     assert all(r["Fs"] >= 1.0 and r["Fe"] >= 1.0 for r in shape["rows"])
