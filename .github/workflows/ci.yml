@@ -44,7 +44,7 @@ jobs:
     # The repository variable CI_RUNS_ON switches CI to the self-hosted desktop runner
     # (docs/ci-desktop-runner.md), e.g. ["self-hosted", "saengine-desktop"]; unset: GitHub's runner.
     runs-on: ${{ fromJSON(vars.CI_RUNS_ON || '"ubuntu-latest"') }}
-    timeout-minutes: 90
+    timeout-minutes: 240  # the full suite outgrew 90 min in alpha 9
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
