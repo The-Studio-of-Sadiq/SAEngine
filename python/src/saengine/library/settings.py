@@ -3557,6 +3557,49 @@ def strength_combinations(
     return result
 
 
+def project_strength_combinations(
+    settings: ProjectSettings, pack: CodePack | None = None
+) -> list[LoadCombination]:
+    """The strength combinations ``pack`` (default: the pack in force) generates for the
+    project ``settings`` (Project Settings > Load Combinations > Generate): with ±T, ST and CS
+    where the analysis model has those cases, and the pack's factor exceptions where they
+    hold (:func:`strength_combinations`)."""
+    analysis = settings.analysis
+    timed = analysis.timeDependent
+    pack = pack or code_context.current()
+    with code_context.using(pack):  # the T, ST and CS rows of the same pack
+        return strength_combinations(
+            thermal=analysis.thermal.enabled,
+            pack=pack,
+            settlement=analysis.settlement.enabled,
+            settings=settings,
+            creep_shrinkage=bool(timed.enabled and getattr(timed, "forcesCase", False)),
+        )
+
+
+def combinations_from_pack(settings: ProjectSettings, pack: CodePack | None = None) -> bool:
+    """Whether the project's strength combinations are those ``pack`` generates for it
+    (:func:`project_strength_combinations`, the same factors in any order; the names are not
+    compared, a factor 0 as none): False when they were edited, or kept from another pack after
+    a pack change."""
+
+    def key(c: LoadCombination) -> tuple[tuple[str, float], ...]:
+        data = c.model_dump(mode="json", exclude={"name"}, exclude_none=True)
+        return tuple(
+            sorted(
+                (k, round(float(v), 4))
+                for k, v in data.items()
+                if isinstance(v, int | float) and abs(v) > 1e-9  # an empty F or H as 0
+            )
+        )
+
+    try:
+        expected = project_strength_combinations(settings, pack)
+    except Exception:  # noqa: BLE001 - a pack without combinations: nothing to compare with
+        return False
+    return sorted(map(key, settings.combinations)) == sorted(map(key, expected))
+
+
 def _exception_wanted(name: str, exception: Any, settings: ProjectSettings, pack: CodePack) -> bool:
     """Whether the project takes the pack's factor exception ``name``: one on the live load
     when ``analysis.reducedLiveFactor`` is chosen, one on the wind when its conditions hold."""

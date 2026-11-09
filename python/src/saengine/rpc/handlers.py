@@ -2884,6 +2884,40 @@ def codes_settings_for_pack(
     return {"settings": settings.model_dump(mode="json", by_alias=True, exclude_none=True)}
 
 
+def codes_combinations(settings_text: str, root: str | None = None) -> dict[str, Any]:
+    """W4A-2: the strength combinations the code pack the settings choose (unsaved edits
+    included, ``settings_text``; with the project's overrides) generates for the project
+    (:func:`saengine.library.settings.project_strength_combinations`): ``{id, name,
+    combinations, fromPack}``, ``fromPack`` whether the settings' combinations are those
+    already; or a refusal."""
+    import json
+
+    from pydantic import ValidationError
+
+    from saengine.codes import CodePackError
+    from saengine.codes import context as code_context
+    from saengine.library.settings import (
+        ProjectSettings,
+        combinations_from_pack,
+        project_strength_combinations,
+    )
+
+    try:
+        settings = ProjectSettings.model_validate(json.loads(settings_text))
+        with code_context.project(_pack_root(root)):
+            pack = code_context.pack_for(settings, strict=True)
+            rows = project_strength_combinations(settings, pack)
+            same = combinations_from_pack(settings, pack)
+    except (CodePackError, ValidationError, ValueError) as error:
+        return _refusal(error)
+    return {
+        "id": pack.id,
+        "name": pack.edition or pack.name,
+        "combinations": [c.model_dump(mode="json", by_alias=True, exclude_none=True) for c in rows],
+        "fromPack": same,
+    }
+
+
 def codes_values(
     settings_text: str | None = None, root: str | None = None, table: str | None = None
 ) -> dict[str, Any]:

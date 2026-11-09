@@ -594,11 +594,22 @@ STIFF_BEAM_WIDTH = 400.0
 PERIOD_TARGET = 1.5
 
 
+def period_ratio(period: float, limit: float | None) -> float:
+    """(T / (:data:`PERIOD_TARGET` Cu Ta))² of an estimated period against the pack's cap
+    ``limit`` (Cu Ta); 0 where the pack gives no cap (None): the period is not checked."""
+    if limit is None or limit <= 0:
+        return 0.0
+    return (period / (PERIOD_TARGET * limit)) ** 2
+
+
 class StiffnessEstimate(BaseModel):
     """What :func:`stiffness_estimate` found per direction ("X", "Y")."""
 
     period: dict[str, float]
-    periodLimit: float
+    #: Cu Ta, the cap on the period the static forces may use; None where the code pack gives
+    #: no cap (EN 1998-1 4.3.3.2.2: T1 from the structure's properties): the period estimated
+    #: is used as it is and not checked against a cap.
+    periodLimit: float | None
     ta: float
     #: Per direction and storey 1..n: the design drift Cd δe / I over its limit Δa (Table
     #: 6.2.21) and the columns' share of the storey's flexibility; per direction the roof's
@@ -679,8 +690,8 @@ def stiffness_estimate(
         )
         cd = float(values["Cd"])
     out = StiffnessEstimate(
-        period={}, periodLimit=upper * ta, ta=ta, seismicRatio={}, windRatio={}, columnShare={},
-        driftLimit=limit, cd=cd,
+        period={}, periodLimit=None if upper is None else upper * ta, ta=ta, seismicRatio={},
+        windRatio={}, columnShare={}, driftLimit=limit, cd=cd,
     )  # fmt: skip
 
     def shears(forces: list[float]) -> list[float]:
@@ -1884,8 +1895,7 @@ def _generate_building(s: BuildingSpec, settings: Any) -> dict[str, Any]:
             first_estimate = first_estimate or estimate
             need: dict[tuple[str, int], float] = {}
             period_need = {
-                axis: (t / (PERIOD_TARGET * estimate.periodLimit)) ** 2
-                for axis, t in estimate.period.items()
+                axis: period_ratio(t, estimate.periodLimit) for axis, t in estimate.period.items()
             }
             for axis in ("X", "Y"):
                 for k in range(1, n + 1):
@@ -2146,8 +2156,7 @@ def _generate_building(s: BuildingSpec, settings: Any) -> dict[str, Any]:
         met = max(
             max(max(estimate.seismicRatio[a]) for a in ("X", "Y")),
             max(estimate.windRatio.values()),
-            max((t / (PERIOD_TARGET * estimate.periodLimit)) ** 2 for t in
-                estimate.period.values()),
+            max(period_ratio(t, estimate.periodLimit) for t in estimate.period.values()),
         ) <= 1.0 + 1e-6  # fmt: skip
         cracked = code_context.cracked_factors()
         from saengine.fem.serviceability import sway_basis
@@ -2176,13 +2185,19 @@ def _generate_building(s: BuildingSpec, settings: Any) -> dict[str, Any]:
                 if sway is not None
                 else "roof sway under wind: not covered by the code pack; "
             )
-            + "(3) the period by Rayleigh's quotient against "
-            f"{PERIOD_TARGET:g} Cu Ta = {PERIOD_TARGET * first_estimate.periodLimit:.2f} s "
-            f"(Cu Ta = {first_estimate.periodLimit:.2f} s, Sec 2.5.7.2 (a), p. 627; Ta = Ct "
-            "hn^m, eq. 6.2.38, Table 6.2.20, p. 628). Cu Ta caps the period the static forces "
-            "may use and is no limit on the structure; an estimate above "
-            f"{PERIOD_TARGET:g} Cu Ta is taken as a frame too flexible (SAEngine practice). "
-            f"Where one failed: the beams along that direction 25 mm deeper up to "
+            + (
+                "(3) the period by Rayleigh's quotient against "
+                f"{PERIOD_TARGET:g} Cu Ta = {PERIOD_TARGET * first_estimate.periodLimit:.2f} s "
+                f"(Cu Ta = {first_estimate.periodLimit:.2f} s, Sec 2.5.7.2 (a), p. 627; Ta = Ct "
+                "hn^m, eq. 6.2.38, Table 6.2.20, p. 628). Cu Ta caps the period the static "
+                "forces may use and is no limit on the structure; an estimate above "
+                f"{PERIOD_TARGET:g} Cu Ta is taken as a frame too flexible (SAEngine practice). "
+                if first_estimate.periodLimit is not None
+                else "(3) the period by Rayleigh's quotient: the code pack gives no upper limit "
+                "on the period (no Cu), so the period computed is used as it is and not checked "
+                f"(Ta = {first_estimate.ta:.2f} s). "
+            )
+            + f"Where one failed: the beams along that direction 25 mm deeper up to "
             f"span/{STIFF_BEAM_SPAN_DEPTH:g}, then 25 mm wider up to "
             f"{STIFF_BEAM_WIDTH_SHARE:g} h and {STIFF_BEAM_WIDTH:g} mm, while they govern the "
             "storey's flexibility; else the columns of the storey groups concerned 50 mm "
@@ -2843,8 +2858,14 @@ def _generate_building(s: BuildingSpec, settings: Any) -> dict[str, Any]:
         "stiffness": (
             {
                 "ta": round(estimate.ta, 3),
-                "periodLimit": round(estimate.periodLimit, 3),
-                "periodTarget": round(PERIOD_TARGET * estimate.periodLimit, 3),
+                "periodLimit": (
+                    None if estimate.periodLimit is None else round(estimate.periodLimit, 3)
+                ),
+                "periodTarget": (
+                    None
+                    if estimate.periodLimit is None
+                    else round(PERIOD_TARGET * estimate.periodLimit, 3)
+                ),
                 "before": {
                     "period": {a: round(t, 3) for a, t in first_estimate.period.items()},
                     "seismicDriftRatio": {
