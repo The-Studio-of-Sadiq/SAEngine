@@ -3649,6 +3649,13 @@ def _derive_fem(
                 for a, row in dampers_json["byAxis"].items()
                 if row.get("available")
             }
+    # ── W4B-1: the elements added after the construction stages were formed (isolators and
+    # their ground nodes, soil springs) are built with the stage of the nodes they join ──
+    if staged and stage_added_elements(project):
+        b.notes.append(
+            "construction sequence: the supports added under the bases (isolators, soil "
+            "springs) are built with the storey above them"
+        )
     # ── alpha 9 P2: the creep and shrinkage forces case CS (saengine.fem.staged), on the final
     # model; its fixed-end forces go beside the temperature case's (thermal.json, "more") ──
     td = getattr(options, "timeDependent", None)
@@ -3685,6 +3692,62 @@ def _derive_fem(
         isolation=isolation_json,
         dampers=dampers_json,
     )
+
+
+def stage_added_elements(project: dict[str, Any]) -> int:
+    """Puts the elements added to ``project`` after its construction stages were formed (the
+    seismic isolators and their fixed ground nodes, the soil springs of the bases, ...) into
+    each staged analysis: an element enters the earliest stage by which every one of its nodes
+    that the stages build is built (the isolator under a column base with the storey above it,
+    in the first stage); a node that only added elements use (a ground node) does not hold it
+    back, and is built with it. Without this the staged model left them out, and a base on an
+    isolator had nothing under it (W4B-1). Returns the number of elements placed."""
+    staged = [a for a in project.get("analyses", []) if a.get("type") == "Staged"]
+    if not staged:
+        return 0
+    elements = project.get("elements", [])
+    links = [
+        (int(c["retained_node"]), int(c["constrained_node"]))
+        for c in project.get("mp_constraints", []) or []
+        if "retained_node" in c and "constrained_node" in c
+    ]
+    placed = 0
+    for analysis in staged:
+        stages = analysis.get("stages") or []
+        if not stages:
+            continue
+        by_id = {int(e["id"]): e for e in elements}
+        node_stage: dict[int, int] = {}
+        for k, stage in enumerate(stages):
+            for i in stage.get("element_ids", []):
+                for n in by_id.get(int(i), {}).get("nodes", []):
+                    node_stage.setdefault(int(n), k)
+        built = {int(i) for stage in stages for i in stage.get("element_ids", [])}
+        waiting = [e for e in elements if int(e["id"]) not in built]
+        while waiting:
+            later = []
+            for e in waiting:
+                known = [node_stage[int(n)] for n in e.get("nodes", []) if int(n) in node_stage]
+                if not known:
+                    later.append(e)
+                    continue
+                k = max(known)
+                stages[k].setdefault("element_ids", []).append(int(e["id"]))
+                for n in e.get("nodes", []):
+                    node_stage.setdefault(int(n), k)
+                placed += 1
+            # A rigid link builds its constrained node with its retained one (and back).
+            for retained, constrained in links:
+                if retained in node_stage and constrained not in node_stage:
+                    node_stage[constrained] = node_stage[retained]
+                elif constrained in node_stage and retained not in node_stage:
+                    node_stage[retained] = node_stage[constrained]
+            if len(later) == len(waiting):
+                break  # parts joined to nothing the stages build stay out, as before
+            waiting = later
+        for stage in stages:
+            stage["element_ids"] = sorted(set(stage.get("element_ids", [])))
+    return placed
 
 
 def _ordinate_terms(

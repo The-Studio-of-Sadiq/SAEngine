@@ -303,12 +303,23 @@ def is_strength_level_wind(strength: list[tuple[str, dict[str, float]]]) -> bool
 
 
 def support_nodes(project: dict[str, Any]) -> dict[tuple[int, int, int], int]:
-    """Fully restrained nodes of the analysis model, by position rounded to mm."""
+    """Restrained nodes of the analysis model, by position rounded to mm. Where two share a
+    position (W4B-2: a column base on a seismic isolator, held in rotation only, above the
+    isolator's fixed ground node) the fully restrained one: the isolator's forces are what the
+    footing takes; the base's rotation is held by the plinth or base slab above the isolator,
+    whose moment an isolator does not pass on."""
     supports: dict[tuple[int, int, int], int] = {}
+    full: set[tuple[int, int, int]] = set()
     for node in project.get("nodes", []):
-        if any(node.get("restraint") or []):
+        restraint = node.get("restraint") or []
+        if any(restraint):
             key = tuple(round(float(c) * 1000) for c in node["coords"][:3])
+            fixed = all(restraint)
+            if key in full and not fixed:
+                continue
             supports[key] = int(node["id"])  # type: ignore[index]
+            if fixed:
+                full.add(key)  # type: ignore[arg-type]
     return supports
 
 

@@ -646,6 +646,12 @@ def _analysis(project: Project, step: StepResult, report: Callable[[str], None])
     outcome = run_analysis(model, report)
     if outcome["status"] != "done":
         raise StepFailure(outcome.get("message") or outcome["status"])
+    # W4B-1: results no structure can have fail the step (and are not kept as current).
+    from saengine.fem.results_check import implausible
+
+    problem = implausible(model, results_folder(model))
+    if problem:
+        raise StepFailure(problem)
     keep_analysis_inputs(model)
     step.status = "ok"
     step.counts = {"cases": outcome["cases"]}
