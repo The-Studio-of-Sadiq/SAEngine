@@ -62,12 +62,21 @@ LAYERS = 5
 WELD_STIFFNESS = 10.0
 #: The stub of the connected member [Ã— the plate height, at least].
 STUB = 1.5
+#: The joint's zone of the stub [Ã— the plate height, from the joint]: plastic and checked;
+#: beyond it the stub is elastic and not checked. The stub is the beam's web alone (no
+#: flanges), and the moment that keeps the face's moment at the design M grows along it
+#: (V Ã— the stub at its far end): the member's own bending, checked by the member design.
+JOINT_ZONE = 0.5
 #: Moment of the stiffness run [NÂ·m].
 TEST_MOMENT = 1000.0
 #: dM16 of the bolt shear stiffness [m] (EN 1993-1-8 Table 6.11).
 D_M16 = 0.016
 #: Step cuts before the load is taken as the joint's resistance.
 CUTS = 5
+#: The stiffness of a bolt in compression and of a contact link in tension (gap open), as a
+#: share of its stiffness: not zero, so a link switching state never leaves a zero tangent
+#: (the Newton iterations then ran away; the same slack stiffness as the cables').
+SLACK = 1e-6
 
 
 class ConnectionFeError(ValueError):
@@ -109,6 +118,10 @@ class Plate:
     vs: list[float] = field(default_factory=list)
     nodes: dict[tuple[int, int], int] = field(default_factory=dict)
     elements: list[int] = field(default_factory=list)
+    #: Shells whose centre lies beyond this ``u`` [m] are elastic and not checked (None: all
+    #: plastic and checked).
+    elastic_beyond: float | None = None
+    elastic: set[int] = field(default_factory=set)
 
     def point(self, s: float, r: float) -> np.ndarray:
         return self.origin + s * self.u + r * self.v
@@ -169,15 +182,14 @@ def _next(model: JointModel, kind: str) -> int:
 def _emit_plate(ops: Any, model: JointModel, plate: Plate, t: Any) -> None:
     """Nodes and shells of ``plate`` on its grid, with its layered J2 section."""
     e = plate.E
-    k_bulk = e / (3 * (1 - 2 * plate.nu))
-    g = e / (2 * (1 + plate.nu))
     fy = plate.fy * float(t.yieldFactor)
     r = float(t.hardeningRatio)
     h = e * r / (1 - r) if r > 0 else 0.0
-    j2 = _next(model, "material")
-    ops.nDMaterial("J2Plasticity", j2, k_bulk, g, fy, fy, 0.0, h)
+    # J2 in plane stress by its own return map (J2PlateFibre): the 3D J2Plasticity wrapped
+    # in PlateFiber iterates for σzz = 0 and ran away once the first layers yielded (the end
+    # plate stopped at 20 % of its load with no plastic strain reported).
     fibre = _next(model, "material")
-    ops.nDMaterial("PlateFiber", fibre, j2)
+    ops.nDMaterial("J2PlateFibre", fibre, e, plate.nu, fy, h, 0.0)
     section = _next(model, "section")
     layers: list[Any] = []
     for _ in range(LAYERS):
@@ -188,7 +200,24 @@ def _emit_plate(ops: Any, model: JointModel, plate: Plate, t: Any) -> None:
             tag = _next(model, "node")
             ops.node(tag, *(float(c) for c in plate.point(s, rr)))
             plate.nodes[(i, j)] = tag
+    elastic_section = section
+    if plate.elastic_beyond is not None:
+        elastic_fibre = _next(model, "material")
+        ops.nDMaterial("ElasticIsotropic", elastic_fibre, e, plate.nu)
+        plate_fibre = _next(model, "material")
+        ops.nDMaterial("PlateFiber", plate_fibre, elastic_fibre)
+        elastic_section = _next(model, "section")
+        ops.section(
+            "LayeredShell",
+            elastic_section,
+            LAYERS,
+            *itertools.chain.from_iterable([plate_fibre, plate.t / LAYERS] for _ in range(LAYERS)),
+        )
     for i in range(len(plate.us) - 1):
+        elastic = (
+            plate.elastic_beyond is not None
+            and (plate.us[i] + plate.us[i + 1]) / 2 > plate.elastic_beyond
+        )
         for j in range(len(plate.vs) - 1):
             tag = _next(model, "element")
             n = plate.nodes
@@ -199,9 +228,11 @@ def _emit_plate(ops: Any, model: JointModel, plate: Plate, t: Any) -> None:
                 n[(i + 1, j)],
                 n[(i + 1, j + 1)],
                 n[(i, j + 1)],
-                section,
+                elastic_section if elastic else section,
             )
             plate.elements.append(tag)
+            if elastic:
+                plate.elastic.add(tag)
 
 
 def _index(lines: list[float], value: float) -> int:
@@ -216,7 +247,7 @@ def _index(lines: list[float], value: float) -> int:
 def _elastic(ops: Any, model: JointModel, stiffness: float, tension_only: bool = False) -> int:
     tag = _next(model, "material")
     if tension_only:
-        ops.uniaxialMaterial("Elastic", tag, float(stiffness), 0.0, 0.0)
+        ops.uniaxialMaterial("Elastic", tag, float(stiffness), 0.0, SLACK * float(stiffness))
     else:
         ops.uniaxialMaterial("Elastic", tag, float(stiffness))
     return tag
@@ -329,7 +360,8 @@ def end_plate_model(
         us=ys_support,
         vs=zs_support,
     )
-    xs = grid(stub, [], size)
+    zone = JOINT_ZONE * hp
+    xs = grid(stub, [zone], size)
     web = Plate(
         "beam web",
         np.array([0.0, 0.0, -hp / 2]),
@@ -342,6 +374,7 @@ def end_plate_model(
         plate_e,
         us=xs,
         vs=zs,
+        elastic_beyond=zone,
     )
     model = JointModel([end_plate, support, web], stub=stub, stub_inertia=tw * hp**3 / 12)
     ops.wipe()
@@ -391,7 +424,8 @@ def end_plate_model(
         area = _tributary(ys, i) * _tributary(zs, j)
         k_c = plate_e * area / ((tp + ts) / 2)
         tag = _next(model, "material")
-        ops.uniaxialMaterial("ENT", tag, float(k_c))
+        # compression-only: Elastic E (tension) eta Eneg (compression)
+        ops.uniaxialMaterial("Elastic", tag, SLACK * float(k_c), 0.0, float(k_c))
         _link(ops, model, support.nodes[(si, sj)], node, [tag], y_axis)
     _load_point(ops, model, web, stub)
     return model
@@ -414,7 +448,8 @@ def fin_plate_model(
     size = mesh_size(t, [(fin_length, hp), (stub, hp)])
     zs = grid(hp, rows_z + [hp / 2], size)
     xs_fin = grid(fin_length, [a, gap], size)
-    xs_web = grid(stub, [a - gap], size)
+    zone = max(JOINT_ZONE * hp, a - gap + 2 * c.edgeDistance * MM)
+    xs_web = grid(stub, [a - gap, zone], size)
     x_axis, _y_axis, z_axis = np.eye(3)
     fin = Plate(
         "fin plate",
@@ -441,6 +476,7 @@ def fin_plate_model(
         plate_e,
         us=xs_web,
         vs=zs,
+        elastic_beyond=zone,
     )
     # The lever arm of the load is from the support face (x = 0).
     model = JointModel([fin, web], stub=gap + stub, stub_inertia=tw * hp**3 / 12)
@@ -557,6 +593,8 @@ def _plate_strains(ops: Any, plate: Plate, t: Any) -> dict[int, float]:
     fy = plate.fy * float(t.yieldFactor)
     r = max(float(t.hardeningRatio), 1e-6)
     for element in plate.elements:
+        if element in plate.elastic:
+            continue
         worst = 0.0
         read = False
         for point in range(1, 5):
