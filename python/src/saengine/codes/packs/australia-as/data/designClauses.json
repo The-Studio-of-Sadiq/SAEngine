@@ -14,7 +14,8 @@
       "patternLive": "",
       "accidentalTorsion": "6.6",
       "omega": "",
-      "fireRatings": "Section 5"
+      "fireRatings": "Section 5",
+      "deflectionLimits": "Table 2.3.2"
     },
     "punching": {
       "punching": "9.3",
@@ -85,7 +86,8 @@
   "sources": {
     "check.torsion": "AS 3600:2018 8.3 (the method torsionInteraction of concreteMethods.torsion)",
     "check.deflection": "AS 3600:2018 2.3.2 (limits, Table 2.3.2) and 8.5.3 (the effective second moment of area); the computation is the parent's Ie form (to verify against 8.5.3.1)",
-    "check.accidentalTorsion": "AS 1170.4-2007 6.6 (accidental eccentricity ±0.1 b)",
+    "check.deflectionLimits": "AS 3600:2018 Table 2.3.2 (limits for calculated vertical deflections of beams and slabs), the method text's limits",
+    "check.accidentalTorsion":"AS 1170.4-2007 6.6 (accidental eccentricity ±0.1 b)",
     "check.fireRatings": "AS 3600:2018 Section 5 (design for fire resistance)",
     "punching.punching": "AS 3600:2018 9.3 (the method momentTransfer of concreteMethods.punching)",
     "punching.section": "AS 3600:2018 9.3.1 (the critical shear perimeter at dom/2)",

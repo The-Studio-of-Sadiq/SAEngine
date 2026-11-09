@@ -57,7 +57,7 @@ from saengine.design import corbels as corbel_design
 from saengine.design import deflection as deflection_design
 from saengine.design import slender as slenderness_design
 from saengine.design import torsion as torsion_design
-from saengine.design.clauses import Clauses, clause
+from saengine.design.clauses import Own, clause
 from saengine.design.rc import (
     DesignError,
     InteractionSurface,
@@ -117,33 +117,49 @@ METHOD = [
         "depth axis that points up."
     ),
     (
-        "Beam torsion ({c[torsion]}): neglected below the threshold φTth; above "
-        "it the section limit (Eq. 6.6.59), closed stirrups At/s with the shear's Av/s per "
+        "Beam torsion{c[torsion]}: neglected below the threshold φTth; above "
+        "it the section limit{p[torsionLimit]}, closed stirrups At/s with the shear's Av/s per "
         "outer leg, the longitudinal steel Al on top of the flexural steel the simultaneous "
-        "moment needs, and the detailing of Sec 6.4.4.6. A beam whose end is free or which "
-        "carries a cantilever slab is designed for the full Tu (equilibrium torsion); a beam "
-        "framed at both ends for Tu reduced to at most φTcr (compatibility torsion, Sec "
-        "6.4.4.2.2): the moments this releases are not redistributed to the adjoining members "
-        "by SAEngine."
+        "moment needs, and the detailing{of[torsionDetailing]}. A beam whose end is free or "
+        "which carries a cantilever slab is designed for the full Tu (equilibrium torsion); a "
+        "beam framed at both ends for Tu reduced to at most φTcr (compatibility torsion"
+        "{cm[torsionCompatibility]}): the moments this releases are not redistributed to the "
+        "adjoining members by SAEngine."
     ),
     (
-        "Beam deflection ({c[deflection]}): each span between its supports, from the "
+        "Beam deflection{c[deflection]}: each span between its supports, from the "
         "analysis's unfactored D + SD and L (Lr on the roof) deflections relative to the chord, "
-        "scaled by the analysis E I over Ec Ie (Eq. 6.6.1, Ie at midspan, at the support of a "
-        "cantilever; the rectangle without the slab flange, on the safe side), the long-term "
-        "part λΔ = ξ/(1 + 50ρ') on D + SD and the sustained share of L; limits of Table 6.6.2. "
-        "With partitions not likely to be damaged a beam at least as deep as Table 6.6.1 asks "
-        "is not computed."
+        "scaled by the analysis E I over Ec Ie ({lead[deflectionIe]}Ie at midspan, at the "
+        "support of a cantilever; the rectangle without the slab flange, on the safe side), "
+        "the long-term part λΔ = ξ/(1 + 50ρ') on D + SD and the sustained share of L; "
+        "{limits[deflectionLimits]}. With partitions not likely to be damaged a beam at least "
+        "as deep as {depth[deflectionDepth]} is not computed."
     ),
     (
         "Columns: axial force with biaxial bending, the capacity read from the φ-factored "
         "interaction surface at the demand's axial force in the direction of its moment vector; "
         "φPn,max = 0.80 φ P0 (tied) or 0.85 φ P0 (spiral). Column shear from the analysis "
-        "along each profile axis, Vc with the simultaneous axial force ({c[columnShear]}), "
-        "the tie spacing limits of Sec 6.4.3.4 (the capacity-design shear of "
+        "along each profile axis, Vc with the simultaneous axial force{c[columnShear]}, "
+        "the tie spacing limits{of[columnTies]} (the capacity-design shear of "
         "special and intermediate frames is checked with the seismic detailing)."
     ),
 ]
+
+
+def method_refs() -> dict[str, Any]:
+    """The clause fields of :data:`METHOD`'s templates, read from the pack in force: ``c`` the
+    clause after the name of its code (left out when inherited from the default pack:
+    :func:`saengine.design.clauses.adopted`), the others bare numbers only where the pack gives
+    them itself (never another code's number in this pack's text)."""
+    return {
+        "c": Own("check", " ({})", named=True),
+        "p": Own("check", " ({})"),
+        "of": Own("check", " of {}"),
+        "cm": Own("check", ", {}"),
+        "lead": Own("check", "{}, "),
+        "limits": Own("check", "limits of {}", "the pack's limits"),
+        "depth": Own("check", "{} asks", "the pack's least depth"),
+    }
 
 
 #: The unfactored gravity cases the deflection checks use.
@@ -2174,7 +2190,7 @@ def _assemble(
     members_checked = [e for e in checked if e.get("kind") != DIAPHRAGM_KIND]
     members_failed = [e for e in members_checked if not e["ok"]]
     code = code_basis(settings).concrete
-    method = [line.format(code=code, c=Clauses("check")) for line in METHOD]
+    method = [line.format(code=code, **method_refs()) for line in METHOD]
     from saengine.design import torsion_interaction
 
     if torsion_interaction.rules() is not None and not design_strength.partial_factors():

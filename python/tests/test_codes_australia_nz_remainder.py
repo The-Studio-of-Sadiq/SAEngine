@@ -242,6 +242,70 @@ def test_clauses_from_the_packs_never_inherited():
         assert clause("punching", "punching") == "NZS 3101:2006 12.7"
 
 
+def _method_lines() -> list[str]:
+    from saengine.design import check, face_forces, slab, slab_frames
+
+    lines = [line.format(code="CODE", **check.method_refs()) for line in check.METHOD]
+    lines += face_forces.METHOD
+    lines.append(slab.COEFFICIENT_METHOD)
+    return lines + slab_frames.method_text({"directDesign", "equivalentFrame"})
+
+
+# The default pack's numbers the shared method texts used to hard-code.
+_DEFAULT_NUMBERS = (
+    "6.6.59",
+    "6.4.4.6",
+    "6.4.4.2.2",
+    "6.6.1",
+    "6.6.2",
+    "6.4.3.4",
+    "6.1.6",
+    "6.4.1.3.1",
+    "6.6.8",
+    "6.1.4.3",
+    "8.1.11.2",
+    "8.1.6",
+    "6.5.",
+)
+
+
+@pytest.mark.parametrize("pack_id", [AU, NZ, "eurocodes", "is-codes", "aci318-asce7-22"])
+def test_method_text_names_no_default_pack_clause(pack_id):
+    with code_context.using(registry.load(pack_id)):
+        text = "\n".join(_method_lines())
+    assert "BNBC" not in text
+    for number in _DEFAULT_NUMBERS:
+        assert number not in text, number
+    if pack_id == AU:
+        assert "limits of Table 2.3.2" in text  # the pack's own deflection limits
+        assert "Design at the faces of the supports:" in text
+    if pack_id == "aci318-asce7-22":
+        assert "Design at the faces of the supports (ACI 318-19 9.4.2.1)" in text
+
+
+def test_default_pack_method_text_keeps_its_clauses():
+    with code_context.using(registry.load("bnbc2020")):
+        text = "\n".join(_method_lines())
+    for number in (
+        "Eq. 6.6.59",
+        "Sec 6.4.4.6",
+        "Sec 6.4.4.2.2",
+        "Eq. 6.6.1",
+        "Table 6.6.2",
+        "Table 6.6.1 asks",
+        "limits of Sec 6.4.3.4",
+        "(6.1.6.2)",
+        "(6.4.1.3.1: ",
+        "(6.1.6.3 covers",
+        "BNBC 2020 Part 6 Sec 6.5.8 (Tables 6.6.8-6.6.11)",
+        "by BNBC Sec 6.1.4.3",
+        "(Sec 8.1.11.2: ",
+        "(BNBC 2020 Part 6 Sec 6.5.7)",
+        "Corner reinforcement (BNBC 2020 Part 6 Sec 6.5.3.6)",
+    ):
+        assert number in text, number
+
+
 # ───────────────────────────── generated buildings ─────────────────────────────
 
 
