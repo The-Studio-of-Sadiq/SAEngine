@@ -849,6 +849,15 @@ live answer before release.
 
 Not covered by this pack: composite slabs on steel deck (the compositeSlab table; the ANSI/SDI C-2017 values are not entered). A slab type's composite deck is reported as not checked.
 
+## CFD wind tunnel (`cfdWind`; alpha 9 L3)
+
+| # | Path | Value | Source | Sure? |
+|---|---|---|---|---|
+| L3-1 | directionStep | 30° | none in the code | SAEngine practice |
+| L3-2 | roughness.B / C / D | z0 = 0.3 / 0.02 / 0.005 m | ASCE 7-22 Commentary Table C26.7-1 (typical values) | Check |
+| L3-3 | lowerLimit | 0.8 | ASCE 7-22 Sec 31.4.3 (MWFRS loads at least 80 % of Part 1 of Ch 27 / Ch 28; the 50 % relaxation without influential nearby buildings is not used) | Check |
+| L3-4 | validation / clauses | Ch 31, Sec 31.2, ASCE/SEI 49-21 | ASCE 7-22 Ch 31 | Check |
+
 ## Alpha 9 L7: special members — `steelJoists`, `webOpenings`, `glass`, `membranes`, `compositePlateWalls`
 
 | # | Key | Value | Source | Status |
@@ -878,6 +887,16 @@ Not covered by this pack: composite slabs on steel deck (the compositeSlab table
 | L7U23 | compositePlateWalls.limits | tsc 230–1520 mm, ρ 1–10 %, tp ≥ 9.5 mm | AISC 341-22 H7.4 | Unsure |
 
 Not covered by this pack: aluminium (the Aluminum Design Manual; a planned feature).
+
+## Slope stability (`slopeStability`; alpha 9 L8)
+
+IBC 2021 and ASCE 7-22 give no slope method or factor of safety; the values are the parent's SAEngine practice with US sources.
+
+| # | Path | Value | Source | Sure? |
+|---|---|---|---|---|
+| L8U1 | required.permanent / temporary | 1.5 / 1.3 | USACE EM 1110-2-1902 (2003) Table 3-1 | Check |
+| L8U2 | required.seismic, seismic.khFactor | 1.1 with kh = 0.5 PGA | FHWA-NHI-11-032 Sec 6.3 (pseudo-static) | Check |
+| L8U3 | reinforcement | tensile 1.8, pull-out 2.0 | FHWA-NHI-14-007 (GEC 7, 2015) | Unsure (see bnbc2020 L8B8) |
 
 
 ## Bridges and special structures (alpha 9 L9) — `movingLoads.json`, `bridgeDesign.json`, `latticeTowers.json`, `offshore.json`, `pipingStress.json`

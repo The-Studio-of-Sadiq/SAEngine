@@ -43,7 +43,7 @@ import { partById } from '../../../services/saengineProject/common/saengineProje
 import { appendPropertyHeading, appendPropertyNote, appendPropertyRow, EditorFrame, IEditorFrameStatus } from '../../saengineProject/browser/editorFrame.js';
 import {
 	BOREHOLE_FIELDS, bearingSummary, boreholeDepth, DuplicateChoice, duplicateIds, hasLabData, mergeBoreholes, terminationDepth, boreholePosition, boreholeGround, checkSoilReport, choiceTitle, DESIGN_CHOICES, DESIGN_DEFAULTS, DESIGN_FIELDS, formatField, formatNumber, hasLiquefiable, IBearingCell, IBearingResult, IBorehole, IBoreholeResult, IFieldSpec,
-	ISoilComputeRequest, ISoilImportRequest, ISoilImportResult, ISoilProblem, ISoilReport, ISoilResults, ISoilTemplateRequest, ISoilTemplateResult, newBorehole, parseField,
+	ISoilComputeRequest, ISoilImportRequest, ISoilImportResult, ISoilProblem, ISoilReport, ISoilResults, ISoilTemplateRequest, ISoilTemplateResult, ISoilExportResult, SOIL_EXPORT_COMMAND, newBorehole, parseField,
 	IChoiceSpec, ISiteClassFlag, parseSoilReport, readSoilResults, splitError, REPORT_FIELDS, resultsBasis, serializeSoilReport, SOIL_COMPUTE_COMMAND, SOIL_IMPORT_COMMAND, SOIL_TEMPLATE_COMMAND, SOIL_TYPES, KS_LOW, siteClassLabel, siteFlagMeaning, siteFlagsOf, siltNeedsPlasticity, soilSummary, soilTypeLabel,
 	GisFormat, ILatLon, IOpenInQgisRequest, IOpenInQgisResult, ISoilGisExportRequest, ISoilGisExportResult, ISoilGisImportRequest, ISoilGisImportResult, ISoilLocationRequest, ISoilLocationResult, ISoilSample, QgisProgramResult,
 	MAP_TILE_ATTRIBUTION_SETTING, MAP_TILE_URL_SETTING, SOIL_GIS_EXPORT_COMMAND, SOIL_GIS_IMPORT_COMMAND, SOIL_LOCATION_COMMAND, SOIL_OPEN_IN_QGIS_COMMAND, SOIL_QGIS_PROGRAM_COMMAND,
@@ -207,8 +207,10 @@ export class SoilEditor extends EditorPane {
 	private readonly positionScheduler = this._register(new RunOnceScheduler(() => void this.updateDerivedPosition(), 600));
 
 	private readonly addAction = this._register(new Action('saengine.soil.editor.add', localize('soil.addBorehole', "Add Borehole"), ThemeIcon.asClassName(Codicon.add), true, async () => this.addBorehole()));
-	private readonly importAction = this._register(new Action('saengine.soil.editor.import', localize('soil.import', "Import CSV/Excel..."), ThemeIcon.asClassName(Codicon.cloudDownload), true, () => this.importFile()));
+	private readonly importAction = this._register(new Action('saengine.soil.editor.import', localize('soil.import', "Import CSV, Excel, AGS4, DIGGS..."), ThemeIcon.asClassName(Codicon.cloudDownload), true, () => this.importFile()));
 	private readonly templateAction = this._register(new Action('saengine.soil.editor.template', localize('soil.template', "Save Template..."), ThemeIcon.asClassName(Codicon.notebookTemplate), true, () => this.saveTemplate()));
+	/** Alpha 9 L8: the boreholes as AGS4 or DIGGS. */
+	private readonly exportAction = this._register(new Action('saengine.soil.editor.export', localize('soil.export', "Export AGS4/DIGGS..."), ThemeIcon.asClassName(Codicon.cloudUpload), true, () => this.exportFile()));
 	private readonly deleteAction = this._register(new Action('saengine.soil.editor.delete', localize('soil.deleteBorehole', "Delete Borehole"), ThemeIcon.asClassName(Codicon.trash), false, async () => this.deleteBorehole()));
 	private readonly fenceAction = this._register(new Action('saengine.soil.editor.fence', localize('soil.fence', "Show All Boreholes Side by Side"), ThemeIcon.asClassName(Codicon.splitHorizontal), true, async () => this.toggleFence()));
 	private readonly duplicateAction = this._register(new Action('saengine.soil.editor.duplicate', localize('soil.duplicate', "Duplicate Borehole"), undefined, false, async () => this.duplicateBorehole()));
@@ -766,7 +768,10 @@ export class SoilEditor extends EditorPane {
 				canSelectFiles: true,
 				canSelectMany: false,
 				filters: [
+					{ name: localize('soil.importFilterAll', "Borehole Data (CSV, Excel, AGS4, DIGGS)"), extensions: ['csv', 'xlsx', 'xls', 'ags', 'xml', 'diggs'] },
 					{ name: localize('soil.importFilter', "Borehole Data (CSV, Excel)"), extensions: ['csv', 'xlsx', 'xls'] },
+					{ name: localize('soil.importFilterAgs', "AGS4"), extensions: ['ags'] },
+					{ name: localize('soil.importFilterDiggs', "DIGGS (XML)"), extensions: ['xml', 'diggs'] },
 					{ name: localize('soil.allFiles', "All Files"), extensions: ['*'] },
 				],
 				// Where the last template was saved or file imported from (the filled-in template is
@@ -864,6 +869,53 @@ export class SoilEditor extends EditorPane {
 			cancelButton: { label: localize('soil.importCancel', "Cancel"), run: () => undefined },
 		});
 		return result;
+	}
+
+	/**
+	 * Alpha 9 L8: writes the report's boreholes as AGS4 (.ags) or DIGGS (.xml) (asks where when
+	 * `file` is not given); what the format could not hold is shown as notes.
+	 */
+	async exportFile(file?: URI): Promise<void> {
+		this.flush();
+		const report = this.report;
+		if (!report?.boreholes.length) {
+			return;
+		}
+		if (!CommandsRegistry.getCommand(SOIL_EXPORT_COMMAND)) {
+			this.notificationService.info(localize('soil.exportNoBackend', "Exporting needs the SAEngine backend, which is not available in this window."));
+			return;
+		}
+		if (!file) {
+			const folder = this.dataFolder ?? (this.resource ? dirname(dirname(this.resource)) : await this.fileDialogService.defaultFilePath());
+			file = await this.fileDialogService.showSaveDialog({
+				title: localize('soil.exportTitle', "Export Boreholes"),
+				defaultUri: folder ? joinPath(folder, 'boreholes.ags') : undefined,
+				filters: [
+					{ name: localize('soil.exportAgs', "AGS4"), extensions: ['ags'] },
+					{ name: localize('soil.exportDiggs', "DIGGS (XML)"), extensions: ['xml'] },
+				],
+			});
+		}
+		if (!file) {
+			return;
+		}
+		this.dataFolder = dirname(file);
+		try {
+			const result = await this.commandService.executeCommand<ISoilExportResult>(SOIL_EXPORT_COMMAND, { path: file.fsPath, soilText: serializeSoilReport(report) });
+			if (result?.problems?.length) {
+				this.notificationService.warn(localize('soil.exportProblems', "The boreholes could not be exported: {0}", result.problems.join('; ')));
+				return;
+			}
+			const saved = file;
+			const summary = localize('soil.exported', "Exported the boreholes to {0}.", displayPath(saved));
+			const notes = result?.notes ?? [];
+			this.notificationService.prompt(Severity.Info, notes.length ? localize('soil.exportedNotes', "{0} {1} notes on what the format does not hold.", summary, notes.length) : summary, [
+				...(notes.length ? [{ label: localize('soil.importShowNotes', "Show Notes"), run: () => void this.dialogService.info(summary, notes.join('\n')) }] : []),
+				{ label: localize('soil.templateReveal', "Reveal in File Explorer"), run: () => void this.commandService.executeCommand('revealFileInOS', saved) },
+			]);
+		} catch (error) {
+			this.notificationService.error(localize('soil.exportFailed', "The boreholes could not be exported: {0}", String(error)));
+		}
 	}
 
 	/** Writes a CSV or Excel template for the boreholes (asks where when `file` is not given). */
@@ -1037,7 +1089,8 @@ export class SoilEditor extends EditorPane {
 			this.deleteAction,
 			frame.togglePropertiesAction,
 		] : [frame.togglePropertiesAction];
-		const secondary: IAction[] = usable ? [this.duplicateAction, this.recomputeAction] : [];
+		this.exportAction.enabled = !!this.report?.boreholes.length;
+		const secondary: IAction[] = usable ? [this.duplicateAction, this.exportAction, this.recomputeAction] : [];
 		if (this.developerMode || this.parseError) {
 			if (secondary.length) {
 				secondary.push(new Separator());
@@ -1068,7 +1121,7 @@ export class SoilEditor extends EditorPane {
 				text: localize('soil.emptyText', "Add the boreholes of the site investigation: their strata, SPT blow counts and lab results. SAEngine then finds the site class, the allowable bearing pressure, the liquefaction risk and the pile parameters."),
 				actions: [
 					{ label: localize('soil.addBorehole', "Add Borehole"), icon: Codicon.add, primary: true, run: () => this.addBorehole() },
-					{ label: localize('soil.import', "Import CSV/Excel..."), icon: Codicon.cloudDownload, run: () => void this.importFile() },
+					{ label: localize('soil.import', "Import CSV, Excel, AGS4, DIGGS..."), icon: Codicon.cloudDownload, run: () => void this.importFile() },
 				],
 				link: { label: localize('soil.emptyTemplate', "Save a template to fill in"), run: () => void this.saveTemplate() },
 			});

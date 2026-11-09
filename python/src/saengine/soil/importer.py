@@ -798,15 +798,27 @@ def import_soil(path: str, soil_text: str | None = None) -> dict[str, Any]:
     what to do with an id the report already has (replace, keep both, skip)."""
     from saengine.soil.report import dumps, messages, parse
 
-    try:
-        rows = read_rows(path)
-    except Exception as exc:  # noqa: BLE001 - unreadable files are reported to the user
-        return {"problems": [f"{Path(path).name}: {exc}"]}
-    boreholes, problems, notes = parse_rows(rows)
-    if problems:
-        return {"problems": problems}
-    example = [hole for hole in boreholes if hole["id"] == EXAMPLE_ID]
-    boreholes = [hole for hole in boreholes if hole["id"] != EXAMPLE_ID]
+    exchange = EXCHANGE_FORMATS.get(Path(path).suffix.lower())
+    if exchange is not None:  # Alpha 9 L8: AGS4 and DIGGS, with the unmapped fields as notes
+        try:
+            boreholes, problems, notes = exchange[0](path)
+        except Exception as exc:  # noqa: BLE001 - unreadable files are reported to the user
+            return {"problems": [f"{Path(path).name}: {exc}"]}
+        if problems:
+            return {"problems": problems}
+        if not boreholes:
+            return {"problems": [f"{Path(path).name}: no boreholes"]}
+        example: list[dict[str, Any]] = []
+    else:
+        try:
+            rows = read_rows(path)
+        except Exception as exc:  # noqa: BLE001 - unreadable files are reported to the user
+            return {"problems": [f"{Path(path).name}: {exc}"]}
+        boreholes, problems, notes = parse_rows(rows)
+        if problems:
+            return {"problems": problems}
+        example = [hole for hole in boreholes if hole["id"] == EXAMPLE_ID]
+        boreholes = [hole for hole in boreholes if hole["id"] != EXAMPLE_ID]
     if not boreholes:
         if example:
             return {
@@ -841,6 +853,62 @@ def import_soil(path: str, soil_text: str | None = None) -> dict[str, Any]:
     except ValidationError as exc:
         return {"problems": messages(exc, data, Path(path).name)}
     return {"text": dumps(report), "notes": notes}
+
+
+# ─────────────────────── AGS4 and DIGGS exchange (alpha 9 L8) ───────────────────────
+
+
+def _ags_read(path: str) -> tuple[list[dict[str, Any]], list[str], list[str]]:
+    from saengine.soil import ags
+
+    return ags.read(path)
+
+
+def _ags_write(report: SoilReport, path: str) -> list[str]:
+    from saengine.soil import ags
+
+    return ags.write(report, path)
+
+
+def _diggs_read(path: str) -> tuple[list[dict[str, Any]], list[str], list[str]]:
+    from saengine.soil import diggs
+
+    return diggs.read(path)
+
+
+def _diggs_write(report: SoilReport, path: str) -> list[str]:
+    from saengine.soil import diggs
+
+    return diggs.write(report, path)
+
+
+#: File extension -> (reader, writer) of the exchange formats: AGS4 (.ags) and DIGGS (.xml,
+#: .diggs).
+EXCHANGE_FORMATS: dict[str, tuple[Any, Any]] = {
+    ".ags": (_ags_read, _ags_write),
+    ".xml": (_diggs_read, _diggs_write),
+    ".diggs": (_diggs_read, _diggs_write),
+}
+
+
+def export_soil(path: str, soil_text: str) -> dict[str, Any]:
+    """Write the soil report's boreholes as AGS4 (.ags) or DIGGS (.xml) by the extension of
+    ``path``: ``{"path", "notes"}`` (what was not written), or ``{"problems"}``."""
+    from saengine.soil.report import parse
+
+    exchange = EXCHANGE_FORMATS.get(Path(path).suffix.lower())
+    if exchange is None:
+        return {"problems": [f"{Path(path).name}: export to .ags (AGS4) or .xml (DIGGS)"]}
+    report = parse(soil_text)
+    if isinstance(report, list):
+        return {"problems": report}
+    if not report.boreholes:
+        return {"problems": ["the soil report has no boreholes to export"]}
+    try:
+        notes = exchange[1](report, path)
+    except OSError as exc:
+        return {"problems": [f"{Path(path).name}: {exc}"]}
+    return {"path": str(path), "notes": notes}
 
 
 # ─────────────────────────────── template ───────────────────────────────

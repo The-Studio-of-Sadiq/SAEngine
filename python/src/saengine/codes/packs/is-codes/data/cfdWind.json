@@ -1,0 +1,21 @@
+{
+  "$schema": "../../../schemas/cfdWind.schema.json",
+  "$replace": true,
+  "$sources": [
+    "IS 875 (Part 3):2015 Sec 6.3.2.1 (z0 of the terrain categories), Sec 10 (dynamic effects; wind tunnel studies); see VERIFY.md"
+  ],
+  "source": "IS 875 (Part 3):2015; SAEngine practice for the number of directions and the lower limit",
+  "directionStep": 30,
+  "roughness": { "1": 0.002, "2": 0.02, "3": 0.2, "4": 2.0 },
+  "lowerLimit": 0.8,
+  "validation": "IS 875 (Part 3) asks for wind tunnel studies of tall, slender or unusually shaped buildings (Sec 10). A CFD simulation is not such a study.",
+  "sources": {
+    "directionStep": "SAEngine practice: 12 directions every 30°",
+    "roughness": "IS 875 (Part 3):2015 Sec 6.3.2.1: z0 = 0.002, 0.02, 0.2 and 2.0 m for terrain categories 1 to 4",
+    "lowerLimit": "SAEngine practice after ASCE 7-22 Sec 31.4.3 (IS 875 (Part 3) gives no lower limit)",
+    "validation": "IS 875 (Part 3):2015 Sec 10"
+  },
+  "clauses": {
+    "procedure": "IS 875 (Part 3) Sec 10"
+  }
+}

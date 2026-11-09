@@ -20,12 +20,12 @@ File: `01 Soil Report/soil-report.json`. Open it with **1 Soil Report** in the s
   icon marks a borehole with errors. Up/Down arrows move through the list.
 - **Middle:** four views, **Log**, **Data**, **Results** and **Map**.
 - **Right:** the Properties panel.
-- **Toolbar:** **Add Borehole**, **Import CSV/Excel...**, **Save Template...**, **Show All
+- **Toolbar:** **Add Borehole**, **Import CSV, Excel, AGS4, DIGGS...**, **Save Template...**, **Show All
   Boreholes Side by Side** (Log view, two or more boreholes), **Delete**; under **...**:
-  **Duplicate Borehole** and **Compute Results Again**.
+  **Duplicate Borehole**, **Export AGS4/DIGGS...** and **Compute Results Again**.
 - **Status line:** e.g. *3 boreholes · site class SD · qa 160 kPa at B 2 m, Df 1.5 m*.
 
-An empty report shows *No boreholes yet* with **Add Borehole**, **Import CSV/Excel...** and
+An empty report shows *No boreholes yet* with **Add Borehole**, **Import CSV, Excel, AGS4, DIGGS...** and
 **Save a template to fill in**.
 
 ## Report properties
@@ -89,7 +89,7 @@ A silt without PI or cu gets the hint *is it plastic? Give PI or cu*.
 
 **Save Template...** writes `boreholes-template.xlsx` (or a .csv) next to the soil report: a
 sheet *Soil data* with an example borehole and a *Read me* sheet. Fill it in and import it with
-**Import CSV/Excel...**.
+**Import CSV, Excel, AGS4, DIGGS...**.
 
 - Accepted files: **.csv / .txt** and **.xlsx / .xlsm**. (The file dialog also lists .xls, but
   old .xls files are refused: save them as .xlsx first.)
@@ -99,6 +99,24 @@ sheet *Soil data* with an example borehole and a *Read me* sheet. Fill it in and
 - Lengths are in metres unless the header names mm, cm or ft; densities and pressures are
   converted from g/cc, t/m³, pcf, kg/cm², tsf, psi and other common units.
 - **A borehole whose ID already exists is replaced**; new IDs are added.
+
+### AGS4 and DIGGS
+
+The same import reads **AGS4** files (`.ags`, the UK format) and **DIGGS** files (`.xml`, the US
+format):
+
+- AGS4: the locations (`LOCA`), the strata (`GEOL`, the soil type from the description's
+  principal soil name), the SPT (`ISPT`, its 75 mm increments as the 150 mm ones), the water
+  strikes (`WSTG`, `WSTD`), the samples (`SAMP`) and their moisture, limits, density, grading,
+  triaxial, shear box and chemistry results. Positions from the local grid, latitude/longitude,
+  BTM, or a national grid (then relative to the first borehole).
+- DIGGS: the boreholes, their lithology, the driven penetration tests (SPT), water levels and
+  samples, depths in the unit of the borehole's linear referencing.
+- Every group, heading or element with a value that is not read is listed in the import's
+  notes (**Show Notes**).
+
+**Export AGS4/DIGGS...** (in the toolbar's more actions) writes the boreholes as AGS4 (`.ags`)
+or DIGGS (`.xml`); what the format cannot hold is listed in its notes.
 
 ## The Log view
 
@@ -211,7 +229,7 @@ basis) when the plot has a planning entry.
 | Command (category SAEngine) | Does |
 | --- | --- |
 | Add Borehole to the Soil Report | Adds a borehole |
-| Import Boreholes from CSV/Excel... | Imports a file |
+| Import Boreholes from CSV, Excel, AGS4 or DIGGS... | Imports a file |
 | Save Borehole Template... | Writes the template |
 
 ## Not confirmed / limitations

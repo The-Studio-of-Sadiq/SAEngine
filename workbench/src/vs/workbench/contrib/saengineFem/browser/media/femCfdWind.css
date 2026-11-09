@@ -1,0 +1,83 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) SAEngine contributors. All rights reserved.
+ *  Licensed under the AGPL-3.0-only license. See LICENSE in the repository root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* CFD Wind Tunnel (femCfdWind.ts, alpha 9 L3), on the shared editor frame (editorFrame.css). */
+
+.saengine-fem-cfd-editor .fem-cfd-body {
+	flex: 1;
+	overflow: auto;
+	padding: 12px 16px 24px;
+	font-size: var(--sa-font-s, 12px);
+	outline: none;
+}
+
+.saengine-fem-cfd-editor .fem-cfd-warning {
+	display: flex;
+	gap: 8px;
+	align-items: flex-start;
+	padding: 8px 10px;
+	margin-bottom: 12px;
+	border-left: 3px solid var(--sa-warn, var(--vscode-charts-orange));
+	background: color-mix(in srgb, var(--sa-warn, var(--vscode-charts-orange)) 10%, transparent);
+}
+
+.saengine-fem-cfd-editor .fem-cfd-warning .codicon {
+	color: var(--sa-warn, var(--vscode-charts-orange));
+	margin-top: 2px;
+}
+
+.saengine-fem-cfd-editor .fem-cfd-warning .fem-cfd-code {
+	margin-top: 4px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.saengine-fem-cfd-editor .fem-cfd-section {
+	margin-bottom: 16px;
+}
+
+.saengine-fem-cfd-editor .fem-cfd-section h3 {
+	margin: 0 0 6px;
+	font-size: var(--sa-font-m, 13px);
+	font-weight: 600;
+}
+
+.saengine-fem-cfd-editor .fem-cfd-section h4 {
+	margin: 12px 0 4px;
+	font-size: var(--sa-font-s, 12px);
+	font-weight: 600;
+}
+
+.saengine-fem-cfd-editor .fem-cfd-section p {
+	margin: 0 0 6px;
+}
+
+.saengine-fem-cfd-editor .fem-cfd-problem {
+	color: var(--sa-fail, var(--vscode-errorForeground));
+}
+
+.saengine-fem-cfd-editor .fem-cfd-steps {
+	margin: 0 0 6px;
+	padding-left: 20px;
+}
+
+.saengine-fem-cfd-editor .fem-cfd-steps li {
+	margin-bottom: 4px;
+	user-select: text;
+}
+
+.saengine-fem-cfd-editor .fem-cfd-pick select {
+	height: 24px;
+	margin-left: 4px;
+	border: 1px solid var(--vscode-input-border, var(--sa-border));
+	background: var(--vscode-input-background);
+	color: var(--vscode-input-foreground, var(--vscode-foreground));
+}
+
+.saengine-fem-cfd-editor .fem-cfd-link {
+	display: inline-block;
+	margin: 6px 0;
+	cursor: pointer;
+	color: var(--vscode-textLink-foreground);
+}

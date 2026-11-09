@@ -58,6 +58,8 @@
     "connectionFe",
     "precast",
     "floorSpectra",
+    "cfdWind",
+    "slopeStability",
     "movingLoads",
     "bridgeDesign",
     "latticeTowers",
@@ -140,11 +142,17 @@
     }
   ],
   "clauses": {
+    "cfdWind": [
+      "ASCE/SEI 7-22 Ch 31 (wind tunnel procedure), Sec 31.4.3 (80 % lower limit): the CFD wind tunnel link gives engineer-supplied wind loads to be validated by a wind tunnel test; z0 from Commentary Table C26.7-1"
+    ],
     "nonlinearStability": [
       "AISC 360-22 Appendix 1 and Sec C2.2a; plated parts and cables SAEngine practice"
     ],
     "connectionFe": [
       "SAEngine practice with AISC 360-22 Chapter J resistances and Commentary B3.4b"
+    ],
+    "slopeStability": [
+      "SAEngine practice where IBC 2021 and ASCE 7-22 are silent: USACE EM 1110-2-1902 Table 3-1 factors of safety, FHWA-NHI-11-032 pseudo-static kh = 0.5 PGA, FHWA-NHI-14-007 soil nails"
     ],
     "floorSpectra": [
       "ASCE 4-16 Ch 6 in-structure spectra (±15 % broadening); ASCE 7-22 Ch 13 component forces"

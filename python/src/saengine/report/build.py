@@ -1269,6 +1269,18 @@ def _derivation_rows(values: dict[str, Any], root: Path) -> list[list[str]]:
         rows.append(["Wind design cases", f"Cases 1 and 3 only{_c.paren('windDesignCasesExempt')}"])
     rows += _wind_gust_rows(wind.get("gust") or {})
     rows += _wind_cladding_rows(wind.get("cladding") or {})
+    cfd = values.get("cfdWind") or {}  # Alpha 9 L3: the CFD wind cases in place of the code's
+    if cfd.get("cases"):
+        rows.append(
+            [
+                "Wind cases from the CFD wind tunnel",
+                "engineer-supplied, to be validated (see CFD wind tunnel): "
+                + ", ".join(f"{case} toward {angle:g}°" for case, angle in cfd["cases"].items())
+                + f"; F = q·CF with q = {fmt(cfd.get('q_kPa', 0), 3)} kN/m²"
+                + (f" × {fmt(cfd['scale'], 3)} (lower limit)" if cfd.get("scale", 1) > 1 else "")
+                + "; the rows above are the code's own wind, kept for its torsional cases",
+            ]
+        )
     rows += _flood_rows(values.get("flood") or {}, values.get("specialLoads") or {})  # B16
     live = values.get("patternLive") or {}
     if live.get("cases"):
@@ -1783,6 +1795,7 @@ def _results(
     # Alpha 9 P7: floor vibration and wind comfort (the storey response's, one computation).
     out["floorVibration"], out["windComfort"] = _comfort(model_path, results_dir, warnings)
     out["floorSpectra"] = _floor_spectra(model_path, results_dir, warnings)  # Alpha 9 L5
+    out["cfdWind"] = _cfd_wind(model_path, warnings)  # Alpha 9 L3
     out["seismicDesign"] = _seismic_design(model_path, results_dir, settings, warnings)
     # B12: building irregularities, dynamic analysis, soft storeys, diaphragm connections.
     out["irregularity"] = _irregularity(model_path, results_dir, settings, warnings)
@@ -2772,6 +2785,18 @@ def _floor_spectra(
         warnings.append(f"Floor response spectra could not be worked out: {error}")
         return None
     return floor_spectra.report_rows(found.get("floorSpectra"))
+
+
+def _cfd_wind(model_path: Path, warnings: list[str]) -> dict[str, Any] | None:
+    """Alpha 9 L3: the CFD wind tunnel's section (:func:`saengine.fem.cfd_wind.service.
+    report_section`); None when the project has no CFD run."""
+    from saengine.fem.cfd_wind import service
+
+    try:
+        return service.report_section(model_path.parent.parent)
+    except Exception as error:  # noqa: BLE001 - the report goes on without it
+        warnings.append(f"The CFD wind tunnel results could not be read: {error}")
+        return None
 
 
 def _nonstructural(root: Path, warnings: list[str]) -> dict[str, Any] | None:
@@ -4630,6 +4655,7 @@ FOUNDATION_TYPE_NAMES = {
     "excavation": "Excavation",
     "formwork": "Formwork",
     "machineFoundation": "Machine foundation",
+    "slope": "Slope",
 }
 
 
@@ -4646,6 +4672,79 @@ def _size_text(result: dict[str, Any]) -> str:
     if "thickness" in sizes:
         text += f" × {_m(sizes['thickness'], 2)}"
     return text + " m"
+
+
+def _slope_rows(slopes: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Alpha 9 L8: each slope's section, soils and factors of safety by case and method
+    (:func:`saengine.substructure.slope_stability.design_slope`), and its 2D FE summary."""
+    out = []
+    for result in slopes:
+        found = result.get("slope")
+        if not isinstance(found, dict):
+            continue
+        section = found.get("section") or {}
+        soils = [
+            [
+                str(s.get("id")),
+                fmt(s.get("gamma"), 1),
+                fmt(s.get("gammaSat"), 1),
+                ("cu " + fmt(s.get("cu"), 1)) if s.get("undrained") else fmt(s.get("c"), 1),
+                "–" if s.get("undrained") else fmt(s.get("phi"), 1),
+                str(s.get("source") or ""),
+            ]
+            for s in found.get("soils", [])
+        ]
+        rows = []
+        for case in found.get("cases", []):
+            for r in case.get("results", []):
+                fs = r.get("fs")
+                rows.append(
+                    [
+                        str(case.get("name")),
+                        str(r.get("method")),
+                        "–" if fs is None else fmt(fs, 3),
+                        fmt(case.get("required"), 2),
+                        "–" if r.get("lambda") is None else fmt(r.get("lambda"), 3),
+                        "–" if fs is None else ("OK" if fs >= case.get("required", 0) else "FAIL"),
+                        str(r.get("note") or ""),
+                    ]
+                )
+        fe = found.get("fe") or {}
+        fe_text = ""
+        if fe.get("error"):
+            fe_text = str(fe["error"])
+        elif fe:
+            fe_text = (
+                f"2D FE: largest displacement {fmt(fe.get('maxDisplacement'), 1)} mm, "
+                f"{fe.get('plasticPoints', 0)} plastic points"
+                + (
+                    f", strength reduction F = {fmt(fe.get('fs'), 2)} ({fe.get('fsHow')})"
+                    if fe.get("fs") is not None
+                    else f", strength reduction: {fe.get('fsHow')}"
+                )
+            )
+        out.append(
+            {
+                "title": f"{result.get('id')}: {section.get('source', '')}, sliding to the "
+                f"{found.get('direction', '')}",
+                "soils": soils,
+                "rows": rows,
+                "fe": fe_text,
+                "stages": [
+                    [
+                        str(s.get("name")),
+                        fmt(s.get("level"), 2),
+                        fmt(s.get("Mmax"), 1),
+                        fmt(s.get("Mmin"), 1),
+                        fmt(s.get("Vmax"), 1),
+                        fmt(s.get("wallTop"), 1) if s.get("wallTop") is not None else "–",
+                        fmt(s.get("maxDisplacement"), 1),
+                    ]
+                    for s in fe.get("stages", []) or []
+                ],
+            }
+        )
+    return out
 
 
 def _excavation_support_rows(excavations: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -4758,6 +4857,7 @@ def _foundations(parts: _Parts) -> dict[str, Any]:
     designed = report.get("foundations", []) + report.get("tieBeams", [])
     designed += report.get("excavations", []) + report.get("temporaryWorks", [])
     designed += report.get("machineFoundations", [])
+    designed += report.get("slopes", [])  # Alpha 9 L8
     rows, fails = [], []
     for result in designed:
         check = _governing(result)
@@ -4895,6 +4995,7 @@ def _foundations(parts: _Parts) -> dict[str, Any]:
         )
 
     staged = _excavation_support_rows(report.get("excavations", []))  # Alpha 9 P1
+    slopes = _slope_rows(report.get("slopes", []))  # Alpha 9 L8
 
     # R1-5 of re-walk 1: the one count of the foundations and tie beams (as the part list and
     # Run All count them), "n of N"; those without a bearing check counted as such. The
@@ -4919,6 +5020,7 @@ def _foundations(parts: _Parts) -> dict[str, Any]:
             "excavations",
             "temporaryWorks",
             "machineFoundations",
+            "slopes",
         )
         for r in report.get(key, []) or []
         if isinstance(r, dict) and r.get("ok") is False and str(r.get("id")) not in own
@@ -4962,6 +5064,7 @@ def _foundations(parts: _Parts) -> dict[str, Any]:
         "capacityTables": tables,
         "rafts": rafts,
         "excavationSupport": staged,
+        "slopes": slopes,
         "details": details,
         "skipped": [
             [

@@ -24,6 +24,7 @@ import { registerPlannedFeature } from '../../../services/saengineProject/common
 import { ISaengineProjectService, partById } from '../../../services/saengineProject/common/saengineProject.js';
 import { PROJECT_MENU, ProjectOpenContext } from '../../saengineProject/browser/projectMenu.js';
 import { DESIGN_REINFORCEMENT_COMMAND, STRUT_AND_TIE_COMMAND } from './femDesign.js';
+import { CFD_WIND_COMMAND, FemCfdWindEditor, FemCfdWindInput, FemCfdWindInputSerializer } from './femCfdWind.js';
 import { FemPlanned } from './femPlannedFeatures.js';
 import { FemDesignProposalEditor } from './femDesignProposalEditor.js';
 import { FemDesignProposalInput, FemDesignProposalInputSerializer } from './femDesignProposalInput.js';
@@ -63,6 +64,13 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane
 );
 Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(FemStrutAndTieInput.ID, FemStrutAndTieInputSerializer);
 
+// Alpha 9 L3: the CFD wind tunnel (an optional link to the user's own OpenFOAM).
+Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
+	EditorPaneDescriptor.create(FemCfdWindEditor, FemCfdWindInput.EDITOR_ID, localize('femCfdWindEditor', "CFD Wind Tunnel")),
+	[new SyncDescriptor(FemCfdWindInput)]
+);
+Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(FemCfdWindInput.ID, FemCfdWindInputSerializer);
+
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
 	EditorPaneDescriptor.create(FemResultsEditor, FemResultsInput.EDITOR_ID, localize('femResultsEditor', "Analysis Results")),
 	[new SyncDescriptor(FemResultsInput)]
@@ -99,6 +107,33 @@ registerAction2(class extends Action2 {
 		const target = analysisModel(accessor, model);
 		if (target) {
 			await accessor.get(IEditorService).openEditor(new FemResultsInput(target, { kind: 'charts' }), { pinned: true });
+		}
+	}
+});
+
+/**
+ * Alpha 9 L3: opens CFD Wind Tunnel: the building's wind by a steady CFD simulation with the
+ * user's own OpenFOAM (found in WSL on Windows; never bundled or downloaded), run only when the
+ * user presses Run; pressure coefficients, storey forces and the code comparison.
+ */
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: CFD_WIND_COMMAND,
+			title: localize2('saengine.fem.cfdWind', "CFD Wind Tunnel"),
+			metadata: { description: localize2('saengine.fem.cfdWind.description', "Wind pressure coefficients and storey forces of the building by a steady CFD simulation (OpenFOAM, installed separately), per wind direction, compared with the code's wind; optionally the wind cases of the analysis. Engineer-supplied loads that need validation.") },
+			category: localize2('saengine.category', "SAEngine"),
+			icon: Codicon.symbolEvent,
+			f1: true,
+			precondition: ProjectOpenContext,
+			menu: { id: PROJECT_MENU, group: '1_project', order: 7 },
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const project = accessor.get(ISaengineProjectService).project;
+		if (project) {
+			await accessor.get(IEditorService).openEditor(new FemCfdWindInput(project.root), { pinned: true });
 		}
 	}
 });

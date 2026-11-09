@@ -306,7 +306,220 @@ export interface ISubstructure {
 	formwork?: IFormwork;
 	/** Block foundations of machines and generators, checked by the code pack's machine foundation rules. */
 	machineFoundations?: IMachineFoundation[];
+	/** Alpha 9 L8: slopes checked on 2D sections by limit equilibrium and, optionally, 2D FE. */
+	slopes?: ISlope[];
 	[key: string]: unknown;
+}
+
+// ─────────────────────────── alpha 9 L8: slopes ───────────────────────────
+
+export type SlopeMethod = 'bishop' | 'janbu' | 'spencer' | 'morgensternPrice';
+
+export const SLOPE_METHODS: readonly SlopeMethod[] = ['bishop', 'janbu', 'spencer', 'morgensternPrice'];
+
+export function slopeMethodLabel(method: SlopeMethod | string): string {
+	switch (method) {
+		case 'bishop': return localize('sub.slopeMethod.bishop', "Bishop simplified");
+		case 'janbu': return localize('sub.slopeMethod.janbu', "Janbu simplified (corrected)");
+		case 'spencer': return localize('sub.slopeMethod.spencer', "Spencer");
+		case 'morgensternPrice': return localize('sub.slopeMethod.morgensternPrice', "Morgenstern-Price (half-sine)");
+		default: return String(method);
+	}
+}
+
+/** A soil of a slope's section (kN/m³, kPa, degrees, MPa); in a section cut from the strata, an id of a unit (U1, ...) overrides the boreholes' values. */
+export interface ISlopeSoil {
+	id: string;
+	name?: string;
+	unitWeight?: number;
+	saturatedUnitWeight?: number;
+	c?: number;
+	phi?: number;
+	cu?: number;
+	strength?: 'drained' | 'undrained';
+	ru?: number;
+	E?: number;
+	poisson?: number;
+	dilatancy?: number;
+	model?: 'mohrCoulomb' | 'multiYield' | 'vonMises';
+	[key: string]: unknown;
+}
+
+/** A stratum of a drawn section: its soil and its top line [[x, level] mm]; the first one's top is the ground. */
+export interface ISlopeStratum {
+	soil: string;
+	points?: Point[];
+	[key: string]: unknown;
+}
+
+export interface ISlopeSurcharge {
+	start: number;
+	end: number;
+	pressure: number;
+	permanent?: boolean;
+	[key: string]: unknown;
+}
+
+/** A soil nail or ground anchor of a slope (mm, kN, kPa, degrees). */
+export interface ISlopeNail {
+	id: string;
+	kind?: 'nail' | 'anchor';
+	x: number;
+	level: number;
+	inclination?: number;
+	length: number;
+	fixedLength?: number;
+	spacing?: number;
+	capacity: number;
+	bond: number;
+	diameter?: number;
+	headCapacity?: number;
+	[key: string]: unknown;
+}
+
+export interface ISlopeSearch {
+	surface?: 'circular' | 'nonCircular';
+	method?: SlopeMethod;
+	centres?: number[];
+	grid?: number;
+	radii?: number;
+	minDepth?: number;
+	slices?: number;
+	surfaces?: Point[][];
+	[key: string]: unknown;
+}
+
+/** The optional 2D FE of a slope's section (for experienced users). */
+export interface ISlopeFE {
+	run?: boolean;
+	meshSize?: number;
+	strengthReduction?: boolean;
+	excavation?: string;
+	wallX?: number;
+	side?: 'left' | 'right';
+	steps?: number;
+	[key: string]: unknown;
+}
+
+/** Alpha 9 L8: a slope on a 2D section, drawn or cut from the site's strata (mm, project datum). */
+export interface ISlope {
+	id: string;
+	name?: string;
+	section?: 'drawn' | 'strata';
+	start?: Point;
+	end?: Point;
+	surface?: Point[];
+	strata?: ISlopeStratum[];
+	soils?: ISlopeSoil[];
+	base?: number;
+	water?: Point[];
+	ru?: number;
+	surcharges?: ISlopeSurcharge[];
+	nails?: ISlopeNail[];
+	temporary?: boolean;
+	seismic?: boolean;
+	kh?: number;
+	kv?: number;
+	requiredFS?: number;
+	direction?: 'auto' | 'left' | 'right';
+	methods?: SlopeMethod[];
+	search?: ISlopeSearch;
+	fe?: ISlopeFE;
+	note?: string;
+	[key: string]: unknown;
+}
+
+/** A new drawn slope: 10 m high at 2 : 1 from the finished ground, one soil (c' 5 kPa, φ' 28°). */
+export function newSlope(document: ISubstructure, context: ISiteContext): ISlope {
+	const top = context.groundLevel;
+	return {
+		id: nextId('SL', (document.slopes ?? []).map(s => s.id)),
+		section: 'drawn',
+		surface: [[0, top], [10000, top], [30000, top - 10000], [45000, top - 10000]],
+		soils: [{ id: 'S1', name: localize('sub.slope.defaultSoil', "Soil"), unitWeight: 19, saturatedUnitWeight: 20, c: 5, phi: 28 }],
+		strata: [{ soil: 'S1' }],
+		base: top - 20000,
+	};
+}
+
+/** Points [[x, level] mm] as the editor shows them: "x, level; x, level" in m. */
+export function formatSectionPoints(points: readonly Point[] | undefined): string {
+	return (points ?? []).map(([x, z]) => `${formatPlainNumber(x / 1000)}, ${formatPlainNumber(z / 1000)}`).join('; ');
+}
+
+/** Points typed as "x, level; x, level" in m: [[x, level] mm], undefined when empty, null when unreadable. */
+export function parseSectionPoints(text: string): Point[] | undefined | null {
+	const parts = text.split(';').map(p => p.trim()).filter(p => p);
+	if (!parts.length) {
+		return undefined;
+	}
+	const points: Point[] = [];
+	for (const part of parts) {
+		const values = part.split(/[,\s]+/).filter(v => v).map(Number);
+		if (values.length !== 2 || values.some(v => !Number.isFinite(v))) {
+			return null;
+		}
+		points.push([Math.round(values[0] * 1000), Math.round(values[1] * 1000)]);
+	}
+	return points;
+}
+
+function formatPlainNumber(value: number): string {
+	const fixed = value.toFixed(3);
+	return fixed.includes('.') ? fixed.replace(/\.?0+$/, '') : fixed;
+}
+
+/** One method's factor of safety on a case's critical surface (section frame, m). */
+export interface ISlopeMethodResult {
+	readonly method: SlopeMethod;
+	readonly fs: number | null;
+	readonly lambda: number | null;
+	readonly surface: { readonly points: readonly (readonly number[])[]; readonly centre?: readonly number[]; readonly radius?: number } | null;
+	readonly note: string;
+}
+
+/** Alpha 9 L8: a slope's results as the backend reports them (m, kPa). */
+export interface ISlopeResult {
+	readonly section: {
+		readonly surface: readonly (readonly number[])[];
+		readonly strata: readonly { readonly soil: string; readonly name: string; readonly top: readonly (readonly number[])[] }[];
+		readonly base: number;
+		readonly water: readonly (readonly number[])[] | null;
+		readonly surcharges: readonly { readonly start: number; readonly end: number; readonly pressure: number }[];
+		readonly nails: readonly { readonly id: string; readonly kind: string; readonly head: readonly number[]; readonly end: readonly number[] }[];
+		readonly source: string;
+	};
+	readonly direction: 'left' | 'right';
+	readonly soils: readonly { readonly id: string; readonly name: string; readonly gamma: number; readonly gammaSat: number; readonly c: number; readonly phi: number; readonly cu: number | null; readonly undrained: boolean; readonly source: string }[];
+	readonly cases: readonly {
+		readonly name: string; readonly required: number; readonly kh: number; readonly kv: number; readonly seismic: boolean; readonly note: string;
+		readonly results: readonly ISlopeMethodResult[];
+	}[];
+	/** Centres of the circle search [x, level, lowest F or null]. */
+	readonly grid: readonly (readonly (number | null)[])[];
+	readonly fe?: ISlopeFeResult | null;
+	readonly verification: string;
+}
+
+/** Alpha 9 L8: the 2D FE of a slope (m, mm, kN·m/m). */
+export interface ISlopeFeResult {
+	readonly error?: string;
+	readonly mesh?: {
+		readonly nodes: readonly (readonly number[])[];
+		readonly elements: readonly (readonly number[])[];
+		readonly strata: readonly number[];
+		readonly plastic: readonly boolean[];
+		/** Each node's displacement [dx, dz] mm at the end. */
+		readonly displacement: readonly (readonly number[])[];
+	};
+	readonly stages?: readonly { readonly name: string; readonly level: number; readonly Mmax: number; readonly Mmin: number; readonly Vmax: number; readonly wallTop: number | null; readonly forces: { readonly [id: string]: number }; readonly maxDisplacement: number }[];
+	readonly envelope?: { readonly z: readonly number[]; readonly Mmax: readonly number[]; readonly Mmin: readonly number[]; readonly V: readonly number[]; readonly N: readonly number[] };
+	readonly maxDisplacement?: number;
+	readonly plasticPoints?: number;
+	readonly fs?: number | null;
+	readonly fsHow?: string;
+	readonly required?: number;
+	readonly notes?: readonly string[];
 }
 
 export type ExcavationSupport = 'sloped' | 'stepped' | 'shored' | 'sheetPiles' | 'retainingWall' | 'rock' | 'none';
@@ -708,6 +921,9 @@ export function parseSubstructure(text: string, columns: readonly IColumnBase[] 
 	}
 	if (document.machineFoundations !== undefined) {
 		document.machineFoundations = (Array.isArray(document.machineFoundations) ? document.machineFoundations : []).filter(isRecord) as IMachineFoundation[];
+	}
+	if (document.slopes !== undefined) {
+		document.slopes = (Array.isArray(document.slopes) ? document.slopes : []).filter(isRecord) as ISlope[];
 	}
 	if (document.formwork !== undefined && !isRecord(document.formwork)) {
 		delete document.formwork;
@@ -2376,6 +2592,8 @@ export interface IFoundationResult {
 	readonly dynamics?: Readonly<Record<string, unknown>>;
 	/** Alpha 9 P1: an excavation's staged analysis (its wall has a type). */
 	readonly support?: IExcavationSupportResult;
+	/** Alpha 9 L8: a slope's section, cases and critical surfaces. */
+	readonly slope?: ISlopeResult;
 }
 
 export interface ISubstructureReport {
@@ -2390,6 +2608,8 @@ export interface ISubstructureReport {
 	readonly temporaryWorks?: readonly IFoundationResult[];
 	/** Machine foundations (type "machineFoundation") checked by the code pack's machine foundation rules. */
 	readonly machineFoundations?: readonly IFoundationResult[];
+	/** Alpha 9 L8: slopes (type "slope") by the code pack's slope stability methods. */
+	readonly slopes?: readonly IFoundationResult[];
 	/** Foundations and tie beams not designed, and why. */
 	readonly skipped: readonly { readonly id: string; readonly type: string; readonly reason: string }[];
 	readonly pileCapacities: readonly IPileCapacity[];
@@ -2545,6 +2765,9 @@ function readResult(f: Record<string, unknown>): IFoundationResult {
 		notChecked: Array.isArray(f.notChecked) && f.notChecked.length ? strings(f.notChecked) : undefined,
 		requirements: Array.isArray(f.requirements) && f.requirements.length ? strings(f.requirements) : undefined,
 		dynamics: isRecord(f.dynamics) ? f.dynamics : undefined,
+		// The staged excavation's (alpha 9 P1) and the slope's (L8) results, as the backend gives them.
+		support: isRecord(f.support) ? f.support as unknown as IExcavationSupportResult : undefined,
+		slope: isRecord(f.slope) ? f.slope as unknown as ISlopeResult : undefined,
 		notes: strings(f.notes),
 	};
 }
@@ -2561,6 +2784,7 @@ export function readSubstructureReport(raw: unknown): ISubstructureReport | unde
 	const excavations = records(raw.excavations).map(readResult);
 	const temporaryWorks = records(raw.temporaryWorks).map(readResult);
 	const machineFoundations = records(raw.machineFoundations).map(readResult);
+	const slopes = records(raw.slopes).map(readResult);
 	// Pile capacities: a flat list of rows, or per pile type a list per borehole (`boreholes` or
 	// `capacities`), or capacity tables ({borehole, rows}); else the pile caps' own capacities.
 	const pileCapacities: IPileCapacity[] = [];
@@ -2587,7 +2811,7 @@ export function readSubstructureReport(raw: unknown): ISubstructureReport | unde
 	}
 	const skipped = records(raw.skipped).map(s => ({ id: String(s.id ?? ''), type: String(s.type ?? ''), reason: String(s.reason ?? '') }));
 	const summary = isRecord(raw.summary) ? raw.summary : {};
-	const designed = [...foundations, ...tieBeams, ...groundSlabs, ...retainingWalls, ...excavations, ...temporaryWorks, ...machineFoundations];
+	const designed = [...foundations, ...tieBeams, ...groundSlabs, ...retainingWalls, ...excavations, ...temporaryWorks, ...machineFoundations, ...slopes];
 	const failed = designed.filter(f => !f.ok).length;
 	const worst = designed.reduce<IFoundationResult | undefined>((w, f) => f.utilisation !== null && (w?.utilisation ?? -1) < f.utilisation ? f : w, undefined);
 	return {
@@ -2598,6 +2822,7 @@ export function readSubstructureReport(raw: unknown): ISubstructureReport | unde
 		excavations,
 		temporaryWorks,
 		machineFoundations,
+		slopes,
 		skipped,
 		pileCapacities,
 		summary: readSummary(summary, designed.length, failed, skipped.length, worst),

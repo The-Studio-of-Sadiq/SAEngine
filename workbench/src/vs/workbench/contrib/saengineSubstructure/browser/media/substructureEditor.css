@@ -1026,3 +1026,10 @@
 	overflow: auto;
 	align-items: flex-start;
 }
+
+/* Alpha 9 L8: a slope's section with its slip surfaces, and its 2D FE mesh. */
+.saengine-substructure-editor .sub-slope-plot {
+	margin: var(--sa-space-2) 0;
+	max-width: 100%;
+	overflow-x: auto;
+}

@@ -351,6 +351,13 @@ export interface ISoilTemplate {
 	readonly problems?: readonly string[];
 }
 
+/** The AGS4 or DIGGS file written, with what it could not hold (alpha 9 L8). */
+export interface ISoilExport {
+	readonly path?: string;
+	readonly notes?: readonly string[];
+	readonly problems?: readonly string[];
+}
+
 /** Net allowable bearing pressure of one footing (`saengine.soil.allowable_bearing`). Lengths in mm. */
 export interface ISoilBearingRequest {
 	readonly soilText: string;
@@ -518,6 +525,9 @@ export interface IFemSolverService {
 
 	/** Writes the borehole import template (.csv or .xlsx by the extension of `path`). */
 	soilTemplate(python: string, path: string): Promise<ISoilTemplate>;
+
+	/** Writes the soil report's boreholes as AGS4 (.ags) or DIGGS (.xml) by the extension of `path` (alpha 9 L8). */
+	exportSoil(python: string, path: string, soilText: string): Promise<ISoilExport>;
 
 	/** Where the site class and the allowable bearing pressure come from, for Project Settings. */
 	soilSources(python: string, soilText: string | undefined, settingsText: string | undefined, projectRoot?: string): Promise<ISoilSources>;
@@ -713,6 +723,11 @@ export type EngineMethod =
 	// Strut-and-tie models of D-regions (`saengine.design.stm_model`): `design/strutAndTie`
 	// `{model, projectPath?}` and `design/strutAndTieTemplate` `{template, parameters?}`.
 	| 'design/strutAndTie' | 'design/strutAndTieTemplate'
+	// Alpha 9 L3, the CFD wind tunnel (`saengine.fem.cfd_wind`; OpenFOAM installed by the user):
+	// `cfd/detect` `{openfoam?, distribution?}`, `cfd/write` `{projectRoot, installation?}`,
+	// `cfd/start` `{projectRoot, openfoam?, distribution?}` (the background run), `cfd/status`,
+	// `cfd/cancel` and `cfd/results` `{projectRoot}`.
+	| 'cfd/detect' | 'cfd/write' | 'cfd/start' | 'cfd/status' | 'cfd/cancel' | 'cfd/results'
 	// Alpha 9 L4 / L6: the nonlinear stability analysis and the CBFEM check of joints.
 	| 'fem/nonlinearStability' | 'design/connectionFe'
 	// Alpha 9 L9: `special/structures` `{projectPath, run}` -> the bridges and special
@@ -774,6 +789,9 @@ export type ProjectPlatformMethod =
 	// `cad/convertPdf` `{path, page?, cache?, pagesOnly?}` -> `{ok, dxf, page, pages, vector, size, segments, warnings, cached, scale}`
 	// (`pagesOnly`: `{ok, pages}`, without converting a page).
 	| 'cad/convertPdf'
+	// Alpha 9 L2, point clouds as underlays (`saengine.library.point_cloud`): `cad/convertPointCloud`
+	// `{path, cut, thickness, voxel?, tolerance?, trace?}` and `cad/pointCloudView` `{path, voxel?, limit?}`.
+	| 'cad/convertPointCloud' | 'cad/pointCloudView'
 	// DXF files the app wrote, repaired in place by ezdxf's auditor (`saengine.library.dxf_audit`):
 	// `cad/cleanDxf` `{paths}` -> `{ok, files: [{path, fixed, errors}]}`.
 	| 'cad/cleanDxf'

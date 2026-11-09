@@ -1592,6 +1592,327 @@ class EarthPressure(_Model):
     )
 
 
+# ─────────────────────────── alpha 9 L8: slopes ───────────────────────────
+
+#: A point of a slope's section: [distance along the section, level in the project datum] mm.
+SectionPoint = Annotated[
+    list[float],
+    Field(
+        min_length=2,
+        max_length=2,
+        description="[x, level] mm: along the section, and the level in the project datum.",
+    ),
+]
+
+SLOPE_METHODS = {
+    "bishop": "Bishop simplified",
+    "janbu": "Janbu simplified (corrected)",
+    "spencer": "Spencer",
+    "morgensternPrice": "Morgenstern-Price (half-sine)",
+}
+
+SlopeMethod = Literal["bishop", "janbu", "spencer", "morgensternPrice"]
+
+SLOPE_SOIL_MODELS = {
+    "mohrCoulomb": "Mohr-Coulomb (Drucker-Prager matched in plane strain)",
+    "multiYield": "Hardening: pressure-dependent multi-yield (sand) or pressure-independent (clay)",
+    "vonMises": "Von Mises with linear hardening (undrained clay)",
+}
+
+
+class SlopeSoil(_Model):
+    """A soil of a slope's section. In a section cut from the site's strata a soil whose id is
+    a unit of the stratigraphy (U1, U2, ...) overrides the values worked out from the boreholes'
+    layers of that unit; an empty value keeps the boreholes'."""
+
+    id: Id = Field(description="Its id; in a section cut from the strata, a unit id (U1, ...).")
+    name: str | None = None
+    unitWeight: float | None = Field(
+        default=None, gt=0, le=30, title="Unit weight γ", description="Above the water [kN/m³]."
+    )
+    saturatedUnitWeight: float | None = Field(
+        default=None, gt=0, le=30, title="Saturated unit weight γsat", description="[kN/m³]"
+    )
+    c: float | None = Field(default=None, ge=0, title="Effective cohesion c'", description="[kPa]")
+    phi: float | None = Field(
+        default=None, ge=0, le=50, title="Friction angle φ'", description="[°]"
+    )
+    cu: float | None = Field(
+        default=None, ge=0, title="Undrained shear strength cu", description="[kPa]"
+    )
+    strength: Literal["drained", "undrained"] | None = Field(
+        default=None,
+        description="Drained (c', φ', the pore pressures) or undrained (cu, φ = 0, total "
+        "stresses); empty: drained when φ' is known, else undrained.",
+        json_schema_extra=_labels(["Drained (c', φ')", "Undrained (cu)"]),
+    )
+    ru: float | None = Field(
+        default=None,
+        ge=0,
+        lt=1,
+        title="Pore pressure ratio ru",
+        description="u = ru × the overburden at the slip surface in this soil; empty: the "
+        "section's water line or ru.",
+    )
+    E: float | None = Field(
+        default=None, gt=0, title="Young's modulus E", description="For the 2D FE [MPa]."
+    )
+    poisson: float | None = Field(
+        default=None,
+        ge=0,
+        lt=0.5,
+        title="Poisson's ratio ν",
+        description="For the 2D FE; empty: K0 / (1 + K0), so the elastic gravity stage gives "
+        "the at-rest stresses.",
+    )
+    dilatancy: float | None = Field(
+        default=None, ge=0, le=30, title="Dilatancy ψ", description="For the 2D FE [°]; empty 0."
+    )
+    model: Literal["mohrCoulomb", "multiYield", "vonMises"] | None = Field(
+        default=None,
+        title="FE soil model",
+        description="Of the 2D FE; empty: Mohr-Coulomb.",
+        json_schema_extra=_labels(list(SLOPE_SOIL_MODELS.values())),
+    )
+
+
+class SlopeStratum(_Model):
+    """A stratum of a drawn section: its soil and the line of its top, from the left of the
+    section to the right. The first stratum's top is the ground surface (its points may be
+    left empty); each stratum reaches down to the next one's top, the last to the section's
+    base."""
+
+    soil: Id = Field(description="A soil of the slope (its id).")
+    points: list[SectionPoint] = Field(
+        default_factory=list,
+        description="Its top boundary [[x, level], ...] mm, left to right; the part above the "
+        "ground surface is cut off.",
+    )
+
+
+class SlopeSurcharge(_Model):
+    """A strip load on the ground surface of the section."""
+
+    start: float = Field(description="Left end along the section [mm].")
+    end: float = Field(description="Right end along the section [mm].")
+    pressure: float = Field(gt=0, description="Vertical pressure [kPa].")
+    permanent: bool = Field(
+        default=False,
+        description="A permanent load (the design approach's factor on permanent actions); "
+        "else variable.",
+    )
+
+    @model_validator(mode="after")
+    def _span(self) -> SlopeSurcharge:
+        if self.end <= self.start:
+            raise ValueError("a surcharge's end must be to the right of its start")
+        return self
+
+
+class SlopeNail(_Model):
+    """A soil nail or ground anchor of the slope, repeated at its spacing along the slope; a
+    resisting force where the slip surface crosses it."""
+
+    id: Id
+    kind: Literal["nail", "anchor"] = Field(
+        default="nail",
+        description="A soil nail (bonded over its whole length) or a ground anchor (bonded over "
+        "its fixed length at the far end).",
+        json_schema_extra=_labels(["Soil nail", "Ground anchor"]),
+    )
+    x: float = Field(description="Its head along the section [mm].")
+    level: float = Field(description="Its head [mm, project datum].")
+    inclination: float = Field(
+        default=15.0, ge=0, lt=90, description="Below the horizontal, into the slope [°]."
+    )
+    length: Length = Field(description="Total length [mm].")
+    fixedLength: Length | None = Field(
+        default=None,
+        title="Fixed length",
+        description="Anchors: the bonded length at the far end [mm]; empty: a third of the length.",
+    )
+    spacing: Length = Field(default=1500, description="Along the slope [mm].")
+    capacity: float = Field(
+        gt=0, description="Characteristic tensile capacity of the bar or tendon [kN]."
+    )
+    bond: float = Field(
+        gt=0, description="Ultimate grout-ground bond (unit skin friction) qs [kPa]."
+    )
+    diameter: Length = Field(default=100, description="Drill hole (grout) diameter [mm].")
+    headCapacity: float | None = Field(
+        default=None,
+        gt=0,
+        title="Head capacity",
+        description="Nails: of the facing at the head [kN]; empty: as the tensile capacity.",
+    )
+
+
+class SlopeSearch(_Model):
+    """How the critical slip surface is searched for."""
+
+    surface: Literal["circular", "nonCircular"] = Field(
+        default="circular",
+        description="Circular arcs over a grid of centres and radii, or non-circular surfaces "
+        "optimised from the critical circle (and any given surfaces).",
+        json_schema_extra=_labels(["Circular", "Non-circular"]),
+    )
+    method: SlopeMethod | None = Field(  # type: ignore[valid-type]
+        default=None,
+        description="The method of the search; empty: Bishop for circles, Janbu for non-circular "
+        "surfaces. Every method of the check is then run on the best surfaces found.",
+        json_schema_extra=_labels(list(SLOPE_METHODS.values())),
+    )
+    centres: list[float] | None = Field(
+        default=None,
+        min_length=4,
+        max_length=4,
+        title="Centre grid",
+        description="[x left, level bottom, x right, level top] mm of the grid of centres; "
+        "empty: above the slope, worked out from its height.",
+    )
+    grid: int = Field(default=10, ge=3, le=40, description="Centres along each side.")
+    radii: int = Field(default=8, ge=2, le=40, description="Radii per centre.")
+    minDepth: float = Field(
+        default=1000,
+        ge=0,
+        title="Least depth",
+        description="Slip surfaces shallower than this below the ground are left out [mm].",
+    )
+    slices: int = Field(default=40, ge=10, le=200)
+    surfaces: list[list[SectionPoint]] = Field(
+        default_factory=list,
+        description="Slip surfaces to check besides the search, each [[x, level], ...] mm from "
+        "where it leaves the ground to where it comes out.",
+    )
+
+
+class SlopeFE(_Model):
+    """The 2D finite element analysis of the section (plane strain, for experienced users)."""
+
+    run: bool = Field(default=False, description="Run the 2D FE with the limit equilibrium.")
+    meshSize: Length = Field(default=1000, title="Mesh size", description="[mm]")
+    strengthReduction: bool = Field(
+        default=True,
+        title="Strength reduction",
+        description="Find the factor of safety by reducing c' and tan φ' (cu) to failure.",
+    )
+    excavation: Id | None = Field(
+        default=None,
+        description="An excavation of 9 Substructure whose embedded wall, stages and supports "
+        "are modelled in this section (the half of a symmetric excavation).",
+    )
+    wallX: float | None = Field(
+        default=None,
+        title="Wall position",
+        description="Of the excavation's wall along the section [mm].",
+    )
+    side: Literal["left", "right"] = Field(
+        default="right",
+        description="The side of the wall that is dug out (to the edge of the section).",
+        json_schema_extra=_labels(["Left", "Right"]),
+    )
+    steps: int = Field(default=10, ge=1, le=100, description="Load steps of each stage.")
+
+
+class Slope(_Model):
+    """A slope checked on a 2D section by limit equilibrium (the code pack's ``slopeStability``
+    methods) and, optionally, by 2D finite elements. The section is drawn (its surface, strata
+    and soils) or cut from the site's strata (the stratigraphy of 01 Soil Report along a line
+    between two plan points, its units' values from the boreholes' layers)."""
+
+    id: Id
+    name: str | None = None
+    section: Literal["drawn", "strata"] = Field(
+        default="drawn",
+        description="Drawn, or cut from the stratigraphy of the soil report along start-end.",
+        json_schema_extra=_labels(["Drawn", "Cut from the site's strata"]),
+    )
+    start: Point2 | None = Field(
+        default=None, description="Cut from the strata: the section's start in plan [x, y] mm."
+    )
+    end: Point2 | None = Field(
+        default=None, description="Cut from the strata: the section's end in plan [x, y] mm."
+    )
+    surface: list[SectionPoint] = Field(
+        default_factory=list,
+        description="The ground surface [[x, level], ...] mm, left to right; cut from the strata "
+        "it is the ground of the boreholes when empty, else a designed surface (a cut or a "
+        "fill) over the strata.",
+    )
+    strata: list[SlopeStratum] = Field(
+        default_factory=list, description="Drawn: the strata from the top down."
+    )
+    soils: list[SlopeSoil] = Field(default_factory=list)
+    base: float | None = Field(
+        default=None,
+        description="The section's base (firm ground) [mm, project datum]; empty: the deepest "
+        "boundary less the slope's height.",
+    )
+    water: list[SectionPoint] | None = Field(
+        default=None,
+        title="Water line",
+        description="The phreatic line [[x, level], ...] mm; empty: none drawn (cut from the "
+        "strata: the boreholes' water table).",
+    )
+    ru: float | None = Field(
+        default=None, ge=0, lt=1, title="Pore pressure ratio ru", description="Of every soil."
+    )
+    surcharges: list[SlopeSurcharge] = Field(default_factory=list)
+    nails: list[SlopeNail] = Field(
+        default_factory=list, title="Nails and anchors", description="Resisting forces."
+    )
+    temporary: bool = Field(
+        default=False, description="A temporary slope (the temporary factor of safety)."
+    )
+    seismic: bool = Field(
+        default=False,
+        description="Check also under the pseudo-static seismic coefficients of the code pack.",
+    )
+    kh: float | None = Field(
+        default=None, ge=0, le=1, description="Seismic coefficient kh [g]; empty: the pack's."
+    )
+    kv: float | None = Field(
+        default=None, ge=0, le=1, description="Seismic coefficient kv [g]; empty: the pack's."
+    )
+    requiredFS: float | None = Field(
+        default=None,
+        gt=0,
+        title="Required factor of safety",
+        description="Overrides the code pack's (factor of safety verification).",
+    )
+    direction: Literal["auto", "left", "right"] = Field(
+        default="auto",
+        description="The way the slope fails; auto: down from the higher end of the section.",
+        json_schema_extra=_labels(["Down the slope", "To the left", "To the right"]),
+    )
+    methods: list[SlopeMethod] | None = Field(  # type: ignore[valid-type]
+        default=None, description="The methods run; empty: the code pack's."
+    )
+    search: SlopeSearch = Field(default_factory=SlopeSearch)
+    fe: SlopeFE | None = Field(default=None, title="2D FE")
+    note: str | None = None
+
+    @model_validator(mode="after")
+    def _section(self) -> Slope:
+        ids = [s.id for s in self.soils]
+        duplicates = sorted({i for i in ids if ids.count(i) > 1})
+        if duplicates:
+            raise ValueError(f"{self.id}: duplicate soils {', '.join(duplicates)}")
+        nails = [n.id for n in self.nails]
+        duplicates = sorted({i for i in nails if nails.count(i) > 1})
+        if duplicates:
+            raise ValueError(f"{self.id}: duplicate nails {', '.join(duplicates)}")
+        if self.section == "drawn":
+            unknown = sorted({s.soil for s in self.strata} - set(ids))
+            if unknown:
+                raise ValueError(f"{self.id}: strata name unknown soils {', '.join(unknown)}")
+        for name, line in (("surface", self.surface), ("water line", self.water or [])):
+            xs = [p[0] for p in line]
+            if any(b <= a for a, b in itertools.pairwise(xs)):
+                raise ValueError(f"{self.id}: the {name}'s points must go from left to right")
+        return self
+
+
 def pile_layout_problem(
     piles: list[list[float]], diameter: float, length: float, width: float
 ) -> str | None:
@@ -1665,6 +1986,11 @@ class Substructure(_Model):
         title="Machine foundations",
         description="Block foundations of machines and generators under their dynamic forces.",
     )
+    slopes: list[Slope] = Field(
+        default_factory=list,
+        description="Slopes checked on 2D sections by limit equilibrium and, optionally, 2D FE "
+        "(alpha 9 L8).",
+    )
 
     @model_validator(mode="before")
     @classmethod
@@ -1686,6 +2012,7 @@ class Substructure(_Model):
             ("retaining walls", self.retainingWalls),
             ("excavations", self.excavations),
             ("machine foundations", self.machineFoundations),
+            ("slopes", self.slopes),
         ):
             ids = [i.id for i in items]
             duplicates = sorted({i for i in ids if ids.count(i) > 1})
@@ -2044,4 +2371,19 @@ def check(
                 problems.append(f"{tie.id}: unknown object type '{tie.type}'")
             elif not isinstance(found, Beam):
                 problems.append(f"{tie.id}: object type '{tie.type}' is not a beam")
+    # Alpha 9 L8: a slope's FE names an excavation whose wall it models.
+    excavations = {e.id: e for e in substructure.excavations}
+    for slope in substructure.slopes:
+        fe = slope.fe
+        if fe is None or fe.excavation is None:
+            continue
+        excavation = excavations.get(fe.excavation)
+        if excavation is None:
+            problems.append(f"{slope.id}: unknown excavation '{fe.excavation}'")
+        elif excavation.wall is None or excavation.wall.wallType is None:
+            problems.append(
+                f"{slope.id}: excavation '{fe.excavation}' has no embedded wall with a wall type"
+            )
+        elif fe.wallX is None:
+            problems.append(f"{slope.id}: give the wall's position along the section")
     return problems

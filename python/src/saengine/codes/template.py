@@ -143,6 +143,12 @@ TABLE_HELP: dict[str, str] = {
     "direct spectrum-to-spectrum), the peak broadening, the component damping ratios, the "
     "direct method's duration and iterations, and how a nonstructural component's force "
     "follows from the floor spectrum. A pack without it computes no floor spectra.",
+    "cfdWind": "The CFD wind tunnel link (alpha 9 L3; OpenFOAM installed by the user): the wind "
+    "directions computed (every directionStep degrees), the inlet boundary layer's roughness "
+    "length z0 by exposure id, the least share of the code's wind base shear the CFD storey "
+    "forces are scaled up to when the analysis uses them (lowerLimit), and what the code asks "
+    "of a wind tunnel test (validation). A pack without it gives no z0 (the project enters one) "
+    "and no lower limit.",
     "precast": "Precast concrete pieces (alpha 9 L1): the bearing method (spanRatio or "
     "netBearing) and its values, dowels across joints (shearFriction or dowelAction), the corbel "
     "and weld methods of the connections, the least tension on a bearing, the integrity ties, "
@@ -202,6 +208,10 @@ TABLE_HELP: dict[str, str] = {
     "subgrade modulus, the struts' temperature and buckling length, the ground anchors' factors, "
     "test and lock-off loads and bond stresses, and the basal heave and piping factors. A pack "
     "without it does not analyse staged excavations or design their supports.",
+    "slopeStability": "Slope stability (alpha 9 L8): the limit equilibrium methods run and "
+    "checked (Bishop, Janbu, Spencer, Morgenstern-Price), the verification by factors of safety or "
+    "by the partial factors of the design approach, the pseudo-static seismic coefficients and the "
+    "factors on soil nails and anchors. A pack without it does not check slopes.",
     "allowableStress": "Allowable stress design of members (alpha 9 C19): the combination "
     "rows of the long-term allowable stresses, the allowable concrete stresses as shares of Fc, "
     "the modular ratio and lever arm, the bars' allowable stresses by grade, the allowable "

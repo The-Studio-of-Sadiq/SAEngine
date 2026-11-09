@@ -203,6 +203,15 @@ def report(ctx: Context) -> dict[str, Any]:
     if machines:
         method += [m for m in machine_rules.method_lines() if m not in method]
 
+    # Alpha 9 L8: slopes by the pack's slopeStability methods (and their optional 2D FE).
+    slopes: list[dict[str, Any]] = []
+    if substructure.slopes:
+        from saengine.substructure import slope_stability
+
+        slopes, found = slope_stability.design_slopes(ctx)
+        notes += found
+        method += [m for m in slope_stability.method_lines() if m not in method]
+
     # The piles placed in plan: under no cap, outside their cap, too close together.
     layout = pile_layout_warnings(substructure)
     notes += [f"Pile layout: {w}" for w in layout]
@@ -249,7 +258,7 @@ def report(ctx: Context) -> dict[str, Any]:
 
     if building is not None:
         walls.append(building)
-    designed = foundations + ties + slabs + walls + excavations + temporary + machines
+    designed = foundations + ties + slabs + walls + excavations + temporary + machines + slopes
     return {
         "foundations": foundations,
         "tieBeams": ties,
@@ -258,6 +267,7 @@ def report(ctx: Context) -> dict[str, Any]:
         "excavations": excavations,
         "temporaryWorks": temporary,
         "machineFoundations": machines,
+        "slopes": slopes,
         "skipped": skipped,
         "summary": check_summary(designed, skipped, [b for b, _ in unsupported], ctx.loads),
         "notes": merge_notes(notes, [f["id"] for f in designed]),

@@ -32,6 +32,7 @@
     "steelFire",
     "barSchedule",
     "concreteTime",
+    "cfdWind",
     "movingLoads",
     "bridgeDesign"
   ],
@@ -177,6 +178,9 @@
     }
   ],
   "clauses": {
+    "cfdWind": [
+      "IS 875 (Part 3):2015 Sec 6.3.2.1 (z0) and Sec 10 (wind tunnel studies): the CFD wind tunnel link gives engineer-supplied wind loads to be validated"
+    ],
     "locations": [
       "IS 875 (Part 3):2015 Annex A",
       "IS 1893 (Part 1):2016 Annex E"

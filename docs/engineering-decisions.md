@@ -41,6 +41,50 @@ here, newest first, with the date, the question, the decision, the reason and wh
 - **No unlicensed software.** ETABS, SAP2000 and STAAD are not used for cross-checks or cited.
   Open-source tools are used instead (2026-10-25).
 
+## 2026-11-09: CFD wind tunnel as an optional OpenFOAM link (alpha 9 track L3)
+
+- **OpenFOAM is the user's.** SAEngine does not bundle or download OpenFOAM (GPL, large; the
+  owner decides later). It finds an installed one: in WSL on Windows (the distribution set in
+  Settings > SAEngine > CFD Wind, else the default), on the host on Linux/macOS; the location
+  setting (`etc/bashrc` or the install folder), then the login shell's PATH, then the usual
+  install places. Otherwise it shows how to install it. Nothing runs until the user presses Run.
+- **Where it lives.** FEM part: SAEngine > CFD Wind Tunnel (Project menu). Settings in Project
+  Settings > Wind > CFD wind tunnel (one home); the page shows them read-only with a link.
+  Files: `08 FEM/cfd-wind/results.json` (kept, versioned and archived) and
+  `08 FEM/cfd-wind/cases/` (OpenFOAM cases, logs, run status; computed, left out of archives).
+- **The case (SAEngine practice).** Envelope from the BIM slabs per level (else columns/walls,
+  else the analysis nodes), storeys of one outline joined; courtyards filled. Domain 5H
+  upstream, 15H downstream, 5H to the sides and above; cubic background cells of
+  H / 8 (coarsened to 4 million at most), 3 halvings at the building, 1 in a wake box;
+  snappyHexMesh without layers (wall functions). Log-law inlet (`atmBoundaryLayerInlet*`),
+  Uref 10 m/s at H (Reynolds only: the loads scale with the code's pressure), rough ground with
+  the same z0; k-ε by default or k-ω SST; simpleFoam (or `foamRun -solver incompressibleFluid`
+  on OpenFOAM.org 11+), 1500 iterations or p residual 1e-4; one case per direction, the
+  building turned so the wind is along +x. Every file is written from Python templates.
+- **Code-dependent values in the pack (`cfdWind`).** Directions every 30° (SAEngine practice in
+  every pack), z0 by exposure (BNBC A/B/C read as ASCE 7 B/C/D: 0.3/0.02/0.005 m; ASCE 7-22
+  Commentary; EN terrain categories from the wind table; IS 875-3 categories 1-4), the lower
+  limit 0.8 of the code's base shear (ASCE 7-22 Sec 31.4.3; SAEngine practice in the others),
+  and the code's wind-tunnel requirement for the report. All overridable per project.
+- **Post-processing.** Cp = p / (½ Uref²) of every building face (zero-gradient p: the cells'
+  values, read from the ASCII mesh and fields); per level band (half storey below and above, the
+  base the lower half of the first storey, as the code's storey forces): CF = Σ Cp A [m²],
+  CMz about the plan's centre, Cf along the wind; Cp mean/min/max per facade zone (X+, X-, Y+,
+  Y-, roof, soffit) and storey, with its role (windward, leeward, side).
+- **Design forces.** F = q·CF, q = the code's velocity pressure at H × its gust factor, with
+  the project's overrides (a quasi-steady scaling of mean coefficients; no peak or dynamic
+  response: stated in the report).
+- **"CFD wind" cases.** Off by default (existing results unchanged). With Project Settings >
+  Wind > CFD wind tunnel > Use in the analysis, each direction becomes the wind case of its
+  nearest axis (WX, WY, WXN, WYN, the largest along-axis base shear first, the others WX2,
+  WX3, ...), so the existing wind combinations (opposite-direction cases, variants) take every
+  direction; scaled up to the pack's lower limit; the code's torsional cases WTX/WTY are kept on
+  top; a flexible building's gust factor scales them with WX/WY. Results for other levels than
+  the model's are refused (the code's wind is used, with a note).
+- **Validation.** The page and the report say first that these are engineer-supplied loads, not
+  a code wind tunnel test, with the pack's own requirement (BNBC 2020 Part 6 Sec 2.4.16, ASCE 7-22
+  Ch 31, EN 1991-1-4 Sec 1.5, IS 875-3 Sec 10).
+
 ## 2026-11-09: bridges and special structures (alpha 9 track L9)
 
 Moving loads and influence lines, girder bridges (design, bearings, joints, load rating),
@@ -146,6 +190,52 @@ the default pack (BNBC 2020) has none of them, so its results do not change.
   US pack only: shear Vn = (Ks + Kc) / √(3 Ks² + Kc²) As Fy, Pno, the plastic in-plane flexure
   at the axial force, and the detailing limits. The plates' end closures are not counted. The
   wall's analysis stiffness is the fill's (set its modifiers for the composite stiffness).
+
+## 2026-11-09: slope stability, 2D geotechnical FE and AGS4/DIGGS exchange (alpha 9 track L8)
+
+- **Where it lives.** Slopes are a list of 9 Substructure (`substructure.json` `slopes`), next to
+  the excavations whose wall, stages and supports (P1) the 2D FE reuses; the section cut from the
+  site's strata reads 01 Soil Report's stratigraphy (linked, never copied). The AGS4 and DIGGS
+  exchange lives in 01 Soil Report beside the CSV/Excel import (one import command, by the file's
+  extension; the fields it cannot map are listed as notes).
+- **Code pack table `slopeStability`.** BNBC 2020 gives no slope method or factor of safety (Part
+  6 Sec 3.21 lists landslides as a geo-hazard, Sec 3.14 the stability of adjoining buildings):
+  the default pack's values are **SAEngine practice**: factors of safety 1.5 (permanent), 1.3
+  (temporary), 1.1 (pseudo-static) as in USACE EM 1110-2-1902 Table 3-1 practice, kh = 0.5 PGA
+  (Hynes-Griffin and Franklin 1984), kv = 0; Bishop, Spencer and Morgenstern-Price checked,
+  Janbu reported. The Eurocodes pack checks by the partial factors of its design approach
+  (geotechnicalMethods: M sets on the strengths, A sets on the variable surcharges, F ≥ γR;e of
+  Annex A Table A.14) and EN 1998-5 4.1.3.3 (kh = 0.5 α S, kv = ± 0.5 kh) on M2; the US pack
+  keeps the factors of safety with US sources. Other packs inherit through `extends`.
+- **SAEngine practice in the methods.** The soil's own weight is not factored under partial
+  factors (single-source principle, `partialFactors.soilWeight` 1.0); a slice with mα < 0.2 makes
+  its surface unreliable and it is left out of the search (Whitman and Bailey 1967); Bishop's
+  method is run on circles only; Janbu's corrected factor uses b1 of Abramson et al. (2002);
+  Spencer and Morgenstern-Price find λ by bisection between ±2; pore pressures from a phreatic
+  line are hydrostatic below it (no seepage correction); free water above the ground is not
+  weighed; nails and anchors act as resisting forces along their axis where the slip surface
+  crosses them, min(tensile / 1.8, pull-out / 2.0) per metre (FHWA-NHI-14-007 factors in the
+  default pack); a vertical seismic coefficient is checked with both signs.
+- **The search.** Circles over a grid of centres above the slope (or the box given) and radii
+  tangent to levels down to the base, refined twice about the best; non-circular surfaces by a
+  random walk (seeded, so results repeat) of eight vertices from the critical circle, kept
+  concave and under the ground; every method of the check then runs on the best surfaces and
+  reports its lowest factor.
+- **2D FE (optional, for experienced users).** Plane strain on a Gmsh mesh of the section
+  (`saengine.fem.mesh`), OpenSees quad/tri31 with Drucker-Prager matched to Mohr-Coulomb in plane
+  strain (or PDMY/PIMY multi-yield, or J2 for undrained clay), K0 stresses from an elastic gravity
+  stage with ν = K0/(1+K0) when ν is not given, P1's wall (EI per metre, EA of a solid plate of
+  that EI, no weight, bonded to the soil) wished in place with its forces reported as the change
+  after gravity, P1's supports as springs to fixed points (compression-only struts and rakers,
+  tension-only anchors) placed at their stage, excavated elements released over the stage's load
+  steps, the excavation taken as half of a symmetric one. The strength reduction factor (each
+  trial a fresh analysis, Griffiths and Lane 1999) is reported beside the limit equilibrium as a
+  flagged row: the limit equilibrium is the check.
+- **AGS4 / DIGGS.** SAEngine keeps the SPT's 150 mm increments, AGS4 the 75 mm ones: the export
+  writes N1, N2, a refusal without its penetration and the sample number into `ISPT_REM`, the
+  soil type and USCS group into `GEOL_REM`, the method into `LOCA_REM` (read back by the import);
+  positions in a national grid other than BTM come in relative to the first borehole. DIGGS
+  output is written by the 2.6 element names as known and is not validated against the schema.
 
 ## 2026-11-09: nonlinear buckling (GMNIA), cables and the FE check of steel joints (alpha 9 tracks L4 and L6)
 

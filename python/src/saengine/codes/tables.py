@@ -11961,6 +11961,7 @@ from saengine.codes.capacity_tables import (  # C19
     AllowableStressTable,
     HorizontalCapacityTable,
 )
+from saengine.codes.cfd_wind_tables import CfdWindTable  # L3: CFD wind tunnel
 from saengine.codes.composite_slab_tables import (  # P8: composite slabs, beam groups
     CompositeCamber,
     CompositeLongitudinalShear,
@@ -11990,6 +11991,7 @@ from saengine.codes.practice_tables import (  # P7: checks the code gives no met
     WindComfortTable,
 )
 from saengine.codes.precast_tables import PrecastTable  # L1: precast pieces
+from saengine.codes.slope_tables import SlopeStabilityTable  # L8: slope stability
 from saengine.codes.special_member_tables import (  # L7: special members
     CompositePlateWallsTable,
     GlassTable,
@@ -12098,6 +12100,8 @@ TABLE_MODELS: dict[str, type[TableModel]] = {
     "precast": PrecastTable,
     # Alpha 9 L5: floor (in-structure) response spectra.
     "floorSpectra": FloorSpectraTable,
+    # Alpha 9 L3: the CFD wind tunnel link (OpenFOAM, installed by the user).
+    "cfdWind": CfdWindTable,
     # Alpha 9 P8: composite slabs on profiled steel deck.
     "compositeSlab": CompositeSlabTable,
     # Alpha 9 L7: special members (steel joists, castellated and cellular beams, glass,
@@ -12110,6 +12114,8 @@ TABLE_MODELS: dict[str, type[TableModel]] = {
     # Alpha 9 L4: nonlinear buckling (GMNIA) and cables; L6: finite element check of joints.
     "nonlinearStability": NonlinearStabilityTable,
     "connectionFe": ConnectionFeTable,
+    # Alpha 9 L8: slope stability by limit equilibrium and strength reduction.
+    "slopeStability": SlopeStabilityTable,
     # Alpha 9 L9: bridges (traffic loads, girder checks, rating) and special structures
     # (lattice towers, silos, chimneys, cooling towers, offshore structures, piping).
     "movingLoads": MovingLoadsTable,
