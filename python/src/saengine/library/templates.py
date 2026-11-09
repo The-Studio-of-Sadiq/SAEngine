@@ -271,7 +271,11 @@ TEMPLATES: dict[str, dict[str, Any]] = {
     "BeamCorbels": {},
     "Helipad": {},
     "CfdWind": {},  # alpha 9: optional sub-object
-    "HazardSource": {"provider": "manual", "service": "Entered by hand", "date": "2026-01-01"},  # alpha 9 C22 (normally written by the lookup)
+    "HazardSource": {
+        "provider": "manual",
+        "service": "Entered by hand",
+        "date": "2026-01-01",
+    },  # alpha 9 C22 (normally written by the lookup)
     "FloorSpectra": {},  # alpha 9: optional sub-object
     "NonlinearStability": {},  # alpha 9: optional sub-object
     "IsolatorPropertyModification": {},  # alpha 9: optional sub-object
