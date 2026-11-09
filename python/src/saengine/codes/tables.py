@@ -11961,6 +11961,7 @@ from saengine.codes.composite_slab_tables import (  # P8: composite slabs, beam 
 from saengine.codes.damper_tables import DampersTable  # P6: structures with damping systems
 from saengine.codes.excavation_tables import ExcavationSupportTable  # P1: staged excavations
 from saengine.codes.existing_tables import ExistingTable  # P4: existing buildings
+from saengine.codes.floor_spectra_tables import FloorSpectraTable  # L5: floor spectra
 from saengine.codes.hazard_tables import HazardLookupTable  # C22: online hazard lookup
 from saengine.codes.limit_state_tables import SteelLimitStateTable
 from saengine.codes.material_method_tables import (
@@ -11980,12 +11981,17 @@ from saengine.codes.practice_tables import (  # P7: checks the code gives no met
     NonBuildingTable,
     WindComfortTable,
 )
+from saengine.codes.precast_tables import PrecastTable  # L1: precast pieces
 from saengine.codes.special_member_tables import (  # L7: special members
     CompositePlateWallsTable,
     GlassTable,
     MembranesTable,
     SteelJoistsTable,
     WebOpeningsTable,
+)
+from saengine.codes.stability_tables import (  # L4, L6: GMNIA and cables, CBFEM joints
+    ConnectionFeTable,
+    NonlinearStabilityTable,
 )
 from saengine.codes.steel_remainder_tables import ColdFormedTable, SteelFireTable  # C12
 
@@ -12080,6 +12086,10 @@ TABLE_MODELS: dict[str, type[TableModel]] = {
     "existing": ExistingTable,
     # Alpha 9 C22: the hazard services by site coordinates.
     "hazardLookup": HazardLookupTable,
+    # Alpha 9 L1: precast pieces, their handling, erection and connections.
+    "precast": PrecastTable,
+    # Alpha 9 L5: floor (in-structure) response spectra.
+    "floorSpectra": FloorSpectraTable,
     # Alpha 9 P8: composite slabs on profiled steel deck.
     "compositeSlab": CompositeSlabTable,
     # Alpha 9 L7: special members (steel joists, castellated and cellular beams, glass,
@@ -12089,6 +12099,9 @@ TABLE_MODELS: dict[str, type[TableModel]] = {
     "glass": GlassTable,
     "membranes": MembranesTable,
     "compositePlateWalls": CompositePlateWallsTable,
+    # Alpha 9 L4: nonlinear buckling (GMNIA) and cables; L6: finite element check of joints.
+    "nonlinearStability": NonlinearStabilityTable,
+    "connectionFe": ConnectionFeTable,
 }
 
 

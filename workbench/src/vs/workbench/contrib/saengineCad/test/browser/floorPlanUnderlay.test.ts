@@ -6,7 +6,7 @@
 import assert from 'assert';
 import type { CadPoint } from '@saengine/cad-editor';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { alignAngle, calibrated, DEFAULT_PDF_SCALE, diffLines, firstPdfPlacement, gridCentre, diffSummary, IUnderlayPlacement, moved, placementFields, placementOf, planSegments, readWorkbookImport, rotated, segmentsNear, toPlan } from '../../browser/floorPlanUnderlay.js';
+import { alignAngle, calibrated, cloudSlice, DEFAULT_PDF_SCALE, diffLines, firstPdfPlacement, gridCentre, diffSummary, isPointCloud, IUnderlayPlacement, moved, placementFields, placementOf, planSegments, readWorkbookImport, rotated, segmentsNear, toPlan } from '../../browser/floorPlanUnderlay.js';
 
 suite('SAEngine - Floor plan underlay', () => {
 
@@ -25,6 +25,13 @@ suite('SAEngine - Floor plan underlay', () => {
 		// No stated scale: 1:100; no grid: the origin.
 		assert.strictEqual(firstPdfPlacement([420, 297], null, [0, 0]).scale, DEFAULT_PDF_SCALE);
 		assert.deepStrictEqual(gridCentre({}), [0, 0]);
+	});
+
+	test('alpha 9 L2: a point cloud is sliced at the story cut in the scan units', () => {
+		assert.ok(isPointCloud('Underlays/scan.LAS') && isPointCloud('a.e57') && !isPointCloud('a.dxf'));
+		// A scan in metres (scale 1000), the story at +3000 mm, the scan's ±0 at 12.5 m.
+		assert.deepStrictEqual(cloudSlice({ scale: 1000, elevationOffset: 12.5 }, 3000), { cut: 4.2 + 12.5, thickness: 0.1, voxel: 0.02 });
+		assert.deepStrictEqual(cloudSlice({ scale: 1, cutHeight: 900, sliceThickness: 50, pointSpacing: 0 }, 0), { cut: 900, thickness: 50, voxel: 0 });
 	});
 
 	test('a drawing point is scaled, turned and moved onto the plan', () => {

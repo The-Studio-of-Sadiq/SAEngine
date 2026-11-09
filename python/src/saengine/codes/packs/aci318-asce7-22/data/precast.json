@@ -1,0 +1,54 @@
+{
+  "$schema": "../../../schemas/precast.schema.json",
+  "$replace": true,
+  "$sources": [
+    "ACI 318-19 Chapter 16 (16.2): precast concrete connections, integrity ties, bearing; 22.8: bearing strength; 16.3.4 / 22.9: shear friction",
+    "SAEngine practice where ACI 318-19 16.2.1.1 asks for the handling stages and gives no values: PCI Design Handbook (8th ed.) handling multipliers and Mast's hanging beam stability; see VERIFY.md"
+  ],
+  "source": "ACI 318-19 16.2: connections of precast members",
+  "bearing": {
+    "method": "spanRatio",
+    "spanDivisor": 180,
+    "minimum": { "slab": 50, "stemmed": 75 },
+    "padSetback": 13,
+    "stressFactor": 0.85
+  },
+  "dowel": { "method": "shearFriction" },
+  "connections": { "corbel": "corbel", "weldedPlate": "filletWeld", "tensionShare": 0.2 },
+  "integrity": {
+    "method": "tieForces",
+    "diaphragm": 4.4,
+    "columnTension": 1.4,
+    "panelTies": 2,
+    "panelTieForce": 44,
+    "bearingWallStoreys": 3,
+    "floorTies": 22,
+    "floorTieSpacing": 3000,
+    "perimeterTie": 71,
+    "perimeterEdge": 1200,
+    "verticalTies": 44
+  },
+  "handling": {
+    "stripping": { "flatRemovable": 1.3, "flatFalseJoints": 1.4, "fluted": 1.6, "sculptured": 1.7 },
+    "yard": 1.2,
+    "transport": 1.5,
+    "erection": 1.2,
+    "stripShare": 0.7,
+    "tension": { "coefficient": 0.62, "exponent": 0.5, "safety": 1.5 },
+    "inserts": { "twoPoint": 2, "fourPointEqualised": 4, "fourPointRigid": 2 },
+    "insertSafety": 4.0
+  },
+  "erection": {
+    "windPressure": 0.5,
+    "overturningSafety": 1.5,
+    "hanging": { "method": "hangingBeam", "safety": 1.5, "sweepDivisor": 960, "insertTolerance": 6 }
+  },
+  "sources": {
+    "bearing": "ACI 318-19 16.2.6.2 (ln/180, at least 50 mm solid or hollow-core slabs, 75 mm beams or stemmed members; pads set back 13 mm from unarmoured edges, 16.2.6.2(b)); 22.8.3.2: bearing 0.85 f'c A1, phi 0.65 (21.2.1)",
+    "dowel": "ACI 318-19 16.2.2.4, 22.9: shear friction across the joint",
+    "connections.tensionShare": "ACI 318-19 16.2.2.3 (restraint forces from shrinkage, creep and temperature); 0.2 Vu as for corbels, 16.5.3.5: SAEngine practice where none is entered",
+    "integrity": "ACI 318-19 16.2.4.2-16.2.4.3 and 16.2.5.1: 4.4 kN/m (300 lb/ft) diaphragm connections, columns 1.4 Ag N (200 Ag lb), two 44 kN (10,000 lb) ties per panel; bearing wall structures 3 storeys or more: floor ties 22 kN/m (1500 lb/ft) at most 3 m (10 ft) apart, perimeter ties 71 kN (16,000 lb) within 1.2 m (4 ft), vertical ties 44 kN/m (3000 lb/ft)",
+    "handling": "SAEngine practice (ACI 318-19 16.2.1.1, 26.9 give no values): PCI Design Handbook 8th ed. equivalent static multipliers, cracking 7.5 sqrt(f'ci) psi = 0.62 sqrt(f'ci) MPa over 1.5, insert safety factor 4; f'ci = 0.7 f'c when not entered",
+    "erection": "SAEngine practice: erection wind 0.5 kPa, safety 1.5; hanging members by Mast (PCI Journal 1989, 1993), FS 1.5, sweep L/960, insert tolerance 6 mm"
+  }
+}

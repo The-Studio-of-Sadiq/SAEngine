@@ -65,7 +65,11 @@
     "embeddedWalls",
     "barSchedule",
     "excavationSupport",
-    "existing"
+    "existing",
+    "nonlinearStability",
+    "connectionFe",
+    "precast",
+    "floorSpectra"
   ],
   "description": "Bangladesh National Building Code 2020: Part 6 (Structural Design: loads, wind and earthquake, load combinations, reinforced concrete, seismic detailing, structural steel and foundations), Part 8 (plumbing, air-conditioning, electrical services), Part 4 (fire protection) and the standard steel sections SAEngine designs with. The values SAEngine used before code packs, transcribed from its modules; every table names its clauses and pages.",
   "sources": [
@@ -77,6 +81,18 @@
     }
   ],
   "clauses": {
+    "nonlinearStability": [
+      "BNBC 2020 gives no GMNIA method (Part 6 Chapter 10, AISC 360-05 basis): SAEngine practice (AISC 360 Appendix 7 imperfections, EN 1993-1-5 Annex C, EN 1993-1-11)"
+    ],
+    "connectionFe": [
+      "BNBC 2020 gives no FE design of joints: SAEngine practice (EN 1993-1-5 C.8 strain limit, EN 1993-1-8 Table 6.11, AISC 360-05 Commentary B3.6)"
+    ],
+    "floorSpectra": [
+      "SAEngine practice where BNBC 2020 Part 6 Sec 2.5.15 gives no floor spectra: time history or direct spectrum-to-spectrum, ±15 % broadening (ASCE 4-16 Ch 6)"
+    ],
+    "precast": [
+      "BNBC 2020 Part 6 Sec 6.10 (pp. 987-992): precast concrete: bearing, integrity ties, connections, handling; the handling and erection values are SAEngine practice (PCI Design Handbook, Mast) where Sec 6.10.9 gives none"
+    ],
     "existing": [
       "BNBC 2020 Part 10 Sec 1.3.2 (gazette p. 5003) and Part 7 Sec 5.10.3-5.10.4 (gazette pp. 4506-4507): existing buildings analysed, strengthened and retrofitted (no method); the assessment and retrofit checks are SAEngine practice on the ASCE 41 basis"
     ],

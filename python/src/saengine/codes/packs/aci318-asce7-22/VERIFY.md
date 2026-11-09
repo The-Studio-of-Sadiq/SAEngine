@@ -804,6 +804,42 @@ live answer before release.
 | C22-12 | terms | USGS information is US public domain; the service page calls the software provisional | usgs.gov copyrights and credits page | Owner to confirm |
 | C22-13 | wind (Ch 26), snow (Ch 7) | not covered | the ASCE Hazard Tool's programmatic access needs a subscription key; no public API | Not covered |
 
+## Nonlinear stability (`nonlinearStability`) and the FE check of joints (`connectionFe`), alpha 9 L4 / L6
+
+| # | Path | Value | Source | Sure? |
+|---|---|---|---|---|
+| L4U1 | bow.fixedRatio | out-of-straightness L/1000 | AISC 360-22 Appendix 1 Sec 1.2.3 (and C2.2a) | Check (the section number) |
+| L4U2 | sway.baseRatio | out-of-plumbness L/500 | AISC 360-22 Sec C2.2a | Sure |
+| L4U3 | yieldFactor, stiffnessFactor | 0.9 Fy and 0.9 E in the advanced inelastic analysis | AISC 360-22 Appendix 1 Sec 1.3.2b | Check |
+| L4U4 | eigenmode, plates, hardeningRatio, path | the mode scaled to the member's L/1000; panel b/200; E/10000 | SAEngine practice (EN 1993-1-5 Annex C) | Practice |
+| L4U5 | cables.breakingShare | 0.741 (EN 1993-1-11 6.2) | SAEngine practice: ASCE 19 not entered | Unsure (replace by ASCE 19's factor) |
+| L6U1 | plasticStrainLimit | 5 % | SAEngine practice (EN 1993-1-5 C.8 Note 1; AISC gives none) | Practice |
+| L6U2 | yieldFactor | φ = 0.90 on Fy | AISC 360-22 J4.1 (yielding), SAEngine practice for the FE model | Practice |
+| L6U3 | classification | simple ≤ 2 E I / L, fully restrained ≥ 20 E I / L | AISC 360-22 Commentary B3.4b | Check |
+| L6U4 | boltStiffness, hardeningRatio, mesh | EN 1993-1-8 Table 6.11; E/1000; 10 mm | SAEngine practice | Practice |
+
+## Precast pieces (`precast`; alpha 9 L1; ACI 318-19 Chapter 16)
+
+| # | Path | Value | Source | Sure? |
+|---|---|---|---|---|
+| L1U1 | bearing.spanDivisor, minimum | ln/180; 50 mm slabs, 75 mm beams and stemmed members | ACI 318-19 16.2.6.2 | Sure |
+| L1U2 | bearing.padSetback | 13 mm (1/2 in) | ACI 318-19 16.2.6.2(b) | Sure |
+| L1U3 | bearing.stressFactor | 0.85 f'c A1, φ 0.65 | ACI 318-19 22.8.3.2, 21.2.1 | Sure |
+| L1U4 | dowel.method | shearFriction | ACI 318-19 16.2.2.4, 22.9 | Sure |
+| L1U5 | connections.tensionShare | 0.2 Vu where none is entered | ACI 318-19 16.5.3.5 (corbels), applied to every bearing | SAEngine practice |
+| L1U6 | integrity | 4.4 kN/m; 1.4 Ag N; 2 × 44 kN per panel; 3 storeys: 22 kN/m at 3 m, 71 kN within 1.2 m, 44 kN/m | ACI 318-19 16.2.4.2, 16.2.4.3, 16.2.5.1 (300 lb/ft, 200 Ag lb, 10 kip, 1500 lb/ft, 10 ft, 16 kip, 4 ft, 3000 lb/ft) | Check (SI conversions) |
+| L1U7 | handling, erection | as the default pack's L1B11-L1B19 | PCI Design Handbook 8th ed.; Mast | Check / SAEngine practice |
+
+## Floor response spectra (`floorSpectra`; alpha 9 L5)
+
+| # | Path | Value | Source | Sure? |
+|---|---|---|---|---|
+| L5-1 | methods | timeHistory, spectrumToSpectrum (time history first when the run has one) | none in the code | SAEngine practice |
+| L5-2 | broadening | ±15 % of the period | ASCE 4-16 Sec 6.2 / US NRC RG 1.122 practice | Check |
+| L5-3 | damping | 2, 3, 5, 7 % computed; 5 % for the components | none | SAEngine practice |
+| L5-4 | periods | 0.02-4 s, 120 on a log scale | none | SAEngine practice |
+| L5-5 | direct.duration / iterations | 20 s strong motion (Davenport peak factor), 8 iterations of the density | none | SAEngine practice |
+| L5-6 | components | F = Sa(Tc) Wc Ic / Rc within the nonstructural table's least and largest force; rigid (αc ≤ 1) at 0.06 s, flexible at the peak | the form of ASCE 7-16 Eq 13.3-4 / EN 1998-1 Eq 4.24 with the floor spectrum | SAEngine practice (off unless the project turns it on) |
 ## Alpha 9 P8: the camber of composite beams (composite.beam.camber) and composite floors' vibration (floorVibration)
 
 | # | Key | Value | Clause | Confidence |

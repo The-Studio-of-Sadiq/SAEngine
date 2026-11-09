@@ -190,8 +190,9 @@ class Underlay(_Model):
     story: Id = Field(description="Story whose plan shows the drawing.")
     file: str = Field(
         min_length=1,
-        pattern=r"\.([dD]([xX][fF]|[wW][gG])|[pP][dD][fF])$",
-        description="DXF, DWG or PDF file, relative to the 05 Floor Plan folder.",
+        pattern=r"\.([dD]([xX][fF]|[wW][gG])|[pP][dD][fF]|[lL][aA][sSzZ]|[eE]57|[xX][yY][zZ]|[pP][tT][sS])$",
+        description="DXF, DWG or PDF file, or a point cloud (LAS, XYZ, PTS; LAZ and E57 need a "
+        "library), relative to the 05 Floor Plan folder.",
     )
     page: int = Field(default=1, ge=1, description="A PDF's page shown (from 1).")
     dx: Mm = Field(default=0, title="Offset X", description="Where the drawing's origin goes [mm].")
@@ -204,6 +205,31 @@ class Underlay(_Model):
     locked: bool = Field(
         default=False,
         description="Locked: moving, rotating and calibrating the underlay are turned off.",
+    )
+    # Alpha 9 L2: a point cloud shows the slice of the scan at the story's cut.
+    cutHeight: float | None = Field(
+        default=None,
+        title="Cut height",
+        description="Point clouds: the slice's height above the story level [mm]; empty: 1200.",
+    )
+    sliceThickness: float | None = Field(
+        default=None,
+        gt=0,
+        title="Slice thickness",
+        description="Point clouds: the thickness of the slice [mm]; empty: 100.",
+    )
+    pointSpacing: float | None = Field(
+        default=None,
+        ge=0,
+        title="Point spacing",
+        description="Point clouds: one point kept per cube of this side [mm] (decimation); "
+        "empty: 20; 0: only the point limit.",
+    )
+    elevationOffset: float | None = Field(
+        default=None,
+        title="Scan elevation of ±0",
+        description="Point clouds: the scan's height of the project's ±0 level, in the scan's "
+        "units; empty: 0.",
     )
 
     @field_validator("file")

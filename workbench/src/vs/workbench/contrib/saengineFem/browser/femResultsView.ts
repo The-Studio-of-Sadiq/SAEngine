@@ -38,8 +38,9 @@ import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
 import { EditorFrame, IEditorFrameStatus } from '../../saengineProject/browser/editorFrame.js';
 import { ChartColor, IChartSeries, renderChart, renderSheet } from './femChart.js';
-import { baseReactionTable, closedPmCurve, defaultChartResult, describeMode, elasticDriftLimit, orderLike, extremes, FEM_COLUMN_INTERACTION_COMMAND, FEM_MEMBER_FORCES_COMMAND, FEM_STORY_RESPONSE_COMMAND, FemAxis2, IFemColumnDiagram, IFemColumnShortening, hingeRowsOf, IFemHingeRow, IFemPushoverAcceptance, IFemPushoverCurve, IFemPushoverTarget, IFemColumnInteraction, IFemDamperDesign, IFemDeviceSuite, IFemIsolationDesign, IFemMemberForces, IFemNonlinearHingeRow, IFemNonlinearHistory, IFemStoryResponse, IFemStoryResult, IFemTimeHistoryDesign, isEarthquakeResult, MemberComponent, memberEnvelope, memberValues, modalTable, modesToReach, profilePeak, spectrumAt, storeyProfile, StoreyQuantity, storeyQuantityLabel, STOREY_QUANTITIES } from './femChartData.js';
+import { baseReactionTable, closedPmCurve, defaultChartResult, describeMode, elasticDriftLimit, orderLike, extremes, FEM_COLUMN_INTERACTION_COMMAND, floorSpectrumCurves, IFemFloorSpectra, FEM_MEMBER_FORCES_COMMAND, FEM_STORY_RESPONSE_COMMAND, FemAxis2, IFemColumnDiagram, IFemColumnShortening, hingeRowsOf, IFemHingeRow, IFemPushoverAcceptance, IFemPushoverCurve, IFemPushoverTarget, IFemColumnInteraction, IFemDamperDesign, IFemDeviceSuite, IFemIsolationDesign, IFemMemberForces, IFemNonlinearHingeRow, IFemNonlinearHistory, IFemStoryResponse, IFemStoryResult, IFemTimeHistoryDesign, isEarthquakeResult, MemberComponent, memberEnvelope, memberValues, modalTable, modesToReach, profilePeak, spectrumAt, storeyProfile, StoreyQuantity, storeyQuantityLabel, STOREY_QUANTITIES } from './femChartData.js';
 import { IFemDesignRequired, IFemSteelRequirement, resultsFolder, runDesignRequired } from './femDesign.js';
+import { cableSheet, FEM_NONLINEAR_STABILITY_COMMAND, hasStability, IFemNonlinearStability, pathSeries, pathXLabel, stabilityHelp } from './femNonlinearStability.js';
 import { assessmentHelp, assessmentTitle, checklistSheet, FEM_EXISTING_ASSESSMENT_COMMAND, hasExistingAssessment, hazardSheet, IFemExistingAssessment, memberSheet, strengthSheet } from './femExisting.js';
 import { appendPlannedChips, FemPlanned } from './femPlannedFeatures.js';
 import { errorSummary, FEM_RESULT_LIST_COMMAND, IFemRunTracker } from './femResultsBar.js';
@@ -235,6 +236,10 @@ export class FemResultsEditor extends EditorPane {
 	private existing: IFemExistingAssessment | undefined;
 	private existingState: 'idle' | 'loading' | 'failed' = 'idle';
 	private existingProblem: string | undefined;
+	/** Alpha 9 L4: the nonlinear stability analysis (GMNIA, cables) kept beside the run, or being made. */
+	private stability: IFemNonlinearStability | undefined;
+	private stabilityState: 'idle' | 'loading' | 'running' | 'failed' = 'idle';
+	private stabilityProblem: string | undefined;
 	private problem: string | undefined;
 	private loading = false;
 	/** The 3D view's result list: its order, and whether the model changed after the run. */
@@ -440,6 +445,8 @@ export class FemResultsEditor extends EditorPane {
 				this.response = input.state.response = response;
 				this.existing = undefined;
 				this.existingState = 'idle';
+				this.stability = undefined;
+				this.stabilityState = 'idle';
 			} else {
 				const member = await this.commandService.executeCommand<IFemMemberForces>(FEM_MEMBER_FORCES_COMMAND, input.model, input.page.member);
 				if (request !== this.request) {
@@ -466,6 +473,7 @@ export class FemResultsEditor extends EditorPane {
 		this.render();
 		if (input.page.kind === 'charts' && this.response) {
 			void this.loadExisting();
+			void this.loadStability(false);
 		}
 		// What the backend has already worked out for this run is shown at once; working it out
 		// takes minutes, so that waits for the engineer's click.
@@ -557,6 +565,79 @@ export class FemResultsEditor extends EditorPane {
 			this.existingProblem = errorSummary(error);
 		}
 		this.render();
+	}
+
+	/**
+	 * Alpha 9 L4: the nonlinear stability analysis of the run: the one kept beside the results
+	 * at once (`run` false), a new one on the engineer's click (minutes).
+	 */
+	private async loadStability(run: boolean): Promise<void> {
+		const input = this.typed;
+		if (!input || input.page.kind !== 'charts' || this.stabilityState === 'loading' || this.stabilityState === 'running') {
+			return;
+		}
+		const request = this.request;
+		this.stabilityState = run ? 'running' : 'loading';
+		if (run) {
+			this.render();
+		}
+		try {
+			const found = await this.commandService.executeCommand<IFemNonlinearStability>(FEM_NONLINEAR_STABILITY_COMMAND, input.model, run);
+			if (request !== this.request) {
+				return;
+			}
+			this.stability = found;
+			this.stabilityState = 'idle';
+		} catch (error) {
+			if (request !== this.request) {
+				return;
+			}
+			this.stabilityState = 'failed';
+			this.stabilityProblem = errorSummary(error);
+		}
+		this.render();
+	}
+
+	/** Alpha 9 L4: the load-displacement path, λu against αcr, and the cables' sag and tension. */
+	private renderStability(): void {
+		const found = this.stability;
+		if (!found?.configured && this.stabilityState !== 'running' && this.stabilityState !== 'failed') {
+			return; // not set in the project settings: nothing to offer
+		}
+		const title = localize('femResults.stabilityHeading', "Nonlinear Stability (GMNIA) and Cables");
+		const section = this.section(title, hasStability(found) ? stabilityHelp(found) : localize('femResults.stabilityAbout', "Nonlinear buckling with imperfections of the steel frames and the large-displacement analysis of cables, under the combination set in Project Settings, Analysis, Nonlinear stability."));
+		if (this.stabilityState === 'running') {
+			append(section, $('.fem-results-note', undefined, localize('femResults.stabilityRunning', "Following the load-displacement path... (minutes for a large model)")));
+			return;
+		}
+		if (this.stabilityState === 'failed') {
+			append(section, $('.fem-results-note', undefined, localize('femResults.stabilityFailed', "The nonlinear stability analysis could not be made: {0}", this.stabilityProblem ?? '')));
+		} else if (found && !found.available && found.reason && found.reason !== 'not run yet') {
+			append(section, $('.fem-results-note', undefined, localize('femResults.stabilityNone', "No analysis: {0}", found.reason)));
+		}
+		if (hasStability(found)) {
+			const guides = [{ axis: 'y' as const, value: found.required ?? 1, label: localize('femResults.stabilityRequired', "required"), color: 'foreground' as const }];
+			if (found.alphaCr) {
+				guides.push({ axis: 'y' as const, value: found.alphaCr, label: 'αcr', color: 'foreground' as const });
+			}
+			renderChart(this.grid(section), {
+				title: localize('femResults.stabilityPath', "Load-Displacement Path"),
+				xLabel: pathXLabel(found),
+				yLabel: localize('femResults.stabilityFactor', "Load factor λ"),
+				series: pathSeries(found),
+				guides,
+				caption: localize('femResults.stabilityCaption', "λu = {0}", (found.limitFactor ?? 0).toFixed(3)),
+			});
+			if (found.cables?.length) {
+				renderSheet(section, cableSheet(found));
+			}
+			if (found.notes?.length) {
+				append(section, $('.fem-results-note', undefined, found.notes.join(' ')));
+			}
+		}
+		const button = this.renderStore.add(new Button(section, { ...defaultButtonStyles, supportIcons: true }));
+		button.label = `$(${Codicon.graph.id}) ${hasStability(found) ? localize('femResults.stabilityAgain', "Run the Nonlinear Stability Analysis Again") : localize('femResults.stabilityRun', "Run the Nonlinear Stability Analysis")}`;
+		this.renderStore.add(button.onDidClick(() => void this.loadStability(true)));
 	}
 
 	/** Alpha 9 P4: the existing building's assessment and its retrofit's before and after. */
@@ -938,6 +1019,9 @@ export class FemResultsEditor extends EditorPane {
 		if (response.nonlinearHistory) {
 			this.renderNonlinearHistory(response.nonlinearHistory);
 		}
+		if (response.floorSpectra) {
+			this.renderFloorSpectra(response.floorSpectra);
+		}
 		if (response.isolation) {
 			this.renderIsolation(response.isolation);
 		}
@@ -945,6 +1029,7 @@ export class FemResultsEditor extends EditorPane {
 			this.renderDampers(response.dampers);
 		}
 		this.renderExisting();
+		this.renderStability();
 	}
 
 	/**
@@ -1580,6 +1665,42 @@ export class FemResultsEditor extends EditorPane {
 			caption: modal.modes[0] ? describeMode(modal.modes[0], 1) : undefined,
 		});
 		renderSheet(section, modalTable(modal));
+	}
+
+	/**
+	 * Alpha 9 L5: the floor response spectra at the chosen floors, a chart per direction at the
+	 * code pack's component damping (broadened); the table of every damping is in the Summary.
+	 */
+	private renderFloorSpectra(found: IFemFloorSpectra): void {
+		const section = this.section(
+			localize('femResults.floorSpectraHeading', "Floor Response Spectra"),
+			localize('femResults.floorSpectraHelp', "In-structure spectra of the floors chosen in Project Settings (Analysis, Floor response spectra), by the code pack's method, the peaks broadened. With Use for the components on, the nonstructural components take their forces from them."),
+		);
+		if (!found.available) {
+			append(section, $('.fem-results-note', undefined, localize('femResults.noFloorSpectra', "No floor response spectra: {0}", found.reason ?? '')));
+			return;
+		}
+		const periods = found.periods ?? [];
+		const damping = found.componentDamping ?? found.damping?.[0] ?? 0.05;
+		const palette: ChartColor[] = ['blue', 'orange', 'green', 'red', 'purple', 'yellow'];
+		const grid = this.grid(section);
+		for (const direction of ['X', 'Y'] as const) {
+			const curves = floorSpectrumCurves(found, direction, damping);
+			if (!curves.length) {
+				continue;
+			}
+			renderChart(grid, {
+				title: localize('femResults.floorSpectraTitle', "Floor Spectra in {0}, {1} % Damping", direction, Math.round(damping * 1000) / 10),
+				xLabel: localize('femResults.periodAxis', "Period T [s]"),
+				yLabel: localize('femResults.floorSaAxis', "Sa [g]"),
+				series: curves.map((c, k) => ({ name: c.name, color: palette[k % palette.length], points: periods.map((t, i) => [t, c.sa[i]]) })),
+				caption: localize('femResults.floorSpectraCaption', "Highest floor peak {0} g ({1})", Math.max(...curves.map(c => c.peak)).toFixed(3), curves[curves.length - 1].name),
+			});
+		}
+		const notes = [found.clause ?? '', ...(found.notes ?? [])].filter(Boolean);
+		if (notes.length) {
+			append(section, $('.fem-results-help', undefined, notes.join(' · ')));
+		}
 	}
 
 	private renderSpectrum(response: IFemStoryResponse): void {

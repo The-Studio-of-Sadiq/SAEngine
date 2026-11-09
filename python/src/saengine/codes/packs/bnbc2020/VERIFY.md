@@ -144,3 +144,54 @@ ASCE 41-17 basis: the same values as the aci318-asce7-22 pack's P4U1-P4U30 (see 
 | P4B2 | existing.sources.liveLoads | detail engineering assessment of factory buildings: 3 kN/m² manufacturing, 6 kN/m² storage; retrofit design with Part 6 loads | BNBC 2020 Part 10 Sec 1.3.2.3 | Sure (cited, not applied: the area loads are the project's) |
 | P4B3 | existing.linear.hazards | DBE (scale 1.0) at LS, MCE (1.5 × DBE) at CP | BNBC 2020 Part 6 Sec 2.5.2.1 (gazette p. 3186: the design basis earthquake is 2/3 of the MCE) | Sure for the 1.5; SAEngine practice for the levels |
 | P4B4 | all other values | as the US pack's P4U1-P4U30 | ASCE 41-17, ACI 440.2R-17, EN 1998-3 A.4.2.2 | SAEngine practice |
+
+## Nonlinear stability (`nonlinearStability`) and the FE check of joints (`connectionFe`), alpha 9 L4 / L6
+
+BNBC 2020 gives no geometrically and materially nonlinear analysis and no finite element design
+of joints. These tables are SAEngine practice on the AISC 360 basis that Part 6 Chapter 10
+adopts; the results label them so.
+
+| # | Path | Value | Source | Sure? |
+|---|---|---|---|---|
+| L4B1 | bow.fixedRatio, sway.baseRatio | L/1000, L/500 | AISC 360-05 Appendix 7 Sec 7.3 (the basis of Part 6 Ch 10) | Practice (check the section) |
+| L4B2 | yieldFactor, stiffnessFactor | 0.9 Fy, 0.9 E | AISC 360 Appendix 1 Sec 1.3 (later editions) | Practice |
+| L4B3 | eigenmode, plates, hardeningRatio, path | as the US pack's L4U4 | SAEngine practice | Practice |
+| L4B4 | cables.breakingShare | 0.741 | EN 1993-1-11 6.2 | Practice, unsure |
+| L6B1 | plasticStrainLimit, yieldFactor, hardeningRatio | 5 %, 0.9, E/1000 | EN 1993-1-5 C.8; φ of Part 6 Ch 10 | Practice |
+| L6B2 | classification | pinned ≤ 2, rigid ≥ 20 (× E Ib / Lb) | AISC 360-05 Commentary B3.6 | Practice (check) |
+| L6B3 | bolts, welds | the pack's own connection rules (Part 6 Sec 10.10.3, 10.10.2) | BNBC 2020 Part 6 Ch 10 | Sure (reused) |
+
+## Precast pieces (`precast`; alpha 9 L1; BNBC Part 6 Sec 6.10 pp. 987-992)
+
+| # | Path | Value | Source | Sure? |
+|---|---|---|---|---|
+| L1B1 | bearing.spanDivisor | ln / 180 | BNBC 2020 Part 6 Sec 6.10.6.2.2(a) (p. 991) | Sure |
+| L1B2 | bearing.minimum | 50 mm solid or hollow-core slabs, 75 mm beams and stemmed members | Sec 6.10.6.2.2(a) | Sure |
+| L1B3 | bearing.padSetback | 13 mm from an unarmoured edge | Sec 6.10.6.2.2(b) | Sure |
+| L1B4 | bearing.stressFactor | 0.85 f'c A1, φ of factors.phi.bearing (0.65) | Sec 6.10.6.2.1, 6.3.14 | Sure |
+| L1B5 | dowel.method | shearFriction (Sec 6.4.5) | Sec 6.10.6.1.1 (p. 990) | Sure |
+| L1B6 | connections.tensionShare | 0.2 Vu where none is entered | the corbel's least Nuc, Sec 6.4.7.3.4, applied to every bearing | SAEngine practice |
+| L1B7 | integrity.diaphragm | 4.4 kN/m | Sec 6.10.5.1.2 (p. 988) | Sure |
+| L1B8 | integrity.columnTension | 1.4 Ag [N] | Sec 6.10.5.1.3(a) (p. 989) | Sure |
+| L1B9 | integrity.panelTies / panelTieForce | 2 ties of 44 kN per panel | Sec 6.10.5.1.3(b) | Sure |
+| L1B10 | integrity.bearingWallStoreys, floorTies, floorTieSpacing, perimeterTie, perimeterEdge, verticalTies | 3 storeys; 22 kN/m; 3 m; 71 kN; 1.2 m; 44 kN/m | Sec 6.10.5.2.1-6.10.5.2.5 (pp. 989-990) | Sure (printed as requirements, not checked member by member) |
+| L1B11 | handling.stripping | 1.3 flat removable forms, 1.4 false joints, 1.6 fluted, 1.7 sculptured (smooth form column) | PCI Design Handbook 8th ed., equivalent static load multipliers | Check (table number and the smooth-form column) |
+| L1B12 | handling.yard / transport / erection | 1.2 / 1.5 / 1.2 | PCI Design Handbook 8th ed. | Check |
+| L1B13 | handling.stripShare | f'ci = 0.7 f'c when not entered | none | SAEngine practice |
+| L1B14 | handling.tension | 0.62 √f'ci / 1.5 (fr = 7.5 √f'ci psi) | PCI Design Handbook (cracking during handling, SF 1.5) | Check |
+| L1B15 | handling.inserts | 2 / 4 / 2 inserts carry the load (two-point / four-point equalised / four-point rigid) | none (rigid four-point rigging: two inserts assumed) | SAEngine practice |
+| L1B16 | handling.insertSafety | 4 on the insert's ultimate load | PCI Design Handbook (lifting devices) | Check |
+| L1B17 | erection.windPressure | 0.5 kPa while erected | none (Sec 6.10.9.2 asks for bracing) | SAEngine practice |
+| L1B18 | erection.overturningSafety | 1.5 | none | SAEngine practice |
+| L1B19 | erection.hanging | FS 1.5, sweep L/960, insert tolerance 6 mm | Mast, PCI Journal 1989 and 1993; PCI sweep tolerance 1/8 in per 10 ft | Check |
+
+## Floor response spectra (`floorSpectra`; alpha 9 L5)
+
+| # | Path | Value | Source | Sure? |
+|---|---|---|---|---|
+| L5-1 | methods | timeHistory, spectrumToSpectrum (time history first when the run has one) | none in the code | SAEngine practice |
+| L5-2 | broadening | ±15 % of the period | ASCE 4-16 Sec 6.2 / US NRC RG 1.122 practice | Check |
+| L5-3 | damping | 2, 3, 5, 7 % computed; 5 % for the components | none | SAEngine practice |
+| L5-4 | periods | 0.02-4 s, 120 on a log scale | none | SAEngine practice |
+| L5-5 | direct.duration / iterations | 20 s strong motion (Davenport peak factor), 8 iterations of the density | none | SAEngine practice |
+| L5-6 | components | F = Sa(Tc) Wc Ic / Rc within the nonstructural table's least and largest force; rigid (αc ≤ 1) at 0.06 s, flexible at the peak | the form of ASCE 7-16 Eq 13.3-4 / EN 1998-1 Eq 4.24 with the floor spectrum | SAEngine practice (off unless the project turns it on) |

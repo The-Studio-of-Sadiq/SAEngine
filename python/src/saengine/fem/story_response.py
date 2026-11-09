@@ -811,6 +811,16 @@ def work_out_story_response(out_dir: str | Path, project_path: str | Path) -> di
                 comfort[key] = run()
             except Exception as error:  # noqa: BLE001 - the charts show without it
                 notes.append(f"{key}: could not be worked out ({error})")
+    # Alpha 9 L5: floor response spectra at the chosen floors (saengine.fem.floor_spectra),
+    # when the settings ask for them.
+    floor_spectra = None
+    if project.get("meta", {}).get("author") == "SAEngine":
+        from saengine.fem import floor_spectra as fs
+
+        try:
+            floor_spectra = fs.evaluate(out_dir, project, project_path, loaded, level_rows)
+        except Exception as error:  # noqa: BLE001 - the charts show without it
+            notes.append(f"floor response spectra: could not be worked out ({error})")
     return _finite(
         {
             "levels": level_rows,
@@ -832,9 +842,12 @@ def work_out_story_response(out_dir: str | Path, project_path: str | Path) -> di
             "dampers": _side_design("dampers", project_path, notes),
             "floorVibration": comfort.get("floorVibration"),
             "windComfort": comfort.get("windComfort"),
+            "floorSpectra": floor_spectra,
             # The tables of the results view (name, columns, rows, notes).
             "serviceSheets": [
-                found["sheet"] for found in comfort.values() if found and found.get("sheet")
+                found["sheet"]
+                for found in [*comfort.values(), floor_spectra]
+                if found and found.get("sheet")
             ],
             "notes": notes,
         }

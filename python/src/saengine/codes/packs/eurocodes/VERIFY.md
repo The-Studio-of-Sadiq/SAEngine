@@ -648,6 +648,56 @@ length along the bar's centre line (SAEngine practice), with the mandrel diamete
 | P4E14 | existing.frp.environment | 1.0 (EN 1998-3 gives none) | none | SAEngine practice |
 | P4E15 | existing.nonlinear | θum with fc and fy over CF (× CF^-0.225 × 0.3^(ν (CF - 1))), shear by Eq A.12 at the target | EN 1998-3 Sec 3.5, A.3.2.2, A.3.3.1 | Check |
 
+## Nonlinear stability (`nonlinearStability`) and the FE check of joints (`connectionFe`), alpha 9 L4 / L6
+
+| # | Path | Value | Source | Sure? |
+|---|---|---|---|---|
+| L4E1 | bow.ratios | L/e0 = 350, 300, 250, 200, 150 for curves a0, a, b, c, d (elastic analysis) | EN 1993-1-1 Table 5.1 | Sure |
+| L4E2 | bow.plasticRatios | L/e0 = 300, 250, 200, 150, 100 (plastic analysis) | EN 1993-1-1 Table 5.1 | Sure |
+| L4E3 | sway | φ0 = 1/200, αh = 2/√h with 2/3 ≤ αh ≤ 1, αm = √(0.5 (1 + 1/m)) | EN 1993-1-1 5.3.2(3) Eq 5.5 | Sure |
+| L4E4 | eigenmode | the first mode scaled so that its most bowed member gets e0 of Table 5.1 | EN 1993-1-1 5.3.2(11) (Eq 5.11 simplified) | Check (simplified amplitude) |
+| L4E5 | plates.panelRatio | panel imperfection min(a, b) / 200 | EN 1993-1-5 Annex C Table C.2 | Check |
+| L4E6 | plates.dimple | U0,max = 0.006 / 0.010 / 0.016 for fabrication classes A / B / C | EN 1993-1-6 Table 8.4 | Check |
+| L4E7 | yieldFactor, stiffnessFactor | 1.0 and 1.0 (γM1 = 1.0 recommended) | EN 1993-1-5 C.9, EN 1993-1-1 6.1 | Check |
+| L4E8 | hardeningRatio | E/10000 nominal plateau slope | EN 1993-1-5 C.6(2) Fig C.2 (b) | Unsure (figure from memory) |
+| L4E9 | cables.breakingShare | FRd = Fuk / (1.5 γR), γR = 0.90: 0.741 | EN 1993-1-11 6.2(2) and Table 6.2 | Unsure (γR by the socket kind) |
+| L6E1 | plasticStrainLimit | 5 % principal (equivalent) plastic strain | EN 1993-1-5 Annex C C.8 Note 1 | Sure |
+| L6E2 | yieldFactor | fy / γM0, γM0 = 1.0 | EN 1993-1-1 6.1 | Sure |
+| L6E3 | hardeningRatio | E/1000 | SAEngine practice (C.6 allows a hardening slope) | Practice |
+| L6E4 | boltStiffness | k10 = 1.6 As/Lb, k11 = 16 nb d² fub / (E dM16) | EN 1993-1-8 Table 6.11 | Check |
+| L6E5 | classification | pinned ≤ 0.5 E Ib/Lb; rigid ≥ 8 (braced) or 25 (unbraced) E Ib/Lb | EN 1993-1-8 5.2.2.5 | Sure |
+| L6E6 | elementSize, elementsAcross, loadSteps | 10 mm, 8 across, 10 steps | SAEngine practice | Practice |
+
+## Precast pieces (`precast`; alpha 9 L1; EN 1992-1-1 Section 10)
+
+| # | Path | Value | Source | Sure? |
+|---|---|---|---|---|
+| L1E1 | bearing.method | netBearing: a = a1 + a2 + a3 + √(Δa2² + Δa3²), a1 = FEd/(b1 fRd) | EN 1992-1-1 10.9.5.2(1), Eq 10.6 | Sure |
+| L1E2 | bearing.strength | fRd = 0.4 fcd dry, 0.85 fcd bedded | EN 1992-1-1 10.9.5.2(2) | Sure |
+| L1E3 | bearing.stressBands | σEd/fcd ≤ 0.15, 0.15-0.4, > 0.4 | EN 1992-1-1 Tables 10.2-10.3 | Sure |
+| L1E4 | bearing.a1Minimum | linear 25/30/40, ribbed 55/70/80, concentrated 90/110/140 mm | EN 1992-1-1 Table 10.2 | Check |
+| L1E5 | bearing.a2 | steel 0/0/10 (linear), 5/10/15 (concentrated); RC ≥ C30 5/10/15, 10/15/25; plain or RC < C30 10/15/25, 20/25/35; masonry as the last | EN 1992-1-1 Table 10.3 | Unsure (masonry's > 0.4 column is "–" in the code; taken as concrete < C30) |
+| L1E6 | bearing.highStrength | C30 | Table 10.3 | Sure |
+| L1E7 | bearing.a3 | continuous 0/0; straight bars or horizontal loops 5/15 (at least the end cover); exposed tendons or bars 5/15; vertical loops 15/15 | EN 1992-1-1 Table 10.4 | Check (vertical loops, concentrated: the code gives end cover + inner bend radius; 15 mm taken) |
+| L1E8 | bearing.supportTolerance | steel or precast 10 ≤ l/1200 ≤ 30 mm; masonry or cast in situ 15 ≤ l/1200 + 5 ≤ 40 mm | EN 1992-1-1 Table 10.5 | Check |
+| L1E9 | bearing.memberTolerance | Δa3 = ln/2500 | EN 1992-1-1 10.9.5.2(1) | Check |
+| L1E10 | dowel | dowelAction: α0 1.0, ε = 3 √(fcd/fyd), γRd 1.3, γc 1.5, γs 1.15, cap fyd/√3 As | fib Bulletin 43 (2008) Ch 5 (Rasmussen dowel action) | Unsure (α0 and γRd as recalled) |
+| L1E11 | connections.tensionShare | 0.2 FEd where none is entered | none in EN 1992-1-1 10.9.4 | SAEngine practice |
+| L1E12 | handling.tension | 0.7 × 0.30 f'ci^(2/3) / 1.5 (fctk,0.05 / γc) | EN 1992-1-1 Table 3.1, 2.4.2.4 | Check |
+| L1E13 | handling.insertSafety | 2.5 | CEN/TR 15728 (order of its factors) | Unsure |
+| L1E14 | handling (multipliers), erection | as the default pack's L1B11-L1B19 | PCI Design Handbook 8th ed.; Mast | SAEngine practice |
+| L1E15 | integrity | not given: EN 1992-1-1 9.10 tying systems are the concreteMethods ties | none | Not covered here |
+
+## Floor response spectra (`floorSpectra`; alpha 9 L5)
+
+| # | Path | Value | Source | Sure? |
+|---|---|---|---|---|
+| L5-1 | methods | timeHistory, spectrumToSpectrum (time history first when the run has one) | none in the code | SAEngine practice |
+| L5-2 | broadening | ±15 % of the period | ASCE 4-16 Sec 6.2 / US NRC RG 1.122 practice | Check |
+| L5-3 | damping | 2, 3, 5, 7 % computed; 5 % for the components | none | SAEngine practice |
+| L5-4 | periods | 0.02-4 s, 120 on a log scale | none | SAEngine practice |
+| L5-5 | direct.duration / iterations | 20 s strong motion (Davenport peak factor), 8 iterations of the density | none | SAEngine practice |
+| L5-6 | components | F = Sa(Tc) Wc Ic / Rc within the nonstructural table's least and largest force; rigid (αc ≤ 1) at 0.06 s, flexible at the peak | the form of ASCE 7-16 Eq 13.3-4 / EN 1998-1 Eq 4.24 with the floor spectrum | SAEngine practice (off unless the project turns it on) |
 ## Alpha 9 P8: composite slabs on steel deck (compositeSlab), the slab's longitudinal shear and the camber of composite beams (composite.beam), composite floors' vibration (floorVibration)
 
 | # | Key | Value | Clause | Confidence |

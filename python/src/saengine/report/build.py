@@ -1782,11 +1782,14 @@ def _results(
     out["serviceability"] = _serviceability(model_path, results_dir, warnings)
     # Alpha 9 P7: floor vibration and wind comfort (the storey response's, one computation).
     out["floorVibration"], out["windComfort"] = _comfort(model_path, results_dir, warnings)
+    out["floorSpectra"] = _floor_spectra(model_path, results_dir, warnings)  # Alpha 9 L5
     out["seismicDesign"] = _seismic_design(model_path, results_dir, settings, warnings)
     # B12: building irregularities, dynamic analysis, soft storeys, diaphragm connections.
     out["irregularity"] = _irregularity(model_path, results_dir, settings, warnings)
     # B15: seismic forces on nonstructural components and the anchorage of structural walls.
     out["nonstructural"] = _nonstructural(parts.root, warnings)
+    # Alpha 9 L1: the precast pieces' handling, erection and connections, and their schedule.
+    out["precast"] = _precast(parts.root, warnings)
     # B37: the isolation system of a seismically isolated building.
     out["isolation"] = _isolation(model_path.parent)
     # Alpha 9 P6: the supplemental dampers.
@@ -1805,6 +1808,124 @@ def _results(
     existing = _existing(model_path, results_dir, warnings)
     if existing:  # a new building's report data stays as it was
         out["existing"] = existing
+    # Alpha 9 L4 and L6: nonlinear stability (GMNIA, cables) and the joints' FE checks, when
+    # they were run (a report without them stays as it was).
+    stability = _nonlinear_stability(results_dir)
+    if stability:
+        out["nonlinearStability"] = stability
+    joints = _connection_fe(results_dir)
+    if joints:
+        out["connectionFe"] = joints
+    return out
+
+
+def _nonlinear_stability(results_dir: Path) -> dict[str, Any]:
+    """Alpha 9 L4: the last nonlinear stability analysis kept beside the results
+    (:func:`saengine.fem.nonlinear_stability.load_summary`) as report rows; empty when none."""
+    from saengine.fem import nonlinear_stability
+
+    found = nonlinear_stability.load_summary(results_dir)
+    if not found or not found.get("available"):
+        return {}
+    alpha = found.get("alphaCr")
+    limit = float(found.get("limitFactor") or 0.0)
+    imperfection = found.get("imperfection") or {}
+    kind = imperfection.get("kind", "none")
+    if kind == "eigenmode":
+        applied = (
+            f"the first buckling mode scaled to {fmt(1e3 * imperfection.get('amplitude', 0.0), 1)} mm "
+            f"({imperfection.get('governs', '')})"
+        )
+    elif kind == "equivalent":
+        applied = (
+            f"sway φ = 1/{fmt(1 / imperfection['sway'], 0) if imperfection.get('sway') else '-'} "
+            f"in {imperfection.get('direction', 'X')} and bows of {imperfection.get('bows', 0)} "
+            f"compressed members (largest e0 = {fmt(1e3 * imperfection.get('largestBow', 0.0), 1)} mm)"
+        )
+    else:
+        applied = "no imperfection (the perfect frame)"
+    text = (
+        f"{found.get('analysis', 'GMNIA')} under {found.get('combination', '')} "
+        f"({found.get('code', '')}; {found.get('source', '')}): imperfection {applied}. "
+        f"Limit load factor λu = {fmt(limit, 3)}"
+        + ("" if found.get("limitReached") else " (the path was still rising: a lower bound)")
+        + (
+            f", linear buckling factor αcr = {fmt(alpha, 3)}, λu / αcr = {fmt(limit / alpha, 3)}"
+            if alpha
+            else ""
+        )
+        + f"; required at least {fmt(found.get('required', 1.0), 2)}: "
+        + ("OK" if found.get("ok") else "FAIL")
+        + f". The path stopped because {found.get('stopped', '')}."
+    )
+    path = [[fmt(lam, 3), fmt(1e3 * u, 2)] for lam, u in found.get("path", [])]
+    step = max(1, len(path) // 20)
+    cables = [
+        [
+            str(c["cable"]),
+            fmt(c["pretension"] / 1e3, 1),
+            fmt(c["maxTension"] / 1e3, 1),
+            fmt(c["minTension"] / 1e3, 1),
+            fmt(1e3 * c["sag"], 1),
+            str(c["slack"]),
+            fmt(c["resistance"] / 1e3, 1) if c.get("resistance") else "-",
+            fmt(c["utilisation"], 2) if c.get("utilisation") is not None else "-",
+        ]
+        for c in found.get("cables", [])
+    ]
+    return {
+        "text": text,
+        "path": path[::step] + ([path[-1]] if path and (len(path) - 1) % step else []),
+        "cables": cables,
+        "cableFails": [
+            c.get("utilisation") is not None and c["utilisation"] > 1.0
+            for c in found.get("cables", [])
+        ],
+        "notes": [str(n) for n in found.get("notes", []) if n],
+    }
+
+
+def _connection_fe(results_dir: Path) -> list[dict[str, Any]]:
+    """Alpha 9 L6: the joints' FE checks made on this run (:func:`saengine.design.
+    connection_fe.load_checks`) as report rows."""
+    from saengine.design import connection_fe
+
+    out = []
+    for member, found in sorted(connection_fe.load_checks(results_dir).items()):
+        classification = found.get("classification") or {}
+        forces = found.get("forces") or {}
+        stiffness = found.get("stiffness")
+        out.append(
+            {
+                "title": f"{member}: {found.get('connection', '')} (CBFEM, {found.get('code', '')})",
+                "text": (
+                    f"Design forces of {forces.get('combination', '')}: V = {fmt(forces.get('V', 0.0), 1)} kN, "
+                    f"N = {fmt(forces.get('N', 0.0), 1)} kN, M = {fmt(forces.get('M', 0.0), 1)} kN·m; "
+                    f"largest plastic strain {fmt(100 * found.get('plasticStrain', 0.0), 2)} % "
+                    f"(limit {fmt(100 * found.get('plasticStrainLimit', 0.05), 1)} %); "
+                    + (
+                        f"Sj,ini = {fmt(stiffness, 0)} kN·m/rad, Sj,ini Lb / (E Ib) = "
+                        f"{fmt(classification['ratio'], 2)}: {classification.get('class')}"
+                        if stiffness is not None and classification.get("ratio") is not None
+                        else "stiffness not classified"
+                    )
+                    + "."
+                ),
+                "checks": [
+                    [
+                        c["name"],
+                        fmt(c["demand"], 2),
+                        fmt(c["capacity"], 2),
+                        c["unit"],
+                        fmt(c["utilisation"], 2),
+                        "OK" if c["ok"] else "FAIL",
+                    ]
+                    for c in found.get("checks", [])
+                ],
+                "fails": [not c["ok"] for c in found.get("checks", [])],
+                "notes": [str(n) for n in found.get("assumptions", []) if n],
+            }
+        )
     return out
 
 
@@ -2635,6 +2756,22 @@ def _comfort(
     )
 
 
+def _floor_spectra(
+    model_path: Path, results_dir: Path, warnings: list[str]
+) -> dict[str, Any] | None:
+    """Alpha 9 L5: the floor response spectra of the storey response
+    (:func:`saengine.fem.floor_spectra.report_rows`); None when not asked for."""
+    from saengine.fem import floor_spectra
+    from saengine.fem.story_response import story_response
+
+    try:
+        found = story_response(results_dir, model_path) or {}
+    except Exception as error:  # noqa: BLE001 - the report goes on without them
+        warnings.append(f"Floor response spectra could not be worked out: {error}")
+        return None
+    return floor_spectra.report_rows(found.get("floorSpectra"))
+
+
 def _nonstructural(root: Path, warnings: list[str]) -> dict[str, Any] | None:
     """B15: the section on nonstructural components (:func:`saengine.design.nonstructural.
     report_section`); None when the project has none, or when it cannot be computed (a
@@ -2645,6 +2782,18 @@ def _nonstructural(root: Path, warnings: list[str]) -> dict[str, Any] | None:
         return nonstructural.report_section(root)
     except Exception as e:  # noqa: BLE001 - one section must not stop the report
         warnings.append(f"Nonstructural components: not computed ({e}).")
+        return None
+
+
+def _precast(root: Path, warnings: list[str]) -> dict[str, Any] | None:
+    """Alpha 9 L1: the section on precast pieces (:func:`saengine.design.precast.
+    report_section`); None without precast object types."""
+    from saengine.design import precast
+
+    try:
+        return precast.report_section(root)
+    except Exception as e:  # noqa: BLE001 - one section must not stop the report
+        warnings.append(f"Precast pieces: not computed ({e}).")
         return None
 
 

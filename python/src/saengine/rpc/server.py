@@ -37,6 +37,14 @@ Methods:
 - ``cad/convertPdf`` ``{path, page?, cache?, pagesOnly?}`` -> ``{ok, dxf, page, pages, vector,
   size, segments, warnings, cached, scale}`` (``pagesOnly``: ``{ok, pages}``): one page of an architect's PDF as DXF, with its lines for object
   snaps (``saengine.library.pdf_underlay``; in a worker thread), or ``{ok: false, code, message}``
+- ``cad/convertPointCloud`` ``{path, cut, thickness, voxel?, tolerance?, trace?}`` -> ``{ok,
+  dxf, points, total, segments, bounds, warnings, cached}``: a plan slice of a LAS / XYZ / PTS
+  scan as DXF with its traced lines for object snaps (alpha 9 L2, ``saengine.library.
+  point_cloud``; in a worker thread), or ``{ok: false, code, message}`` (``needs-library``,
+  ``failed``)
+- ``cad/pointCloudView`` ``{path, voxel?, limit?}`` -> ``{ok, positions, colors, count, total,
+  bounds}``: the scan decimated for the 3D view
+- ``cad/snapPointCloud`` ``{path, cut, thickness, voxel?, x, y, radius}`` -> ``{ok, point}``
 - ``cad/cleanDxf`` ``{paths}`` -> ``{ok, files: [{path, fixed, errors}]}``: DXF files the app
   wrote repaired in place by ezdxf's auditor (``saengine.library.dxf_audit``)
 - ``workbook/export`` ``{outPath, floorPlanText, objectsText?, loadsText?}`` -> ``{ok, path,
@@ -617,6 +625,21 @@ def create_server() -> JsonRPCServer:
             args["path"], args.get("page"), args.get("cache"), bool(args.get("pagesOnly"))
         )
 
+    @server.feature("cad/convertPointCloud")  # Alpha 9 L2
+    @_in_worker
+    def _convert_point_cloud(params: Any) -> dict[str, Any]:
+        return handlers.convert_point_cloud(_plain(params))
+
+    @server.feature("cad/pointCloudView")
+    @_in_worker
+    def _point_cloud_view(params: Any) -> dict[str, Any]:
+        return handlers.point_cloud_view(_plain(params))
+
+    @server.feature("cad/snapPointCloud")
+    @_in_worker
+    def _snap_point_cloud(params: Any) -> dict[str, Any]:
+        return handlers.snap_point_cloud(_plain(params))
+
     @server.feature("workbook/export")
     @_in_worker
     def _workbook_export(params: Any) -> dict[str, Any]:
@@ -1055,6 +1078,20 @@ def create_server() -> JsonRPCServer:
     def _second_order(params: Any) -> dict[str, Any] | None:
         args = _plain(params)
         return handlers.second_order_summary(args["outDir"], args["projectPath"])
+
+    @server.feature("fem/nonlinearStability")
+    @_in_worker
+    def _nonlinear_stability(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.nonlinear_stability(
+            args["outDir"], args["projectPath"], bool(args.get("run"))
+        )
+
+    @server.feature("design/connectionFe")
+    @_in_worker
+    def _connection_fe(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.connection_fe(args["outDir"], args["projectPath"], args.get("member"))
 
     @server.feature("fem/storyResponse")
     @_in_worker

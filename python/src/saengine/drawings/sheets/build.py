@@ -314,6 +314,7 @@ def _categories(data: DrawingSet, settings: DrawingSettings) -> tuple[list[_Cate
         name = data.bbs[0].title if data.bbs and data.bbs[0].title else "Bar bending schedule"
         out.append(_Category(name, 1, specs, scale_text="NTS"))
     out += _steel_categories(data, settings, area, problems)
+    out += _precast_categories(data, area)  # Alpha 9 L1
     out += _architecture_categories(data, settings, area, problems)
     out += _mep_categories(data, settings, area, problems)
     for category in out:
@@ -521,6 +522,28 @@ def _steel_categories(
                 notes=st.connection_notes(),
             )
         )
+    return out
+
+
+def _precast_categories(data: DrawingSet, area) -> list[_Category]:
+    """Alpha 9 L1: the precast piece schedule and bar list, then a shop drawing per mark."""
+    from saengine.drawings.sheets import precast as pc
+
+    if not data.precast:
+        return []
+    height, width = area[3] - area[1], area[2] - area[0]
+    specs = [schedules.notes_spec(pc.precast_notes(), title="Precast notes")]
+    for table in (
+        pc.schedule_table(data.precast, data.precast_schedule),
+        pc.bar_table(data.precast),
+    ):
+        if table.rows:
+            specs += schedules.table_specs(
+                table, height, key=f"precast-table:{table.title}", max_width=width
+            )
+    out = [_Category("Precast piece schedule", 1, specs, scale_text="NTS", notes=[])]
+    details = [pc.piece_detail(d) for d in data.precast]
+    out.append(_Category("Precast piece drawings", 1, details, scale_text="AS SHOWN", notes=[]))
     return out
 
 

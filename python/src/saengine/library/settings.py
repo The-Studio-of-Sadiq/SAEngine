@@ -1880,6 +1880,68 @@ class ChecklistAnswer(_Model):
     note: str = ""
 
 
+class NonlinearStability(_Model):
+    """Alpha 9 L4: nonlinear buckling of the steel frames with imperfections (GMNIA) and the
+    large-displacement analysis of cables, under one load combination (fem/nonlinear_stability.py,
+    by the code pack's nonlinearStability table)."""
+
+    combination: str | None = Field(
+        default=None,
+        description="The load combination followed (its name). Empty: the first one.",
+    )
+    imperfection: Literal["eigenmode", "equivalent", "none"] = Field(
+        default="eigenmode",
+        description="Eigenmode: the first buckling mode scaled to the code pack's amplitude. "
+        "Equivalent: the code pack's sway and member bow imperfections. None: the perfect "
+        "frame.",
+        json_schema_extra=_labels(
+            ["First buckling mode", "Equivalent sway and bow", "None (perfect frame)"]
+        ),
+    )
+    material: Literal["plastic", "elastic"] = Field(
+        default="plastic",
+        description="Plastic: steel members as fibre elements that yield (GMNIA). Elastic: "
+        "geometric nonlinearity only (GNIA).",
+        json_schema_extra=_labels(["Elastic-plastic steel (GMNIA)", "Elastic (GNIA)"]),
+    )
+    direction: Literal["X", "Y"] = Field(
+        default="X", description="Direction of the sway imperfection (equivalent)."
+    )
+    method: Literal["arcLength", "displacementControl"] | None = Field(
+        default=None,
+        title="Path method",
+        description="How the path is followed past λ = 1. Empty: the code pack's.",
+        json_schema_extra=_labels(["Arc length", "Displacement control"]),
+    )
+    steps: int | None = Field(
+        default=None,
+        ge=5,
+        le=5000,
+        description="Steps of the path at most. Empty: the code pack's.",
+    )
+    segments: int = Field(
+        default=4, ge=1, le=20, description="Pieces each frame element is cut into (to bow)."
+    )
+    curve: str | None = Field(
+        default=None,
+        title="Buckling curve",
+        description="The buckling curve whose bow ratio applies (a0, a, b, c, d where the "
+        "code pack gives them by curve). Empty: the code pack's default.",
+    )
+    bowRatio: float | None = Field(
+        default=None,
+        gt=0,
+        title="Bow ratio",
+        description="L / e0 of the bow. Empty: the code pack's.",
+    )
+    swayRatio: float | None = Field(
+        default=None,
+        gt=0,
+        title="Sway ratio",
+        description="1 / φ of the sway. Empty: the code pack's.",
+    )
+
+
 class ExistingBuilding(_Model):
     """P4: the assessment of an existing building and its retrofit (fem/existing_building.py,
     by the code pack's ``existing`` table): the knowledge level, the as-built strengths from
@@ -1941,6 +2003,39 @@ class ExistingBuilding(_Model):
 
 #: Former ids of ``Analysis.patternLive`` and the ids they are read as.
 FORMER_PATTERN_LIVE = {"bnbc": "adjacent", "bnbcAlternateFloors": "adjacentAlternateFloors"}
+
+
+class FloorSpectra(_Model):
+    """Alpha 9 L5: floor (in-structure) response spectra at chosen floors
+    (:mod:`saengine.fem.floor_spectra`), by the code pack's ``floorSpectra`` table."""
+
+    method: Literal["pack", "timeHistory", "spectrumToSpectrum"] = Field(
+        default="pack",
+        description="From the run's time-history cases (the floors' acceleration histories) or "
+        "by the direct spectrum-to-spectrum method (the site's spectrum through the modes); "
+        "by the code pack: its default, the time history when the run has one.",
+        json_schema_extra=_labels(["By the code pack", "Time history", "Spectrum to spectrum"]),
+    )
+    stories: list[Id] = Field(
+        default_factory=list,
+        description="The stories (ids of the floor plan) to compute; empty: every floor.",
+    )
+    damping: list[float] = Field(
+        default_factory=list,
+        description="Component damping ratios [-]; empty: the code pack's.",
+    )
+    broadening: float | None = Field(
+        default=None,
+        ge=0,
+        lt=1,
+        description="Peak broadening ± share of the period; empty: the code pack's (±15 %).",
+    )
+    useForComponents: bool = Field(
+        default=False,
+        title="Use for the components",
+        description="The nonstructural components' forces follow from their floor's spectrum "
+        "(within the code's least and largest force) in place of the height formula.",
+    )
 
 
 class Analysis(_Model):
@@ -2405,6 +2500,23 @@ class Analysis(_Model):
         "knowledge level, the as-built strengths from tests, the members' condition and the "
         "retrofit measures; the results check every member by the code pack's assessment "
         "rules (its existing table). Empty: a new building.",
+    )
+    nonlinearStability: NonlinearStability | None = Field(
+        default=None,
+        exclude_if=lambda value: value is None,
+        title="Nonlinear stability",
+        description="Nonlinear buckling with imperfections (GMNIA) of the steel frames and the "
+        "large-displacement analysis of cables under one load combination: the path of the load "
+        "factor, the limit load factor against the linear buckling factor αcr, and the cables' "
+        "sag and tension (alpha 9 L4; run from the FEM results). Empty: not made.",
+    )
+    floorSpectra: FloorSpectra | None = Field(
+        default=None,
+        exclude_if=lambda value: value is None,
+        title="Floor response spectra",
+        description="Floor response spectra at chosen floors (alpha 9 L5), from the time "
+        "histories or by the direct method, broadened; they can give the nonstructural "
+        "components' forces. Empty: not computed.",
     )
     thermal: Thermal = Field(default_factory=Thermal, title="Temperature")
     settlement: Settlement = Field(default_factory=Settlement, title="Support settlement")

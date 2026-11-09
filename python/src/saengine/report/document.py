@@ -896,6 +896,69 @@ def _pushover_blocks(pushovers: list[dict[str, Any]]) -> list[Block]:
     return out
 
 
+def _stability_blocks(found: dict[str, Any]) -> list[Block]:
+    """Alpha 9 L4: nonlinear stability (GMNIA) and cables."""
+    if not found:
+        return []
+    out: list[Block] = [
+        h(2, "Nonlinear stability (GMNIA) and cables"),
+        p(str(found.get("text", ""))),
+    ]
+    if found.get("path"):
+        out.append(
+            table(
+                ["Load factor λ", "Control displacement [mm]"],
+                found["path"],
+                ["auto", "auto"],
+                "rr",
+            )
+        )
+    if found.get("cables"):
+        out.append(
+            table(
+                [
+                    "Cable",
+                    "Pretension [kN]",
+                    "Largest T [kN]",
+                    "Least T [kN]",
+                    "Sag [mm]",
+                    "Slack pieces",
+                    "Resistance [kN]",
+                    "Utilisation",
+                ],
+                found["cables"],
+                ["1fr"] + ["auto"] * 7,
+                "lrrrrrrr",
+                bad=found.get("cableFails"),
+            )
+        )
+    if found.get("notes"):
+        out.append(bullets(found["notes"], 8.5))
+    return out
+
+
+def _connection_fe_blocks(found: list[dict[str, Any]]) -> list[Block]:
+    """Alpha 9 L6: the joints' finite element checks."""
+    if not found:
+        return []
+    out: list[Block] = [h(2, "Steel joints: finite element checks (CBFEM)")]
+    for joint in found:
+        out.append(h(3, str(joint.get("title", ""))))
+        out.append(p(str(joint.get("text", ""))))
+        out.append(
+            table(
+                ["Check", "Demand", "Capacity", "Unit", "Utilisation", "Result"],
+                joint.get("checks", []),
+                ["1fr"] + ["auto"] * 5,
+                "lrrlrc",
+                bad=joint.get("fails"),
+            )
+        )
+        if joint.get("notes"):
+            out.append(bullets(joint["notes"], 8.5))
+    return out
+
+
 def _existing_blocks(found: dict[str, Any]) -> list[Block]:
     """Alpha 9 P4: the assessment of an existing building and its retrofit, before and after."""
     if not found:
@@ -1261,6 +1324,35 @@ def _nonstructural_blocks(ns: dict[str, Any]) -> list[Block]:
     return out
 
 
+def _precast_blocks(found: dict[str, Any] | None) -> list[Block]:
+    """Alpha 9 L1: the precast pieces' checks and their schedule."""
+    if not found:
+        return []
+    out: list[Block] = [h(2, str(found.get("title") or "Precast pieces"))]
+    if found.get("intro"):
+        out.append(p(str(found["intro"])))
+    if found.get("rows"):
+        n = len(found["headers"])
+        out.append(
+            table(
+                found["headers"],
+                found["rows"],
+                ["auto"] * (n - 1) + ["1fr"],
+                "ll" + "r" * (n - 3) + "l",
+                bad=found.get("fails"),
+            )
+        )
+    if found.get("schedule"):
+        out.append(h(3, "Piece schedule"))
+        n = len(found["scheduleHeaders"])
+        out.append(
+            table(found["scheduleHeaders"], found["schedule"], ["auto"] * n, "lll" + "r" * (n - 3))
+        )
+    if found.get("notes"):
+        out.append(bullets([str(x) for x in found["notes"]], 8.5))
+    return out
+
+
 def _isolation_blocks(iso: dict[str, Any] | None) -> list[Block]:
     """B37: the isolation system of a seismically isolated building."""
     if not iso:
@@ -1510,8 +1602,10 @@ def _results(data: dict[str, Any], ctx: Context) -> dict[str, Any]:
     out += _serviceability_blocks(results.get("serviceability") or {})
     out += _comfort_blocks("Floor vibration from walking", results.get("floorVibration"))  # P7
     out += _comfort_blocks("Wind-induced motion and comfort", results.get("windComfort"))  # P7
+    out += _comfort_blocks("Floor response spectra", results.get("floorSpectra"))  # L5
     out += _irregularity_blocks(results.get("irregularity") or {})
     out += _nonstructural_blocks(results.get("nonstructural") or {})
+    out += _precast_blocks(results.get("precast"))  # Alpha 9 L1
     out += _isolation_blocks(results.get("isolation"))  # B37
     out += _damper_blocks(results.get("dampers"))  # alpha 9 P6
     out += _shape_ratio_blocks(results.get("shapeRatios"))  # Alpha 9 C19
@@ -1519,6 +1613,8 @@ def _results(data: dict[str, Any], ctx: Context) -> dict[str, Any]:
     out += _nonlinear_history_blocks(results.get("nonlinearHistory") or {})
     out += _column_shortening_blocks(results.get("columnShortening") or {})
     out += _existing_blocks(results.get("existing") or {})  # Alpha 9 P4
+    out += _stability_blocks(results.get("nonlinearStability") or {})  # Alpha 9 L4
+    out += _connection_fe_blocks(results.get("connectionFe") or [])  # Alpha 9 L6
     rsd = results["seismicDesign"]
     if rsd.get("available"):
         out += [

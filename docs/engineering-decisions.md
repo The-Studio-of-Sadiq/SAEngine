@@ -90,6 +90,112 @@ the default pack (BNBC 2020) has none of them, so its results do not change.
   at the axial force, and the detailing limits. The plates' end closures are not counted. The
   wall's analysis stiffness is the fill's (set its modifiers for the composite stiffness).
 
+## 2026-11-09: nonlinear buckling (GMNIA), cables and the FE check of steel joints (alpha 9 tracks L4 and L6)
+
+- **Nonlinear stability (L4, `fem/nonlinear_stability.py`).** An analysis the engineer sets in
+  Project Settings, Analysis, Nonlinear stability (one combination) and runs from the FEM
+  results. The frames, trusses, links, supports and diaphragms of the derived model (walls,
+  slabs and solids left out, as in the linear buckling model, so that λu compares with αcr);
+  each frame element cut into pieces; co-rotational frames and trusses; steel members as
+  fibre elements (Steel02) at the pack's design yield and modulus; load control to λ = 1, then
+  arc length (cylindrical) or displacement control past the peak. The limit load factor λu is
+  the path's peak; a path still rising when it stops is reported as a lower bound.
+  *SAEngine practice*: the pieces (4 by default), the stopping rules (a 20 % drop past the
+  peak, a displacement of the height / 10), the first-order axial forces taken for αcr and
+  the bow directions (each compressed member about its weak axis), residual stresses left
+  to the equivalent imperfections.
+- **Imperfections by the pack** (`nonlinearStability` table, `codes/stability_tables.py`):
+  bow by curve ratio (EN 1993-1-1 Table 5.1) or one ratio (AISC L/1000); sway φ0 αh αm
+  (EN 1993-1-1 5.3.2(3)) or one ratio (AISC L/500); the first buckling mode scaled so that the
+  member that bows most in it gets the pack's bow (a simplification of EN 1993-1-1 5.3.2(11),
+  *SAEngine practice*); a pure sway mode scaled to φ h. **BNBC 2020 gives no GMNIA method**:
+  the default pack's table is *SAEngine practice* on the AISC 360 basis BNBC Part 6 Ch 10
+  adopts (L/1000, L/500, 0.9 Fy and 0.9 E), stated in the results.
+- **Cables** (`fem/cables.py`): a brace type's `cable` (pretension, breaking force, modulus,
+  pieces) becomes a tension-only chain of co-rotational trusses with the pretension as an
+  initial strain, its own weight on its interior nodes; sag and tension read at λ = 1. The
+  linear analysis keeps the brace as it was (no change to existing results). A cable needs a
+  pretension (a straight slack cable has no stiffness). Design tension = the pack's share of
+  the breaking force (EN 1993-1-11 6.2, Fuk / (1.5 γR), γR 0.9, in all three packs: *to verify*;
+  the US pack has no ASCE 19 values yet).
+- **CBFEM (L6, `design/connection_fe.py`).** "FE Check..." on a steel member whose end
+  connection is an end plate or a fin plate (FEM results, Properties). Plates as layered shells
+  (J2 plasticity, linear hardening E/1000), bolts as tension-only links with shear springs
+  (EN 1993-1-8 Table 6.11 stiffness in all packs: *SAEngine practice* outside the Eurocodes),
+  compression-only contact links, welds as stiff elastic links; the member's governing end
+  (largest shear of the combinations) loaded at a stub with the stub's lever arm taken off;
+  checks: plastic strain ≤ 5 % (EN 1993-1-5 C.8 Note 1; *SAEngine practice* for the default and
+  US packs), bolts and welds by the pack's own connection rules (reused), Sj,ini classified by
+  the pack's bounds (EN 1993-1-8 5.2.2.5; AISC 360 Commentary B3 20 / 2).
+  *SAEngine practice*: a mapped (structured) quad mesh instead of gmsh, so that the plates'
+  nodes meet at every bolt, weld and contact point without interpolation links; the supporting
+  member as a plate held along its web line (end plate) or rigid (fin plate); no holes,
+  preload, friction or plate buckling.
+- **Not built (stays for later):** shells (walls, slabs, plated girders) in the GMNIA model
+  (the `plates` imperfection values are in the packs for it), the fem-viewer strain contour
+  (the result carries the mesh and each shell's plastic strain for it), CBFEM of the other
+  connection kinds.
+
+## 2026-11-05: floor response spectra (alpha 9 track L5)
+
+- **Where it lives.** Project Settings, Analysis, Floor response spectra (off unless set):
+  `saengine.fem.floor_spectra` with the code pack's `floorSpectra` table; the results view's
+  chart and Summary table, and the report. No code in the default pack gives floor spectra
+  (BNBC 2020 Part 6 Sec 2.5.15 is by height only), so the method is SAEngine practice there.
+- **Methods by id.** `timeHistory`: the floors' absolute accelerations of the run's time-history
+  cases through oscillators, the mean of the spectra from the pack's `meanFrom` records (as
+  P5), else the largest. `spectrumToSpectrum`: the site's elastic spectrum (R = I = 1) as a
+  power spectral density, through the modal transfer function of the floor and the component's
+  oscillator, with the Davenport peak factor (20 s strong motion). "By the code pack" takes the
+  time history when the run has one.
+- **Broadening ±15 %** and component damping 2/3/5/7 % (5 % for the components): ASCE 4-16
+  practice, in the pack and overridable per project.
+- **Components.** With "Use for the components" on, the nonstructural components (the existing
+  nonstructural table, not a copy) take F = Sa(Tc) Wc Ic / Rc at their floor within the
+  table's least and largest force; their period is not entered, so a rigid one (αc = 1) takes
+  Sa at 0.06 s and a flexible one the spectrum's peak (on the safe side). Off by default:
+  existing results do not change.
+
+## 2026-11-05: point-cloud references (alpha 9 track L2)
+
+- **Formats.** LAS 1.2-1.4 uncompressed (point formats 0-10) and text scans (XYZ, PTS) are read
+  by SAEngine's own reader (numpy). No point-cloud library is in the environment, so LAZ needs
+  `lazrs` or `laszip` and E57 needs `pye57`: both are refused with a message until the owner
+  decides to add the dependency.
+- **As an underlay.** A scan attached to a story is shown as the slice at the story level + a
+  cut height (default 1200 mm, 100 mm thick, one point per 20 mm cube; SAEngine practice, set per
+  underlay), drawn as dashes, with straight lines traced through it by RANSAC. The traced lines
+  are the plan's object snaps, so as-built walls, columns and grids are drawn over the scan
+  with the existing tools. A scan starts at 1000 mm per unit (metres); Calibrate Underlay Scale
+  corrects it. `elevationOffset` gives the scan's height of the project's ±0.
+- **3D view.** The viewer package has `setPointCloud` (decimated points, grey by intensity) in
+  its source; the backend gives the points (`cad/pointCloudView`). The viewer is not rebuilt
+  this week, so the BIM view does not call it yet.
+
+## 2026-11-05: precast pieces and their shop drawings (alpha 9 track L1)
+
+- **Where it lives.** A precast type is an object type of 04 Objects with `precast` (hollow-core
+  and double-tee slab types, precast beams, columns with corbels, wall panels). The analysis
+  takes the type as any other of its kind; the piece checks (`saengine.design.precast`), the
+  piece shop drawings (`drawings/sheets/precast.py`) and the piece schedule
+  (`saengine.boq.precast`, `precastPieces` of the bill) follow from it. Corbels are designed by
+  the existing corbel method and welds by the pack's fillet welds (no second copy).
+- **Code values (default pack).** BNBC 2020 Part 6 Sec 6.10: bearing ln/180, 50 mm slabs, 75 mm
+  beams and stemmed members, pads 13 mm from unarmoured edges, bearing 0.85 f'c A1; dowels by
+  shear friction (Sec 6.4.5); integrity ties 4.4 kN/m, 1.4 Ag, two 44 kN ties per panel.
+- **SAEngine practice** (Sec 6.10.2.1 and 6.10.9 ask for the handling stages and give no
+  values): PCI Design Handbook multipliers (stripping 1.3-1.7 by mould, yard 1.2, travel 1.5,
+  erection 1.2), handling tension 0.62 √f'ci / 1.5, f'ci = 0.7 f'c when not entered, four-point
+  rigid rigging on two inserts, insert safety 4 on an ultimate load, erection wind 0.5 kPa and
+  safety 1.5, a hanging member by Mast's method with the whole sweep L/960 + 6 mm (on the safe
+  side), the least bearing tension 0.2 Vu. All are in the pack's `precast` table and can be
+  overridden per project; a pack without the table shows precast as not covered.
+- **Methods by id.** Bearing `spanRatio` (BNBC, ACI 318-19 16.2.6) or `netBearing` (EN 1992-1-1
+  10.9.5); dowels `shearFriction` or `dowelAction` (fib Bulletin 43). Pieces of one type with
+  the same length and width share a mark. A slab is covered by units of the unit width
+  spanning in the span direction, the last one cut to fit.
+- **Known limit.** The bill's slab items still measure a precast floor type as a slab of its
+  thickness; the piece schedule gives the units' net concrete (cores and voids deducted).
 ## 2026-11-05: composite beams, columns and slabs on deck (alpha 9 track P8)
 
 - **Composite slabs on steel deck are a new pack table.** A slab type's `compositeDeck` makes it
@@ -612,6 +718,13 @@ lists them with their clauses and marks the uncertain ones.
   plastic and compact limits, noncompact sections at Ze = Z, αm = the program's c1, the
   interaction by its conservative linear form, the shear buckling by the family's post-critical
   method in place of αv = (82/λw)².
+
+## 2026-11-09
+
+- **Point clouds: LAZ and E57 are read** (owner). `lazrs` (MIT) decompresses LAZ scans and
+  `pye57` (MIT, with libE57Format under BSL-1.0) reads E57 scans, every scan in its own pose, in
+  metres. Both are dependencies of the backend and ship in the bundled Python. Before, these
+  files were refused with a message (alpha 9 track L2).
 
 ## 2026-11-04: Canada and Mexico City packs (alpha 9 track C17)
 
