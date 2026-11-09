@@ -103,7 +103,7 @@ suite('SAEngine - SchemaForm', () => {
 	test('W4C-4: a union alternative chosen in its select names its discriminator', () => {
 		// A steel beam's Connection: End plate gave `{}` (no "type"), which pydantic rejects.
 		assert.deepStrictEqual(unionEntry({}, 'type', 'endPlate'), { type: 'endPlate' });
-		assert.deepStrictEqual(unionEntry(JSON.parse(JSON.stringify(TEMPLATES['EndPlateConnection'])), 'type', 'endPlate'), { type: 'endPlate' });
+		assert.deepStrictEqual(unionEntry(JSON.parse(JSON.stringify(TEMPLATES.EndPlateConnection)), 'type', 'endPlate'), { type: 'endPlate' });
 		assert.deepStrictEqual(unionEntry({ xDim: 450, yDim: 450 }, 'shape', 'rectangle'), { xDim: 450, yDim: 450, shape: 'rectangle' });
 	});
 });
