@@ -11972,6 +11972,7 @@ from saengine.codes.material_method_tables import (
     SwayImperfection,
     TimberLimitState,
 )
+from saengine.codes.mep_fabrication_tables import MepFabricationTable  # L11: MEP LOD 400
 from saengine.codes.method_tables import (
     ConcreteMethodsTable,
     GeotechnicalMethodsTable,
@@ -12108,6 +12109,8 @@ TABLE_MODELS: dict[str, type[TableModel]] = {
     "connectionFe": ConnectionFeTable,
     # Alpha 9 L8: slope stability by limit equilibrium and strength reduction.
     "slopeStability": SlopeStabilityTable,
+    # Alpha 9 L11: supports of the services for fabrication detailing (MEP LOD 400).
+    "mepFabrication": MepFabricationTable,
 }
 
 

@@ -174,6 +174,9 @@ Methods:
   ``cfd/start`` ``{projectRoot, openfoam?, distribution?}`` -> the background run started;
   ``cfd/status`` / ``cfd/cancel`` ``{projectRoot}`` (answered at once); ``cfd/results``
   ``{projectRoot}`` -> the coefficients, storey forces and the code comparison
+- Alpha 9 L11, the office tools ``office/*`` (4D programme, cost optimisation, PDF takeoff,
+  terrain, sun / daylight / noise, MEP fabrication, phasing and design options): listed in
+  :mod:`saengine.rpc.office`
 - ``mep/report`` ``{projectRoot, outDir?, mepText?}`` -> the MEP coordination report
 - ``mep/suggestSleeves`` ``{projectRoot, mepText?, allowance?}`` -> sleeves for the clashes
 - ``mep/importIfc`` ``{projectRoot, path, copy?}`` -> what an MEP IFC model holds
@@ -1584,7 +1587,32 @@ def create_server() -> JsonRPCServer:
             args.get("memberType"),
         )
 
+    # Alpha 9 L11: the office tools (4D programme, cost optimisation, PDF takeoff, terrain,
+    # sun/daylight/noise, MEP fabrication, phasing and design options; saengine.rpc.office).
+    from saengine.rpc import office
+
+    for method, (handler, where) in office.METHODS.items():
+        _register_office(server, method, handler, where)
+
     return server
+
+
+def _register_office(
+    server: Any, method: str, handler: Callable[[dict[str, Any]], Any], where: str
+) -> None:
+    """One method of :mod:`saengine.rpc.office` as a feature: its params made plain, run at once,
+    in a worker or in a design worker."""
+
+    def run(params: Any) -> Any:
+        return handler(_plain(params))
+
+    run.__name__ = "_office_" + method.split("/", 1)[1]
+    if where == "worker":
+        server.feature(method)(_in_worker(run))
+    elif where == "design":
+        server.feature(method)(_in_design_worker(run))
+    else:
+        server.feature(method)(run)
 
 
 def _claim_stdout() -> BinaryIO:

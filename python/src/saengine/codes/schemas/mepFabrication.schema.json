@@ -1,0 +1,225 @@
+{
+  "$defs": {
+    "DuctSupportRow": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "maxSize": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Up to this size [mm] (larger side or diameter).",
+          "title": "Maxsize"
+        },
+        "spacing": {
+          "description": "Largest support spacing [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Spacing",
+          "type": "number"
+        }
+      },
+      "required": [
+        "spacing"
+      ],
+      "title": "DuctSupportRow",
+      "type": "object"
+    },
+    "HangerLoad": {
+      "additionalProperties": false,
+      "properties": {
+        "spacing": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Largest spacing [mm].",
+          "title": "Spacing"
+        },
+        "loadFactor": {
+          "description": "Times the weight of the water-filled pipe.",
+          "exclusiveMinimum": 0,
+          "title": "Loadfactor",
+          "type": "number"
+        },
+        "extraMass": {
+          "default": 0,
+          "description": "Plus this mass [kg].",
+          "minimum": 0,
+          "title": "Extramass",
+          "type": "number"
+        }
+      },
+      "required": [
+        "loadFactor"
+      ],
+      "title": "HangerLoad",
+      "type": "object"
+    },
+    "PipeSupportRow": {
+      "additionalProperties": false,
+      "description": "Support spacing of one pipe material (and diameter range).",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "material": {
+          "description": "Pipe material id (07 MEP's, e.g. gi, cpvc, upvc, copper).",
+          "title": "Material",
+          "type": "string"
+        },
+        "label": {
+          "default": "",
+          "title": "Label",
+          "type": "string"
+        },
+        "minDiameter": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Applies from this nominal diameter [mm] (exclusive).",
+          "title": "Mindiameter"
+        },
+        "maxDiameter": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Applies up to this nominal diameter [mm] (inclusive).",
+          "title": "Maxdiameter"
+        },
+        "horizontal": {
+          "description": "Largest hanger spacing of horizontal runs [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Horizontal",
+          "type": "number"
+        },
+        "vertical": {
+          "description": "Largest support spacing of vertical runs [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Vertical",
+          "type": "number"
+        }
+      },
+      "required": [
+        "material",
+        "horizontal",
+        "vertical"
+      ],
+      "title": "PipeSupportRow",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Supports of the services for fabrication detailing (see the module notes).",
+  "properties": {
+    "source": {
+      "default": "",
+      "description": "Clause (and page) the table comes from.",
+      "title": "Source",
+      "type": "string"
+    },
+    "sources": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Clause references of single entries: {key: clause}.",
+      "title": "Sources",
+      "type": "object"
+    },
+    "clauses": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Short clause references the results cite, by key, without the code's name (e.g. 'Part 6 Sec 2.5.7.3'); read by saengine.codes.context.cite. A key the pack does not give is not cited.",
+      "title": "Clauses",
+      "type": "object"
+    },
+    "pipeSupports": {
+      "items": {
+        "$ref": "#/$defs/PipeSupportRow"
+      },
+      "title": "Pipesupports",
+      "type": "array"
+    },
+    "ductSupports": {
+      "items": {
+        "$ref": "#/$defs/DuctSupportRow"
+      },
+      "title": "Ductsupports",
+      "type": "array"
+    },
+    "fireMains": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/HangerLoad"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "sprinklerHangers": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/HangerLoad"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    }
+  },
+  "title": "MepFabricationTable",
+  "type": "object",
+  "$id": "saengine.codePack.mepFabrication/1"
+}

@@ -413,6 +413,7 @@ SECTIONS: tuple[tuple[str, tuple[str, ...]], ...] = (
             "hvac",
             "electrical",
             "mepOpenings",
+            "mepFabrication",  # alpha 9 L11: MEP LOD 400 supports
             "planning",
             "accessibility",
         ),

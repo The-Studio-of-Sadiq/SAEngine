@@ -78,6 +78,7 @@ __all__ = [
     "diff",
     "list_versions",
     "mark_issued",
+    "read_texts",
     "restore",
     "save",
     "status",
@@ -999,6 +1000,35 @@ def diff(
             repo.close()
     parts = [semantic.diff_part(p, by_part[p]) for p in _ordered_parts(by_part)]
     return {"from": a_name or None, "to": b_name, "parts": parts, "problems": []}
+
+
+def read_texts(
+    root: str | os.PathLike[str], version: str | None, paths: Iterable[str]
+) -> tuple[str, dict[str, str | None]]:
+    """Alpha 9 L11 (design options): the texts of ``paths`` (project-relative, "/" separated)
+    in ``version`` (an id, a label, a tag or a branch; ``"working"`` or None: the current files),
+    None for a file the version does not have; and the version's short id ("working")."""
+    path = _root(root)
+    repo = _open(path)
+    try:
+        history = _history(repo, _head(repo)[1]) if repo is not None else []
+        name, _, files = _side(repo, path, version, history)
+        out: dict[str, str | None] = {}
+        for rel in paths:
+            sha = files.get(rel)
+            if sha is None:
+                out[rel] = None
+            elif name == WORKING:
+                try:
+                    out[rel] = (path / rel).read_text(encoding="utf-8")
+                except OSError as error:
+                    raise _unreadable(rel, error) from error
+            else:
+                out[rel] = _blob(repo, sha).decode("utf-8", "replace")
+    finally:
+        if repo is not None:
+            repo.close()
+    return name, out
 
 
 def _blob(repo: Repo | None, sha: bytes) -> bytes:
