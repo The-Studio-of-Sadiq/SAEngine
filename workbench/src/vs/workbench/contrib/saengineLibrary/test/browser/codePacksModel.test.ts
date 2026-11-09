@@ -89,7 +89,7 @@ suite('SAEngine - Code packs', () => {
 		assert.deepStrictEqual([warning.message, /design results will change/.test(warning.detail), /Run All/.test(warning.detail)], ['Use Example Region (your pack) as the design code of this project?', true, true]);
 	});
 
-	test('the active pack's combinations (W4A-2)', () => {
+	test('the active pack combinations (W4A-2)', () => {
 		const read = readPackCombinations({ id: 'eurocodes-uk', name: 'BS EN 1990-1998 with the UK National Annexes', combinations: [{ name: '1.35G', D: 1.35 }, 3, null], fromPack: false });
 		assert.deepStrictEqual(read, { name: 'BS EN 1990-1998 with the UK National Annexes', combinations: [{ name: '1.35G', D: 1.35 }], fromPack: false });
 		assert.strictEqual(readPackCombinations({ id: 'x', combinations: [], fromPack: true })?.name, 'x');
