@@ -280,13 +280,26 @@ def test_editor_templates_are_valid() -> None:
         model.model_validate(value)
         if key.startswith("Material:"):
             assert value["category"] == key.split(":")[1]
-    # Every alternative of every union has a template, so the editor can switch to it.
+
+    # Every alternative of every union has a template, so the editor can switch to it; the
+    # alternatives of an optional union (anyOf [oneOf [...], null], e.g. a steel beam's
+    # connection) too, and a discriminated alternative's template names its discriminator
+    # (walk 4 W4C-4: End plate gave "connection": {}, "Unable to extract tag").
+    def branches(prop: dict) -> list[dict]:
+        out = []
+        for branch in prop.get("oneOf", []) + prop.get("anyOf", []):
+            out += [branch, *branches(branch)]
+        return out
+
     for name, schema in schemas.items():
         for prop in schema.get("properties", {}).values():
-            for branch in prop.get("oneOf", []) + prop.get("anyOf", []):
+            for branch in branches(prop) + branches(prop.get("items", {})):
                 ref = branch.get("$ref", "").rsplit("/", 1)[-1]
                 if ref and schemas[ref].get("type") == "object":
                     assert ref in TEMPLATES or ref == "Material", f"{name}: no template for {ref}"
+                    tag = schemas[ref].get("properties", {}).get("type", {}).get("const")
+                    if tag is not None and ref in TEMPLATES and "oneOf" in str(prop):
+                        assert TEMPLATES[ref].get("type") == tag, f"{ref}: template without type"
 
 
 def test_check_reports_problems_per_entry() -> None:

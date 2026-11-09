@@ -11,7 +11,6 @@ table (:mod:`saengine.library.steel_sections`: ``IPE300``, ``HEA 200``, ``SHS100
 
 from __future__ import annotations
 
-import json
 import re
 from pathlib import Path
 from typing import Any
@@ -117,8 +116,9 @@ def import_structural(
     for folder, main in _OTHER_PARTS.items():
         (root / folder).mkdir(exist_ok=True)
         if main is not None and not (root / folder / main[0]).exists():
-            placeholder = json.dumps({"schema": 1, "part": main[1]}, indent="\t") + "\n"
-            (root / folder / main[0]).write_text(placeholder, encoding="utf-8")
+            from saengine.project.new_building import starting_file
+
+            (root / folder / main[0]).write_text(starting_file(main[1]), encoding="utf-8")
     return {
         "root": str(root),
         "name": imported.name,

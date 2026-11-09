@@ -155,6 +155,25 @@ def test_the_rpc_handlers(tmp_path: Path):
     assert answer["problems"] == ["Sheet size 'A0': A1, A2 or A3."]
 
 
+def test_an_internal_error_is_a_readable_problem(tmp_path: Path, monkeypatch):
+    """Walk 4 W4C-1: an error inside the generation (a steel profile without xDim) reached the
+    Exports page as a raw Python traceback. It is a one-line problem naming the step."""
+    from saengine.rpc import handlers
+
+    def failing(root, *args):
+        with d._GUARD:
+            d._RUNNING[d._key(root)].update(step="detailing", message="reinforcement detailing")
+        raise AttributeError("'IShapeProfile' object has no attribute 'xDim'")
+
+    monkeypatch.setattr(d, "_generate", failing)
+    answer = handlers.drawings_generate(str(tmp_path))
+    assert answer["sheets"] == [] and len(answer["problems"]) == 1
+    problem = answer["problems"][0]
+    assert "\n" not in problem and "Traceback" not in problem
+    assert "while reinforcement detailing" in problem and "IShapeProfile" in problem
+    assert handlers.drawings_progress(str(tmp_path)) == {"running": False}
+
+
 def test_export_drawings_from_the_command_line(
     capsys: pytest.CaptureFixture[str], generated: tuple[Path, dict], tmp_path: Path
 ):

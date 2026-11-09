@@ -146,6 +146,15 @@ export function humanize(value: string): string {
 	return [words[0].charAt(0).toUpperCase() + words[0].slice(1), ...words.slice(1).map(w => w.toLowerCase())].join(' ');
 }
 
+/**
+ * A new entry of a discriminated union's alternative: its template with the discriminator
+ * `key` set to the alternative's `value` (a template may leave it out: `{}` would not say which
+ * alternative it is, and the file would no longer validate).
+ */
+export function unionEntry(template: JsonObject, key: string, value: string): JsonObject {
+	return { ...template, [key]: value };
+}
+
 const SMALL_WORDS = new Set(['a', 'an', 'and', 'as', 'at', 'by', 'for', 'in', 'of', 'on', 'or', 'the', 'to', 'with']);
 
 /** "Load combinations" -> "Load Combinations" (title-style, as the part names and buttons). */
@@ -380,7 +389,9 @@ export class SchemaForm {
 				memory.set(`${key}|${held[union.key]}`, held);
 			}
 			if (branch) {
-				owner[key] = memory.get(`${key}|${branch.value}`) ?? this.ctx.template(branch.defName);
+				// The alternative always names itself (walk 4 W4C-4: a template without the
+				// discriminator saved `{}`, "Unable to extract tag using discriminator").
+				owner[key] = memory.get(`${key}|${branch.value}`) ?? unionEntry(this.ctx.template(branch.defName), union.key, branch.value);
 			} else {
 				delete owner[key];
 			}
@@ -418,7 +429,7 @@ export class SchemaForm {
 			const add = this.disposables.add(new Button(append(group, $('.form-array-add')), { ...defaultButtonStyles, secondary: true, supportIcons: true }));
 			add.label = `$(${Codicon.add.id}) ${localize('schemaForm.add', "Add {0}", titleCase(title))}`;
 			this.disposables.add(add.onDidClick(() => {
-				const entry = this.ctx.newItem?.(path.replace(/\.\d+(?=\.|$)/g, ''), list) ?? this.ctx.template(union.branches[0].defName);
+				const entry = this.ctx.newItem?.(path.replace(/\.\d+(?=\.|$)/g, ''), list) ?? unionEntry(this.ctx.template(union.branches[0].defName), union.key, union.branches[0].value);
 				owner[key] = [...list, entry];
 				this.ctx.changed(path, true);
 			}));

@@ -97,3 +97,28 @@ def test_accepts_absolute_folders(tmp_path: Path) -> None:
         assert project_parent(str(tmp_path).replace("\\", "/")) == tmp_path
     result = create_building({**WIZARD, "site": {"location": "dhaka"}}, tmp_path)
     assert Path(result["root"]) == tmp_path / "Site Test"
+
+
+def test_sun_and_daylight_on_a_fresh_wizard_project(tmp_path: Path) -> None:
+    """Walk 4 W4C-3: the wizard wrote the soil report as the bare placeholder, and Sun and
+    Shadows and Daylight Factors failed with a SoilReport validation error. The report starts
+    valid and empty (Part 1 not started); a placeholder left by an older project still reads
+    as a report without a site: both answer that the site point is missing."""
+    import json
+
+    from saengine.environment.service import daylight_study, sun_study
+    from saengine.library.soil import SoilReport
+    from saengine.pipeline.status import StatusInputs, soil_status
+
+    root = Path(create_building(WIZARD, tmp_path)["root"])
+    soil = root / "01 Soil Report/soil-report.json"
+    report = SoilReport.model_validate_json(soil.read_text(encoding="utf-8"))
+    assert report.boreholes == [] and report.site is None
+    status = soil_status(StatusInputs(texts={"soil": soil.read_text(encoding="utf-8")}))
+    assert status.state == "notStarted"
+    for text in (soil.read_text(encoding="utf-8"), json.dumps({"schema": 1, "part": "soil"})):
+        soil.write_text(text, encoding="utf-8")
+        for answer in (sun_study(str(root)), daylight_study(str(root))):
+            assert len(answer["problems"]) == 1
+            assert "latitude/longitude" in answer["problems"][0]
+            assert "validation error" not in answer["problems"][0]

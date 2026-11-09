@@ -385,8 +385,13 @@ def _column_cage(element: dict[str, Any], type_: Any, materials: dict[str, Any],
                     ]
                     cage.lines.append(ring)
                 else:
-                    hx = float(profile.xDim) / 2 - cover - tdia / 2
-                    hy = float(profile.yDim) / 2 - cover - tdia / 2
+                    from saengine.fem.end_zones import profile_extent
+
+                    extent = profile_extent(profile)
+                    if extent is None:  # no outline to hoop (not a reinforced concrete profile)
+                        continue
+                    hx = extent[0] / 2 - cover - tdia / 2
+                    hy = extent[1] / 2 - cover - tdia / 2
                     corners = [(-hx, -hy), (hx, -hy), (hx, hy), (-hx, hy), (-hx, -hy)]
                     cage.lines.append([point(x, y, z) for x, y in corners])
         out["bars"].append(cage)

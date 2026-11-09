@@ -253,6 +253,19 @@ TEMPLATES: dict[str, dict[str, Any]] = {
     # composite concrete, masonry, isolation, flood and special loads, P-delta factors); the
     # materials name the default library's.
     "SteelSplice": {"type": "coverPlate"},
+    # The steel beam and brace connections (a discriminated union): the editor's Connection
+    # select writes the alternative's discriminator; its fields take the model's defaults.
+    **{
+        name: {"type": tag}
+        for name, tag in (
+            ("FinPlateConnection", "finPlate"),
+            ("EndPlateConnection", "endPlate"),
+            ("BraceGussetConnection", "gusset"),
+            ("FlangePlateConnection", "flangePlate"),
+            ("HssJointConnection", "hssJoint"),
+            ("HssMomentConnection", "hssMoment"),
+        )
+    },
     "ColumnBasePlate": {},
     "HssCapPlate": {},
     "SeismicIsolator": {},

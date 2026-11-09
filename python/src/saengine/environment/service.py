@@ -83,12 +83,19 @@ def _inputs(project_root: str) -> dict[str, Any]:
 
     from saengine.environment.solar import Massing, Prism, building_massing
     from saengine.library.bim import BuildingModel
-    from saengine.library.soil import SoilReport
+    from saengine.soil.report import parse as parse_soil
 
     root = Path(project_root)
     settings = EnvironmentSettings.model_validate_json(_read(root, ENVIRONMENT_FILE) or "{}")
     soil = _read(root, "01 Soil Report/soil-report.json")
-    site = SoilReport.model_validate_json(soil).site if soil else None
+    # Only the site point is read: a new project's placeholder (or an empty report) has none,
+    # and a report with errors elsewhere (a borehole) still gives its site.
+    report = parse_soil(soil) if soil else None
+    if isinstance(report, list):
+        from saengine.soil.report import parse_boreholes
+
+        report = parse_boreholes(soil or "")[0]
+    site = report.site if report is not None else None
     if site is None or not site.georeferenced:
         raise ValueError(
             "the site has no latitude/longitude: set the site point in 01 Soil Report's map"

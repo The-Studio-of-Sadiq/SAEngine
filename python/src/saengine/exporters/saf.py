@@ -199,7 +199,13 @@ def saf_rows(
             ]
         )
         report.count("sections")
-    master_nodes = {d.master for d in model.diaphragms}
+    # A diaphragm's master is left out only when it is a node of its own (the centre of mass):
+    # a master the analysis put on a structural node (a column top, as the steel generator does)
+    # is a joint of members like any other, and the loads on it act on that joint.
+    structural = {n for m in model.members for n in (m.i, m.j)}
+    structural.update(n for p in model.plates for n in p.nodes)
+    structural.update(n for n, node in model.nodes.items() if node.supported)
+    master_nodes = {d.master for d in model.diaphragms} - structural
     used = [n for n in model.used_nodes() if n not in master_nodes]
     names = {n: f"N{n}" for n in used}
     for n in used:
