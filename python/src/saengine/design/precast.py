@@ -60,12 +60,16 @@ from saengine.codes import context as code_context
 __all__ = [
     "Piece",
     "Section",
+    "beam_bay",
     "bearing_checks",
     "connection_checks",
     "covered",
     "erection_checks",
+    "fit_checks",
+    "fit_problems",
     "handling_checks",
     "integrity_checks",
+    "piece_bars",
     "piece_checks",
     "piece_section",
     "pieces_of",
@@ -253,11 +257,58 @@ class Piece:
     span: float | None = None  # floor units and beams: their span between supports [mm]
     story_elevation: float | None = None
     slab: Any = None  # a floor unit's building model slab (its area load)
+    #: W4C-16: beams: per element (id, support spacing centre to centre, clear span between
+    #: the faces of the columns at its ends) [mm]; columns: (id, storey height, storey height).
+    bays: list[tuple[str, float, float]] = field(default_factory=list)
 
 
 def _extent(points: Iterable[Sequence[float]], axis: int) -> tuple[float, float]:
     values = [float(p[axis]) for p in points]
     return min(values), max(values)
+
+
+def _column_reach(column: Any, obj: Any, direction: Sequence[float]) -> float:
+    """Half the width of a column's profile along a plan ``direction`` (a unit vector) [mm]:
+    its profile's bounding box turned by the column's rotation (a circle: its radius)."""
+    profile = getattr(obj, "profile", None)
+    if profile is None:
+        return 0.0
+    radius = getattr(profile, "radius", None)
+    if radius:
+        return float(radius)
+    bx = getattr(profile, "xDim", None) or getattr(profile, "overallWidth", None)
+    by = getattr(profile, "yDim", None) or getattr(profile, "overallDepth", None)
+    bx = bx or getattr(profile, "flangeWidth", None) or getattr(profile, "width", None) or 0.0
+    by = by or getattr(profile, "depth", None) or 0.0
+    a = math.radians(float(getattr(column, "rotation", 0.0) or 0.0))
+    ux, uy = float(direction[0]), float(direction[1])
+    lx = ux * math.cos(a) + uy * math.sin(a)
+    ly = -ux * math.sin(a) + uy * math.cos(a)
+    return abs(lx) * float(bx) / 2 + abs(ly) * float(by) / 2
+
+
+def beam_bay(building: Any, objects: Any, beam: Any) -> tuple[float, float]:
+    """(support spacing centre to centre, clear span between the faces of the columns at its
+    ends) of a building model beam [mm]: the columns standing at the beam's ends that reach its
+    level (from below or above); an end with no column keeps its set-out point."""
+    types = {o.id: o for o in getattr(objects, "objects", [])}
+    a, b = beam.start, beam.end
+    spacing = math.dist(a, b)
+    if spacing <= 0:
+        return 0.0, 0.0
+    u = ((b[0] - a[0]) / spacing, (b[1] - a[1]) / spacing)
+    level = float(beam.elevation)
+    clear = spacing
+    for end in (a, b):
+        reach = 0.0
+        for e in getattr(building, "elements", []):
+            if getattr(e, "kind", None) != "column" or math.dist(e.position, end) > 1.0:
+                continue
+            if not float(e.bottom) - 1.0 <= level <= float(e.top) + 1.0:
+                continue
+            reach = max(reach, _column_reach(e, types.get(e.type), u))
+        clear -= reach
+    return spacing, clear
 
 
 def pieces_of(building: Any, objects: Any) -> list[Piece]:
@@ -272,13 +323,18 @@ def pieces_of(building: Any, objects: Any) -> list[Piece]:
         rows: list[tuple[float, float, float | None, float | None, int]] = []
         elevation = None
         slab = None
+        bay: tuple[str, float, float] | None = None
         if e.kind == "beam":
             length = math.dist(e.start, e.end)
             rows.append((length, 0.0, None, length, 1))
             elevation = float(e.elevation)
+            spacing, clear = beam_bay(building, objects, e)
+            bay = (e.id, spacing, clear)
         elif e.kind == "column":
-            rows.append((float(e.top) - float(e.bottom), 0.0, None, None, 1))
+            storey = float(e.top) - float(e.bottom)
+            rows.append((storey, 0.0, None, None, 1))
             elevation = float(e.bottom)
+            bay = (e.id, storey, storey)
         elif e.kind == "wall":
             length = math.dist(e.start, e.end)
             height = float(e.top) - float(e.bottom)
@@ -321,6 +377,8 @@ def pieces_of(building: Any, objects: Any) -> list[Piece]:
                 found[key] = item
             item.count += count
             item.elements.append(e.id)
+            if bay is not None:
+                item.bays.append(bay)
     out: list[Piece] = []
     by_type: dict[str, int] = {}
     for key in sorted(found, key=lambda k: (k[0], -k[1], -k[2])):
@@ -961,6 +1019,143 @@ def integrity_checks(
     ]
 
 
+# ─────────────────────────────── fit on the bay (W4C-16) ───────────────────────────────
+
+#: How far a piece's length may differ from the bay before it is reported [mm]: a measuring
+#: tolerance (SAEngine practice), not a code value.
+FIT_TOLERANCE = 1.0
+
+
+def fit_checks(obj: Any, piece: Piece) -> list[dict[str, Any]]:
+    """W4C-16: a piece whose length the type gives (``precast.length``) against the bay it is
+    placed on: a beam no longer than its supports' spacing centre to centre (the pieces on the
+    next bays meet at the support's centre at most) and longer than the clear span between the
+    columns' faces (it must reach both supports; its seating is the bearing check's); a column
+    no shorter than its storey. A piece of the building model's own length is not checked."""
+    given = getattr(getattr(obj, "precast", None), "length", None)
+    if not given or not piece.bays or piece.element not in ("beam", "column"):
+        return []
+    length = float(piece.length)
+    rows: list[dict[str, Any]] = []
+    groups: dict[tuple[float, float], list[str]] = {}
+    for element, spacing, clear in piece.bays:
+        groups.setdefault((round(spacing, 1), round(clear, 1)), []).append(element)
+    for (spacing, clear), ids in sorted(groups.items()):
+        on = ", ".join(ids[:4]) + (f" (+{len(ids) - 4})" if len(ids) > 4 else "")
+        if piece.element == "column":
+            rows.append(
+                _check(
+                    "Piece length: reaches the storey",
+                    spacing,
+                    length + FIT_TOLERANCE,
+                    "mm",
+                    f"{length:.0f} mm piece on a {spacing:.0f} mm storey ({on})"
+                    + (": shorter than the storey" if length + FIT_TOLERANCE < spacing else ""),
+                )
+            )
+            continue
+        long = length > spacing + FIT_TOLERANCE
+        rows.append(
+            _check(
+                "Piece length: fits the bay",
+                length,
+                spacing + FIT_TOLERANCE,
+                "mm",
+                f"{length:.0f} mm piece on a {spacing:.0f} mm bay centre to centre ({on})"
+                + (": longer than the support spacing, it does not fit" if long else ""),
+            )
+        )
+        short = length <= clear + FIT_TOLERANCE
+        rows.append(
+            _check(
+                "Piece length: reaches the supports",
+                clear + FIT_TOLERANCE,
+                length,
+                "mm",
+                f"clear span {clear:.0f} mm between the column faces ({on})"
+                + (": the piece does not reach its supports" if short else ""),
+            )
+        )
+    return rows
+
+
+def fit_problems(pieces: Sequence[Piece], types: dict[str, Any]) -> list[str]:
+    """The pieces that do not fit their bays (:func:`fit_checks`), one problem each."""
+    out = []
+    for piece in pieces:
+        obj = types.get(piece.type)
+        if obj is None:
+            continue
+        for row in fit_checks(obj, piece):
+            if row["ok"] is False:
+                out.append(f"Precast {piece.mark} ({piece.type}): {row['note']}.")
+    return out
+
+
+# ─────────────────────────────── the piece's bars ───────────────────────────────
+
+
+def piece_bars(obj: Any, length: float) -> list[dict[str, Any]]:
+    """The bars of one precast piece of ``length`` [mm] from its type's reinforcement (W4C-16:
+    the one bar list of the piece, for its drawing, the bar bending schedule and BVBS): each
+    longitudinal group straight over the piece less the cover at both ends (no continuity
+    across the joints), ``{"mark", "count", "dia", "length", "where"}``; the links of a
+    rectangular piece (``where`` "links") spaced over the piece with the type's end zones (the
+    zone's length given), the first the zone's first distance (else the cover) from each end,
+    with ``rows`` their spacing rows (:func:`saengine.drawings.detailing.space`) and ``from``
+    / ``to`` the part of the piece they cover."""
+    reinforcement = getattr(obj, "reinforcement", None)
+    cover = float(getattr(reinforcement, "cover", 0.0) or 0.0)
+    run = max(float(length) - 2 * cover, 0.0)
+    out: list[dict[str, Any]] = []
+    for k, g in enumerate(getattr(reinforcement, "longitudinal", None) or [], 1):
+        out.append(
+            {
+                "mark": f"{k:02d}",
+                "count": g.count,
+                "dia": g.dia,
+                "length": run,
+                "where": g.position,
+                "from": cover,
+                "to": cover + run,
+            }
+        )
+    links = getattr(reinforcement, "transverse", None)
+    if links is not None and getattr(getattr(obj, "profile", None), "shape", "") == "rectangle":
+        from shapely.geometry import box
+
+        from saengine.boq.quantities import transverse_length
+        from saengine.drawings.detailing import space
+
+        pr = obj.profile
+        zone = getattr(links, "zone", None)
+        first = float(getattr(zone, "first", None) or cover)
+        zones: list[tuple[float, float, float, str]] = []
+        if zone is not None and zone.length:
+            zones = [
+                (0.0, float(zone.length), float(zone.spacing), "lo"),
+                (float(length) - float(zone.length), float(length), float(zone.spacing), "lo"),
+            ]
+        rows = space(0.0, float(length), float(links.spacing), zones, first)
+        count = sum(int(r["count"]) for r in rows)
+        # one link (a spiral: one turn): the measure over half a spacing counts one
+        over = float(links.spacing) * (1.0 if links.type == "spiral" else 0.5)
+        one = transverse_length(box(0, 0, pr.xDim, pr.yDim), cover, links, over)
+        out.append(
+            {
+                "mark": f"{len(out) + 1:02d}",
+                "count": count,
+                "dia": links.dia,
+                "length": one,
+                "where": "links",
+                "rows": rows,
+                "from": first,
+                "to": float(length) - first,
+            }
+        )
+    return out
+
+
 def piece_checks(
     obj: Any,
     piece: Piece,
@@ -999,7 +1194,7 @@ def piece_checks(
     out["section"] = section.label
     out["volume"] = round((section.area + section.weight_area) * run * 1e-9, 4)
     out["weight"] = round(self_weight(section, density) * run / 1e3, 2)
-    rows: list[dict[str, Any]] = []
+    rows: list[dict[str, Any]] = fit_checks(obj, piece)
     rows += handling_checks(obj, piece, section, fc, density, pack)
     rows += erection_checks(obj, piece, section, fc, density, pack)
     rows += connection_checks(obj, piece, section, material, materials, types, settings, pack)

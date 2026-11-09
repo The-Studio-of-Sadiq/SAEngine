@@ -1414,7 +1414,10 @@ class _Reader:
         self.case = LoadCase(name=f"{number} {title}".strip())
         self.case.kind = _kind(loadtype, title)
         self.case_key = number
-        if reference:
+        if loadtype.upper().startswith("MASS"):
+            # the masses of a modal analysis as weights: SAEngine forms its own mass source
+            self.report.skip("mass load cases (the modal analysis' masses)", f"{number} {title}")
+        elif reference:
             self.references[number] = self.case
         else:
             self.model.cases[number] = self.case

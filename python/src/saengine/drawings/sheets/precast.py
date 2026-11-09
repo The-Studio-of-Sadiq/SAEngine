@@ -105,37 +105,11 @@ def _outline(obj: Any, section: Any) -> tuple[list[tuple[float, float]], list[tu
 
 
 def _bars(obj: Any, length: float) -> list[dict[str, Any]]:
-    reinforcement = getattr(obj, "reinforcement", None)
-    out = []
-    for k, g in enumerate(getattr(reinforcement, "longitudinal", None) or [], 1):
-        out.append(
-            {
-                "mark": f"{k:02d}",
-                "count": g.count,
-                "dia": g.dia,
-                "length": length,
-                "where": g.position,
-            }
-        )
-    links = getattr(reinforcement, "transverse", None)
-    if links is not None and getattr(getattr(obj, "profile", None), "shape", "") == "rectangle":
-        from shapely.geometry import box
+    """The piece's bar list: :func:`saengine.design.precast.piece_bars` (the same bars the bar
+    bending schedule and BVBS take for a precast piece)."""
+    from saengine.design.precast import piece_bars
 
-        from saengine.boq.quantities import transverse_length
-
-        pr = obj.profile
-        run = transverse_length(box(0, 0, pr.xDim, pr.yDim), reinforcement.cover, links, length)
-        count = math.floor(length / links.spacing + 1e-9) + 1
-        out.append(
-            {
-                "mark": f"{len(out) + 1:02d}",
-                "count": count,
-                "dia": links.dia,
-                "length": run / count if count else 0.0,
-                "where": "links",
-            }
-        )
-    return out
+    return piece_bars(obj, length)
 
 
 def precast_pieces(building: Any, objects: Any, materials: Any) -> list[PrecastPieceDetail]:

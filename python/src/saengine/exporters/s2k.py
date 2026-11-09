@@ -14,22 +14,35 @@ I33, I22, J), ``AREA SECTION PROPERTIES``, ``CONNECTIVITY - FRAME`` / ``- AREA``
 ASSIGNMENTS``, ``AREA SECTION ASSIGNMENTS``, ``FRAME LOCAL AXES ASSIGNMENTS 1 - TYPICAL`` (the
 angle: a vertical member's default local 2 lies along +X, so its depth along Y takes 90°),
 ``FRAME RELEASE ASSIGNMENTS 1 - GENERAL``, ``JOINT CONSTRAINT ASSIGNMENTS`` (the rigid
-diaphragms), ``LOAD PATTERN DEFINITIONS`` (self-weight multiplier 0: the analysis model's dead
-load case already holds the self-weight as loads), ``LOAD CASE DEFINITIONS`` and ``CASE - STATIC 1
-- LOAD ASSIGNMENTS``, ``JOINT LOADS - FORCE``, ``FRAME LOADS - DISTRIBUTED`` (global X, Y, Z
-components), ``COMBINATION DEFINITIONS`` (linear add).
+diaphragms), ``JOINT ADDED MASS ASSIGNMENTS`` and ``MASS SOURCE`` (SAEngine's lumped masses, the
+mass source from the masses only), ``LOAD PATTERN DEFINITIONS`` (self-weight multiplier 0: the
+analysis model's dead load case already holds the self-weight as loads), ``LOAD CASE
+DEFINITIONS`` (the static cases and ``MODAL``, ``CASE - MODAL 1 - GENERAL`` with SAEngine's
+number of modes) and ``CASE - STATIC 1 - LOAD ASSIGNMENTS``, ``JOINT LOADS - FORCE``, ``FRAME
+LOADS - DISTRIBUTED`` (global X, Y, Z components; partial loads by absolute distances) and ``-
+POINT``, ``COMBINATION DEFINITIONS`` (linear add).
+
+The frames are the members, not the analysis mesh's segments
+(:func:`saengine.exporters.analytical.joined_members`).
 """
 
 from __future__ import annotations
 
 from typing import Any
 
-from saengine.exporters.analytical import AnalyticalModel, ExchangeReport
+from saengine.exporters.analytical import (
+    AnalyticalModel,
+    ExchangeReport,
+    count_written,
+    joined_members,
+)
 
 FORMAT_NAME = "SAP text (.s2k)"
 EXTENSION = ".s2k"
 #: The folder of ``11 Exports`` the app writes it to.
 EXPORT_FOLDER = "S2K"
+#: The modal load case's name (SAEngine's modal analysis on its lumped masses).
+MODAL_CASE = "MODAL"
 
 _PATTERN_TYPES = {
     "D": "Dead",
@@ -70,6 +83,8 @@ def _yes(flag: bool) -> str:
 def write_s2k(model: AnalyticalModel, report: ExchangeReport | None = None) -> str:
     """The ``.s2k`` text of ``model`` (kN, m)."""
     report = report or ExchangeReport(FORMAT_NAME, EXTENSION)
+    model = joined_members(model, report)
+    count_written(report, model, masses=True)
     kn = 1 / 1000
     out: list[str] = [
         f"File {model.name}.s2k was written by SAEngine (alpha 9 exchange export)",
@@ -120,6 +135,37 @@ def write_s2k(model: AnalyticalModel, report: ExchangeReport | None = None) -> s
             if model.nodes[n].supported
         ],
     )
+    # SAEngine's lumped masses (its mass source) as joint masses [kN·s²/m, kN·m·s²]
+    table(
+        "JOINT ADDED MASS ASSIGNMENTS",
+        [
+            _record(
+                Joint=str(n),
+                CoordSys="GLOBAL",
+                Mass1=m[0] * kn,
+                Mass2=m[1] * kn,
+                Mass3=m[2] * kn,
+                MMI1=m[3] * kn,
+                MMI2=m[4] * kn,
+                MMI3=m[5] * kn,
+            )
+            for n, m in sorted(model.masses.items())
+            if any(m) and n in model.nodes
+        ],
+    )
+    if model.masses:
+        table(
+            "MASS SOURCE",
+            [
+                _record(
+                    MassSource="MSSSRC1",
+                    Elements="No",
+                    Masses="Yes",
+                    Loads="No",
+                    IsDefault="Yes",
+                )
+            ],
+        )
     # ── materials ──
     general, mech, steel, concrete = [], [], [], []
     for m in model.materials.values():
@@ -294,6 +340,7 @@ def write_s2k(model: AnalyticalModel, report: ExchangeReport | None = None) -> s
             fields = {f"{n}I": _yes(n in m.releases[0]) for n in names}
             fields.update({f"{n}J": _yes(n in m.releases[1]) for n in names})
             releases.append(_record(Frame=m.id, **fields, PartialFix="No"))
+            report.count("releasedEnds", bool(m.releases[0]) + bool(m.releases[1]))
     table("FRAME RELEASE ASSIGNMENTS 1 - GENERAL", releases)
     table(
         "CONNECTIVITY - AREA",
@@ -333,15 +380,34 @@ def write_s2k(model: AnalyticalModel, report: ExchangeReport | None = None) -> s
             for c in model.cases
         ],
     )
-    table(
-        "LOAD CASE DEFINITIONS",
-        [
-            _record(
-                Case=c.name, Type="LinStatic", InitialCond="Zero", DesignType=_PATTERN_TYPES[c.kind]
-            )
-            for c in model.cases
-        ],
-    )
+    cases = [
+        _record(
+            Case=c.name, Type="LinStatic", InitialCond="Zero", DesignType=_PATTERN_TYPES[c.kind]
+        )
+        for c in model.cases
+    ]
+    if model.modes and model.masses:
+        cases.append(
+            _record(Case=MODAL_CASE, Type="LinModal", InitialCond="Zero", DesignType="Other")
+        )
+    table("LOAD CASE DEFINITIONS", cases)
+    if model.modes and model.masses:
+        table(
+            "CASE - MODAL 1 - GENERAL",
+            [
+                _record(
+                    Case=MODAL_CASE,
+                    ModeType="Eigen",
+                    MaxNumModes=int(model.modes),
+                    MinNumModes=1,
+                    EigenShift=0,
+                    EigenCutoff=0,
+                    EigenTol=1e-9,
+                    AutoShift="Yes",
+                )
+            ],
+        )
+        report.count("modalCases")
     table(
         "CASE - STATIC 1 - LOAD ASSIGNMENTS",
         [
@@ -349,7 +415,9 @@ def write_s2k(model: AnalyticalModel, report: ExchangeReport | None = None) -> s
             for c in model.cases
         ],
     )
-    joint_loads, frame_loads = [], []
+    joint_loads: list[str] = []
+    frame_loads: list[str] = []
+    point_loads: list[str] = []
     for c in model.cases:
         for n, f in sorted(c.nodal.items()):
             if any(abs(v) > 1e-9 for v in f):
@@ -383,8 +451,44 @@ def write_s2k(model: AnalyticalModel, report: ExchangeReport | None = None) -> s
                             FOverLB=value * kn,
                         )
                     )
+        for mid, runs in c.partial.items():
+            for w, a, b in runs:
+                for axis, value in zip(("X", "Y", "Z"), w, strict=True):
+                    if value:
+                        frame_loads.append(
+                            _record(
+                                Frame=mid,
+                                LoadPat=c.name,
+                                CoordSys="GLOBAL",
+                                Type="Force",
+                                Dir=axis,
+                                DistType="AbsDist",
+                                AbsDistA=a,
+                                AbsDistB=b,
+                                FOverLA=value * kn,
+                                FOverLB=value * kn,
+                            )
+                        )
+        for mid, forces in c.points.items():
+            for f, at in forces:
+                for axis, value in zip(("X", "Y", "Z"), f[:3], strict=True):
+                    if value:
+                        point_loads.append(
+                            _record(
+                                Frame=mid,
+                                LoadPat=c.name,
+                                CoordSys="GLOBAL",
+                                Type="Force",
+                                Dir=axis,
+                                DistType="AbsDist",
+                                AbsDist=at,
+                                Force=value * kn,
+                            )
+                        )
     table("JOINT LOADS - FORCE", joint_loads)
     table("FRAME LOADS - DISTRIBUTED", frame_loads)
+    table("FRAME LOADS - POINT", point_loads)
+    report.count("memberPointLoads", len(point_loads))
     report.count("jointLoads", len(joint_loads))
     report.count("memberLoads", len(frame_loads))
     combos = []

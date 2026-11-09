@@ -48,6 +48,14 @@
       "minimum": 0,
       "title": "Copeclearance",
       "type": "number"
+    },
+    "plateGrades": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "The plates' grade by the member's steel grade (or 03 Materials id) when a connection gives no plate material: a specification for rolled shapes only (no plates) maps to the plate specification of the same strength; a grade not listed keeps the member's.",
+      "title": "Plategrades",
+      "type": "object"
     }
   },
   "title": "FabricationTable",

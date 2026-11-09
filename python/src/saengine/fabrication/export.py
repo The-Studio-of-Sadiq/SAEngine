@@ -235,8 +235,8 @@ def export_shop_drawings(project_root: str | Path) -> dict[str, Any]:
         "pdf": written["pdf"],
         "assemblies": len(model.marked()),
         "parts": len(model.parts()),
-        "notes": [*notes, *model.notes],
-        "problems": problems,
+        "notes": [*notes, *model.notes, *_supplied_notes(model)],
+        "problems": [*model.problems(), *problems],
     }
 
 
@@ -278,13 +278,27 @@ def export_nc(project_root: str | Path) -> dict[str, Any]:
     files = write_nc_files(model.parts(), folder, header, drawings)
     notes = list(model.notes)
     for a in model.marked():
-        notes += [f"{a.mark}: {n}" for n in a.notes if "slot" in n or "profiled" in n]
+        notes += [
+            f"{a.mark}: {n}"
+            for n in a.notes
+            if "slot" in n or "profiled" in n or "web openings" in n
+        ]
+    notes += _supplied_notes(model)
     return {
         "folder": str(folder),
         "files": [str(f) for f in files],
         "notes": notes,
-        "problems": [],
+        "problems": model.problems(),
     }
+
+
+def _supplied_notes(model: Any) -> list[str]:
+    """The assemblies bought made (open-web joists): in the drawings, no NC file."""
+    supplied = model.supplied()
+    if not supplied:
+        return []
+    marks = ", ".join(f"{a.mark} ({a.main.name}, {a.quantity} off)" for a in supplied)
+    return [f"Open-web steel joists by the joist supplier, no NC files: {marks}."]
 
 
 def _shop_record(root: Path) -> dict[str, Any] | None:

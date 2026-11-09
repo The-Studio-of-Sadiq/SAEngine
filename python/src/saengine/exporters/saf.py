@@ -29,7 +29,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from saengine.exporters.analytical import AnalyticalModel, ExchangeReport
+from saengine.exporters.analytical import AnalyticalModel, ExchangeReport, count_written
 
 FORMAT_NAME = "SAF (.xlsx)"
 EXTENSION = ".xlsx"
@@ -326,13 +326,12 @@ def saf_rows(
                             "Length",
                         ]
                     )
-        report.count("loadCases")
     for name, factors in model.combinations:
         row: list[Any] = [name, name, "ULS", "Linear add"]
         for case, factor in factors.items():
             row += [case, _r(factor, 6)]
         rows["StructuralLoadCombination"].append(row)
-        report.count("combinations")
+    count_written(report, model, diaphragms=None)
     return rows
 
 

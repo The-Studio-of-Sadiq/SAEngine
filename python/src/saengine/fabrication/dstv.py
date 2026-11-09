@@ -16,6 +16,8 @@ A file holds:
 - ``AK``: the outer contour of a plate (face v, counter-clockwise, closed: the first point
   repeated) and of a coped beam's web and flanges, one point per line (face, x, reference, y,
   radius 0);
+- ``IK``: the inner contours: a castellated beam's hexagonal web openings, one block each (the
+  circular openings of a cellular beam are ``BO`` holes of their diameter);
 - ``SI``: the part mark to scribe (face, x, reference, y, angle, text height, text), when asked;
 - ``EN``: the end.
 
@@ -105,12 +107,27 @@ def header_lines(part: Part, quantity: int, header: NcHeader) -> list[str]:
 
 
 def hole_lines(part: Part) -> list[str]:
-    """The ``BO`` block (none without holes)."""
-    if not part.holes:
+    """The ``BO`` block (none without holes): the bolt holes and the circular web openings of
+    a cellular beam (a round hole of the opening's diameter, burnt)."""
+    round_openings = [o for o in part.openings if o.shape != "hexagonal"]
+    if not part.holes and not round_openings:
         return []
     out = ["BO"]
     for h in part.holes:
         out.append(f"  {h.face}{_f(h.x)}{_ref(h.face, h.y, part)}{_f(h.y)}{_f(h.dia)}")
+    for o in round_openings:
+        out.append(f"  {o.face}{_f(o.x)}u{_f(o.y)}{_f(o.depth)}")
+    return out
+
+
+def inner_contour_lines(part: Part) -> list[str]:
+    """The ``IK`` blocks: one inner contour per hexagonal web opening of a castellated beam
+    (face v, counter-clockwise, closed; y from the lower edge)."""
+    out: list[str] = []
+    for o in part.openings:
+        pts = o.outline()
+        if pts:
+            out += ["IK", *_contour(o.face, pts, "u")]
     return out
 
 
@@ -177,6 +194,7 @@ def nc1(part: Part, quantity: int, header: NcHeader | None = None) -> str:
     lines = [
         *header_lines(part, quantity, header),
         *contour_lines(part),
+        *inner_contour_lines(part),
         *hole_lines(part),
         *mark_lines(part, header),
         "EN",
@@ -197,11 +215,14 @@ def write_nc_files(
 ) -> list[Path]:
     """One NC file per part mark into ``folder`` (``drawings``: the shop drawing sheet of each
     part mark, else the header's); the NC files of an earlier export no longer made are
-    removed. Returns the files written."""
+    removed; parts bought made (``supplied``: open-web joists) get none. Returns the files
+    written."""
     out = Path(folder)
     out.mkdir(parents=True, exist_ok=True)
     written: list[Path] = []
     for part, quantity in parts:
+        if part.supplied:
+            continue  # bought made (an open-web joist): not cut here
         own = NcHeader(
             header.order,
             (drawings or {}).get(part.mark, header.drawing),

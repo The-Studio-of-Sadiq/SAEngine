@@ -7,24 +7,35 @@ verified yet. The `.e2k` export is described in [import.md](import.md) and the C
 ## Exports from the analysis model
 
 `.s2k`, `.std`, SAF, SDNF and CIS/2 are written from SAEngine's analysis model, derived exactly as
-Run All derives it (`saengine.exporters.analytical`). App: Command Palette, **SAEngine: Export
-Analysis Model as ...**; command line: `saengine export <project> --format s2k|std|saf|sdnf|cis2`.
+Run All derives it (`saengine.exporters.analytical`). App: the Exports page (**SAEngine:
+Exports**; the SDNF row only when the building has structural steel) or Command Palette,
+**SAEngine: Export Analysis Model as ...**; command line: `saengine export <project> --format s2k|std|saf|sdnf|cis2`.
 Files go to `11 Exports/<format>/<project>.<ext>` with `<name>.export-report.json` and `.md`
 beside them: what was written, approximated and left out, and the loads left out per case.
 
 | Format | File | Holds |
 |---|---|---|
-| `.s2k` text | `S2K/<project>.s2k` | joints, restraints, materials, frame sections by shape or by properties, area sections, frames and areas, local axes, end releases, diaphragm constraints, load patterns and linear static cases, joint and member loads, combinations (kN, m) |
-| `.std` commands | `STD/<project>.std` | joints and members numbered from 1, shell elements, materials, member and element properties, constants (material, beta), releases, supports, master/slave diaphragms, load cases with joint and member loads, combinations (kN, m, `SET Z UP`) |
+| `.s2k` text | `S2K/<project>.s2k` | joints, restraints, materials, frame sections by shape or by properties, area sections, frames (the members, not the mesh segments) and areas, local axes, end releases, diaphragm constraints, joint masses and the mass source (masses only), load patterns, linear static cases and the modal case (SAEngine's number of modes), joint and member loads (partial and point loads where the joined segments carried different loads), combinations (kN, m) |
+| `.std` commands | `STD/<project>.std` | joints and members (the members, not the mesh segments) numbered from 1, shell elements, materials, member and element properties, constants (material, beta), releases, supports, master/slave diaphragms, load cases with joint and member loads (`UNI` partial, `CON`), a `LOADTYPE Mass` case of the lumped masses as weights with `MODAL CALCULATION REQUESTED` and `CUT OFF MODE SHAPE`, combinations (kN, m, `SET Z UP`) |
 | SAF `.xlsx` | `SAF/<project>.xlsx` | materials, cross-sections, point connections, curve and surface members, supports, end releases, load groups, cases, combinations, point and curve actions; also **imported** (Import from ETABS, STAAD, SAP2000 or SAF) |
 | SDNF | `SDNF/<project>.sdnf` | packets 00 (title), 10 (steel members as pieces, section by table name, grade, rotation, web direction, releases) and 20 (steel plates) |
 | CIS/2 | `CIS2/<project>.stp` | LPM/6 analysis model basics: units, materials, section profiles and properties, nodes with restraints, curve elements, load cases with nodal and distributed loads, combinations |
 
-Left out everywhere (reported): solids, lumped nodal masses (the target forms its own mass
-source), rigid end zones (members run joint to joint), the staged dead load, plate bending
-modifiers. SAF, SDNF and CIS/2 have no diaphragm object here: the storey forces at the
-diaphragms' master nodes are reported as loads left out. SDNF takes steel only (concrete members
-are reported).
+The analysis model splits members at every mesh node (500 mm) and wherever another member meets
+them. `.s2k` and `.std` join the segments back into members (a member is still cut at another
+member, a plate, a support, a diaphragm master, an end release or a nodal moment): the loads of
+the segments become one uniform load, or partial uniform loads and point loads; the lumped masses
+of the inner mesh nodes go to the member's ends by the lever rule (reported). SDNF and the web
+viewer write the members as physical pieces; SAF and CIS/2 keep the analysis model's segments.
+
+Left out everywhere (reported): solids, rigid end zones (members run joint to joint), the staged
+dead load, plate bending modifiers; the lumped masses in SAF, SDNF and CIS/2. SAF, SDNF and CIS/2
+have no diaphragm object here: the storey forces at a diaphragm's own master node (the centre of
+mass, on no member) are reported as loads left out; a master that is a node of the structure
+keeps its loads. CIS/2 writes every load that is not exactly zero. SDNF takes steel only
+(concrete members are reported) and no loads, diaphragms or masses (reported as left out, its
+report counts no load cases). The report counts what each file holds (pinned ends: one per
+end).
 
 ### Not verified (for the owner)
 
@@ -33,10 +44,12 @@ descriptions. SAEngine's own readers read `.s2k`, `.std` and SAF back (tests). T
 licensed copy or the format owner:
 
 1. `.s2k`: the table and field names, `ProgramName`, the area section `Type=Shell-Thin`, the
-   diaphragm constraint tables, and the local axis angle of vertical members (90° to put the
+   diaphragm constraint tables, `JOINT ADDED MASS ASSIGNMENTS`, `MASS SOURCE`, `CASE - MODAL 1 -
+   GENERAL`, `FRAME LOADS - POINT`, and the local axis angle of vertical members (90° to put the
    depth along Y).
 2. `.std`: `SET Z UP` with the default member axes (`BETA` written as SAEngine's rotation), `SLAVE
-   XY MASTER` for diaphragms, `STRENGTH FY/FU/FCU`, `TUBE`/`PIPE` parameter order.
+   XY MASTER` for diaphragms, `STRENGTH FY/FU/FCU`, `TUBE`/`PIPE` parameter order, the mass case
+   (`LOADTYPE Mass`, joint weights in X and Y) with `MODAL CALCULATION REQUESTED`.
 3. SAF: sheet and column names, units in headers, the combination layout (case and factor
    columns), `RelConnectsStructuralMember` for releases, the rotation convention.
 4. SDNF: the packet 00 line, the packet 10 record layout (cardinal point, orientation vector,

@@ -28,6 +28,7 @@ import numpy as np
 from saengine.exporters.analytical import (
     AnalyticalModel,
     ExchangeReport,
+    count_written,
     local_axes,
     physical_members,
 )
@@ -127,6 +128,8 @@ def write_sdnf(
         report.count("plates")
     if not members and not plates:
         report.warn("The model has no steel members or plates: the SDNF file is empty.")
+    # SDNF is the steel's geometry: no loads, diaphragms or masses
+    count_written(report, model, members=False, loads=False, diaphragms=False)
     return "\r\n".join(out) + "\r\n"
 
 

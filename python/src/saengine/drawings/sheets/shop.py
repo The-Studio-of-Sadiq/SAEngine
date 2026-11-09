@@ -116,6 +116,9 @@ def _extent(asm: Any) -> tuple[float, float, float, float]:
     first, last = 0.0, 0.0
     lo, hi = 0.0, main.h
     xs = [h.x for h in main.holes]
+    openings = getattr(main, "openings", None) or []
+    if openings:  # the end openings whole
+        xs += [openings[0].x + openings[0].width / 2, openings[-1].x - openings[-1].width / 2]
     xs += [c.length for c in main.copes if c.end == "start"]
     xs += [L - c.length for c in main.copes if c.end == "end"]
     for a in asm.parts:
@@ -321,6 +324,9 @@ def assembly_view(asm: Any, symbols: str, max_size: tuple[float, float]) -> View
         web = [x for x in main.holes if x.face in ("v", "h")]
         for hole in web:
             _bolt(ev, (axis(hole.x), hole.y), hole.dia, face=hole.face, dia=f"{hole.dia:g}")
+        if main.joist:
+            _joist_truss(ev, axis, main)
+        _openings(ev, axis, main)
         placed: list[float] = []
         for a in asm.parts:
             pts = outline(a, main, column)
@@ -344,6 +350,8 @@ def assembly_view(asm: Any, symbols: str, max_size: tuple[float, float]) -> View
         # where the holes and parts are: chains from the ends above, the cut length below,
         # the holes' heights at the ends
         xs = [x.x for x in web] + placed
+        if main.openings:  # the first and last openings' centres from the ends
+            xs += [main.openings[0].x, main.openings[-1].x]
         xs += [c.length for c in main.copes if c.end == "start"]
         xs += [L - c.length for c in main.copes if c.end == "end"]
         _x_dims(ev, axis, main, xs, hi, 8)
@@ -386,6 +394,78 @@ def assembly_view(asm: Any, symbols: str, max_size: tuple[float, float]) -> View
         subtitle=f"{asm.quantity} OFF   {main.name}   L = {L:.0f}   SCALE 1:{scale:g}"
         + ("   (BROKEN)" if axis.broken else ""),
         key=f"assembly:{asm.mark}",
+    )
+
+
+def _kept(axis: Axis, x0: float, x1: float) -> bool:
+    """Whether ``x0`` to ``x1`` is drawn whole on a (maybe broken) elevation."""
+    if not axis.broken:
+        return True
+    return x1 <= axis.a or x0 >= axis.length - axis.b
+
+
+def _joist_truss(view: View, axis: Axis, main: Any) -> None:
+    """An open-web joist's chords and webs on its elevation (Warren: diagonals alternating;
+    Pratt: verticals and diagonals), as the design gives its depth and panels; the joist
+    supplier details the members."""
+    j = main.joist or {}
+    L, h = main.length, main.h
+    chord = min(max(h * 0.08, 30.0), h / 4)
+    for y in (chord, h - chord):
+        view.line((axis(0.0), y), (axis(L), y), "S-STEEL", linetype="HIDDEN")
+    panels = max(2, round(L / float(j.get("panel") or L / 2)))
+    p = L / panels
+    lo, hi = chord, h - chord
+    segments: list[tuple[tuple[float, float], tuple[float, float]]] = []
+    if j.get("web") == "pratt":
+        for k in range(panels + 1):
+            segments.append(((k * p, lo), (k * p, hi)))
+        for k in range(panels):
+            a, b = (k * p, hi), ((k + 1) * p, lo)
+            segments.append((a, b) if k < panels / 2 else ((k * p, lo), ((k + 1) * p, hi)))
+    else:
+        points = [(k * p / 2, hi if k % 2 == 0 else lo) for k in range(2 * panels + 1)]
+        segments += list(itertools.pairwise(points))
+    for (x0, y0), (x1, y1) in segments:
+        if _kept(axis, min(x0, x1), max(x0, x1)):
+            view.line((axis(x0), y0), (axis(x1), y1), "S-STEEL")
+    at = axis.a / 2 if axis.broken else L / 4
+    view.label(
+        f"{main.name.upper()} BY THE JOIST SUPPLIER",
+        (axis(at), h),
+        [(0, 6, "BC"), (10, 6, "BL")],
+        leader=True,
+    )
+
+
+def _openings(view: View, axis: Axis, main: Any) -> None:
+    """The web openings of a castellated or cellular beam: each one drawn (on a broken
+    elevation, those whole in its kept ends), the first one labelled with their size, number
+    and centres."""
+    openings = list(getattr(main, "openings", None) or [])
+    if not openings:
+        return
+    for o in openings:
+        if not _kept(axis, o.x - o.width / 2, o.x + o.width / 2):
+            continue
+        extra = {"linetype": "HIDDEN"} if o.filled else {}
+        if o.shape == "hexagonal":
+            _poly(view, axis, o.outline(), "S-STEEL", **extra)
+        else:
+            view.circle((axis(o.x), o.y), o.depth / 2, "S-STEEL", **extra)
+    first = openings[0]
+    spacing = openings[1].x - first.x if len(openings) > 1 else 0.0
+    size = (
+        f"{first.width:.0f} x {first.depth:.0f} HEX."
+        if first.shape == "hexagonal"
+        else f"Ø{first.depth:.0f}"
+    )
+    text = f"{len(openings)} OPENINGS {size}" + (f" @ {spacing:.0f}" if spacing else "")
+    filled = sum(1 for o in openings if o.filled)
+    if filled:
+        text += f" ({filled} FILLED)"
+    view.label(
+        text, (axis(first.x), first.y), [(8, -8, "TL"), (-8, -8, "TR"), (8, 8, "BL")], leader=True
     )
 
 
@@ -438,6 +518,11 @@ BOM_COLUMNS = (
 )
 
 
+def _name(p: Any) -> str:
+    """A part's name in the bills: a part bought made says so."""
+    return f"{p.name} (by supplier)" if getattr(p, "supplied", False) else p.name
+
+
 def bom_table(asm: Any) -> Table:
     """The bill of materials of one assembly: its main part, the parts welded to it, then its
     loose parts (marked L), the number of each in one assembly, the mass of them."""
@@ -459,7 +544,7 @@ def bom_table(asm: Any) -> Table:
         rows.append([
             mark_ + (" L" if loose else ""),
             str(n),
-            p.name,
+            _name(p),
             f"{p.length:.0f}",
             p.grade,
             f"{p.mass * n:,.1f}",
@@ -598,7 +683,7 @@ def parts_table(model: Any) -> Table:
     rows = []
     for p, n in model.parts():
         rows.append([
-            p.mark, str(n), p.name, f"{p.length:.0f}", p.grade, f"{p.mass:,.2f}",
+            p.mark, str(n), _name(p), f"{p.length:.0f}", p.grade, f"{p.mass:,.2f}",
             f"{p.mass * n:,.1f}", ", ".join(model.assemblies_of(p.mark)),
         ])  # fmt: skip
     return Table("Parts", columns, rows)

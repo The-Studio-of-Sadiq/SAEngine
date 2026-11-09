@@ -86,6 +86,10 @@ class FabricationOptions:
         default_factory=lambda: {"beam": "B", "column": "C", "brace": "BR"}
     )
     part_prefix: str = "p"
+    #: The plates' grade by the member's grade when a connection names no plate material (the
+    #: pack's ``fabrication.plateGrades``: a specification for shapes only, such as ASTM A992,
+    #: has no plates).
+    plate_grades: dict[str, str] = field(default_factory=dict)
 
     @classmethod
     def resolve(cls, settings: Any = None) -> FabricationOptions:
@@ -107,6 +111,7 @@ class FabricationOptions:
                 "brace": str(s.get("bracePrefix") or "BR"),
             },
             part_prefix=str(s.get("partPrefix") or "p"),
+            plate_grades=dict(getattr(table, "plateGrades", None) or {}),
         )
 
 
@@ -160,8 +165,43 @@ class Weld:
 
 
 @dataclass
+class Opening:
+    """A web opening of a castellated (hexagonal) or cellular (circular) beam: its centre at
+    ``x`` along the part and ``y`` up the web (face v), ``depth`` (the hexagon's h0, the
+    circle's diameter), ``width`` along the part and ``cut`` (a hexagon's straight top and
+    bottom edges); ``filled``: an end opening filled with a plate after it is cut."""
+
+    x: float
+    y: float
+    shape: str  # circular | hexagonal
+    depth: float
+    width: float
+    cut: float = 0.0
+    filled: bool = False
+    face: str = "v"
+
+    def outline(self) -> list[Point]:
+        """A hexagon's corners (counter-clockwise, not closed); a circle: none (its centre
+        and diameter say it)."""
+        if self.shape != "hexagonal":
+            return []
+        a, c, w = self.depth / 2, self.cut / 2, self.width / 2
+        x, y = self.x, self.y
+        return [
+            (x - c, y - a),
+            (x + c, y - a),
+            (x + w, y),
+            (x + c, y + a),
+            (x - c, y + a),
+            (x - w, y),
+        ]
+
+
+@dataclass
 class Part:
-    """A part a fabricator cuts: a profile cut to length or a plate (see the module notes)."""
+    """A part a fabricator cuts: a profile cut to length or a plate (see the module notes).
+    ``supplied``: a part bought made (an open-web steel joist from the joist supplier): in the
+    drawings and the bills of materials, not in the NC files."""
 
     kind: str  # profile | plate
     role: str  # main, fin plate, end plate, gusset, tab, flange plate, splice plate, ...
@@ -185,6 +225,10 @@ class Part:
     notes: list[str] = field(default_factory=list)
     mark: str = ""
     shape: str = ""  # the 04 Objects profile shape ("" for plates)
+    openings: list[Opening] = field(default_factory=list)
+    supplied: bool = False
+    #: An open-web joist's truss (drawing): depth, panel, web ("warren" | "pratt").
+    joist: dict[str, Any] | None = None
 
     @property
     def thickness(self) -> float:
@@ -212,7 +256,8 @@ class Part:
         """kg of one part."""
         if self.kind == "plate":
             return self.area * self.tw * 1e-9 * self.density
-        return self.mass_per_m * self.length / 1000
+        cut = sum(_opening_area(o) for o in self.openings if not o.filled)
+        return self.mass_per_m * self.length / 1000 - cut * self.tw * 1e-9 * self.density
 
     def finish(self) -> None:
         """Holes measured from the end are measured from the start; holes sorted; a plate's
@@ -222,6 +267,9 @@ class Part:
                 h.x, h.from_end = self.length - h.x, False
             h.x, h.y = round(h.x, 1), round(h.y, 1)
         self.holes.sort(key=lambda h: (h.face, h.x, h.y))
+        for o in self.openings:
+            o.x, o.y = round(o.x, 1), round(o.y, 1)
+        self.openings.sort(key=lambda o: o.x)
         if self.contour:
             pts = self.contour
             signed = sum(x1 * y2 - x2 * y1 for (x1, y1), (x2, y2) in zip(pts, [*pts[1:], pts[0]]))
@@ -242,7 +290,19 @@ class Part:
             tuple((round(x), round(y)) for x, y in self.contour) if self.contour else (),
             tuple((c.end, c.side, round(c.length), round(c.depth)) for c in self.copes),
             tuple(round(c, 1) for c in self.cuts),
+            tuple(
+                (o.shape, round(o.x), round(o.y), round(o.depth), round(o.width), o.filled)
+                for o in self.openings
+            ),
+            self.supplied,
         )
+
+
+def _opening_area(o: Opening) -> float:
+    """mm² of web an opening removes (as the bill of quantities takes it off)."""
+    if o.shape == "hexagonal":
+        return o.depth * (o.cut + o.width) / 2
+    return math.pi * o.depth**2 / 4
 
 
 @dataclass
@@ -309,6 +369,25 @@ class FabricationModel:
 
     assemblies: list[Assembly] = field(default_factory=list)
     notes: list[str] = field(default_factory=list)
+    #: The member ends that frame into steel with no connection designed in 04 Objects
+    #: ("B12 start"): cut clear, no holes (the exports warn).
+    undesigned: list[str] = field(default_factory=list)
+
+    def problems(self) -> list[str]:
+        """What the exports warn about: the member ends with no designed connection."""
+        out = []
+        if self.undesigned:
+            shown = ", ".join(self.undesigned[:8]) + (" ..." if len(self.undesigned) > 8 else "")
+            out.append(
+                f"{len(self.undesigned)} member end(s) frame into steel with no connection "
+                "designed in 04 Objects: the shop drawings mark them NO CONNECTION DESIGNED, cut "
+                f"clear with no holes; design the connections before fabrication ({shown})."
+            )
+        return out
+
+    def supplied(self) -> list[Assembly]:
+        """The assemblies bought made (open-web joists), one per mark."""
+        return [a for a in self.marked() if a.main.supplied]
 
     def marked(self) -> list[Assembly]:
         """One assembly per assembly mark (the first of its members), in mark order."""
@@ -353,6 +432,7 @@ class _Member:
     grade: str
     density: float
     pieces: list[_Piece] = field(default_factory=list)
+    material: Any = None
 
     @property
     def start(self) -> Point3:
@@ -452,9 +532,48 @@ def _members(bim: Any, objects: Any, materials: Any) -> list[_Member]:
         material = materials.get(m.material) if materials is not None else None
         density = getattr(getattr(material, "mechanical", None), "density", None)
         out.append(
-            _Member(m, t, s, rotation.get(m.id, 0.0), m.grade, float(density or STEEL_DENSITY))
+            _Member(
+                m,
+                t,
+                s,
+                rotation.get(m.id, 0.0),
+                m.grade,
+                float(density or STEEL_DENSITY),
+                material=material,
+            )
         )
     return out
+
+
+def joist_label(joist: Any) -> str:
+    """How the drawings and the bills name an open-web joist: as the bill of quantities names
+    it (:mod:`saengine.boq.quantities`), its designation, else its depth."""
+    if getattr(joist, "designation", None):
+        return str(joist.designation)
+    if getattr(joist, "kind", "joist") == "joistGirder":
+        return f"joist girder {float(joist.depth):g} mm deep"
+    return f"open-web joist {float(joist.depth):g} mm deep"
+
+
+def opening_centres(openings: Any, length: float) -> tuple[list[float], float, float]:
+    """(centres [mm from the member's start], width along the member, a hexagon's straight
+    edge) of the web openings of a beam of ``length``, as the design places them
+    (:func:`saengine.design.steel.web_openings.geometry`: from the first one given, else
+    centred on the span)."""
+    h0, s = float(openings.depth), float(openings.spacing)
+    if openings.shape == "circular":
+        width, cut = h0, 0.0
+    else:
+        cut = float(openings.cut) if openings.cut else h0 / math.sqrt(3)
+        width = cut + h0 / math.tan(math.radians(60.0))
+    if openings.first:
+        x0 = float(openings.first)
+        n = max(0, int((length - x0 - width / 2) // s) + 1)
+        centres = [x0 + i * s for i in range(n)]
+    else:
+        n = max(0, int((length - width) // s) + 1)
+        centres = [length / 2 + (i - (n - 1) / 2) * s for i in range(n)]
+    return centres, width, cut
 
 
 # ─────────────────────────────────── supports ───────────────────────────────────
@@ -568,15 +687,21 @@ def _plate(
     )
 
 
-def _plate_grade(c: Any, me: _Member, materials: Any) -> str:
-    """The plates' grade: the connection's plate material, else the member's."""
+def _plate_grade(
+    c: Any, me: _Member, materials: Any, plate_grades: dict[str, str] | None = None
+) -> str:
+    """The plates' grade: the connection's plate material; else the plate grade the pack gives
+    for the member's grade (``plate_grades``, by its grade or its 03 Materials id); else the
+    member's."""
     pid = getattr(c, "plateMaterial", None)
     if pid and materials is not None:
         mat = materials.get(pid)
         if mat is not None:
             steel = getattr(mat, "steel", None)
             return (steel.grade if steel is not None and steel.grade else None) or mat.name or pid
-    return me.grade
+    grades = plate_grades or {}
+    material_id = getattr(me.m, "material", None)
+    return grades.get(me.grade) or (grades.get(material_id) if material_id else None) or me.grade
 
 
 def _bolt_rows(rows: int, pitch: float, end: float) -> tuple[float, list[float]]:
@@ -591,6 +716,24 @@ class _Builder:
         self.opts = opts
         self.notes: list[str] = []
         self.stiffened: set[tuple[str, int]] = set()  # (column, level) with stiffeners already
+        self.plate_noted: set[str] = set()
+        self.undesigned: list[str] = []
+
+    def _plate_grade(self, c: Any, me: _Member) -> str:
+        """The plates' grade (:func:`_plate_grade`), noted once per member grade the pack's
+        plate grade replaces."""
+        grade = _plate_grade(c, me, self.materials, self.opts.plate_grades)
+        if (
+            grade != me.grade
+            and not getattr(c, "plateMaterial", None)
+            and me.grade not in self.plate_noted
+        ):
+            self.plate_noted.add(me.grade)
+            self.notes.append(
+                f"Plates of {me.grade} members with no plate material in 04 Objects: {grade} "
+                f"(the code pack's plate grade; {me.grade} is a specification for shapes)."
+            )
+        return grade
 
     # ── pieces and their main parts ──
 
@@ -608,6 +751,10 @@ class _Builder:
                 )
             me.pieces = [_Piece(me, 0.0, L, 0)]
         s = me.s
+        joist = getattr(me.t, "joist", None)
+        if joist is not None:
+            self._joist_piece(me, joist)
+            return
         for p in me.pieces:
             name, profile = _profile_names(s, me.m.section)
             main = Part(
@@ -639,11 +786,101 @@ class _Builder:
                 end=me.at(p.t1),
                 section=me.m.section,
             )
+        openings = getattr(me.t, "webOpenings", None)
+        if openings is not None:
+            self._openings(me, openings)
+
+    def _joist_piece(self, me: _Member, joist: Any) -> None:
+        """An open-web steel joist: one assembly made by the joist supplier to its design (the
+        designation, the depth, the chords and webs of 04 Objects), cut and drilled by them; in
+        the drawings and the bills of materials, never in the NC files."""
+        from saengine.design import steel_joists
+
+        L = me.length
+        me.pieces = [_Piece(me, 0.0, L, 0)]
+        label = joist_label(joist)
+        mass = steel_joists.mass_per_metre(joist, me.material, L)
+        chord = getattr(getattr(joist.topChord, "profile", None), "width", None)
+        main = Part(
+            kind="profile",
+            role="joist",
+            name=label,
+            profile=re.sub(r"\s+", "", label),
+            code="SO",
+            grade=me.grade,
+            length=0.0,
+            h=float(joist.depth),
+            b=float(chord or 0.0) * (2 if joist.topChord.double else 1),
+            mass_per_m=mass,
+            density=me.density,
+            shape="joist",
+            supplied=True,
+            joist={"depth": float(joist.depth), "panel": float(joist.panel), "web": joist.web},
+            notes=[
+                (
+                    "Open-web steel joist by the joist supplier to the design (depth, chords, "
+                    "webs, bridging): not cut here, no NC file."
+                )
+            ],
+        )
+        if not mass:
+            main.notes.append("The joist's mass could not be found from its chords and webs.")
+        me.pieces[0].assembly = Assembly(
+            me.m.kind, me.m.id, main, start=me.start, end=me.end, section=label
+        )
+
+    def _openings(self, me: _Member, openings: Any) -> None:
+        """The web openings of a castellated or cellular beam on its pieces (the centres along
+        the member as the design places them, :func:`opening_centres`)."""
+        if me.s is None or me.s.shape != "I":
+            self.notes.append(f"{me.m.id}: web openings need an I section; not fabricated.")
+            return
+        centres, width, cut = opening_centres(openings, me.length)
+        h0 = float(openings.depth)
+        filled = int(openings.filledEnds or 0)
+        for k, t in enumerate(centres):
+            piece = me.piece_at(t)
+            if piece is None or piece.assembly is None:
+                continue
+            main = piece.assembly.main
+            main.openings.append(
+                Opening(
+                    t,  # along the member's axis until the piece is finished
+                    main.h / 2,
+                    openings.shape,
+                    h0,
+                    width,
+                    cut,
+                    filled=k < filled or k >= len(centres) - filled,
+                )
+            )
+        for p in me.pieces:
+            asm = p.assembly
+            if asm is None or not asm.main.openings:
+                continue
+            kind = "hexagonal (castellated)" if openings.shape == "hexagonal" else "circular"
+            asm.notes.append(
+                f"{len(asm.main.openings)} {kind} web openings {h0:g} deep at "
+                f"{float(openings.spacing):g} centres (inner contours of the NC file)."
+            )
+            if filled:
+                asm.notes.append(
+                    f"The {filled} end opening(s) at each end filled with a plate of the web "
+                    "thickness, welded all round."
+                )
 
     # ── the ends ──
 
     def ends(self, me: _Member) -> None:
         kind = me.m.kind
+        if getattr(me.t, "joist", None) is not None:
+            asm = me.pieces[0].assembly
+            assert asm is not None
+            asm.notes.append(
+                "Ends: the joist's bearing seats as the joist supplier details them, set out "
+                "to the supports' centres."
+            )
+            return
         c = getattr(me.t, "connection", None)
         for which in ("start", "end"):
             piece = me.pieces[0] if which == "start" else me.pieces[-1]
@@ -670,6 +907,7 @@ class _Builder:
                         f"{label}: no connection designed (04 Objects); cut "
                         f"{self.opts.end_clearance:g} mm clear of {sup.member.m.id}."
                     )
+                    self.undesigned.append(f"{me.m.id} {which}")
             elif handler is None:
                 self._cut(piece, which, reach)
                 asm.notes.append(f"{label}: a {c.type} connection is not detailed for fabrication.")
@@ -824,7 +1062,7 @@ class _Builder:
             hp,
             a + c.edgeDistance,
             c.plateThickness,
-            _plate_grade(c, me, self.materials),
+            self._plate_grade(c, me),
             me.density,
             [Hole("v", y, a, dia) for y in ys],
         )
@@ -843,7 +1081,7 @@ class _Builder:
         bp = c.gauge + 2 * c.edgeDistance
         xs = (c.edgeDistance, c.edgeDistance + c.gauge)
         holes = [Hole("v", y, x, dia) for y in ys for x in xs]
-        grade = _plate_grade(c, me, self.materials)
+        grade = self._plate_grade(c, me)
         plate = _plate("end plate", hp, bp, c.plateThickness, grade, me.density, holes)
         asm = piece.assembly
         assert asm is not None
@@ -860,7 +1098,7 @@ class _Builder:
         self._cut(piece, which, (sup.reach if sup else 0.0) + c.setback)
         main = piece.assembly.main  # type: ignore[union-attr]
         dia = bolt_hole(c.boltDiameter)
-        grade = _plate_grade(c, me, self.materials)
+        grade = self._plate_grade(c, me)
         spread = (c.lines - 1) * c.gauge / 2
         for face in ("o", "u"):
             for i in range(c.rows):
@@ -987,7 +1225,7 @@ class _Builder:
         g = GussetGeometry(detail)
         reach = sup.reach if sup is not None else 0.0
         dia = bolt_hole(c.boltDiameter)
-        grade = _plate_grade(c, me, self.materials)
+        grade = self._plate_grade(c, me)
         asm = piece.assembly
         assert asm is not None
         main = asm.main
@@ -1079,7 +1317,7 @@ class _Builder:
         piece's assembly)."""
         first, second = me.pieces
         dia = bolt_hole(c.boltDiameter)
-        grade = _plate_grade(c, me, self.materials)
+        grade = self._plate_grade(c, me)
         spread = (c.lines - 1) * c.gauge / 2
         hw, wys = _bolt_rows(c.webRows, c.webPitch, c.webEndDistance)
         for piece, which in ((first, "end"), (second, "start")):
@@ -1155,7 +1393,7 @@ class _Builder:
                 Hole("v", base.length / 2 + px, base.width / 2 + py, dia)
                 for px, py in anchor_points(base)
             ]
-            grade = _plate_grade(base, me, self.materials)
+            grade = self._plate_grade(base, me)
             plate = _plate(
                 "base plate", base.length, base.width, base.thickness, grade, me.density, holes
             )
@@ -1164,7 +1402,9 @@ class _Builder:
             )
         elif which == "end" and cap is not None and not above and s is not None:
             self._cut(piece, which, cap.thickness)
-            plate = _plate("cap plate", s.h, s.b, cap.thickness, me.grade, me.density)
+            plate = _plate(
+                "cap plate", s.h, s.b, cap.thickness, self._plate_grade(cap, me), me.density
+            )
             leg = max(round(min(s.tw, cap.thickness)), 3)
             self._at_end(asm, plate, "end", Weld(leg, None, note="all round"), "cap plate")
             asm.notes.append(
@@ -1187,6 +1427,8 @@ class _Builder:
         for h in main.holes:
             if h.on_axis:
                 h.x, h.on_axis = piece.local(h.x), False
+        for o in main.openings:
+            o.x = piece.local(o.x)
         for a in asm.parts:
             if a.on_axis:
                 a.x, a.on_axis = piece.local(a.x), False
@@ -1221,6 +1463,7 @@ def build(
         for piece in me.pieces:
             model.assemblies.append(b.finish(piece))
     model.notes = b.notes
+    model.undesigned = b.undesigned
     mark(model, opts)
     return model
 

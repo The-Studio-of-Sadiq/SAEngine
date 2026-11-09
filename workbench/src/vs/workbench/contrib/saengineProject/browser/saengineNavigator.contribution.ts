@@ -124,8 +124,9 @@ registerAction2(class extends Action2 {
 			title: localize2('saengine.showExports', "Exports"),
 			category,
 			icon: Codicon.export,
+			// W4C-30: always in the Command Palette as "SAEngine: Exports" (without a project the
+			// page says none is open), so typing its title never falls through to another export.
 			f1: true,
-			precondition: projectOpen,
 		});
 	}
 
