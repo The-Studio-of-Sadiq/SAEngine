@@ -645,6 +645,8 @@ class SteelSet:
     grades: list[str] = field(default_factory=list)
     bolt_grades: list[str] = field(default_factory=list)
     electrodes: list[float] = field(default_factory=list)
+    # Alpha 9 P8: one note per composite member type (studs, deck, shoring, camber).
+    composite_notes: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -681,6 +683,10 @@ class DrawingSet:
     # the building services (07 MEP/mep.json, saengine.drawings.sheets.mep.MepDrawing) its MEP
     # sheets draw; None: no MEP sheets
     mep: Any = None
+    # alpha 9 L1: the precast piece marks (saengine.drawings.sheets.precast.PrecastPieceDetail)
+    # and their schedule (saengine.boq.precast.piece_schedule): the piece shop drawings
+    precast: list[Any] = field(default_factory=list)
+    precast_schedule: dict[str, Any] = field(default_factory=dict)
     problems: list[str] = field(default_factory=list)
     # members without reinforcement (never designed): {kind: {object type: count}}; while there
     # are any the sheets are not for construction

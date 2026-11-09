@@ -32,6 +32,33 @@ export function isPdf(file: unknown): boolean {
 	return typeof file === 'string' && /\.pdf$/i.test(file);
 }
 
+/** Alpha 9 L2: a laser scan (LAS, XYZ, PTS; LAZ and E57 need a library the backend says it lacks). */
+export function isPointCloud(file: unknown): boolean {
+	return typeof file === 'string' && /\.(las|laz|e57|xyz|pts)$/i.test(file);
+}
+
+/** The scale a point cloud starts at: scans are usually in metres. */
+export const DEFAULT_CLOUD_SCALE = 1000;
+
+/** What the backend slices of a point cloud underlay, in the scan's units. */
+export interface ICloudSlice {
+	readonly cut: number;
+	readonly thickness: number;
+	readonly voxel: number;
+}
+
+/**
+ * The slice of a point cloud underlay at a story of elevation `elevation` [mm]: its cut height
+ * (default 1200 mm) above the story, its thickness (100 mm) and point spacing (20 mm), all in mm
+ * on the plan, turned into the scan's units by the underlay's scale (scan units to mm) and moved
+ * by the scan's own height of ±0 (`elevationOffset`, in the scan's units).
+ */
+export function cloudSlice(underlay: Json, elevation: number): ICloudSlice {
+	const scale = num(underlay.scale, 1) > 0 ? num(underlay.scale, 1) : 1;
+	const cut = (elevation + num(underlay.cutHeight, 1200)) / scale + num(underlay.elevationOffset, 0);
+	return { cut, thickness: num(underlay.sliceThickness, 100) / scale, voxel: Math.max(0, num(underlay.pointSpacing, 20)) / scale };
+}
+
 export function placementOf(underlay: Json): IUnderlayPlacement {
 	const scale = num(underlay.scale, 1);
 	return { offset: [num(underlay.dx, 0), num(underlay.dy, 0)], scale: scale > 0 ? scale : 1, rotation: num(underlay.rotation, 0) };

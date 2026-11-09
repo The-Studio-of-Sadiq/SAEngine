@@ -1324,6 +1324,35 @@ def _nonstructural_blocks(ns: dict[str, Any]) -> list[Block]:
     return out
 
 
+def _precast_blocks(found: dict[str, Any] | None) -> list[Block]:
+    """Alpha 9 L1: the precast pieces' checks and their schedule."""
+    if not found:
+        return []
+    out: list[Block] = [h(2, str(found.get("title") or "Precast pieces"))]
+    if found.get("intro"):
+        out.append(p(str(found["intro"])))
+    if found.get("rows"):
+        n = len(found["headers"])
+        out.append(
+            table(
+                found["headers"],
+                found["rows"],
+                ["auto"] * (n - 1) + ["1fr"],
+                "ll" + "r" * (n - 3) + "l",
+                bad=found.get("fails"),
+            )
+        )
+    if found.get("schedule"):
+        out.append(h(3, "Piece schedule"))
+        n = len(found["scheduleHeaders"])
+        out.append(
+            table(found["scheduleHeaders"], found["schedule"], ["auto"] * n, "lll" + "r" * (n - 3))
+        )
+    if found.get("notes"):
+        out.append(bullets([str(x) for x in found["notes"]], 8.5))
+    return out
+
+
 def _isolation_blocks(iso: dict[str, Any] | None) -> list[Block]:
     """B37: the isolation system of a seismically isolated building."""
     if not iso:
@@ -1573,8 +1602,10 @@ def _results(data: dict[str, Any], ctx: Context) -> dict[str, Any]:
     out += _serviceability_blocks(results.get("serviceability") or {})
     out += _comfort_blocks("Floor vibration from walking", results.get("floorVibration"))  # P7
     out += _comfort_blocks("Wind-induced motion and comfort", results.get("windComfort"))  # P7
+    out += _comfort_blocks("Floor response spectra", results.get("floorSpectra"))  # L5
     out += _irregularity_blocks(results.get("irregularity") or {})
     out += _nonstructural_blocks(results.get("nonstructural") or {})
+    out += _precast_blocks(results.get("precast"))  # Alpha 9 L1
     out += _isolation_blocks(results.get("isolation"))  # B37
     out += _damper_blocks(results.get("dampers"))  # alpha 9 P6
     out += _shape_ratio_blocks(results.get("shapeRatios"))  # Alpha 9 C19

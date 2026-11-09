@@ -87,6 +87,100 @@ here, newest first, with the date, the question, the decision, the reason and wh
   (the result carries the mesh and each shell's plastic strain for it), CBFEM of the other
   connection kinds.
 
+## 2026-11-05: floor response spectra (alpha 9 track L5)
+
+- **Where it lives.** Project Settings, Analysis, Floor response spectra (off unless set):
+  `saengine.fem.floor_spectra` with the code pack's `floorSpectra` table; the results view's
+  chart and Summary table, and the report. No code in the default pack gives floor spectra
+  (BNBC 2020 Part 6 Sec 2.5.15 is by height only), so the method is SAEngine practice there.
+- **Methods by id.** `timeHistory`: the floors' absolute accelerations of the run's time-history
+  cases through oscillators, the mean of the spectra from the pack's `meanFrom` records (as
+  P5), else the largest. `spectrumToSpectrum`: the site's elastic spectrum (R = I = 1) as a
+  power spectral density, through the modal transfer function of the floor and the component's
+  oscillator, with the Davenport peak factor (20 s strong motion). "By the code pack" takes the
+  time history when the run has one.
+- **Broadening ±15 %** and component damping 2/3/5/7 % (5 % for the components): ASCE 4-16
+  practice, in the pack and overridable per project.
+- **Components.** With "Use for the components" on, the nonstructural components (the existing
+  nonstructural table, not a copy) take F = Sa(Tc) Wc Ic / Rc at their floor within the
+  table's least and largest force; their period is not entered, so a rigid one (αc = 1) takes
+  Sa at 0.06 s and a flexible one the spectrum's peak (on the safe side). Off by default:
+  existing results do not change.
+
+## 2026-11-05: point-cloud references (alpha 9 track L2)
+
+- **Formats.** LAS 1.2-1.4 uncompressed (point formats 0-10) and text scans (XYZ, PTS) are read
+  by SAEngine's own reader (numpy). No point-cloud library is in the environment, so LAZ needs
+  `lazrs` or `laszip` and E57 needs `pye57`: both are refused with a message until the owner
+  decides to add the dependency.
+- **As an underlay.** A scan attached to a story is shown as the slice at the story level + a
+  cut height (default 1200 mm, 100 mm thick, one point per 20 mm cube; SAEngine practice, set per
+  underlay), drawn as dashes, with straight lines traced through it by RANSAC. The traced lines
+  are the plan's object snaps, so as-built walls, columns and grids are drawn over the scan
+  with the existing tools. A scan starts at 1000 mm per unit (metres); Calibrate Underlay Scale
+  corrects it. `elevationOffset` gives the scan's height of the project's ±0.
+- **3D view.** The viewer package has `setPointCloud` (decimated points, grey by intensity) in
+  its source; the backend gives the points (`cad/pointCloudView`). The viewer is not rebuilt
+  this week, so the BIM view does not call it yet.
+
+## 2026-11-05: precast pieces and their shop drawings (alpha 9 track L1)
+
+- **Where it lives.** A precast type is an object type of 04 Objects with `precast` (hollow-core
+  and double-tee slab types, precast beams, columns with corbels, wall panels). The analysis
+  takes the type as any other of its kind; the piece checks (`saengine.design.precast`), the
+  piece shop drawings (`drawings/sheets/precast.py`) and the piece schedule
+  (`saengine.boq.precast`, `precastPieces` of the bill) follow from it. Corbels are designed by
+  the existing corbel method and welds by the pack's fillet welds (no second copy).
+- **Code values (default pack).** BNBC 2020 Part 6 Sec 6.10: bearing ln/180, 50 mm slabs, 75 mm
+  beams and stemmed members, pads 13 mm from unarmoured edges, bearing 0.85 f'c A1; dowels by
+  shear friction (Sec 6.4.5); integrity ties 4.4 kN/m, 1.4 Ag, two 44 kN ties per panel.
+- **SAEngine practice** (Sec 6.10.2.1 and 6.10.9 ask for the handling stages and give no
+  values): PCI Design Handbook multipliers (stripping 1.3-1.7 by mould, yard 1.2, travel 1.5,
+  erection 1.2), handling tension 0.62 √f'ci / 1.5, f'ci = 0.7 f'c when not entered, four-point
+  rigid rigging on two inserts, insert safety 4 on an ultimate load, erection wind 0.5 kPa and
+  safety 1.5, a hanging member by Mast's method with the whole sweep L/960 + 6 mm (on the safe
+  side), the least bearing tension 0.2 Vu. All are in the pack's `precast` table and can be
+  overridden per project; a pack without the table shows precast as not covered.
+- **Methods by id.** Bearing `spanRatio` (BNBC, ACI 318-19 16.2.6) or `netBearing` (EN 1992-1-1
+  10.9.5); dowels `shearFriction` or `dowelAction` (fib Bulletin 43). Pieces of one type with
+  the same length and width share a mark. A slab is covered by units of the unit width
+  spanning in the span direction, the last one cut to fit.
+- **Known limit.** The bill's slab items still measure a precast floor type as a slab of its
+  thickness; the piece schedule gives the units' net concrete (cores and voids deducted).
+## 2026-11-05: composite beams, columns and slabs on deck (alpha 9 track P8)
+
+- **Composite slabs on steel deck are a new pack table.** A slab type's `compositeDeck` makes it
+  a composite slab, checked by the pack's `compositeSlab` table (only the Eurocodes pack, EN
+  1994-1-1 Section 9). A pack without it reports the deck as not checked and designs the slab as
+  concrete; the default pack's results are unchanged. With the table, the slab's own concrete
+  checks become advisories and the composite slab's rows decide.
+- **SAEngine practice: one way, simply supported, per metre.** The slab spans along the ribs
+  between its supports (the slab's extent along them unless the span is given), designed simply
+  supported (the bars over the supports are crack control). The deck's section values come from
+  its trapezoidal geometry (gross, no embossments or effective widths) unless the manufacturer's
+  are given; without the manufacturer's MRd the construction stage bending row is an advisory.
+  The longitudinal shear needs the deck's test values (m and k, or τu,Rk); without them the row is
+  an advisory asking for them. The working area of the construction load is placed at mid-span.
+  The service deflection limit is L/250 overall (the code gives none).
+- **SAEngine practice: the camber of unshored composite beams** (US and Eurocodes packs): 80 %
+  of the steel beam's deflection under the wet concrete, in 5 mm steps, none below 20 mm.
+  Reported in the summary and the drawings' notes, not checked.
+- **The slab's longitudinal shear of composite beams** (Eurocodes pack, EN 1994-1-1 6.6.6): the
+  planes beside the beam (top and bottom bars) and, in solid slabs, round the studs (bottom bars
+  twice); the deck's own contribution is not counted (safe side).
+- **SAEngine practice: composite floors' vibration.** The analysis carries the steel beams
+  alone, so a floor on composite beams has its deflection scaled by Is / It,dyn of its composite
+  beams (full interaction, Ec × the pack's `compositeDynamicModulus`: 1.35 US, 1.1 Eurocodes);
+  the default pack has none and is unchanged.
+- **The design mode checks composite types as composite.** The lightest section is found with
+  the composite checks (and the studs designed when the type gives no spacing); the proposal
+  notes the studs.
+- **BOQ.** Shear studs (number, from the type's spacing) and the steel deck (m², the slab's
+  soffit) are a new group, "Composite" (SC), kept out of the structural steel's kg. A composite
+  slab's concrete is the volume over and in the ribs; the deck replaces the soffit formwork.
+- **Planned.** The fire resistance of composite members (EN 1994-1-2, AISC 360 Appendix 4) stays
+  a planned feature; the US pack's composite slabs (ANSI/SDI C-2017) are not entered.
+
 ## 2026-11-05: base isolators and supplemental dampers (alpha 9 track P6)
 
 - **What was built.** B37's isolation design now takes its procedure from the pack

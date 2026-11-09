@@ -317,26 +317,33 @@ class BeamGeometry:
         return self.steel.inertia(c)
 
 
-def effective_width(span: float, beam: Any, table: Any) -> tuple[float, list[str]]:
-    """The effective width of the slab [mm]: each side at most the span share, the spacing
-    share of the distance to the next beam and the distance to the edge."""
+def side_widths(span: float, beam: Any, table: Any) -> tuple[float, float, list[str]]:
+    """(left, right) effective widths of the slab [mm] and notes: each side at most the span
+    share, the spacing share of the distance to the next beam and the distance to the edge."""
     rules = table.beam
     notes = []
-    total = 0.0
+    widths = []
     for side, spacing, edge in (
         ("left", beam.spacingLeft, beam.edgeLeft),
         ("right", beam.spacingRight, beam.edgeRight),
     ):
         if spacing is None and edge is None:
             notes.append(f"no slab on the {side}: that side's effective width is 0")
+            widths.append(0.0)
             continue
         width = rules.spanShare * span
         if spacing is not None:
             width = min(width, rules.spacingShare * spacing)
         if edge is not None:
             width = min(width, edge)
-        total += width
-    return total, notes
+        widths.append(width)
+    return widths[0], widths[1], notes
+
+
+def effective_width(span: float, beam: Any, table: Any) -> tuple[float, list[str]]:
+    """The effective width of the slab [mm] (:func:`side_widths` together)."""
+    left, right, notes = side_widths(span, beam, table)
+    return left + right, notes
 
 
 def tributary_width(beam: Any) -> float:
@@ -727,6 +734,11 @@ def beam_checks(
                     upper=False,
                 )
             )
+        # Alpha 9 P8: the slab's longitudinal shear and the transverse bars (the pack's group).
+        if getattr(table.beam, "longitudinalShear", None) is not None and plastic:
+            checks += longitudinal_shear_rows(
+                beam, geom, conn, found["C"], r[2], span, concrete, r[0].combination, table, notes
+            )
     else:
         summary["ratio"] = 1.0
 
@@ -787,6 +799,20 @@ def beam_checks(
                 note,
                 scale=1e6,
             )
+        )
+    # Alpha 9 P8: the camber proposed for the wet concrete (the pack's group; reported only).
+    rule = getattr(table.beam, "camber", None)
+    if rule is not None and not beam.shored:
+        found_camber = camber(wet[0], span, steel.e, geom.steel_inertia, rule)
+        summary.update(found_camber)
+        notes.append(
+            f"wet concrete on the steel alone deflects {found_camber['wetDeflection']:.1f} mm: "
+            + (
+                f"camber {found_camber['camber']:.0f} mm proposed"
+                if found_camber["camber"]
+                else "no camber"
+            )
+            + f" ({cite(table, 'camber')})"
         )
 
     checks += _beam_detailing(beam, geom, spacing, least, largest, table)
@@ -869,6 +895,135 @@ def shrinkage_deflection(
     y = y_na - y_slab
     delta = span**2 / 8 * data.coefficient * data.freeStrain * ac * y / (ns * ies)
     return {"delta": float(delta), "ns": ns, "Ies": ies}
+
+
+def camber(w_wet: float, span: float, e: float, inertia: float, rule: Any) -> dict[str, float]:
+    """Alpha 9 P8: ``{"wetDeflection", "camber"}`` [mm] of an unshored beam: 5 w L⁴ / (384 E
+    Is) under the wet load ``w_wet`` [N/mm] on the steel alone, and ``share`` × it rounded
+    down to ``step`` (0 below ``minimum``) of the pack's ``camber`` group."""
+    delta = 5 * w_wet * span**4 / (384 * e * inertia) if inertia > 0 else 0.0
+    proposed = math.floor(float(rule.share) * delta / float(rule.step) + 1e-9) * float(rule.step)
+    if proposed < float(rule.minimum):
+        proposed = 0.0
+    return {"wetDeflection": round(delta, 1), "camber": proposed}
+
+
+def longitudinal_shear_rows(
+    beam: Any,
+    geom: BeamGeometry,
+    conn: _Connectors,
+    nc: float,
+    dx: float,
+    span: float,
+    concrete: Concrete,
+    combination: str | None,
+    table: Any,
+    notes: list[str],
+) -> list[dict[str, Any]]:
+    """Alpha 9 P8, ``flangeStrut`` (the pack's ``beam.longitudinalShear``): the slab's
+    longitudinal shear through the planes beside the beam (each side's share of the slab's
+    force ``nc`` [N] over ``dx`` [mm], the depth of the slab above the deck) and, in a solid
+    slab, round the connectors (all of ``nc``, the bottom bars counted twice): the transverse
+    bars needed against the beam's ``transverseBars``, and the crushing of the struts."""
+    rule = table.beam.longitudinalShear
+    pf = partial_factors(table)
+    if pf is None or dx <= 0 or nc <= 0:
+        if pf is None:
+            notes.append("longitudinal shear not checked: the method needs the partial factors")
+        return []
+    clause = cite(table, "longitudinalShear")
+    fck = concrete.fc
+    fcd = fck / float(pf.gammaC)
+    bars = getattr(beam, "transverseBars", None)
+    fy_bars = float(bars.fy) if bars is not None else 500.0
+    fyd = fy_bars / float(pf.gammaS)
+    nu = float(rule.nu[0]) * (1 - fck / float(rule.nu[1]))
+    lo, hi = (float(v) for v in rule.cotTheta)
+
+    def struts(cot: float) -> float:
+        return nu * fcd * cot / (1 + cot**2)
+
+    left, right, _ = side_widths(span, beam, table)
+    hf = geom.t_top if beam.deck is not None else geom.tc
+    planes: list[tuple[str, float, float, float | None]] = []  # name, ΔFd, hf, bars [mm²/m]
+    share = max(left, right) / geom.beff if geom.beff > 0 else 0.0
+    provided_aa = (bars.top + bars.bottom) if bars is not None else None
+    planes.append(("beside the beam (a-a)", nc * share, hf, provided_aa))
+    if rule.aroundStuds and beam.deck is None and conn.kind == "stud":
+        c = beam.connectors
+        spread = (c.perRow - 1) * float(c.transverseSpacing or 0.0)
+        perimeter = 2 * float(c.height) + spread + float(c.diameter)
+        provided_bb = 2 * bars.bottom if bars is not None else None
+        planes.append(("round the studs (b-b)", nc, perimeter, provided_bb))
+    elif beam.deck is not None:
+        notes.append(
+            "longitudinal shear round the studs in the deck ribs is not checked (the deck's own "
+            "rules); planes beside the beam through the concrete above the ribs"
+        )
+    rows = []
+    for name, force, depth, provided in planes:
+        v_ed = force / (depth * dx)
+        cot = hi if v_ed <= struts(hi) else lo
+        need = v_ed * depth / (fyd * cot) * 1000.0  # mm²/m
+        how = (
+            f"vEd = ΔFd / (hf Δx) = {force / 1e3:.0f} kN / ({depth:.0f} × {dx:.0f} mm) = "
+            f"{v_ed:.2f} MPa, cot θf = {cot:g}, fyd = {fyd:.0f} MPa"
+        )
+        if provided is None:
+            rows.append(
+                _row(
+                    f"transverse bars, {name}",
+                    need,
+                    need,
+                    "mm²/m",
+                    clause,
+                    f"{how}; give the slab's transverse bars of the beam type",
+                    combination,
+                    flag=True,
+                )
+            )
+        else:
+            rows.append(
+                _row(f"transverse bars, {name}", need, provided, "mm²/m", clause, how, combination)
+            )
+        rows.append(
+            _row(
+                f"longitudinal shear struts, {name}",
+                v_ed,
+                struts(cot),
+                "MPa",
+                clause,
+                f"ν fcd sin θf cos θf, ν = {nu:.3f}",
+                combination,
+            )
+        )
+    return rows
+
+
+def dynamic_stiffening(
+    object_type: Any, mats: dict[str, Any], span_m: float, factor: float, table: Any = None
+) -> float | None:
+    """Alpha 9 P8: Is / It,dyn of a composite beam type for the floor's vibration: the
+    transformed section with full interaction and the concrete's modulus × ``factor``; None
+    when the type is not a composite beam or cannot be computed."""
+    composite = getattr(object_type, "composite", None)
+    if composite is None or getattr(composite, "type", None) != "compositeBeam":
+        return None
+    table = table if table is not None else composite_table()
+    if table is None:
+        return None
+    from saengine.design.steel.members import Steel
+    from saengine.design.steel.properties import shape_properties
+
+    try:
+        shape = shape_properties(object_type.profile)
+        steel = Steel.of(mats[object_type.material])
+        concrete = concrete_of(mats[composite.concrete], table, "slab concrete")
+        geom = beam_geometry(shape, steel.fy, steel.e, composite, span_m * 1000.0, table)
+        it, _y = transformed(geom, steel.e / (factor * concrete.ec))
+    except (CompositeError, KeyError, ZeroDivisionError, ValueError, TypeError, AttributeError):
+        return None
+    return geom.steel_inertia / it if it > 0 else None
 
 
 def _beam_detailing(
@@ -2063,6 +2218,11 @@ def _seismic(object_type: Any, combinations: list[str]) -> bool:
     if getattr(object_type, "seismicRole", "auto") == "gravity":
         return False
     return any("E" in re.findall(r"[A-Za-z]+", c) for c in combinations)
+
+
+def describe(summary: dict[str, Any]) -> str:
+    """The one-line description of a composite member's summary (``entry["composite"]``)."""
+    return _describe(summary)
 
 
 def _describe(summary: dict[str, Any]) -> str:

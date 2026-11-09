@@ -1782,11 +1782,14 @@ def _results(
     out["serviceability"] = _serviceability(model_path, results_dir, warnings)
     # Alpha 9 P7: floor vibration and wind comfort (the storey response's, one computation).
     out["floorVibration"], out["windComfort"] = _comfort(model_path, results_dir, warnings)
+    out["floorSpectra"] = _floor_spectra(model_path, results_dir, warnings)  # Alpha 9 L5
     out["seismicDesign"] = _seismic_design(model_path, results_dir, settings, warnings)
     # B12: building irregularities, dynamic analysis, soft storeys, diaphragm connections.
     out["irregularity"] = _irregularity(model_path, results_dir, settings, warnings)
     # B15: seismic forces on nonstructural components and the anchorage of structural walls.
     out["nonstructural"] = _nonstructural(parts.root, warnings)
+    # Alpha 9 L1: the precast pieces' handling, erection and connections, and their schedule.
+    out["precast"] = _precast(parts.root, warnings)
     # B37: the isolation system of a seismically isolated building.
     out["isolation"] = _isolation(model_path.parent)
     # Alpha 9 P6: the supplemental dampers.
@@ -2753,6 +2756,22 @@ def _comfort(
     )
 
 
+def _floor_spectra(
+    model_path: Path, results_dir: Path, warnings: list[str]
+) -> dict[str, Any] | None:
+    """Alpha 9 L5: the floor response spectra of the storey response
+    (:func:`saengine.fem.floor_spectra.report_rows`); None when not asked for."""
+    from saengine.fem import floor_spectra
+    from saengine.fem.story_response import story_response
+
+    try:
+        found = story_response(results_dir, model_path) or {}
+    except Exception as error:  # noqa: BLE001 - the report goes on without them
+        warnings.append(f"Floor response spectra could not be worked out: {error}")
+        return None
+    return floor_spectra.report_rows(found.get("floorSpectra"))
+
+
 def _nonstructural(root: Path, warnings: list[str]) -> dict[str, Any] | None:
     """B15: the section on nonstructural components (:func:`saengine.design.nonstructural.
     report_section`); None when the project has none, or when it cannot be computed (a
@@ -2763,6 +2782,18 @@ def _nonstructural(root: Path, warnings: list[str]) -> dict[str, Any] | None:
         return nonstructural.report_section(root)
     except Exception as e:  # noqa: BLE001 - one section must not stop the report
         warnings.append(f"Nonstructural components: not computed ({e}).")
+        return None
+
+
+def _precast(root: Path, warnings: list[str]) -> dict[str, Any] | None:
+    """Alpha 9 L1: the section on precast pieces (:func:`saengine.design.precast.
+    report_section`); None without precast object types."""
+    from saengine.design import precast
+
+    try:
+        return precast.report_section(root)
+    except Exception as e:  # noqa: BLE001 - one section must not stop the report
+        warnings.append(f"Precast pieces: not computed ({e}).")
         return None
 
 

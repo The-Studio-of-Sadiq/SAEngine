@@ -301,10 +301,74 @@ def steel_set(
     grades = sorted({f"{m.grade} ({m.material})" if m.material else m.grade for m in members})
     bolts = sorted({str(c.data.get("boltGrade")) for c in connections})
     electrodes = sorted({float(c.data.get("electrode") or 480) for c in connections})
-    return (
-        SteelSet(members, connections, items, total, source, grades, bolts, electrodes),
-        problems,
-    )
+    found = SteelSet(members, connections, items, total, source, grades, bolts, electrodes)
+    found.composite_notes = composite_notes(bim, objects, design_report)
+    return found, problems
+
+
+def composite_notes(
+    bim: Any, objects: Any, design_report: dict[str, Any] | None = None
+) -> list[str]:
+    """Alpha 9 P8: one note per composite beam or column type placed in the model: the shear
+    studs (the type's spacing, else the design report's), the deck, shoring and camber."""
+    used = {getattr(e, "type", None) for e in bim.elements}
+    used |= {m.type for m in bim.additions.members}
+    designed: dict[str, dict[str, Any]] = {}
+    for e in (design_report or {}).get("elements") or []:
+        if isinstance(e, dict) and isinstance(e.get("composite"), dict) and e.get("type"):
+            best = designed.get(str(e["type"]))
+            if best is None or e["composite"].get("connectors", 0) > best.get("connectors", 0):
+                designed[str(e["type"])] = e["composite"]
+    notes = []
+    for t in objects.objects:
+        composite = getattr(t, "composite", None)
+        if composite is None or t.id not in used:
+            continue
+        if composite.type == "compositeBeam":
+            c = composite.connectors
+            if c.kind == "stud":
+                what = f"headed studs {c.diameter:g} mm × {c.height:g} mm long after welding"
+            else:
+                what = f"channel connectors {c.channelLength:g} mm long"
+            spacing = c.spacing
+            summary = designed.get(t.id) or {}
+            if spacing is None and summary.get("spacing"):
+                spacing = float(summary["spacing"])
+            at = (
+                f"{c.perRow} per row at {spacing:g} mm centres"
+                if spacing
+                else f"{c.perRow} per row at the spacing of the design report"
+            )
+            deck = composite.deck
+            slab = (
+                f"{composite.slabThickness:g} mm slab on {deck.ribHeight:g} mm steel deck, ribs "
+                + ("across" if deck.orientation == "perpendicular" else "along")
+                + " the beam"
+                if deck is not None
+                else f"{composite.slabThickness:g} mm solid slab"
+            )
+            text = (
+                f"Composite beams {t.id}: {what}, {at}, over the web, through the deck welded to "
+                f"the top flange; {slab}; "
+                + ("shore until the concrete has gained strength" if composite.shored
+                   else "unshored: the steel carries the wet concrete")
+            )  # fmt: skip
+            if summary.get("camber"):
+                text += f"; camber {float(summary['camber']):g} mm at mid-span"
+            notes.append(text + ".")
+        elif composite.type == "compositeColumn":
+            how = (
+                f"encased in {composite.width:g} × {composite.depth:g} mm concrete with "
+                f"{composite.bars} bars {composite.barDiameter:g} mm, ties {composite.tieDiameter:g}"
+                f" mm at {composite.tieSpacing:g} mm"
+                if composite.form == "encased"
+                else "concrete-filled HSS, with vent holes as the fabricator's details"
+            )
+            notes.append(
+                f"Composite columns {t.id}: {how}; transfer studs {composite.studDiameter:g} mm at "
+                f"{composite.studSpacing:g} mm on {composite.studFaces} faces at the floors."
+            )
+    return notes
 
 
 # ─────────────────────────────────── tables and notes ───────────────────────────────────
@@ -437,6 +501,7 @@ def steel_notes(steel: SteelSet) -> list[str]:
             f"lengths. Weld symbols to {WELD_STANDARD}: triangle below the reference line: the "
             "arrow side; above: the other side; both: both sides."
         )
+    notes += steel.composite_notes  # alpha 9 P8
     notes += [
         (
             "Member marks refer to the steel member schedule, connection marks (CN) to the "

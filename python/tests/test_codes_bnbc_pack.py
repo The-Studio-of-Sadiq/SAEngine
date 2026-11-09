@@ -677,6 +677,7 @@ def _pack_value(module: str, name: str):
 NOT_IN_DEFAULT = {
     "snow", "concreteMethods", "geotechnicalMethods", "steelLimitState", "aluminium",
     "coldFormed", "steelFire", "allowableStress", "horizontalCapacity", "dampers", "hazardLookup",
+    "compositeSlab",  # alpha 9 P8: composite slabs on deck (BNBC 2020 gives no rules)
 }  # fmt: skip
 
 

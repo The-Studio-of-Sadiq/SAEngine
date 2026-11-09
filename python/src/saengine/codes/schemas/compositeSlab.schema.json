@@ -1,0 +1,294 @@
+{
+  "$defs": {
+    "SlabConstructionLoad": {
+      "additionalProperties": false,
+      "description": "The construction load on the deck before the concrete hardens: ``workingShare`` × the\nwet concrete's weight within ``workingMin``-``workingMax`` over a working area\n``workingLength`` long (at mid-span), ``outside`` elsewhere [kN/m²].",
+      "properties": {
+        "workingShare": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Workingshare",
+          "type": "number"
+        },
+        "workingMin": {
+          "description": "[kN/m²]",
+          "exclusiveMinimum": 0,
+          "title": "Workingmin",
+          "type": "number"
+        },
+        "workingMax": {
+          "description": "[kN/m²]",
+          "exclusiveMinimum": 0,
+          "title": "Workingmax",
+          "type": "number"
+        },
+        "workingLength": {
+          "description": "[mm]",
+          "exclusiveMinimum": 0,
+          "title": "Workinglength",
+          "type": "number"
+        },
+        "outside": {
+          "description": "[kN/m²]",
+          "exclusiveMinimum": 0,
+          "title": "Outside",
+          "type": "number"
+        }
+      },
+      "required": [
+        "workingShare",
+        "workingMin",
+        "workingMax",
+        "workingLength",
+        "outside"
+      ],
+      "title": "SlabConstructionLoad",
+      "type": "object"
+    },
+    "SlabDeflection": {
+      "additionalProperties": false,
+      "description": "Span over the largest deflection: of the deck under its weight and the wet concrete\n(``construction``), of the slab in service (``service``: the construction deflection of an\nunpropped slab plus the composite slab's under the loads after it hardens).",
+      "properties": {
+        "construction": {
+          "exclusiveMinimum": 0,
+          "title": "Construction",
+          "type": "number"
+        },
+        "service": {
+          "exclusiveMinimum": 0,
+          "title": "Service",
+          "type": "number"
+        }
+      },
+      "required": [
+        "construction",
+        "service"
+      ],
+      "title": "SlabDeflection",
+      "type": "object"
+    },
+    "SlabPonding": {
+      "additionalProperties": false,
+      "description": "Ponding: when the deck's deflection under its weight and the wet concrete exceeds\n``threshold`` × the slab depth, the concrete's weight is increased by ``share`` × that\ndeflection (as extra depth).",
+      "properties": {
+        "threshold": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Threshold",
+          "type": "number"
+        },
+        "share": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Share",
+          "type": "number"
+        }
+      },
+      "required": [
+        "threshold",
+        "share"
+      ],
+      "title": "SlabPonding",
+      "type": "object"
+    },
+    "SlabThickness": {
+      "additionalProperties": false,
+      "description": "Least depths [mm]: overall and above the ribs; and when the slab is a composite\nbeam's flange.",
+      "properties": {
+        "overall": {
+          "exclusiveMinimum": 0,
+          "title": "Overall",
+          "type": "number"
+        },
+        "aboveRibs": {
+          "exclusiveMinimum": 0,
+          "title": "Aboveribs",
+          "type": "number"
+        },
+        "beamFlangeOverall": {
+          "exclusiveMinimum": 0,
+          "title": "Beamflangeoverall",
+          "type": "number"
+        },
+        "beamFlangeAboveRibs": {
+          "exclusiveMinimum": 0,
+          "title": "Beamflangeaboveribs",
+          "type": "number"
+        }
+      },
+      "required": [
+        "overall",
+        "aboveRibs",
+        "beamFlangeOverall",
+        "beamFlangeAboveRibs"
+      ],
+      "title": "SlabThickness",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Composite slabs on profiled steel deck (see the module notes). ``longitudinalShear``: the\nmethods the pack allows, by the deck tests given (m and k, or τu,Rk).",
+  "properties": {
+    "source": {
+      "default": "",
+      "description": "Clause (and page) the table comes from.",
+      "title": "Source",
+      "type": "string"
+    },
+    "sources": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Clause references of single entries: {key: clause}.",
+      "title": "Sources",
+      "type": "object"
+    },
+    "clauses": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Short clause references the results cite, by key, without the code's name (e.g. 'Part 6 Sec 2.5.7.3'); read by saengine.codes.context.cite. A key the pack does not give is not cited.",
+      "title": "Clauses",
+      "type": "object"
+    },
+    "longitudinalShear": {
+      "description": "Methods of the longitudinal shear the pack allows.",
+      "items": {
+        "enum": [
+          "mk",
+          "partialConnection"
+        ],
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Longitudinalshear",
+      "type": "array"
+    },
+    "gammaC": {
+      "description": "γC of the concrete.",
+      "exclusiveMinimum": 0,
+      "title": "Gammac",
+      "type": "number"
+    },
+    "gammaAp": {
+      "description": "γ of the deck's yield strength (γM0).",
+      "exclusiveMinimum": 0,
+      "title": "Gammaap",
+      "type": "number"
+    },
+    "gammaVs": {
+      "description": "γVs of the longitudinal shear (m-k and τu).",
+      "exclusiveMinimum": 0,
+      "title": "Gammavs",
+      "type": "number"
+    },
+    "gammaG": {
+      "description": "γG of the construction stage.",
+      "exclusiveMinimum": 0,
+      "title": "Gammag",
+      "type": "number"
+    },
+    "gammaQ": {
+      "description": "γQ of the construction stage.",
+      "exclusiveMinimum": 0,
+      "title": "Gammaq",
+      "type": "number"
+    },
+    "concreteShare": {
+      "description": "Plastic block stress = this × fcd.",
+      "exclusiveMinimum": 0,
+      "maximum": 1,
+      "title": "Concreteshare",
+      "type": "number"
+    },
+    "plasticReduction": {
+      "description": "Mpr = this × Mpa (1 - Ncf / Np) <= Mpa (neutral axis in the deck).",
+      "exclusiveMinimum": 0,
+      "title": "Plasticreduction",
+      "type": "number"
+    },
+    "shearSpanShare": {
+      "description": "Ls = this × L of a uniform load (m-k).",
+      "exclusiveMinimum": 0,
+      "maximum": 1,
+      "title": "Shearspanshare",
+      "type": "number"
+    },
+    "wetIncrement": {
+      "description": "Fresh concrete heavier than hardened by this [kN/m³].",
+      "minimum": 0,
+      "title": "Wetincrement",
+      "type": "number"
+    },
+    "constructionLoad": {
+      "$ref": "#/$defs/SlabConstructionLoad"
+    },
+    "ponding": {
+      "$ref": "#/$defs/SlabPonding"
+    },
+    "thickness": {
+      "$ref": "#/$defs/SlabThickness"
+    },
+    "deflection": {
+      "$ref": "#/$defs/SlabDeflection"
+    },
+    "modularFactor": {
+      "description": "n = this × Ea / Ecm for the deflection (short and long term together).",
+      "exclusiveMinimum": 0,
+      "title": "Modularfactor",
+      "type": "number"
+    },
+    "antiCrack": {
+      "description": "Bars above the ribs / the concrete above them: (unpropped, propped).",
+      "maxItems": 2,
+      "minItems": 2,
+      "prefixItems": [
+        {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "type": "number"
+        },
+        {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "type": "number"
+        }
+      ],
+      "title": "Anticrack",
+      "type": "array"
+    },
+    "meshMinimum": {
+      "description": "Least bars each way above the ribs [mm²/m].",
+      "exclusiveMinimum": 0,
+      "title": "Meshminimum",
+      "type": "number"
+    },
+    "note": {
+      "default": "",
+      "title": "Note",
+      "type": "string"
+    }
+  },
+  "required": [
+    "longitudinalShear",
+    "gammaC",
+    "gammaAp",
+    "gammaVs",
+    "gammaG",
+    "gammaQ",
+    "concreteShare",
+    "plasticReduction",
+    "shearSpanShare",
+    "wetIncrement",
+    "constructionLoad",
+    "ponding",
+    "thickness",
+    "deflection",
+    "modularFactor",
+    "antiCrack",
+    "meshMinimum"
+  ],
+  "title": "CompositeSlabTable",
+  "type": "object",
+  "$id": "saengine.codePack.compositeSlab/1"
+}

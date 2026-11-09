@@ -667,3 +667,59 @@ length along the bar's centre line (SAEngine practice), with the mandrel diamete
 | L6E4 | boltStiffness | k10 = 1.6 As/Lb, k11 = 16 nb d² fub / (E dM16) | EN 1993-1-8 Table 6.11 | Check |
 | L6E5 | classification | pinned ≤ 0.5 E Ib/Lb; rigid ≥ 8 (braced) or 25 (unbraced) E Ib/Lb | EN 1993-1-8 5.2.2.5 | Sure |
 | L6E6 | elementSize, elementsAcross, loadSteps | 10 mm, 8 across, 10 steps | SAEngine practice | Practice |
+
+## Precast pieces (`precast`; alpha 9 L1; EN 1992-1-1 Section 10)
+
+| # | Path | Value | Source | Sure? |
+|---|---|---|---|---|
+| L1E1 | bearing.method | netBearing: a = a1 + a2 + a3 + √(Δa2² + Δa3²), a1 = FEd/(b1 fRd) | EN 1992-1-1 10.9.5.2(1), Eq 10.6 | Sure |
+| L1E2 | bearing.strength | fRd = 0.4 fcd dry, 0.85 fcd bedded | EN 1992-1-1 10.9.5.2(2) | Sure |
+| L1E3 | bearing.stressBands | σEd/fcd ≤ 0.15, 0.15-0.4, > 0.4 | EN 1992-1-1 Tables 10.2-10.3 | Sure |
+| L1E4 | bearing.a1Minimum | linear 25/30/40, ribbed 55/70/80, concentrated 90/110/140 mm | EN 1992-1-1 Table 10.2 | Check |
+| L1E5 | bearing.a2 | steel 0/0/10 (linear), 5/10/15 (concentrated); RC ≥ C30 5/10/15, 10/15/25; plain or RC < C30 10/15/25, 20/25/35; masonry as the last | EN 1992-1-1 Table 10.3 | Unsure (masonry's > 0.4 column is "–" in the code; taken as concrete < C30) |
+| L1E6 | bearing.highStrength | C30 | Table 10.3 | Sure |
+| L1E7 | bearing.a3 | continuous 0/0; straight bars or horizontal loops 5/15 (at least the end cover); exposed tendons or bars 5/15; vertical loops 15/15 | EN 1992-1-1 Table 10.4 | Check (vertical loops, concentrated: the code gives end cover + inner bend radius; 15 mm taken) |
+| L1E8 | bearing.supportTolerance | steel or precast 10 ≤ l/1200 ≤ 30 mm; masonry or cast in situ 15 ≤ l/1200 + 5 ≤ 40 mm | EN 1992-1-1 Table 10.5 | Check |
+| L1E9 | bearing.memberTolerance | Δa3 = ln/2500 | EN 1992-1-1 10.9.5.2(1) | Check |
+| L1E10 | dowel | dowelAction: α0 1.0, ε = 3 √(fcd/fyd), γRd 1.3, γc 1.5, γs 1.15, cap fyd/√3 As | fib Bulletin 43 (2008) Ch 5 (Rasmussen dowel action) | Unsure (α0 and γRd as recalled) |
+| L1E11 | connections.tensionShare | 0.2 FEd where none is entered | none in EN 1992-1-1 10.9.4 | SAEngine practice |
+| L1E12 | handling.tension | 0.7 × 0.30 f'ci^(2/3) / 1.5 (fctk,0.05 / γc) | EN 1992-1-1 Table 3.1, 2.4.2.4 | Check |
+| L1E13 | handling.insertSafety | 2.5 | CEN/TR 15728 (order of its factors) | Unsure |
+| L1E14 | handling (multipliers), erection | as the default pack's L1B11-L1B19 | PCI Design Handbook 8th ed.; Mast | SAEngine practice |
+| L1E15 | integrity | not given: EN 1992-1-1 9.10 tying systems are the concreteMethods ties | none | Not covered here |
+
+## Floor response spectra (`floorSpectra`; alpha 9 L5)
+
+| # | Path | Value | Source | Sure? |
+|---|---|---|---|---|
+| L5-1 | methods | timeHistory, spectrumToSpectrum (time history first when the run has one) | none in the code | SAEngine practice |
+| L5-2 | broadening | ±15 % of the period | ASCE 4-16 Sec 6.2 / US NRC RG 1.122 practice | Check |
+| L5-3 | damping | 2, 3, 5, 7 % computed; 5 % for the components | none | SAEngine practice |
+| L5-4 | periods | 0.02-4 s, 120 on a log scale | none | SAEngine practice |
+| L5-5 | direct.duration / iterations | 20 s strong motion (Davenport peak factor), 8 iterations of the density | none | SAEngine practice |
+| L5-6 | components | F = Sa(Tc) Wc Ic / Rc within the nonstructural table's least and largest force; rigid (αc ≤ 1) at 0.06 s, flexible at the peak | the form of ASCE 7-16 Eq 13.3-4 / EN 1998-1 Eq 4.24 with the floor spectrum | SAEngine practice (off unless the project turns it on) |
+## Alpha 9 P8: composite slabs on steel deck (compositeSlab), the slab's longitudinal shear and the camber of composite beams (composite.beam), composite floors' vibration (floorVibration)
+
+| # | Key | Value | Clause | Confidence |
+|---|---|---|---|---|
+| P8E1 | compositeSlab.gammaC, gammaAp, gammaVs | 1.5, 1.0 (γM0 of the sheeting), 1.25 | EN 1994-1-1 2.4.1.2; EN 1993-1-3 2(3) | Sure (γVs: check the recommended value) |
+| P8E2 | compositeSlab.gammaG, gammaQ | 1.35, 1.5 (construction stage) | EN 1990 Table A1.2(B) | Sure |
+| P8E3 | compositeSlab.concreteShare | 0.85 fcd in the plastic block | EN 1994-1-1 9.7.2(5) | Sure |
+| P8E4 | compositeSlab.plasticReduction | Mpr = 1.25 Mpa (1 - Ncf / (Ape fyp,d)) <= Mpa | EN 1994-1-1 9.7.2(6), Eq 9.6 | Sure |
+| P8E5 | compositeSlab.shearSpanShare | Ls = L/4 for a uniform load | EN 1994-1-1 9.7.3(5) | Sure |
+| P8E6 | compositeSlab.longitudinalShear | m-k (Eq 9.7) and the partial connection method (τu,Rd = τu,Rk / γVs) | EN 1994-1-1 9.7.3(4)-(8) | Sure; the end anchorage and the overhang L0 of 9.7.3(9)-(10) are not counted (safe side) |
+| P8E7 | compositeSlab.wetIncrement | fresh concrete + 1 kN/m³ | EN 1991-1-1 Table A.1 (note on unhardened concrete) | Check |
+| P8E8 | compositeSlab.constructionLoad | 10 % of the concrete's weight within 0.75-1.5 kN/m² over a 3 m working area, 0.75 kN/m² outside | EN 1991-1-6 4.11.1, Table 4.1 (recommended) | Check (the working area at mid-span is SAEngine's placing) |
+| P8E9 | compositeSlab.ponding | δ > h/10: the concrete 0.7 δ deeper | EN 1994-1-1 9.3.2(2) | Sure |
+| P8E10 | compositeSlab.deflection.construction | δs,max = L/180 | EN 1994-1-1 9.6(2) (recommended) | Sure |
+| P8E11 | compositeSlab.deflection.service | L/250 overall | EN 1990 A1.4, EN 1992-1-1 7.4.1(4) | SAEngine practice (no limit in EN 1994-1-1 9.8.2) |
+| P8E12 | compositeSlab.thickness | h >= 80, hc >= 40; as a beam's flange h >= 90, hc >= 50 mm | EN 1994-1-1 9.2.1(2)-(3) | Sure |
+| P8E13 | compositeSlab.modularFactor | n = 2 Ea / Ecm (short and long term together) | EN 1994-1-1 5.4.2.2(11) | Check (buildings: the simplified n) |
+| P8E14 | compositeSlab.antiCrack | 0.2 % (unpropped), 0.4 % (propped) of the concrete above the ribs | EN 1994-1-1 9.8.1(2) | Sure |
+| P8E15 | compositeSlab.meshMinimum | 80 mm²/m each way above the ribs | EN 1994-1-1 9.2.1(4)-(5) | Unsure (the clause number and value: check) |
+| P8E16 | vertical shear | VRd,c of concreteMethods.shear (EN 1992-1-1 6.2.2) on the ribs' mean width and dp | EN 1994-1-1 9.7.5 | Sure |
+| P8E17 | deck moments of the construction stage | one span: γG g L²/8 + γQ (q_out L²/8 + (q_in - q_out) a (2L - a)/8); continuous: 0.125 w L² over the support, 0.070 g L² + 0.096 q L² in the span; deflection 5/384 (one span), 1/185 (continuous) w L⁴ / EI | elastic beam coefficients | SAEngine practice |
+| P8E18 | composite.beam.longitudinalShear | flangeStrut: cot θf 1.0-2.0 (compression flange), ν = 0.6 (1 - fck/250); planes a-a (beside the beam, top + bottom bars) and b-b (round the studs, 2 hsc + the studs' spread + d, the bottom bars twice) | EN 1994-1-1 6.6.6.1-6.6.6.3, Figure 6.15; EN 1992-1-1 6.2.4(4), 6.2.2(6) | Check (the b-b perimeter with the shank diameter; the deck's contribution Ape fyp,d of 6.6.6.4(4) is not counted) |
+| P8E19 | composite.beam.camber | 80 % of the wet-concrete deflection on the steel alone, 5 mm steps, none below 20 mm | none (EN 1994-1-1 gives no camber rule) | SAEngine practice |
+| P8E20 | floorVibration.compositeDynamicModulus | Ec,dyn = 1.1 Ecm, full interaction | SCI P354 (the dynamic modulus of normal-weight concrete) | Unsure (check the factor of SCI P354) |
+| P8E21 | deck profiles | DECK_PROFILES: generic trapezoidal 46/150, 60/300, 80/300 (geometry only) | none (not a product's) | SAEngine practice: replace by the product's data |

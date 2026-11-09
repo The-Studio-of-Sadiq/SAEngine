@@ -97,6 +97,7 @@ Group = Literal[
     "reinforcement",
     "formwork",
     "steel",
+    "composite",  # alpha 9 P8: shear studs and steel deck
     "mep",
     "materials",
 ]
@@ -147,6 +148,7 @@ GROUPS: dict[str, str] = {
     "reinforcement": "R",
     "formwork": "F",
     "steel": "S",
+    "composite": "SC",  # alpha 9 P8: shear studs and steel deck (not in the steel's kg)
     "mep": "P",
     "materials": "MT",
 }
@@ -429,6 +431,14 @@ class BillOfQuantities(_Model):
         default_factory=list,
         description="What the bill could not measure (no bars on a type, a tank not designed, "
         "a mortar with no mix, ...): while there are any the bill is incomplete.",
+    )
+    precastPieces: list[dict[str, Any]] = Field(
+        default_factory=list,
+        exclude_if=lambda value: not value,
+        title="Precast pieces",
+        description="Alpha 9 L1: the precast piece schedule per mark (count, size, net "
+        "concrete, weight, bars, inserts, mould area; saengine.boq.precast). The slab items "
+        "measure precast floor units as slabs of their thickness; this gives their net concrete.",
     )
     notMeasured: int = Field(
         default=0,
@@ -819,6 +829,58 @@ class _Measure:
             kind=kind,
         )
 
+    def shear_connectors(
+        self, element: str, object_type: Any, length: float, story: str | None
+    ) -> None:
+        """Alpha 9 P8: the headed studs of a composite beam [nr], rows at the type's spacing
+        along ``length`` [mm]; a designed spacing (none given) is not measured (noted)."""
+        composite = getattr(object_type, "composite", None)
+        if getattr(composite, "type", None) != "compositeBeam":
+            return
+        c = composite.connectors
+        if c.spacing is None:
+            note_key = f"studs:{object_type.id}"
+            if note_key not in self.steel_sections:
+                self.steel_sections[note_key] = (None, 0.0)  # noted once per type
+                self.notes.append(
+                    f"Composite beams of type {object_type.id}: the shear connectors' spacing is "
+                    "designed (Design shows it); give it in 04 Objects to measure the studs."
+                )
+            return
+        rows = math.floor(length / c.spacing + 1e-9)
+        if c.kind == "stud":
+            what = f"Headed shear studs {c.diameter:g} mm × {c.height:g} mm, welded"
+            key: tuple[Any, ...] = ("studs", c.diameter, c.height)
+        else:
+            what = f"Channel shear connectors, {c.channelLength:g} mm long, welded"
+            key = ("channels", c.channelLength)
+        self.bill.add(
+            "composite",
+            key,
+            what,
+            "nr",
+            element,
+            float(rows * c.perRow),
+            story=story,
+            detail=f"{rows} rows × {c.perRow} @ {c.spacing:g} mm",
+            kind="beam",
+        )
+
+    def steel_deck(self, element: str, object_type: Any, area: float, story: str | None) -> None:
+        """Alpha 9 P8: the profiled steel deck of a composite slab [m²] (permanent formwork)."""
+        deck = object_type.compositeDeck
+        label = deck.profile or f"{deck.ribHeight:g} mm deep, {deck.pitch:g} mm pitch"
+        self.bill.add(
+            "composite",
+            ("deck", label, deck.thickness),
+            f"Profiled steel deck, {label}, {deck.thickness:g} mm, fixed as permanent formwork",
+            "m2",
+            element,
+            area * MM2,
+            story=story,
+            kind="slab",
+        )
+
     def steel_section(self, object_type: Any) -> tuple[str | None, float]:
         """The steel member type's section name (the table's, else the profile's dimensions)
         and its nominal area [mm²]."""
@@ -899,6 +961,7 @@ class _Measure:
             mass = count * per_metre * length * MM
             detail = f"{count * length * MM:.2f} m × {per_metre:.2f} kg/m"
             self.steel(element, material, kind, mass, story, label, per_metre, detail)
+            self.shear_connectors(element, object_type, count * length, story)
             return
         section = self.section(object_type)
         if material.category not in (Category.CONCRETE, Category.MASONRY):
@@ -1130,6 +1193,25 @@ class _Measure:
         if material.category not in (Category.CONCRETE, Category.MASONRY):
             self.notes.append(f"{element}: slabs of {material.category.value} are not measured.")
             return
+        deck = getattr(object_type, "compositeDeck", None)
+        if deck is not None and material.category == Category.CONCRETE:
+            # Alpha 9 P8: a composite slab: the concrete over and in the deck's ribs, the deck
+            # its soffit's (permanent) formwork.
+            from saengine.design import composite_slab
+
+            try:
+                g = composite_slab.geometry(deck)
+            except composite_slab.CompositeSlabError as error:
+                self.notes.append(f"{element}: {error}; measured as a solid slab.")
+            else:
+                hp = g["ribHeight"]
+                ribs = min(1.0, (g["ribTopWidth"] + g["ribBottomWidth"]) / 2 / g["pitch"])
+                mean = object_type.thickness - hp * (1 - ribs)
+                self.concrete(element, material, "slab", area * mean, story)
+                self.steel_deck(element, object_type, soffit, story)
+                self.formwork(element, "slab", edges * object_type.thickness, story, "edges")
+                self.planar_bars(element, object_type, area, runs, story)
+                return
         self.concrete(element, material, "slab", area * object_type.thickness, story)
         if material.category != Category.CONCRETE:
             return
@@ -2714,9 +2796,17 @@ def bill_of_quantities(
     notes = measure.finish()
     problems = measure.problems()
     bare = sum(len(v) for v in measure.unreinforced.values())
+    precast: list[dict[str, Any]] = []
+    if any(getattr(o, "precast", None) for o in objects.objects):  # Alpha 9 L1
+        from saengine.boq.precast import piece_schedule
+        from saengine.design.precast import pieces_of
+
+        types = {o.id: o for o in objects.objects}
+        precast = piece_schedule(pieces_of(building, objects), types, materials)["items"]
     return BillOfQuantities(
         source=source or BoqSource(),
         items=measure.bill.items({e.id: e.type for e in building.elements if e.type}),
+        precastPieces=precast,
         notes=notes,
         problems=problems,
         notMeasured=bare + len(problems) - (1 if bare else 0),

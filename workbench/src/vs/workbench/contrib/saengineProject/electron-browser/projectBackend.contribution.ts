@@ -18,7 +18,7 @@ import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase 
 import { IEditorResolverService, RegisteredEditorPriority } from '../../../services/editor/common/editorResolverService.js';
 import { ISaengineProjectService } from '../../../services/saengineProject/common/saengineProject.js';
 import { FemAnalysisRunner } from '../../saengineFem/electron-browser/femAnalysisRunner.js';
-import { ARCHIVE_EXPORT_COMMAND, ARCHIVE_EXTENSION, ARCHIVE_IMPORT_COMMAND, ARCHIVE_INSPECT_COMMAND, CAD_OPEN_COMMAND, CLEAN_DXF_COMMAND, DWG_TO_DXF_COMMAND, OPEN_ARCHIVE_UI_COMMAND, PDF_TO_DXF_COMMAND, WORKBOOK_EXPORT_COMMAND, WORKBOOK_IMPORT_COMMAND } from '../browser/projectArchiveModel.js';
+import { ARCHIVE_EXPORT_COMMAND, ARCHIVE_EXTENSION, ARCHIVE_IMPORT_COMMAND, ARCHIVE_INSPECT_COMMAND, CAD_OPEN_COMMAND, CLEAN_DXF_COMMAND, DWG_TO_DXF_COMMAND, OPEN_ARCHIVE_UI_COMMAND, PDF_TO_DXF_COMMAND, POINT_CLOUD_TO_DXF_COMMAND, POINT_CLOUD_VIEW_COMMAND, WORKBOOK_EXPORT_COMMAND, WORKBOOK_IMPORT_COMMAND } from '../browser/projectArchiveModel.js';
 import { ProjectOverviewInput } from '../browser/projectOverviewInput.js';
 import { StartEditorInput } from '../browser/startEditorInput.js';
 import { SHARE_CONNECT_COMMAND, SHARE_DISCONNECT_COMMAND, SHARE_HEARTBEAT_COMMAND, SHARE_JOIN_COMMAND, SHARE_LOCK_COMMAND, SHARE_STATUS_COMMAND, SHARE_SYNC_COMMAND, SHARE_UNLOCK_COMMAND } from '../browser/shareModel.js';
@@ -365,6 +365,20 @@ CommandsRegistry.registerCommand(CLEAN_DXF_COMMAND, async (accessor, raw: unknow
 CommandsRegistry.registerCommand(PDF_TO_DXF_COMMAND, async (accessor, raw: unknown) => {
 	const args = bag(typeof raw === 'string' ? { path: raw } : raw);
 	return call(accessor, 'cad/convertPdf', { path: str(args.path) ?? '', page: typeof args.page === 'number' ? args.page : 1, pagesOnly: args.pagesOnly === true });
+});
+
+const finite = (value: unknown) => typeof value === 'number' && Number.isFinite(value) ? value : undefined;
+
+/** Alpha 9 L2: `{path, cut, thickness, voxel?, tolerance?, trace?}` -> a plan slice of a point cloud as DXF, with its traced lines. */
+CommandsRegistry.registerCommand(POINT_CLOUD_TO_DXF_COMMAND, async (accessor, raw: unknown) => {
+	const args = bag(raw);
+	return call(accessor, 'cad/convertPointCloud', { path: str(args.path) ?? '', cut: finite(args.cut) ?? 0, thickness: finite(args.thickness) ?? 0, voxel: finite(args.voxel), tolerance: finite(args.tolerance), trace: args.trace !== false });
+});
+
+/** Alpha 9 L2: `{path, voxel?, limit?}` -> the scan decimated for the 3D view. */
+CommandsRegistry.registerCommand(POINT_CLOUD_VIEW_COMMAND, async (accessor, raw: unknown) => {
+	const args = bag(raw);
+	return call(accessor, 'cad/pointCloudView', { path: str(args.path) ?? '', voxel: finite(args.voxel), limit: finite(args.limit) });
 });
 
 // --- The model workbook (Excel round trip) ----------------------------------------------------

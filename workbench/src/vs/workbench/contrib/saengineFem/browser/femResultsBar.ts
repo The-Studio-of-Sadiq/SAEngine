@@ -31,7 +31,7 @@ import { FemSsiPanel } from './femSsi.js';
 import { describeJointsSummary, describeJointVerdict, detailingSection, FemDetailingItem, generalChecks, IFemDetailingModel, IFemJoint, jointAtNode, jointColouring, jointHeading, jointItems, jointNodeUtilisation, jointOk, jointsOf, jointsOfMember } from './femSeismicDetailing.js';
 import { describeSteelSummary, memberConnectionChecks, steelSection } from './femSteelDesign.js';
 import { connectionFeItems, FEM_CONNECTION_FE_COMMAND, hasFeCheck, IFemConnectionFe } from './femConnectionFe.js';
-import { appendPlannedChips, FemPlanned, STEEL_CONNECTIONS_PLANNED, STEEL_SHEDS_PLANNED } from './femPlannedFeatures.js';
+import { appendPlannedChips, FemPlanned, STEEL_COMPOSITE_PLANNED, STEEL_CONNECTIONS_PLANNED, STEEL_SHEDS_PLANNED } from './femPlannedFeatures.js';
 import { timberSection } from './femTimberDesign.js';
 import { checkItems, describeStaircaseVerdict, describeWallsSummary, formatPierForce, IFemPierDiagram, isStaircase, isWall, ownChecks, pierDiagram, staircasesOf, staircaseSection, wallSection } from './femWallsStairs.js';
 import { activeDisplayUnits, convertText, formatQuantity } from '../../../services/saengineProject/common/displayUnits.js';
@@ -1652,7 +1652,7 @@ export class FemResultsBar extends Disposable {
 			const steelMembers = describeSteelSummary(report);
 			if (steelMembers) {
 				appendPropertyRow(container, localize('femResults.designSteel', "Steel members"), steelMembers);
-				this.appendPlanned(container, [...STEEL_CONNECTIONS_PLANNED, ...STEEL_SHEDS_PLANNED]);
+				this.appendPlanned(container, [...STEEL_CONNECTIONS_PLANNED, ...STEEL_SHEDS_PLANNED, ...STEEL_COMPOSITE_PLANNED]);
 			}
 			this.renderStairs(container, report);
 			this.renderDiaphragms(container, report);

@@ -698,6 +698,11 @@ def project_components(root: str | Path, pack: Any = None) -> dict[str, Any]:
             notes.append(f"architecture not read: {str(error).splitlines()[0]}")
     if building is not None and objects is not None:
         structural = structural_wall_anchorage(building, objects, materials, ground, pack)
+    # Alpha 9 L5: the components' forces from their floor's response spectrum, when the
+    # settings ask for it (saengine.fem.floor_spectra; the height formula otherwise).
+    from saengine.fem.floor_spectra import apply_to_components
+
+    notes += apply_to_components(root, [*equipment, *walls], ground, pack, settings)
     table = pack.table(TABLE)
     return {
         "covered": True,

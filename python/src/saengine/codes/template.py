@@ -139,6 +139,16 @@ TABLE_HELP: dict[str, str] = {
     "redundantCharts). A group left out is not covered.",
     "compositeConcrete": "Composite concrete flexural members (precast and cast-in-place parts "
     "placed separately): the horizontal shear limits at the contact surface and the ties.",
+    "floorSpectra": "Floor response spectra (alpha 9 L5): the methods allowed (time history, "
+    "direct spectrum-to-spectrum), the peak broadening, the component damping ratios, the "
+    "direct method's duration and iterations, and how a nonstructural component's force "
+    "follows from the floor spectrum. A pack without it computes no floor spectra.",
+    "precast": "Precast concrete pieces (alpha 9 L1): the bearing method (spanRatio or "
+    "netBearing) and its values, dowels across joints (shearFriction or dowelAction), the corbel "
+    "and weld methods of the connections, the least tension on a bearing, the integrity ties, "
+    "the handling multipliers (stripping, yard, transport, erection), the tension allowed while "
+    "handled, the inserts carrying the load, and the erection wind and stability. A pack "
+    "without it does not check precast pieces.",
     "bamboo": "Round bamboo members (permissible stresses): safe working stresses by species, "
     "by density or from tests with the factors of safety, load duration factors, the column "
     "rules and the joints. A pack without it does not cover bamboo.",
@@ -234,6 +244,11 @@ TABLE_HELP: dict[str, str] = {
     "composite": "Composite steel-concrete members: the design method, material limits, "
     "modulus and stress block, phi and Omega factors, and the rules of composite columns, "
     "beams and their shear connectors. A pack without it does not cover composite members.",
+    "compositeSlab": "Composite slabs on profiled steel deck (alpha 9 P8): the partial factors, "
+    "the plastic block, the construction load and ponding on the deck, the deflection limits, "
+    "the least depths, the methods of the longitudinal shear the pack allows (m-k, partial "
+    "connection), the modular ratio of the deflections and the anti-crack bars. A pack without "
+    "it does not check composite slabs.",
     "cranes": "Crane loads: the vertical impact allowance and the lateral and longitudinal "
     "forces of crane runways by kind of crane, and how they combine. A pack without it does not "
     "cover cranes.",

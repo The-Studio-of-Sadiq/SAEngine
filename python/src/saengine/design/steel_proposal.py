@@ -509,11 +509,13 @@ def steel_design_proposal(
     families: dict[str, str] | None = None,
     checker: MemberChecker | None = None,
     limit: float = 1.0,
+    checkers: dict[str, MemberChecker] | None = None,
 ) -> dict[str, Any]:
     """The steel design proposal: ``{"mode": "steel", "types": [entry, ...], "skipped",
     "notes"}`` for the beam, column and brace types of 04 Objects (JSON dicts) whose material
     is in ``materials`` (the steel ones), with ``demands`` their members' forces by type id
-    and ``families`` an optional family per type id (default: the type's own)."""
+    and ``families`` an optional family per type id (default: the type's own). ``checkers``:
+    a type's own member checker in place of ``checker`` (alpha 9 P8: composite types)."""
     families = families or {}
     entries, skipped = [], []
     for t in object_types:
@@ -535,7 +537,7 @@ def steel_design_proposal(
                 demands.get(t["id"], []),
                 material,
                 families.get(t["id"]),
-                checker,
+                (checkers or {}).get(t["id"], checker),
                 limit,
             )
         )

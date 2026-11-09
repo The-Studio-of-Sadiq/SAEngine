@@ -893,6 +893,85 @@ def convert_pdf(
         return {"ok": False, "code": "failed", "message": str(exc)}
 
 
+def _number(value: Any, default: float | None = None) -> float | None:
+    ok = isinstance(value, int | float) and not isinstance(value, bool)
+    return float(value) if ok and math.isfinite(float(value)) else default
+
+
+def _cloud_error(exc: Exception) -> dict[str, Any]:
+    text = str(exc)
+    code = "needs-library" if "does not bundle" in text else "failed"
+    return {"ok": False, "code": code, "message": text}
+
+
+def convert_point_cloud(args: dict[str, Any]) -> dict[str, Any]:
+    """Alpha 9 L2: a plan slice of a scan as DXF with its traced lines
+    (``saengine.library.point_cloud.convert``)."""
+    from saengine.library.point_cloud import PointCloudError, convert
+
+    try:
+        cut = _number(args.get("cut"), 0.0)
+        thickness = _number(args.get("thickness"), 0.0)
+        result = convert(
+            str(args.get("path") or ""),
+            cut,
+            thickness,
+            _number(args.get("voxel"), 0.0),
+            _number(args.get("tolerance")),
+            args.get("trace") is not False,
+            args.get("cache"),
+        )
+        return {"ok": True, **result.to_json()}
+    except (PointCloudError, OSError) as exc:
+        return _cloud_error(exc)
+
+
+def point_cloud_view(args: dict[str, Any]) -> dict[str, Any]:
+    """Alpha 9 L2: the scan decimated for the 3D view (``point_cloud.view_points``)."""
+    from saengine.library.point_cloud import MAX_VIEW_POINTS, PointCloudError, view_points
+
+    try:
+        limit = int(_number(args.get("limit"), MAX_VIEW_POINTS) or MAX_VIEW_POINTS)
+        found = view_points(str(args.get("path") or ""), _number(args.get("voxel"), 0.0), limit)
+        return {"ok": True, **found}
+    except (PointCloudError, OSError) as exc:
+        return _cloud_error(exc)
+
+
+def snap_point_cloud(args: dict[str, Any]) -> dict[str, Any]:
+    """Alpha 9 L2: the nearest point of a plan slice to a picked point (``point_cloud.snap``)."""
+    import numpy as np
+
+    from saengine.library.point_cloud import (
+        MAX_SLICE_POINTS,
+        PointCloudError,
+        decimate,
+        read_cloud,
+        slice_plan,
+        snap,
+    )
+
+    try:
+        cloud = read_cloud(str(args.get("path") or ""))
+        plan = slice_plan(
+            cloud.points, _number(args.get("cut"), 0.0), _number(args.get("thickness"), 0.0)
+        )
+        kept = decimate(
+            np.column_stack([plan, np.zeros(len(plan))]),
+            _number(args.get("voxel"), 0.0),
+            MAX_SLICE_POINTS,
+        )
+        point = snap(
+            plan[kept],
+            _number(args.get("x"), 0.0),
+            _number(args.get("y"), 0.0),
+            _number(args.get("radius"), 0.0),
+        )
+        return {"ok": True, "point": point}
+    except (PointCloudError, OSError) as exc:
+        return _cloud_error(exc)
+
+
 def workbook_export(
     out_path: str, floor_plan_text: str, objects_text: str | None, loads_text: str | None
 ) -> dict[str, Any]:

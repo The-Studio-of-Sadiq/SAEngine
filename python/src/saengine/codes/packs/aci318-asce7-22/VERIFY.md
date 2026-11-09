@@ -817,3 +817,34 @@ live answer before release.
 | L6U2 | yieldFactor | φ = 0.90 on Fy | AISC 360-22 J4.1 (yielding), SAEngine practice for the FE model | Practice |
 | L6U3 | classification | simple ≤ 2 E I / L, fully restrained ≥ 20 E I / L | AISC 360-22 Commentary B3.4b | Check |
 | L6U4 | boltStiffness, hardeningRatio, mesh | EN 1993-1-8 Table 6.11; E/1000; 10 mm | SAEngine practice | Practice |
+
+## Precast pieces (`precast`; alpha 9 L1; ACI 318-19 Chapter 16)
+
+| # | Path | Value | Source | Sure? |
+|---|---|---|---|---|
+| L1U1 | bearing.spanDivisor, minimum | ln/180; 50 mm slabs, 75 mm beams and stemmed members | ACI 318-19 16.2.6.2 | Sure |
+| L1U2 | bearing.padSetback | 13 mm (1/2 in) | ACI 318-19 16.2.6.2(b) | Sure |
+| L1U3 | bearing.stressFactor | 0.85 f'c A1, φ 0.65 | ACI 318-19 22.8.3.2, 21.2.1 | Sure |
+| L1U4 | dowel.method | shearFriction | ACI 318-19 16.2.2.4, 22.9 | Sure |
+| L1U5 | connections.tensionShare | 0.2 Vu where none is entered | ACI 318-19 16.5.3.5 (corbels), applied to every bearing | SAEngine practice |
+| L1U6 | integrity | 4.4 kN/m; 1.4 Ag N; 2 × 44 kN per panel; 3 storeys: 22 kN/m at 3 m, 71 kN within 1.2 m, 44 kN/m | ACI 318-19 16.2.4.2, 16.2.4.3, 16.2.5.1 (300 lb/ft, 200 Ag lb, 10 kip, 1500 lb/ft, 10 ft, 16 kip, 4 ft, 3000 lb/ft) | Check (SI conversions) |
+| L1U7 | handling, erection | as the default pack's L1B11-L1B19 | PCI Design Handbook 8th ed.; Mast | Check / SAEngine practice |
+
+## Floor response spectra (`floorSpectra`; alpha 9 L5)
+
+| # | Path | Value | Source | Sure? |
+|---|---|---|---|---|
+| L5-1 | methods | timeHistory, spectrumToSpectrum (time history first when the run has one) | none in the code | SAEngine practice |
+| L5-2 | broadening | ±15 % of the period | ASCE 4-16 Sec 6.2 / US NRC RG 1.122 practice | Check |
+| L5-3 | damping | 2, 3, 5, 7 % computed; 5 % for the components | none | SAEngine practice |
+| L5-4 | periods | 0.02-4 s, 120 on a log scale | none | SAEngine practice |
+| L5-5 | direct.duration / iterations | 20 s strong motion (Davenport peak factor), 8 iterations of the density | none | SAEngine practice |
+| L5-6 | components | F = Sa(Tc) Wc Ic / Rc within the nonstructural table's least and largest force; rigid (αc ≤ 1) at 0.06 s, flexible at the peak | the form of ASCE 7-16 Eq 13.3-4 / EN 1998-1 Eq 4.24 with the floor spectrum | SAEngine practice (off unless the project turns it on) |
+## Alpha 9 P8: the camber of composite beams (composite.beam.camber) and composite floors' vibration (floorVibration)
+
+| # | Key | Value | Clause | Confidence |
+|---|---|---|---|---|
+| P8U1 | composite.beam.camber | 80 % of the wet-concrete deflection on the steel alone, 5 mm steps, none below 20 mm | none (AISC 360-22 gives no camber rule) | SAEngine practice (common US practice cambers about 75-85 % of it; short beams are not cambered) |
+| P8U2 | floorVibration.compositeDynamicModulus | Ec,dyn = 1.35 Ec, full interaction | AISC Design Guide 11 2nd ed. Sec 3.2 (the dynamic modulus, the transformed moment of inertia with full composite action) | Check |
+
+Not covered by this pack: composite slabs on steel deck (the compositeSlab table; the ANSI/SDI C-2017 values are not entered). A slab type's composite deck is reported as not checked.
