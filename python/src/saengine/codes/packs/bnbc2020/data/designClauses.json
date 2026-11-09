@@ -46,7 +46,8 @@
     "seismicRulesNotes": {
       "reinforcementD": "Part 6 Sec 8.3.3.4(d) (p. 1090)",
       "chapter": "8.3",
-      "confinement": "Sec 8.3.3.4(c), p. 1090"
+      "confinement": "Sec 8.3.3.4(c), p. 1090",
+      "gradesText": "only ASTM A706 Grade 420, BDS ISO 6935-2 Grades 300, 350, 400, 420 or ASTM A615 Grades 275, 420"
     },
     "faceForces": {
       "face": "Part 6 Sec 6.1.6.3",
@@ -404,6 +405,88 @@
       "erw": "Part 6 Sec 10.2.3.12",
       "classes": "Part 6 Table 6.10.1",
       "part": "Part 6"
+    },
+    "generator": {
+      "occupancy": "Table 6.1.1, pp. 480-481",
+      "siteClass": "the default pack's Part 6 Table 6.2.13 (p. 609)",
+      "spectrum": "Table 6.2.16, p. 616",
+      "sdcTable": "Table 6.2.18, p. 617",
+      "liveTable": "Table 6.2.3",
+      "detailingLevels": "Sec 8.3.2",
+      "systemsTable": "Table 6.2.19",
+      "gravitySystem": "Sec 8.3.12",
+      "deltaS": "Sec 6.3.10.7.3",
+      "beamDepth": "Table 6.6.1",
+      "beamWidth": "Sec 8.3.4.1(c), (d)(i)",
+      "beamProportions": "Sec 8.3.4.1",
+      "beamWidthColumn": "Sec 8.3.4.1(d)(ii)",
+      "oneWaySlab": "Table 6.6.1",
+      "oneWaySlabPage": "Table 6.6.1 (p. 900)",
+      "slabsWithBeams": "Sec 6.2.5.3.3 (p. 903)",
+      "slabStiffBeams": "eq. 6.6.6",
+      "slabBeams": "eq. 6.6.5",
+      "flatPlate": "Table 6.6.3",
+      "flatPlatePage": "Table 6.6.3 (p. 902)",
+      "flatPlateSec": "Sec 6.2.5.3.2",
+      "edgeBeam": "6.2.5.3.3(d)",
+      "verticalIrregularity": "the default pack's Part 6 Sec 2.5.5.3.2, vertical irregularities; its page is not in the code pack: check it",
+      "driftLimit": "Table 6.2.21, p. 648",
+      "driftSec": "Sec 2.5.14.1, p. 647",
+      "driftRule": "Sec 2.5.14.1",
+      "crackedStiffness": "the default pack's Part 6 Sec 6.3.10.4.1, p. 912, for the factored lateral loads as Sec 6.1.10.2, p. 893",
+      "designDrift": "Sec 2.5.7.7, p. 631",
+      "serviceStiffness": "Sec 6.1.10.1, p. 893",
+      "periodCap": "Sec 2.5.7.2 (a), p. 627",
+      "periodFormula": "eq. 6.2.38, Table 6.2.20, p. 628",
+      "columnLeast": "Sec 8.3.5.1(a)",
+      "strongColumn": "Sec 8.3.5.2",
+      "jointShear": "Sec 8.3.7.3"
+    },
+    "proposal": {
+      "jointThrough": "Sec 8.3.7.1(d)",
+      "columnTies": "Sec 8.3.5.4",
+      "jointShear": "Sec 8.3.7.3",
+      "jointForce": "Sec 8.3.7.1(a)",
+      "strongColumnEq": "Sec 8.3.5.2(b), Eq. 6.8.5",
+      "strongColumn": "Sec 8.3.5.2(b)",
+      "beamWidth": "Sec 8.3.4.1(c), (d)",
+      "columnLeast": "Sec 8.3.5.1(a)",
+      "columnRatio": "Sec 8.3.5.1(b)",
+      "capacityShear": "Sec 8.3.8 / 8.3.10.3",
+      "beamBars": "Sec 8.3.4.2(a)"
+    },
+    "seismicReport": {
+      "levels": "Sec 8.3.2",
+      "general": "Sec 8.3.2, 8.3.3",
+      "strongColumn": "Sec 8.3.5.2, Eq. 6.8.5",
+      "jointShear": "Sec 8.3.7.3",
+      "probable": "Sec 8.3.8.1",
+      "twoE": "Sec 8.3.10.3",
+      "foundations": "Sec 8.3.11"
+    },
+    "seismicProvisions": {
+      "general": "8.3.3",
+      "smfBeams": "8.3.4",
+      "smfColumns": "8.3.5",
+      "walls": "8.3.6",
+      "joints": "8.3.7",
+      "shear": "8.3.8",
+      "omf": "8.3.9",
+      "imf": "8.3.10",
+      "foundations": "8.3.11",
+      "gravity": "8.3.12"
+    },
+    "seismicProvisionPages": {
+      "general": "p. 1089",
+      "smfBeams": "p. 1090",
+      "smfColumns": "p. 1095",
+      "walls": "p. 1100",
+      "joints": "p. 1108",
+      "shear": "p. 1111",
+      "omf": "p. 1113",
+      "imf": "p. 1114",
+      "foundations": "p. 1120",
+      "gravity": "p. 1122"
     }
   }
 }

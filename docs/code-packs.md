@@ -498,8 +498,10 @@ both.
 ## The pack in the report
 
 The design report states the code pack the project was designed to on its cover ("Code
-pack"): its name, id, edition and version. A pack that extends another reads "BNBC 2020
-(bnbc2020), modified by: <name> (<id>), <edition>, pack version <v>". A user or project copy that
+pack"): its name, id, edition and version. A pack that extends another reads "<name> (<id>),
+<edition>, pack version <v>; extends BNBC 2020 (bnbc2020) for the tables it does not give". It
+names the pack in force first. Tables of the extended pack that do not apply under the code
+(`notApplicable` in `pack.json`) are not inherited and are listed as such. A user or project copy that
 replaces a built-in pack of the same id is named with its place ("modified from the built-in
 code"), and the pack's warnings are listed among the report's warnings. Keep `version` up to
 date when you change a value, so that a report always says which values it used.

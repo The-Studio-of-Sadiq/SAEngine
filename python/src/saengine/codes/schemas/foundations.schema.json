@@ -3074,35 +3074,49 @@
           "type": "number"
         },
         "exteriorDepth": {
-          "additionalProperties": {
-            "exclusiveMinimum": 0,
-            "type": "number"
-          },
-          "description": "Least depth of exterior footings [mm].",
-          "propertyNames": {
-            "enum": [
-              "cohesive",
-              "granular",
-              "temporary"
-            ]
-          },
-          "title": "Exteriordepth",
-          "type": "object"
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              },
+              "propertyNames": {
+                "enum": [
+                  "cohesive",
+                  "granular",
+                  "temporary"
+                ]
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Least depth of exterior footings [mm]; null: the code sets none beyond minDepth (not checked).",
+          "title": "Exteriordepth"
         },
         "raftDepth": {
-          "additionalProperties": {
-            "exclusiveMinimum": 0,
-            "type": "number"
-          },
-          "description": "Least depth of rafts [mm].",
-          "propertyNames": {
-            "enum": [
-              "cohesive",
-              "granular"
-            ]
-          },
-          "title": "Raftdepth",
-          "type": "object"
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              },
+              "propertyNames": {
+                "enum": [
+                  "cohesive",
+                  "granular"
+                ]
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Least depth of rafts [mm]; null: the code sets none beyond minDepth.",
+          "title": "Raftdepth"
         },
         "slopeDistance": {
           "description": "Distance from a footing's centre to the slope face at its base level, at least this × B.",

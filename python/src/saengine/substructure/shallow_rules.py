@@ -336,6 +336,8 @@ def depth_check(
     if not (exterior or raft):
         return checks
     table = found.raftDepth if raft else found.exteriorDepth
+    if table is None:  # walk 4: the code sets no depth beyond minDepth (IBC 2021, ASCE 7-22)
+        return checks
     if temporary and not raft:
         least, why = table["temporary"], "a temporary structure"
     elif soil in ("cohesive", "granular"):

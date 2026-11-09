@@ -89,8 +89,8 @@ def test_bars_and_detailing_values(us):
 def test_clauses_name_the_code_they_come_from(us):
     assert clauses.clause("walls", "boundary") == "ACI 318-19 18.10.6"
     assert clauses.clause("check", "omega") == "ASCE 7-22 Sec 12.4.3"
-    # The coefficient method of two-way slabs is the extended pack's, named so.
-    assert clauses.clause("slab", "twoWayMethod") == "BNBC 2020 Part 6 Sec 6.5.8"
+    # Walk 4: the two-way slab coefficients are the ACI 318-63 Method 3 ones (SAEngine practice).
+    assert clauses.clause("slab", "twoWayMethod").startswith("ACI 318-63 Method 3")
     assert clauses.short_clause("slab", "oneWaySpans") == "ACI 318 6.5.1(d)"
     assert code_context.cite("concrete", "shrinkage").startswith("ACI 318-19 24.4.3.2")
     assert code_context.cite("citations", "barDevelopmentHooked").startswith("ACI 318-19 25.4.3.1")

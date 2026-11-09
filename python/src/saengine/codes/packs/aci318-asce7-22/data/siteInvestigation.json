@@ -1,0 +1,45 @@
+{
+  "$schema": "../../../schemas/siteInvestigation.schema.json",
+  "$sources": [
+    "ASCE/SEI 7-22 Chapter 20 (site classification) with the SPT and su bands of ASCE/SEI 7-16 Table 20.3-1; ASCE 7-22 Sec 11.8.3 (liquefaction assessment) by the Youd et al. (2001) simplified procedure (SAEngine practice); the other groups are the extended pack's (IBC 2021 Sec 1803 asks for the investigation but gives no numbers), see VERIFY.md"
+  ],
+  "liquefaction": {
+    "csrFactor": 0.65,
+    "rdSlope": 0.00765,
+    "clause": "ASCE 7-22 Sec 11.8.3",
+    "note": "ASCE 7-22 Sec 11.8.3 asks for an assessment of the liquefaction potential and gives no method: the simplified procedure of Youd et al. (2001), CSR = 0.65 (amax/g) rd σv/σ'v with CRR from the SPT, is SAEngine practice. Soil with a field N above the limit is taken as not liquefiable (rule of thumb).",
+    "sources": {
+      "section": "ASCE 7-22 Sec 11.8.3 (geotechnical investigation for Seismic Design Categories D to F: liquefaction)",
+      "fs": "Youd et al. (2001): FS = CRR / CSR (SAEngine practice)",
+      "rd": "Youd et al. (2001): rd = 1 - 0.00765 z (z up to 9.15 m), used at every depth (SAEngine practice, on the safe side below 9.15 m)",
+      "csr": "Youd et al. (2001): CSR = 0.65 (amax/g) rd σv/σ'v",
+      "fieldNLimit": "SAEngine practice (rule of thumb)"
+    }
+  },
+  "siteClassification": {
+    "$replace": true,
+    "method": "harmonicMeans",
+    "clause": "ASCE 7-22 Chapter 20",
+    "table": "ASCE 7-16 Table 20.3-1",
+    "depth": 30.48,
+    "nMax": 100.0,
+    "suMax": 239.4,
+    "order": ["SA", "SB", "SBC", "SC", "SCD", "SD", "SDE", "SE"],
+    "byN": [{"siteClass": "SC", "above": 50}, {"siteClass": "SD", "atLeast": 15}, {"siteClass": "SE"}],
+    "bySu": [{"siteClass": "SC", "above": 95.8}, {"siteClass": "SD", "atLeast": 47.9}, {"siteClass": "SE"}],
+    "rockClass": "SC",
+    "rockShallow": 3.05,
+    "rockDeep": 3.05,
+    "rockDeepClass": "SC",
+    "rockVs": 1524.0,
+    "soft": {"siteClass": "SE", "suRange": [1.0, 23.9], "thickness": 3.05, "pi": 20.0},
+    "liquefiableClass": "SF",
+    "liquefiableAssumed": "SD",
+    "note": "ASCE 7-22 classes the site by vs30 (Table 20.2-1); without a measured vs the SPT N and su bands of ASCE 7-16 Table 20.3-1 give C, D or E (N above 50, 15 to 50, below 15; su above 2000 psf, 1000 to 2000, below 1000), over the top 100 ft, harmonic means, N at most 100 and su at most 5000 psf. Rock without a measured vs is taken as C (SAEngine practice: B and the 7-22 classes BC, CD and DE need the vs). More than 10 ft of soft clay (PI above 20, su below 500 psf) flags E; liquefiable soil flags F (a site response analysis, Sec 20.2.1); D is used meanwhile (SAEngine practice).",
+    "sources": {
+      "table": "ASCE 7-16 Table 20.3-1 and Sec 20.4 (N, su bands; harmonic means); ASCE 7-22 Table 20.2-1 (classes by vs30)",
+      "nMax": "ASCE 7-16 Sec 20.4.2: N at most 100 blows/ft",
+      "rockClass": "SAEngine practice: rock without a measured vs taken as C"
+    }
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "$schema": "../../../schemas/stairMethods.schema.json",
+  "$sources": [
+    "SAEngine practice where ACI 318-19 and IBC 2021 give no design method for stairs: flights built into walls, open wells, stringer beams and the special stair types (free-standing, sawtooth, helicoidal) by the extended pack's methods and digitised charts (its sources name their origin); see VERIFY.md"
+  ],
+  "source": "SAEngine practice where ACI 318-19 gives no method for stairs (the extended pack's methods kept); flights designed as beams and one-way slabs by ACI 318-19 Chapters 7 and 9",
+  "clauses": {
+    "builtIn": "SAEngine practice (no ACI 318-19 method): flights built into walls",
+    "openWell": "SAEngine practice (no ACI 318-19 method): open wells",
+    "stringers": "ACI 318-19 Chapters 7 and 9 (the steps span between the stringer beams)",
+    "special": "SAEngine practice (no ACI 318-19 method): special stair types",
+    "freeStanding": "SAEngine practice (no ACI 318-19 method): free-standing stairs",
+    "freeStandingDetailing": "SAEngine practice (no ACI 318-19 method): free-standing stair bars",
+    "sawtooth": "SAEngine practice (no ACI 318-19 method): sawtooth stairs",
+    "sawtoothCorners": "SAEngine practice (no ACI 318-19 method): sawtooth re-entrant corners",
+    "helicoidal": "SAEngine practice (no ACI 318-19 method): helicoidal stairs"
+  }
+}

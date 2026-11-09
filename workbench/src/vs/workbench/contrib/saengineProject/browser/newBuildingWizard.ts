@@ -184,6 +184,8 @@ export class NewBuildingWizard extends EditorPane {
 	private packSiteClasses: { id: string; label: string }[] = [];
 	/** C1: the chosen pack's design spectrum method (`mappedSpectral`: the site's SDS, SD1 instead of Z). */
 	private packSpectrum = '';
+	/** Walk 4: the clause that classes the site in the chosen pack (its own; '' for none). */
+	private packSiteClassClause = '';
 	/** C22: the site's coordinates typed for the hazard lookup (without an open project's site point). */
 	private hazardLatitude = '';
 	private hazardLongitude = '';
@@ -334,6 +336,7 @@ export class NewBuildingWizard extends EditorPane {
 		this.packTowns = [];
 		this.packSiteClasses = [];
 		this.packSpectrum = '';
+		this.packSiteClassClause = '';
 		if (id === DEFAULT_CODE_PACK_ID || !CommandsRegistry.getCommand(CODES_CHOICES_COMMAND)) {
 			this.form.packTowns = false;
 			return;
@@ -344,6 +347,7 @@ export class NewBuildingWizard extends EditorPane {
 			this.packTowns = (lists?.locations ?? []).filter(l => l.id !== 'custom');
 			this.packSiteClasses = lists?.siteClasses ?? [];
 			this.packSpectrum = lists?.designSpectrum?.[0]?.id ?? '';
+			this.packSiteClassClause = lists?.siteClassClause?.[0]?.label ?? '';
 		} catch {
 			this.packExposures = [];
 		}
@@ -654,7 +658,13 @@ export class NewBuildingWizard extends EditorPane {
 		}
 		const siteClasses = this.packSiteClasses.length ? this.packSiteClasses.map(c => ({ value: c.id, label: c.label })) : settingsEnum('Site', 'siteClass');
 		this.select(form, localize('newBuilding.siteClass', "Site class"), siteClasses, this.form.siteClass, value => this.form.siteClass = value as SiteClass);
-		append(form, $('p.hint.indented', undefined, localize('newBuilding.siteClassHint', "Assumed until a soil report gives it ({0} Part 6, Table 6.2.13): add boreholes in 01 Soil Report and their class replaces it.", defaultCodeName())));
+		// Walk 4: the clause of the chosen pack (its own), never the default pack's under another code.
+		const siteClassHint = (this.form.designCode || DEFAULT_CODE_PACK_ID) === DEFAULT_CODE_PACK_ID
+			? localize('newBuilding.siteClassHint', "Assumed until a soil report gives it ({0} Part 6, Table 6.2.13): add boreholes in 01 Soil Report and their class replaces it.", defaultCodeName())
+			: this.packSiteClassClause
+				? localize('newBuilding.siteClassHintPack', "Assumed until a soil report gives it ({0}): add boreholes in 01 Soil Report and their class replaces it.", this.packSiteClassClause)
+				: localize('newBuilding.siteClassHintNone', "Assumed until a soil report gives it: add boreholes in 01 Soil Report and their class replaces it.");
+		append(form, $('p.hint.indented', undefined, siteClassHint));
 		this.select(form, localize('newBuilding.use', "Building use"), settingsEnum('Occupancy', 'use'), this.form.use, value => this.form.use = value);
 		this.select(form, localize('newBuilding.category', "Occupancy category"), settingsEnum('Occupancy', 'category'), this.form.category, value => this.form.category = value as OccupancyCategory);
 

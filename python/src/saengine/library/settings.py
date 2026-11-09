@@ -3434,8 +3434,18 @@ class ProjectSettings(_Model):
 def pack_choices(pack: CodePack) -> dict[str, list[dict[str, str]]]:
     """The entries the settings' lists offer under ``pack``, in the pack's order, as ``{"id",
     "label"}``: ``locations`` (and "custom"), ``areaUses`` (and "custom"), ``systems``,
-    ``siteClasses``. A list the pack has no table for is left out (any id is then taken)."""
-    return _choices(lambda name: pack.table(name) if pack.has(name) else None)
+    ``siteClasses``. A list the pack has no table for is left out (any id is then taken).
+    Walk 4: ``siteClassClause``, the clause that classes the site (the pack's own
+    ``designClauses.generator.siteClass``), for the New Building wizard's hint."""
+    out = _choices(lambda name: pack.table(name) if pack.has(name) else None)
+    owner = (
+        pack.clause_owner("designClauses", "generator", "siteClass")
+        if pack.has("designClauses")
+        else None
+    )
+    if owner is not None and owner[0] == pack.id and owner[1]:
+        out["siteClassClause"] = [{"id": owner[1], "label": owner[1]}]
+    return out
 
 
 @functools.cache

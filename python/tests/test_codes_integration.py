@@ -133,7 +133,8 @@ def test_report_states_the_pack(tmp_path):
     settings = ProjectSettings.model_validate_json((root / SETTINGS).read_text(encoding="utf-8"))
     with code_context.project(root):
         text = code_pack_text(settings)
-    assert text.startswith("BNBC 2020 (bnbc2020), modified by: Example region")
+    assert text.startswith("Example region")
+    assert "; extends BNBC 2020 (bnbc2020) for the tables it does not give" in text
     assert "(example-region)" in text
     assert code_pack_text(
         ProjectSettings.model_validate(

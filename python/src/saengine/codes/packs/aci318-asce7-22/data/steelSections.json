@@ -1,0 +1,7 @@
+{
+  "$schema": "../../../schemas/steelSections.schema.json",
+  "$sources": [
+    "SAEngine's standard shape catalogue (EN 10365 IPE, HEA, HEB; IS 808 ISMB, ISMC, angles; EN 10056 angles; EN 10219 SHS, RHS, CHS), designed by AISC 360-22; the AISC Steel Construction Manual shapes (W, HSS, L) are not in the pack yet (see VERIFY.md)"
+  ],
+  "source": "SAEngine's standard shape catalogue (EN and IS shapes, the same as the extended pack's), designed by AISC 360-22; AISC Manual shapes not yet in the pack"
+}

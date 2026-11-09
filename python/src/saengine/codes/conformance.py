@@ -107,6 +107,8 @@ def check_pack(pack: Any) -> list[Finding]:
         if f.manifest is not None
         for area in (getattr(f.manifest, "notCovered", None) or [])
     }
+    # Walk 4: the extended pack's tables the pack declares not applicable are not covered.
+    not_covered |= set(getattr(pack, "not_applicable", None) or [])
 
     # loads
     for name, problems in pack.broken.items():

@@ -1398,7 +1398,8 @@ def cladding_pressures(
         "Ri": ri,
         "roofForm": form,
         "theta_deg": theta,
-        "figure": figure_source,
+        # Walk 4: an inherited figure's source in the words of the pack in force.
+        "figure": code_context.own_source("wind", figure_source or "", "cladding") or None,
         "zones": out_zones,
         "parapet": None,
         "notes": notes,

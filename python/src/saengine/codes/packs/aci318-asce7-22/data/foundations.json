@@ -35,8 +35,8 @@
     "shallow.sliding": "IBC 2021 Sec 1807.2.3 (retaining walls): 1.5 against sliding, used for footings as SAEngine practice",
     "shallow.friction": "IBC 2021 Table 1806.2: lateral sliding resistance coefficient 0.25 of class 4, the least granular value (0.35 classes 2-3, 0.70 class 1; class 5 by a cohesion of 130 psf)",
     "shallow.minDepth": "IBC 2021 Sec 1809.4: at least 12 in (305 mm) below undisturbed ground; frost protection by Sec 1809.5 (the local frost depth, not checked)",
-    "shallow.exteriorDepth": "SAEngine practice, the default pack's value kept (IBC 2021, ASCE 7-22 and ACI 318-19 give none)",
-    "shallow.raftDepth": "SAEngine practice, the default pack's value kept (IBC 2021, ASCE 7-22 and ACI 318-19 give none)",
+    "shallow.exteriorDepth": "IBC 2021 Sec 1809.4 sets no depth of exterior footings beyond its 12 in (and the frost depth of Sec 1809.5): not checked",
+    "shallow.raftDepth": "IBC 2021 Sec 1809.4 sets no depth of rafts beyond its 12 in (and the frost depth of Sec 1809.5): not checked",
     "shallow.slopeDistance": "SAEngine practice, the default pack's value kept (IBC 2021, ASCE 7-22 and ACI 318-19 give none)",
     "shallow.spreadAngle": "SAEngine practice, the default pack's value kept (IBC 2021, ASCE 7-22 and ACI 318-19 give none)",
     "shallow.stepLap": "SAEngine practice, the default pack's value kept (IBC 2021, ASCE 7-22 and ACI 318-19 give none)",
@@ -161,6 +161,8 @@
   },
   "source": "IBC 2021 Chapter 18, ASCE 7-22 Sec 2.4, ACI 318-19 Chapters 13, 16, 23",
   "shallow": {
+    "exteriorDepth": null,
+    "raftDepth": null,
     "bearingCombinations": [
       {
         "id": "D",

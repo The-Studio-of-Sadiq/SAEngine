@@ -1,0 +1,47 @@
+{
+  "$schema": "../../../schemas/deadLoads.schema.json",
+  "$replace": true,
+  "$sources": [
+    "ASCE/SEI 7-22 Sec 3.1 and Commentary Table C3.1-2 (minimum densities for design loads from materials)"
+  ],
+  "source": "ASCE 7-22 Commentary Table C3.1-2: minimum densities of materials, stated here as unit weights (lb/ft³ × 0.1571 kN/m³)",
+  "masonry": {
+    "burntClayBrick": 18.1,
+    "concreteMasonry": 21.2
+  },
+  "plaster": {
+    "cement": 20.4
+  },
+  "wallTypes": [
+    {
+      "id": "BW125",
+      "name": "125 mm (5 in) brick wall, plastered both faces",
+      "thickness": 125,
+      "masonry": "burntClayBrick",
+      "plaster": 12.5,
+      "plasterFaces": 2
+    },
+    {
+      "id": "BW250",
+      "name": "250 mm (10 in) brick wall, plastered both faces",
+      "thickness": 250,
+      "masonry": "burntClayBrick",
+      "plaster": 12.5,
+      "plasterFaces": 2
+    },
+    {
+      "id": "CMU200",
+      "name": "200 mm (8 in) concrete masonry wall, solid, no plaster",
+      "thickness": 200,
+      "masonry": "concreteMasonry",
+      "plaster": 0,
+      "plasterFaces": 0
+    }
+  ],
+  "sources": {
+    "masonry.burntClayBrick": "ASCE 7-22 Table C3.1-2: masonry, brick, medium (medium absorption), 115 lb/ft³ (18.1 kN/m³)",
+    "masonry.concreteMasonry": "ASCE 7-22 Table C3.1-2: masonry, concrete, normal weight units, 135 lb/ft³ (21.2 kN/m³); a solid wall (grouted solid), on the safe side for hollow units",
+    "plaster.cement": "SAEngine practice: cement plaster at the density of ASCE 7-22 Table C3.1-2 'mortar, cement or lime', 130 lb/ft³ (20.4 kN/m³)",
+    "wallTypes": "SAEngine choice: 125 mm (5 in) and 250 mm (10 in) brick walls with 12.5 mm (1/2 in) plaster on each face, and a solid 200 mm (8 in) concrete masonry wall"
+  }
+}

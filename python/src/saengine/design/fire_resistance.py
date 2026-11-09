@@ -55,6 +55,13 @@ def _table() -> Any:
     return code_context.pack_table("fireResistance")
 
 
+def covered() -> bool:
+    """Walk 4: False when the pack in force declares the fireResistance table not applicable
+    under its code (``notApplicable``): no construction type ratings and no least sizes."""
+    found = getattr(code_context.current(), "declares_not_applicable", None)
+    return not (found is not None and found("fireResistance"))
+
+
 def _clause(key: str) -> str:
     return str(_table().clauses.get(key, ""))
 
@@ -108,6 +115,8 @@ def _settings_part(settings: Any, name: str) -> Any:
 def _type_row(settings: Any) -> tuple[str, Any]:
     construction = _settings_part(settings, "construction")
     type_id = str(getattr(construction, "constructionType", "") or "")
+    if not covered():
+        return type_id, None
     return type_id, _table().constructionTypes.get(type_id) if type_id else None
 
 
@@ -295,7 +304,7 @@ def add_fire_checks(checked: list[dict[str, Any]], types: dict[str, Any], settin
     """Adds the fire checks to the designed elements in place (the ratings of
     :func:`ratings_of`); returns how many elements got them. Flagged rows (advisory covers,
     sizes the table has no row for) never fail an element."""
-    if settings is None:
+    if settings is None or not covered():
         return 0
     ratings = ratings_of(settings)
     aggregate = str(
@@ -334,6 +343,18 @@ def construction_summary(settings: Any, height: float | None = None) -> dict[str
     """The construction type for the report: its label, the ratings each member kind is checked
     for and the warnings (a combustible type above the pack's non-combustible height; a type the
     code pack does not know). ``height``: the building's height [m]."""
+    if not covered():
+        type_id = _type_row(settings)[0]
+        return {
+            "type": type_id,
+            "label": type_id or "Not classified",
+            "group": None,
+            "aggregate": "-",
+            "ratings": {},
+            "note": None,
+            "warnings": [],
+            "covered": False,
+        }
     table = _table()
     type_id, row = _type_row(settings)
     construction = _settings_part(settings, "construction")

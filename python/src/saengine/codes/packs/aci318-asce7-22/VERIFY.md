@@ -973,3 +973,65 @@ The bill of quantities and the bar schedules weighed US bars as d²/162 of the s
 |---|---|---|---|---|
 | B1 | detailing.bars.splices.hoopDepthShare | 0.25 (the parent's): hoops over the lap splices of special moment frame beams at most d / 4 | ACI 318-19 18.6.3.3 | Sure |
 | B2 | detailing.bars.splices.hoopMax | 100 mm (the parent's) | ACI 318-19 18.6.3.3 | Sure |
+
+## Tables of the extended pack (walk 4, 2026-11-10)
+
+The pack extends `bnbc2020`. Walk 4 found the default pack's text in US output through the 21
+tables the pack inherited without a file of its own. Each is now (a) kept with the same values
+and the pack's own sources, (b) given US values of its own, or (c) declared not applicable
+(`notApplicable` in `pack.json`: not inherited, the features reading it say the pack does not
+cover them, the report lists them).
+
+| Table | Decision | What the pack does now |
+|---|---|---|
+| accessibility | (c) not applicable | ADA / ICC A117.1 ramps not covered |
+| bamboo | (c) not applicable | no US code for round bamboo |
+| construction | (c) not applicable | excavation and formwork rules (OSHA 29 CFR 1926, IBC Ch 33) not covered |
+| cranes | (b) own | ASCE 7-22 Sec 4.9.3-4.9.5 (pendant 10 %, hand-geared 0) |
+| deadLoads | (b) own | ASCE 7-22 Table C3.1-2 densities; a CMU wall type added |
+| designLimits | (b) partial | √f'c cap (ACI 22.5.3.1) and ERW 0.93 (AISC B4.2) own; stair geometry still inherited (see remaining) |
+| electrical | (c) not applicable | NEC not covered |
+| embeddedWalls | (a) own sources | same values, SAEngine practice where IBC 2021 / ASCE 7-22 give no method |
+| ferrocement | (c) not applicable | ACI 549 is a guide, not covered |
+| fire | (c) not applicable | NFPA 13 / 14 not covered |
+| fireResistance | (c) not applicable | IBC 2021 Tables 601 / 721 not covered; fire checks off |
+| hvac | (c) not applicable | ASHRAE not covered |
+| mepFabrication | (c) not applicable | MSS SP-58 / NFPA 13 hangers not covered |
+| mepOpenings | (b) own | ACI 318-19 8.4.1.5, 8.5.4, 22.6.4.3 (4h, not 10h), 11.7.5.1 |
+| nonstructural | (c) not applicable for now | ASCE 7-22 Ch 13 (new Fp form) not transcribed yet |
+| planning | (c) not applicable | the Dhaka planning rules; US zoning is local |
+| siteInvestigation | (b) partial | site classification by ASCE 7-16 Table 20.3-1 bands into the 7-22 classes; liquefaction by Youd et al. (2001) (CSR 0.65, rd 1 - 0.00765 z); the other groups inherited |
+| slabCoefficients | (a) own sources | ACI 318-63 Method 3 two-way coefficients as SAEngine practice under ACI 318-19 8.2.1; one-way coefficients ACI 318-19 Table 6.5.2; spacings 8.7.2.2, 7.7.2.3, 24.4.3.3 |
+| stairMethods | (a) own sources | SAEngine practice (ACI 318-19 has no stair method); the extended pack's methods kept |
+| steelSections | (a) own sources | SAEngine's EN / IS shape catalogue designed by AISC 360-22 (AISC shapes pending) |
+| zoneCoefficients | (c) not applicable | ASCE 7-22 takes mapped SDS, SD1, no zones |
+
+### Values and clauses to check (walk 4)
+
+| # | Path | Value | Clause | Status |
+|---|---|---|---|---|
+| W4-1 | cranes.impact | monorail, cab, remote 25 %; pendant 10 %; hand-geared 0 | ASCE 7-22 Sec 4.9.3 | OK? |
+| W4-2 | cranes.lateral, longitudinal, horizontalScale.handGeared | 20 %, 10 %, 0 | ASCE 7-22 Sec 4.9.4, 4.9.5 | OK? |
+| W4-3 | deadLoads.masonry | brick 18.1, concrete masonry 21.2 kN/m³ | ASCE 7-22 Table C3.1-2 | Check |
+| W4-4 | deadLoads.plaster.cement | 20.4 kN/m³ (mortar row) | ASCE 7-22 Table C3.1-2 | PRACTICE, Check |
+| W4-5 | designLimits.shearRootFcMax, erwWallFactor | 8.3 MPa, 0.93 | ACI 318-19 22.5.3.1; AISC 360-22 B4.2 | OK? |
+| W4-6 | mepOpenings.punchingDistance | 4h | ACI 318-19 22.6.4.3 | OK? |
+| W4-7 | mepOpenings.clauses | 8.4.1.5, 8.5.4.1, 8.5.4.2(a)-(c), 11.7.2.3, 11.7.5.1; beams, sleeves, embedments and wall shear without a number | ACI 318-19 | Check (letters of 8.5.4.2; the embedment clauses) |
+| W4-8 | siteInvestigation.siteClassification | N > 50 C, 15-50 D, < 15 E; su > 95.8, 47.9-95.8, < 47.9 kPa; 30.48 m; su cap 239.4 kPa | ASCE 7-16 Table 20.3-1, Sec 20.4 | Check (7-22 Ch 20 wording of N and su) |
+| W4-9 | siteInvestigation.siteClassification rock, soft, liquefiable | rock without vs: C; soft clay > 3.05 m PI > 20 su < 23.9 kPa: E; liquefiable: F, D meanwhile | ASCE 7-16 Table 20.3-1; ASCE 7-22 Sec 20.2.1 | PRACTICE, Check |
+| W4-10 | siteInvestigation.liquefaction | CSR 0.65, rd 1 - 0.00765 z | Youd et al. (2001); ASCE 7-22 Sec 11.8.3 | PRACTICE |
+| W4-11 | foundations.shallow.exteriorDepth, raftDepth | none (not checked) | IBC 2021 Sec 1809.4 (12 in), 1809.5 (frost) | OK? |
+| W4-12 | citations (loads keys) | Sec 12.7.1, 2.3.4, 12.8.2, 12.8.4.2, Figure 27.3-8, Sec 27.3.5 Exception, 26.11.4, 26.11.5, 4.3.2, Table 4.3-1, 12.8, 12.8.7, Eq 12.8-16, 4.6, 3.2, 2.3.1, 2.4.1, 12.8.6, 29.3, 29.4, Table 26.6-1, 26.7, Table 26.10-1, Table 1.5-2, 12.8.2.1, Table 12.8-2, 11.4, Table 12.2-1, 26.8, 26.10, 26.5.1 | ASCE 7-22 | Check (7-22 renumbering of Ch 26-30 and Eq 12.8-16) |
+| W4-13 | citations.lintels, pileCapacity, wsFoundations | TMS 402-22 Sec 5.2; IBC 2021 Sec 1810.3.3, Chapter 18 | | Check |
+| W4-14 | citations two-way slab keys | ACI 318-63 Method 3 | ACI 318-19 8.2.1 | PRACTICE |
+| W4-15 | citations.wsAlignment, wsStairGeometry, tankSettlement, wsZone, hvac, electrical, fire | none | | the extended pack's numbers removed |
+| W4-16 | wind.sources.cladding | walls Figure 30.3-1; roofs the ASCE 7-05 coefficients | ASCE 7-22 Ch 30 Part 1 | Check: 7-16/7-22 roof zones (Figure 30.3-2A-I) differ |
+| W4-17 | wind.clauses.gustRigid, gustFlexible | Sec 26.11.4, 26.11.5 | ASCE 7-22 | OK? |
+| W4-18 | designClauses.generator | Table 1.5-1; Ch 20 (Table 20.2-1); 11.4; Tables 11.6-1, 11.6-2; Table 4.3-1; ACI 18.2.1; Table 12.2-1; ACI 18.14; ACI 6.6.4.6.2; ACI Tables 9.3.1.1, 7.3.1.1, 8.3.1.1, 8.3.1.2(b)-(d); ASCE Table 12.3-2; Table 12.12-1; 12.12.1; 12.8.6; ACI Table 6.6.3.1.1(a), 6.6.3.2.2; 12.8.2 (Table 12.8-1), 12.8.2.1 (Table 12.8-2); ACI 18.7.2.1(a), 18.7.3.2, 18.8.4, 18.6.2.1(b), (c) | ACI 318-19, ASCE 7-22 | Check (6.6.4.6.2 for δs ≤ 1.5; the rows of Table 8.3.1.2) |
+| W4-19 | designClauses.seismicReport, seismicProvisions | 18.2, 18.2.1, 18.6, 18.7, 18.8, 18.8.4, 18.10, 18.3, 18.4, 18.13, 18.14, 18.7.3.2, 18.6.5.1, 18.7.6.1.1, 18.4.2.3, 18.4.3.1 | ACI 318-19 Ch 18 | OK? |
+| W4-20 | designClauses.proposal | 18.8.2.3, 18.7.5.2, 18.8.4, 18.8.2.1, 18.7.3.2, 18.6.2.1(b), (c), 18.7.2.1(a), (b), 18.6.5, 18.7.6, 18.4.2.3, 18.6.3.1, 18.6.3.2 | ACI 318-19 | OK? |
+| W4-21 | designClauses.seismicRulesNotes.gradesText | A706 Grades 420, 550; A615 Grades 280, 420 meeting 20.2.2.5(b) | ACI 318-19 20.2.2.5 | Check (Grade 550 scope by member) |
+| W4-22 | designClauses.slab two-way keys | ACI 318-63 Method 3 (scope, tables, load ratios); 6.5.4; 24.4.3.2; 8.7.2.2; 7.7.2.3; 24.4.3.3 | ACI 318-19 8.2.1 | PRACTICE |
+| W4-23 | seismic.irregularities clauses.strength | ACI 318-19 22.5.5.1 (Table 22.5.5.1(a)), 22.5.8.5.3 | | Check |
+| W4-24 | serviceability.overturning.note | FS 1.5 (practice); foundations 75 % of the overturning moment | ASCE 7-22 Sec 12.13.4 | Check |
+| W4-25 | embeddedWalls.clauses.required | IBC 2021 Sec 3304.1 | | Check |

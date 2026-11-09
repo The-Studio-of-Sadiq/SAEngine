@@ -5061,11 +5061,12 @@ class ShallowFoundations(_Group):
     sliding: float = Field(ge=1, description="Least FS against sliding.")
     friction: Positive = Field(description="Friction factor between foundation and soil.")
     minDepth: Positive = Field(description="Least depth below the natural ground [mm].")
-    exteriorDepth: dict[Literal["cohesive", "granular", "temporary"], Positive] = Field(
-        description="Least depth of exterior footings [mm]."
+    exteriorDepth: dict[Literal["cohesive", "granular", "temporary"], Positive] | None = Field(
+        description="Least depth of exterior footings [mm]; null: the code sets none beyond "
+        "minDepth (not checked)."
     )
-    raftDepth: dict[Literal["cohesive", "granular"], Positive] = Field(
-        description="Least depth of rafts [mm]."
+    raftDepth: dict[Literal["cohesive", "granular"], Positive] | None = Field(
+        description="Least depth of rafts [mm]; null: the code sets none beyond minDepth."
     )
     slopeDistance: Positive = Field(
         description="Distance from a footing's centre to the slope face at its base level, at "

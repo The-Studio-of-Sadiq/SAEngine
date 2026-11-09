@@ -4780,7 +4780,8 @@ def _wind_loads(
                 if row["surface"] == "roof"
             )
             notes.append(
-                f"wind MWFRS on the walls and roof ({fl.mwfrs_table().source}): roof "
+                "wind MWFRS on the walls and roof "
+                f"({code_context.own_source('wind', fl.mwfrs_table().source, 'mwfrs')}): roof "
                 f"suction up to {uplift:.2f} kN/m² with the internal pressure (GCpi) "
                 f"{next(iter(mwfrs.values()))['GCpi']:g}; reported, not applied to the floors"
             )
@@ -5163,10 +5164,12 @@ def _wind_gust(
         + "; ".join(
             f"{axis}: n1 = {gust[axis]['n1_Hz']:.3f} Hz from {source}, "
             + (
-                f"flexible, Gf = {gust[axis]['G']:.3f} (Sec 2.4.8.2, β = "
+                f"flexible, Gf = {gust[axis]['G']:.3f} ("
+                f"{code_context.own_clause('wind', 'gustFlexible', form='{}, ')}β = "
                 f"{gust[axis].get('beta', 0):.3f})"
                 if "Gf" in gust[axis]
-                else f"rigid, G = {rigid:.2f} (Sec 2.4.8.1)"
+                else f"rigid, G = {rigid:.2f}"
+                f"{code_context.own_clause('wind', 'gustRigid', form=' ({})')}"
             )
             for axis in ("X", "Y")
         )

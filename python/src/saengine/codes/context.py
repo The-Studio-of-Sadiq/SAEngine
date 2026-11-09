@@ -298,6 +298,26 @@ def attribute(
     return f"{text} [inherited from {owner}; not given by {code_name(p)}]"
 
 
+def own_clause(table_name: str, key: str, pack: CodePack | None = None, form: str = "{}") -> str:
+    """Walk 4: ``form`` with :func:`clause` of ``key`` where the pack in force gives the clause
+    itself; '' where it has none or inherits it from a pack it extends (another code's
+    number)."""
+    p = pack or current()
+    text = clause(table_name, key, p)
+    if not text or inherited(table_name, key, p):
+        return ""
+    return form.format(text)
+
+
+def own_source(table_name: str, text: str, key: str, pack: CodePack | None = None) -> str:
+    """Walk 4: ``text`` (a source read from inside a table, such as a figure row's) as the pack
+    in force states it: its own ``sources[key]`` when ``text`` is inherited from a pack it
+    extends (:meth:`CodePack.own_source`); ``text`` itself for the default pack."""
+    p = pack or current()
+    found = getattr(p, "own_source", None)
+    return found(table_name, text, key) if found is not None else text
+
+
 def cited(table_name: str, key: str, pack: CodePack | None = None, sep: str = ", ") -> str:
     """``sep`` + :func:`cite`, or '' when the pack has no such clause: for a reference that
     follows other text in parentheses or a note."""

@@ -441,6 +441,14 @@
       "title": "Notcovered",
       "type": "array"
     },
+    "notApplicable": {
+      "description": "Tables of the pack this one extends that do not apply under its code (e.g. ['zoneCoefficients', 'planning'] for a code without seismic zones or the parent's planning rules): they are not inherited, so the features that read them say the code pack does not cover them and the report lists them as not applicable. A table the pack gives itself is not affected.",
+      "items": {
+        "type": "string"
+      },
+      "title": "Notapplicable",
+      "type": "array"
+    },
     "verified": {
       "anyOf": [
         {

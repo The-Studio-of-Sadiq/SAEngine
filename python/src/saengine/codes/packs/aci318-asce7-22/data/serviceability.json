@@ -41,6 +41,7 @@
     "source": "IBC 2021 Sec 1604.3, Table 1604.3: roof members supporting plaster or stucco ceilings l/360 (L, S or W), l/240 (D + L); non-plaster ceilings l/240, l/180; no ceiling l/180, l/120; floor members l/360 (L), l/240 (D + L); exterior walls with brittle finishes l/240, flexible finishes l/120 (W; note f permits 0.42 times the components and cladding wind, not applied: SAEngine takes the service wind); farm buildings l/180, greenhouses l/120 (D + L); note h: a cantilever's l is twice its length. The roofs' live column includes snow (S)"
   },
   "overturning": {
+    "note": "the base overturning moment at most 2/3 of the dead load resisting moment, so a factor of safety of 1.5 (SAEngine practice); the weight of earth over the footings is left out and E is taken at its design level (1.0E), both on the safe side; ASCE 7-22 Sec 12.13.4 permits the foundations to be designed for 75 % of the overturning moment at the soil-foundation interface (equivalent lateral force procedure)",
     "source": "SAEngine practice: the base overturning moment at most 2/3 of the dead load resisting moment (FS 1.5), the default pack's rule kept; ASCE 7-22 and IBC 2021 cover overturning by the 0.6D combinations (Sec 2.4.1 combination 7, Sec 2.4.5 combination 10)"
   }
 }

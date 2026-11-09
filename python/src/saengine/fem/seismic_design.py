@@ -248,6 +248,8 @@ def zone_of(z: float | None) -> int | None:
 
     if isinstance(z, SpectralHazard):
         return band(z)
+    if not code_context.current().has("zoneCoefficients"):  # walk 4: a code without zones
+        return None
     zones = code_context.table("zoneCoefficients").zones
     return min(zones, key=lambda k: abs(zones[k] - z))
 
