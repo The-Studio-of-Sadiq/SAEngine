@@ -341,6 +341,15 @@ def evaluate(
                     if factor is not None:
                         stiffening[len(steel_beams)] = factor
                 steel_beams.append((round(element.elevation), mid))
+    # The supported nodes of every meshed slab of a floor: a wizard floor is one slab element per
+    # bay, meshed with shared nodes, so a panel's mode spreads into the neighbouring slab
+    # elements; the bays it is continuous with are counted over the floor, not the element.
+    floor_held: dict[int, list[np.ndarray]] = {}
+    for element in building.elements:
+        if isinstance(element, SlabElement) and shells.get(element.id):
+            floor_held.setdefault(round(element.elevation), []).extend(
+                np.asarray(coords[n]) for n in shells[element.id] if n in coords and n in supported
+            )
     rows: list[dict[str, Any]] = []
     notes: list[str] = []
     unmeshed: list[str] = []
@@ -401,7 +410,9 @@ def evaluate(
         fn = natural_frequency(delta, rules.frequencyConstant)
         method = rules.steelMethod if steel else rules.concreteMethod
         spread = getattr(rules.responseFactor, "spread", None)
-        bays = continuous_bays(points[k], held_points, spread)
+        level = floor_held.get(round(element.elevation)) or []
+        floor_points = np.unique(np.array(level), axis=0) if level else held_points
+        bays = continuous_bays(points[k], floor_points, spread)
         found = check_panel(method, fn, w, lx * ly, max(lx, ly), occupancy, rules, bays)
         rows.append(
             {
