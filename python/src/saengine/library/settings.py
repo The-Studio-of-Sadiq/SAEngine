@@ -3467,7 +3467,28 @@ def pack_choices(pack: CodePack, units: Any = None) -> dict[str, list[dict[str, 
         hidden.append("site.zoneCoefficient")
     if hidden:
         out["hiddenFields"] = [{"id": path, "label": path} for path in dict.fromkeys(hidden)]
+    # W4A-23: what the Wind page's inputs mean under a pack with its own wind table (its
+    # sources of the factors they override), e.g. cdir and co of EN 1991-1-4 for Kd and Kzt.
+    wind_owner = pack.value_owner("wind") if pack.has("wind") else None
+    if pack.id != DEFAULT_PACK and wind_owner is not None and wind_owner[0] != DEFAULT_PACK:
+        sources = getattr(pack.table("wind"), "sources", None) or {}
+        rows = [
+            {"id": f"wind.{field}", "label": str(sources[key])}
+            for field, key in _WIND_FIELDS.items()
+            if sources.get(key)
+        ]
+        if rows:
+            out["windFields"] = rows
     return out
+
+
+#: Project Settings > Wind fields and the wind table's sources that say what they set.
+_WIND_FIELDS = {
+    "exposure": "exposures",
+    "directionality": "directionality",
+    "topographic": "topographic",
+    "gust": "gust",
+}
 
 
 @functools.cache
@@ -3640,6 +3661,27 @@ def combinations_from_pack(settings: ProjectSettings, pack: CodePack | None = No
     except Exception:  # noqa: BLE001 - a pack without combinations: nothing to compare with
         return False
     return sorted(map(key, settings.combinations)) == sorted(map(key, expected))
+
+
+def area_loads_from_pack(
+    settings: ProjectSettings, pack: CodePack | None = None
+) -> tuple[list[AreaLoad], list[str]]:
+    """W4A-22: the project's area loads with the live load of ``pack``'s (default: the pack in
+    force) area use for each one whose use the pack lists (a custom use, or one the pack does
+    not list, is kept as it is); and the ids of those whose live load that changes (none: the
+    area loads are the pack's already). Finishes and partitions are the project's."""
+    pack = pack or code_context.current()
+    uses = pack.table("areaLoads").uses if pack.has("areaLoads") else {}
+    rows: list[AreaLoad] = []
+    changed: list[str] = []
+    for area in settings.areaLoads:
+        use = uses.get(area.use)
+        if use is None or abs(float(use.live) - float(area.live)) < 1e-9:
+            rows.append(area)
+            continue
+        rows.append(area.model_copy(update={"live": float(use.live)}))
+        changed.append(area.id)
+    return rows, changed
 
 
 def _exception_wanted(name: str, exception: Any, settings: ProjectSettings, pack: CodePack) -> bool:
@@ -4142,16 +4184,46 @@ def problems(settings: ProjectSettings) -> list[tuple[str, str]]:
             out.append(
                 (
                     "site.zoneCoefficient",
-                    "a custom location needs the seismic zone coefficient Z (Table 6.2.14)",
+                    f"a custom location needs the {site_input_text(pack, 'zone')}",
                 )
             )
         if settings.site.windSpeed is None:
             out.append(
-                ("site.windSpeed", "a custom location needs the basic wind speed V (Table 6.2.8)")
+                ("site.windSpeed", f"a custom location needs the {site_input_text(pack, 'wind')}")
             )
     if not settings.combinations:
         out.append(("combinations", "there are no load combinations"))
     return out
+
+
+#: The default pack's words for the site's hazard inputs (``site_input_text``).
+_SITE_INPUTS = {
+    "zone": ("seismic zone coefficient Z", "Table 6.2.14"),
+    "wind": ("basic wind speed V", "Table 6.2.8"),
+}
+
+
+def site_input_text(pack: CodePack | None, what: str, with_table: bool = True) -> str:
+    """Walk 4 (W4-A): how messages name the site's hazard input ``what`` ("zone": the value
+    entered as Z, "wind": the one entered as V) under ``pack``: the pack's own
+    ``designClauses.generator`` ``<what>Name`` and ``<what>Table``; the default pack's words
+    (with its table) for the default pack, and without another code's table for a pack that
+    gives none. ``with_table`` False: the name alone."""
+    name, table = _SITE_INPUTS[what]
+    if pack is None or pack.id == code_context.DEFAULT_PACK:
+        return f"{name} ({table})" if with_table else name
+
+    def own(key: str) -> str:
+        owner = (
+            pack.clause_owner("designClauses", "generator", key)
+            if pack.has("designClauses")
+            else None
+        )
+        return owner[1] if owner and owner[0] != code_context.DEFAULT_PACK else ""
+
+    found = own(f"{what}Table") if with_table else ""
+    named = own(f"{what}Name") or name
+    return f"{named} ({found})" if found else named
 
 
 def _uses_mapped(pack: CodePack) -> bool:

@@ -1,0 +1,26 @@
+{
+  "$schema": "../../../schemas/materials.schema.json",
+  "$sources": [
+    "EN 1992-1-1 and EN 1998-1 Section 5 (materials of reinforced concrete); EN 1993-1-1 for steel"
+  ],
+  "source": "EN 1992-1-1 and EN 1998-1 Section 5 (materials of reinforced concrete); EN 1993-1-1 for steel",
+  "steelShearModulus": 81000.0,
+  "seismicFcMin": 16.0,
+  "lightweightDensity": 2200.0,
+  "seismicRebarFy": [
+    500.0
+  ],
+  "seismicRebarFyMax": 500.0,
+  "fuFyMin": 1.08,
+  "sources": {
+    "concreteStrain": "SAEngine practice for the checks the EN methods do not replace (EN 1992-1-1 Table 3.1: εcu3 3.5 ‰ in concreteMethods)",
+    "steelShearModulus": "EN 1993-1-1 3.2.6: G = E / (2 (1 + ν)) ≈ 81 000 MPa",
+    "seismicFcMin": "EN 1998-1 5.4.1.1(1)P: concrete of primary seismic members of DCM not below C16/20 (DCH 5.5.1.1(1)P: C20/25)",
+    "lightweightFcMax": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+    "lightweightDensity": "EN 1992-1-1 11.1: lightweight aggregate concrete of closed structure, density at most 2200 kg/m³",
+    "seismicRebarFy": "EN 1998-1 5.4.1.1(2)P and 5.5.1.1(3)P: B500 reinforcement of class B or C (EN 1992-1-1 Annex C, Table C.1), class C in the critical regions of DCH",
+    "gradeTolerance": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+    "fyActualMargin": "EN 1998-1 5.5.1.1(3)P: the upper characteristic yield strength at most 25 % above the nominal (125 MPa for B500)",
+    "fuFyMin": "EN 1992-1-1 Table C.1: k = (ft/fy)k at least 1.08 (class B; class C 1.15)"
+  }
+}

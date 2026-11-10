@@ -1,0 +1,39 @@
+{
+  "$schema": "../../../schemas/slabMethods.schema.json",
+  "$sources": [
+    "SAEngine practice: flat slabs by column and middle strips, as EN 1992-1-1 Annex I describes, with the strip shares of the pack this one extends (see VERIFY.md)"
+  ],
+  "source": "SAEngine practice: flat slabs by column and middle strips, as EN 1992-1-1 Annex I describes, with the strip shares of the pack this one extends (see VERIFY.md)",
+  "sources": {
+    "twoWayMethods": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+    "directDesign.limits": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+    "directDesign.static": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+    "directDesign.distribution": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+    "directDesign.strips": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+    "directDesign.transfer": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+    "directDesign.modification": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+    "equivalentFrame": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+    "corner": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+    "openings": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)"
+  },
+  "clauses": {
+    "methods": "",
+    "directDesign": "",
+    "limits": "",
+    "static": "",
+    "distribution": "",
+    "strips": "",
+    "beams": "",
+    "edgeTransfer": "",
+    "columnMoment": "",
+    "equivalentFrame": "",
+    "torsion": "",
+    "pattern": "",
+    "face": "",
+    "corner": "",
+    "openings": "",
+    "openingsAnalysis": "",
+    "openingShear": "",
+    "patternExemption": ""
+  }
+}

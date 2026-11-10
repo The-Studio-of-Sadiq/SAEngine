@@ -1624,6 +1624,11 @@ def create_server() -> JsonRPCServer:
         args = _plain(params)
         return handlers.codes_combinations(args["settingsText"], args.get("root"))
 
+    @server.feature("codes/areaLoads")
+    def _codes_area_loads(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.codes_area_loads(args["settingsText"], args.get("root"))
+
     @server.feature("codes/settingsForPack")
     def _codes_settings_for_pack(params: Any) -> dict[str, Any]:
         args = _plain(params)

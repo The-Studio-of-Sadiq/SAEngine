@@ -106,7 +106,8 @@ def short_clause(group: str, key: str) -> str:
 
 def own_text(group: str, key: str) -> str:
     """C11: :func:`text` of ``key`` in ``group`` only where the pack in force gives it itself
-    (or a project override does): "" where it would be inherited from a pack it extends, so a
+    (or a project override does) or adopts from a parent other than the default pack: "" where
+    it would be inherited from the default pack, so a
     pack without its own entry names the check without a clause, never another code's number.
     The built-in default pack's table read for a working copy of it counts as its own."""
     found = text(group, key)
@@ -118,7 +119,9 @@ def own_text(group: str, key: str) -> str:
     owner = pack.clause_owner(TABLE, group, key)
     if owner is None or owner[0] == pack.id or found != owner[1]:
         return found
-    return ""
+    # Walk 4: a National Annex pack adopts the clauses of the code it extends (the Eurocodes'
+    # for the UK NA); only the default pack's numbers are another code's.
+    return "" if from_default(pack, owner[0]) else found
 
 
 def _paren(label: str, inner: str) -> str:

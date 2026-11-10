@@ -3,7 +3,7 @@
   "$sources": [
     "EN 1993-1-8:2005 Table 3.3 (edge distances, spacing), EN 1090-2 (normal clearance holes); the members, bolts, welds and block tearing are the limit state table's (steelLimitState)"
   ],
-  "source": "EN 1993-1-1 / EN 1993-1-8 by steelLimitState; the plate checks of the shared connection checks with the factors 1/γM of the EN resistances (VERIFY.md); the rest of the table BNBC 2020 Part 6 Chapter 10",
+  "source": "EN 1993-1-1 / EN 1993-1-8 by steelLimitState; the plate checks of the shared connection checks with the factors 1/γM of the EN resistances (VERIFY.md); the rest of the table SAEngine practice (see VERIFY.md)",
   "phi": {
     "tensionYield": 1.0,
     "tensionRupture": 0.72,
@@ -13,11 +13,44 @@
     "compression": 1.0
   },
   "connections": {
-    "holes": {"12": 13, "14": 15, "16": 18, "18": 20, "20": 22, "22": 24, "24": 26, "27": 30, "30": 33, "36": 39},
+    "holes": {
+      "12": 13,
+      "14": 15,
+      "16": 18,
+      "18": 20,
+      "20": 22,
+      "22": 24,
+      "24": 26,
+      "27": 30,
+      "30": 33,
+      "36": 39
+    },
     "holeOver": 3,
     "netHoleAllowance": 0,
-    "edgeRolled": {"12": 16, "14": 18, "16": 22, "18": 24, "20": 27, "22": 29, "24": 32, "27": 36, "30": 40, "36": 47},
-    "edgeSheared": {"12": 16, "14": 18, "16": 22, "18": 24, "20": 27, "22": 29, "24": 32, "27": 36, "30": 40, "36": 47},
+    "edgeRolled": {
+      "12": 16,
+      "14": 18,
+      "16": 22,
+      "18": 24,
+      "20": 27,
+      "22": 29,
+      "24": 32,
+      "27": 36,
+      "30": 40,
+      "36": 47
+    },
+    "edgeSheared": {
+      "12": 16,
+      "14": 18,
+      "16": 22,
+      "18": 24,
+      "20": 27,
+      "22": 29,
+      "24": 32,
+      "27": 36,
+      "30": 40,
+      "36": 47
+    },
     "edgeOverRolled": 1.3,
     "edgeOverSheared": 1.3,
     "minSpacing": 2.5
@@ -26,6 +59,53 @@
     "holes": "EN 1090-2 Table 11: normal round holes d + 1 (M12, M14), d + 2 (M16-M24), d + 3 (M27 and above)",
     "edges": "EN 1993-1-8 Table 3.3: e1, e2 >= 1.2 d0 (rounded up)",
     "minSpacing": "EN 1993-1-8 Table 3.3: p1 >= 2.2 d0, p2 >= 2.4 d0 (SAEngine checks 2.5 d)",
-    "phi": "The plate checks of the shared connection checks as the EN resistances: A fy / γM0 (1.00), 0.9 Anet fu / γM2 (0.72), Av fy / (√3 γM0) (0.6 φ = 0.577), Anv fu / (√3 γM2) (0.6 φ = 0.462), Wpl fy / γM0 (1.00)"
+    "phi": "The plate checks of the shared connection checks as the EN resistances: A fy / γM0 (1.00), 0.9 Anet fu / γM2 (0.72), Av fy / (√3 γM0) (0.6 φ = 0.577), Anv fu / (√3 γM2) (0.6 φ = 0.462), Wpl fy / γM0 (1.00)",
+    "hssPunchingRoundK": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+    "plateFlexure": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+    "slenderness": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+    "netAreaMax": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+    "boltGrades": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+    "boltAliases": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+    "pretension": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+    "slip": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+    "netHoleAllowance": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+    "maxEdge": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+    "longJoint": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+    "filletMin": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+    "filletMax": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+    "concreteBearing": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+    "anchorRods": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+    "methods": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+    "bracing": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+    "ponding": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+    "members": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+    "torsion": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+    "torsionMethods": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+    "unsymmetric": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+    "builtUp": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+    "componentK": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+    "bars": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+    "tensionField": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)"
+  },
+  "members": {
+    "clauses": {
+      "torsionHss": "",
+      "torsionHssCombined": "",
+      "torsionNormal": "",
+      "torsionShear": "",
+      "torsionBuckling": "",
+      "unsymmetric": "",
+      "builtUpSnug": "",
+      "builtUpWelded": "",
+      "builtUpSpacing": "",
+      "bars": "",
+      "unsymmetricFlexure": "",
+      "angleMajorLtb": "",
+      "angleLegBuckling": "",
+      "stiffenedShear": "",
+      "tensionField": "",
+      "stiffeners": "",
+      "barShear": ""
+    }
   }
 }

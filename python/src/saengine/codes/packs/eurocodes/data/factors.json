@@ -1,0 +1,16 @@
+{
+  "$schema": "../../../schemas/factors.schema.json",
+  "$sources": [
+    "EN 1992-1-1 designs with the partial factors γC = 1.5 and γS = 1.15 (Table 2.1N; concreteMethods.ultimate). These φ are SAEngine practice, used only by the checks the pack's EN methods do not replace yet (see VERIFY.md)"
+  ],
+  "source": "EN 1992-1-1 designs with the partial factors γC = 1.5 and γS = 1.15 (Table 2.1N; concreteMethods.ultimate). These φ are SAEngine practice, used only by the checks the pack's EN methods do not replace yet (see VERIFY.md)",
+  "sources": {
+    "shearSeismic": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+    "diagonalCoupling": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+    "joint": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+    "stiffnessReduction": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+    "bearing": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+    "strutAndTie": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+    "plain": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)"
+  }
+}

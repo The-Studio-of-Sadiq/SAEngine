@@ -823,3 +823,40 @@ gives no rating method).
 | # | Path | Value | Source | Sure? |
 |---|---|---|---|---|
 | B1 | detailing.bars.splices.hoopDepthShare, hoopMax (inherited) | the default pack's 0.25 and 100 mm: hoops over the lap splices of special moment frame beams at min(d/4, 100 mm), the check and Design Reinforcement now read them as the drawings do (values unchanged) | EN 1998-1 5.6.3 / EN 1992-1-1 8.7.4 (transverse bars at laps) | Check |
+
+## Walk 4 (W4-A): no table inherited from the default pack (version 0.6)
+
+The tables the pack inherited are its own now (README "What falls back"). Values kept from the
+extended pack say so in their sources (SAEngine practice); the EN references entered for the
+design clauses and citations are listed by group, each to check against the printed codes.
+
+| # | Path | Value | Source | Sure? |
+|---|---|---|---|---|
+| W1 | notApplicable | accessibility, anchors, bamboo, compositeConcrete, construction, electrical, ferrocement, fire, fireResistance, hvac, mepFabrication, nonBuilding, nonstructural, planning, plumbing | not Eurocode tables (anchors: EN 1992-4; interface shear: concreteMethods.interfaceShear) | OK? |
+| W2 | foundations.shallow.exteriorDepth, raftDepth | null (not checked beyond minDepth) | EN 1997-1 6.4: depth by frost, shrinkage and swelling, set by the engineer | OK? |
+| W3 | foundations.shallow.minDepth | 500 mm (kept) | SAEngine practice | Check |
+| W4 | foundations.shallow.columnBase | φ = 1/γC = 0.6667, k = αcc = 1.0, √(Ac1/Ac0) ≤ 3.0; bars with φ = 1/γC (safe side of 1/γS); 0.005 Ag and 4 bars kept | EN 1992-1-1 6.7 | Check (αcc is a NDP) |
+| W5 | foundations.shallow.overturning, sliding, kern, friction | 1.5, 1.5, B/6, 0.5 kept as service checks | SAEngine practice beside EN 1997-1 2.4.7.2 (EQU), 6.5.3, 6.5.4 | Check |
+| W6 | foundations.shallow.tieBeams | 10 % of the larger load, zones 2-4, clear spacing / 20 ≤ 450 mm (kept) | SAEngine practice; EN 1998-5 5.4.1.2 gives tie-beam forces by ground type | Check (not entered) |
+| W7 | materials.seismicFcMin | 16 MPa | EN 1998-1 5.4.1.1(1)P (DCM C16/20; DCH C20/25, 5.5.1.1(1)P) | Check |
+| W8 | materials.seismicRebarFy, seismicRebarFyMax | [500], 500 | EN 1998-1 5.4.1.1(2)P, 5.5.1.1(3)P: B500 class B or C | Check |
+| W9 | materials.fuFyMin, fyActualMargin | 1.08 (class B; class C 1.15), 125 MPa (25 % of 500) | EN 1992-1-1 Table C.1; EN 1998-1 5.5.1.1(3)P | Check |
+| W10 | materials.lightweightDensity, steelShearModulus | 2200 kg/m³, 81 000 MPa | EN 1992-1-1 11.1; EN 1993-1-1 3.2.6 | OK? |
+| W11 | materials.concreteStrain | 0.003 kept (εcu3 3.5 ‰ is concreteMethods') | SAEngine practice for the checks the EN methods do not replace | Check |
+| W12 | factors.phi | kept (0.90/0.65/0.75 ...) | SAEngine practice for checks without an EN method yet; the EN design uses γC 1.5, γS 1.15 (Table 2.1N) | Check: Code Values > Factors still lists these φ |
+| W13 | concrete.crackedStiffness | 0.70 / 0.35 / 0.25 / 0.35 kept, no clause | EN 1998-1 4.3.1(7) permits one half of the uncracked stiffness | Check (not changed) |
+| W14 | concrete.barDiameters | kept | SAEngine practice: EN 10080 / BS 4449 sizes | OK? |
+| W15 | concrete.clauses.patternLive* | EN 1992-1-1 5.1.3(1)P (a), (b) | load arrangements | OK? |
+| W16 | detailing (hooks, development, laps, special) | kept | SAEngine practice; the EN anchorage, laps and bar shapes are concreteMethods' | Check: the drawings' hooks (ldh) and laps still read these |
+| W17 | serviceability (deflection, drift, sway) | kept | SAEngine practice; EN 1992-1-1 7.4.1 span/250 and span/500; EN 1998-1 4.4.3.2 drift is the seismic table's | Check |
+| W18 | slabCoefficients, slabMethods, stairMethods, wallMethods, transfer, mepOpenings | kept | SAEngine practice (EN 1992-1-1 5.1.1; Annex I strips) | Check |
+| W19 | cranes, deadLoads, fatigue, siteInvestigation, designLimits | kept | SAEngine practice until EN 1991-3, EN 1993-1-9, EN 1997-2 are entered | Check |
+| W20 | the parts of steel, composite, masonry, timber, steelSeismic, steelStability, concreteTime, flood the pack does not set | kept | SAEngine practice (their sources and notes reworded) | Check |
+| W21 | designClauses.faceForces | EN 1992-1-1 5.3.2.2(3) (face moments), 6.2.1(8) (shear at d) | | OK? |
+| W22 | designClauses: check, slab, punching, slender, deflectionRows, stairs, columnShear, corbels, deepBeams | EN 1992-1-1 5.8, 5.8.3.1, 6.2, 6.2.2, 6.3, 6.3.1(2), 6.3.2, 6.4, 6.4.2, 6.5, 6.7, 7.4.1-7.4.3, Table 7.4N, 9.2.3, 9.3.1.1, 9.5.3, Annex J.3; EN 1991-1-1 Table 6.2 | | Check |
+| W23 | designClauses: seismicRules, seismicReport, seismicProvisions, proposal, generator, ductileJoints, ductileMembers | EN 1998-1 3.1.2, 3.2.1, 3.2.2.2, 4.2.2, 4.2.3.3, 4.2.5, 4.3.2, 4.3.3.2.2, 4.3.3.5.2, 4.3.4, 4.4.2.3(4), 4.4.2.5, 4.4.3.2, Section 5 (5.2.1, 5.3, 5.4.1.1, 5.4.1.2.1, 5.4.2.2, 5.4.3.x, 5.5.1.1, 5.5.1.2.2, 5.5.2.x, 5.5.3.x, 5.6.3, 5.8) | | Check |
+| W24 | designClauses: wallsRows, ductileMembersRows, ductileJointsRows, seismicDetailingRows, seismicRulesRows, steelMembers, lintels, overstrength, walls; seismicRules.phi, analysis | empty (no clause; the φ and below-base notes are left out) | the pack's concreteMethods / steelLimitState cite their own | — |
+| W25 | citations | EN references per key (loads, wind, seismic, bars, laps); empty where none entered (wind design cases, cracked stiffness) | | Check |
+| W26 | designClauses.generator.zoneName/zoneTable, windName/windTable | agR (EN 1998-1 3.2.1), vb,0 (EN 1991-1-4 4.2) | the site messages and the no-earthquake note | OK? |
+| W27 | designClauses.foundationsReport.concrete | footing punching EN 1992-1-1 6.4; one-way shear and flexure SAEngine practice after ACI 318-19 | the engine has no EN 1992-1-1 footing shear and flexure method yet | Check (engine) |
+| W28 | floorVibration.clauses.walkingAcceleration | AISC Design Guide 11 Chapter 4 as SAEngine practice | the pack's own method is the response factor | OK? |

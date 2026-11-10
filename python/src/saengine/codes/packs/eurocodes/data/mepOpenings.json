@@ -1,0 +1,28 @@
+{
+  "$schema": "../../../schemas/mepOpenings.schema.json",
+  "$sources": [
+    "SAEngine practice: openings and sleeves through beams, slabs and walls (EN 1992-1-1 9.4.2 for flat slabs gives no rule for the strip shares)"
+  ],
+  "source": "SAEngine practice: openings and sleeves through beams, slabs and walls (EN 1992-1-1 9.4.2 for flat slabs gives no rule for the strip shares)",
+  "clauses": {
+    "beam": "",
+    "sleeves": "",
+    "columnStrip": "",
+    "slabOpenings": "",
+    "middleStrips": "",
+    "crossStrips": "",
+    "columnMiddle": "",
+    "byAnalysis": "",
+    "punching": "",
+    "punchingPerimeter": "",
+    "wallShear": "",
+    "wallLayers": "",
+    "trimBars": ""
+  },
+  "sources": {
+    "columnStripShare": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+    "punchingDistance": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+    "trimBar": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+    "trimBars": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)"
+  }
+}

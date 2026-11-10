@@ -1,0 +1,7 @@
+{
+  "$schema": "../../../schemas/steelSections.schema.json",
+  "$sources": [
+    "SAEngine's standard shape catalogue: EN 10365 (IPE, HEA, HEB), EN 10056 angles, EN 10219 hollow sections, and IS 808 shapes; designed by EN 1993-1-1"
+  ],
+  "source": "SAEngine's standard shape catalogue: EN 10365 (IPE, HEA, HEB), EN 10056 angles, EN 10219 hollow sections, and IS 808 shapes; designed by EN 1993-1-1"
+}

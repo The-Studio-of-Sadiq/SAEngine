@@ -1,0 +1,18 @@
+{
+  "$schema": "../../../schemas/designLimits.schema.json",
+  "$sources": [
+    "SAEngine practice: limits of the member design the Eurocode methods (concreteMethods, steelLimitState) do not replace; the stair geometry is the engineer's to confirm with the building regulations"
+  ],
+  "source": "SAEngine practice: limits of the member design the Eurocode methods (concreteMethods, steelLimitState) do not replace; the stair geometry is the engineer's to confirm with the building regulations",
+  "sources": {
+    "shearRootFcMax": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+    "erwWallFactor": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+    "stairs.twoRiserTread": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+    "stairs.riserTread": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+    "stairs.flightRiseMax": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+    "stairs.headroom": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+    "stairs.riserVariation": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+    "stairs.straightLandingCap": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+    "stairs.widths": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)"
+  }
+}

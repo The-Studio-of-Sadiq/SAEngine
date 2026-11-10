@@ -1,0 +1,31 @@
+{
+  "$schema": "../../../schemas/serviceability.schema.json",
+  "$sources": [
+    "SAEngine practice: member deflection and sway limits under the characteristic combinations (EN 1990 A1.4 leaves the criteria to the project; EN 1992-1-1 7.4.1 gives span/250 and span/500); the seismic drift is EN 1998-1 4.4.3.2 (seismic table)"
+  ],
+  "source": "SAEngine practice: member deflection and sway limits under the characteristic combinations (EN 1990 A1.4 leaves the criteria to the project; EN 1992-1-1 7.4.1 gives span/250 and span/500); the seismic drift is EN 1998-1 4.4.3.2 (seismic table)",
+  "storeyDrift": {
+    "source": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)"
+  },
+  "sway": {
+    "source": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)"
+  },
+  "deflection": {
+    "uses": {
+      "metalSheeting": {
+        "source": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)"
+      },
+      "metalRoofSecondary": {
+        "source": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)"
+      },
+      "metalWallSecondary": {
+        "source": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)"
+      }
+    },
+    "source": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)"
+  },
+  "overturning": {
+    "note": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+    "source": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)"
+  }
+}

@@ -2837,8 +2837,11 @@ def _derive_fem(
         missing = []
         if not values["Z"]:
             missing.append("Z")
+            from saengine.library.settings import site_input_text
+
+            zone_name = site_input_text(code_context.current(), "zone", with_table=False)
             b.notes.append(
-                "no earthquake loads: the site has no seismic zone coefficient Z (Project "
+                f"no earthquake loads: the site has no {zone_name} (Project "
                 "settings → Site: a location with a zone, or Z); EX and EY are empty, and every "
                 "combination with them is formed without earthquake"
             )

@@ -546,11 +546,16 @@ def _foundations(data: dict[str, Any], ctx: Context) -> dict[str, Any]:
     fdn = data["foundations"]
     if not fdn.get("available"):
         return {"blocks": [note(str(fdn.get("message", "")))]}
+    from saengine.design.clauses import text as design_text
+
+    # Walk 4 (W4-A): the footing concrete's basis from the pack (designClauses
+    # foundationsReport.concrete); the default pack's words where it gives none.
+    concrete = design_text("foundationsReport", "concrete") or "ACI 318-19"
     out: list[Block] = [
         p(
             "The foundations of 9 Substructure, designed for the support reactions of the "
             "analysis: the column bases are fixed supports of the analysis model. Bearing and "
-            "pile loads are checked under the service combinations, the concrete (ACI 318-19) "
+            f"pile loads are checked under the service combinations, the concrete ({concrete}) "
             "under the factored ones. Utilisation is demand over capacity; above 1.000 is "
             "marked FAIL."
         ),

@@ -1,0 +1,14 @@
+{
+  "$schema": "../../../schemas/slabCoefficients.schema.json",
+  "$sources": [
+    "SAEngine practice: two-way and one-way moment coefficients (EN 1992-1-1 5.1.1 accepts any analysis meeting equilibrium); the bar spacing of EN 1992-1-1 9.3.1.1 is in concreteMethods"
+  ],
+  "source": "SAEngine practice: two-way and one-way moment coefficients (EN 1992-1-1 5.1.1 accepts any analysis meeting equilibrium); the bar spacing of EN 1992-1-1 9.3.1.1 is in concreteMethods",
+  "sources": {
+    "twoWay": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+    "twoWayLimits": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+    "oneWay": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+    "maxSpacing": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+    "discontinuousEdgeShare": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)"
+  }
+}

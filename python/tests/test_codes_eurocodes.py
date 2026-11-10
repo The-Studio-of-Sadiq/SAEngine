@@ -43,11 +43,11 @@ def test_pack_is_listed_sound_and_extends_the_default():
     pack = registry.load("eurocodes")
     assert pack.broken == {}
     assert pack.chain == ["eurocodes", "bnbc2020"]
-    # Loads are the pack's own; materials fall back to the pack it extends.
+    # Loads are the pack's own; walk 4: so are the tables it used to inherit (own sources).
     for table in ("combinations", "seismic", "wind", "areaLoads", "liveReduction", "snow"):
         assert pack.provided_by(table) == "eurocodes"
     for table in ("concrete", "factors", "detailing", "foundations"):
-        assert pack.provided_by(table) == "bnbc2020"
+        assert pack.provided_by(table) == "eurocodes"
     # C6: the steel and other material tables are the pack's own (merged onto the parent's).
     for table in ("steelLimitState", "steel", "timber", "masonry", "composite", "aluminium"):
         assert pack.provided_by(table) == "eurocodes"

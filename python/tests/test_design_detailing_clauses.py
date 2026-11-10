@@ -217,7 +217,8 @@ def test_inherited_entries_are_not_the_pack_own() -> None:
     from saengine.design.clauses import own_text, text
 
     with _under("eurocodes"):
-        assert text("ductileMembersRows", "beamWidth") == "8.3.4.1(d)"  # merged from BNBC
+        # Walk 4: the pack's own (empty) entry, no longer merged from BNBC.
+        assert text("ductileMembersRows", "beamWidth") == ""
         assert own_text("ductileMembersRows", "beamWidth") == ""
     with _under("aci318-asce7-22"):
         assert own_text("ductileMembersRows", "beamWidth") == "18.6.2.1(b)"

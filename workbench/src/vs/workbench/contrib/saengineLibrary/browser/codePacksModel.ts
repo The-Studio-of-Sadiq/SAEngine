@@ -53,6 +53,31 @@ export function readPackCombinations(raw: unknown): IPackCombinations | undefine
 	return { name, combinations, fromPack: answer.fromPack === true };
 }
 
+/** `{ settingsText, root? }` → `{ id, name, areaLoads, changed, fromPack }`: the project's area loads with the live loads of the pack the settings choose, and the ids whose live load that changes. */
+export const CODES_AREA_LOADS_COMMAND = 'saengine.codes.areaLoads';
+
+/** The answer of `saengine.codes.areaLoads`; undefined for a refusal or another shape. */
+export interface IPackAreaLoads {
+	readonly name: string;
+	readonly areaLoads: object[];
+	readonly changed: string[];
+	readonly fromPack: boolean;
+}
+
+export function readPackAreaLoads(raw: unknown): IPackAreaLoads | undefined {
+	if (!raw || typeof raw !== 'object') {
+		return undefined;
+	}
+	const answer = raw as { name?: unknown; id?: unknown; areaLoads?: unknown; changed?: unknown; fromPack?: unknown };
+	if (!Array.isArray(answer.areaLoads)) {
+		return undefined;
+	}
+	const areaLoads = answer.areaLoads.filter((a): a is object => !!a && typeof a === 'object' && !Array.isArray(a));
+	const changed = Array.isArray(answer.changed) ? answer.changed.filter((c): c is string => typeof c === 'string') : [];
+	const name = typeof answer.name === 'string' && answer.name ? answer.name : typeof answer.id === 'string' ? answer.id : '';
+	return { name, areaLoads, changed, fromPack: answer.fromPack === true || changed.length === 0 };
+}
+
 /** The pack a project uses when its settings name none (and every project before code packs). */
 export const DEFAULT_CODE_PACK = DEFAULT_CODE_PACK_ID;
 
