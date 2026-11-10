@@ -2451,3 +2451,8 @@ Each is a pack value or method id, overridable in Code Values; the default pack 
   and AISC Design Guide 11 Ch 4 (a continuous panel's weight x 1.5 when the adjacent span is
   at least 0.7 x it). A single bay keeps the one-bay mass; the walk case (150 mm slab, 3 x 2
   bays of 6 x 5 m) goes from R 5.9-7.2 to 2.0-2.4.
+- **Column-top anchorage is a design check with the pack's credits (2026-11-10).** The hook of
+  top-storey column bars into the beams is checked once, for both design and drawings, and a
+  hook that does not fit fails the member. The pack's reductions (confinement, side and end
+  cover) apply when the detailing qualifies; the design proposal limits column bars so their
+  top hooks fit the beams.
