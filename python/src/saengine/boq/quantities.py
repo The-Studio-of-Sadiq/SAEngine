@@ -3320,13 +3320,13 @@ def _with_bar_schedule(
     bill and the schedule agree per bar size; the notes say which elements kept the estimate
     (``project_root``: detailed with the marks and the kept design of the drawings,
     :func:`saengine.boq.schedule.schedule_of`)."""
-    from saengine.boq.schedule import reconcile_notes, schedule_of, take_from_schedule
+    from saengine.boq.schedule import material_ids, reconcile_notes, schedule_of, take_from_schedule
 
     schedule, notes = schedule_of(texts, project_root)
     if schedule is None or not schedule.rows:
         document.notes += notes
         return
-    kept = take_from_schedule(document, schedule)
+    kept = take_from_schedule(document, schedule, material_ids(texts.get("materials")))
     document.notes += reconcile_notes(document, schedule, kept)
 
 

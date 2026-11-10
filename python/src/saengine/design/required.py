@@ -1052,11 +1052,16 @@ def slab_layer_rules(system: str, h: float, span: str | None) -> dict[str, tuple
     rules = {}
     for name in slab_design.LAYERS:
         if system != "oneWay":
-            rules[name] = (min(2 * h, 450.0), _spacing_text("twoWay"))
+            times, most = slab_design.max_spacing("twoWay")
+            rules[name] = (min(times * h, most), _spacing_text("twoWay"))
         elif name[-1] == span:
-            rules[name] = (min(3 * h, 450.0), _spacing_text("oneWay"))
+            times, most = slab_design.max_spacing("oneWay")
+            rules[name] = (min(times * h, most), _spacing_text("oneWay"))
         else:
-            rules[name] = (min(5 * h, 450.0), "ACI 7.7.6.2.1: min(5h, 450 mm)")
+            # R4AC-7: the pack's shrinkage bar spacing (as the design's check takes it).
+            from saengine.design.rc_detailing import shrinkage_spacing
+
+            rules[name] = shrinkage_spacing(h)
     return rules
 
 

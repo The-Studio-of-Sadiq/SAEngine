@@ -863,8 +863,8 @@ def beam_capacity_shear(
         v_sway = (m.mpr_hog + m.mpr_sag) / clear_span
         ve = max(v_sway + abs(gravity_shear), abs(analysis_shear))
         note = (
-            f"Ve = (Mpr- + Mpr+) / ln + Vg = ({m.mpr_hog / 1e6:.1f} + {m.mpr_sag / 1e6:.1f}) "
-            f"kN·m / {clear_span:.0f} mm + {abs(gravity_shear) / 1e3:.1f} kN, Mpr at 1.25 fy, "
+            f"Ve = (Mpr- + Mpr+) / ln + Vg = ({m.mpr_hog / 1e6:.1f} kN·m + {m.mpr_sag / 1e6:.1f} "
+            f"kN·m) / {clear_span:.0f} mm + {abs(gravity_shear) / 1e3:.1f} kN, Mpr at 1.25 fy, "
             f"φ = 1{_at('smfShear')}"
         )
         label = "Capacity shear Ve (SMF)"
@@ -872,7 +872,7 @@ def beam_capacity_shear(
         v_sway = (m.mn_hog + m.mn_sag) / clear_span
         ve = v_sway + abs(gravity_shear)
         note = (
-            f"(Mn- + Mn+) / ln + Vg = ({m.mn_hog / 1e6:.1f} + {m.mn_sag / 1e6:.1f}) kN·m / "
+            f"(Mn- + Mn+) / ln + Vg = ({m.mn_hog / 1e6:.1f} kN·m + {m.mn_sag / 1e6:.1f} kN·m) / "
             f"{clear_span:.0f} mm + {abs(gravity_shear) / 1e3:.1f} kN"
         )
         if doubled_e_shear is not None and doubled_e_shear < ve:
@@ -1148,6 +1148,84 @@ def column_dowel_checks(
     return [_check(f"Column bars into foundation, {column_id}", need, available, "mm", None, how)]
 
 
+#: The cover over the hooked column bars at the top of a column that ends in the beams [mm].
+TOP_HOOK_COVER = 40.0
+
+
+def column_top_anchorage(
+    db: float, fy: float, fc: float, beam_depth: float, cover: float = TOP_HOOK_COVER
+) -> tuple[Any, float]:
+    """R4AC-5: the anchorage of the bars of a column that ends in the beams at its top (no
+    column above): (the hooked development ldh of the pack in force, a
+    :class:`saengine.drawings.detailing.Rule`; the depth available, the deepest beam less the
+    top cover). The one check the design (:func:`column_top_checks`) and the drawings
+    (``saengine.drawings.detailing``) both make."""
+    from saengine.drawings import detailing
+
+    return detailing.hook_development(db, fy, fc), beam_depth - cover
+
+
+def column_top_name(db: float) -> str:
+    """The name of the check (the bar size as "Ø29": the units and the pack's names print it)."""
+    return f"Column bars hooked into the beams at the top (Ø{db:g})"
+
+
+def column_top_checks(designed: list[Any], building: Any, types: dict[str, Any]) -> list[str]:
+    """R4AC-5: the design's rows of :func:`column_top_anchorage` for every designed concrete
+    column that ends in the beams at its top, appended to its entry (rated again); the notes of
+    what could not be checked."""
+    from saengine.design import seismic_detailing
+
+    columns = [d for d in designed if d.kind == "column"]
+    if not columns:
+        return []
+    try:
+        joints = frame_joints(building, types)
+    except (DesignError, ValueError, AttributeError) as error:
+        return [f"the column tops could not be checked: {error}"]
+    tops: dict[str, FrameJoint] = {}
+    for joint in joints:
+        if joint.above is None and joint.beams:
+            best = tops.get(joint.below)
+            if best is None or joint.level > best.level:
+                tops[joint.below] = joint
+    for d in columns:
+        element_id = getattr(d.element, "id", d.id)
+        joint = tops.get(element_id)
+        top = getattr(d.element, "top", None)
+        if joint is None or (top is not None and abs(joint.level - float(top)) > 50.0):
+            continue
+        reinforcement = getattr(d.object, "reinforcement", None)
+        groups = list(getattr(reinforcement, "longitudinal", None) or [])
+        if not groups:
+            continue
+        depth = 0.0
+        for jb in joint.beams:
+            profile = getattr(types.get(jb.type), "profile", None)
+            depth = max(depth, float(getattr(profile, "yDim", 0.0) or 0.0))
+        if depth <= 0:
+            continue
+        db = max(float(g.dia) for g in groups)
+        rule, available = column_top_anchorage(db, d.section.fy, d.section.fc, depth)
+        how = (
+            f"ldh = {rule.formula} = {rule.value:.0f} mm for db = {db:g} mm ({rule.clause}); "
+            f"available: the deepest beam at the top, {depth:g} mm, less "
+            f"{TOP_HOOK_COVER:g} mm cover = {available:.0f} mm; 90° hooks into the beams"
+        )
+        row = _check(
+            seismic_detailing.PREFIX + column_top_name(db),
+            rule.value,
+            max(available, 0.0),
+            "mm",
+            None,
+            how,
+        )
+        row["clause"] = rule.clause or code_context.code_name()  # every detailing row names one
+        d.entry["checks"].append(row)
+        seismic_detailing.rate(d.entry)
+    return []
+
+
 def _pack_hook_rule(
     db: float, fy: float, fc: float, lam: float, psi_e: float = 1.0, excess: float = 1.0
 ) -> Any:
@@ -1160,7 +1238,9 @@ def _pack_hook_rule(
         dev = detailing.bar_rules().development
     except detailing.NotCovered:
         return None
-    if getattr(dev, "hookMethod", "linear") == "linear":
+    # R4AC-7: also a pack whose anchorage is by its own method (the bond stress of EN 1992,
+    # a share of Lsy.tb): never the default pack's linear ldh under it.
+    if getattr(dev, "hookMethod", "linear") == "linear" and detailing.hook_term() == "ldh":
         return None
     return detailing.hook_development(db, fy, fc, lam=lam, psi_e=psi_e, excess=excess)
 

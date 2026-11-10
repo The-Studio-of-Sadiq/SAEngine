@@ -1406,6 +1406,25 @@ def _schedule_note() -> str:
     )
 
 
+def _no_lap_bars() -> str:
+    """R4AC-4: the bars the pack does not lap (``detailing.bars.laps.noLapDb``), as the general
+    note names them: by the pack's bar names where it has them ("bars larger than #11", which
+    the units leave as they are), else in mm ("36 mm bars and larger", the default pack)."""
+    from saengine.drawings.detailing import bar_rules
+    from saengine.units import pack_bar_names
+
+    try:
+        no_lap = float(bar_rules().laps.noLapDb)
+    except Exception:  # noqa: BLE001 - no detailing rules: the generic statement
+        return "the largest bars"
+    names = pack_bar_names()
+    if names:
+        below = [float(k) for k in names if float(k) < no_lap - 1e-9]
+        if below:
+            return f"bars larger than {names[f'{max(below):g}']}"
+    return f"{no_lap:g} mm bars and larger"
+
+
 def general_notes(objects: Any, materials: Any, detailing: dict[str, Any]) -> list[str]:
     """The general notes of the drawing set."""
     notes = [
@@ -1444,7 +1463,7 @@ def general_notes(objects: Any, materials: Any, detailing: dict[str, Any]) -> li
         (
             "Laps and anchorages are as the development and lap length table unless the "
             "drawing shows a length; laps where the elevations show them (class B), none in "
-            "beam-column joints; no laps of 36 mm bars and larger: mechanical couplers."
+            f"beam-column joints; no laps of {_no_lap_bars()}: mechanical couplers."
         ),
         _schedule_note(),
     ]

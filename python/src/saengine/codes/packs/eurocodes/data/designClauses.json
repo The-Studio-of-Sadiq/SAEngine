@@ -411,6 +411,10 @@
       "part": ""
     },
     "generator": {
+      "categoryName": "seismicity category",
+      "designDriftName": "dr ν = q de ν (EN 1998-1 4.3.4, 4.4.3.2)",
+      "seismicCombinationsName": "G + ψ2 Q ± AEd, EN 1990 6.4.3.4",
+      "columnStressName": "0.4 fck",
       "occupancy": "EN 1998-1 4.2.5, Table 4.3",
       "siteClass": "EN 1998-1 3.1.2, Table 3.1",
       "spectrum": "EN 1998-1 3.2.2.2",

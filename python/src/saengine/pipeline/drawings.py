@@ -343,10 +343,15 @@ def _number(value: Any) -> str:
         return str(value)
 
 
-def check_problems(model: dict[str, Any], design_report: dict[str, Any] | None) -> list[str]:
+def check_problems(
+    model: dict[str, Any], design_report: dict[str, Any] | None, units: Any = None
+) -> list[str]:
     """What must be resolved before the drawings are issued: every detailing check of the
     model that is not met (bars anchored or lapped too short) and the members failing the
-    design checks of ``design_report``."""
+    design checks of ``design_report``. ``units``: the project's display units
+    (:class:`saengine.units.Units`; R4AC-5: lengths and bar sizes as the sheets print them)."""
+    from saengine.units import convert_text
+
     lines: list[str] = []
     for element in model.get("elements") or []:
         for check in element.get("checks") or []:
@@ -354,11 +359,12 @@ def check_problems(model: dict[str, Any], design_report: dict[str, Any] | None) 
                 continue
             unit = f" {check['unit']}" if check.get("unit") else ""
             clause = f", {check['clause']}" if check.get("clause") else ""
-            lines.append(
+            line = (
                 f"{element.get('id')}: {check.get('name')}: {_number(check.get('required'))}"
                 f"{unit} needed, {_number(check.get('provided'))}{unit} provided{clause}: "
                 "not met."
             )
+            lines.append(convert_text(line, units) if units is not None else line)
     if design_report:
         # Counts of R3 (re-walk 3): the members as the design summary counts them
         # (check.design_counts: diaphragms apart, each member once), "158 of 202", not of every
@@ -594,7 +600,7 @@ def _generate(
     (folder / BBS_CSV).write_text(csv_text, encoding="utf-8-sig", newline="")
     congestion = _congestion(root, model, folder)
     step("sheets")
-    errors = check_problems(model, design_report)
+    errors = check_problems(model, design_report, units_from_json(title.get("units")))
     data = drawing_set(
         root,
         detailing=model,

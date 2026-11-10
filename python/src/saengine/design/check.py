@@ -1609,6 +1609,11 @@ def _design_run(
         if steel_braced_found is not None and scope is not None:
             scope["steelBraced"] = steel_braced_found
             scope["checks"] = scope.get("checks", []) + steel_braced_found["checks"]
+    # R4AC-5: the hooked bars of the columns that end in the beams at their top, the check the
+    # drawings make (saengine.design.ductile_joints.column_top_anchorage), so the two agree.
+    from saengine.design import ductile_joints as top_joints
+
+    notes += top_joints.column_top_checks(designed, building, types)
     # Integrator glue: the earthquake-resistant detailing of the default pack's BNBC Sec 8.3 (seismic_detailing).
     joints: list[dict[str, Any]] = []
     from saengine.design import ductile_detailing

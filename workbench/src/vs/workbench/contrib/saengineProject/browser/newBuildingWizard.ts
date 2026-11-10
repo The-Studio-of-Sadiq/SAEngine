@@ -762,7 +762,7 @@ export class NewBuildingWizard extends EditorPane {
 				const missing = await this.prepareFolder(parent);
 				outcome = missing
 					? { notes: [], error: missing }
-					: readGenerateResult(await this.commandService.executeCommand(GENERATE_BUILDING_COMMAND, { spec: result.spec, destParent: parent, name: result.spec.name, ...(this.plot ? { site: this.plot.site } : {}) }));
+					: readGenerateResult(await this.commandService.executeCommand(GENERATE_BUILDING_COMMAND, { spec: result.spec, destParent: parent, name: result.spec.name, ...this.siteArgument() }));
 			} catch (error) {
 				outcome = { notes: [], error: toErrorMessage(error) };
 			} finally {
@@ -824,15 +824,15 @@ export class NewBuildingWizard extends EditorPane {
 
 	/**
 	 * C22: Look Up Hazard Values... under the mapped values: by the open project's site point (its
-	 * soil report's plot), else by the latitude and longitude typed here (used for the lookup only).
+	 * soil report's plot), else by the latitude and longitude typed here (the new project keeps them as its site point).
 	 * The values fill the fields above, stay editable, and the project keeps the source.
 	 */
 	private renderHazardLookup(form: HTMLElement): void {
 		const site = (this.plot?.site ?? {}) as { readonly lat?: unknown; readonly lon?: unknown };
 		const plotAt = typeof site.lat === 'number' && typeof site.lon === 'number' ? { latitude: site.lat, longitude: site.lon } : undefined;
 		if (!plotAt) {
-			this.textInput(form, localize('newBuilding.latitude', "Site latitude (°)"), this.hazardLatitude, value => this.hazardLatitude = value, localize('newBuilding.latitudePlaceholder', "for the lookup, e.g. 34.0522"));
-			this.textInput(form, localize('newBuilding.longitude', "Site longitude (°)"), this.hazardLongitude, value => this.hazardLongitude = value, localize('newBuilding.longitudePlaceholder', "for the lookup, e.g. -118.2437"));
+			this.textInput(form, localize('newBuilding.latitude', "Site latitude (°)"), this.hazardLatitude, value => this.hazardLatitude = value, localize('newBuilding.latitudePlaceholder', "the site point, e.g. 34.0522"));
+			this.textInput(form, localize('newBuilding.longitude', "Site longitude (°)"), this.hazardLongitude, value => this.hazardLongitude = value, localize('newBuilding.longitudePlaceholder', "the site point, e.g. -118.2437"));
 		}
 		const control = this.row(form, '');
 		const button = this.pageDisposables.add(new Button(control, { ...defaultButtonStyles, secondary: true }));
@@ -843,6 +843,24 @@ export class NewBuildingWizard extends EditorPane {
 		if (source) {
 			append(form, $('p.hint.indented', undefined, localize('newBuilding.hazardFrom', "From {0}, looked up {1}. The project keeps the source; the report names it.", String(source.service ?? ''), String(source.date ?? ''))));
 		}
+	}
+
+	/**
+	 * The site the new project starts with: the open project's plot (its soil report's site), else
+	 * the latitude and longitude typed above (R4AC-2: kept as 01 Soil Report's site point, where
+	 * sun, daylight and the map read it), else none.
+	 */
+	private siteArgument(): { readonly site?: object } {
+		if (this.plot) {
+			return { site: this.plot.site };
+		}
+		const typed = (text: string) => {
+			const value = Number(text.trim().replace(',', '.'));
+			return text.trim() && Number.isFinite(value) ? value : undefined;
+		};
+		const lat = typed(this.hazardLatitude);
+		const lon = typed(this.hazardLongitude);
+		return lat !== undefined && lon !== undefined && Math.abs(lat) <= 90 && Math.abs(lon) <= 180 ? { site: { lat, lon } } : {};
 	}
 
 	/** C22: the lookup, then its values into the form (SDS, SD1, S1, TL; the rest kept for the project). */
@@ -1112,7 +1130,7 @@ export class NewBuildingWizard extends EditorPane {
 		button.label = localize('newBuilding.addingCoreWalls', "Sizing again with core walls...");
 		let outcome: IGenerateOutcome;
 		try {
-			outcome = readGenerateResult(await this.commandService.executeCommand(GENERATE_BUILDING_COMMAND, { spec: spec.spec, destParent: parent, name, overwrite: true, ...(this.plot ? { site: this.plot.site } : {}) }));
+			outcome = readGenerateResult(await this.commandService.executeCommand(GENERATE_BUILDING_COMMAND, { spec: spec.spec, destParent: parent, name, overwrite: true, ...this.siteArgument() }));
 		} catch (error) {
 			outcome = { notes: [], error: toErrorMessage(error) };
 		}

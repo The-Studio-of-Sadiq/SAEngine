@@ -134,7 +134,8 @@ def test_report_states_the_pack(tmp_path):
     with code_context.project(root):
         text = code_pack_text(settings)
     assert text.startswith("Example region")
-    assert "; extends BNBC 2020 (bnbc2020) for the tables it does not give" in text
+    # R4AC-3: the title page names the pack in force only, not the pack it extends.
+    assert "for the tables it does not give" not in text and "(bnbc2020)" not in text
     assert "(example-region)" in text
     assert code_pack_text(
         ProjectSettings.model_validate(

@@ -407,6 +407,10 @@
       "part": "Part 6"
     },
     "generator": {
+      "categoryName": "Seismic Design Category",
+      "designDriftName": "Cd δe / I",
+      "seismicCombinationsName": "1.2D + Ev, 0.9D - Ev",
+      "columnStressName": "0.4 f'c",
       "occupancy": "Table 6.1.1, pp. 480-481",
       "siteClass": "the default pack's Part 6 Table 6.2.13 (p. 609)",
       "spectrum": "Table 6.2.16, p. 616",

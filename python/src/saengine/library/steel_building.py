@@ -47,6 +47,7 @@ from saengine.library.generator import (
     POSITION_FACTOR,
     BuildingSpec,
     G,
+    _category,
     _deep_merge,
     _template,
     ceil_to,
@@ -76,6 +77,9 @@ DEFLECTION_DIVISOR, DEPTH_DIVISOR, LATERAL_ALLOWANCE = 360.0, 24.0, 1.5
 COLUMN_STRESS_SHARE, STRONG_COLUMN = 0.5, 1.2
 #: Braces: KL/r at most this when the pack gives no limit.
 BRACE_SLENDERNESS = 200.0
+#: Braces: the storey shear share times this (R4AC-6: the share of the gravity load the X
+#: braces take as the columns shorten, and the frame's moments; rule of thumb).
+BRACE_ALLOWANCE = 1.5
 PHI_C = 0.9
 
 
@@ -100,7 +104,7 @@ def choose_system(kind: str, sdc: str | None, height_m: float) -> tuple[str, Any
             continue
         return system, row
     raise ValueError(
-        f"no {kind} system of the code pack is permitted in Seismic Design Category {category} "
+        f"no {kind} system of the code pack is permitted in {_category()} {category} "
         f"at {height_m:.1f} m"
     )
 
@@ -174,16 +178,37 @@ def _beam_section(
     return found, {"Mu": mu / 1e6, "Zx": z_need, "Ix": i_need, "d": d_need}
 
 
-def _column_section(pu: float, fy: float, z_beam: float, moment: bool, ok=_always):
+def _column_section(
+    pu: float,
+    fy: float,
+    z_beam: float,
+    moment: bool,
+    ok=_always,
+    length: float = 0.0,
+    e: float = 200_000.0,
+):
     """The lightest column section for ``pu`` [N] (moment frames: also Zx >= the strong
-    column ratio × the framing beams' Zx); ``ok`` the seismic width-thickness test."""
+    column ratio × the framing beams' Zx); ``ok`` the seismic width-thickness test. With the
+    storey height ``length`` [mm] (R4AC-6): φc Pn of flexural buckling over it (K = 1) at
+    least pu / 0.5 too, the half left for the moments of the frame, and KL/r within the pack's
+    limit of compression members."""
     a_need = pu / (COLUMN_STRESS_SHARE * fy)
     z_need = STRONG_COLUMN * z_beam if moment else 0.0
-    found = tbl.lightest(
-        _family(COLUMN_FAMILY), lambda s: s.A >= a_need and s.Zx >= z_need and ok(s)
-    )
+    klr_max = _compression_slenderness()
+
+    def strong(s: Any) -> bool:
+        if s.A < a_need or s.Zx < z_need:
+            return False
+        if length <= 0:
+            return True
+        return (
+            length / min(s.rx, s.ry) <= klr_max
+            and _compression(s, length, fy, e) * COLUMN_STRESS_SHARE >= pu
+        )
+
+    found = tbl.lightest(_family(COLUMN_FAMILY), lambda s: strong(s) and ok(s))
     if found is None:
-        found = tbl.lightest(_family(COLUMN_FAMILY), lambda s: s.A >= a_need and s.Zx >= z_need)
+        found = tbl.lightest(_family(COLUMN_FAMILY), strong)
         if found is not None:
             return (
                 found,
@@ -270,7 +295,7 @@ def _generate(s: BuildingSpec, settings: Any) -> dict[str, Any]:
     patch["seismic"] = {"system": system_id}
     final = ProjectSettings.model_validate(_deep_merge(base_json, patch))
     notes.append(
-        f"Seismic Design Category {sdc or '-'} (zone {zone or '-'}, site class "
+        f"{_category()} {sdc or '-'} (zone {zone or '-'}, site class "
         f"{final.site.siteClass}, occupancy category {final.occupancy.category}); system "
         f"{_system_name(system_id, row)} (row {getattr(row, 'row', '-')} of the code pack's "
         "systems: the first of the kind's candidates the category and the height permit)."
@@ -415,7 +440,8 @@ def _generate(s: BuildingSpec, settings: Any) -> dict[str, Any]:
                         service[(i, j)] = sum((q_dead[k] + q_live[k]) * a for k in range(1, n + 1))
             if pu <= 0:
                 continue
-            section, why = _column_section(pu, fy, z_beam, moment, column_ok)
+            height = max(stories[k - 1].height for k in members)
+            section, why = _column_section(pu, fy, z_beam, moment, column_ok, height, e)
             if why:
                 col_notes.append(why)
             col_why[(g, kind)] = why or (
@@ -490,19 +516,48 @@ def _generate(s: BuildingSpec, settings: Any) -> dict[str, Any]:
                 spans = s.gridsX if axis == "x" else s.gridsY
                 bay_w = spans[bay]
                 diag = math.hypot(bay_w, stories[k - 1].height)
-                force = storey_shear[k] * 1e3 / (lines * 2 * bay_w / diag)
+                force = BRACE_ALLOWANCE * storey_shear[k] * 1e3 / (lines * 2 * bay_w / diag)
                 section = _brace_section(force, diag, fy, e, limit, brace_ok)
                 if worst is None or section.A > worst.A:
                     worst = section
             brace_size[k] = worst
+        # R4AC-6: the columns of the braced bays also take the braces' overturning: at storey
+        # k, the storey shears above times their heights over the bay width, per frame line.
+        braced_columns: dict[tuple[int, int], float] = {}
+        for axis, line, bay in brace_bays:
+            spans = s.gridsX if axis == "x" else s.gridsY
+            ends = ((bay, line), (bay + 1, line)) if axis == "x" else ((line, bay), (line, bay + 1))
+            for end in ends:
+                braced_columns[end] = min(braced_columns.get(end, math.inf), spans[bay])
+        for (i, j), bay_w in sorted(braced_columns.items()):
+            a = area(i, j)
+            for k in range(1, n + 1):
+                overturning = sum(
+                    storey_shear[m] * stories[m - 1].height for m in range(k, n + 1)
+                ) / (lines * bay_w)
+                gravity = sum((1.2 * q_dead[m] + 1.6 * q_live[m]) * a for m in range(k, n + 1))
+                pu = (gravity + BRACE_ALLOWANCE * overturning) * 1e3
+                section, why = _column_section(
+                    pu, fy, 0.0, False, column_ok, stories[k - 1].height, e
+                )
+                if why:
+                    col_notes.append(why)
+                if section.A > col_size[(i, j, k)].A:
+                    col_size[(i, j, k)] = section
+            for k in range(n - 1, 0, -1):
+                if col_size[(i, j, k + 1)].A > col_size[(i, j, k)].A:
+                    col_size[(i, j, k)] = col_size[(i, j, k + 1)]
         brace_note = (
             f"Braces: X braces of {BRACE_FAMILY} sections in the middle bay of each perimeter "
-            "frame line in every storey (06 BIM inclined members); each diagonal sized for the "
-            "storey shear shared by the two X braces of the two lines of its direction (one in "
-            "tension and one in compression: 50 %), φc Pn of the full diagonal (K = 1) at "
-            f"least that, Lc/r at most {limit:g}; storey shear from the larger of the equivalent "
-            f"static seismic force and the wind ({how}). The braced bays' beams and columns "
-            "take the brace forces: Design mode checks them."
+            "frame line in every storey (06 BIM inclined members); each diagonal sized for "
+            f"{BRACE_ALLOWANCE:g} × the storey shear shared by the two X braces of the two "
+            "lines of its direction (one in tension and one in compression: 50 %; the "
+            "allowance for the gravity load the braces take and the frame's moments), φc Pn of "
+            f"the full diagonal (K = 1) at least that, Lc/r at most {limit:g}; storey shear "
+            f"from the larger of the equivalent static seismic force and the wind ({how}). The "
+            "braced bays' columns also take the braces' overturning (the storey shears above "
+            f"times their heights over the bay width, × {BRACE_ALLOWANCE:g}); Design mode "
+            "checks them."
         )
 
     # ── object types ──
@@ -518,7 +573,32 @@ def _generate(s: BuildingSpec, settings: Any) -> dict[str, Any]:
     def tid(prefix: str, section: Any) -> str:
         return f"{prefix}-{section.name.replace(' ', '')}"
 
+    # R4AC-6: the moment frame beams' flange braces at the spacing the steel seismic
+    # provisions allow (the design checks the beams' unbraced length against it).
+    longest_span: dict[str, float] = {}
+    for (a, b), section in beam_size.items():
+        span = math.hypot(xs[b[0]] - xs[a[0]], ys[b[1]] - ys[a[1]])
+        longest_span[section.name] = max(longest_span.get(section.name, 0.0), span)
+    brace_spacing: dict[str, float] = {}
+    if moment:
+        for section_name, span in longest_span.items():
+            section = next(x for x in beam_size.values() if x.name == section_name)
+            spacing = _beam_brace_spacing(system_id, section, fy, e, steel)
+            if spacing is not None and spacing < span:
+                brace_spacing[section_name] = spacing
+        if brace_spacing:
+            notes.append(
+                "Moment frame beams: both flanges braced (bottom flange kickers to the slab) "
+                "at most "
+                + ", ".join(f"{v:g} mm ({k})" for k, v in sorted(brace_spacing.items()))
+                + " apart, the longest unbraced length the steel seismic provisions allow "
+                "(Lb of the beam types' design overwrites)."
+            )
+
     def steel_type(kind: str, prefix: str, section: Any, title: str) -> str:
+        extra: dict[str, Any] = {}
+        if kind == "Beam" and section.name in brace_spacing:
+            extra["designOverwrites"] = {"Lb": brace_spacing[section.name]}
         return add(
             _template(
                 kind,
@@ -526,6 +606,7 @@ def _generate(s: BuildingSpec, settings: Any) -> dict[str, Any]:
                 name=f"{title} {section.name}",
                 material=s.steel,
                 profile=tbl.profile_of(section),
+                **extra,
             )
         )
 
@@ -760,15 +841,46 @@ def _generate(s: BuildingSpec, settings: Any) -> dict[str, Any]:
     }
 
 
+def _compression_slenderness() -> float:
+    """R4AC-6: KL/r of compression members, the pack's ``steel.slenderness.compression`` (the
+    design checks every member against it), else the generator's brace limit."""
+    try:
+        return float(code_context.table("steel").slenderness["compression"])
+    except Exception:  # noqa: BLE001 - no steel table or no limit
+        return BRACE_SLENDERNESS
+
+
 def _brace_limit() -> float:
-    """Lc/r of the braces: the pack's SCBF limit when it gives one, else the generator's."""
+    """Lc/r of the braces: the pack's SCBF limit when it gives one, else the generator's; at
+    most the pack's limit of compression members (R4AC-6: the design checks both)."""
     try:
         table = code_context.table("steelSeismic")
         scbf = (getattr(table, "concentric", None) or {}).get("scbf")
         found = getattr(scbf, "slendernessMax", None) if scbf is not None else None
-        return float(found) if found else BRACE_SLENDERNESS
+        limit = float(found) if found else BRACE_SLENDERNESS
     except Exception:  # noqa: BLE001 - no steel seismic table
-        return BRACE_SLENDERNESS
+        limit = BRACE_SLENDERNESS
+    return min(limit, _compression_slenderness())
+
+
+def _beam_brace_spacing(system_id: str, section: Any, fy: float, e: float, material: Any):
+    """R4AC-6: the longest unbraced length [mm] the steel seismic provisions allow the beams
+    of the system's moment frame (:func:`saengine.design.steel.seismic.beam_bracing_limit`,
+    the design's own check), rounded down to 100 mm; None where they ask none."""
+    try:
+        from saengine.design.steel.seismic import beam_bracing_limit, expected_ratios
+
+        table = code_context.table("steelSeismic")
+        frame = (getattr(table, "systems", None) or {}).get(system_id)
+        if frame is None:
+            return None
+        ry_ratio = expected_ratios(material, "I", table)[0]
+        found = beam_bracing_limit(section.ry, fy, e, ry_ratio, frame, table)
+    except Exception:  # noqa: BLE001 - no steel seismic table: no bracing asked
+        return None
+    if found is None:
+        return None
+    return max(math.floor(found[0] / 100.0) * 100.0, 100.0)
 
 
 def _system_name(system_id: str, row: Any) -> str:

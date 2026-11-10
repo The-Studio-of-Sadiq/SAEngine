@@ -147,6 +147,16 @@ def _p(key: str, form: str = " ({})") -> str:
     return Own("proposal", form)[key]
 
 
+def _hook_term() -> str:
+    """R4AC-7: the pack's name of a hooked bar's anchorage length ("ldh", "lb,eq", ...)."""
+    from saengine.drawings.detailing import hook_term
+
+    try:
+        return hook_term()
+    except Exception:  # noqa: BLE001 - no detailing rules: the generic name
+        return "ldh"
+
+
 def _least_strain(fy: float) -> float:
     """The least net tensile strain of a beam section: 0.004 (ACI 9.3.3.1), or with the pack's
     member limits (alpha 9 C8, IS 456 38.1(f)) fyd / Es + their ``neutralAxisStrain``."""
@@ -170,7 +180,7 @@ def _beam_label(reinforcement: dict[str, Any]) -> str:
         parts.append(f"{group['position']} {group['count']}Ø{group['dia']:g}")
     t = reinforcement.get("transverse")
     if t:
-        parts.append(f"{t['type']}s Ø{t['dia']:g} {t.get('legs', 2)} legs @ {t['spacing']:g}")
+        parts.append(f"{t['type']}s Ø{t['dia']:g} {t.get('legs', 2)} legs @ {t['spacing']:g} mm")
         if _zone_text(t):
             parts[-1] += f" ({_zone_text(t)})"
     return ", ".join(parts)
@@ -271,7 +281,7 @@ class BeamDesigner:
             smallest = min(sizes, default=0.0)
             if not hooks(smallest):
                 why = (
-                    f"Ø{smallest:g} needs ldh = {self.hooked_need(smallest, room.special):.0f} "
+                    f"Ø{smallest:g} needs {_hook_term()} = {self.hooked_need(smallest, room.special):.0f} "
                     f"mm, {room.end:.0f} mm in {room.end_at}"
                 )
             else:
@@ -284,7 +294,7 @@ class BeamDesigner:
         if any(not hooks(d) for d in sizes):
             first = min(d for d in sizes if not hooks(d))
             parts.append(
-                f"their 90° hooks fit the {room.end:.0f} mm in {room.end_at} (ldh of "
+                f"their 90° hooks fit the {room.end:.0f} mm in {room.end_at} ({_hook_term()} of "
                 f"Ø{first:g} = {self.hooked_need(first, room.special):.0f} mm)"
             )
         if any(not passes(d) for d in sizes):
@@ -958,7 +968,7 @@ def _column_anchorage(
         depth = math.ceil((need + room["cover"] + 2 * room["mesh"]) / 25.0) * 25.0
         others = ", ".join(sorted(s[1] for s in short if s[1] != member))
         note = (
-            f"column bars Ø{db:g} into the foundation: {member} needs ldh {need:.0f} mm in "
+            f"column bars Ø{db:g} into the foundation: {member} needs {_hook_term()} {need:.0f} mm in "
             f"{room['foundation']}, {available:.0f} mm there (thickness less cover and two mesh "
             f"bars){f'; also short at {others}' if others else ''}: deepen "
             f"{room['foundation']} to at least {depth:.0f} mm in 9 Substructure"
@@ -1406,7 +1416,7 @@ class SlabDesigner:
                 need, room, ref, slab = miss
                 self.anchorage_notes.append(
                     f"{name} bars hooked into the edge support {ref} of {slab}: even Ø{smallest:g} "
-                    f"needs ldh {need:.0f} mm, {room:.0f} mm there (its width less the cover): "
+                    f"needs {_hook_term()} {need:.0f} mm, {room:.0f} mm there (its width less the cover): "
                     f"a wider support (at least {need + cover:.0f} mm), or anchor the bars "
                     "beyond it"
                 )
@@ -2148,7 +2158,7 @@ def propose(
                 *again.entry["notes"],
                 (
                     f"bars of at most Ø{max(short[2]):g}, so they anchor in the foundation "
-                    f"(Ø{short[0]:g} needs ldh {need:.0f} mm in {room['foundation']} under "
+                    f"(Ø{short[0]:g} needs {_hook_term()} {need:.0f} mm in {room['foundation']} under "
                     f"{worst}): checked as the others"
                 ),
             ]
@@ -2448,10 +2458,10 @@ def _zone_text(transverse: dict[str, Any]) -> str:
     zone = transverse.get("zone") or {}
     if not zone or zone.get("spacing") == transverse.get("spacing"):
         return ""  # one spacing along the member: said once (X27 of the usability walk)
-    text = f"ends @ {zone['spacing']:g}"
+    text = f"ends @ {zone['spacing']:g} mm"
     if zone.get("length"):
-        text += f" over {zone['length']:g}"
-    return text + f", elsewhere @ {transverse['spacing']:g}"
+        text += f" over {zone['length']:g} mm"
+    return text + f", elsewhere @ {transverse['spacing']:g} mm"
 
 
 def _seismic_members(members: list[dict[str, Any]]) -> list[dict[str, Any]]:

@@ -27,7 +27,7 @@ from saengine.substructure.ground_slab import GROUND_SLAB_METHOD, design_ground_
 from saengine.substructure.jobs import Superseded, newest
 from saengine.substructure.retaining_walls import METHOD as RETAINING_WALL_METHOD
 from saengine.substructure.retaining_walls import design_retaining_walls
-from saengine.substructure.shallow import SHALLOW_METHOD, design_shallow, design_tie_beam
+from saengine.substructure.shallow import design_shallow, design_tie_beam, shallow_method
 from saengine.substructure.sizing import penetration
 
 #: Foundation type -> (modules to look in, the design function's name, method list names). The
@@ -232,7 +232,7 @@ def report(ctx: Context) -> dict[str, Any]:
         if concrete is not None:
             notes.append(requirement_text(concrete))
     if "shallow" in used:
-        method = list(SHALLOW_METHOD) + method
+        method = shallow_method() + method
     # Alpha 9 C5b: the design approach and the limit state methods of the pack, stated.
     from saengine.substructure import limit_state_footings, limit_state_piles
 

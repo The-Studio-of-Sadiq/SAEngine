@@ -86,6 +86,18 @@ def _g(key: str, form: str = "{}", empty: str = "") -> str:
     return Own("generator", form, empty)[key]
 
 
+def _term(key: str, neutral: str) -> str:
+    """R4AC-7: a term of the pack's own method the generator's notes name (``designClauses.
+    generator``: "Cd δe / I", "1.2D + Ev, 0.9D - Ev", "0.4 f'c"; EN 1998: "q de ν", ...),
+    where the pack in force gives it; ``neutral`` otherwise (never another code's term)."""
+    return _g(key, "{}", neutral)
+
+
+def _category() -> str:
+    """R4AC-7: the pack's name of the seismic design category ("Seismic Design Category")."""
+    return _term("categoryName", "seismic category")
+
+
 def _live_in_w(settings: Any) -> str:
     """The floor live load's share in W and how the partition allowance counts, in words (as
     the analysis model counts them, :func:`saengine.library.settings.seismic_weight_rule`)."""
@@ -333,6 +345,14 @@ def _pack_dia(kind: str, wanted: float) -> float:
 _INCHES: ContextVar[bool] = ContextVar("generator_inches", default=False)
 
 
+def _dim(mm: float) -> str:
+    """R4AC-9 (FA3): a size [mm] as the type names write it: in mm ("400"), in a project
+    shown in US units (:data:`_INCHES`) in inches ("34", the sizes being whole inches)."""
+    if _INCHES.get():
+        return f"{round(mm / 25.4, 1):g}"
+    return f"{mm:g}"
+
+
 def ceil_to(value: float, step: float) -> float:
     """``value`` [mm] rounded up to ``step``; in a project shown in US units (:data:`_INCHES`)
     to the step's nearest whole inches (25 mm: 1 in, 50 mm: 2 in), so its sizes read 24", not
@@ -358,6 +378,13 @@ def footing_sizes(foundations: list[dict[str, Any]]) -> list[str]:
     out = []
     for (kind, length, width, thickness), count in sorted(counts.items()):
         dims = [d for d in (length, width, thickness) if d > 0]
+        if _INCHES.get():
+            # R4AC-9 (FA3): in feet and inches in a project shown in US units.
+            from saengine.units import feet_inches
+
+            size = " × ".join(feet_inches(d) for d in dims)
+            out.append(f"{count} {kind}" + (f" {size}" if size else ""))
+            continue
         size = " × ".join(f"{d / 1000:g}" for d in dims)
         out.append(f"{count} {kind}" + (f" {size} m" if size else ""))
     return out
@@ -476,13 +503,13 @@ def _system(kind: str, sdc: str | None, height_m: float) -> tuple[str, bool, lis
     for system, row in leveled or permitted[:1]:
         if not leveled:
             notes.append(
-                f"Seismic Design Category {category}: {row.name} is detailed at the {required} "
+                f"{_category()} {category}: {row.name} is detailed at the {required} "
                 "level the category requires (the code pack's systems have no such level)."
             )
         walls = kind == "rcFrameWithWalls" or (kind != "masonry" and not row.momentFrame)
         if kind == "flatSlab" and walls:
             notes.append(
-                f"Seismic Design Category {category}: a flat slab-column frame is not a moment "
+                f"{_category()} {category}: a flat slab-column frame is not a moment "
                 "frame of the detailing the category needs"
                 f"{_g('detailingLevels', ' ({})')}; core walls are added "
                 f"and the system is {row.name} ({_g('systemsTable', '{} ')}row {row.row}): the "
@@ -494,7 +521,7 @@ def _system(kind: str, sdc: str | None, height_m: float) -> tuple[str, bool, lis
                     "moment frames, which a flat slab is not: add beams or consult."
                 )
         return system, walls, notes
-    raise ValueError(f"no structural system for {kind} in Seismic Design Category {category}")
+    raise ValueError(f"no structural system for {kind} in {_category()} {category}")
 
 
 # ─────────────────────────────────── lateral (P–M) column sizing ───────────────────────────────────
@@ -1147,7 +1174,7 @@ def lateral_column_sizes(
             obj = Column.model_validate(
                 _template(
                     "Column",
-                    id=f"C{side:g}x{side:g}",
+                    id=f"C{_dim(side)}x{_dim(side)}",
                     material=concrete,
                     profile={"shape": "rectangle", "xDim": side, "yDim": side},
                 )
@@ -1442,7 +1469,7 @@ def _settings_patch(
             f"{_g('siteClass', '{}', 'the code pack')} classes the site by the average "
             "properties of the top 30 m "
             "(shear wave velocity, SPT N or undrained shear strength). It sets the "
-            f"spectrum{_g('spectrum', ' ({})')}, the Seismic Design Category"
+            f"spectrum{_g('spectrum', ' ({})')}, the {_category()}"
             f"{_g('sdcTable', ' ({})')} and so the system and the sizes below. 02 Project Settings take the class "
             "from 1 Soil Report once its boreholes give one; until then the settings and the "
             "report show this assumed class as entered: confirm it with a soil investigation."
@@ -1547,10 +1574,26 @@ def _code_pack_patch(
         exposure = chosen if chosen in exposures else "II" if "II" in exposures else exposures[0]
     if exposures:
         patch["wind"] = {"exposure": exposure}
+    # R4AC-7: the values of the location where none is entered (its town's Z and V).
+    z_shown, v_shown = s.zoneCoefficient, s.windSpeed
+    if z_shown is None or v_shown is None:
+        try:
+            from saengine.library.settings import derived
+
+            merged = ProjectSettings.model_validate(
+                _deep_merge(base.model_dump(mode="json", by_alias=True), {**patch, "site": site})
+            )
+            values = derived(merged)
+            z_shown = values.get("Z") if z_shown is None else z_shown
+            v_shown = values.get("windSpeed") if v_shown is None else v_shown
+        except Exception:  # noqa: BLE001, S110 - unknown here; the settings show them
+            pass
+    z_text = f"Z {z_shown:g}, " if z_shown else ""
+    if not z_text and pack.has("zoneCoefficients"):
+        z_text = "Z -, "
     notes.append(
         f"Design code: {pack.name} ({pack.id}); location {site.get('location', s.location)}, "
-        f"Z {s.zoneCoefficient if s.zoneCoefficient is not None else '-'}, V "
-        f"{s.windSpeed if s.windSpeed is not None else '-'} m/s, exposure {exposure}: CONFIRM "
+        f"{z_text}V {f'{v_shown:g}' if v_shown else '-'} m/s, exposure {exposure}: CONFIRM "
         "them in 02 Project Settings."
     )
     return dict(pack.table("areaLoads").uses) if pack.has("areaLoads") else {}
@@ -1702,7 +1745,7 @@ def _generate_rc(s: BuildingSpec, settings: Any) -> dict[str, Any]:
     # Walk 4: the zone only under a pack with seismic zones (mapped values have none).
     zone_text = f"zone {zone or '-'}, " if code_context.current().has("zoneCoefficients") else ""
     notes.append(
-        f"Seismic Design Category {sdc or '-'} ({zone_text}site class "
+        f"{_category()} {sdc or '-'} ({zone_text}site class "
         f"{final.site.siteClass}"
         f"{' assumed' if s.siteClass is not None and s.siteClassSource == 'assumed' else ''}"
         f", occupancy category {final.occupancy.category}); system "
@@ -2322,7 +2365,7 @@ def _generate_rc(s: BuildingSpec, settings: Any) -> dict[str, Any]:
                 else "no rigid end zones"
             )
             + "), every frame line of a direction alike, the seismic weight as the analysis "
-            "model counts it. Checked: (1) the earthquake design drift Cd δe / I of every "
+            f"model counts it. Checked: (1) the earthquake design drift {_term('designDriftName', 'of the code pack')} of every "
             f"storey{_g('designDrift', ' ({})')} against {limit}, δe under the equivalent static "
             f"forces at Ta = {first_estimate.ta:.2f} s (the analysis' default period); (2) the "
             + (
@@ -2429,13 +2472,13 @@ def _generate_rc(s: BuildingSpec, settings: Any) -> dict[str, Any]:
         return data
 
     def column_type(side: float) -> str:
-        cid = f"C{side:g}x{side:g}"
+        cid = f"C{_dim(side)}x{_dim(side)}"
         return add(
             with_bars(
                 _template(
                     "Column",
                     id=cid,
-                    name=f"Column {side:g}x{side:g}",
+                    name=f"Column {_dim(side)}x{_dim(side)}",
                     material=s.concrete,
                     profile={"shape": "rectangle", "xDim": side, "yDim": side},
                 ),
@@ -2445,13 +2488,13 @@ def _generate_rc(s: BuildingSpec, settings: Any) -> dict[str, Any]:
         )
 
     def beam_type(width: float, depth: float) -> str:
-        bid = f"B{width:g}x{depth:g}"
+        bid = f"B{_dim(width)}x{_dim(depth)}"
         return add(
             with_bars(
                 _template(
                     "Beam",
                     id=bid,
-                    name=f"Beam {width:g}x{depth:g}",
+                    name=f"Beam {_dim(width)}x{_dim(depth)}",
                     material=s.concrete,
                     profile={"shape": "rectangle", "xDim": width, "yDim": depth},
                 ),
@@ -2461,14 +2504,14 @@ def _generate_rc(s: BuildingSpec, settings: Any) -> dict[str, Any]:
 
     def slab_type(t: float, system: str) -> str:
         suffix = {"twoWay": "", "oneWay": "-1W", "flat": "-FP"}[system]
-        sid = f"S{t:g}{suffix}"
+        sid = f"S{_dim(t)}{suffix}"
         name = {"twoWay": "Slab", "oneWay": "One-way slab", "flat": "Flat plate"}[system]
         return add(
             with_bars(
                 _template(
                     "Slab",
                     id=sid,
-                    name=f"{name} {t:g}",
+                    name=f"{name} {_dim(t)}",
                     material=s.concrete,
                     thickness=t,
                     system=system,
@@ -2481,7 +2524,11 @@ def _generate_rc(s: BuildingSpec, settings: Any) -> dict[str, Any]:
         return add(
             with_bars(
                 _template(
-                    "Wall", id=f"W{t:g}", name=f"Wall {t:g}", material=s.concrete, thickness=t
+                    "Wall",
+                    id=f"W{_dim(t)}",
+                    name=f"Wall {_dim(t)}",
+                    material=s.concrete,
+                    thickness=t,
                 ),
                 "WallReinforcement",
             )
@@ -2852,7 +2899,7 @@ def _generate_rc(s: BuildingSpec, settings: Any) -> dict[str, Any]:
             "here: Design mode checks it (consider drop panels or shear reinforcement)."
         )
     notes.append(
-        "Columns: square, Ag = k P / (0.4 f'c) with P the service load (slab self-weight, beams "
+        f"Columns: square, Ag = k P / ({_term('columnStressName', '0.4 × the concrete strength')}) with P the service load (slab self-weight, beams "
         "below the slab, finishes, partitions and live load of every floor above, tributary "
         "area to the bay centre lines, plus the columns' own weight; no live load reduction) "
         f"and k = 1.0 interior, 1.25 edge, 1.5 corner for bending (a preliminary rule of "
@@ -2872,7 +2919,7 @@ def _generate_rc(s: BuildingSpec, settings: Any) -> dict[str, Any]:
         )
         loads_text = "wind and earthquake" if seismic_on else "wind"
         notes.append(
-            f"Columns for {loads_text} (Seismic Design Category {sdc}): PRELIMINARY P-M sizing "
+            f"Columns for {loads_text} ({_category()} {sdc}): PRELIMINARY P-M sizing "
             "by the portal method. Storey forces of the analysis model's own static methods "
             "(fem.loads: the equivalent static earthquake force with W the dead and "
             "superimposed dead load of the levels plus "
@@ -2885,7 +2932,8 @@ def _generate_rc(s: BuildingSpec, settings: Any) -> dict[str, Any]:
             "(2/3 of the lowest storey above the fixed base) and mid-span of the beams, the "
             "edge frames' share raised for a 5 % accidental eccentricity (earthquake); gravity "
             "moments half the unbalanced w l²/12 of the beams at each joint; the settings' "
-            "wind combinations and the design's earthquake combinations (1.2D + Ev, 0.9D - Ev"
+            "wind combinations and the design's earthquake combinations ("
+            + _term("seismicCombinationsName", "of the code pack")
             + (", 100 % + 30 %" if seismic_on and sdc == "D" else "")
             + "); lateral moments times the storey's sway magnifier δs = 1/(1 - Q), Q = ΣPu "
             "Δo/(Vus lc) with Δo of the frames by Wilbur's storey stiffness (columns 0.7 Ig, "
@@ -2921,7 +2969,7 @@ def _generate_rc(s: BuildingSpec, settings: Any) -> dict[str, Any]:
         # the earthquake usually governs the columns.
         notes.insert(
             0,
-            f"WARNING - Seismic Design Category {sdc}: the column sizes are for GRAVITY ONLY. "
+            f"WARNING - {_category()} {sdc}: the column sizes are for GRAVITY ONLY. "
             "The earthquake moments (and, in a special moment frame, the strong-column / "
             "weak-beam and joint rules) usually govern the columns here, the corner and edge "
             "ones most. Expect Design mode to report some columns as 'section too small': "
@@ -2997,7 +3045,7 @@ def _generate_rc(s: BuildingSpec, settings: Any) -> dict[str, Any]:
             "foundations": len(foundations),
         },
         "columnTypes": {
-            f"{story_ids[groups[g][0]]}-{story_ids[groups[g][-1]]} {kind}": f"C{side:g}x{side:g}"
+            f"{story_ids[groups[g][0]]}-{story_ids[groups[g][-1]]} {kind}": f"C{_dim(side)}x{_dim(side)}"
             for (g, kind), side in sorted(group_side.items())
         },
         "beamTypes": sorted({o["id"] for o in objects if o["kind"] == "beam"}),
@@ -3010,7 +3058,7 @@ def _generate_rc(s: BuildingSpec, settings: Any) -> dict[str, Any]:
                 "swayFactor": lateral.swayFactor,
                 "gravityColumnTypes": {
                     f"{story_ids[groups[g][0]]}-{story_ids[groups[g][-1]]} {kind}": (
-                        f"C{side:g}x{side:g}"
+                        f"C{_dim(side)}x{_dim(side)}"
                     )
                     for (g, kind), side in sorted(gravity_side.items())
                 },

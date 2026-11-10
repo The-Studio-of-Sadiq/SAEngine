@@ -511,6 +511,13 @@ def _derive(project: Project, step: StepResult) -> bool:
         f"base shear {float(summary.get('base_shear_kN', 0)):.1f} kN, seismic weight "
         f"{float(summary.get('weight_kN', 0)):.1f} kN."
     )
+    # R4AC-9 (FA3): the forces in the project's display units (kip under US customary).
+    try:
+        from saengine.units import convert_text, units_at
+
+        step.message = convert_text(step.message, units_at(project.root))
+    except Exception:  # noqa: BLE001, S110 - the message stays in SI
+        pass
     return True
 
 
