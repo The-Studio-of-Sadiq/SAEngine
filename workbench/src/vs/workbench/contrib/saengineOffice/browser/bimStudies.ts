@@ -62,6 +62,7 @@ export class BimStudies extends Disposable {
 	private readonly barStore = this._register(new DisposableStore());
 	private bar: HTMLElement | undefined;
 	private timer: number | undefined;
+	private playButton: HTMLButtonElement | undefined;
 
 	constructor(
 		private readonly viewer: () => Promise<object | undefined>,
@@ -256,7 +257,7 @@ export class BimStudies extends Disposable {
 			await this.toggle4d();
 		}
 		if (autoplay && this.bar && !this.timer) {
-			this.bar.querySelector<HTMLButtonElement>('button.office-button')?.click();
+			this.playButton?.click();
 		}
 	}
 
@@ -265,6 +266,7 @@ export class BimStudies extends Disposable {
 			this.stop();
 			this.bar.remove();
 			this.bar = undefined;
+			this.playButton = undefined;
 			this.barStore.clear();
 			this.dates = undefined;
 			this.day = undefined;
@@ -290,7 +292,7 @@ export class BimStudies extends Disposable {
 		const total = Math.max(daysBetween(start, finish) + 1, 1);
 		this.day = start;
 		const bar = this.bar = append(this.overlayParent, $('.office-4d-bar'));
-		const play = append(bar, $<HTMLButtonElement>('button.office-button', { type: 'button' }, localize('bimStudies.play', "Play")));
+		const play = this.playButton = append(bar, $<HTMLButtonElement>('button.office-button', { type: 'button' }, localize('bimStudies.play', "Play")));
 		const slider = append(bar, $<HTMLInputElement>('input', { type: 'range', min: '0', max: String(total), value: '0' }));
 		const label = append(bar, $('span.office-4d-day'));
 		const show = async (offset: number) => {
