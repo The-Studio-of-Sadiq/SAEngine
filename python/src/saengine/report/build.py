@@ -1310,14 +1310,18 @@ def _derivation_rows(values: dict[str, Any], root: Path) -> list[list[str]]:
         )
     missing = values.get("lateralMissing") or []
     if missing:
+        from saengine.library.settings import site_input_text
+
         rows.append(
             [
                 "Lateral loads missing",
                 "the site has no "
                 + " and no ".join(
                     {
-                        "Z": "seismic zone coefficient Z (no EX, EY)",
-                        "windSpeed": "basic wind speed V (no WX, WY)",
+                        "Z": f"{site_input_text(code_context.current(), 'zone', False)} "
+                        "(no EX, EY)",
+                        "windSpeed": f"{site_input_text(code_context.current(), 'wind', False)} "
+                        "(no WX, WY)",
                     }.get(m, m)
                     for m in missing
                 ),

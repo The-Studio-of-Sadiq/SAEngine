@@ -1,0 +1,346 @@
+{
+  "$schema": "../../../schemas/siteInvestigation.schema.json",
+  "$sources": [
+    "SAEngine practice: site investigation, problem soils and soil chemistry (EN 1997-2 for the investigation itself, EN 206 for the exposure of concrete in the ground); see VERIFY.md"
+  ],
+  "source": "SAEngine practice: site investigation, problem soils and soil chemistry (EN 1997-2 for the investigation itself, EN 206 for the exposure of concrete in the ground); see VERIFY.md",
+  "borings": {
+    "clause": "",
+    "note": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)"
+  },
+  "depth": {
+    "clause": "",
+    "sources": {
+      "spread": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+      "minimum": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+      "buildingWidthFactor": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+      "belowPileTip": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+      "rockCore": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+      "shaftRockCoreDiameters": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+      "bedrockCore": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)"
+    }
+  },
+  "organic": {
+    "clause": "",
+    "note": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)"
+  },
+  "expansive": {
+    "criteria": [
+      {
+        "id": "usbrPI",
+        "parameter": "plasticityIndex",
+        "unit": "%",
+        "source": "Appendix E (1), USBR, plasticity index",
+        "rows": [
+          {
+            "degree": "veryHigh",
+            "above": 35
+          },
+          {
+            "degree": "high",
+            "atLeast": 25
+          },
+          {
+            "degree": "medium",
+            "atLeast": 15
+          },
+          {
+            "degree": "low"
+          }
+        ]
+      },
+      {
+        "id": "usbrSL",
+        "parameter": "shrinkageLimit",
+        "unit": "%",
+        "source": "Appendix E (1), USBR, shrinkage limit",
+        "rows": [
+          {
+            "degree": "veryHigh",
+            "below": 10
+          },
+          {
+            "degree": "high",
+            "atMost": 12
+          },
+          {
+            "degree": "medium",
+            "atMost": 18
+          },
+          {
+            "degree": "low"
+          }
+        ]
+      },
+      {
+        "id": "linearShrinkage",
+        "parameter": "linearShrinkage",
+        "unit": "%",
+        "source": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+        "rows": [
+          {
+            "degree": "high",
+            "above": 14
+          },
+          {
+            "degree": "medium",
+            "atLeast": 10
+          },
+          {
+            "degree": "low"
+          }
+        ]
+      },
+      {
+        "id": "freeSwell",
+        "parameter": "freeSwell",
+        "unit": "%",
+        "source": "Appendix E (3), IS 1948",
+        "rows": [
+          {
+            "degree": "veryHigh",
+            "above": 200
+          },
+          {
+            "degree": "high",
+            "atLeast": 100
+          },
+          {
+            "degree": "medium",
+            "atLeast": 50
+          },
+          {
+            "degree": "low"
+          }
+        ]
+      },
+      {
+        "id": "freeSwellIndex",
+        "parameter": "freeSwellIndex",
+        "unit": "%",
+        "source": "Appendix E (4), IS 2911 Part III",
+        "rows": [
+          {
+            "degree": "veryHigh",
+            "above": 50
+          },
+          {
+            "degree": "high",
+            "atLeast": 35
+          },
+          {
+            "degree": "medium",
+            "atLeast": 20
+          },
+          {
+            "degree": "low"
+          }
+        ]
+      },
+      {
+        "id": "isLiquidLimit",
+        "parameter": "liquidLimit",
+        "unit": "%",
+        "source": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+        "rows": [
+          {
+            "degree": "veryHigh",
+            "above": 70
+          },
+          {
+            "degree": "high",
+            "atLeast": 50
+          },
+          {
+            "degree": "medium",
+            "atLeast": 35
+          },
+          {
+            "degree": "low"
+          }
+        ]
+      },
+      {
+        "id": "isPlasticityIndex",
+        "parameter": "plasticityIndex",
+        "unit": "%",
+        "source": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+        "rows": [
+          {
+            "degree": "veryHigh",
+            "above": 32
+          },
+          {
+            "degree": "high",
+            "atLeast": 23
+          },
+          {
+            "degree": "medium",
+            "atLeast": 12
+          },
+          {
+            "degree": "low"
+          }
+        ]
+      },
+      {
+        "id": "swellingPotential",
+        "parameter": "swellingPotential",
+        "unit": "%",
+        "source": "Appendix E (6), Seed et al. (1962)",
+        "rows": [
+          {
+            "degree": "veryHigh",
+            "above": 25
+          },
+          {
+            "degree": "high",
+            "atLeast": 5
+          },
+          {
+            "degree": "medium",
+            "atLeast": 1.5
+          },
+          {
+            "degree": "low"
+          }
+        ]
+      },
+      {
+        "id": "swellingPressure",
+        "parameter": "swellingPressure",
+        "unit": "kg/cm2",
+        "source": "Appendix E (7), Chen (1965)",
+        "rows": [
+          {
+            "degree": "veryHigh",
+            "above": 9.8
+          },
+          {
+            "degree": "high",
+            "atLeast": 2.5
+          },
+          {
+            "degree": "medium",
+            "atLeast": 1.5
+          },
+          {
+            "degree": "low"
+          }
+        ]
+      },
+      {
+        "id": "volumeChange",
+        "parameter": "volumeChange",
+        "unit": "%",
+        "source": "Appendix E (8), Seed et al. (1962), air dry to saturated",
+        "rows": [
+          {
+            "degree": "veryHigh",
+            "above": 30
+          },
+          {
+            "degree": "high",
+            "atLeast": 20
+          },
+          {
+            "degree": "medium",
+            "atLeast": 10
+          },
+          {
+            "degree": "low"
+          }
+        ]
+      },
+      {
+        "id": "weightedPI",
+        "parameter": "weightedPlasticityIndex",
+        "unit": "%",
+        "source": "Appendix E (9), Look (2007), PI x percent passing 425 um",
+        "rows": [
+          {
+            "degree": "veryHigh",
+            "above": 5000
+          },
+          {
+            "degree": "high",
+            "atLeast": 3200
+          },
+          {
+            "degree": "medium",
+            "atLeast": 2200
+          },
+          {
+            "degree": "low",
+            "atLeast": 1200
+          },
+          {
+            "degree": "veryLow"
+          }
+        ]
+      }
+    ],
+    "clause": ""
+  },
+  "collapsible": {
+    "clause": ""
+  },
+  "dispersive": {
+    "clause": ""
+  },
+  "softClay": {
+    "clause": ""
+  },
+  "corrosivity": {
+    "clause": "",
+    "sources": {
+      "compositionFromUscs": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+      "ratings": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)"
+    },
+    "note": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)"
+  },
+  "steelCorrosion": {
+    "clause": ""
+  },
+  "corrosiveSite": {
+    "clause": ""
+  },
+  "sulphate": {
+    "clause": "",
+    "note": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)"
+  },
+  "chloride": {
+    "clause": "",
+    "sources": {
+      "maxWaterCement": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+      "lowPermeabilityWaterCement": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)"
+    },
+    "note": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)"
+  },
+  "geoHazards": {
+    "clause": ""
+  },
+  "liquefaction": {
+    "clause": "",
+    "note": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+    "sources": {
+      "section": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+      "fieldNLimit": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+      "clays": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+      "finn": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+      "pga": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+      "zone": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+      "siteFactor": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+      "amplification": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)"
+    }
+  },
+  "siteClassification": {
+    "clause": "",
+    "table": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+    "note": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+    "sources": {
+      "table": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+      "nMax": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)"
+    }
+  }
+}

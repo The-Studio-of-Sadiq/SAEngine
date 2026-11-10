@@ -46,7 +46,7 @@ import { ISaengineProjectService, partById, PROJECT_TYPES, ProjectType } from '.
 import { appendPropertyRow, EditorFrame } from '../../saengineProject/browser/editorFrame.js';
 import { IReportTemplateInfo, IReportTemplates, REPORT_TEMPLATES_COMMAND_ID } from '../../saengineReport/browser/reportBuild.js';
 import './media/codePacks.css';
-import { changePackWarning, chosenPackId, CODES_CHOICES_COMMAND, CODES_COMBINATIONS_COMMAND, CODES_LIST_COMMAND, coverageLabel, DEFAULT_CODE_PACK, ICodePackInfo, ICodePackOption, IPackCombinations, packOptionBlock, packOptions, readCodePacks, readPackCombinations, readPackLists } from './codePacksModel.js';
+import { changePackWarning, chosenPackId, CODES_AREA_LOADS_COMMAND, CODES_CHOICES_COMMAND, CODES_COMBINATIONS_COMMAND, CODES_LIST_COMMAND, coverageLabel, DEFAULT_CODE_PACK, ICodePackInfo, ICodePackOption, IPackCombinations, packOptionBlock, packOptions, readCodePacks, readPackAreaLoads, readPackCombinations, readPackLists } from './codePacksModel.js';
 import { CODE_OVERRIDES_KEY, codeOverrides, CODES_VALUES_COMMAND, codeValueUnit, filterCodeValues, formatCodeValue, ICodeValueRow, ICodeValues, parseCodeValue, readCodeValues, setCodeOverride } from './codeValuesModel.js';
 import { applyHazardValues, HAZARD_OFFERS_COMMAND, hazardOffers, hazardSourceSummary, IHazardOffers, lookUpHazardValues } from './hazardLookup.js';
 import { clone, IDocumentFrameActions, IShapeError, isObject, JsonDocumentEditor } from './jsonDocumentEditor.js';
@@ -695,6 +695,7 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 			void this.refreshPackLists();
 			this.updateResetAction();
 			await this.offerPackCombinations(document, fromLabel);
+			await this.offerPackAreaLoads(document, fromLabel);
 		} else {
 			this.renderCodePack();
 		}
@@ -1012,6 +1013,10 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 
 	/** A quiet line under an entered override: the code value it replaces (clear the field to use it). */
 	private note(path: string): string | undefined {
+		const windWords = this.packWind(path);
+		if (windWords !== undefined) {
+			return localize('settings.windPackNote', "Under the chosen code pack: {0}", windWords);
+		}
 		const document = this.document;
 		const object = (key: string) => (isObject(document?.[key]) ? document![key] : {}) as JsonObject;
 		const site = object('site');
@@ -1075,8 +1080,24 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 		return packWords;
 	}
 
+	/**
+	 * W4A-23: what a Wind field sets under the chosen pack when the pack has its own wind
+	 * method (its wind table's source, e.g. cdir of EN 1991-1-4 for the directionality field);
+	 * undefined under the default pack or before the pack's lists arrive.
+	 */
+	private packWind(path: string): string | undefined {
+		if (!path.startsWith('wind.') || !this.packLists || this.packLists.packId !== chosenPackId(this.document)) {
+			return undefined;
+		}
+		return this.packLists.lists['windFields']?.find(entry => entry.id === path)?.label;
+	}
+
 	/** An empty override shows the value it would replace, with its table. */
 	private placeholder(path: string): string | undefined {
+		const windWords = this.packWind(path);
+		if (windWords !== undefined && path !== 'wind.exposure') {
+			return localize('settings.windPackPlaceholder', "the code pack's: {0}", windWords);
+		}
 		const location = this.location;
 		const system = this.system;
 		const row = system?.row ? localize('settings.rowShort', "Table 6.2.19 row {0}", system.row) : localize('settings.tableSystems', "Table 6.2.19");
@@ -1384,6 +1405,41 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 		});
 		if (confirmed && this.document === document) {
 			this.applyCombinations(document, generated);
+		}
+	}
+
+	/**
+	 * W4A-22: after a pack change, offers to set the live loads of the area loads to the new
+	 * pack's for their uses (nothing to offer without the backend or when they are already).
+	 * Finishes and partitions stay the project's.
+	 */
+	private async offerPackAreaLoads(document: JsonObject, fromLabel: string): Promise<void> {
+		if (!CommandsRegistry.getCommand(CODES_AREA_LOADS_COMMAND) || this.document !== document) {
+			return;
+		}
+		let answer: unknown;
+		try {
+			answer = await this.commands.executeCommand<unknown>(CODES_AREA_LOADS_COMMAND, { settingsText: JSON.stringify(document), root: this.project.project?.root.fsPath });
+		} catch (error) {
+			await this.dialogService.error(localize('settings.areaLoadsFailed', "The {0} area loads could not be read.", this.codeName), error instanceof Error ? error.message : String(error));
+			return;
+		}
+		const read = readPackAreaLoads(answer);
+		if (!read || read.fromPack || this.document !== document) {
+			return;
+		}
+		const name = read.name || this.codeName;
+		const { confirmed } = await this.dialogService.confirm({
+			type: 'question',
+			message: localize('settings.packAreaLoadsMessage', "Set the live loads of the area loads to those of {0}?", name),
+			detail: localize('settings.packAreaLoadsDetail', "The live loads of {0} are still those of {1} (or edited) for their uses. The finishes and partitions stay as they are. Edit > Undo brings the old values back.", read.changed.join(', '), fromLabel),
+			primaryButton: localize('settings.packAreaLoadsButton', "&&Set Live Loads"),
+			cancelButton: localize('settings.packAreaLoadsKeep', "Keep the Current Ones"),
+		});
+		if (confirmed && this.document === document) {
+			document.areaLoads = clone(read.areaLoads as unknown as JsonValue) as JsonValue[];
+			this._onDidChangePartSection.fire();
+			this.changed(true);
 		}
 	}
 

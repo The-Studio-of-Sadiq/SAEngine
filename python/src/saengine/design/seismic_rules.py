@@ -1254,14 +1254,19 @@ def seismic_detailing_scope(
             "combinations; SAEngine cannot find collectors: mark them (omegaCombinations "
             "'collector')"
         )
-    notes.append(
-        f"{CLAUSES['phi']}: strength reduction factors{_of(R.sec('phiFactors'))}, as the design "
-        "uses already"
-    )
-    notes.append(
-        f"{CLAUSES['analysis']}{R.ref('belowBase')}: members below the base that carry "
-        f"earthquake forces to the foundation follow {R.sec('chapter') or 'these provisions'} too"
-    )
+    # Walk 4: only under a pack that states these rules (none under the Eurocodes, whose
+    # design uses partial factors).
+    if text("seismicRules", "phi"):
+        notes.append(
+            f"{CLAUSES['phi']}: strength reduction factors{_of(R.sec('phiFactors'))}, as the "
+            "design uses already"
+        )
+    if text("seismicRules", "analysis"):
+        notes.append(
+            f"{CLAUSES['analysis']}{R.ref('belowBase')}: members below the base that carry "
+            f"earthquake forces to the foundation follow {R.sec('chapter') or 'these provisions'} "
+            "too"
+        )
     return {
         "system": system,
         "systemName": system_name(system),

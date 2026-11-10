@@ -2924,6 +2924,35 @@ def codes_combinations(settings_text: str, root: str | None = None) -> dict[str,
     }
 
 
+def codes_area_loads(settings_text: str, root: str | None = None) -> dict[str, Any]:
+    """W4A-22: the project's area loads with the live loads of the code pack the settings
+    choose (:func:`saengine.library.settings.area_loads_from_pack`): ``{id, name, areaLoads,
+    changed, fromPack}``, ``changed`` the ids whose live load differs from the pack's,
+    ``fromPack`` whether none does; or a refusal."""
+    import json
+
+    from pydantic import ValidationError
+
+    from saengine.codes import CodePackError
+    from saengine.codes import context as code_context
+    from saengine.library.settings import ProjectSettings, area_loads_from_pack
+
+    try:
+        settings = ProjectSettings.model_validate(json.loads(settings_text))
+        with code_context.project(_pack_root(root)):
+            pack = code_context.pack_for(settings, strict=True)
+            rows, changed = area_loads_from_pack(settings, pack)
+    except (CodePackError, ValidationError, ValueError) as error:
+        return _refusal(error)
+    return {
+        "id": pack.id,
+        "name": pack.edition or pack.name,
+        "areaLoads": [a.model_dump(mode="json", by_alias=True, exclude_none=True) for a in rows],
+        "changed": changed,
+        "fromPack": not changed,
+    }
+
+
 def codes_values(
     settings_text: str | None = None, root: str | None = None, table: str | None = None
 ) -> dict[str, Any]:

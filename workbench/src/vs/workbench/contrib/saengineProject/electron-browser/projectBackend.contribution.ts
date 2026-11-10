@@ -298,6 +298,12 @@ CommandsRegistry.registerCommand('saengine.codes.combinations', async (accessor,
 	return orThrow(await call(accessor, 'codes/combinations', { settingsText: str(args.settingsText), root: str(args.root) }));
 });
 
+// W4A-22: the project's area loads with the live loads of the pack the settings choose (offered after a pack change).
+CommandsRegistry.registerCommand('saengine.codes.areaLoads', async (accessor, raw: unknown) => {
+	const args = bag(raw);
+	return orThrow(await call(accessor, 'codes/areaLoads', { settingsText: str(args.settingsText), root: str(args.root) }));
+});
+
 // Project Settings > Code Values: the pack the settings choose with their overrides, and the values of one table.
 CommandsRegistry.registerCommand('saengine.codes.values', async (accessor, raw: unknown) => {
 	const args = bag(raw);

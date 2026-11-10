@@ -172,17 +172,25 @@ joints and the plate buckling of slender aluminium webs.
 
 ## What falls back (not Eurocode yet)
 
-The pack `extends` BNBC 2020, so a project designs and runs. For the methods not covered above,
-these tables come from **BNBC 2020** and the report's design basis says so: `materials`,
-`factors`, `concrete`, `detailing`, `steelSections`, `foundations`, `transfer`,
-`slabCoefficients`, `slabMethods`, `wallMethods`, `stairMethods`, `compositeConcrete`,
-`anchors`, `concreteTime`, `designLimits`, `designClauses`, `serviceability`,
-`siteInvestigation`, `fireResistance` and the services (`plumbing`, `hvac`, `electrical`,
-`fire`, `planning`, `accessibility`, `mepOpenings`); the parts of `steel`, `composite`,
-`masonry` and `timber` the pack does not set (base plates, HSS joints, the masonry seismic
-detailing, the timber joints). The load tables without a Eurocode counterpart here are the
-parent's too: `deadLoads` (unit weights), `cranes`, `nonstructural`, `isolation`,
-`nonlinearHistory`, `fatigue` and the flood, rain, helipad and shelter parts of `flood`.
+The pack `extends` the default pack, so a project designs and runs, but since version 0.6
+(walk 4) it inherits no table from it. Each table it used to inherit is one of:
+
+- **not applicable** (`notApplicable` in pack.json: not inherited, its features say the pack
+  does not cover them, the report lists them): `accessibility`, `anchors` (EN 1992-4 not in
+  the pack), `bamboo`, `compositeConcrete` (EN 1992-1-1 6.2.5 is `concreteMethods.
+  interfaceShear`), `construction`, `electrical`, `ferrocement`, `fire`, `fireResistance`,
+  `hvac`, `mepFabrication`, `nonBuilding`, `nonstructural`, `planning`, `plumbing`;
+- **EN values**: `foundations` (no fixed exterior or raft depth, EN 1997-1 6.4; the column
+  base bearing of EN 1992-1-1 6.7), `materials` (EN 1998-1 5.4.1.1 / 5.5.1.1 concrete and
+  B500 class B or C reinforcement, G of EN 1993-1-1 3.2.6), `designClauses` and `citations`
+  (EN clause numbers where entered; a key without one names the code only);
+- **SAEngine practice** (the values kept, its own sources saying so, each listed in
+  VERIFY.md): `concrete`, `cranes`, `deadLoads`, `designLimits`, `detailing`, `factors` (the
+  design uses γC and γS of `concreteMethods`; these φ only for checks the EN methods do not
+  replace yet), `fatigue`, `mepOpenings`, `serviceability`, `siteInvestigation`,
+  `slabCoefficients`, `slabMethods`, `stairMethods`, `steelSections`, `transfer`,
+  `wallMethods`, and the parts of `steel`, `composite`, `masonry`, `timber`, `steelSeismic`,
+  `steelStability`, `concreteTime` and `flood` the pack does not set.
 The pushover (`pushover`, alpha 9 P3) is the pack's own: the N2 target displacement of EN
 1998-1 Annex B and the chord rotation capacities of EN 1998-3 Annexes A and B against the
 limit states DL, SD and NC.

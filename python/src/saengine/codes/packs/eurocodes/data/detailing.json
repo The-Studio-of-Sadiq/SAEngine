@@ -1,0 +1,41 @@
+{
+  "$schema": "../../../schemas/detailing.schema.json",
+  "$sources": [
+    "SAEngine practice for the detailing values the pack's EN 1992-1-1 / EN 1998-1 methods (concreteMethods: anchorage, laps, bar shapes, member steel, DCM/DCH) do not replace; see VERIFY.md"
+  ],
+  "source": "SAEngine practice for the detailing values the pack's EN 1992-1-1 / EN 1998-1 methods (concreteMethods: anchorage, laps, bar shapes, member steel, DCM/DCH) do not replace; see VERIFY.md",
+  "clauses": {
+    "crackControl": "",
+    "skin": "",
+    "flangeTension": "",
+    "integrity": "",
+    "integrityPerimeter": "",
+    "integrityOther": "",
+    "integritySlab": "",
+    "shearFriction": "",
+    "tendonSpacing": ""
+  },
+  "sources": {
+    "crackControl": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+    "skin": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+    "flangeTension": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+    "integrity": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+    "shearFriction": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+    "tendonSpacing": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+    "special": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+    "special.columnSpliceDivisor": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+    "special.columnSpliceCap": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+    "special.columnSpliceZone": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+    "bars.splices.hoopDepthShare": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+    "bars.splices.hoopMax": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+    "joints": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+    "walls": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+    "spacing": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+    "bars": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)"
+  },
+  "bars": {
+    "notes": {
+      "simplifiedOther": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)"
+    }
+  }
+}

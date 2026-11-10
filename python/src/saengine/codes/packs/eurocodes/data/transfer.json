@@ -1,0 +1,13 @@
+{
+  "$schema": "../../../schemas/transfer.schema.json",
+  "$sources": [
+    "SAEngine practice for deep beams, corbels and diaphragm forces the EN methods (concreteMethods.strutAndTie, EN 1998-1 4.4.2.5) do not replace; see VERIFY.md"
+  ],
+  "source": "SAEngine practice for deep beams, corbels and diaphragm forces the EN methods (concreteMethods.strutAndTie, EN 1998-1 4.4.2.5) do not replace; see VERIFY.md",
+  "sources": {
+    "deepBeam": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+    "corbel": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+    "diaphragm": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+    "chordStrip": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)"
+  }
+}

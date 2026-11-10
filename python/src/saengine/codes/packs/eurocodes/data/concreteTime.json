@@ -7,6 +7,9 @@
   ],
   "source": "EN 1992-1-1 Sec 3.1.4 and Annex B",
   "sources": {
+    "erection": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+    "prestressCreep": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+    "prestressShrinkage": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
     "analysis": "EN 1992-1-1 Sec 2.3.2.2: creep and shrinkage taken into account where significant",
     "phased": "EN 1992-1-1 Sec 3.1.4(2): the age at first loading of each storey (construction sequence: SAEngine practice)",
     "effects": "EN 1992-1-1 Sec 2.4.2.1(1): the partial factor of shrinkage γSH = 1.0",
@@ -63,5 +66,8 @@
     "method": "ageAdjusted",
     "source": "SAEngine practice",
     "note": "The steel restrains the creep and shrinkage by the age-adjusted effective modulus."
+  },
+  "prestress": {
+    "source": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)"
   }
 }
