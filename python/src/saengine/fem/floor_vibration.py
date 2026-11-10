@@ -28,7 +28,11 @@ composite floor (``steelMethod``), otherwise concrete (``concreteMethod``):
   ``maximumFrequency`` it is a high-frequency floor, checked by the transient response factor
   where the pack has the ``responseFactor`` group;
 - ``responseFactor``: R of the resonant (fn below ``highFrequency``) or transient response
-  (:func:`response_factor`), against the occupancy's R.
+  (:func:`response_factor`), against the occupancy's R. The modal mass is ``modalShare`` × the
+  bay's mass × the effective bays the mode spreads over in X and Y (``spread``,
+  :func:`continuous_bays` and :func:`effective_bays`: the bays continuous with the panel along
+  its row of supports, limited by the slab's free edges, by shorter bays and by ``maxBays``); a
+  single bay, or a pack without ``spread``, gives the one-bay mass.
 
 β (ζ) is the damping of the pack's ``defaultFitOut``. Units: m, kN, kg, Hz.
 """
@@ -108,11 +112,29 @@ def response_factor(fn: float, mass: float, span: float, damping: float, rules: 
     return {"R": a_rms / rules.baseAcceleration, "kind": "transient", "harmonic": 0, "fp": fp}
 
 
+def effective_bays(counted: int, spread: Any) -> float:
+    """The effective bays in one direction of ``counted`` continuous bays (the panel's own
+    included) by the pack's ``responseFactor.spread``: 1 + ``adjacentShare`` × (min(counted,
+    ``maxBays``) - 1); 1 without ``spread``."""
+    if spread is None:
+        return 1.0
+    return 1.0 + spread.adjacentShare * (min(max(counted, 1), spread.maxBays) - 1)
+
+
 def check_panel(
-    method: str, fn: float, w: float, area: float, span: float, occupancy: Any, rules: Any
+    method: str,
+    fn: float,
+    w: float,
+    area: float,
+    span: float,
+    occupancy: Any,
+    rules: Any,
+    bays: tuple[int, int] = (1, 1),
 ) -> dict[str, Any]:
-    """One panel: ``w`` kN/m², ``area`` m² of its bay, ``span`` m its longer side. Returns
-    ``{"value", "limit", "unit", "ok", "how"}``."""
+    """One panel: ``w`` kN/m², ``area`` m² of its bay, ``span`` m its longer side, ``bays`` the
+    continuous bays its mode can spread over in X and Y (the panel's own included; the modal
+    mass of ``responseFactor`` by its ``spread``). Returns ``{"value", "limit", "unit", "ok",
+    "how"}``."""
     fit = rules.defaultFitOut
     if method == "walkingAcceleration":
         g = rules.walkingAcceleration
@@ -137,19 +159,27 @@ def check_panel(
         method = "responseFactor"
     g = rules.responseFactor
     zeta = g.damping[fit]
-    mass = w * 1e3 / G * area
+    spread = getattr(g, "spread", None)
+    ex, ey = (effective_bays(n, spread) for n in bays)
+    mass = w * 1e3 / G * area * ex * ey
     found = response_factor(fn, mass, span, zeta, g)
     how = (
         f"{found['kind']} R (harmonic {found['harmonic']}, fp {found['fp']:.2f} Hz)"
         if found["kind"] == "resonant"
         else f"transient R (fp {found['fp']:.2f} Hz)"
     )
+    bay = w * 1e3 / G * area / 1e3
+    over = (
+        f" × {ex:.2f} × {ey:.2f} (effective bays of {bays[0]} × {bays[1]} continuous)"
+        if ex * ey != 1
+        else ""
+    )
     return {
         "value": found["R"],
         "limit": occupancy.responseLimit,
         "unit": "R",
         "ok": found["R"] <= occupancy.responseLimit,
-        "how": f"{how}, ζ = {zeta:g} ({fit}), M = {g.modalShare:g} × {mass / 1e3:.1f} t",
+        "how": f"{how}, ζ = {zeta:g} ({fit}), M = {g.modalShare:g} × {bay:.1f} t{over}",
     }
 
 
@@ -192,6 +222,53 @@ def _bay(point: np.ndarray, supports: np.ndarray, extent: tuple[float, float]) -
             out.append(float(hi.min() - lo.max()))
         else:
             out.append(float(extent[axis]))
+    return out[0], out[1]
+
+
+def _lines(values: np.ndarray, tolerance: float = 1e-3) -> list[float]:
+    """The distinct coordinates of ``values`` (within ``tolerance`` [m]), sorted."""
+    out: list[float] = []
+    for v in np.sort(values):
+        if not out or v - out[-1] > tolerance:
+            out.append(float(v))
+    return out
+
+
+def continuous_bays(point: np.ndarray, supports: np.ndarray, spread: Any) -> tuple[int, int]:
+    """The bays continuous with the panel at ``point`` in X and Y (its own included): along
+    each axis the support lines of the panel's row (the positions with supported nodes on both
+    of the row's bounding lines across it) split the slab into bays; from the panel's bay outwards on
+    either side a bay counts while its span is at least ``spread.minimumSpanRatio`` × the
+    panel's; the slab's edge (no supports beyond: a free edge) ends the run. (1, 1) without
+    ``spread`` or supports either side."""
+    if spread is None or len(supports) == 0:
+        return 1, 1
+    out = []
+    for axis in (0, 1):
+        across = 1 - axis
+        c = supports[:, across]
+        lo = c[c < point[across] - 1e-3]
+        hi = c[c > point[across] + 1e-3]
+        lines = _lines(supports[:, axis])
+        if len(lo) and len(hi):
+            # A bay of the row has supports on both of the row's bounding lines.
+            near = _lines(supports[np.abs(c - lo.max()) <= 1e-3][:, axis])
+            far = _lines(supports[np.abs(c - hi.min()) <= 1e-3][:, axis])
+            lines = [v for v in near if any(abs(v - u) <= 1e-3 for u in far)]
+        spans = np.diff(lines)
+        inside = [k for k in range(len(spans)) if lines[k] < point[axis] < lines[k + 1]]
+        if not inside:
+            out.append(1)
+            continue
+        k = inside[0]
+        least = spread.minimumSpanRatio * spans[k]
+        count = 1
+        for step in (-1, 1):
+            j = k + step
+            while 0 <= j < len(spans) and spans[j] >= least - 1e-9:
+                count += 1
+                j += step
+        out.append(count)
     return out[0], out[1]
 
 
@@ -323,7 +400,9 @@ def evaluate(
             delta *= factor
         fn = natural_frequency(delta, rules.frequencyConstant)
         method = rules.steelMethod if steel else rules.concreteMethod
-        found = check_panel(method, fn, w, lx * ly, max(lx, ly), occupancy, rules)
+        spread = getattr(rules.responseFactor, "spread", None)
+        bays = continuous_bays(points[k], held_points, spread)
+        found = check_panel(method, fn, w, lx * ly, max(lx, ly), occupancy, rules, bays)
         rows.append(
             {
                 "slab": element.id,
@@ -335,6 +414,7 @@ def evaluate(
                 "fn": fn,
                 "w": w,
                 "bay": [lx, ly],
+                "spread": list(bays),
                 **found,
             }
         )
@@ -434,6 +514,8 @@ def report_rows(found: dict[str, Any] | None) -> dict[str, Any] | None:
 
 __all__ = [
     "check_panel",
+    "continuous_bays",
+    "effective_bays",
     "evaluate",
     "method_label",
     "natural_frequency",

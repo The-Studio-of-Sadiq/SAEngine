@@ -69,14 +69,37 @@ class WalkingAcceleration(_Group):
     damping: dict[str, Share] = Field(description="β by fit-out (bare, ceilings, ...).")
 
 
+class ModalSpread(_Group):
+    """The bays a continuous slab panel's mode spreads over (the modal mass of
+    ``responseFactor``). In each plan direction the panel's bay and the bays continuous with it
+    along its row of supports count, outwards on either side while a bay is at least
+    ``minimumSpanRatio`` × the panel's span (a shorter bay or the slab's free edge ends the
+    run), up to ``maxBays`` in all; the effective number of bays is 1 + ``adjacentShare`` ×
+    (the bays counted - 1) in each direction, and the modal mass is ``modalShare`` × the
+    panel's mass × the two. A single bay gives 1 × 1: the one-bay mass."""
+
+    adjacentShare: float = Field(
+        ge=0, le=1, description="Share of each further continuous bay in the effective bays."
+    )
+    maxBays: int = Field(
+        ge=1, description="Most bays counted in one direction (the panel's own included)."
+    )
+    minimumSpanRatio: float = Field(
+        ge=0,
+        le=1,
+        description="A bay continues the run when its span is at least this × the panel's.",
+    )
+
+
 class ResponseFactor(_Group):
     """``responseFactor``: below ``highFrequency`` the resonant response to the walking
     harmonic at fn, a_rms = μ·ρ·W(fn)·r_h·Q / (2√2·M·ζ), ρ = 1 - exp(-2π·ζ·L/stepLength); above
     it the transient response to a footfall impulse I = impulse·fp^impulsePace / fn^impulseFrequency
     · Q/impulseWeight [N·s], v = μ·I/M, a_rms = W(fn)·2π·fn·v·√((1 - e^(-x))/(2x)), x = 4π ζ fn/fp
     (the rms over one footfall period 1/fp);
-    R = a_rms / baseAcceleration. M = ``modalShare`` × the panel's mass; W(f) the weighting
-    0.5√f below 4 Hz, 1 to 8 Hz, 8/f above."""
+    R = a_rms / baseAcceleration. M = ``modalShare`` × the panel's mass × the effective bays of
+    ``spread`` in X and Y (one bay without it); W(f) the weighting 0.5√f below 4 Hz, 1 to 8 Hz,
+    8/f above."""
 
     method: Literal["responseFactor"] = "responseFactor"
     walkerWeight: Positive = Field(description="Q, the walker's weight [N].")
@@ -90,6 +113,10 @@ class ResponseFactor(_Group):
     baseAcceleration: Positive = Field(description="R = 1 at this rms acceleration [m/s²].")
     stepLength: Positive = Field(description="Of the resonance build-up ρ [m].")
     modalShare: Share = Field(description="Modal mass over the panel's mass.")
+    spread: ModalSpread | None = Field(
+        default=None,
+        description="The continuous bays the mode spreads over; None: the panel's bay alone.",
+    )
     impulse: Positive = Field(description="Of the footfall impulse [N·s].")
     impulsePace: float = Field(description="Exponent of fp in the impulse.")
     impulseFrequency: float = Field(description="Exponent of fn in the impulse.")
@@ -278,6 +305,7 @@ __all__ = [
     "EmbeddedWallsTable",
     "FloorOccupancy",
     "FloorVibrationTable",
+    "ModalSpread",
     "NonBuildingTable",
     "NonBuildingType",
     "ResponseFactor",
