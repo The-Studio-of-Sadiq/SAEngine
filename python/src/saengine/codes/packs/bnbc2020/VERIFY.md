@@ -26,6 +26,7 @@ author is less sure of.
 | FV13 | responseFactor.baseAcceleration | 0.005 m/s² rms | ISO 10137 base curve (4-8 Hz) | Sure |
 | FV14 | responseFactor.impulse, impulsePace, impulseFrequency, impulseWeight | 54 fp^1.43 / fn^1.30 × Q/700 N·s | CCIP-016 effective impulse | Check |
 | FV15 | responseFactor.stepLength, modalShare | 0.75 m, 0.25 of one bay | SAEngine practice (simply supported panel) | Practice |
+| FV15a | responseFactor.spread | adjacentShare 0.5, maxBays 4, minimumSpanRatio 0.7: modal mass = modalShare × bay mass × (1 + 0.5 (nx - 1)) × (1 + 0.5 (ny - 1)), n the bays continuous with the panel along its row of supports (to the slab's free edges, adjacent spans ≥ 0.7 × the panel's, at most 4) | SAEngine practice after SCI P354 Sec 7.3 Eq 44-46 (effective floor area over up to 4 bays each way, capped at the bays present) and AISC DG11 2nd ed. Ch 4 (continuous panel weight × 1.5 when the adjacent span ≥ 0.7 × the span); a single bay keeps 0.25 of one bay | Practice |
 | FV16 | responseFactor.damping | 0.015 bare, 0.02 ceilings, 0.03 furnished, 0.045 partitions | CCIP-016 | Check |
 | FV17 | occupancies.*.responseLimit | 4 office, residential, shopping; 2 hospital ward; 1 critical; 8 walkway | ISO 10137:2007 Annex C, SCI P354 Table 5.1 | Check |
 

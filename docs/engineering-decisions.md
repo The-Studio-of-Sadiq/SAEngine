@@ -1151,7 +1151,8 @@ practice where BNBC 2020 is silent**, except the non-building structures, which 
   panel's deflection from the analysis (D + SD + the use's service live load), relative to the
   slab's supported nodes; the panel is the bay round the largest deflection. Damping is the
   pack's "ceilings" fit-out. The modal mass of the response factor is 1/4 of one bay's mass: on
-  the safe side (continuous floors engage more), to be refined. Parking, storage and roofs have
+  the safe side (continuous floors engage more), to be refined (refined 2026-11-10: the bays
+  the mode spreads over, see "Floor vibration modal mass over several bays"). Parking, storage and roofs have
   no criterion.
 - **Wind comfort** (BNBC Sec 10.12.6). Along-wind peak acceleration of the top floor from the
   modal mass and shape of the run (ASCE 7-05 Commentary C6.5.8 form, EN 1991-1-4 Annex B.4 in
@@ -2443,3 +2444,10 @@ Each is a pack value or method id, overridable in Code Values; the default pack 
   continuous slab panel counts the bays its mode spreads over, as the design guides do, not
   0.25 x one bay's mass (which made ordinary continuous residential slabs fail). It stays
   SAEngine practice, marked so in the pack; a pack may set its own rule.
+  Rule (`responseFactor.spread`): M = 0.25 x the bay's mass x (1 + 0.5 (nx - 1)) x (1 + 0.5
+  (ny - 1)), n the bays continuous with the panel along its row of supports, ended by the
+  slab's free edges and by a bay shorter than 0.7 x the panel's span, at most 4 each way;
+  after SCI P354 Sec 7.3 (effective floor area over up to 4 bays, capped at the bays present)
+  and AISC Design Guide 11 Ch 4 (a continuous panel's weight x 1.5 when the adjacent span is
+  at least 0.7 x it). A single bay keeps the one-bay mass; the walk case (150 mm slab, 3 x 2
+  bays of 6 x 5 m) goes from R 5.9-7.2 to 2.0-2.4.

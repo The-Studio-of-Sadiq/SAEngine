@@ -56,9 +56,42 @@
       "title": "FloorOccupancy",
       "type": "object"
     },
+    "ModalSpread": {
+      "additionalProperties": false,
+      "description": "The bays a continuous slab panel's mode spreads over (the modal mass of\n``responseFactor``). In each plan direction the panel's bay and the bays continuous with it\nalong its row of supports count, outwards on either side while a bay is at least\n``minimumSpanRatio`` × the panel's span (a shorter bay or the slab's free edge ends the\nrun), up to ``maxBays`` in all; the effective number of bays is 1 + ``adjacentShare`` ×\n(the bays counted - 1) in each direction, and the modal mass is ``modalShare`` × the\npanel's mass × the two. A single bay gives 1 × 1: the one-bay mass.",
+      "properties": {
+        "adjacentShare": {
+          "description": "Share of each further continuous bay in the effective bays.",
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Adjacentshare",
+          "type": "number"
+        },
+        "maxBays": {
+          "description": "Most bays counted in one direction (the panel's own included).",
+          "minimum": 1,
+          "title": "Maxbays",
+          "type": "integer"
+        },
+        "minimumSpanRatio": {
+          "description": "A bay continues the run when its span is at least this × the panel's.",
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Minimumspanratio",
+          "type": "number"
+        }
+      },
+      "required": [
+        "adjacentShare",
+        "maxBays",
+        "minimumSpanRatio"
+      ],
+      "title": "ModalSpread",
+      "type": "object"
+    },
     "ResponseFactor": {
       "additionalProperties": false,
-      "description": "``responseFactor``: below ``highFrequency`` the resonant response to the walking\nharmonic at fn, a_rms = μ·ρ·W(fn)·r_h·Q / (2√2·M·ζ), ρ = 1 - exp(-2π·ζ·L/stepLength); above\nit the transient response to a footfall impulse I = impulse·fp^impulsePace / fn^impulseFrequency\n· Q/impulseWeight [N·s], v = μ·I/M, a_rms = W(fn)·2π·fn·v·√((1 - e^(-x))/(2x)), x = 4π ζ fn/fp\n(the rms over one footfall period 1/fp);\nR = a_rms / baseAcceleration. M = ``modalShare`` × the panel's mass; W(f) the weighting\n0.5√f below 4 Hz, 1 to 8 Hz, 8/f above.",
+      "description": "``responseFactor``: below ``highFrequency`` the resonant response to the walking\nharmonic at fn, a_rms = μ·ρ·W(fn)·r_h·Q / (2√2·M·ζ), ρ = 1 - exp(-2π·ζ·L/stepLength); above\nit the transient response to a footfall impulse I = impulse·fp^impulsePace / fn^impulseFrequency\n· Q/impulseWeight [N·s], v = μ·I/M, a_rms = W(fn)·2π·fn·v·√((1 - e^(-x))/(2x)), x = 4π ζ fn/fp\n(the rms over one footfall period 1/fp);\nR = a_rms / baseAcceleration. M = ``modalShare`` × the panel's mass × the effective bays of\n``spread`` in X and Y (one bay without it); W(f) the weighting 0.5√f below 4 Hz, 1 to 8 Hz,\n8/f above.",
       "properties": {
         "method": {
           "const": "responseFactor",
@@ -132,6 +165,18 @@
           "maximum": 1,
           "title": "Modalshare",
           "type": "number"
+        },
+        "spread": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ModalSpread"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The continuous bays the mode spreads over; None: the panel's bay alone."
         },
         "impulse": {
           "description": "Of the footfall impulse [N·s].",
