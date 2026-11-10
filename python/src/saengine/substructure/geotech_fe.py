@@ -440,6 +440,9 @@ def _advance(ops: Any, steps: int) -> bool:
         if ok == 0:
             done += step
             cuts = 0
+            # Grow the step back once it converges again: a cut step kept for the rest of
+            # the loading made every strength reduction trial take hundreds of tiny steps.
+            dl = min(dl * 2, 1.0 / steps)
             continue
         cuts += 1
         dl /= 2

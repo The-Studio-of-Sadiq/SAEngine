@@ -152,7 +152,7 @@ def test_the_rpc_handlers(tmp_path: Path):
     finally:
         d._RUNNING.clear()
     answer = handlers.drawings_generate(str(SAMPLE), size="A0")
-    assert answer["problems"] == ["Sheet size 'A0': A1, A2 or A3."]
+    assert answer["problems"] == ["Sheet size 'A0': A1, A2, A3, ANSI D or ARCH D."]
 
 
 def test_an_internal_error_is_a_readable_problem(tmp_path: Path, monkeypatch):
