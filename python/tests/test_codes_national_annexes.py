@@ -45,12 +45,12 @@ def test_uk_ndps():
     by_id = {x.id: x.factors for x in c.strength}
     # UK NA to BS EN 1990 Table NA.A1.2(B): 6.10a/b, ξ 0.925; ψ0 wind 0.5 (Table NA.A1.1).
     assert c.strengthSet == "6.10ab"
-    assert by_id["6.10b-Q"]["D"] == pytest.approx(0.925 * 1.35)
+    assert by_id["6.10b-Q"]["D"] == 1.25  # 0.925 × 1.35 = 1.249, as the name states (R4AC)
     assert by_id["6.10a-QW"]["W"] == pytest.approx(0.75)
     assert by_id["6.10b-W"]["W"] == 1.5 and by_id["6.10b-W"]["L"] == pytest.approx(1.05)
     service = {x.name: x.factors for x in c.service}
-    assert service["Characteristic: G + Q + 0.5S + 0.5W"]["W"] == 0.5
-    assert "Characteristic: G + Q + 0.5S + 0.6W" not in service
+    assert service["Characteristic: G + Q + 0.5Lr + 0.5W"]["W"] == 0.5
+    assert "Characteristic: G + Q + 0.5Lr + 0.6W" not in service
     # UK NA to BS EN 1991-1-1 Tables NA.3, NA.7.
     uses = pack.table("areaLoads").uses
     assert uses["office"].live == 2.5 and uses["dwelling"].live == 1.5

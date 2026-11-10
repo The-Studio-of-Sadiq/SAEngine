@@ -451,6 +451,8 @@ _QUANTITY = re.compile(
     rf"(?<![\w.,#Ø/·])(-?{_NUM})((?:\s*(?:×|x|–|to)\s*-?{_NUM})*)\s?({_UNIT})(?![\w²³⁴/·])"
 )
 _SEPARATOR = re.compile(rf"(\s*(?:×|x|–|to)\s*)(-?{_NUM})")
+#: R4AC-9: a unit named in brackets, as a caption writes it ("what the storey adds [kN]").
+_BRACKETED = re.compile(rf"\[({_UNIT})\]")
 _BAR = re.compile(
     r"(?:(?<![\w.,])(\d+)(\s?))?Ø(\d+(?:\.\d+)?)(?:\s*@\s*(\d+(?:\.\d+)?)(?!\s*(?:mm|m)\b))?"
 )
@@ -508,7 +510,10 @@ def convert_text(text: str, units: Units) -> str:
         spacing = fmt(units.convert(float(match.group(4)), "mm")[0])
         return f"{name} @ {spacing} {units.unit('dimension')}"
 
-    return _BAR.sub(bar, _QUANTITY.sub(quantity, text))
+    def bracketed(match: re.Match[str]) -> str:
+        return f"[{units.label(match.group(1))}]"
+
+    return _BRACKETED.sub(bracketed, _BAR.sub(bar, _QUANTITY.sub(quantity, text)))
 
 
 def si_bar_names(text: str, units: Units) -> str:

@@ -761,9 +761,9 @@ def _concrete_code(settings: Any) -> str:
 
 def code_pack_text(settings: Any) -> str:
     """The code pack the project follows, as the report's front matter states it: "<name>
-    (<id>), <edition>, pack version <v>", with "; extends <pack> for the tables it does not
-    give" when it extends another pack, and where a user or project copy replaces a built-in
-    pack."""
+    (<id>), <edition>, pack version <v>", and where a user or project copy replaces a built-in
+    pack. The pack it extends is not named here (R4AC-3: the title page states the code in
+    force only); the report's table of inherited tables names where each comes from."""
     from saengine.codes import CodePackError
     from saengine.library.settings import code_pack
 
@@ -776,13 +776,6 @@ def code_pack_text(settings: Any) -> str:
     if facts["edition"] and facts["edition"] != facts["name"]:
         text += f", {facts['edition']}"
     text += f", pack version {facts['version']}"
-    if facts["extends"] and facts["extends"] != facts["id"]:
-        # Walk 4: the active pack first; the pack it extends only for the tables it inherits.
-        try:
-            base = code_context.pack_for({"codePack": facts["extends"]})
-            text += f"; extends {base.name} ({base.id}) for the tables it does not give"
-        except CodePackError:
-            text += f"; extends {facts['extends']}"
     if facts["replacesBuiltin"]:
         text += f" - a {facts['scope']} copy at {facts['path']}, modified from the built-in code"
     if pack.missing:

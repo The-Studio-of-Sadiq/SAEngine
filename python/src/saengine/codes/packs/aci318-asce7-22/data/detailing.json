@@ -7,7 +7,7 @@
   ],
   "source": "ACI 318-19 Chapters 18, 24 and 25 (SI values of ACI 318M-19)",
   "special": {
-    "fytConfinementMax": 690.0,
+    "fytConfinementMax": 689.5,
     "columnSpliceCap": null,
     "columnSpliceZone": true
   },
@@ -26,7 +26,7 @@
   "walls": {
     "driftMin": 0.005,
     "driftFactor": 1.5,
-    "fytConfinementMax": 690.0,
+    "fytConfinementMax": 689.5,
     "curtainAspect": 2.0,
     "shearAmplification": {
       "aspect": 1.5,
@@ -66,7 +66,7 @@
     "integrity": "ACI 318-19 9.7.7.1: perimeter beams at least 1/4 of the largest positive and 1/6 of the negative steel at the support, each at least two bars, continuous; 9.7.7.2: other beams at least 1/4 of the positive steel, two bars, or closed stirrups",
     "shearFriction": "ACI 318-19 22.9.4.2, Table 22.9.4.2: μ = 1.4 λ monolithic, 1.0 λ roughened (6 mm), 0.6 λ not roughened, 0.7 λ to as-rolled steel; Table 22.9.4.4: Vn <= min(0.2 f'c, 3.3 + 0.08 f'c, 11) Ac (monolithic or roughened, normal weight), else min(0.2 f'c, 5.5) Ac; Table 20.2.2.4(a): fy <= 420 MPa; 22.9.4.6: permanent net compression additive",
     "tendonSpacing": "ACI 318-19 24.3.2.2-24.3.2.3: bonded tendons at most 2/3, bars and tendons at most 5/6 of the Table 24.3.2 spacing; Δfps in place of fs, at most 250 MPa; up to 140 MPa no check",
-    "special": "ACI 318-19 18.6.2.1 (beams: ln >= 4d, width >= 0.3 h and 250 mm), 18.6.3.1 (ρ <= 0.025), 18.7.2.1 (columns: least dimension >= 300 mm, ratio >= 0.4), 18.7.4.1 (0.01 <= ρ <= 0.06), 18.7.5.2(e) (hx <= 350 mm), 18.6.4.4 (first hoop 50 mm from the face), Table 20.2.2.4(a) (confinement fyt <= 690 MPa)",
+    "special": "ACI 318-19 18.6.2.1 (beams: ln >= 4d, width >= 0.3 h and 250 mm), 18.6.3.1 (ρ <= 0.025), 18.7.2.1 (columns: least dimension >= 300 mm, ratio >= 0.4), 18.7.4.1 (0.01 <= ρ <= 0.06), 18.7.5.2(e) (hx <= 350 mm), 18.6.4.4 (first hoop 50 mm from the face), Table 20.2.2.4(a) (confinement fyt <= 100,000 psi, 689.5 MPa)",
     "special.columnSpliceDivisor": "ACI 318-19 18.7.4.3 with 18.7.5.3(a): the lap splices of special moment frame columns enclosed by the end zones' transverse reinforcement, whose spacing is at most the least dimension / 4 (the parent's 4)",
     "special.columnSpliceCap": "ACI 318-19 18.7.4.3: no fixed cap of its own (the parent's 100 mm is BNBC 2020 Figure 6.8.8's); the spacing is capped by 18.7.5.3 through columnSpliceZone",
     "special.columnSpliceZone": "ACI 318-19 18.7.4.3: the lap splices enclosed within transverse reinforcement in accordance with 18.7.5.2 and 18.7.5.3, the spacing of the end zones (least dimension / 4, 6 db, so)",
@@ -103,7 +103,7 @@
         "psiP": 1.6,
         "psiO": 1.25
       },
-      "psiG": [[420.0, 1.0], [550.0, 1.15], [690.0, 1.3]]
+      "psiG": [[413.7, 1.0], [551.6, 1.15], [689.5, 1.3]]
     },
     "laps": {
       "noLapDb": 43.0

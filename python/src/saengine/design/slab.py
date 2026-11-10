@@ -2076,6 +2076,23 @@ def _one_way_item(key: str, letter: str) -> str:
     return f"{short_clause('slab', 'oneWay')} {letter}"
 
 
+#: The largest slab bar spacing, (times h, at most [mm]), where the pack gives none.
+MAX_SPACING = {"twoWay": (2.0, 450.0), "oneWay": (3.0, 450.0)}
+
+
+def max_spacing(kind: str) -> tuple[float, float]:
+    """R4AC-7: (times h, at most [mm]) of a slab's largest bar spacing, ``kind`` "twoWay" or
+    "oneWay" (the bars along the span), from the pack's ``slabCoefficients.maxSpacing`` (EN
+    1992-1-1: 3h and 400 mm; the default pack: 2h and 3h, 450 mm)."""
+    try:
+        found = code_context.pack_table("slabCoefficients").maxSpacing.get(kind)
+    except Exception:  # noqa: BLE001 - no slab table: the generic values
+        found = None
+    if not found:
+        return MAX_SPACING[kind]
+    return float(found[0]), float(found[1])
+
+
 def spacing_clause(kind: str) -> str:
     """The clause text of a slab's largest bar spacing: ``kind`` "twoWay" min(2h, 450 mm),
     "oneWay" min(3h, 450 mm) along the span; the code pack's (``designClauses.slab.spacingTwoWay``,
@@ -2084,7 +2101,8 @@ def spacing_clause(kind: str) -> str:
     from saengine.design import clauses
 
     key = "spacingTwoWay" if kind == "twoWay" else "spacingOneWay"
-    rule = "min(2h, 450 mm)" if kind == "twoWay" else "min(3h, 450 mm)"
+    times, most = max_spacing(kind)
+    rule = f"min({times:g}h, {most:g} mm)"
     if clauses.text("slab", key):
         return f"{rule} ({clauses.clause('slab', key)})"
     return f"{'8.7.2.2' if kind == 'twoWay' else '7.7.2.3'}: {rule}"
@@ -2104,9 +2122,11 @@ def _max_spacing_check(
         if layer is None:
             continue
         if system != "oneWay":
-            limit, clause = min(2 * h, 450.0), spacing_clause("twoWay")
+            times, most = max_spacing("twoWay")
+            limit, clause = min(times * h, most), spacing_clause("twoWay")
         elif layer.name[-1] == span:
-            limit, clause = min(3 * h, 450.0), spacing_clause("oneWay")
+            times, most = max_spacing("oneWay")
+            limit, clause = min(times * h, most), spacing_clause("oneWay")
         else:
             from saengine.design.rc_detailing import shrinkage_spacing
 

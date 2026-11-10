@@ -183,7 +183,14 @@ def _tie_beam_method() -> str:
         f" and {ties.zones[-1]}" if len(ties.zones) > 1 else str(ties.zones[0])
     )
     # Walk 4: the zones only under a pack with seismic zones (mapped values have none).
-    where = f" (seismic zones {zones})" if code_context.current().has("zoneCoefficients") else ""
+    # R4AC-3: and only where the pack states the tie rule as its own clause (not SAEngine
+    # practice or a rule inherited from the pack it extends, whose zones are another code's).
+    own_zones = (
+        code_context.current().has("zoneCoefficients")
+        and not code_context.inherited("foundations", "shallow.tieBeams")
+        and not clause.startswith(code_context.PRACTICE)
+    )
+    where = f" (seismic zones {zones})" if own_zones else ""
     return (
         f"Tie beams: {clause}{where}: the strut ties between footings resist "
         f"in tension or compression at least {ties.forceShare * 100:g} % of the larger footing "

@@ -372,14 +372,41 @@ def psi_t(top: bool) -> float:
     return bar_rules().development.psiTop if top else 1.0
 
 
+def _standard_lengths() -> dict[str, float]:
+    """R4AC-4: the rounding and the stock length of the pack's bar schedule standard (ACI 315:
+    1 in and 60 ft; BS 8666 and the default pack: 25 mm and 12 m), so the lengths and the
+    notes take the values the pack gives for its units; {} (the defaults) without one."""
+    try:
+        from saengine.drawings import bbs
+
+        std = bbs.standard()
+    except Exception:  # noqa: BLE001 - no bar schedule standard: SAEngine's defaults
+        return {}
+    out: dict[str, float] = {}
+    if getattr(std, "roundTo", None):
+        out["round"] = float(std.roundTo)
+    if getattr(std, "stockLength", None):
+        out["stockLength"] = float(std.stockLength)
+    return out
+
+
 def psi_g(fy: float) -> float:
     """C2: the grade factor ψg of ld (the pack's ``development.psiG``: the factor of the first
-    step whose fy reaches ``fy``, the last one's above); 1.0 when the pack gives none."""
+    step whose fy reaches ``fy``, the last one's above); 1.0 when the pack gives none. The
+    steps are grades: a bar within the pack's ``materials.gradeTolerance`` above one is of that
+    grade (R4AC-4: Grade 60 at 413.7 MPa, also entered as 420 MPa)."""
+    from saengine.codes import context as code_context
+
     steps = getattr(bar_rules().development, "psiG", None)
     if not steps:
         return 1.0
+    tolerance = 0.0
+    try:
+        tolerance = float(getattr(code_context.table("materials"), "gradeTolerance", 0.0) or 0.0)
+    except Exception:  # noqa: BLE001 - a pack without the materials table: the steps as given
+        tolerance = 0.0
     for limit, factor in steps:
-        if fy <= limit + 1e-9:
+        if fy <= limit * (1 + tolerance) + 1e-9:
             return float(factor)
     return float(steps[-1][1])
 
@@ -558,6 +585,17 @@ def hook_development(
         f"0.24 ψe fy db / (λ √f'c) × {factor:.2f}, at least max(8 db, 150 mm)",
         _cite("barDevelopmentHooked"),
     )
+
+
+def hook_term() -> str:
+    """R4AC-7: the name of a hooked bar's anchorage length as :func:`hook_development` finds it
+    under the pack in force: "Lsy.tb" (a share of it), "lb,eq" (the bond stress method of the
+    pack's anchorage) or "ldh"."""
+    if _development_factors() is not None:
+        return "Lsy.tb"
+    if _bar_shapes() is not None and _bond_stress():
+        return "lb,eq"
+    return "ldh"
 
 
 def psi_c(fc: float) -> float:
@@ -2389,18 +2427,14 @@ def _detail_column(ctx: _Ctx, stack: list[Any], k: int) -> dict[str, Any]:
             }
         )
     else:
-        top_cover = 40.0
+        top_cover = dj.TOP_HOOK_COVER
         z_end = c.top - top_cover
         top_hook = 1.0
         if beam_top > 0:
-            need = hook_development(db_max, fy, fc)
+            # R4AC-5: the design's own check (one place), so the two agree.
+            need, available = dj.column_top_anchorage(db_max, fy, fc, beam_top)
             element["checks"].append(
-                _check(
-                    f"Column bars hooked into the beams at the top (Ø{db_max:g})",
-                    need.value,
-                    beam_top - top_cover,
-                    need.clause,
-                )
+                _check(dj.column_top_name(db_max), need.value, available, need.clause)
             )
         else:
             element["notes"].append("no beam at the top: the bars end 40 mm below the top, hooked")
@@ -4152,7 +4186,7 @@ def detailing_model(
         from saengine.substructure.handover import authoritative_substructure
 
         substructure = authoritative_substructure(data["substructure"], building)
-    opts = {**DEFAULT_OPTIONS, **(options or {})}
+    opts = {**DEFAULT_OPTIONS, **_standard_lengths(), **(options or {})}
     if opts.get("slabTopExtent") is None:
         opts["slabTopExtent"] = bar_rules().extents.slabTopExtent
     if opts["method"] not in ("simplified", "general"):

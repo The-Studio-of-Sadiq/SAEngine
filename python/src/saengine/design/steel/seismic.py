@@ -464,6 +464,28 @@ def toughness_flags(shape: Any, table: Any | None = None) -> list[dict[str, Any]
     ]
 
 
+def beam_bracing_limit(
+    ry: float, fy: float, e: float, ry_ratio: float, frame: str, table: Any | None = None
+) -> tuple[float, str] | None:
+    """The longest unbraced length [mm] of a beam of moment frame ``frame`` (``ry`` [mm] of the
+    section, ``ry_ratio`` Ry) and how it is found: c ry E / Fy (or / (Ry Fy)); None where the
+    pack gives no limit for the frame. The design's check (:func:`beam_bracing_checks`) and
+    the New Building generator's beam bracing (R4AC-6) both take it from here."""
+    t = _table(table)
+    rules = (t.frames or {}).get(frame)
+    if rules is None or rules.beamBracing is None:
+        return None
+    if getattr(rules, "beamBracingExpected", False):
+        # Alpha 9 C3b: by the expected yield stress Ry Fy.
+        limit = rules.beamBracing * ry * e / (ry_ratio * fy)
+        return (
+            limit,
+            f"Lb ≤ {rules.beamBracing:g} ry E / (Ry Fy) = {limit:.0f} mm (Ry = {ry_ratio:g})",
+        )
+    limit = rules.beamBracing * ry * e / fy
+    return limit, f"Lb ≤ {rules.beamBracing:g} ry E / Fy = {limit:.0f} mm"
+
+
 def beam_bracing_checks(
     shape: Any,
     fy: float,
@@ -477,17 +499,12 @@ def beam_bracing_checks(
     the longest unbraced length of the beam); the brace next to a hinge needs Pu = 0.06 Mu /
     ho with Mu = Ry Z Fy (reported as a flag)."""
     t = _table(table)
-    rules = t.frames[frame]
-    if rules.beamBracing is None:
+    found = beam_bracing_limit(shape.ry, fy, e, ry_ratio, frame, t)
+    if found is None:
         return []
+    limit, how = found
+    rules = t.frames[frame]
     key = "smfBeamBracing" if frame == "smf" else "imfBeamBracing"
-    if getattr(rules, "beamBracingExpected", False):
-        # Alpha 9 C3b: by the expected yield stress Ry Fy.
-        limit = rules.beamBracing * shape.ry * e / (ry_ratio * fy)
-        how = f"Lb ≤ {rules.beamBracing:g} ry E / (Ry Fy) = {limit:.0f} mm (Ry = {ry_ratio:g})"
-    else:
-        limit = rules.beamBracing * shape.ry * e / fy
-        how = f"Lb ≤ {rules.beamBracing:g} ry E / Fy = {limit:.0f} mm"
     checks = [
         _check(
             "lateral bracing of the beam",
@@ -1355,7 +1372,12 @@ def apply(
             ry=expected_yield_ratio(m.material, shape.family, t),
         )
         try:
-            lengths = member_lengths(project, m.pieces, m.turned)
+            from saengine.design import overwrites as ow
+
+            # R4AC-6: with the member's and its type's design overwrites (Lb: the brace
+            # spacing of the flange braces), as the member checks take them.
+            resolved = ow.resolve(None, m.object, ow.overwrites_of(m.element), None)
+            lengths = member_lengths(project, m.pieces, m.turned, ow.steel_length_options(resolved))
             lb = max(lengths.ltb_top.longest(), lengths.ltb_bottom.longest()) * 1e3
             checks += beam_bracing_checks(shape, steel.fy, steel.e, i["ry"], lb, frame, t)
         except Exception as error:  # noqa: BLE001 - no bracing model: say so

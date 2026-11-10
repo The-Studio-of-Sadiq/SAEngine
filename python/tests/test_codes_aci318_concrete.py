@@ -81,8 +81,8 @@ def test_bars_and_detailing_values(us):
     assert d.bars.laps.noLapDb == 43.0  # 25.5.1.1: no laps of bars above No. 36
     assert d.bars.bends.steps[1] == (36.0, 8.0)  # Table 25.3.1
     assert d.walls.driftMin == 0.005 and d.walls.driftFactor == 1.5  # 18.10.6.2
-    assert d.special.fytConfinementMax == 690.0  # Table 20.2.2.4(a)
-    assert us.table("materials").seismicRebarFyMax == 550.0  # 20.2.2.5
+    assert d.special.fytConfinementMax == 689.5  # Table 20.2.2.4(a): 100,000 psi (R4AC-4)
+    assert us.table("materials").seismicRebarFyMax == 551.6  # 20.2.2.5: Grade 80 (R4AC-4)
     assert us.table("foundations").strutAndTie.betaOther == 0.4  # Table 23.4.3(a)
 
 

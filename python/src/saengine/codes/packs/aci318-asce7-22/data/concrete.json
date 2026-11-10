@@ -26,6 +26,7 @@
     "25": 3.973, "29": 5.060, "32": 6.404, "36": 7.907
   },
   "slabStrainMin": 0.005,
+  "fytShearMax": 413.7,
   "spacingStep": 25.4,
   "cover": {
     "lintel": 40.0,
@@ -43,7 +44,7 @@
   },
   "shrinkage": {
     "ratioLow": 0.0018,
-    "referenceFy": 420.0,
+    "referenceFy": 413.7,
     "ratioReference": 0.0018,
     "ratioMin": 0.0018
   },
@@ -112,7 +113,7 @@
     "columnRho": "ACI 318-19 10.6.1.1",
     "beamRatioMax": "SAEngine practice (congestion), not a code clause",
     "slabStrainMin": "ACI 318-19 7.3.3.1, 8.3.3.1: nonprestressed slabs tension-controlled, εt >= εty + 0.003 (0.005 for Grade 420 rounded)",
-    "fytShearMax": "ACI 318-19 Table 20.2.2.4(a): stirrups and ties for shear, 420 MPa",
+    "fytShearMax": "ACI 318-19 Table 20.2.2.4(a): stirrups and ties for shear, 60,000 psi (413.7 MPa; 420 MPa in ACI 318M)",
     "twoWayThickness": "ACI 318-19 Table 8.3.1.1, without drop panels",
     "twoWayThicknessDrop": "ACI 318-19 Table 8.3.1.1, with drop panels (8.2.4)",
     "oneWaySlabThickness": "ACI 318-19 Table 7.3.1.1, by continuous ends 0, 1, 2",

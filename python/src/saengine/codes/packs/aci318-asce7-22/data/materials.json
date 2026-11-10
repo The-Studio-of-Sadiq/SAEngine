@@ -12,20 +12,20 @@
   "lightweightFcMax": 35.0,
   "lightweightDensity": 1840.0,
   "seismicRebarFy": [
-    280.0,
-    420.0,
-    550.0
+    275.8,
+    413.7,
+    551.6
   ],
-  "seismicRebarFyMax": 550.0,
+  "seismicRebarFyMax": 551.6,
   "gradeTolerance": 0.02,
   "fyActualMargin": 125.0,
   "fyRetestMargin": 20.0,
   "fuFyMin": 1.25,
   "rebarGrades": [
-    {"id": "A615-60", "name": "ASTM A615 Grade 60", "fy": 420, "standard": "ASTM A615/A615M"},
-    {"id": "A706-60", "name": "ASTM A706 Grade 60", "fy": 420, "standard": "ASTM A706/A706M"},
-    {"id": "A615-80", "name": "ASTM A615 Grade 80", "fy": 550, "standard": "ASTM A615/A615M"},
-    {"id": "A615-40", "name": "ASTM A615 Grade 40", "fy": 280, "standard": "ASTM A615/A615M"}
+    {"id": "A615-60", "name": "ASTM A615 Grade 60", "fy": 413.7, "standard": "ASTM A615/A615M"},
+    {"id": "A706-60", "name": "ASTM A706 Grade 60", "fy": 413.7, "standard": "ASTM A706/A706M"},
+    {"id": "A615-80", "name": "ASTM A615 Grade 80", "fy": 551.6, "standard": "ASTM A615/A615M"},
+    {"id": "A615-40", "name": "ASTM A615 Grade 40", "fy": 275.8, "standard": "ASTM A615/A615M"}
   ],
   "sources": {
     "concreteStrain": "ACI 318-19 22.2.2.1",
@@ -34,11 +34,11 @@
     "seismicFcMin": "ACI 318-19 Table 19.2.1.1: special moment frames, special walls, at least 21 MPa",
     "lightweightFcMax": "ACI 318-19 Table 19.2.1.1: lightweight concrete in special frames and walls at most 35 MPa (unless tests show otherwise)",
     "lightweightDensity": "ACI 318-19 Sec 2.3 (lightweight concrete: equilibrium density 1440-1840 kg/m³)",
-    "seismicRebarFy": "ACI 318-19 20.2.2.4-20.2.2.5, Table 20.2.2.4(a), 18.2.6: ASTM A706 Grades 420 and 550 in special moment frames and special walls (Grade 280 A615 permitted where it meets 20.2.2.5(b)); Grade 690 only for special walls' flexure, not offered here",
-    "gradeTolerance": "SAEngine choice (Grade 420 entered as 415 MPa)",
+    "seismicRebarFy": "ACI 318-19 20.2.2.4-20.2.2.5, Table 20.2.2.4(a), 18.2.6: ASTM A706 Grades 60 and 80 (60 and 80 ksi; 420 and 550 in ACI 318M) in special moment frames and special walls (Grade 40 A615 permitted where it meets 20.2.2.5(b)); Grade 100 only for special walls' flexure, not offered here",
+    "gradeTolerance": "SAEngine choice (Grade 60 entered as 413.7, 415 or 420 MPa)",
     "fyActualMargin": "ACI 318-19 20.2.2.5(b)(i) and ASTM A706: actual yield at most 125 MPa above the specified",
     "fyRetestMargin": "ACI 318-08 21.1.5.2(a) retest margin, kept: ACI 318-19 relies on ASTM A706 (SAEngine practice)",
     "fuFyMin": "ACI 318-19 20.2.2.5(b)(ii) and ASTM A706: actual tensile / actual yield at least 1.25",
-    "rebarGrades": "ASTM A615/A615M and A706/A706M specified yield strengths: Grade 40 (280 MPa), 60 (420 MPa), 80 (550 MPa); ACI 318-19 20.2.2.4 (walk 4 W4A-6)"
+    "rebarGrades": "ASTM A615/A615M and A706/A706M specified yield strengths: Grade 40 (40 ksi, 275.8 MPa), 60 (60 ksi, 413.7 MPa), 80 (80 ksi, 551.6 MPa), the inch-pound grades exactly; ACI 318-19 20.2.2.4 (walk 4 W4A-6, re-walk 4 R4AC-4)"
   }
 }

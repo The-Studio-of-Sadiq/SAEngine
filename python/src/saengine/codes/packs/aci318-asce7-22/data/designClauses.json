@@ -55,7 +55,7 @@
       "reinforcementD": "20.2.2.5",
       "chapter": "Chapter 18",
       "confinement": "Table 20.2.2.4(a)",
-      "gradesText": "only ASTM A706 Grades 420 and 550, or ASTM A615 Grades 280 and 420 meeting ACI 318-19 20.2.2.5(b)"
+      "gradesText": "only ASTM A706 Grades 60 and 80, or ASTM A615 Grades 40 and 60 meeting ACI 318-19 20.2.2.5(b)"
     },
     "faceForces": {
       "face": "9.4.2.1",
@@ -446,6 +446,10 @@
       "methodConnections": "Steel connections (when the object type sets one): fin plate, shear end plate or brace gusset checked for the member's end shears or axial forces to AISC 360-22 Chapter J (bolts J3, bearing and tearout J3.10, block shear J4.3, welds J2, the Whitmore section); listed as 'Connection: ...' checks of the member. The analysis pins these member ends (no end moment); an end kept rigid is flagged as 'end moment at a simple connection'. Flange-plate moment connections (with the column flange, web and panel zone checks of Sec J10), cover-plate splices (Sec J6), column base plates on concrete (bearing Sec J8, anchor rods J9) and welded HSS joints (Chapter K) are checked the same way when the type sets them; also slip-critical bolts (Sec J3.8), end plates under axial tension (prying), the column stiffeners and doublers (Sec J10.8-J10.9), plates and cap plates on HSS and HSS moment connections (Chapter K, Secs K2-K5)."
     },
     "generator": {
+      "categoryName": "Seismic Design Category",
+      "designDriftName": "Cd δe / I",
+      "seismicCombinationsName": "1.2D + Ev, 0.9D - Ev",
+      "columnStressName": "0.4 f'c",
       "occupancy": "ASCE 7-22 Table 1.5-1",
       "siteClass": "ASCE 7-22 Chapter 20 (Table 20.2-1)",
       "spectrum": "ASCE 7-22 Sec 11.4",

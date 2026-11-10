@@ -73,7 +73,7 @@ def test_simply_supported_beam_bars() -> None:
     assert groups == {"top": (2, 12.0), "bottom": (2, 25.0)}
     t = pick.reinforcement["transverse"]
     assert (t["dia"], t["legs"], t["spacing"]) == (8.0, 2, 200.0)
-    assert pick.label == "top 2Ø12, bottom 2Ø25, stirrups Ø8 2 legs @ 200"
+    assert pick.label == "top 2Ø12, bottom 2Ø25, stirrups Ø8 2 legs @ 200 mm"
     _confirm(beam, pick.reinforcement, loads)
     # By hand: d = 500 - 40 - 8 - 12.5 = 439.5, a = 982 × 420 / (0.85 × 28 × 300) = 57.8,
     # φMn = 0.9 × 982 × 420 × (439.5 - 28.9) = 152.4 kN·m (the top bars add a little).
