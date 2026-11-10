@@ -12,7 +12,7 @@ metres) (owner, 2026-11-09: both are dependencies).
 order, no averaging), then at most ``limit`` points by an even stride.
 
 **Underlay of a plan** (:func:`convert`): the points between ``cut - thickness/2`` and ``cut +
-thickness/2`` (in the cloud's units; the cut is the story's level plus the cut height, as the
+thickness/2`` (in the cloud's units; the cut is the story's floor (the level of the story below) plus the cut height, as the
 floor plan asks for it), decimated in plan, written as a DXF (each point a short dash on layer
 ``CLOUD``, as a CAD program draws a point cloud slice) with the lines traced through them on
 layer ``TRACED`` (:func:`trace_lines`): walls and edges as straight segments found by RANSAC

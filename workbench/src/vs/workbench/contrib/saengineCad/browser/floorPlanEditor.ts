@@ -58,7 +58,7 @@ import { floorPlanDrawing, gridsOf, IFloorPlan, IMemberShape, ISlabSplit, PLAN_A
 import { basePoint, bayAt, changeMemberType, EditResult, footingsOwnedMessage, notRotatableMessage, IGridNode, moveMember, pickMember, placeColumn, placeLinear, placePolygonSlab, placeSlab, PlacementTool, removeMember, rotateMember, setMembersType, snapPoint, snapToGrid, splitSlab, TOOL_GROUP, TOOL_KINDS } from './floorPlanEdits.js';
 import { FloorPlanEditorInput, siblingPartFile } from './floorPlanEditorInput.js';
 import { ISnap, ISnapSegment, nearMisses, SNAP_NAMES, snapLinear, snapMarker, squareMarker, typedEnd, unsupportedBeams } from './floorPlanSnap.js';
-import { alignAngle, calibrated, cloudSlice, DEFAULT_CLOUD_SCALE, diffLines, diffSummary, firstPdfPlacement, gridCentre, isPdf, isPointCloud, IUnderlayPlacement, IWorkbookImport, moved, placementFields, placementOf, planSegments, readWorkbookImport, rotated, segmentsNear } from './floorPlanUnderlay.js';
+import { alignAngle, calibrated, cloudSlice, DEFAULT_CLOUD_CUT, DEFAULT_CLOUD_SCALE, DEFAULT_CLOUD_THICKNESS, diffLines, diffSummary, firstPdfPlacement, gridCentre, isPdf, isPointCloud, IUnderlayPlacement, IWorkbookImport, moved, placementFields, placementOf, planSegments, readWorkbookImport, rotated, segmentsNear, storyFloor } from './floorPlanUnderlay.js';
 import { addObjectType, NEW_TYPE_PROMPTS, NewTypeKind, validateSize } from './floorPlanTypes.js';
 import { FloorPlanLoadsFile, FloorPlanLoadsPanel, ILoadsWrite, IMemberLoads, LOAD_LAYER_SPECS, loadsDrawing } from './floorPlanLoads.js';
 import { copyStory, familyDiffersMessage, familyNote, familyOf, inSync, masterOf, repeatFamily, setSimilar, typicalLosses } from './floorPlanTypical.js';
@@ -2414,6 +2414,9 @@ export class FloorPlanEditor extends EditorPane {
 				appendPropertyRow(panel, localize('floorPlan.underlayRotation', "Rotation"), `${Math.round(placement.rotation * 100) / 100}°`);
 				appendPropertyRow(panel, localize('floorPlan.underlayOrigin', "Origin"), localize('floorPlan.underlayAt', "{0}, {1} mm", Math.round(placement.offset[0]), Math.round(placement.offset[1])));
 				appendPropertyRow(panel, localize('floorPlan.underlayLocked', "Locked"), underlay.locked === true ? localize('yes', "Yes") : localize('no', "No"));
+				if (isPointCloud(underlay.file) && story) {
+					this.renderCloudSliceInputs(panel, story, underlay);
+				}
 			}
 			appendPropertyNote(panel, localize('floorPlan.selectHint', "Select a member in the plan to see and change its properties."));
 		}
@@ -2597,6 +2600,29 @@ export class FloorPlanEditor extends EditorPane {
 		appendPropertyRow(panel, label, cell).classList.add('editable');
 	}
 
+	/**
+	 * W4C-12: the cut height above the story's floor and the slice thickness of a point cloud
+	 * underlay (mm), each one undoable edit of the underlay; the slice is read again on the change.
+	 */
+	private renderCloudSliceInputs(panel: HTMLElement, story: string, underlay: { readonly [key: string]: unknown }): void {
+		const floor = storyFloor(storiesOf(parse(this.planModel)), story);
+		const field = (key: 'cutHeight' | 'sliceThickness', label: string, fallback: number, min: number) => {
+			const current = typeof underlay[key] === 'number' ? underlay[key] as number : fallback;
+			this.propertyInput(panel, label, String(current), String(fallback), text => {
+				const value = Number(text.trim());
+				if (!text.trim() || !Number.isFinite(value) || value < min) {
+					this.setNotice(localize('floorPlan.badCloudSlice', "Type a number in mm (at least {0}).", min));
+					return;
+				}
+				this.changeUnderlay(story, u => ({ ...u, [key]: value }));
+			});
+		};
+		field('cutHeight', localize('floorPlan.cloudCut', "Cut height above floor (mm)"), DEFAULT_CLOUD_CUT, -100000);
+		field('sliceThickness', localize('floorPlan.cloudThickness', "Slice thickness (mm)"), DEFAULT_CLOUD_THICKNESS, 1);
+		const cut = floor + (typeof underlay.cutHeight === 'number' ? underlay.cutHeight : DEFAULT_CLOUD_CUT);
+		appendPropertyNote(panel, localize('floorPlan.cloudCutNote', "The scan is cut at +{0} mm: the story's floor (+{1}, the level of the story below) plus the cut height. Each story has its own underlay: attach the scan on each story to trace it there.", cut, floor));
+	}
+
 	/** "Copy by (mm)": dx, dy and how many copies (an array). */
 	private renderCopyInput(panel: HTMLElement): void {
 		this.propertyInput(panel, localize('floorPlan.copyBy', "Copy by (mm), times"), '', localize('floorPlan.copyHint', "Δx, Δy [, n], e.g. 6000, 0, 3"), text => {
@@ -2755,7 +2781,7 @@ export class FloorPlanEditor extends EditorPane {
 		}
 		const folder = dirname(input.resource);
 		const picked = await this.fileDialogService.showOpenDialog({
-			title: localize('floorPlan.pickUnderlay', "Attach an Architect's Drawing"),
+			title: localize('floorPlan.pickUnderlayOrScan', "Attach a Drawing or Point Cloud (DXF, DWG, PDF, LAS, XYZ, PTS, LAZ, E57)"),
 			canSelectFiles: true,
 			canSelectMany: false,
 			filters: [
@@ -2853,9 +2879,8 @@ export class FloorPlanEditor extends EditorPane {
 		const editor = this.editor;
 		const underlay = this.underlayOf(layout, input.story);
 		const shown = underlay && this.underlayVisible(underlay) ? underlay : undefined;
-		// Alpha 9 L2: a point cloud's slice follows the story's level and its slice settings.
-		const level = storiesOf(layout).find(s => s.id === input.story)?.elevation ?? 0;
-		const slice = shown && isPointCloud(shown.file) ? cloudSlice(shown, level) : undefined;
+		// Alpha 9 L2: a point cloud's slice follows the story's floor (the level below its top) and its slice settings.
+		const slice = shown && isPointCloud(shown.file) ? cloudSlice(shown, storyFloor(storiesOf(layout), input.story)) : undefined;
 		const key = shown ? JSON.stringify([shown.file, shown.page, shown.dx, shown.dy, shown.scale, shown.rotation, slice]) : '';
 		if (!editor || key === this.underlayKey) {
 			return;

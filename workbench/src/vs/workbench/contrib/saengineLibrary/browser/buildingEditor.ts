@@ -895,6 +895,12 @@ export class BuildingEditor extends JsonDocumentEditor implements IPartSectionPa
 	}
 
 	/** Writes the IFC to `11 Exports/IFC/<project>.ifc`. */
+	/** W4C-13: the 3D view with the 4D bar of the construction programme open (and playing). */
+	async play4d(autoplay = false): Promise<void> {
+		this.showView('3d');
+		await this.studies?.play4d(autoplay);
+	}
+
 	async exportIfc(): Promise<void> {
 		const resource = this.resource;
 		let result: IBuildingIfc | undefined;

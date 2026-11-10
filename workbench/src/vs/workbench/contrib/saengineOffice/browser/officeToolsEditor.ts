@@ -331,10 +331,9 @@ export class OfficeToolsEditor extends EditorPane {
 				});
 			}
 			this.button(bar, localize('office.schedule.play', "Play in the BIM View"), async () => {
-				const bim = partById('bim');
-				if (bim?.mainFile) {
-					await this.editorService.openEditor({ resource: joinPath(this.root!, bim.folder, bim.mainFile), options: { pinned: true } });
-				}
+				// W4C-13: the BIM view plays the programme as saved: save it, then open the view with its 4D bar playing.
+				await this.writeText(SCHEDULE_FILE, JSON.stringify(this.schedule, undefined, 2) + '\n');
+				await this.commands.executeCommand('saengine.bim.play4d', true);
 			});
 		}
 		if (!this.schedule) {

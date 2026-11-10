@@ -6,7 +6,7 @@
 import assert from 'assert';
 import type { CadPoint } from '@saengine/cad-editor';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { alignAngle, calibrated, cloudSlice, DEFAULT_PDF_SCALE, diffLines, firstPdfPlacement, gridCentre, diffSummary, isPointCloud, IUnderlayPlacement, moved, placementFields, placementOf, planSegments, readWorkbookImport, rotated, segmentsNear, toPlan } from '../../browser/floorPlanUnderlay.js';
+import { alignAngle, calibrated, cloudSlice, DEFAULT_PDF_SCALE, diffLines, firstPdfPlacement, gridCentre, diffSummary, isPointCloud, IUnderlayPlacement, moved, placementFields, placementOf, planSegments, readWorkbookImport, rotated, segmentsNear, storyFloor, toPlan } from '../../browser/floorPlanUnderlay.js';
 
 suite('SAEngine - Floor plan underlay', () => {
 
@@ -32,6 +32,15 @@ suite('SAEngine - Floor plan underlay', () => {
 		// A scan in metres (scale 1000), the story at +3000 mm, the scan's ±0 at 12.5 m.
 		assert.deepStrictEqual(cloudSlice({ scale: 1000, elevationOffset: 12.5 }, 3000), { cut: 4.2 + 12.5, thickness: 0.1, voxel: 0.02 });
 		assert.deepStrictEqual(cloudSlice({ scale: 1, cutHeight: 900, sliceThickness: 50, pointSpacing: 0 }, 0), { cut: 900, thickness: 50, voxel: 0 });
+	});
+
+	test('W4C-12: a story is cut above its floor, the level of the story below', () => {
+		const stories = [{ id: 'BASE', elevation: 0 }, { id: 'L1', elevation: 3600 }, { id: 'L2', elevation: 6800 }];
+		assert.strictEqual(storyFloor(stories, 'L1'), 0);
+		assert.strictEqual(storyFloor(stories, 'L2'), 3600);
+		assert.strictEqual(storyFloor(stories, 'BASE'), 0);
+		// Level 1 of a 0-3.6 m scan in metres is cut at 1.2 m, not 4.8 m.
+		assert.strictEqual(cloudSlice({ scale: 1000 }, storyFloor(stories, 'L1')).cut, 1.2);
 	});
 
 	test('a drawing point is scaled, turned and moved onto the plan', () => {

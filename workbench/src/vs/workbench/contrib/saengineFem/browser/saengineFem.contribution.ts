@@ -113,6 +113,32 @@ registerAction2(class extends Action2 {
 	}
 });
 
+/**
+ * W4C-14: the bridges' moving-load envelopes, influence lines and checks (and the other special
+ * structures of Project Settings) in the Analysis Charts, which show them with or without a
+ * building analysis run: the same page as Show Analysis Charts, named for the bridge engineer.
+ */
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'saengine.fem.showBridgeResults',
+			title: localize2('saengine.fem.showBridgeResults', "Show Bridge and Special Structure Results"),
+			metadata: { description: localize2('saengine.fem.showBridgeResults.description', "The moving-load envelopes, influence lines, checks, bearings, joints and load rating of the bridges (and the special structures) of Project Settings, at the end of the Analysis Charts.") },
+			category: localize2('saengine.category', "SAEngine"),
+			icon: Codicon.graph,
+			f1: true,
+			precondition: ProjectOpenContext,
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const target = analysisModel(accessor, undefined);
+		if (target) {
+			await accessor.get(IEditorService).openEditor(new FemResultsInput(target, { kind: 'charts' }), { pinned: true });
+		}
+	}
+});
+
 /** Command id of opening the pushover model (`08 FEM/pushover.osmodel`, W4B-3). */
 export const FEM_OPEN_PUSHOVER_COMMAND = 'saengine.fem.openPushover';
 

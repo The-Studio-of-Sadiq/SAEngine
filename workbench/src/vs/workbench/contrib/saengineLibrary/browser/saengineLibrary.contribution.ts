@@ -176,6 +176,23 @@ const UNDO_PRIORITY = 110;
 UndoCommand.addImplementation(UNDO_PRIORITY, 'saengine-library', accessor => undoRedo(accessor, false));
 RedoCommand.addImplementation(UNDO_PRIORITY, 'saengine-library', accessor => undoRedo(accessor, true));
 
+/**
+ * W4C-13: opens 6 BIM with the 4D playback of the saved programme (Office Tools > 4D Programme >
+ * Play in the BIM View): elements shown as built up to the slider's day, Play steps through it.
+ */
+CommandsRegistry.registerCommand('saengine.bim.play4d', async (accessor: ServicesAccessor, autoplay?: unknown) => {
+	const project = accessor.get(ISaengineProjectService).project;
+	const part = partById('bim');
+	const editorService = accessor.get(IEditorService);
+	if (!project || !part?.mainFile) {
+		return;
+	}
+	const pane = await editorService.openEditor({ resource: joinPath(project.root, part.folder, part.mainFile), options: { pinned: true } });
+	if (pane instanceof BuildingEditor) {
+		await pane.play4d(autoplay === true);
+	}
+});
+
 /** Exports the building model as IFC (the Exports page runs it): opens 6 BIM and exports from it. */
 CommandsRegistry.registerCommand('saengine.bim.exportIfc', async (accessor: ServicesAccessor) => {
 	const project = accessor.get(ISaengineProjectService).project;

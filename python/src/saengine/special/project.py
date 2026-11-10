@@ -294,6 +294,42 @@ def view_section(found: dict[str, Any]) -> dict[str, Any]:
                     ],
                 }
             )
+            if chart.get("vMax"):
+                charts.append(
+                    {
+                        "title": f"Shears along girder {chart['girder']} (LL + IM envelope)",
+                        "xLabel": "x [m]",
+                        "yLabel": "Shear [kN]",
+                        "series": [
+                            {
+                                "name": name,
+                                "points": [[x, v] for x, v in zip(xs, chart[key], strict=True)],
+                            }
+                            for name, key in (
+                                ("LL + IM, largest", "vMax"),
+                                ("LL + IM, least", "vMin"),
+                            )
+                        ],
+                    }
+                )
+        influence = chart.get("influence") or {}
+        if influence.get("x"):
+            charts.append(
+                {
+                    "title": "Influence lines of the girder line (unit load moving along)",
+                    "xLabel": "Load at x [m]",
+                    "yLabel": "Effect per kN",
+                    "series": [
+                        {
+                            "name": line["name"],
+                            "points": [
+                                [x, v] for x, v in zip(influence["x"], line["values"], strict=True)
+                            ],
+                        }
+                        for line in influence["lines"]
+                    ],
+                }
+            )
     elif kind == "towers":
         sheets.append(_member_sheet(found["rows"]))
         sheets.append(

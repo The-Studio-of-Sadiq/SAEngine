@@ -57,6 +57,11 @@ export interface ISchemaFormContext {
 	note?(path: string): string | undefined;
 	/** A field's label other than its schema title, where two would read alike ("Bar material"). */
 	label?(path: string): string | undefined;
+	/**
+	 * The options of an enum field that apply to this item (`values`: the schema's), e.g. the
+	 * precast elements of the type's kind (W4C-15); undefined: all of them.
+	 */
+	enumOptions?(path: string, values: readonly JsonValue[]): readonly JsonValue[] | undefined;
 	/** The option text of a reference (`references`) in its list, e.g. an area load with its loads; undefined: the id. */
 	referenceLabel?(path: string, id: string): string | undefined;
 	/**
@@ -615,7 +620,8 @@ export class SchemaForm {
 		const value = owner[key];
 
 		const references = this.ctx.references(path.replace(/\.\d+(?=\.|$)/g, ''), owner);
-		const enumValues = references ?? this.enumValues(schema);
+		const schemaValues = this.enumValues(schema);
+		const enumValues = references ?? (schemaValues && this.ctx.enumOptions?.(path.replace(/\.\d+(?=\.|$)/g, ''), schemaValues)) ?? schemaValues;
 		// Readable names for enum values ("RC special moment frame" for "rcSmf"), when the schema has them.
 		const labels = references ? undefined : schema.enumDescriptions ?? this.resolve(schema).schema.enumDescriptions;
 		const label = (v: JsonValue) => {

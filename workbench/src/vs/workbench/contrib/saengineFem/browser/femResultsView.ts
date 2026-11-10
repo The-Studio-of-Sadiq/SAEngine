@@ -482,6 +482,9 @@ export class FemResultsEditor extends EditorPane {
 			void this.loadExisting();
 			void this.loadStability(false);
 			void this.loadSpecial(false);
+		} else if (input.page.kind === 'charts') {
+			// W4C-14: a bridge's envelopes and influence lines need no building analysis run.
+			void this.loadSpecial(false);
 		}
 		// What the backend has already worked out for this run is shown at once; working it out
 		// takes minutes, so that waits for the engineer's click.
@@ -795,7 +798,7 @@ export class FemResultsEditor extends EditorPane {
 		} else {
 			this.frame.hideProgress();
 		}
-		if (this.problem && !(this.response || this.member)) {
+		if (this.problem && !(this.response || this.member) && !this.special?.configured) {
 			this.frame.setEmpty({
 				icon: Codicon.graph,
 				title: localize('femResults.noResults', "No results to chart"),
@@ -1059,6 +1062,13 @@ export class FemResultsEditor extends EditorPane {
 		this.directionGroup.classList.remove('hidden');
 		if (!response) {
 			this.updatePickers([]);
+			// W4C-14: the bridges and special structures stay reachable without a building run.
+			if (this.special?.configured) {
+				if (this.problem) {
+					append(this.section(localize('femResults.storeyHeading', "Storey Response")), $('.fem-results-note', undefined, this.problem));
+				}
+				this.renderSpecial();
+			}
 			return;
 		}
 		// As the 3D view lists them; a lateral result first, since gravity has no storey response.
