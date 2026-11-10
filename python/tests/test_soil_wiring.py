@@ -177,20 +177,27 @@ def test_soil_template_and_import_round_trip(tmp_path: Path) -> None:
 
 
 def test_soil_methods_over_the_stdio_server(tmp_path: Path) -> None:
+    import os
     import subprocess
     import sys
 
     from test_rpc import _rpc
 
+    # The server's own user folder: what other tests left in the shared one (a default pack,
+    # trusted packs) must not change the soil methods' results.
+    env = {**os.environ, "SAENGINE_USER_DATA": str(tmp_path / "user")}
     proc = subprocess.Popen(
         [sys.executable, "-m", "saengine.rpc"],
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
         stderr=subprocess.DEVNULL,
+        env=env,
     )
     text = soil_text()
     try:
-        report = _rpc(proc, 1, "soil/report", {"soilText": text})["result"]
+        answer = _rpc(proc, 1, "soil/report", {"soilText": text})
+        assert "result" in answer, answer.get("error")
+        report = answer["result"]
         assert report["siteClass"]["class"] == "SD" and len(report["boreholes"]) == 1
         qa = _rpc(
             proc,
