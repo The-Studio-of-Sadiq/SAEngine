@@ -2511,6 +2511,8 @@ export interface ISubstructureCheck {
 	readonly flag: boolean;
 	/** W4B-7: an action the engineer must take (plan dewatering): no utilisation, never governing. */
 	readonly action?: boolean;
+	/** Re-walk 4 R4B-3: its input is missing, so it is not checked (no utilisation, never governing, not a fail). */
+	readonly missing?: boolean;
 }
 
 /** The loads on one pile of a cap [kN]. */
@@ -2666,6 +2668,7 @@ function readCheck(raw: Record<string, unknown>): ISubstructureCheck {
 		note: typeof raw.note === 'string' ? raw.note : '',
 		flag: raw.flag === true,
 		action: raw.action === true,
+		missing: raw.missing === true,
 	};
 }
 

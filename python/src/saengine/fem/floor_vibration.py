@@ -100,7 +100,10 @@ def response_factor(fn: float, mass: float, span: float, damping: float, rules: 
     )
     v = impulse / m
     x = 4 * math.pi * damping * fn / fp
-    v_rms = v * math.sqrt((1 - math.exp(-x)) / x)
+    # Re-walk 4 R4B-6: the rms over one footfall period 1/fp of v(t) = v e^(-2π ζ fn t)
+    # sin(2π fn t): the mean of sin² is 1/2, so v_rms = v √((1 - e^-x) / (2x)) (as the resonant
+    # response's a_rms = peak / √2); without the 1/2 every transient R was √2 too large.
+    v_rms = v * math.sqrt((1 - math.exp(-x)) / (2 * x))
     a_rms = weighting(fn) * 2 * math.pi * fn * v_rms
     return {"R": a_rms / rules.baseAcceleration, "kind": "transient", "harmonic": 0, "fp": fp}
 

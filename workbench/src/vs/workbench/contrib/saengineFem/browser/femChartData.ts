@@ -465,7 +465,8 @@ export interface IFemStoryResponse {
 	readonly baseCentre?: readonly number[] | null;
 	readonly modal: { readonly case: string; readonly modes: readonly IFemModeRow[]; readonly required: number } | null;
 	readonly spectrum: { readonly name: string; readonly periods: readonly number[]; readonly accelerations: readonly number[]; readonly damping: number | null } | null;
-	readonly driftLimit: { readonly ratio: number; readonly cd: number | null; readonly importance: number | null; readonly clause: string } | null;
+	/** Re-walk 4 R4B-2: `isolated` when the isolation rule (Cd = RI, the isolation limit) judges the drift above the isolators. */
+	readonly driftLimit: { readonly ratio: number; readonly cd: number | null; readonly importance: number | null; readonly clause: string; readonly isolated?: boolean } | null;
 	/** The response spectrum design of this run, when it has been worked out. */
 	readonly spectrumDesign?: { readonly scale: { readonly X: number; readonly Y: number }; readonly drift: readonly IFemDesignDrift[]; readonly clause: string; readonly timeHistory?: IFemTimeHistoryDesign | null } | null;
 	readonly pushover: readonly IFemPushoverCurve[];

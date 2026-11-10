@@ -58,7 +58,7 @@
     },
     "ResponseFactor": {
       "additionalProperties": false,
-      "description": "``responseFactor``: below ``highFrequency`` the resonant response to the walking\nharmonic at fn, a_rms = μ·ρ·W(fn)·r_h·Q / (2√2·M·ζ), ρ = 1 - exp(-2π·ζ·L/stepLength); above\nit the transient response to a footfall impulse I = impulse·fp^impulsePace / fn^impulseFrequency\n· Q/impulseWeight [N·s], v = μ·I/M, a_rms = W(fn)·2π·fn·v·√((1 - e^(-4π ζ fn/fp))/(4π ζ fn/fp));\nR = a_rms / baseAcceleration. M = ``modalShare`` × the panel's mass; W(f) the weighting\n0.5√f below 4 Hz, 1 to 8 Hz, 8/f above.",
+      "description": "``responseFactor``: below ``highFrequency`` the resonant response to the walking\nharmonic at fn, a_rms = μ·ρ·W(fn)·r_h·Q / (2√2·M·ζ), ρ = 1 - exp(-2π·ζ·L/stepLength); above\nit the transient response to a footfall impulse I = impulse·fp^impulsePace / fn^impulseFrequency\n· Q/impulseWeight [N·s], v = μ·I/M, a_rms = W(fn)·2π·fn·v·√((1 - e^(-x))/(2x)), x = 4π ζ fn/fp\n(the rms over one footfall period 1/fp);\nR = a_rms / baseAcceleration. M = ``modalShare`` × the panel's mass; W(f) the weighting\n0.5√f below 4 Hz, 1 to 8 Hz, 8/f above.",
       "properties": {
         "method": {
           "const": "responseFactor",

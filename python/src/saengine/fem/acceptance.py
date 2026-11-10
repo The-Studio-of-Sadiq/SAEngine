@@ -356,6 +356,38 @@ def analysis_settings(project_path: Any) -> Any:
     return resolve_site_class(settings, read_soil_text(root))[0]
 
 
+def isolated_fixed_base_note(project: dict[str, Any], project_path: Any) -> str | None:
+    """Re-walk 4 R4B-1: the note of a pushover of an isolated building (an isolation design
+    beside its model) whose model has no isolators: the superstructure on a fixed base, and
+    why; None otherwise."""
+    from pathlib import Path
+
+    from saengine.fem import isolation
+
+    if project_path is None:
+        return None
+    try:
+        summary = isolation.load(Path(project_path).parent)
+    except (OSError, ValueError):
+        return None
+    if summary is None or not summary.get("available"):
+        return None
+    if any(
+        str(e.get("name", "")).endswith(isolation.ELEMENT_SUFFIX)
+        for e in project.get("elements", [])
+    ):
+        return None
+    return (
+        "isolated building: this pushover is of the superstructure on a fixed base, the "
+        "isolators left out, so its period T1, effective period Te and target displacement "
+        "are the fixed-base structure's, not the isolated building's. The pushover target "
+        "methods are for fixed-base structures; the isolators are designed by the isolation "
+        "design (DD, DM, DTD, DTM and their checks) and modelled in the nonlinear time "
+        "history. The pushover shows the capacity and the hinge order of the structure above "
+        "the isolators, which the isolation design keeps nearly elastic (forces with RI)"
+    )
+
+
 @code_context.in_project_pack(path_params=("project_path",))
 def evaluate_run(
     project: dict[str, Any],
@@ -370,6 +402,12 @@ def evaluate_run(
     from saengine.fem import horizontal_capacity, pushover_target
 
     target = pushover_target.evaluate(project, analysis, results, settings)
+    fixed_base = isolated_fixed_base_note(project, project_path)
+    if fixed_base:
+        # Re-walk 4 R4B-1: said where the curve, the target and the report show it.
+        target = {**target, "notes": [fixed_base, *target.get("notes", [])]}
+        if not target.get("available"):
+            target["reason"] = f"{target.get('reason', '')} ({fixed_base})".strip()
     out = {"target": target, "acceptance": evaluate(project, results, target, project_path)}
     if horizontal_capacity.table() is not None:  # Alpha 9 C19: Qu >= Qun per storey
         try:

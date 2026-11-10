@@ -823,6 +823,53 @@ def _base_shear(project: dict[str, Any], case: str, axis: int) -> float:
     return abs(sum(float(load["forces"][axis]) for load in pattern.get("nodal_loads", [])))
 
 
+#: Re-walk 4 R4B-5: a beam or slab this far [mm] above an isolated column's base ties it into the
+#: base diaphragm over the isolators.
+BASE_DIAPHRAGM_REACH = 1000.0
+
+
+def unframed_isolated_columns(building: Any, columns: set[str]) -> list[str]:
+    """Re-walk 4 R4B-5: the isolated ``columns`` (ids) with no diaphragm above the isolation
+    plane: no beam framing into the column and no slab over its position within
+    :data:`BASE_DIAPHRAGM_REACH` above its base."""
+    from saengine.library.bim import BeamElement, ColumnElement, SlabElement
+
+    beams = [e for e in building.elements if isinstance(e, BeamElement)]
+    slabs = [e for e in building.elements if isinstance(e, SlabElement)]
+    out = []
+    for c in building.elements:
+        if not isinstance(c, ColumnElement) or c.id not in columns:
+            continue
+        lo, hi = float(c.bottom) - 1.0, float(c.bottom) + BASE_DIAPHRAGM_REACH
+        p = (float(c.position[0]), float(c.position[1]))
+        framed = any(
+            lo <= float(b.elevation) <= hi and _on_segment(p, b.start, b.end) for b in beams
+        ) or any(lo <= float(s.elevation) <= hi and _in_outline(p, s.boundary) for s in slabs)
+        if not framed:
+            out.append(c.id)
+    return sorted(out)
+
+
+def _on_segment(p: tuple[float, float], a: Any, b: Any, tolerance: float = 1.0) -> bool:
+    ax, ay, bx, by = float(a[0]), float(a[1]), float(b[0]), float(b[1])
+    dx, dy = bx - ax, by - ay
+    length2 = dx * dx + dy * dy
+    t = 0.0 if length2 <= 0 else max(0.0, min(1.0, ((p[0] - ax) * dx + (p[1] - ay) * dy) / length2))
+    return (p[0] - ax - t * dx) ** 2 + (p[1] - ay - t * dy) ** 2 <= tolerance**2
+
+
+def _in_outline(p: tuple[float, float], outline: Any) -> bool:
+    """Inside or on the edge of the polygon ``outline``."""
+    points = [(float(x), float(y)) for x, y in outline]
+    if any(_on_segment(p, a, b) for a, b in zip(points, points[1:] + points[:1], strict=True)):
+        return True
+    inside = False
+    for (x1, y1), (x2, y2) in zip(points, points[1:] + points[:1], strict=True):
+        if (y1 > p[1]) != (y2 > p[1]) and p[0] < x1 + (p[1] - y1) * (x2 - x1) / (y2 - y1):
+            inside = not inside
+    return inside
+
+
 def apply_isolation(
     project: dict[str, Any],
     building: Any,
@@ -884,6 +931,19 @@ def apply_isolation(
         return IsolationResult(project, None, notes)
     if len(units) < 3:
         notes.append("seismic isolators: fewer than three units cannot carry the building stably")
+    unframed = unframed_isolated_columns(building, {u.column for u in units})
+    if unframed:
+        shown = ", ".join(unframed[:8]) + (
+            f" and {len(unframed) - 8} more" if len(unframed) > 8 else ""
+        )
+        notes.append(
+            f"seismic isolators: WARNING: {len(unframed)} isolated column bases ({shown}) have no "
+            "diaphragm above the isolation plane (no beam framing into the column or slab within "
+            f"{BASE_DIAPHRAGM_REACH:g} mm above its base). Each column then stands alone on its "
+            "isolator: the isolator's displacement and shear bend the column from its base, so "
+            "columns and footings come out far too large. Add a base diaphragm, a grid of beams "
+            "(or a slab) tying the column bases just above the isolators, and derive again"
+        )
     interface = min(float(editor.nodes[u.node]["coords"][2]) for u in units)
     fixed_left = [
         n["id"]
@@ -1131,6 +1191,27 @@ def spectrum_displacements(
     }
 
 
+def drift_rule(summary: dict[str, Any] | None) -> dict[str, Any] | None:
+    """Re-walk 4 R4B-2: the one drift rule of an isolated building (its isolation design
+    ``summary``, :func:`load`), for the response spectrum design and the charts alike:
+    ``{"amplification": {"X", "Y"} (Cd/I = RI/I), "Cd": {"X", "Y"}, "importance", "allowable"
+    (the pack's response spectrum drift limit), "clause"}``; None without isolators or when the
+    pack does not cover them. The drift is the storeys' above the isolators: the isolators'
+    own movement is not storey drift (:func:`saengine.fem.second_order.level_nodes`)."""
+    if summary is None or not covered():
+        return None
+    t = _table()
+    importance = summary["drift"]["importance"] or 1.0
+    cd = {a: float(summary["drift"]["Cd"][a]) for a in ("X", "Y")}
+    return {
+        "amplification": {a: cd[a] / importance for a in ("X", "Y")},
+        "Cd": cd,
+        "importance": importance,
+        "allowable": t.drift.spectrum,
+        "clause": clauses().get("dynamicDrift", ""),
+    }
+
+
 def seismic_design_block(
     model_folder: str | Path, spectra: dict[str, dict[str, Any]], notes: list[str]
 ) -> dict[str, Any] | None:
@@ -1139,11 +1220,11 @@ def seismic_design_block(
     "allowable" (the spectrum drift limit), "summary"}``; None for a building without
     isolators. Notes go to ``notes``."""
     summary = load(model_folder)
-    if summary is None or not covered():
+    rule = drift_rule(summary)
+    if summary is None or rule is None:
         return None
     t = _table()
-    importance = summary["drift"]["importance"] or 1.0
-    amplification = {a: summary["drift"]["Cd"][a] / importance for a in ("X", "Y")}
+    amplification = rule["amplification"]
     found = spectrum_displacements(summary, spectra)
     block = {
         "amplification": amplification,

@@ -1689,7 +1689,10 @@ export class FemResultsEditor extends EditorPane {
 				const allowed = result.swayLimit * height;
 				captions.push(localize('femResults.swayCaption', "Top sway limit: H × {0} = {1} {2} along {3}.", result.swayLimit, fixed(allowed * unit.scale, 1), unit.unit, result.direction ?? '–'));
 			}
-			if (quantity === 'drift' && response.driftLimit && guides.length && result.kind !== 'service') {
+			if (quantity === 'drift' && response.driftLimit?.isolated && guides.length && result.kind !== 'service') {
+				// Re-walk 4 R4B-2: an isolated building, the rule of its isolation design (the one the response spectrum design uses).
+				captions.push(localize('femResults.isolatedDriftLimitCaption', "Isolated building: limit {0} hsx on the drift above the isolators with Cd = RI = {2} and I = {3} ({4}), so {1} on the analysis drift; the isolators' own movement is not storey drift.", response.driftLimit.ratio, limit!.toFixed(5), response.driftLimit.cd ?? '–', response.driftLimit.importance ?? '–', response.driftLimit.clause));
+			} else if (quantity === 'drift' && response.driftLimit && guides.length && result.kind !== 'service') {
 				captions.push(localize('femResults.driftLimitCaption', "Limit: Δa/hsx = {0} (Table 6.2.21) on the design drift Cd·δ/I, so {1} on the analysis drift (Cd = {2}, I = {3}).", response.driftLimit.ratio, limit!.toFixed(5), response.driftLimit.cd ?? '–', response.driftLimit.importance ?? '–'));
 			}
 			if (quantity === 'drift' && spectrum) {

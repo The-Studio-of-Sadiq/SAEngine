@@ -1296,16 +1296,12 @@ def storey_drifts(
 
 
 def _positions(project: dict[str, Any], levels: list[float]) -> list[dict[tuple[int, int], int]]:
-    """Per level, the nodes at it by plan position (x, y in mm)."""
-    coords = {n["id"]: np.asarray(n["coords"], dtype=float) for n in project.get("nodes", [])}
-    at_level: list[dict[tuple[int, int], int]] = []
-    for z in levels:
-        here = {}
-        for node_id, xyz in coords.items():
-            if abs(xyz[2] - z) < 1e-3:
-                here[(round(xyz[0] * 1e3), round(xyz[1] * 1e3))] = node_id
-        at_level.append(here)
-    return at_level
+    """Per level, the nodes at it by plan position (x, y in mm); where a fixed ground node
+    shares its position with the node it holds (an isolator's or a soil spring's), the moving
+    node (:func:`saengine.fem.second_order.level_nodes`)."""
+    from saengine.fem.second_order import level_nodes
+
+    return level_nodes(project, levels)
 
 
 # ─────────────────────────────── diaphragm deflection, separation ───────────────────────────────

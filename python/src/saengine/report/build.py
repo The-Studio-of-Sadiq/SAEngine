@@ -3588,6 +3588,8 @@ def _governing(element: dict[str, Any]) -> dict[str, Any] | None:
 
 
 def _result_label(check: dict[str, Any]) -> str:
+    if check.get("missing"):
+        return "input missing"  # Re-walk 4 R4B-3: not checked, not a fail
     if check.get("flag") and check.get("utilisation") is None and not check.get("action"):
         return "not checked"  # W4B-8: a value reported without a capacity
     if check.get("ok"):

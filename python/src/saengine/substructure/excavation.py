@@ -107,6 +107,24 @@ def _rule(name: str, ok: bool, note: str, flag: bool = False) -> dict[str, Any]:
     return _check(name, 0.0 if ok else 1.0, 1.0, "", None, note, flag, 0.0 if ok else 99.0)
 
 
+def missing_input(name: str, note: str) -> dict[str, Any]:
+    """Re-walk 4 R4B-3: a check whose input is missing: reported (``flag``) and marked
+    ``missing``, "input missing / not checked", with no demand, capacity or utilisation, so it
+    neither fails the element nor governs the substructure (not demand 1, capacity 1, 99)."""
+    return {
+        "name": name,
+        "demand": None,
+        "capacity": None,
+        "unit": "",
+        "utilisation": None,
+        "combination": None,
+        "ok": True,
+        "note": f"input missing, not checked: {note}",
+        "flag": True,
+        "missing": True,
+    }
+
+
 def _action(name: str, note: str) -> dict[str, Any]:
     """W4B-7: an action the engineer must take (plan dewatering): reported (``flag``) and marked
     ``action``, with no demand, capacity or utilisation, so it neither fails the element nor
@@ -388,9 +406,8 @@ def excavation_checks(
         elif support in ("sloped", "stepped") and rules.slopeHorizontal is not None:
             if slope is None:
                 checks.append(
-                    _rule(
+                    missing_input(
                         "Side slope",
-                        False,
                         "enter the side slope (horizontal per vertical) of the sloped sides",
                     )
                 )
@@ -414,7 +431,7 @@ def excavation_checks(
             if support == "stepped" and rules.maxStepHeight is not None:
                 height = excavation.stepHeight
                 if height is None:
-                    checks.append(_rule("Step height", False, "enter the height of the steps"))
+                    checks.append(missing_input("Step height", "enter the height of the steps"))
                 else:
                     checks.append(
                         _check(
@@ -475,9 +492,8 @@ def excavation_checks(
         top = excavation.sheetPileTop
         if top is None:
             checks.append(
-                _rule(
+                missing_input(
                     "Sheet piles above ground",
-                    False,
                     "enter the height of the sheet piles above the natural ground",
                 )
             )
@@ -885,7 +901,7 @@ def formwork_checks(
             )
         if post.minDiameter is not None:
             if formwork.postDiameter is None:
-                checks.append(_rule(f"{post.name} diameter", False, "enter the post diameter"))
+                checks.append(missing_input(f"{post.name} diameter", "enter the post diameter"))
             else:
                 checks.append(
                     _check(
