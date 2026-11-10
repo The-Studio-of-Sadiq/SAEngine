@@ -2439,3 +2439,7 @@ Each is a pack value or method id, overridable in Code Values; the default pack 
   starts from at least the displacement-control step, so paths that used to run out of steps
   early now reach the limit load (a pin-ended column reaches 0.99 of the elastic critical
   factor); projects on any pack, bnbc2020 included, may report a higher, more accurate λu.
+- **Floor vibration modal mass over several bays (2026-11-10).** The default modal mass of a
+  continuous slab panel counts the bays its mode spreads over, as the design guides do, not
+  0.25 x one bay's mass (which made ordinary continuous residential slabs fail). It stays
+  SAEngine practice, marked so in the pack; a pack may set its own rule.
