@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from collections import OrderedDict
 from typing import Any
 
@@ -153,11 +154,50 @@ def _covered(schedule: Any) -> set[str]:
     return covered
 
 
-def take_from_schedule(document: Any, schedule: Any) -> list[str]:
+def material_ids(materials_text: str | None) -> dict[str, str]:
+    """The material id of each rebar grade name of ``materials.json`` (the schedule's rows name
+    their bars by grade, "ASTM A615 Grade 60"; the bill's items by material id, "A615-60")."""
+    ids: dict[str, str] = {}
+    if not materials_text:
+        return ids
+    try:
+        entries = json.loads(materials_text).get("materials") or []
+    except (ValueError, AttributeError):
+        return ids
+    for entry in entries:
+        if not isinstance(entry, dict) or not entry.get("id"):
+            continue
+        ids.setdefault(str(entry["id"]), str(entry["id"]))
+        grade = (
+            (entry.get("steel") or {}).get("grade")
+            if isinstance(entry.get("steel"), dict)
+            else None
+        )
+        if grade:
+            ids.setdefault(str(grade), str(entry["id"]))
+    return ids
+
+
+def _material_id(name: str, ids: dict[str, str]) -> str:
+    """The bill's material id of a schedule row's bars (``name``: its grade or material id)."""
+    if name in ids:
+        return ids[name]
+    if re.fullmatch(r"[A-Za-z0-9._-]{1,64}", name):
+        return name
+    return re.sub(r"[^A-Za-z0-9._-]+", "-", name).strip("-")[:64] or "rebar"
+
+
+def take_from_schedule(
+    document: Any, schedule: Any, materials: dict[str, str] | None = None
+) -> list[str]:
     """Replaces the bill's reinforcement of every element the schedule details by the
-    schedule's bars (``document``: a ``BillOfQuantities``, changed in place). Returns the
-    elements still measured by the bill's own rules."""
+    schedule's bars (``document``: a ``BillOfQuantities``, changed in place). ``materials``:
+    the material id of each grade name (:func:`material_ids`), so the items keep a material id
+    while their description names the grade. Returns the elements still measured by the
+    bill's own rules."""
     from saengine.boq.quantities import _Bill
+
+    materials = materials or {}
 
     covered = _covered(schedule)
     bill = _Bill()
@@ -192,17 +232,18 @@ def take_from_schedule(document: Any, schedule: Any) -> list[str]:
             )
     for row in schedule.rows:
         by_element = {e: q for (e, d), q in measured.items() if d == row.dia}
+        material = _material_id(row.material, materials)
         for element, share in _shares(row, by_element):
             bill.add(
                 "reinforcement",
-                (row.material, row.dia),
+                (material, row.dia),
                 f"Reinforcement {row.material}, {row.dia:g} mm bars",
                 "kg",
                 element,
                 row.mass * share,
                 story=row.story,
                 detail=f"bar mark {row.mark} (bar bending schedule)",
-                material=row.material,
+                material=material,
                 diameter=row.dia,
             )
     items = bill.items()
