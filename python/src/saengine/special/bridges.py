@@ -56,6 +56,9 @@ G = 9.80665
 LINE_STEP = 0.5
 #: Largest element along a grillage girder [m] (a unit load at each of its nodes).
 GRILLAGE_STEP = 1.0
+#: A hogging envelope smaller than this share of the sagging one is numerical noise (a simply
+#: supported girder has none): its check is left out as not applicable.
+HOGGING_TOLERANCE = 0.01
 #: Concrete unit weight when the material gives no density [kg/m³].
 CONCRETE_DENSITY = 2400.0
 
@@ -632,6 +635,13 @@ def check_bridge(bridge: Any, materials: Any) -> dict[str, Any]:
         note = f"{_factors(f)}{_paren(strength)}; {eff.governing.get('moment', '')}"
         name = f"Girder {eff.girder + 1}: sagging moment at x = {eff.x[k]:.1f} m"
         rows.append(Row(name, mu, sagging_capacity, "kN·m", note))
+    # W4C-14: a simply supported girder has no hogging (the least envelope is ~0 against the
+    # sagging one): no hogging row with a zero capacity, a note instead.
+    sagging = worst.get("pos", (0.0,))[0]
+    if "neg" in worst and -worst["neg"][0] <= HOGGING_TOLERANCE * max(sagging, 1.0):
+        del worst["neg"]
+    if "neg" not in worst:
+        notes.append("hogging: not applicable (the moment envelope has no negative moment)")
     if "neg" in worst:
         mu, eff, k = worst["neg"]
         name = f"Girder {eff.girder + 1}: hogging moment at x = {eff.x[k]:.1f} m"
@@ -648,7 +658,7 @@ def check_bridge(bridge: Any, materials: Any) -> dict[str, Any]:
     bearings = bearing_rows(bridge, found, t)
     joints = joint_rows(bridge, t)
     rating = rating_rows(bridge, found, t, sagging_capacity, resist.get("shear"), notes)
-    chart = _chart(found)
+    chart = _chart(found, bridge)
     notes.append(f"load factors: {design.label}; resistances by the pack's concrete methods")
     notes.append(
         "not covered: the deck slab's design, fatigue, deflection, staged construction, skew, "
@@ -679,20 +689,52 @@ def _factors(f: Any) -> str:
     return f"{f.dc:g} DC + {f.dw:g} DW + {f.ll:g} (LL + IM)"
 
 
-def _chart(found: list[GirderEffects]) -> dict[str, Any]:
-    """The traffic's moment envelope and the dead load moments along the most loaded girder
-    of the first segment, for the results view."""
+def _chart(found: list[GirderEffects], bridge: Any = None) -> dict[str, Any]:
+    """The traffic's moment and shear envelopes and the dead load moments along the most
+    loaded girder of the first segment, and (with ``bridge``) the influence lines of that
+    segment's girder line, for the results view."""
     first = [e for e in found if e.segment == 0]
     if not first:
         return {}
     eff = max(first, key=lambda e: float(np.max(e.moment[0])))
-    return {
+    out: dict[str, Any] = {
         "girder": eff.girder + 1,
         "x": [round(float(v), 3) for v in eff.x],
         "llMax": [round(float(v), 2) for v in eff.moment[0]],
         "llMin": [round(float(v), 2) for v in eff.moment[1]],
         "dc": [round(float(v), 2) for v in eff.dc["moment"]],
         "dw": [round(float(v), 2) for v in eff.dw["moment"]],
+    }
+    if len(eff.shear[0]) == len(eff.x):
+        out["vMax"] = [round(float(v), 2) for v in eff.shear[0]]
+        out["vMin"] = [round(float(v), 2) for v in eff.shear[1]]
+    if bridge is not None:
+        out["influence"] = influence_chart(_segments(bridge)[0])
+    return out
+
+
+def influence_chart(spans: list[float]) -> dict[str, Any]:
+    """W4C-14: the influence lines of a girder line over ``spans`` [m] for the results view:
+    the moment at the middle of the first span, the moment over the first interior support
+    (continuous spans) and the first support's reaction, each for a unit load moving along."""
+    il = ml.line_influence(spans, LINE_STEP)
+    x = il.x
+    mid = int(np.argmin(np.abs(x - spans[0] / 2)))
+    lines = [
+        {"name": f"M at x = {x[mid]:.1f} m [kN·m/kN]", "values": il.moment[mid]},
+    ]
+    if len(il.supports) > 2:
+        s = il.supports[1]
+        lines.append(
+            {"name": f"M over the support at x = {x[s]:.1f} m [kN·m/kN]", "values": il.moment[s]}
+        )
+    lines.append({"name": "Reaction at x = 0 [kN/kN]", "values": il.reaction[0]})
+    return {
+        "x": [round(float(v), 3) for v in x],
+        "lines": [
+            {"name": line["name"], "values": [round(float(v), 4) for v in line["values"]]}
+            for line in lines
+        ],
     }
 
 

@@ -295,6 +295,11 @@ TEMPLATES: dict[str, dict[str, Any]] = {
     "Cable": {"pretension": 10.0},  # alpha 9 L4: a cable brace
     "SupplementalDamper": {"kind": "viscous", "coefficient": 500.0},  # alpha 9 P6: a viscous damper
     "PrecastPiece": {"element": "beam"},  # alpha 9 L1: a precast piece
+    # W4C-15: a precast slab, column or wall type starts as its own element (the beam's would be
+    # rejected on a slab type, PRECAST_ELEMENTS).
+    "PrecastPiece:slab": {"element": "hollowCore"},
+    "PrecastPiece:column": {"element": "column"},
+    "PrecastPiece:wall": {"element": "wallPanel"},
     "SnowDrift": {"upperLength": 10.0, "stepHeight": 2.0},  # alpha 9 C1: a roof step
     "SpectralSite": {},  # alpha 9 C1: the site's mapped spectral values, all optional
     "AirRaidShelter": {"storeysAbove": 1},

@@ -23276,6 +23276,15 @@ export const TEMPLATES: { readonly [defName: string]: object } = {
 	PrecastPiece: {
 		element: 'beam',
 	},
+	'PrecastPiece:slab': {
+		element: 'hollowCore',
+	},
+	'PrecastPiece:column': {
+		element: 'column',
+	},
+	'PrecastPiece:wall': {
+		element: 'wallPanel',
+	},
 	SnowDrift: {
 		upperLength: 10.0,
 		stepHeight: 2.0,

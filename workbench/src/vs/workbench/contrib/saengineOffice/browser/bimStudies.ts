@@ -247,6 +247,19 @@ export class BimStudies extends Disposable {
 
 	// ─────────────────────────────── 4D playback ───────────────────────────────
 
+	/**
+	 * W4C-13 (walk 4): opens the 4D bar (the programme's dates, a slider and Play) when it is not
+	 * open, for "Play in the BIM View" of Office Tools > 4D Programme; with `autoplay` it starts.
+	 */
+	async play4d(autoplay = false): Promise<void> {
+		if (!this.bar) {
+			await this.toggle4d();
+		}
+		if (autoplay && this.bar && !this.timer) {
+			this.bar.querySelector<HTMLButtonElement>('button.office-button')?.click();
+		}
+	}
+
 	private async toggle4d(): Promise<void> {
 		if (this.bar) {
 			this.stop();

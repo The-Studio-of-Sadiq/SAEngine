@@ -77,17 +77,24 @@ class Basis:
     practice: bool
     code: str
 
+    @property
+    def document(self) -> str:
+        """The document the table's clauses are of: its ``clauses.code`` (a bridge table of a
+        building pack follows a bridge code, e.g. AASHTO LRFD), else the pack's name."""
+        clauses = getattr(self.table, "clauses", None) or {}
+        return str(clauses.get("code") or self.code)
+
     def cite(self, key: str) -> str:
         clause = str((getattr(self.table, "clauses", None) or {}).get(key) or "")
         if not clause:
             return ""
-        return clause if self.practice else f"{self.code} {clause}"
+        return clause if self.practice else f"{self.document} {clause}"
 
     @property
     def label(self) -> str:
         if self.practice:
             return f"SAEngine practice (HL-93 basis), not given by {self.code}"
-        return self.code
+        return self.document if self.document == self.code else f"{self.document} ({self.code})"
 
 
 def basis(name: str, pack: Any = None) -> Basis:

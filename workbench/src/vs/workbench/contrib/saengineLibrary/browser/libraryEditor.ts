@@ -198,6 +198,28 @@ export function specialColumnLegs(count: number): number {
 /** The id prefix of a new material of each category. */
 const NEW_MATERIAL_ID: { readonly [category: string]: string } = { concrete: 'C', rebar: 'R', steel: 'S', masonry: 'MAS', mortar: 'M', other: 'MAT' };
 
+/** W4C-15: the precast elements of each object kind (`PRECAST_ELEMENTS` of saengine.library.objects). */
+const PRECAST_ELEMENTS: { readonly [kind: string]: readonly string[] } = {
+	slab: ['hollowCore', 'doubleTee'],
+	beam: ['beam'],
+	column: ['column'],
+	wall: ['wallPanel'],
+};
+
+/** W4C-15: the precast elements each element-specific field of a piece applies to. */
+const PRECAST_FIELDS: { readonly [field: string]: readonly string[] } = {
+	unitWidth: ['hollowCore', 'doubleTee', 'wallPanel'],
+	spanDirection: ['hollowCore', 'doubleTee'],
+	cores: ['hollowCore'],
+	coreDiameter: ['hollowCore'],
+	flangeThickness: ['doubleTee'],
+	stemWidth: ['doubleTee'],
+	stemSpacing: ['doubleTee'],
+	topping: ['hollowCore', 'doubleTee'],
+	facing: ['wallPanel'],
+	insulation: ['wallPanel'],
+};
+
 /**
  * Visual editor for the project's material and object-type libraries, in the shared editor
  * frame. The toolbar adds (by category/kind), duplicates and deletes entries; the list on the
@@ -276,6 +298,7 @@ export class LibraryEditor extends JsonDocumentEditor {
 			note: path => this.note(path),
 			label: path => path === 'reinforcement.material' ? localize('library.barMaterial', "Bar material") : undefined,
 			referenceLabel: (path, id) => path === 'profile.section' && id === '' ? localize('library.chooseSection', "Choose a section...") : undefined,
+			enumOptions: (path, values) => this.enumOptions(path, values),
 			editing: active => this.fieldEditing(active),
 		});
 		this._register({ dispose: () => this.form.dispose() });
@@ -423,7 +446,8 @@ export class LibraryEditor extends JsonDocumentEditor {
 			this.markDerived(item);
 		}
 		const renamed = !!item && this.config?.listKey === 'objects' && path !== 'name' && this.followName(item);
-		this.changed(structural);
+		// W4C-15: another precast element shows its own fields.
+		this.changed(structural || path === 'precast.element');
 		if (!structural && (path === 'id' || path === 'name' || renamed)) {
 			this.renderList();
 			this.renderDetailTitle();
@@ -894,9 +918,27 @@ export class LibraryEditor extends JsonDocumentEditor {
 		return undefined;
 	}
 
+	/** W4C-15: a precast type offers the elements of its kind only (`PRECAST_ELEMENTS` of the Python model). */
+	private enumOptions(path: string, values: readonly JsonValue[]): readonly JsonValue[] | undefined {
+		const item = this.formItem ?? this.selected;
+		if (this.config?.listKey !== 'objects' || !item || path !== 'precast.element') {
+			return undefined;
+		}
+		const allowed = PRECAST_ELEMENTS[String(item.kind)];
+		return allowed ? values.filter(v => typeof v === 'string' && allowed.includes(v)) : undefined;
+	}
+
 	/** Material property groups follow the category, mirroring the Python model's rules. */
 	private fieldMode(path: string): 'hidden' | 'required' | undefined {
 		const item = this.selected;
+		if (this.config?.listKey === 'objects' && item && path.startsWith('precast.') && isObject(item.precast)) {
+			// W4C-15: the fields of the piece's own element only (a beam has no hollow cores).
+			const uses = PRECAST_FIELDS[path.slice('precast.'.length)];
+			const element = String(item.precast.element);
+			if (uses && !uses.includes(element) && item.precast[path.slice('precast.'.length)] === undefined) {
+				return 'hidden';
+			}
+		}
 		if (this.config?.listKey === 'objects' && item && (path === 'connection' || path === 'splice' || path === 'basePlate' || path === 'capPlate' || path === 'serviceability') && item[path] === undefined) {
 			// Connections, splices, base plates and the deflection limits' member use are steel members'.
 			const material = this.materialIds.members.find(m => m.id === item.material);

@@ -47,21 +47,40 @@ export interface ICloudSlice {
 	readonly voxel: number;
 }
 
+/** The cut height of a point cloud slice above the story's floor when none is set [mm]. */
+export const DEFAULT_CLOUD_CUT = 1200;
+/** The thickness of a point cloud slice when none is set [mm]. */
+export const DEFAULT_CLOUD_THICKNESS = 100;
+
 /**
- * The slice of a point cloud underlay at a story of elevation `elevation` [mm]: its cut height
- * (default 1200 mm) above the story, its thickness (100 mm) and point spacing (20 mm), all in mm
+ * The slice of a point cloud underlay of a story whose floor is at `floor` [mm] (the level of the
+ * story below: a story's elevation is its top, where its beams are): its cut height
+ * (`cutHeight`, default 1200 mm) above that floor, its thickness (100 mm) and point spacing (20 mm), all in mm
  * on the plan, turned into the scan's units by the underlay's scale (scan units to mm) and moved
  * by the scan's own height of ±0 (`elevationOffset`, in the scan's units).
  */
-export function cloudSlice(underlay: Json, elevation: number): ICloudSlice {
+export function cloudSlice(underlay: Json, floor: number): ICloudSlice {
 	const scale = num(underlay.scale, 1) > 0 ? num(underlay.scale, 1) : 1;
-	const cut = (elevation + num(underlay.cutHeight, 1200)) / scale + num(underlay.elevationOffset, 0);
-	return { cut, thickness: num(underlay.sliceThickness, 100) / scale, voxel: Math.max(0, num(underlay.pointSpacing, 20)) / scale };
+	const cut = (floor + num(underlay.cutHeight, DEFAULT_CLOUD_CUT)) / scale + num(underlay.elevationOffset, 0);
+	const thickness = num(underlay.sliceThickness, DEFAULT_CLOUD_THICKNESS) > 0 ? num(underlay.sliceThickness, DEFAULT_CLOUD_THICKNESS) : DEFAULT_CLOUD_THICKNESS;
+	return { cut, thickness: thickness / scale, voxel: Math.max(0, num(underlay.pointSpacing, 20)) / scale };
 }
 
 export function placementOf(underlay: Json): IUnderlayPlacement {
 	const scale = num(underlay.scale, 1);
 	return { offset: [num(underlay.dx, 0), num(underlay.dy, 0)], scale: scale > 0 ? scale : 1, rotation: num(underlay.rotation, 0) };
+}
+
+/**
+ * The floor level [mm] of a story among `stories` (lowest first, elevations at their tops): the
+ * elevation of the story below it, or its own for the lowest story (the base, with nothing below).
+ */
+export function storyFloor(stories: readonly { readonly id: string; readonly elevation: number }[], story: string | undefined): number {
+	const index = stories.findIndex(s => s.id === story);
+	if (index < 0) {
+		return 0;
+	}
+	return index > 0 ? stories[index - 1].elevation : stories[index].elevation;
 }
 
 /** The scale a PDF page starts at when its text states none: 1:100, the usual plan scale. */
