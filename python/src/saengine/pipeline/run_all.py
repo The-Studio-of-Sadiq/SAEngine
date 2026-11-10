@@ -573,6 +573,7 @@ def run_analysis(
         )
     last_error: str | None = None
     names: dict[int, str] = {}
+    running: dict[Any, str] = {}  # the step of each case running, by case id
     flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
     with subprocess.Popen(
         args,
@@ -604,10 +605,18 @@ def run_analysis(
                 if report:
                     report(f"{event.get('case_name')} ({_case_type(event.get('case_type'))})")
             elif kind == "progress" and report:
-                name = names.get(event.get("case_id"), "")
-                report(f"{name}: step {event.get('step')} of {event.get('total')}")
-            elif kind == "case_finished" and report:
-                report(f"{event.get('case_name')} finished")
+                # Re-walk 4 R4B-4: cases run in parallel processes (the pushovers in X and Y)
+                # interleave their progress; each line names every running case's step, so the
+                # text does not flip between them.
+                case_id = event.get("case_id")
+                running[case_id] = (
+                    f"{names.get(case_id, '')}: step {event.get('step')} of {event.get('total')}"
+                )
+                report("; ".join(running.values()))
+            elif kind == "case_finished":
+                running.pop(event.get("case_id"), None)
+                if report:
+                    report(f"{event.get('case_name')} finished")
         code = child.wait()
     if code != 0:
         message = last_error or f"The solver process exited unexpectedly (exit code {code})."

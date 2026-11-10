@@ -415,6 +415,12 @@ def _steel(profile: Any, mat: int) -> _Section | None:
 
 # ───────────────────────────── the pushover model ─────────────────────────────
 
+#: Re-walk 4 R4B-4: the equation solver of the gravity and pushover cases. The rigid diaphragms
+#: tie each floor's node to all of that floor's nodes, so a banded solver's band spans the floor
+#: and every Newton iteration factors it: the sparse solver of the linear cases
+#: (``saengine.fem.derive.SOLVER``), with the same displacements.
+NONLINEAR_SOLVER = "UmfPack"
+
 #: Share of the live load on the structure while it is pushed (with D and SD), as in its
 #: seismic weight.
 LIVE_SHARE = 0.25
@@ -578,7 +584,7 @@ def gravity_case(case_id: int, pattern_id: int) -> dict[str, Any]:
         "pattern_ids": [pattern_id],
         "n_steps": 10,
         "load_factor_increment": 0.1,
-        "system": "BandGeneral",
+        "system": NONLINEAR_SOLVER,
         "constraints": "Plain",
         "integrator": "LoadControl",
         "algorithm": "Newton",
@@ -667,7 +673,7 @@ def pushover_model(
                 "step_size": round(target / options.steps, 9),
                 "base_nodes": supports,
                 "preload_case_ids": [1],
-                "system": "BandGeneral",
+                "system": NONLINEAR_SOLVER,
                 "algorithm": "Newton",
                 "test": "NormDispIncr",
                 "tolerance": 1e-6,

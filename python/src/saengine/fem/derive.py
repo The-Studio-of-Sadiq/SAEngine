@@ -840,6 +840,23 @@ def _derive_fem(
     """
     from saengine.design import slab_systems  # here: saengine.design imports this module
 
+    # Re-walk 4 R4B-4: with the slabs as shells the pushover is derived from the frame model
+    # (the slabs as loads to the beams and rigid floor diaphragms, as practice does): a fibre
+    # frame tied to an elastic shell mesh took over 20 minutes for a few steps.
+    frame_pushover = _frame_pushover(
+        building,
+        objects,
+        materials,
+        settings,
+        sources,
+        model_dir,
+        mep,
+        substructure,
+        soil_text,
+        column_supports,
+        member_loads,
+        architecture,
+    )
     mep_notes: list[str] = []
     if mep is not None:
         from saengine.mep.loads import with_mep_openings, with_services_equipment
@@ -3337,7 +3354,10 @@ def _derive_fem(
     damper_braces, more = fem_dampers.prepare_linear(project, building, types)
     b.notes.extend(more)
     pushover = None
-    if options.pushover is not None:
+    if frame_pushover is not None:
+        pushover, more = frame_pushover
+        b.notes.extend(more)
+    elif options.pushover is not None:
         from saengine.fem.nonlinear import WallSpec, pushover_model
 
         keys = {
@@ -3716,6 +3736,69 @@ def _derive_fem(
         isolation=isolation_json,
         dampers=dampers_json,
     )
+
+
+#: Re-walk 4 R4B-4: the note of a pushover derived from the frame model of a shell-slab model.
+FRAME_PUSHOVER_NOTE = (
+    "pushover: run on the frame model, the slabs as loads to the beams and every floor a rigid "
+    "diaphragm (as usual practice: the slabs' own stiffness is small beside the frames', and "
+    "fibre frames tied to an elastic shell mesh take hours); the shell-slab model stays the "
+    "linear analysis model"
+)
+
+
+def _frame_pushover(
+    building: BuildingModel,
+    objects: ObjectLibrary,
+    materials: MaterialLibrary,
+    settings: ProjectSettings,
+    sources: dict[str, str] | None,
+    model_dir: str | Path | None,
+    mep: Any,
+    substructure: Any,
+    soil_text: str | None,
+    column_supports: str | None,
+    member_loads: Any,
+    architecture: Any,
+) -> tuple[dict[str, Any] | None, list[str]] | None:
+    """Re-walk 4 R4B-4: ``(the pushover model, its notes)`` from the frame model of a building
+    whose slabs are shells and which asks for pushovers: the same building derived with the
+    slabs as loads to the beams and rigid floor diaphragms (no nonlinear time history, no
+    records). None when the slabs are not shells, no pushover is asked for, or the building has
+    no beams (flat slabs: the shells are its frame and stay in the pushover)."""
+    options = settings.analysis
+    if options.pushover is None or options.slabs != "shells":
+        return None
+    if not any(isinstance(e, BeamElement) for e in building.elements):
+        return None
+    frame_options = options.model_copy(
+        update={
+            "slabs": "loadsToBeams",
+            "diaphragm": "rigid",
+            "nonlinearHistory": None,
+            "timeHistories": [],
+            "floorSpectra": None,
+        }
+    )
+    frame = _derive_fem(
+        building,
+        objects,
+        materials,
+        settings.model_copy(update={"analysis": frame_options}),
+        sources,
+        model_dir,
+        mep,
+        substructure,
+        soil_text,
+        column_supports,
+        member_loads,
+        architecture,
+    )
+    notes = [
+        FRAME_PUSHOVER_NOTE,
+        *(n for n in frame.notes if n.startswith("pushover")),
+    ]
+    return frame.pushover, notes
 
 
 def stage_added_elements(project: dict[str, Any]) -> int:
