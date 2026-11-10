@@ -274,7 +274,13 @@ def test_method_text_names_no_default_pack_clause(pack_id):
     with code_context.using(registry.load(pack_id)):
         text = "\n".join(_method_lines())
     assert "BNBC" not in text
-    for number in _DEFAULT_NUMBERS:
+    numbers = _DEFAULT_NUMBERS
+    if pack_id == "aci318-asce7-22":
+        # ACI 318-19 6.5 (simplified analysis, 6.5.4 its shears) is the US pack's own clause
+        # (designClauses slab.oneWay, coefficientOneWayShear), not the default pack's 6.5.
+        assert "by ACI 318 6.5:" in text and "(6.5.4)" in text
+        numbers = tuple(n for n in numbers if n != "6.5.")
+    for number in numbers:
         assert number not in text, number
     if pack_id == AU:
         assert "limits of Table 2.3.2" in text  # the pack's own deflection limits
