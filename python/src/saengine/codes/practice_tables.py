@@ -73,7 +73,8 @@ class ResponseFactor(_Group):
     """``responseFactor``: below ``highFrequency`` the resonant response to the walking
     harmonic at fn, a_rms = μ·ρ·W(fn)·r_h·Q / (2√2·M·ζ), ρ = 1 - exp(-2π·ζ·L/stepLength); above
     it the transient response to a footfall impulse I = impulse·fp^impulsePace / fn^impulseFrequency
-    · Q/impulseWeight [N·s], v = μ·I/M, a_rms = W(fn)·2π·fn·v·√((1 - e^(-4π ζ fn/fp))/(4π ζ fn/fp));
+    · Q/impulseWeight [N·s], v = μ·I/M, a_rms = W(fn)·2π·fn·v·√((1 - e^(-x))/(2x)), x = 4π ζ fn/fp
+    (the rms over one footfall period 1/fp);
     R = a_rms / baseAcceleration. M = ``modalShare`` × the panel's mass; W(f) the weighting
     0.5√f below 4 Hz, 1 to 8 Hz, 8/f above."""
 

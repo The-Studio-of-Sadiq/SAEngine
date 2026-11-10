@@ -3667,6 +3667,8 @@ def _derive_fem(
                 }
                 summary["nodes"] = len(project["nodes"])
                 summary["elements"] = len(project["elements"])
+                if pushover is not None:  # Re-walk 4 R4B-1
+                    b.notes.append(FIXED_BASE_PUSHOVER_NOTE)
                 # P6: the isolators as bearing elements in the nonlinear time history model.
                 if history_project is not None:
                     from saengine.fem.isolation import isolated_types, nonlinear_bearings
@@ -3738,6 +3740,13 @@ def _derive_fem(
     )
 
 
+#: Re-walk 4 R4B-1: the note of the pushover of an isolated building.
+FIXED_BASE_PUSHOVER_NOTE = (
+    "pushover: of the superstructure on a fixed base, the isolators left out (the pushover "
+    "target methods are for fixed-base structures; the isolators are designed by the isolation "
+    "design and modelled in the nonlinear time history)"
+)
+
 #: Re-walk 4 R4B-4: the note of a pushover derived from the frame model of a shell-slab model.
 FRAME_PUSHOVER_NOTE = (
     "pushover: run on the frame model, the slabs as loads to the beams and every floor a rigid "
@@ -3796,7 +3805,7 @@ def _frame_pushover(
     )
     notes = [
         FRAME_PUSHOVER_NOTE,
-        *(n for n in frame.notes if n.startswith("pushover")),
+        *(n for n in frame.notes if n.startswith("pushover") and n != FIXED_BASE_PUSHOVER_NOTE),
     ]
     return frame.pushover, notes
 

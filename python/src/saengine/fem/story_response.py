@@ -443,6 +443,23 @@ def _drift_limit(project_path: str | Path) -> dict[str, Any] | None:
     settings = settings_beside(project_path)
     if settings is None:
         return None
+    # Re-walk 4 R4B-2: an isolated building's drift is judged by the isolation rule (Cd = RI,
+    # I of the isolation, the isolation limit), the one the response spectrum design uses.
+    from saengine.fem import isolation
+
+    try:
+        rule = isolation.drift_rule(isolation.load(Path(project_path).parent))
+    except (OSError, ValueError, KeyError, TypeError):
+        rule = None
+    if rule is not None:
+        return {
+            "ratio": rule["allowable"],
+            "row": "isolated",
+            "cd": max(rule["Cd"].values()),
+            "importance": rule["importance"],
+            "clause": rule["clause"],
+            "isolated": True,
+        }
     try:
         values = derived(settings)
         limit = settings_drift_limit(settings)

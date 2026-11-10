@@ -44,6 +44,7 @@ from typing import Any
 
 from saengine.codes import context as code_context
 from saengine.design.check import _check
+from saengine.substructure.excavation import missing_input
 
 #: Standard gravity [m/s²] (t × g = kN).
 GRAVITY = 9.81
@@ -380,7 +381,7 @@ def machine_checks(spec: Any, soil: MachineSoil, block_mass: float) -> dict[str,
         "operatingFrequency": round(f_op, 2),
     }
     if not springs:
-        checks.append(_rule("Soil spring", False, f"no vertical spring: {missing}", flag=True))
+        checks.append(missing_input("Soil spring", f"no vertical spring: {missing}"))
     else:
         combos = [(k, m) for k, _ in springs for m in masses]
         fns = [natural_frequency(k, m) for k, m in combos]
@@ -394,7 +395,7 @@ def machine_checks(spec: Any, soil: MachineSoil, block_mass: float) -> dict[str,
         if spec.kind == "impact":
             if spec.impulse is None:
                 checks.append(
-                    _rule("Amplitude under a blow", False, "enter the impulse of one blow", True)
+                    missing_input("Amplitude under a blow", "enter the impulse of one blow")
                 )
             else:
                 amp = max(
@@ -474,11 +475,9 @@ def machine_checks(spec: Any, soil: MachineSoil, block_mass: float) -> dict[str,
         )
     else:
         checks.append(
-            _rule(
+            missing_input(
                 "Static soil pressure",
-                False,
                 f"no qa: {soil.qa_note or 'enter the soil report or the qa override'}",
-                flag=True,
             )
         )
 
@@ -505,11 +504,9 @@ def machine_checks(spec: Any, soil: MachineSoil, block_mass: float) -> dict[str,
     need = found.waterDepth * b
     if soil.water_below_base is None:
         checks.append(
-            _rule(
+            missing_input(
                 "Ground water below the base",
-                False,
                 f"water table not known; it must be at least {need:.2f} m below the base",
-                flag=True,
             )
         )
     else:
@@ -604,11 +601,9 @@ def _amplitudes(
     checks = []
     if spec.force is None and spec.unbalance is None:
         return [
-            _rule(
+            missing_input(
                 "Amplitude (vertical)",
-                False,
                 "enter the unbalanced force or the rotating unbalance m·e",
-                flag=True,
             )
         ]
     force = _force(spec, omega, omega) or 0.0

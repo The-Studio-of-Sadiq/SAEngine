@@ -791,6 +791,29 @@ def storey_drifts(
 _pairs: list[tuple[dict[str, Any], tuple[float, ...], list[Any]]] = []
 
 
+def level_nodes(project: dict[str, Any], levels: list[float]) -> list[dict[tuple[int, int], int]]:
+    """Per level, its node at each plan position [mm] (the last in node order). Re-walk 4
+    R4B-2: a fixed ground node at the position of a free node (the ground end of an isolator
+    or a soil spring under a column base) does not stand for it, so the isolators' movement is
+    not storey drift."""
+    at: list[dict[tuple[int, int], int]] = [{} for _ in levels]
+    fixed_at: list[set[tuple[int, int]]] = [set() for _ in levels]
+    for n in project.get("nodes", []):
+        xyz = n["coords"]
+        fixed = all(n.get("restraint") or [False])
+        for k, z in enumerate(levels):
+            if abs(float(xyz[2]) - z) < 1e-3:
+                key = (round(float(xyz[0]) * 1e3), round(float(xyz[1]) * 1e3))
+                if fixed and key in at[k] and key not in fixed_at[k]:
+                    continue  # a free node is there already: it stays
+                at[k][key] = n["id"]
+                if fixed:
+                    fixed_at[k].add(key)
+                else:
+                    fixed_at[k].discard(key)
+    return at
+
+
 def _storey_pairs(
     project: dict[str, Any], levels: list[float]
 ) -> list[tuple[list[tuple[int, int]], list[int], list[int]]]:
@@ -800,12 +823,7 @@ def _storey_pairs(
     for held, zs, found in _pairs:
         if held is project and zs == tuple(levels):
             return found
-    at: list[dict[tuple[int, int], int]] = [{} for _ in levels]
-    for n in project.get("nodes", []):
-        xyz = n["coords"]
-        for k, z in enumerate(levels):
-            if abs(float(xyz[2]) - z) < 1e-3:
-                at[k][(round(float(xyz[0]) * 1e3), round(float(xyz[1]) * 1e3))] = n["id"]
+    at = level_nodes(project, levels)
     out = []
     for k in range(1, len(levels)):
         positions, above, below = [], [], []

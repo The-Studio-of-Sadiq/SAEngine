@@ -4820,6 +4820,9 @@ export class SubstructureEditor extends EditorPane {
 			if (check.action) {
 				// W4B-7: an action to take, not a ratio.
 				append(append(row, $('td.number.sub-util-cell')), $('span.sub-util-value.band-warn', undefined, localize('sub.actionCell', "action needed")));
+			} else if (check.missing) {
+				// Re-walk 4 R4B-3: missing input is not checked, not a fail.
+				append(append(row, $('td.number.sub-util-cell')), $('span.sub-util-value.band-warn', undefined, localize('sub.inputMissingCell', "input missing")));
 			} else if (check.flag && check.utilisation === null) {
 				// W4B-8: a value reported without a capacity is not checked (not "1.000 OK").
 				append(append(row, $('td.number.sub-util-cell')), $('span.sub-util-value', undefined, localize('sub.notCheckedCell', "not checked")));
