@@ -420,9 +420,10 @@ def _analysis(ops: Any) -> None:
     ops.algorithm("Newton")
 
 
-def _advance(ops: Any, steps: int) -> bool:
+def _advance(ops: Any, steps: int, grow: bool = False) -> bool:
     """Load the active patterns from 0 to 1 in ``steps`` steps (cut when they do not
-    converge, other algorithms tried); False when a step does not converge."""
+    converge, other algorithms tried); False when a step does not converge. With ``grow``
+    a cut step grows back once it converges again."""
     _analysis(ops)
     done, dl, cuts = 0.0, 1.0 / steps, 0
     while done < 1.0 - 1e-9:
@@ -440,9 +441,10 @@ def _advance(ops: Any, steps: int) -> bool:
         if ok == 0:
             done += step
             cuts = 0
-            # Grow the step back once it converges again: a cut step kept for the rest of
-            # the loading made every strength reduction trial take hundreds of tiny steps.
-            dl = min(dl * 2, 1.0 / steps)
+            if grow:
+                # A cut step kept for the rest of the loading made every strength reduction
+                # trial take hundreds of tiny steps (hours for one slope).
+                dl = min(dl * 2, 1.0 / steps)
             continue
         cuts += 1
         dl /= 2
@@ -459,7 +461,7 @@ def _stage_materials(ops: Any, sec: Section, stage: int) -> None:
             pass
 
 
-def _gravity(ops: Any, model: Model, steps: int) -> bool:
+def _gravity(ops: Any, model: Model, steps: int, grow: bool = False) -> bool:
     ops.timeSeries("Linear", model.series)
     ops.pattern("Plain", model.pattern, model.series)
     loads: dict[int, float] = {}
@@ -470,7 +472,7 @@ def _gravity(ops: Any, model: Model, steps: int) -> bool:
         ops.load(n, 0.0, -value)
     model.series += 1
     model.pattern += 1
-    ok = _advance(ops, steps)
+    ok = _advance(ops, steps, grow)
     ops.loadConst("-time", 0.0)
     return ok
 
@@ -483,7 +485,7 @@ def _forces(ops: Any, tag: int) -> dict[int, list[float]]:
     return {n: values[i * per : (i + 1) * per] for i, n in enumerate(nodes)}
 
 
-def _release(ops: Any, model: Model, tags: list[int], steps: int) -> bool:
+def _release(ops: Any, model: Model, tags: list[int], steps: int, grow: bool = False) -> bool:
     """Remove elements and release their forces on the rest over ``steps`` steps."""
     if not tags:
         return True
@@ -525,7 +527,7 @@ def _release(ops: Any, model: Model, tags: list[int], steps: int) -> bool:
         ops.load(n, *values)
     model.pattern += 1
     model.series += 2
-    ok = _advance(ops, steps)
+    ok = _advance(ops, steps, grow)
     ops.loadConst("-time", 0.0)
     return ok
 
@@ -660,10 +662,14 @@ def run(
     # strength reduction trials are plastic from the start (Griffiths and Lane 1999).
     elastic_first = srf == 1.0
     _stage_materials(ops, sec, 0 if elastic_first else 1)
-    ok = _gravity(ops, model, steps)
+    # The trials of the strength reduction only ask "converged or not": they take the growing
+    # step; the recorded analysis keeps the cut step (its path, near a limit state, is the one
+    # the results are reported on).
+    grow = not record
+    ok = _gravity(ops, model, steps, grow)
     if elastic_first:
         _stage_materials(ops, sec, 1)
-        ok = ok and _advance(ops, 1)  # the plastic material in equilibrium
+        ok = ok and _advance(ops, 1, grow)  # the plastic material in equilibrium
     if not ok:
         ops.wipe()
         return None
@@ -678,7 +684,7 @@ def run(
         for name, level, install, remove in excavation.stages:
             for sid in remove:
                 tag = springs.pop(sid, None)
-                if tag is not None and not _release(ops, model, [tag], steps):
+                if tag is not None and not _release(ops, model, [tag], steps, grow):
                     failed = True
             for sid in install:
                 support = excavation.supports.get(sid)
@@ -695,7 +701,7 @@ def run(
                 cz = sum(p[1] for p in pts) / len(pts)
                 if (cx - excavation.x) * side > 0 and cz > level:
                     dig.append(tag)
-            if not failed and not _release(ops, model, dig, steps):
+            if not failed and not _release(ops, model, dig, steps, grow):
                 failed = True
             removed.update(dig)
             if failed:
