@@ -121,3 +121,41 @@ def test_proposal_limits_column_bars_to_top_hooks_that_fit() -> None:
     # a beam deep enough: nothing to limit
     with _using("aci318-asce7-22"):
         assert _column_top_short(entry, {"C1-L4": (12000.0, 900.0)}, gathered, opts) is None
+
+
+# ── 2. RC4-4: unticked isolators leave no isolation design behind ──
+
+
+def test_no_isolator_types_no_isolation_design() -> None:
+    from saengine.fem.isolation import isolated_types
+
+    column = _column(8, 16.0, size=400.0, tie=10.0)
+    assert not isolated_types({column.id: column})
+
+
+# ── 4. RC4-2: the derive message of Run All in kip under US customary ──
+
+
+def test_derive_message_in_kip() -> None:
+    from saengine import units as u
+
+    text = "Derived 10 nodes and 9 elements; base shear 888.6 kN, seismic weight 7108.5 kN."
+    shown = u.convert_text(text, u.Units("USCustomary"))
+    assert "kN" not in shown and shown.count("kip") == 2
+
+
+# ── 5. RC4-3: the clear cover table converts the type sizes once, from the stored mm ──
+
+
+def test_cover_table_converts_type_sizes_once() -> None:
+    from saengine import units as u
+    from saengine.drawings.sheets.project import cover_table
+
+    column = _column(8, 28.65, size=863.6).model_copy(
+        update={"id": "C34x34", "name": "Column 34x34"}
+    )
+    table = cover_table(SimpleNamespace(objects=[column]))
+    cell = table.rows[0][1]
+    assert cell == "C34x34 (863.6x863.6)"
+    us = u.Units("USCustomary")
+    assert u.convert_sizes(u.convert_text(cell, us), us) == 'C34x34 (34"x34")'

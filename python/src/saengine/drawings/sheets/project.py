@@ -1080,8 +1080,20 @@ def cover_table(objects: Any) -> Table:
     for o in objects.objects:
         r = getattr(o, "reinforcement", None)
         if r is not None:
-            rows.append([o.kind, o.name, f"{r.cover:g}"])
+            rows.append([o.kind, _cover_type(o), f"{r.cover:g}"])
     return Table("Clear covers", columns, rows)
+
+
+def _cover_type(obj: Any) -> str:
+    """RC4-3: a type of the cover table as its id and its size from the stored mm dimensions
+    ("C34x34 (863.6x863.6)"), which the sheet converts once to the display units; not its
+    name, whose size may be in the display units already ("Column 34x34" of a US customary
+    project, converted again to 1 3/8")."""
+    profile = getattr(obj, "profile", None)
+    x, y = getattr(profile, "xDim", None), getattr(profile, "yDim", None)
+    if isinstance(x, (int, float)) and isinstance(y, (int, float)):
+        return f"{obj.id} ({float(x):g}x{float(y):g})"
+    return str(obj.id)
 
 
 # ─────────────────────────────────── the drawing set ───────────────────────────────────

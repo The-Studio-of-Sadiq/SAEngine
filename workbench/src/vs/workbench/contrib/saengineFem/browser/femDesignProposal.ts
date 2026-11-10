@@ -325,9 +325,10 @@ function rowWarningText(warning: DesignProposalWarning, subject: string): string
 
 /** "Section too small: <reason>; try 300 x 550 mm ...". */
 function tooSmallText(tooSmall: IDesignTooSmall): string {
+	// RC4-1: the reasons in the project's units (the backend writes SI).
 	return tooSmall.suggestion
-		? localize('femProposal.tooSmallTry', "Section too small: {0}; {1}", tooSmall.reason, tooSmall.suggestion)
-		: localize('femProposal.tooSmall', "Section too small: {0}", tooSmall.reason);
+		? localize('femProposal.tooSmallTry', "Section too small: {0}; {1}", convertText(tooSmall.reason), convertText(tooSmall.suggestion))
+		: localize('femProposal.tooSmall', "Section too small: {0}", convertText(tooSmall.reason));
 }
 
 function positionLabel(position: IDesignBarGroup['position']): string {
@@ -435,7 +436,8 @@ export function describeBeforeAfter(before: Pick<IFemDesignReport, 'summary'> | 
 
 /** A change the apply reports, as text. */
 export function describeChange(change: DesignApplyChange): string {
-	return typeof change === 'string' ? change : change.message ?? change.text ?? '';
+	// RC4-1: in the project's units with the pack's bar names, as the rows (the backend writes SI).
+	return convertText(typeof change === 'string' ? change : change.message ?? change.text ?? '');
 }
 
 /**
@@ -644,9 +646,10 @@ export class DesignProposalModel {
 		const general = (proposal.warnings ?? []).filter(w => warningSubject(w) === subject);
 		return [
 			...(tooSmall ? [tooSmallText(tooSmall)] : []),
-			...(own ?? []).map(warningText),
+			// RC4-1: the backend's texts (SI) in the project's units with the pack's bar names.
+			...(own ?? []).map(w => convertText(warningText(w))),
 			// The backend repeats a type's "section too small" among the general warnings.
-			...(tooSmall ? general.filter(w => !warningText(w).includes(tooSmall.reason)) : general).map(w => rowWarningText(w, subject)),
+			...(tooSmall ? general.filter(w => !warningText(w).includes(tooSmall.reason)) : general).map(w => convertText(rowWarningText(w, subject))),
 		];
 	}
 
@@ -707,7 +710,7 @@ export class DesignProposalModel {
 					...(unchecked && entry.changed ? [localize('femProposal.unchecked', "The design checks checked none of its members: left out unless you include it.")] : []),
 				],
 				// The backend's notes are about the split's bars.
-				notes: whole ? keptNote : t.notes ?? [],
+				notes: whole ? keptNote : (t.notes ?? []).map(note => convertText(note)),
 				blocked,
 				...(steel ? { steel } : {}),
 				...(strength !== undefined ? { strengthBars: true } : {}),
