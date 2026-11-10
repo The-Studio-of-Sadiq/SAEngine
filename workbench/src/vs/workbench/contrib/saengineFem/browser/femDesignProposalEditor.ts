@@ -115,6 +115,8 @@ export class FemDesignProposalEditor extends EditorPane {
 	 */
 	private readonly hidden = new HiddenPageMemo<FemDesignProposalInput>();
 	private request = 0;
+	/** RC4-4: the analysis run the page's proposal was made from (`analysisMark`). */
+	private shownMark: string | undefined;
 	/** What the page waits for, step k of n, and since when (N-X4 of usability walk 2: minutes of a blank page). */
 	private step: IWaitStep | undefined;
 	private readonly ticker = this._register(new IntervalTimer());
@@ -175,6 +177,17 @@ export class FemDesignProposalEditor extends EditorPane {
 		const changed = !shownAgain && (!this.input || !input.matches(this.input));
 		await super.setInput(input, options, context, token);
 		if (shownAgain) {
+			// RC4-4 of the re-check: the analysis ran again while the page was hidden (isolators
+			// unticked, slabs changed, Run All): its proposal is of the old run, so propose again.
+			const model = this.resource;
+			if (model && !this.loading && !this.applying && this.shownMark !== undefined) {
+				const mark = await this.analysisMark(model);
+				if (mark !== this.shownMark && this.input === input) {
+					this.reset();
+					void this.reload();
+					return;
+				}
+			}
 			if (this.step) {
 				this.ticker.cancelAndSet(() => this.frame.setStatus(this.status()), 1000);
 			}
@@ -195,6 +208,24 @@ export class FemDesignProposalEditor extends EditorPane {
 		this.ticker.cancel();
 		this.renderStore.clear();
 		super.clearInput();
+	}
+
+	/**
+	 * When the analysis of `model` last ran: the times of the model and of its results'
+	 * manifest. A page shown again whose proposal is of another run proposes again (RC4-4).
+	 */
+	private async analysisMark(model: URI): Promise<string> {
+		const results = joinPath(dirname(model), basename(model).replace(/\.osmodel$/, '.results'), 'manifest.json');
+		const parts: string[] = [];
+		for (const file of [model, results]) {
+			try {
+				const stat = await this.fileService.stat(file);
+				parts.push(String(stat.mtime));
+			} catch {
+				parts.push('-');
+			}
+		}
+		return parts.join('|');
 	}
 
 	/** Forgets the page's proposal, checks and apply (another model, or the page opened afresh). */
@@ -263,6 +294,10 @@ export class FemDesignProposalEditor extends EditorPane {
 			this.problem = localize('femProposal.saveFailed', "No bars were proposed: {0} could not be saved first.", unsaved.map(file => basename(file)).join(', '));
 			this.loading = false;
 			this.setStep(undefined);
+			return;
+		}
+		this.shownMark = await this.analysisMark(model);
+		if (request !== this.request) {
 			return;
 		}
 		this.setStep({ index: 2, count: 2, text: localize('femProposal.stepPropose', "Checking the bars now and proposing bars from the required steel") });

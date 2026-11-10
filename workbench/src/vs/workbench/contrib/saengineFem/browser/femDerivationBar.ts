@@ -15,6 +15,7 @@ import { IFileService } from '../../../../platform/files/common/files.js';
 import { femCodeTables, femSourceCurrent, mepModelStamp, sourceStamp } from '../../../services/saengineProject/common/partSources.js';
 import { architectureHasContent, loadsHaveContent } from '../../../services/saengineProject/common/partStatus.js';
 import { ISaengineProjectService, PROJECT_PARTS } from '../../../services/saengineProject/common/saengineProject.js';
+import { convertText } from '../../../services/saengineProject/common/displayUnits.js';
 
 /** Desktop command deriving the analysis model with the Python models (see `saengine.fem.derive`). */
 const DERIVE_COMMAND = 'saengine.fem.derive';
@@ -274,8 +275,9 @@ export async function deriveAnalysisModel(commandService: ICommandService, fileS
 	const summary = result.summary ?? {};
 	return {
 		ok: true,
-		message: localize('fem.derived', "Derived {0} nodes and {1} elements; base shear {2} kN, seismic weight {3} kN.",
-			summary.nodes ?? 0, summary.elements ?? 0, (summary.base_shear_kN ?? 0).toFixed(1), (summary.weight_kN ?? 0).toFixed(1)),
+		// RC4-2: the forces in the project's display units (kip under US customary).
+		message: convertText(localize('fem.derived', "Derived {0} nodes and {1} elements; base shear {2} kN, seismic weight {3} kN.",
+			summary.nodes ?? 0, summary.elements ?? 0, (summary.base_shear_kN ?? 0).toFixed(1), (summary.weight_kN ?? 0).toFixed(1))),
 		notes: result.notes ?? [],
 		wind: summary.wind,
 	};

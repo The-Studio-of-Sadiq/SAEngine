@@ -2456,3 +2456,13 @@ Each is a pack value or method id, overridable in Code Values; the default pack 
   hook that does not fit fails the member. The pack's reductions (confinement, side and end
   cover) apply when the detailing qualifies; the design proposal limits column bars so their
   top hooks fit the beams.
+  How it qualifies (`development.hookQualify` of the pack): the column bars hook towards the
+  core (corner bars along the diagonal), so the side cover is the clear distance from the bar
+  to the face normal to the hook's plane and the tail cover what is left beyond the 90° tail;
+  the column's end-zone ties go on through the joint. US pack (ACI 318-19 Table 25.4.3.2):
+  ψo = 1.0 with side cover >= 2.5 in or 6 db, ψr = 1.0 with the hooked bars >= 6 db apart or
+  Ath >= 0.4 Ahs (Ath: the tie sets within ldh, every leg; Ahs: all the column's bars, on the
+  safe side), No. 11 and smaller. Default pack (Part 6 Sec 8.2.6.3(a)-(b)): x 0.7 with side
+  cover >= 65 mm and tail cover >= 50 mm, x 0.8 with ties at <= 3 db along ldh, Ø36 and
+  smaller. Eurocodes: α1 = 0.7 when cd = min(a/2, c1) > 3 φ (no confinement credit). A pack
+  without these values takes no credit.

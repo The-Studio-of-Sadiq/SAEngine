@@ -4243,6 +4243,33 @@ class HeadedDevelopment(_Group):
     psiO: float = Field(ge=1)
 
 
+class HookQualify(_Group):
+    """2026-11-10 (column-top anchorage): when the detailing of a hooked bar earns the pack's
+    reductions of ldh: the side and end cover one (``hookCover``, or ψo = 1.0 of the power form)
+    and the confinement one (``hookConfined``, or ψr = 1.0). A value left out (None) is no
+    condition of that kind; a credit with no condition given is never earned."""
+
+    maxDb: Positive | None = Field(default=None, description="Bars up to this db only [mm].")
+    sideCover: Positive | None = Field(
+        default=None,
+        description="Cover: the side cover normal to the hook's plane >= this [mm] ...",
+    )
+    sideCoverDb: Positive | None = Field(default=None, description="... or >= this × db.")
+    tailCover: Positive | None = Field(
+        default=None, description="Cover: and the cover beyond a 90° hook's tail >= this [mm]."
+    )
+    tieSpacingDb: Positive | None = Field(
+        default=None,
+        description="Confined: ties perpendicular to the bar at most this × db apart along ldh ...",
+    )
+    barSpacingDb: Positive | None = Field(
+        default=None, description="... or the hooked bars at least this × db apart (centres) ..."
+    )
+    tieAreaRatio: Positive | None = Field(
+        default=None, description="... or the ties' area along ldh Ath >= this × the bars' Ahs."
+    )
+
+
 class BarDevelopment(_Group):
     """Development lengths of deformed bars (straight in tension and compression, hooked)."""
 
@@ -4268,6 +4295,11 @@ class BarDevelopment(_Group):
     compressionConfined: Share = Field(description="ldc × this inside spirals or close ties.")
     hookCover: Share = Field(description="ldh × this with the side and tail cover.")
     hookConfined: Share = Field(description="ldh × this inside close ties.")
+    hookQualify: HookQualify | None = Field(
+        default=None,
+        description="When the detailing earns the hook's cover and confinement credits (None: "
+        "never).",
+    )
     # C2: methods and values of packs whose development differs (defaults: the default pack's).
     hookMethod: Literal["linear", "powerDiameter"] = Field(
         default="linear",

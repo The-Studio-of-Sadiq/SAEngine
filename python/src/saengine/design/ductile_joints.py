@@ -1152,22 +1152,125 @@ def column_dowel_checks(
 TOP_HOOK_COVER = 40.0
 
 
+def column_top_detail(profile: Any, reinforcement: Any, fc: float = 30.0, fy: float = 420.0) -> Any:
+    """2026-11-10: how the bars of a column that ends in the beams at its top are detailed
+    there, for the pack's credits (:class:`saengine.drawings.detailing.HookDetailing`): the
+    bars hooked towards the core (corner bars along the diagonal), so the side cover normal
+    to a hook's plane is the clear distance from the bar to the face along that normal, the
+    tail cover what is left beyond the 90° tail (bend and the pack's tail) to the face the
+    hook points to; the column's ties (end zone spacing, they go on through the joint),
+    their legs and the bars' least centre spacing. None without the bars' layout."""
+    from saengine.design.rc import section_of
+    from saengine.drawings import detailing
+
+    if profile is None or reinforcement is None or not getattr(reinforcement, "longitudinal", None):
+        return None
+    try:
+        section = section_of(profile, reinforcement, fc, fy)
+    except (DesignError, ValueError, AttributeError, TypeError):
+        return None
+    bars = section.bars
+    if not bars:
+        return None
+    circle = isinstance(profile, CircleProfile)
+    half_x, half_y = section.width / 2, section.depth / 2
+
+    def reach(px: float, py: float, ux: float, uy: float) -> float:
+        """The distance from (px, py) along the unit (ux, uy) to the section's face."""
+        if circle:
+            r = section.width / 2
+            b = px * ux + py * uy
+            return -b + math.sqrt(max(b * b - (px * px + py * py - r * r), 0.0))
+        out = math.inf
+        for p, u, h in ((px, ux, half_x), (py, uy, half_y)):
+            if abs(u) > 1e-12:
+                out = min(out, ((h if u > 0 else -h) - p) / u)
+        return out
+
+    side = math.inf
+    tail = math.inf
+    for bar in bars:
+        x, y, db = bar.x, bar.y, bar.dia
+        if circle:
+            ux, uy = -x, -y
+        else:  # towards the core: along the diagonal at a corner, square to a face elsewhere
+            ex, ey = half_x - abs(x), half_y - abs(y)
+            ux = -math.copysign(1.0, x) if ex <= ey + db else 0.0
+            uy = -math.copysign(1.0, y) if ey <= ex + db else 0.0
+        norm = math.hypot(ux, uy)
+        if norm < 1e-12:
+            continue
+        ux, uy = ux / norm, uy / norm
+        normal = min(reach(x, y, -uy, ux), reach(x, y, uy, -ux)) - db / 2
+        side = min(side, normal)
+        bend = detailing.bend_diameter(db).value
+        extent = bend / 2 + db + detailing.bar_rules().hooks.main90Db * db
+        tail = min(tail, reach(x, y, ux, uy) - extent)
+    spacing = min(
+        (math.hypot(a.x - b.x, a.y - b.y) for i, a in enumerate(bars) for b in bars[i + 1 :]),
+        default=None,
+    )
+    tie = getattr(reinforcement, "transverse", None)
+    tie_spacing = tie_area = None
+    if tie is not None and tie.type != "spiral":
+        zone = getattr(tie, "zone", None)
+        tie_spacing = float(zone.spacing if zone is not None else tie.spacing)
+        legs = int(tie.legs or 2) + int(tie.legsX or tie.legs or 2)
+        tie_area = legs * math.pi * float(tie.dia) ** 2 / 4
+    return detailing.HookDetailing(
+        side_cover=max(side, 0.0),
+        tail_cover=max(tail, 0.0) if math.isfinite(tail) else None,
+        bar_spacing=spacing,
+        tie_spacing=tie_spacing,
+        tie_area=tie_area,
+        bar_area=sum(b.area for b in bars),
+    )
+
+
 def column_top_anchorage(
-    db: float, fy: float, fc: float, beam_depth: float, cover: float = TOP_HOOK_COVER
+    db: float,
+    fy: float,
+    fc: float,
+    beam_depth: float,
+    cover: float = TOP_HOOK_COVER,
+    detail: Any = None,
 ) -> tuple[Any, float]:
     """R4AC-5: the anchorage of the bars of a column that ends in the beams at its top (no
     column above): (the hooked development ldh of the pack in force, a
-    :class:`saengine.drawings.detailing.Rule`; the depth available, the deepest beam less the
-    top cover). The one check the design (:func:`column_top_checks`) and the drawings
-    (``saengine.drawings.detailing``) both make."""
+    :class:`saengine.drawings.detailing.Rule`, with the pack's cover and confinement credits
+    the detailing earns, ``detail`` of :func:`column_top_detail`, 2026-11-10; the depth
+    available, the deepest beam less the top cover). The one check the design
+    (:func:`column_top_checks`), the proposal and the drawings (``saengine.drawings.detailing``)
+    all make."""
     from saengine.drawings import detailing
 
-    return detailing.hook_development(db, fy, fc), beam_depth - cover
+    return detailing.credited_hook(db, fy, fc, detail), beam_depth - cover
 
 
 def column_top_name(db: float) -> str:
     """The name of the check (the bar size as "Ø29": the units and the pack's names print it)."""
     return f"Column bars hooked into the beams at the top (Ø{db:g})"
+
+
+def column_top_rooms(building: Any, types: dict[str, Any]) -> dict[str, tuple[float, float]]:
+    """The columns that end in the beams at their top (no column above): ``{column id: (the
+    joint's level, the deepest beam there [mm])}``, the beams with a depth only. Raises what
+    :func:`frame_joints` raises."""
+    tops: dict[str, FrameJoint] = {}
+    for joint in frame_joints(building, types):
+        if joint.above is None and joint.beams:
+            best = tops.get(joint.below)
+            if best is None or joint.level > best.level:
+                tops[joint.below] = joint
+    out: dict[str, tuple[float, float]] = {}
+    for column_id, joint in tops.items():
+        depth = 0.0
+        for jb in joint.beams:
+            profile = getattr(types.get(jb.type), "profile", None)
+            depth = max(depth, float(getattr(profile, "yDim", 0.0) or 0.0))
+        if depth > 0:
+            out[column_id] = (float(joint.level), depth)
+    return out
 
 
 def column_top_checks(designed: list[Any], building: Any, types: dict[str, Any]) -> list[str]:
@@ -1180,33 +1283,25 @@ def column_top_checks(designed: list[Any], building: Any, types: dict[str, Any])
     if not columns:
         return []
     try:
-        joints = frame_joints(building, types)
+        tops = column_top_rooms(building, types)
     except (DesignError, ValueError, AttributeError) as error:
         return [f"the column tops could not be checked: {error}"]
-    tops: dict[str, FrameJoint] = {}
-    for joint in joints:
-        if joint.above is None and joint.beams:
-            best = tops.get(joint.below)
-            if best is None or joint.level > best.level:
-                tops[joint.below] = joint
     for d in columns:
         element_id = getattr(d.element, "id", d.id)
-        joint = tops.get(element_id)
+        found = tops.get(element_id)
         top = getattr(d.element, "top", None)
-        if joint is None or (top is not None and abs(joint.level - float(top)) > 50.0):
+        if found is None or (top is not None and abs(found[0] - float(top)) > 50.0):
             continue
         reinforcement = getattr(d.object, "reinforcement", None)
         groups = list(getattr(reinforcement, "longitudinal", None) or [])
         if not groups:
             continue
-        depth = 0.0
-        for jb in joint.beams:
-            profile = getattr(types.get(jb.type), "profile", None)
-            depth = max(depth, float(getattr(profile, "yDim", 0.0) or 0.0))
-        if depth <= 0:
-            continue
+        depth = found[1]
         db = max(float(g.dia) for g in groups)
-        rule, available = column_top_anchorage(db, d.section.fy, d.section.fc, depth)
+        detail = column_top_detail(
+            getattr(d.object, "profile", None), reinforcement, d.section.fc, d.section.fy
+        )
+        rule, available = column_top_anchorage(db, d.section.fy, d.section.fc, depth, detail=detail)
         how = (
             f"ldh = {rule.formula} = {rule.value:.0f} mm for db = {db:g} mm ({rule.clause}); "
             f"available: the deepest beam at the top, {depth:g} mm, less "

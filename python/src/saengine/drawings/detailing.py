@@ -153,7 +153,7 @@ import json
 import math
 import re
 from collections.abc import Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any
 
@@ -596,6 +596,104 @@ def hook_term() -> str:
     if _bar_shapes() is not None and _bond_stress():
         return "lb,eq"
     return "ldh"
+
+
+@dataclass(frozen=True)
+class HookDetailing:
+    """2026-11-10: how hooked bars are detailed where they anchor, for the pack's credits
+    (:func:`hook_credits`) [mm, mm²]; None: not known (that credit is not taken)."""
+
+    side_cover: float  # the clear cover normal to the plane of the hook
+    tail_cover: float | None = None  # the cover beyond a 90° hook's tail
+    bar_spacing: float | None = None  # the least centre-to-centre spacing of the hooked bars
+    tie_spacing: float | None = None  # ties perpendicular to the bars, apart along ldh
+    tie_area: float | None = None  # one set of those ties' legs
+    bar_area: float | None = None  # Ahs, the hooked bars together
+
+
+def hook_credits(
+    db: float, detail: HookDetailing | None, ldh: float = 0.0
+) -> tuple[bool, bool, str]:
+    """2026-11-10 (column-top anchorage): ``(cover, confined, why)``, whether the detailing
+    earns the pack's side and end cover credit and its confinement credit of a hooked bar's
+    anchorage (the ``cover`` and ``confined`` of :func:`hook_development`), with the reasons.
+    The conditions are the pack's: ``development.hookQualify`` (side cover normal to the hook's
+    plane, tail cover, ties along ldh, bar spacing, Ath / Ahs), or with its bond stress
+    anchorage cd = min(a / 2, c1) > the pack's hookCover φ for α1 (no confinement credit). A
+    pack that gives neither: no credit. ``ldh``: the length the ties are counted over."""
+    if detail is None or _development_factors() is not None:
+        return False, False, ""
+    if _bar_shapes() is not None and _bond_stress():
+        from saengine.codes import context as code_context
+
+        a = code_context.table("concreteMethods").anchorage
+        half = (detail.bar_spacing - db) / 2 if detail.bar_spacing else math.inf
+        cd = min(half, detail.side_cover)
+        cover = cd > a.hookCover * db
+        sign = ">" if cover else "<="
+        return cover, False, f"cd = {cd:.0f} mm {sign} {a.hookCover:g} φ"
+    q = getattr(bar_rules().development, "hookQualify", None)
+    if q is None or (q.maxDb is not None and db > q.maxDb + 1e-9):
+        return False, False, ""
+    why: list[str] = []
+    side = [v for v in (q.sideCover, (q.sideCoverDb or 0) * db or None) if v]
+    cover = bool(side) and detail.side_cover >= min(side) - 1e-6
+    if side:
+        least = " or ".join(
+            ([f"{q.sideCover:g} mm"] if q.sideCover else [])
+            + ([f"{q.sideCoverDb:g} db"] if q.sideCoverDb else [])
+        )
+        why.append(f"side cover {detail.side_cover:.0f} mm {'>=' if cover else '<'} {least}")
+    if cover and q.tailCover is not None:
+        tail = detail.tail_cover
+        cover = tail is not None and tail >= q.tailCover - 1e-6
+        if tail is not None:
+            why.append(f"tail cover {tail:.0f} mm {'>=' if cover else '<'} {q.tailCover:g} mm")
+    confined = False
+    if q.tieSpacingDb is not None and detail.tie_spacing:
+        confined = detail.tie_spacing <= q.tieSpacingDb * db + 1e-6
+        why.append(
+            f"ties @ {detail.tie_spacing:g} mm {'<=' if confined else '>'} {q.tieSpacingDb:g} db"
+        )
+    if not confined and q.barSpacingDb is not None and detail.bar_spacing:
+        confined = detail.bar_spacing >= q.barSpacingDb * db - 1e-6
+        why.append(
+            f"bars {detail.bar_spacing:.0f} mm apart {'>=' if confined else '<'} "
+            f"{q.barSpacingDb:g} db"
+        )
+    if (
+        not confined
+        and q.tieAreaRatio is not None
+        and detail.tie_spacing
+        and detail.tie_area
+        and detail.bar_area
+        and ldh > 0
+    ):
+        ath = (math.floor(ldh / detail.tie_spacing + 1e-9) + 1) * detail.tie_area
+        confined = ath >= q.tieAreaRatio * detail.bar_area - 1e-6
+        why.append(
+            f"Ath {ath:.0f} mm² {'>=' if confined else '<'} {q.tieAreaRatio:g} Ahs "
+            f"({detail.bar_area:.0f} mm²)"
+        )
+    return cover, confined, "; ".join(why)
+
+
+def credited_hook(
+    db: float, fy: float, fc: float, detail: HookDetailing | None, **development: Any
+) -> Rule:
+    """:func:`hook_development` with the credits the detailing earns (:func:`hook_credits`,
+    the confinement judged over the length with it), the reasons and the pack's clause in the
+    formula."""
+    if detail is None:
+        return hook_development(db, fy, fc, **development)
+    shortest = hook_development(db, fy, fc, cover=True, confined=True, **development).value
+    cover, confined, why = hook_credits(db, detail, shortest)
+    rule = hook_development(db, fy, fc, cover=cover, confined=confined, **development)
+    if not why:
+        return rule
+    credits = [n for n, on in (("cover", cover), ("confinement", confined)) if on]
+    taken = f"credits for {' and '.join(credits)}" if credits else "no credits"
+    return replace(rule, formula=f"{rule.formula} ({taken}: {why}{_cite_after('barHookCredits')})")
 
 
 def psi_c(fc: float) -> float:
@@ -2432,7 +2530,9 @@ def _detail_column(ctx: _Ctx, stack: list[Any], k: int) -> dict[str, Any]:
         top_hook = 1.0
         if beam_top > 0:
             # R4AC-5: the design's own check (one place), so the two agree.
-            need, available = dj.column_top_anchorage(db_max, fy, fc, beam_top)
+            need, available = dj.column_top_anchorage(
+                db_max, fy, fc, beam_top, detail=dj.column_top_detail(profile, r, fc, fy)
+            )
             element["checks"].append(
                 _check(dj.column_top_name(db_max), need.value, available, need.clause)
             )
