@@ -223,6 +223,16 @@ def test_generated_building_derives_under_the_pack(tmp_path, pack_id):
         "lateralSizing": "gravity",
     }
     root = Path(create_building(spec, tmp_path)["root"])
+    from saengine.pipeline.run_all import missing_hazard
+
+    settings_path = root / "02 Project Settings/project-settings.json"
+    if missing_hazard(settings_path.read_text(encoding="utf-8"), root):
+        # A pack on the site's mapped values needs them entered (SDS 0.5 g, SD1 0.3 g),
+        # as in test_codes_conformance.
+        settings = json.loads(settings_path.read_text(encoding="utf-8"))
+        site = settings.setdefault("site", {})
+        site["spectral"] = {**(site.get("spectral") or {}), "sds": 0.5, "sd1": 0.3}
+        settings_path.write_text(json.dumps(settings, indent=1), encoding="utf-8")
     result = run_all(root, steps=["derive"])
     assert [s.status for s in result.steps] == ["ok"], [s.message for s in result.steps]
     text = " ".join(

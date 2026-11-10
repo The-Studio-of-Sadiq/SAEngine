@@ -99,7 +99,9 @@ def test_the_summaries_are_the_apps_with_current_stamps(ran):
     )
     assert list(foundations) == ["foundations", "checked", "total", "passed", "failed",
                                  "bearingUnchecked", "unsupported", "status", "maxUtilisation",
-                                 "governing", "computed", "source"]  # fmt: skip
+                                 "governing", "computed", "source", "others"]  # fmt: skip
+    # W4B-6: the checked items that are not foundations (walls, slabs, excavations, slopes).
+    assert list(foundations["others"]) == ["checked", "failed", "failing", "actions"]
     project = open_project(root)
     from saengine.pipeline.status import _sources_unchanged
 
@@ -149,7 +151,8 @@ def test_check_exits_1_and_writes_no_deliverables(ran, capsys: pytest.CaptureFix
     bill = (root / "10 BOQ" / "boq.json").read_bytes()
     code, document, _ = _run(capsys, "check", str(root))
     assert code == EXIT_CHECKS
-    assert [s["id"] for s in document["steps"]] == STEPS[1:7]
+    # The checks only: no pushover (an analysis run Run All makes when asked, W4B-3).
+    assert [s["id"] for s in document["steps"]] == [s for s in STEPS[1:8] if s != "pushover"]
     assert document["steps"][0]["status"] == "skipped"  # the model is up to date
     # ... and so are the results: the analysis is not run again (X28)
     assert document["steps"][1]["status"] == "skipped"
