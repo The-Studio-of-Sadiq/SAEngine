@@ -172,6 +172,8 @@ def spec_from_wizard(spec: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
         out["spectral"] = site["spectral"]
     if site.get("hazardSource"):  # C22: the online lookup the values came from
         out["hazardSource"] = site["hazardSource"]
+    if spec.get("units") in ("SI", "USCustomary"):  # W4A-6: the wizard's unit system
+        out["units"] = spec["units"]
     exposure = (spec.get("wind") or {}).get("exposure")
     if exposure:
         out["windExposure"] = str(exposure)

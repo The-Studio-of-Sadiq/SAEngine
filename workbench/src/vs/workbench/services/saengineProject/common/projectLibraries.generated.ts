@@ -12525,8 +12525,8 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 				},
 				sheetSize: {
 					default: 'A1',
-					description: 'ISO sheet of every drawing.',
-					enum: ['A0', 'A1', 'A2', 'A3'],
+					description: 'Sheet of every drawing: ISO A0-A3, or the US ANSI D (34 x 22 in) and ARCH D (36 x 24 in); a new project takes its code pack\'s sheet.',
+					enum: ['A0', 'A1', 'A2', 'A3', 'ANSI D', 'ARCH D'],
 					title: 'Sheet size',
 					type: 'string',
 				},
@@ -12953,6 +12953,7 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 					default: null,
 					description: 'Elevation of the ground at the site [m above the datum of the water levels].',
 					title: 'Ground level yg',
+					unitKind: 'length',
 				},
 				floodLevel: {
 					anyOf: [
@@ -12966,6 +12967,7 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 					default: null,
 					description: 'Inland: the flood elevation of the return period the occupancy category asks for [m above the datum]; coastal: a site-specific extreme water level yT that replaces the location\'s.',
 					title: 'Flood level',
+					unitKind: 'length',
 				},
 				surgeRegion: {
 					anyOf: [

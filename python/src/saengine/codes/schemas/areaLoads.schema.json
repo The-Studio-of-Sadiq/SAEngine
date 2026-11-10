@@ -359,6 +359,43 @@
       "title": "ImpactRow",
       "type": "object"
     },
+    "NewProjectLoads": {
+      "additionalProperties": false,
+      "description": "Walk 4 (W4A-20): the superimposed dead loads a new project's area loads start with\n(the floors and stairs, the roof); none: 1.2 and 1.5 kN/m² (SAEngine practice).",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "finish": {
+          "description": "Floor and stair finishes and services [kN/m²].",
+          "exclusiveMinimum": 0,
+          "title": "Finish",
+          "type": "number"
+        },
+        "roofFinish": {
+          "description": "Roof finishes, waterproofing and services [kN/m²].",
+          "exclusiveMinimum": 0,
+          "title": "Rooffinish",
+          "type": "number"
+        }
+      },
+      "required": [
+        "finish",
+        "roofFinish"
+      ],
+      "title": "NewProjectLoads",
+      "type": "object"
+    },
     "PartitionAllowance": {
       "additionalProperties": false,
       "description": "Uniform live load in lieu of light partitions not shown on the plans.",
@@ -704,6 +741,17 @@
       },
       "title": "Impact",
       "type": "array"
+    },
+    "newProject": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/NewProjectLoads"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
     }
   },
   "required": [

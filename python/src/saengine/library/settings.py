@@ -193,6 +193,7 @@ class FloodSite(_Model):
         default=None,
         title="Ground level yg",
         description="Elevation of the ground at the site [m above the datum of the water levels].",
+        json_schema_extra={"unitKind": "length"},  # W4A-19: shown in ft in US units
     )
     floodLevel: float | None = Field(
         default=None,
@@ -200,6 +201,7 @@ class FloodSite(_Model):
         description="Inland: the flood elevation of the return period the occupancy category "
         "asks for [m above the datum]; coastal: a site-specific extreme water level yT that "
         "replaces the location's.",
+        json_schema_extra={"unitKind": "length"},
     )
     surgeRegion: SurgeRegionId | None = Field(  # type: ignore[valid-type]
         default=None,
@@ -3179,8 +3181,11 @@ class Drawings(_Model):
         description="The revisions of the set, oldest first; the last is the current revision "
         "(0 when there is none).",
     )
-    sheetSize: Literal["A0", "A1", "A2", "A3"] = Field(
-        default="A1", title="Sheet size", description="ISO sheet of every drawing."
+    sheetSize: Literal["A0", "A1", "A2", "A3", "ANSI D", "ARCH D"] = Field(
+        default="A1",
+        title="Sheet size",
+        description="Sheet of every drawing: ISO A0-A3, or the US ANSI D (34 x 22 in) and "
+        "ARCH D (36 x 24 in); a new project takes its code pack's sheet.",
     )
     planScale: Literal[PLAN_SCALES] = _scale(  # type: ignore[valid-type]
         100,
@@ -3431,13 +3436,15 @@ class ProjectSettings(_Model):
         return self
 
 
-def pack_choices(pack: CodePack) -> dict[str, list[dict[str, str]]]:
+def pack_choices(pack: CodePack, units: Any = None) -> dict[str, list[dict[str, str]]]:
     """The entries the settings' lists offer under ``pack``, in the pack's order, as ``{"id",
     "label"}``: ``locations`` (and "custom"), ``areaUses`` (and "custom"), ``systems``,
     ``siteClasses``. A list the pack has no table for is left out (any id is then taken).
     Walk 4: ``siteClassClause``, the clause that classes the site (the pack's own
-    ``designClauses.generator.siteClass``), for the New Building wizard's hint."""
-    out = _choices(lambda name: pack.table(name) if pack.has(name) else None)
+    ``designClauses.generator.siteClass``), for the New Building wizard's hint. ``units``
+    (:class:`saengine.units.Units`, walk 4 W4A-19/20): the labels' loads and wind speeds in
+    the project's display units; SI as before when None."""
+    out = _choices(lambda name: pack.table(name) if pack.has(name) else None, units)
     owner = (
         pack.clause_owner("designClauses", "generator", "siteClass")
         if pack.has("designClauses")
@@ -3445,6 +3452,21 @@ def pack_choices(pack: CodePack) -> dict[str, list[dict[str, str]]]:
     )
     if owner is not None and owner[0] == pack.id and owner[1]:
         out["siteClassClause"] = [{"id": owner[1], "label": owner[1]}]
+    # Walk 4 (W4A-6): the units a new project under the pack starts in and its bar grades.
+    suggested = getattr(pack.info, "units", None) or "SI"
+    out["units"] = [{"id": suggested, "label": suggested}]
+    grades = (
+        getattr(pack.table("materials"), "rebarGrades", None) if pack.has("materials") else None
+    )
+    if grades:
+        out["rebarGrades"] = [{"id": g.id, "label": g.name} for g in grades]
+    # W4A-19: the settings fields the pack has no use for (its own list, and Z where it has no
+    # zone coefficients), which the settings editor leaves out.
+    hidden = list(getattr(pack.info, "hiddenSettings", None) or [])
+    if not pack.has("zoneCoefficients"):
+        hidden.append("site.zoneCoefficient")
+    if hidden:
+        out["hiddenFields"] = [{"id": path, "label": path} for path in dict.fromkeys(hidden)]
     return out
 
 
@@ -3456,9 +3478,17 @@ def _builtin_choices() -> dict[str, list[dict[str, str]]]:
     return _choices(lambda name: builtin_table(name, DEFAULT_PACK))
 
 
-def _choices(table: Any) -> dict[str, list[dict[str, str]]]:
+def _choices(table: Any, units: Any = None) -> dict[str, list[dict[str, str]]]:
     """The lists of :func:`pack_choices` from ``table(name)`` (None: the pack has no such table)."""
     out: dict[str, list[dict[str, str]]] = {}
+    shown = units is not None and not units.si
+
+    def speed(v: float) -> str:
+        return units.format(v, "m/s") if shown else f"{v:g} m/s"
+
+    def load(v: float) -> str:
+        return units.format(v, "kN/m²") if shown else f"{v} kN/m²"
+
     locations, zone_table = table("locations"), table("zoneCoefficients")
     area, seismic = table("areaLoads"), table("seismic")
     wind = table("wind")
@@ -3478,11 +3508,13 @@ def _choices(table: Any) -> dict[str, list[dict[str, str]]]:
             if v.spectrum:  # Alpha 9 C17: the town's uniform hazard spectrum
                 short = min(v.spectrum, key=lambda p: abs(p[0] - 0.2))
                 hazard = f"Sa({short[0]:g}) {short[1]:g}, "
-            rows.append({"id": key, "label": f"{v.name} ({hazard}V {v.windSpeed:g} m/s)"})
-        out["locations"] = [*rows, {"id": "custom", "label": "Custom (enter Z and V)"}]
+            rows.append({"id": key, "label": f"{v.name} ({hazard}V {speed(v.windSpeed)})"})
+        # W4A-19: a pack without zone coefficients asks for the site's values, not Z.
+        custom = "Custom (enter Z and V)" if zone_table is not None else "Custom (enter V)"
+        out["locations"] = [*rows, {"id": "custom", "label": custom}]
     if area is not None:
         out["areaUses"] = [
-            *({"id": k, "label": f"{v.name} ({v.live} kN/m²)"} for k, v in area.uses.items()),
+            *({"id": k, "label": f"{v.name} ({load(v.live)})"} for k, v in area.uses.items()),
             {"id": "custom", "label": "Custom"},
         ]
     if seismic is not None:
@@ -3630,17 +3662,29 @@ def _exception_wanted(name: str, exception: Any, settings: ProjectSettings, pack
     return exception_applies(exception, directionality=directionality, material=material)[0]
 
 
+def new_project_finishes(pack: Any = None) -> tuple[float, float]:
+    """(floor and stair finish, roof finish) [kN/m²] a new project starts with: the code pack's
+    ``areaLoads.newProject`` (walk 4 W4A-20: the US pack's 25 and 30 psf), else 1.2 and 1.5."""
+    pack = pack or code_context.current()
+    table = pack.table("areaLoads") if pack.has("areaLoads") else None
+    given = getattr(table, "newProject", None)
+    if given is None:
+        return 1.2, 1.5
+    return float(given.finish), float(given.roofFinish)
+
+
 def default_area_loads() -> list[AreaLoad]:
     # The partition allowance: the code pack's least uniform allowance for partitions not on
     # the plans (1.0 kN/m² when the pack sets none).
     allowance = getattr(code_context.current().table("areaLoads"), "partitions", None)
+    finish, roof_finish = new_project_finishes()
     return [
         AreaLoad(
             id="FL",
             name="Floors",
             use="residential",
             live=code_data.AREA_USES["residential"].live,
-            finish=1.2,
+            finish=finish,
             partitions=allowance.minimum if allowance is not None else 1.0,
         ),
         AreaLoad(
@@ -3648,10 +3692,14 @@ def default_area_loads() -> list[AreaLoad]:
             name="Stairs",
             use="stairs",
             live=code_data.AREA_USES["stairs"].live,
-            finish=1.2,
+            finish=finish,
         ),
         AreaLoad(
-            id="RF", name="Roof", use="roof", live=code_data.AREA_USES["roof"].live, finish=1.5
+            id="RF",
+            name="Roof",
+            use="roof",
+            live=code_data.AREA_USES["roof"].live,
+            finish=roof_finish,
         ),
     ]
 
@@ -3733,10 +3781,14 @@ def settings_for_pack(
     if pack.has("areaLoads"):
         uses = pack.table("areaLoads").uses
         allowance = getattr(pack.table("areaLoads"), "partitions", None)
+        finishes = new_project_finishes(pack)
         loads = []
         for load in data.get("areaLoads") or []:
             load = dict(load)
             use = load.get("use")
+            if fresh and load.get("finish"):
+                # W4A-20: a new project's finishes are the pack's (the US pack's psf).
+                load["finish"] = finishes[1] if use == "roof" else finishes[0]
             if allowance is not None and load.get("partitions"):
                 load["partitions"] = allowance.minimum
             if use in uses:
@@ -3753,7 +3805,12 @@ def settings_for_pack(
     # C13: the units the pack suggests, for settings that chose none (a new project's).
     suggested = getattr(pack.info, "units", None)
     if suggested and suggested != "SI" and not data.get("units"):
-        data["units"] = {"system": suggested}
+        choices = dict(getattr(pack.info, "unitChoices", None) or {})
+        data["units"] = {**choices, "system": suggested}
+    # Walk 4 (W4A-17): a new project's drawing sheet is the pack's (the US pack: ARCH D).
+    sheet = getattr(pack.info, "sheetSize", None)
+    if fresh and sheet:
+        data["drawings"] = {**(data.get("drawings") or {}), "sheetSize": sheet}
     return ProjectSettings.model_validate(data)
 
 

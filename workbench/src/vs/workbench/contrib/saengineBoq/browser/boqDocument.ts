@@ -261,6 +261,10 @@ const IMPERIAL: { readonly [unit: string]: { readonly unit: string; readonly fac
 	m: { unit: 'rft', factor: 3.28084 },
 };
 
+/** A cubic yard [m³] and a US gallon [l] (NIST SP 811), for a bill in US customary units. */
+const CUBIC_YARD_M3 = 0.764554857984;
+const US_GALLON_L = 3.785411784;
+
 /** The bill's metric unit codes as SI unit texts (displayUnits.ts), for US customary display units (C13). */
 const SI_UNIT_TEXTS: { readonly [unit: string]: string } = { m3: 'm³', m2: 'm²', m: 'm', kg: 'kg' };
 
@@ -270,6 +274,19 @@ const SI_UNIT_TEXTS: { readonly [unit: string]: string } = { m3: 'm³', m2: 'm²
  * litres, numbers) are unchanged.
  */
 export function displayQuantity(quantity: number, unit: string, imperial: boolean, units: IDisplayUnits = activeDisplayUnits()): { readonly quantity: number; readonly unit: string } {
+	if (units.system === 'USCustomary') {
+		// Walk 4 (W4A-18): a bill in US units: concrete in cubic yards unless the project chose
+		// another volume unit, cft as cubic feet and water in US gallons.
+		if (unit === 'm3' && !units.choices.volume) {
+			return { quantity: quantity / CUBIC_YARD_M3, unit: 'yd³' };
+		}
+		if (unit === 'cft') {
+			return { quantity, unit: 'ft³' };
+		}
+		if (unit === 'l') {
+			return { quantity: quantity / US_GALLON_L, unit: 'gal' };
+		}
+	}
 	const si = SI_UNIT_TEXTS[unit];
 	if (si && isConverted(si, units)) {
 		return { quantity: toDisplay(quantity, si, units), unit: displayUnit(si, units) };

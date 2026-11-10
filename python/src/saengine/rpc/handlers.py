@@ -2864,7 +2864,14 @@ def codes_choices(pack_id: str, root: str | None = None) -> dict[str, Any]:
         pack = code_context.pack_for({"codePack": pack_id}, _pack_root(root))
     except CodePackError as error:
         return _refusal(error)
-    return {"id": pack.id, "name": pack.edition or pack.name, "choices": pack_choices(pack)}
+    units = None
+    if root:
+        # Walk 4 (W4A-19/20): the labels in the display units of the project under this pack.
+        from saengine.units import units_at
+
+        shown = units_at(root)
+        units = shown if not shown.si else None
+    return {"id": pack.id, "name": pack.edition or pack.name, "choices": pack_choices(pack, units)}
 
 
 def codes_settings_for_pack(

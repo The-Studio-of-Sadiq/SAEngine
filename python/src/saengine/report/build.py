@@ -1296,7 +1296,8 @@ def _derivation_rows(values: dict[str, Any], root: Path) -> list[list[str]]:
         rows.append(["Seismic weight W formed", str(weight["note"])])
     for level in weight.get("levels", []) or []:
         parts = level.get("parts_kN") or {}
-        shown = ", ".join(f"{k} {fmt(v, 1)}" for k, v in parts.items() if v)
+        # W4A-13: each part with its unit, so a report in other units converts it as the total.
+        shown = ", ".join(f"{k} {fmt(v, 1)} kN" for k, v in parts.items() if v)
         rows.append(
             [
                 f"W at {level.get('story') or fmt(level.get('z_m', 0), 2) + ' m'}",

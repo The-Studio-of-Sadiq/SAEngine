@@ -39,7 +39,7 @@ import { IEditorService } from '../../../services/editor/common/editorService.js
 import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
 import { ILocaleService } from '../../../services/localization/common/locale.js';
 import { CREEP_SHRINKAGE_COMBINATIONS, DEFAULT_CODE_TABLES, DEFAULT_SETTINGS, REDUCED_LIVE, SETTINGS_SCHEMA, SETTLEMENT_COMBINATIONS, TEMPLATES, THERMAL_COMBINATIONS } from '../../../services/saengineProject/common/projectLibraries.generated.js';
-import { convertText, setActiveDisplayUnits } from '../../../services/saengineProject/common/displayUnits.js';
+import { convertText, formatQuantity, isConverted, setActiveDisplayUnits } from '../../../services/saengineProject/common/displayUnits.js';
 import { IPartSectionPane, sectionOption } from '../../../services/saengineProject/common/partSections.js';
 import { IPartCheckItem, ISaenginePartStatusService } from '../../../services/saengineProject/common/partStatus.js';
 import { ISaengineProjectService, partById, PROJECT_TYPES, ProjectType } from '../../../services/saengineProject/common/saengineProject.js';
@@ -952,6 +952,11 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 			return undefined;
 		}
 		const number = (value: JsonValue | undefined) => typeof value === 'number' ? format(value) : '0';
+		if (isConverted('kN/m²')) {
+			// W4A-20: each load in the display units ("L 50 psf, finish 25 psf, partitions 15 psf").
+			const shown = (value: JsonValue | undefined) => formatQuantity(typeof value === 'number' ? value : 0, 'kN/m²');
+			return localize('settings.loadOptionUnits', "{0}: {1} (L {2}, finish {3}, partitions {4})", id, String(load.name ?? ''), shown(load.live), shown(load.finish), shown(load.partitions));
+		}
 		return localize('settings.loadOption', "{0}: {1} (L {2}, finish {3}, partitions {4} kN/m²)", id, String(load.name ?? ''), number(load.live), number(load.finish), number(load.partitions));
 	}
 
@@ -982,6 +987,10 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 		if (path === 'project.language' && !this.languageShown()) {
 			return 'hidden';
 		}
+		// W4A-19: a field the chosen pack has no use for (its `hiddenSettings`, Z without zone coefficients).
+		if (this.packHidden(path)) {
+			return 'hidden';
+		}
 		const [group, field] = path.split('.');
 		if (group !== 'drawings' || field === undefined || path.split('.').length !== 2) {
 			return undefined;
@@ -991,6 +1000,12 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 		}
 		const own = PROJECT_FIELDS.find(([drawing]) => drawing === field);
 		return own && this.titleBlockOverride(own[0], own[1]) === undefined ? 'hidden' : undefined;
+	}
+
+	/** Whether the chosen pack hides the field at `path` or the group it belongs to. */
+	private packHidden(path: string): boolean {
+		const hidden = this.packLists?.packId === chosenPackId(this.document) ? this.packLists.lists.hiddenFields : undefined;
+		return !!hidden?.some(entry => path === entry.id || path.startsWith(`${entry.id}.`));
 	}
 
 	/**

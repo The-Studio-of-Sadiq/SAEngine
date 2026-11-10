@@ -443,6 +443,22 @@ def cost_bill(
     return costing
 
 
+#: Walk 4 (W4A-18): why a project under a pack without sample rates is not priced.
+NO_RATES = (
+    "No rates for this code pack: the sample schedule's made-up rates are for Bangladesh (BDT) "
+    f"and SAEngine ships none for this pack's region. Enter your rates in 10 BOQ/{RATES_FILE} "
+    "to price the bill."
+)
+
+
+def sample_rates_apply() -> bool:
+    """Whether the sample schedule of rates prices a project without its own under the code
+    pack in force (its manifest's ``estimating.sampleRates``; true for the default pack)."""
+    from saengine.boq.quantities import estimating
+
+    return bool(estimating().sampleRates)
+
+
 def cost_texts(
     boq_text: str | None, rates_text: str | None = None, carbon_text: str | None = None
 ) -> dict[str, Any]:
@@ -453,6 +469,8 @@ def cost_texts(
     bill = parse_boq(boq_text)
     if bill is None:
         return {"problems": ["Measure the bill of quantities (10 BOQ) first."]}
+    if not (rates_text and rates_text.strip()) and not sample_rates_apply():
+        return {"problems": [NO_RATES], "noRates": True}
     problems = []
     try:
         rates = parse_rates(rates_text)

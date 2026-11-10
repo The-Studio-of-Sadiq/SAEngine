@@ -316,6 +316,14 @@ class ImpactRow(_Row):
     horizontal: float | None = Field(default=None, ge=0, description="Horizontal share.")
 
 
+class NewProjectLoads(_Row):
+    """Walk 4 (W4A-20): the superimposed dead loads a new project's area loads start with
+    (the floors and stairs, the roof); none: 1.2 and 1.5 kN/m² (SAEngine practice)."""
+
+    finish: Positive = Field(description="Floor and stair finishes and services [kN/m²].")
+    roofFinish: Positive = Field(description="Roof finishes, waterproofing and services [kN/m²].")
+
+
 class AreaLoadsTable(TableModel):
     """Minimum live loads by use of the floor area, with their concentrated loads, the roof
     live loads by slope, the partition allowance, vehicle and barrier loads, and the impact of
@@ -330,6 +338,7 @@ class AreaLoadsTable(TableModel):
     vehicles: VehicleLoads | None = None
     barriers: BarrierLoads | None = None
     impact: list[ImpactRow] = Field(default_factory=list)
+    newProject: NewProjectLoads | None = None
 
 
 class WallTypeRow(_Row):
@@ -3373,6 +3382,17 @@ class StressBlockRule(BaseModel):
     clause: str = ""
 
 
+class RebarGrade(BaseModel):
+    """A reinforcement grade of a pack's bar standard (ASTM A615 Grade 60)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    id: str = Field(min_length=1, description='The material id ("A615-60").')
+    name: str = Field(min_length=1, description='"ASTM A615 Grade 60".')
+    fy: float = Field(gt=0, description="Specified yield strength [MPa].")
+    standard: str = Field(default="", description='The bar standard ("ASTM A615/A615M").')
+
+
 class MaterialsTable(TableModel):
     # Alpha 9 C18: the pack's stress block (empty: ACI 318's).
     stressBlock: StressBlockRule | None = Field(
@@ -3391,6 +3411,12 @@ class MaterialsTable(TableModel):
     fyActualMargin: float
     fyRetestMargin: float
     fuFyMin: float
+    rebarGrades: list[RebarGrade] = Field(
+        default_factory=list,
+        description="Walk 4 (W4A-6): the reinforcement grades of the pack's standards a new "
+        "project offers (the New Building wizard) and adds to its materials; empty: the default "
+        "materials' grades.",
+    )
 
 
 class _Group(BaseModel):

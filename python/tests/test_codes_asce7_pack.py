@@ -69,15 +69,19 @@ def test_risk_categories_and_importance(pack):
 
 def test_live_loads_and_reduction(pack):
     uses = pack.table("areaLoads").uses
-    # ASCE 7-22 Table 4.3-1 (SI)
-    assert uses["office"].live == 2.40 and uses["office"].concentrated == 8.90
-    assert uses["residential"].live == 1.92
-    assert uses["stairs"].live == 4.79 and uses["stairs"].concentrated == 1.33
-    assert uses["roof"].live == 0.96 and uses["roof"].roof
-    assert uses["storageHeavy"].live == 11.97
-    assert uses["parking"].concentrated == 13.35 and uses["parking"].patch == 114
+    # ASCE 7-22 Table 4.3-1: the psf and lb values converted exactly (walk 4 W4A-20)
+    psf, lb = 0.047880258980335843, 0.0044482216152605
+    assert uses["office"].live == pytest.approx(50 * psf, abs=1e-6)
+    assert uses["office"].concentrated == pytest.approx(2000 * lb, abs=1e-6)
+    assert uses["residential"].live == pytest.approx(40 * psf, abs=1e-6)
+    assert uses["stairs"].live == pytest.approx(100 * psf, abs=1e-6)
+    assert uses["stairs"].concentrated == pytest.approx(300 * lb, abs=1e-6)
+    assert uses["roof"].live == pytest.approx(20 * psf, abs=1e-6) and uses["roof"].roof
+    assert uses["storageHeavy"].live == pytest.approx(250 * psf, abs=1e-6)
+    assert uses["parking"].concentrated == pytest.approx(3000 * lb, abs=1e-6)
+    assert uses["parking"].patch == 114
     # Sec 4.3.2: partitions at least 15 psf
-    assert pack.table("areaLoads").partitions.minimum == 0.72
+    assert pack.table("areaLoads").partitions.minimum == pytest.approx(15 * psf, abs=1e-6)
     red = pack.table("liveReduction")
     # Eq 4.7-1: L = L0 (0.25 + 15/sqrt(KLL AT)), 4.57 in metres; Sec 4.8.2: 12-20 psf
     assert (red.constant, red.coefficient, red.influenceMin) == (0.25, 4.57, 37.16)

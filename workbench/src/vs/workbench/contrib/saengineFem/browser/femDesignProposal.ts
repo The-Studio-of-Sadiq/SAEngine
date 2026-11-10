@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../nls.js';
+import { convertText } from '../../../services/saengineProject/common/displayUnits.js';
 import { describeDesignCounts, describeNotChecked, IFemDesignReport } from './femDesign.js';
 import { jointGoverning, jointOk, jointsOf } from './femSeismicDetailing.js';
 
@@ -363,6 +364,12 @@ export function describeTransverseSpacing(transverse: IDesignTransverse): string
  * Ø10 @ 150 X".
  */
 export function describeBars(bars: DesignBars | undefined): string {
+	// Walk 4 (W4A-9): the pack's bar names ("#5") and the spacings in the display units, as the
+	// drawings write them; as it is in SI without bar names.
+	return convertText(barsText(bars));
+}
+
+function barsText(bars: DesignBars | undefined): string {
 	if (bars === null || bars === undefined) {
 		return localize('femProposal.noBars', "no bars");
 	}

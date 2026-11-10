@@ -37,14 +37,17 @@ PAPER: dict[str, tuple[float, float]] = {
     "A1": (841.0, 594.0),
     "A2": (594.0, 420.0),
     "A3": (420.0, 297.0),
+    # Walk 4 (W4A-17): the US sheets, ANSI Y14.1 D (34 x 22 in) and architectural D (36 x 24 in).
+    "ANSI D": (863.6, 558.8),
+    "ARCH D": (914.4, 609.6),
 }
-"""ISO 216 sheet sizes, landscape [mm]."""
+"""ISO 216 sheet sizes and the US D sheets, landscape [mm]."""
 
 # Margins [mm]: the binding edge on the left, 10 mm elsewhere (ISO 5457).
 MARGIN_LEFT = 20.0
 MARGIN = 10.0
 # Width of the title block strip at the right of the sheet [mm].
-TITLE_WIDTH = {"A0": 180.0, "A1": 170.0, "A2": 150.0, "A3": 120.0}
+TITLE_WIDTH = {"A0": 180.0, "A1": 170.0, "A2": 150.0, "A3": 120.0, "ANSI D": 170.0, "ARCH D": 170.0}
 
 # Text heights on paper [mm], the ISO 3098 series: nothing smaller than 2.5, titles at least 3.5.
 TEXT = 2.5

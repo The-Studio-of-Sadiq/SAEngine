@@ -21,6 +21,12 @@
   "fyActualMargin": 125.0,
   "fyRetestMargin": 20.0,
   "fuFyMin": 1.25,
+  "rebarGrades": [
+    {"id": "A615-60", "name": "ASTM A615 Grade 60", "fy": 420, "standard": "ASTM A615/A615M"},
+    {"id": "A706-60", "name": "ASTM A706 Grade 60", "fy": 420, "standard": "ASTM A706/A706M"},
+    {"id": "A615-80", "name": "ASTM A615 Grade 80", "fy": 550, "standard": "ASTM A615/A615M"},
+    {"id": "A615-40", "name": "ASTM A615 Grade 40", "fy": 280, "standard": "ASTM A615/A615M"}
+  ],
   "sources": {
     "concreteStrain": "ACI 318-19 22.2.2.1",
     "steelE": "ACI 318-19 20.2.2.2",
@@ -32,6 +38,7 @@
     "gradeTolerance": "SAEngine choice (Grade 420 entered as 415 MPa)",
     "fyActualMargin": "ACI 318-19 20.2.2.5(b)(i) and ASTM A706: actual yield at most 125 MPa above the specified",
     "fyRetestMargin": "ACI 318-08 21.1.5.2(a) retest margin, kept: ACI 318-19 relies on ASTM A706 (SAEngine practice)",
-    "fuFyMin": "ACI 318-19 20.2.2.5(b)(ii) and ASTM A706: actual tensile / actual yield at least 1.25"
+    "fuFyMin": "ACI 318-19 20.2.2.5(b)(ii) and ASTM A706: actual tensile / actual yield at least 1.25",
+    "rebarGrades": "ASTM A615/A615M and A706/A706M specified yield strengths: Grade 40 (280 MPa), 60 (420 MPa), 80 (550 MPa); ACI 318-19 20.2.2.4 (walk 4 W4A-6)"
   }
 }

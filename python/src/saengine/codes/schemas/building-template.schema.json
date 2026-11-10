@@ -596,6 +596,23 @@
       "default": null,
       "title": "Location"
     },
+    "units": {
+      "anyOf": [
+        {
+          "enum": [
+            "SI",
+            "USCustomary"
+          ],
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Walk 4 (W4A-6): the project's display units (Project Settings > Units); none: the code pack's suggestion for a new project, else the settings' own.",
+      "title": "Units"
+    },
     "codePack": {
       "anyOf": [
         {

@@ -22,6 +22,11 @@ lb × 0.004448 kN, ft × 0.3048 m), rounded as printed.
 
 ## Live loads — `areaLoads.json`
 
+Walk 4 (W4A-20): the file now holds the psf and lb values of Table 4.3-1 converted exactly
+(50 psf = 2.394013 kN/m², 2,000 lb = 8.896443 kN), so a project in US units shows 50 psf; the
+rows below give the SI print, to check the psf values against. `newProject` (25 psf of
+finishes, 30 psf on the roof) is SAEngine practice, not ASCE 7.
+
 | # | Value | Clause | Description | Status |
 |---|---|---|---|---|
 | 4 | 1.92 kN/m² (40 psf) | Table 4.3-1 | Residential private rooms, dwellings, classrooms, patient rooms, cell blocks, garages (passenger) | OK? |

@@ -44,7 +44,7 @@ import { gridLabel } from '../../../services/saengineProject/common/gridLabels.j
 import { DEFAULT_CODE_TABLES, DEFAULT_MATERIALS, SETTINGS_SCHEMA } from '../../../services/saengineProject/common/projectLibraries.generated.js';
 import { ISaengineProject, ISaengineProjectService, partById } from '../../../services/saengineProject/common/saengineProject.js';
 import {
-	BLANK_FORM, buildSpec, centralBay, fitSpacings, folderError, FOOTING_CHOICES, FormField, formatLengths, formatSummary, formFromSpec, GENERATE_BUILDING_COMMAND, IGenerateOutcome, IGenerateSummary, INewBuildingForm, IPendingBuilding, IWizardPlot, OccupancyCategory,
+	BLANK_FORM, buildSpec, centralBay, fitSpacings, folderError, FOOTING_CHOICES, FormField, formatLengths, formatSummary, formFromSpec, formInUnits, GENERATE_BUILDING_COMMAND, IGenerateOutcome, IGenerateSummary, INewBuildingForm, IPendingBuilding, IWizardPlot, lengthUnit, OccupancyCategory,
 	parseSpacings, PENDING_BUILDING_STORAGE_KEY, plotFitWarning, readGenerateResult, readPendingBuilding, SiteClass, storyHeights, summarize, SYSTEM_CHOICES,
 } from './newBuildingModel.js';
 import { ISoilLocationRequest, ISoilLocationResult, SOIL_LOCATION_COMMAND } from '../../saengineSoil/browser/soilDocument.js';
@@ -186,6 +186,8 @@ export class NewBuildingWizard extends EditorPane {
 	private packSpectrum = '';
 	/** Walk 4: the clause that classes the site in the chosen pack (its own; '' for none). */
 	private packSiteClassClause = '';
+	/** Walk 4 (W4A-6): the chosen pack's own bar grades (empty: the default materials'). */
+	private packRebars: { id: string; label: string }[] = [];
 	/** C22: the site's coordinates typed for the hazard lookup (without an open project's site point). */
 	private hazardLatitude = '';
 	private hazardLongitude = '';
@@ -337,8 +339,12 @@ export class NewBuildingWizard extends EditorPane {
 		this.packSiteClasses = [];
 		this.packSpectrum = '';
 		this.packSiteClassClause = '';
+		const hadRebars = this.packRebars.length > 0;
+		this.packRebars = [];
+		let units: 'SI' | 'USCustomary' = 'SI';
 		if (id === DEFAULT_CODE_PACK_ID || !CommandsRegistry.getCommand(CODES_CHOICES_COMMAND)) {
 			this.form.packTowns = false;
+			this.useUnitsAndRebars(units, hadRebars);
 			return;
 		}
 		try {
@@ -348,9 +354,13 @@ export class NewBuildingWizard extends EditorPane {
 			this.packSiteClasses = lists?.siteClasses ?? [];
 			this.packSpectrum = lists?.designSpectrum?.[0]?.id ?? '';
 			this.packSiteClassClause = lists?.siteClassClause?.[0]?.label ?? '';
+			// W4A-6: the pack's suggested units and its own bar grades.
+			units = lists?.units?.[0]?.id === 'USCustomary' ? 'USCustomary' : 'SI';
+			this.packRebars = lists?.rebarGrades ?? [];
 		} catch {
 			this.packExposures = [];
 		}
+		this.useUnitsAndRebars(units, hadRebars);
 		// C7: a pack with towns of its own is chosen from them; its site class from its classes.
 		this.form.packTowns = this.packTowns.length > 0;
 		if (this.packTowns.length && !this.packTowns.some(t => t.id === this.form.location)) {
@@ -358,6 +368,20 @@ export class NewBuildingWizard extends EditorPane {
 		}
 		if (this.packSiteClasses.length && !this.packSiteClasses.some(c => c.id === this.form.siteClass)) {
 			this.form.siteClass = this.packSiteClasses[0].id;
+		}
+	}
+
+	/**
+	 * W4A-6: the chosen pack's units (the form's lengths and wind speed written again in them) and
+	 * bar grades (the first where the form's grade is not one of them; back to the default
+	 * materials' first when the pack before had grades of its own and this one has none).
+	 */
+	private useUnitsAndRebars(units: 'SI' | 'USCustomary', hadRebars: boolean): void {
+		this.form = formInUnits(this.form, units);
+		if (this.packRebars.length && !this.packRebars.some(r => r.id === this.form.rebar)) {
+			this.form.rebar = this.packRebars[0].id;
+		} else if (!this.packRebars.length && hadRebars) {
+			this.form.rebar = materialChoices('rebar')[0]?.value ?? this.form.rebar;
 		}
 	}
 
@@ -478,8 +502,8 @@ export class NewBuildingWizard extends EditorPane {
 			if (ready) {
 				this.templateEdited?.();
 			}
-			const x = parseSpacings(this.form.gridX);
-			const y = parseSpacings(this.form.gridY);
+			const x = parseSpacings(this.form.gridX, lengthUnit(this.form));
+			const y = parseSpacings(this.form.gridY, lengthUnit(this.form));
 			const heights = storyHeights(this.form);
 			clearNode(planHost);
 			clearNode(elevationHost);
@@ -489,7 +513,7 @@ export class NewBuildingWizard extends EditorPane {
 			if (x.ok && heights.ok) {
 				this.renderElevation(elevationHost, x.values, heights.values);
 			}
-			summary.textContent = x.ok && y.ok && heights.ok ? formatSummary(summarize(x.values, y.values, heights.values)) : localize('newBuilding.previewWaiting', "The preview shows once the grids and storeys read correctly.");
+			summary.textContent = x.ok && y.ok && heights.ok ? formatSummary(summarize(x.values, y.values, heights.values), this.form.units) : localize('newBuilding.previewWaiting', "The preview shows once the grids and storeys read correctly.");
 			systemHint.textContent = SYSTEM_CHOICES.find(s => s.value === this.form.system)?.description ?? '';
 			if (plotWarning.element) {
 				plotWarning.element.textContent = this.plot && x.ok && y.ok ? plotFitWarning(x.values, y.values, this.plot) ?? '' : '';
@@ -539,7 +563,10 @@ export class NewBuildingWizard extends EditorPane {
 		this.pageDisposables.add(location.onDidChange(updateTarget));
 
 		// ── grids ──
-		this.section(form, localize('newBuilding.grids', "Grids"), localize('newBuilding.gridsHint', "Spacings in mm, left to right and bottom to top: \"3×6000, 4500\" is three 6 m bays and one of 4.5 m. m and ft work too (6m, 20ft)."));
+		const inFeet = lengthUnit(this.form) === 'ft';
+		this.section(form, localize('newBuilding.grids', "Grids"), inFeet
+			? localize('newBuilding.gridsHintFt', "Spacings in ft, left to right and bottom to top: \"3×20, 15\" is three 20 ft bays and one of 15 ft. mm and m work too (6000mm, 6m).")
+			: localize('newBuilding.gridsHint', "Spacings in mm, left to right and bottom to top: \"3×6000, 4500\" is three 6 m bays and one of 4.5 m. m and ft work too (6m, 20ft)."));
 		for (const [field, label] of [['gridX', localize('newBuilding.gridX', "X (A, B, C ...)")], ['gridY', localize('newBuilding.gridY', "Y (1, 2, 3 ...)")]] as const) {
 			const box = this.textInput(form, label, this.form[field], value => {
 				this.form[field] = value;
@@ -557,8 +584,8 @@ export class NewBuildingWizard extends EditorPane {
 			fit.setTitle(localize('newBuilding.fitTitle', "Bay spacings that fill the buildable area (to 50 mm), keeping the number of bays and their proportions"));
 			const fitStatus = append(fitRow, $('span.status', { 'aria-live': 'polite' }));
 			this.pageDisposables.add(fit.onDidClick(() => {
-				const x = parseSpacings(this.form.gridX);
-				const y = parseSpacings(this.form.gridY);
+				const x = parseSpacings(this.form.gridX, lengthUnit(this.form));
+				const y = parseSpacings(this.form.gridY, lengthUnit(this.form));
 				const fx = x.ok ? fitSpacings(x.values, plot.width) : undefined;
 				const fy = y.ok ? fitSpacings(y.values, plot.depth) : undefined;
 				if (!fx || !fy) {
@@ -567,7 +594,9 @@ export class NewBuildingWizard extends EditorPane {
 				}
 				fitStatus.textContent = '';
 				for (const [field, values] of [['gridX', fx], ['gridY', fy]] as const) {
-					this.form[field] = formatLengths(values);
+					// The fitted bays are exact millimetres: in US customary units they say so ("6050mm").
+					const text = formatLengths(values);
+					this.form[field] = lengthUnit(this.form) === 'ft' ? text.split(', ').map(part => `${part}mm`).join(', ') : text;
 					inputs.get(field)!.value = this.form[field];
 				}
 				updatePreview();
@@ -594,12 +623,19 @@ export class NewBuildingWizard extends EditorPane {
 			}
 		};
 		small('', 'storyCount', localize('newBuilding.storeyCountAria', "Number of storeys"));
-		small(localize('newBuilding.groundUnit', "ground, mm"), 'groundHeight', localize('newBuilding.groundAria', "Ground storey height in mm"));
-		small(localize('newBuilding.typicalUnit', "typical, mm"), 'typicalHeight', localize('newBuilding.typicalAria', "Typical storey height in mm"));
+		if (inFeet) {
+			small(localize('newBuilding.groundUnitFt', "ground, ft"), 'groundHeight', localize('newBuilding.groundAriaFt', "Ground storey height in ft"));
+			small(localize('newBuilding.typicalUnitFt', "typical, ft"), 'typicalHeight', localize('newBuilding.typicalAriaFt', "Typical storey height in ft"));
+		} else {
+			small(localize('newBuilding.groundUnit', "ground, mm"), 'groundHeight', localize('newBuilding.groundAria', "Ground storey height in mm"));
+			small(localize('newBuilding.typicalUnit', "typical, mm"), 'typicalHeight', localize('newBuilding.typicalAria', "Typical storey height in mm"));
+		}
 		const heights = this.textInput(form, localize('newBuilding.heights', "Or every storey"), this.form.heights, value => {
 			this.form.heights = value;
 			updatePreview();
-		}, localize('newBuilding.heightsPlaceholder', "e.g. 4000, 9×3200 (overrides the number)"));
+		}, inFeet
+			? localize('newBuilding.heightsPlaceholderFt', "e.g. 13, 9×10.5 (overrides the number)")
+			: localize('newBuilding.heightsPlaceholder', "e.g. 4000, 9×3200 (overrides the number)"));
 		inputs.set('stories', heights);
 		errors.set('stories', append(form, $('p.error', { 'aria-live': 'polite' })));
 
@@ -610,7 +646,9 @@ export class NewBuildingWizard extends EditorPane {
 			updatePreview();
 		});
 		this.select(form, localize('newBuilding.concrete', "Concrete"), materialChoices('concrete'), this.form.concrete, value => this.form.concrete = value);
-		this.select(form, localize('newBuilding.rebar', "Reinforcement"), materialChoices('rebar'), this.form.rebar, value => this.form.rebar = value);
+		// W4A-6: the chosen pack's bar grades (ASTM A615 Grade 60) where it has its own.
+		const rebars = this.packRebars.length ? this.packRebars.map(r => ({ value: r.id, label: r.label })) : materialChoices('rebar');
+		this.select(form, localize('newBuilding.rebar', "Reinforcement"), rebars, this.form.rebar, value => this.form.rebar = value);
 		this.select(form, localize('newBuilding.footing', "Footings"), FOOTING_CHOICES, this.form.footing, value => this.form.footing = value);
 
 		// ── site and use ──
@@ -624,6 +662,19 @@ export class NewBuildingWizard extends EditorPane {
 			this.form.designCode = value;
 			this.form.hazard = undefined; // C22: another code's values are not this one's
 			void this.loadPackExposures(value).then(() => this.renderForm());
+		});
+		// W4A-6: the units the project shows (the pack's suggestion: US customary for the US pack);
+		// the lengths and the wind speed above are typed in them.
+		const unitChoices: IChoice<string>[] = [
+			{ value: 'SI', label: localize('newBuilding.unitsSi', "SI (mm, m, kN, MPa)") },
+			{ value: 'USCustomary', label: localize('newBuilding.unitsUs', "US customary (ft, in, kip, ksi, psf)") },
+		];
+		this.select(form, localize('newBuilding.units', "Units"), unitChoices, this.form.units ?? 'SI', value => {
+			const units = value === 'USCustomary' ? 'USCustomary' : 'SI';
+			if (units !== (this.form.units ?? 'SI')) {
+				this.form = formInUnits(this.form, units);
+				this.renderForm();
+			}
 		});
 		if ((this.form.designCode || DEFAULT_CODE_PACK_ID) === DEFAULT_CODE_PACK_ID) {
 			append(form, $('p.hint.indented', undefined, localize('newBuilding.siteHint', "{0}: the location sets the seismic zone and basic wind speed; the occupancy category the importance factors (Table 6.1.1).", activeCodeName())));
@@ -650,7 +701,11 @@ export class NewBuildingWizard extends EditorPane {
 			} else {
 				this.textInput(form, localize('newBuilding.zoneCoefficient', "Peak ground acceleration (g)"), this.form.zoneCoefficient, value => this.form.zoneCoefficient = value, localize('newBuilding.zonePlaceholder', "e.g. 0.16 (agR)"));
 			}
-			this.textInput(form, localize('newBuilding.windSpeed', "Basic wind speed (m/s)"), this.form.windSpeed, value => this.form.windSpeed = value, localize('newBuilding.windPlaceholder', "e.g. 27 (vb,0)"));
+			if (inFeet) {
+				this.textInput(form, localize('newBuilding.windSpeedMph', "Basic wind speed (mph)"), this.form.windSpeed, value => this.form.windSpeed = value, localize('newBuilding.windPlaceholderMph', "e.g. 105 (V)"));
+			} else {
+				this.textInput(form, localize('newBuilding.windSpeed', "Basic wind speed (m/s)"), this.form.windSpeed, value => this.form.windSpeed = value, localize('newBuilding.windPlaceholder', "e.g. 27 (vb,0)"));
+			}
 			if (this.packExposures.length) {
 				const exposures = this.packExposures.map(e => ({ value: e.id, label: e.label }));
 				this.select(form, localize('newBuilding.exposure', "Exposure"), exposures, this.form.exposure || exposures[Math.min(2, exposures.length - 1)].value, value => this.form.exposure = value);
