@@ -1104,7 +1104,7 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 		if (!path.startsWith('wind.') || !this.packLists || this.packLists.packId !== chosenPackId(this.document)) {
 			return undefined;
 		}
-		return this.packLists.lists['windFields']?.find(entry => entry.id === path)?.label;
+		return this.packLists.lists.windFields?.find(entry => entry.id === path)?.label;
 	}
 
 	/** An empty override shows the value it would replace, with its table. */

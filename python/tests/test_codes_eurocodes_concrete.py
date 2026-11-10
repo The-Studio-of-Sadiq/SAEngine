@@ -449,6 +449,17 @@ def test_default_pack_unchanged_by_the_hooks():
 # ───────────────────────────── a small building ─────────────────────────────
 
 
+def _use_dch_frame(root):
+    """The generator takes the pack's first frame system (DCM since walk 4, when it runs under
+    the pack); these tests check the DCH rows, so the project's frame is made DCH."""
+    import json
+
+    path = root / "02 Project Settings/project-settings.json"
+    settings = json.loads(path.read_text(encoding="utf-8"))
+    settings.setdefault("seismic", {})["system"] = "rcSmf"
+    path.write_text(json.dumps(settings, indent="	"), encoding="utf-8")
+
+
 def test_generated_building_is_designed_under_the_pack(tmp_path):
     import json
     from pathlib import Path
@@ -472,6 +483,7 @@ def test_generated_building_is_designed_under_the_pack(tmp_path):
         "lateralSizing": "gravity",
     }
     root = Path(create_building(spec, tmp_path)["root"])
+    _use_dch_frame(root)
     result = run_all(root, steps=["derive", "analysis"])
     assert [s.status for s in result.steps] == ["ok", "ok"], [s.message for s in result.steps]
     # Design Reinforcement (its sizing is the parent's), applied, then the design checks.
@@ -529,6 +541,7 @@ def test_generated_building_slabs_wall_footing_by_the_pack(tmp_path):
         "siteClassSource": "entered", "lateralSizing": "gravity",
     }  # fmt: skip
     root = Path(create_building(spec, tmp_path)["root"])
+    _use_dch_frame(root)
     sand = {
         "id": "BH-1", "x": 5000, "y": 4000, "waterTable": 6000, "depth": 20000,
         "layers": [{"top": 0, "bottom": 20000, "soilType": "sand", "unitWeight": 18,
