@@ -586,7 +586,7 @@
           "title": "Remarks"
         }
       ],
-      "note": "Bar types and bar list after {name}: each length the sum of the out-to-out detailing dimensions, ties with the code's hooks; bend radii not less than {bend}; lengths rounded up to {round} mm (1 in); bar sizes are the soft-metric designations (mass d²/162 kg/m of the designation as the diameter)."
+      "note": "Bar types and bar list after {name}: each length the sum of the out-to-out detailing dimensions, ties with the code's hooks; bend radii not less than {bend}; lengths rounded up to {round} mm (1 in); bar sizes are the soft-metric designations with the nominal masses of ASTM A615/A615M Table 1."
     }
   }
 }

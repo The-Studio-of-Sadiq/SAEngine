@@ -149,6 +149,27 @@ class Basis(BaseModel):
     )
 
 
+class Estimating(BaseModel):
+    """Walk 4 (W4A-18): how the bill of quantities takes off the materials under a pack: the
+    cement bag, where the nominal mixes it assumes come from, and whether the shipped sample
+    schedule of rates (made-up rates in its currency) prices a project without its own."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    cementBag: float = Field(default=50.0, gt=0, description="Mass of a bag of cement [kg].")
+    mixSource: str = Field(
+        default="a nominal mix of IS 456:2000 Table 9 by strength with that table's water",
+        description="The nominal mixes assumed for a concrete with no mix, as the bill's note "
+        "names them.",
+    )
+    sampleRates: bool = Field(
+        default=True,
+        description="Whether the sample schedule of rates prices a project without its own; "
+        "false: no rates for the pack's region are shipped, the bill is unpriced until the "
+        "project's rates are entered.",
+    )
+
+
 class PackManifest(BaseModel):
     """``pack.json``: what the pack is, which pack it builds on and which tables it provides."""
 
@@ -212,6 +233,27 @@ class PackManifest(BaseModel):
         default=None,
         description="The display units a new project with this pack starts in (Project "
         "Settings › Units); a project keeps its own choice when the pack changes. Default SI.",
+    )
+    unitChoices: dict[str, str] = Field(
+        default_factory=dict,
+        description="Walk 4 (W4A-18): per-quantity units a new project in the pack's units "
+        "starts with (Project Settings › Units), e.g. {'volume': 'yd³'}.",
+    )
+    sheetSize: Literal["A0", "A1", "A2", "A3", "ANSI D", "ARCH D"] | None = Field(
+        default=None,
+        description="Walk 4 (W4A-17): the drawing sheet a new project with this pack starts "
+        "with (Project Settings › Drawings); default A1.",
+    )
+    hiddenSettings: list[str] = Field(
+        default_factory=list,
+        description="Walk 4 (W4A-19): Project Settings fields (paths such as "
+        "'site.airRaidShelter') the pack's code has no use for: the settings editor leaves them "
+        "out. A table the pack declares notApplicable hides its own fields too.",
+    )
+    estimating: Estimating | None = Field(
+        default=None,
+        description="Walk 4 (W4A-18): the bill of quantities' cement bag, mix source and "
+        "sample rates; default 50 kg bags, IS 456 nominal mixes, the sample rates.",
     )
     author: str | None = None
     licence: str | None = Field(default=None, description="SPDX id of the pack's licence.")

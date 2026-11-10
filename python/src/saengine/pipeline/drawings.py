@@ -558,8 +558,8 @@ def _generate(
             "The building model (06 BIM) and the object types (04 Objects) are needed for the "
             "drawings."
         )
-    if size is not None and str(size).upper() not in ("A1", "A2", "A3"):
-        raise DrawingsError(f"Sheet size {size!r}: A1, A2 or A3.")
+    if size is not None and str(size).upper() not in ("A1", "A2", "A3", "ANSI D", "ARCH D"):
+        raise DrawingsError(f"Sheet size {size!r}: A1, A2, A3, ANSI D or ARCH D.")
     settings_text = _read(root / SOURCES[0][1])
     settings, title = drawing_settings(settings_text)
     notes: list[str] = []

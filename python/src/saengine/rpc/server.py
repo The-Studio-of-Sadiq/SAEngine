@@ -333,10 +333,56 @@ def _scoped(handler: Callable[[Any], Any]) -> Callable[[Any], Any]:
         root = _request_root(params)
         if root is None:
             return handler(params)
-        with code_context.project(root):
-            return handler(params)
+        with code_context.project(root) as found:
+            pack = _project_pack(found)
+            if pack is None:
+                return handler(params)
+            # Walk 4 (W4A-16): a project under another pack than the default works under its
+            # own pack in every request (its bar sizes, masses, schedule standard), not only in
+            # the handlers that set it themselves; the default pack's projects as before.
+            with code_context.using(pack):
+                return handler(params)
 
     return call
+
+
+#: Project settings file -> ((mtime, size), its code pack id and overrides), read once a change.
+_SETTINGS_PACKS: dict[str, tuple[tuple[int, int], dict[str, Any] | None]] = {}
+
+
+def _project_pack(root: Any) -> Any:
+    """The code pack the settings of the project at ``root`` choose when it is not the default
+    pack (None for the default pack, no project or settings that cannot be read)."""
+    if root is None:
+        return None
+    path = os.path.join(str(root), "02 Project Settings", "project-settings.json")
+    try:
+        stat = os.stat(path)
+    except OSError:
+        return None
+    stamp = (stat.st_mtime_ns, stat.st_size)
+    known = _SETTINGS_PACKS.get(path)
+    if known is None or known[0] != stamp:
+        try:
+            with open(path, encoding="utf-8") as file:
+                raw = json.load(file)
+        except (OSError, ValueError):
+            raw = None
+        picked = (
+            {k: raw[k] for k in ("codePack", "codeOverrides", "site") if k in raw}
+            if isinstance(raw, dict)
+            else None
+        )
+        if len(_SETTINGS_PACKS) >= 32:
+            _SETTINGS_PACKS.clear()
+        _SETTINGS_PACKS[path] = known = (stamp, picked)
+    settings = known[1]
+    if not settings or settings.get("codePack") in (None, "", code_context.DEFAULT_PACK):
+        return None
+    try:
+        return code_context.pack_for(settings, root)
+    except Exception:  # noqa: BLE001 - the handler reports a pack that cannot be used
+        return None
 
 
 def _in_worker(

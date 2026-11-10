@@ -32,6 +32,43 @@
       "title": "LinearInStrength",
       "type": "object"
     },
+    "RebarGrade": {
+      "additionalProperties": false,
+      "description": "A reinforcement grade of a pack's bar standard (ASTM A615 Grade 60).",
+      "properties": {
+        "id": {
+          "description": "The material id (\"A615-60\").",
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
+        "name": {
+          "description": "\"ASTM A615 Grade 60\".",
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "fy": {
+          "description": "Specified yield strength [MPa].",
+          "exclusiveMinimum": 0,
+          "title": "Fy",
+          "type": "number"
+        },
+        "standard": {
+          "default": "",
+          "description": "The bar standard (\"ASTM A615/A615M\").",
+          "title": "Standard",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "fy"
+      ],
+      "title": "RebarGrade",
+      "type": "object"
+    },
     "StressBlockRule": {
       "additionalProperties": false,
       "description": "Alpha 9 C18: the rectangular stress block of the strength design by f'c (AS 3600 8.1.3,\nNZS 3101 7.4.2.7 type): the stress ``alpha`` f'c over the depth ``gamma`` c, and the squash\nload P0 = ``squash`` f'c (Ag - Ast) + fy Ast (empty: ``alpha``). A pack without it keeps\nACI 318's 0.85 f'c over β1 c (:mod:`saengine.design.rc`).",
@@ -157,6 +194,14 @@
     "fuFyMin": {
       "title": "Fufymin",
       "type": "number"
+    },
+    "rebarGrades": {
+      "description": "Walk 4 (W4A-6): the reinforcement grades of the pack's standards a new project offers (the New Building wizard) and adds to its materials; empty: the default materials' grades.",
+      "items": {
+        "$ref": "#/$defs/RebarGrade"
+      },
+      "title": "Rebargrades",
+      "type": "array"
     }
   },
   "required": [

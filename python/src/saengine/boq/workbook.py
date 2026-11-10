@@ -61,12 +61,18 @@ def _heading(sheet: Any, columns: list[str]) -> None:
 
 #: The bill's unit codes (saengine.boq.quantities.Unit) as SI unit texts (saengine.units).
 _SI_UNIT = {"m3": "m³", "m2": "m²", "m": "m", "kg": "kg"}
+#: Walk 4 (W4A-18): the bill's other units in US customary units: (label, factor).
+_US_ONLY = {"cft": ("ft³", 1.0), "l": ("gal", 1 / 3.785411784)}
 
 
 def _shown_quantity(units: Any, code: Any) -> tuple[Any, Any]:
     """(quantity in the display unit, unit text) of a bill unit code: the code and the
     quantity as they are in SI and for the units with no conversion (cft, bag, nr, l)."""
     si_unit = _SI_UNIT.get(str(code))
+    if units is not None and not units.si and str(code) in _US_ONLY:
+        # W4A-18: cft is a cubic foot; litres in US gallons.
+        label, factor = _US_ONLY[str(code)]
+        return (lambda q: q if q is None else float(q) * factor), label
     if units is None or units.si or si_unit is None:
         return (lambda q: q), code
     label = units.label(si_unit)
@@ -321,6 +327,11 @@ def write_boq_xlsx_texts(
     if problems:
         return {"problems": problems}
     sample = not (rates_text and rates_text.strip())
+    if sample:
+        from saengine.boq.costing import sample_rates_apply
+
+        if not sample_rates_apply():
+            rates = None  # W4A-18: no rates for this pack: the bill unpriced, not in BDT
     return write_boq_xlsx(
         path, bill, rates, factors, title, sample_rates=sample, units=_units(settings_text)
     )

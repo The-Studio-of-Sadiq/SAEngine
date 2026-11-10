@@ -951,7 +951,7 @@ class _Measure:
         self.bill.add(
             "reinforcement",
             (material_id, dia),
-            f"Reinforcement {material_id}, {dia:g} mm bars",
+            f"Reinforcement {material_id}, {_bar_text(dia)} bars",
             "kg",
             element,
             length * MM * bar_mass(dia),
@@ -2468,7 +2468,7 @@ class _Measure:
                 self.bill.add(
                     "reinforcement",
                     (spec.rebar, dia),
-                    f"Reinforcement {spec.rebar}, {dia:g} mm bars",
+                    f"Reinforcement {spec.rebar}, {_bar_text(dia)} bars",
                     "kg",
                     tank.id,
                     float(mass),
@@ -2748,9 +2748,10 @@ class _Measure:
                 if _no_water(mix):
                     dry[material.id] = f"concrete {material.id}"
             cement = f"Cement{f' ({cement_type})' if cement_type else ''}"
+            bag = estimating().cementBag
             items = {
                 "cement": ((1, cement_type or ""), f"{cement}", "kg", 1.0),
-                "bags": ((2, cement_type or ""), f"{cement} in {CEMENT_BAG:g} kg bags", "bag", 1 / CEMENT_BAG),
+                "bags": ((2, cement_type or ""), f"{cement} in {bag:g} kg bags", "bag", 1 / bag),
                 "sand": ((3,), "Sand (fine aggregate)", "cft", CFT),
                 "stone": ((4,), "Stone chips (coarse aggregate)", "cft", CFT),
                 "water": ((5,), "Water", "l", 1.0),
@@ -2782,9 +2783,10 @@ class _Measure:
             cement = f"Cement{f' ({cement_type})' if cement_type else ''}"
             amounts = self.mix_quantities(mortar.composition, volume, DRY_VOLUME_MORTAR)
             amounts["bags"] = amounts["cement"]
+            bag = estimating().cementBag
             rows = {
                 "cement": ((1, cement_type or ""), cement, "kg", 1.0),
-                "bags": ((2, cement_type or ""), f"{cement} in {CEMENT_BAG:g} kg bags", "bag", 1 / CEMENT_BAG),
+                "bags": ((2, cement_type or ""), f"{cement} in {bag:g} kg bags", "bag", 1 / bag),
                 "sand": ((3,), "Sand (fine aggregate)", "cft", CFT),
                 "stone": ((4,), "Stone chips (coarse aggregate)", "cft", CFT),
                 "water": ((5,), "Water", "l", 1.0),
@@ -2806,7 +2808,7 @@ class _Measure:
             self.notes.append(
                 "Materials: "
                 + "; ".join(assumed[k] for k in sorted(assumed))
-                + ", a nominal mix of IS 456:2000 Table 9 by strength with that table's water "
+                + f", {estimating().mixSource} "
                 "(enter the mix in 03 Materials to replace it)."
             )
         if dry:
@@ -2857,7 +2859,7 @@ class _Measure:
 
             notes += ARCHITECTURE_CONVENTIONS
         if getattr(self, "materials_measured", False):
-            notes += MATERIALS_CONVENTIONS
+            notes += materials_conventions()
         notes += [*self.building.check_additions(), *self.notes]
         if self.drawn_footings:
             notes.append(
@@ -2904,6 +2906,40 @@ def _openings_per_metre(openings: Any, profile: Any) -> float:
         cut = float(openings.cut) if openings.cut else h0 / math.sqrt(3)
         hole = h0 * (cut + cut + h0 / math.tan(math.radians(60.0))) / 2
     return hole * tw / s * MM2  # mm³ per mm → m³ per m
+
+
+def materials_conventions() -> list[str]:
+    """:data:`MATERIALS_CONVENTIONS` under the code pack in force: its cement bag (walk 4
+    W4A-18: the US pack's 94 lb), cft as cubic feet where the pack is not the default's."""
+    bag = estimating().cementBag
+    if bag == CEMENT_BAG:
+        return list(MATERIALS_CONVENTIONS)
+    return [
+        text.replace(f"{CEMENT_BAG:g} kg bags", f"{bag:g} kg bags").replace(
+            f"(1 m³ = {CFT:g} cft)", "(cft: cubic feet)"
+        )
+        for text in MATERIALS_CONVENTIONS
+    ]
+
+
+def estimating() -> Any:
+    """Walk 4 (W4A-18): the estimating values of the code pack in force (its manifest's
+    ``estimating``: the US pack's 94 lb bag), else the defaults (50 kg bags, IS 456 mixes)."""
+    from saengine.codes import context as code_context
+    from saengine.codes.manifest import Estimating
+
+    try:
+        found = getattr(code_context.current().info, "estimating", None)
+    except Exception:  # noqa: BLE001 - no pack: the defaults
+        found = None
+    return found if found is not None else Estimating()
+
+
+def _bar_text(dia: float) -> str:
+    """A bar size in a bill item: the pack's name ("#5") where it gives one, else "16 mm"."""
+    from saengine.units import pack_bar_names
+
+    return pack_bar_names().get(f"{dia:g}") or f"{dia:g} mm"
 
 
 def _fc(material: Material) -> float:

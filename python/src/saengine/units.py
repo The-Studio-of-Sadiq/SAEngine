@@ -780,6 +780,21 @@ UNITS_NOTE = (
 )
 
 
+def units_statement(units: Units) -> str | None:
+    """Walk 4 (W4A-12): the report cover's units line in US customary units (None in SI: the
+    report's own SI statement)."""
+    if units.si:
+        return None
+    return (
+        f"Units: geometry in {units.label('m')} (sections and bar sizes in "
+        f"{units.label('mm')}, bars by their designations); forces in {units.label('kN')}, "
+        f"moments in {units.label('kN·m')}, distributed loads in {units.label('kN/m²')}, "
+        f"stresses and strengths in {units.label('MPa')}, displacements in "
+        f"{units.label('mm')}. The analysis model is in SI units (m, N, Pa); its results are "
+        "converted for this report."
+    )
+
+
 def convert_document(document: dict[str, Any], units: Units) -> dict[str, Any]:
     """The report document (:func:`saengine.report.document.report_document`) in the display
     units; the same document in SI. Its numbers were computed in SI: only their text changes.
@@ -802,6 +817,10 @@ def convert_document(document: dict[str, Any], units: Units) -> dict[str, Any]:
             }
         )
     out = {**document, "sections": sections}
+    meta = document.get("meta")
+    if isinstance(meta, dict) and "units" in meta:
+        # W4A-12: the cover's units line says the units the body is printed in.
+        out["meta"] = {**meta, "units": units_statement(units)}
     out["warnings"] = [convert_text(str(w), units) for w in document.get("warnings", [])]
     status = document.get("status")
     if isinstance(status, dict) and isinstance(status.get("headline"), str):

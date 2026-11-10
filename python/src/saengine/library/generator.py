@@ -50,6 +50,7 @@ import itertools
 import json
 import math
 import re
+from contextvars import ContextVar
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Annotated, Any, Literal
@@ -207,6 +208,11 @@ class BuildingSpec(_Spec):
         default=None, gt=0, description="Floor live load [kN/m²]; none: the code minimum."
     )
     location: LocationId | None = None  # type: ignore[valid-type]
+    units: Literal["SI", "USCustomary"] | None = Field(
+        default=None,
+        description="Walk 4 (W4A-6): the project's display units (Project Settings > Units); "
+        "none: the code pack's suggestion for a new project, else the settings' own.",
+    )
     # C4, C1: another code pack than the settings' (the New Building wizard's design code), with
     # the site values a pack without towns needs (Location: Custom).
     codePack: str | None = Field(
@@ -309,7 +315,31 @@ DEFAULT_BEARING = 100.0
 POSITION_FACTOR = {"interior": 1.0, "edge": 1.25, "corner": 1.5}
 
 
+def _pack_dia(kind: str, wanted: float) -> float:
+    """The bar size of the pack in force's ``concrete.barDiameters[kind]`` nearest ``wanted``
+    [mm] (the larger of two as near); ``wanted`` itself where the pack lists it."""
+    from saengine.design.bars import diameters
+
+    try:
+        sizes = [float(d) for d in diameters(kind)]
+    except (KeyError, AttributeError):
+        return wanted
+    if not sizes or wanted in sizes:
+        return wanted
+    return min(sizes, key=lambda d: (abs(d - wanted), -d))
+
+
+#: Walk 4 (W4A-17): sizes are rounded to whole inches (a new US project's) while set.
+_INCHES: ContextVar[bool] = ContextVar("generator_inches", default=False)
+
+
 def ceil_to(value: float, step: float) -> float:
+    """``value`` [mm] rounded up to ``step``; in a project shown in US units (:data:`_INCHES`)
+    to the step's nearest whole inches (25 mm: 1 in, 50 mm: 2 in), so its sizes read 24", not
+    23 5/8"."""
+    if _INCHES.get():
+        step = max(round(step / 25.4), 1) * 25.4
+        return round(math.ceil(value / step - 1e-9) * step, 1)
     return math.ceil(value / step - 1e-9) * step
 
 
@@ -1256,7 +1286,8 @@ def lateral_column_sizes(
             ]
             if not members:
                 continue
-            side = max(max(side_of[m] for m in members), col_min)
+            step = ceil_to(50.0, 50.0)  # W4A-17: 2 in where the project shows inches
+            side = ceil_to(max(max(side_of[m] for m in members), col_min), 50)
             why = "gravity"
             # The storey stiffness for δs <= DELTA_S_MAX (every column of the storey scaled).
             stiff = max(
@@ -1281,11 +1312,11 @@ def lateral_column_sizes(
             if u > 1.0:
                 why = f"P-M with ρ ≤ {rho_target:g}"
                 guess = min(ceil_to(side * u ** (1 / 3), 50), MAX_SIDE)
-                while guess > side + 50 and fits(guess - 50) <= 1.0:
-                    guess -= 50
+                while guess > side + step and fits(round(guess - step, 1)) <= 1.0:
+                    guess = round(guess - step, 1)
                 side = guess
                 while fits(side) > 1.0 and side < MAX_SIDE:
-                    side += 50.0
+                    side = round(side + step, 1)
                 if fits(side) > 1.0:
                     out.notes.append(
                         f"Columns {kind} L{groups[g][0]}-L{groups[g][-1]}: no side up to "
@@ -1332,7 +1363,7 @@ def lateral_column_sizes(
                     mnc_of[(g, kind)] = mnc
                     break
                 why = f"strong column / weak beam at {letters(weak[0])}{weak[1] + 1} L{weak[2]}"
-                side += 50.0
+                side = round(side + step, 1)
             # B10-14 of walk 3: the joint shear of a special frame (Sec 8.3.7, ductile_joints.
             # joint_checks) with the beams' estimated bars: Vj = 1.25 fy (As top + As bottom
             # either side) - Vcol against φ γ √f'c Aj; the wizard's columns failed it at once.
@@ -1341,7 +1372,7 @@ def lateral_column_sizes(
                 if failing is None:
                     break
                 why = f"joint shear at {letters(failing[0])}{failing[1] + 1} L{failing[2]}"
-                side += 50.0
+                side = round(side + step, 1)
             out.sides[(g, kind)] = side
             out.governing[(g, kind)] = why
     if beams_too_flexible:
@@ -1421,6 +1452,21 @@ def _settings_patch(
     pack_uses = _code_pack_patch(s, base, patch, site, notes)
     if site:
         patch["site"] = site
+    loads_from = base_json["areaLoads"]
+    if settings is None and s.codePack and s.codePack != base.codePack:
+        # Walk 4 (W4A-6, W4A-20): a new project under another pack starts with that pack's own
+        # area loads (its live loads, partition allowance and finishes) and display units.
+        from saengine.library.settings import settings_for_pack
+
+        fresh = settings_for_pack(base, s.codePack, fresh=True)
+        loads_from = [a.model_dump(mode="json", exclude_none=True) for a in fresh.areaLoads]
+        if not fresh.units.is_default():
+            patch["units"] = fresh.units.model_dump(mode="json", exclude_none=True)
+        if fresh.drawings.sheetSize != base.drawings.sheetSize:  # W4A-17: the pack's sheet
+            patch["drawings"] = {"sheetSize": fresh.drawings.sheetSize}
+    if s.units is not None:
+        # The New Building wizard's unit system (the pack's by default).
+        patch["units"] = {**(patch.get("units") or {}), "system": s.units}
     use = AREA_USE_OF[s.occupancy]
     code_live = (pack_uses[use] if use in pack_uses else code_data.AREA_USES[use]).live
     live = max(s.live or code_live, code_live)
@@ -1430,8 +1476,7 @@ def _settings_patch(
             f"{code_data.AREA_USES[use].name.lower()}; {code_live:g} kN/m² is used."
         )
     area_loads = [
-        {**a, "use": use, "live": live} if a["id"] == base.floorLoad else a
-        for a in base_json["areaLoads"]
+        {**a, "use": use, "live": live} if a["id"] == base.floorLoad else a for a in loads_from
     ]
     patch["areaLoads"] = area_loads
 
@@ -1531,9 +1576,14 @@ def generate_building(spec: BuildingSpec | dict[str, Any], settings: Any = None)
         # Walk 4: a pack that extends another (aci318-asce7-22 on bnbc2020) is generated
         # under itself too, so its systems, limits and clause texts are the notes' (never the
         # default pack's under another code).
-        if (pack.has("seismic") and getattr(pack.table("seismic"), "defaultSystem", None)) or len(
-            pack.chain
-        ) > 1:
+        # Walk 4 (W4A-6): and every pack while another is in force (the open project's, in a
+        # request about it), so the new building never takes the open project's code.
+        in_force = code_context.in_force()
+        if (
+            (pack.has("seismic") and getattr(pack.table("seismic"), "defaultSystem", None))
+            or len(pack.chain) > 1
+            or (in_force is not None and in_force.id != pack.id)
+        ):
             with code_context.using(pack):
                 return _generate_building(s, settings)
     return _generate_building(s, settings)
@@ -1551,6 +1601,31 @@ def _generate_building(s: BuildingSpec, settings: Any) -> dict[str, Any]:
         from saengine.library.steel_building import generate_steel_building
 
         return generate_steel_building(s, settings)
+    token = _INCHES.set(_in_inches(s, settings))
+    try:
+        return _generate_rc(s, settings)
+    finally:
+        _INCHES.reset(token)
+
+
+def _in_inches(s: BuildingSpec, settings: Any) -> bool:
+    """Whether the new project shows US customary units (the spec's, else the settings', else
+    the pack in force's suggestion for a new project)."""
+    if s.units is not None:
+        return s.units == "USCustomary"
+    if settings is not None:
+        units = (
+            settings.get("units")
+            if isinstance(settings, dict)
+            else getattr(settings, "units", None)
+        )
+        system = units.get("system") if isinstance(units, dict) else getattr(units, "system", None)
+        return system == "USCustomary"
+    return getattr(code_context.current().info, "units", None) == "USCustomary"
+
+
+def _generate_rc(s: BuildingSpec, settings: Any) -> dict[str, Any]:
+    """:func:`_generate_building` of the RC systems."""
     notes: list[str] = []
 
     # ── materials ──
@@ -1582,6 +1657,12 @@ def _generate_building(s: BuildingSpec, settings: Any) -> dict[str, Any]:
                     f"concrete {concrete.id}: the least grade M{found[1].grade:g} of the code "
                     f"pack's exposure '{found[0]}' (Code values to change the exposure)"
                 )
+    if "rebar" not in s.model_fields_set:
+        # Walk 4 (W4A-6): a pack with grades of its own (the US pack's ASTM A615 Grade 60)
+        # gives the bars when the spec names none.
+        grades = getattr(code_context.pack_table("materials"), "rebarGrades", None) or []
+        if grades and s.rebar not in {g.id for g in grades}:
+            s = s.model_copy(update={"rebar": grades[0].id})
     rebar = materials.get(s.rebar)
     if rebar is None or rebar.category != Category.REBAR or rebar.steel is None:
         raise ValueError(f"'{s.rebar}' is not a rebar of the default materials")
@@ -1903,7 +1984,7 @@ def _generate_building(s: BuildingSpec, settings: Any) -> dict[str, Any]:
         group_side = {}
         for (i, j, k), p in loads.items():
             ag = POSITION_FACTOR[position(i, j)] * p * 1000 / (0.4 * fc)  # mm²
-            side = max(ceil_to(math.sqrt(ag), 50), col_min)
+            side = ceil_to(max(ceil_to(math.sqrt(ag), 50), col_min), 50)
             key = (group_of[k], position(i, j))
             group_side[key] = max(group_side.get(key, 0.0), side)
         # Never larger above than below.
@@ -2324,8 +2405,16 @@ def _generate_building(s: BuildingSpec, settings: Any) -> dict[str, Any]:
         r = copy.deepcopy(TEMPLATES["LinearReinforcement"])
         r["material"] = s.rebar
         if kind == "column":
-            r["longitudinal"] = [{"position": "perimeter", "count": 8, "dia": 20}]
-            r["transverse"] = {"type": "tie", "dia": 10, "spacing": 150, "legs": 2}
+            # W4A-16: the pack's bar sizes nearest 20 and 10 mm (the US pack: #6 and #3).
+            r["longitudinal"] = [
+                {"position": "perimeter", "count": 8, "dia": _pack_dia("column", 20.0)}
+            ]
+            r["transverse"] = {
+                "type": "tie",
+                "dia": _pack_dia("stirrup", 10.0),
+                "spacing": 150,
+                "legs": 2,
+            }
         return r
 
     def with_bars(data: dict[str, Any], key: str, kind: str = "") -> dict[str, Any]:

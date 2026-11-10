@@ -108,9 +108,30 @@ def _mortar(ratio: float) -> Material:
     )
 
 
+def _pack_rebars() -> list[Material]:
+    """Walk 4 (W4A-6): the reinforcement grades of the code pack in force
+    (``materials.rebarGrades``: the US pack's ASTM A615 / A706 grades), first in the set so a
+    project under it takes them; none for a pack without (the default pack)."""
+    from saengine.codes import context as code_context
+
+    pack = code_context.in_force()
+    if pack is None or not pack.has("materials"):
+        return []
+    out = []
+    for grade in getattr(pack.table("materials"), "rebarGrades", None) or []:
+        material = _rebar(grade.id, grade.fy)
+        material.name = f"Rebar {grade.name}"
+        material.steel.grade = grade.name
+        if grade.standard:
+            material.source.standard = grade.standard
+        out.append(material)
+    return out
+
+
 def default_material_library() -> MaterialLibrary:
     return MaterialLibrary(
         materials=[
+            *_pack_rebars(),
             _concrete(3000, NominalMix(ratio=[1, 2, 4], waterCement=0.5, cementType="OPC")),
             _concrete(3500, NominalMix(ratio=[1, 1.5, 3], waterCement=0.45, cementType="OPC")),
             _concrete(4000, None),

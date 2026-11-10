@@ -82,7 +82,12 @@ export interface INewBuildingSpec {
 	readonly designCode: string;
 	/** The wind exposure (terrain category) of a pack other than the default. */
 	readonly wind?: { readonly exposure: string };
+	/** Walk 4 (W4A-6): the project's display units (the pack's suggestion unless changed). */
+	readonly units?: UnitSystem;
 }
+
+/** Walk 4 (W4A-6): the unit systems a new project can show its numbers in. */
+export type UnitSystem = 'SI' | 'USCustomary';
 
 /**
  * The site's mapped spectral values (Project Settings `site.spectral`) of a code pack whose
@@ -139,6 +144,51 @@ export interface INewBuildingForm {
 	readonly tl: string;
 	/** C22: the values of an online lookup by the site's coordinates, where one was applied. */
 	readonly hazard?: IWizardHazard;
+	/**
+	 * Walk 4 (W4A-6): the units the lengths and the wind speed are typed in and the project shows
+	 * (lengths in ft and the wind speed in mph in US customary units); SI when not set.
+	 */
+	readonly units?: UnitSystem;
+}
+
+/** The unit lengths are typed in without a unit of their own: ft in US customary units, else mm. */
+export function lengthUnit(form: Pick<INewBuildingForm, 'units'>): 'mm' | 'ft' {
+	return form.units === 'USCustomary' ? 'ft' : 'mm';
+}
+
+/** A mile per hour [m/s] (NIST SP 811), for a wind speed typed in US customary units. */
+const MPH = 0.44704;
+
+/**
+ * The form's lengths and wind speed written again in the units of `units` (the lengths of the
+ * template are in mm; in feet they are rounded to the half foot, a new building's nice numbers).
+ */
+export function formInUnits(form: INewBuildingForm, units: UnitSystem): INewBuildingForm {
+	if ((form.units ?? 'SI') === units) {
+		return form;
+	}
+	const from = lengthUnit(form);
+	const to = units === 'USCustomary' ? 'ft' : 'mm';
+	const again = (text: string, limits: { readonly min: number; readonly max: number; readonly maxCount: number }) => {
+		if (!text.trim()) {
+			return text;
+		}
+		const parsed = parseLengths(text, limits, from);
+		return parsed.ok ? formatLengths(parsed.values, to) : text;
+	};
+	const spacing = { min: MIN_SPACING, max: MAX_SPACING, maxCount: MAX_BAYS };
+	const height = { min: MIN_HEIGHT, max: MAX_HEIGHT, maxCount: MAX_STORIES };
+	const wind = positive(form.windSpeed);
+	return {
+		...form,
+		units,
+		gridX: again(form.gridX, spacing),
+		gridY: again(form.gridY, spacing),
+		groundHeight: again(form.groundHeight, { ...height, maxCount: 1 }),
+		typicalHeight: again(form.typicalHeight, { ...height, maxCount: 1 }),
+		heights: again(form.heights, height),
+		windSpeed: wind === undefined ? form.windSpeed : String(Math.round(units === 'USCustomary' ? wind / MPH : wind * MPH)),
+	};
 }
 
 /**
@@ -220,15 +270,21 @@ export function formFromSpec(spec: SpecRaw, form: INewBuildingForm): INewBuildin
 	const stories = Array.isArray(spec.stories) ? specLengths(spec.stories.map(s => typeof s === 'object' && s !== null ? (s as SpecRaw).height : undefined)) : undefined;
 	const pick = <T extends string>(value: unknown, allowed: readonly T[] | undefined, fallback: T): T =>
 		typeof value === 'string' && (!allowed || allowed.includes(value as T)) ? value as T : fallback;
-	const typical = specText(spec.typicalHeight);
+	// W4A-6: the specification's lengths [mm] in the form's unit (ft in US customary units).
+	const unit = lengthUnit(form);
+	const height = (value: unknown) => {
+		const text = specText(value);
+		return text !== undefined && unit === 'ft' && Number(text) > 0 ? formatLengths([Number(text)], unit) : text;
+	};
+	const typical = height(spec.typicalHeight);
 	return {
 		...form,
-		gridX: x ? formatLengths(x) : form.gridX,
-		gridY: y ? formatLengths(y) : form.gridY,
+		gridX: x ? formatLengths(x, unit) : form.gridX,
+		gridY: y ? formatLengths(y, unit) : form.gridY,
 		storyCount: stories ? String(stories.length) : specText(spec.storyCount) ?? form.storyCount,
-		groundHeight: stories ? '' : specText(spec.groundHeight) ?? typical ?? form.groundHeight,
+		groundHeight: stories ? '' : height(spec.groundHeight) ?? typical ?? form.groundHeight,
 		typicalHeight: stories ? '' : typical ?? form.typicalHeight,
-		heights: stories ? formatLengths(stories) : '',
+		heights: stories ? formatLengths(stories, unit) : '',
 		system: pick(spec.system, SYSTEM_CHOICES.map(c => c.value), form.system),
 		concrete: pick(spec.concrete, undefined, form.concrete),
 		rebar: pick(spec.rebar, undefined, form.rebar),
@@ -257,7 +313,7 @@ const UNIT_FACTORS: { readonly [unit: string]: number } = { '': 1, mm: 1, cm: 10
  * ("3×6000", "3x6000", "3*6000") and optionally with a unit (mm by default; cm, m, ft or ').
  * "3×6000, 4500" is 6000, 6000, 6000, 4500 [mm].
  */
-export function parseLengths(text: string, limits: { readonly min: number; readonly max: number; readonly maxCount: number }): ParseResult {
+export function parseLengths(text: string, limits: { readonly min: number; readonly max: number; readonly maxCount: number }, unit: 'mm' | 'ft' = 'mm'): ParseResult {
 	// "6 m" is one length: join a number and the unit after it before splitting on spaces.
 	const normalized = text.trim().replace(/\s*[×xX*]\s*/g, '×').replace(/(?<digit>[\d.])\s+(?<unit>mm|cm|m|ft|')(?![a-z])/gi, '$<digit>$<unit>');
 	if (!normalized) {
@@ -270,12 +326,18 @@ export function parseLengths(text: string, limits: { readonly min: number; reado
 			return { ok: false, error: localize('lengths.bad', "\"{0}\" is not a length; write e.g. 6000, 3×6000 or 6m.", item) };
 		}
 		const count = groups.count === undefined ? 1 : Number(groups.count);
-		const value = Math.round(Number(groups.value) * UNIT_FACTORS[(groups.unit ?? '').toLowerCase()]);
+		// W4A-6: a length without a unit is in the form's unit (ft in US customary units).
+		const factor = groups.unit ? UNIT_FACTORS[groups.unit.toLowerCase()] : UNIT_FACTORS[unit];
+		const value = Math.round(Number(groups.value) * factor);
 		if (count < 1) {
 			return { ok: false, error: localize('lengths.count', "\"{0}\" repeats a length zero times.", item) };
 		}
 		if (value < limits.min || value > limits.max) {
-			return { ok: false, error: localize('lengths.range', "{0} mm is outside {1}–{2} mm (lengths are in mm unless they end in m or ft).", value, limits.min, limits.max) };
+			return {
+				ok: false, error: unit === 'ft'
+					? localize('lengths.rangeFt', "{0} ft is outside {1}–{2} ft (lengths are in ft unless they end in mm or m).", (value / 304.8).toFixed(1), (limits.min / 304.8).toFixed(1), (limits.max / 304.8).toFixed(1))
+					: localize('lengths.range', "{0} mm is outside {1}–{2} mm (lengths are in mm unless they end in m or ft).", value, limits.min, limits.max)
+			};
 		}
 		if (values.length + count > limits.maxCount) {
 			return { ok: false, error: localize('lengths.tooMany', "At most {0} lengths.", limits.maxCount) };
@@ -288,19 +350,23 @@ export function parseLengths(text: string, limits: { readonly min: number; reado
 }
 
 /** Grid spacings (bays) along one axis [mm]. */
-export function parseSpacings(text: string): ParseResult {
-	return parseLengths(text, { min: MIN_SPACING, max: MAX_SPACING, maxCount: MAX_BAYS });
+export function parseSpacings(text: string, unit: 'mm' | 'ft' = 'mm'): ParseResult {
+	return parseLengths(text, { min: MIN_SPACING, max: MAX_SPACING, maxCount: MAX_BAYS }, unit);
 }
 
-/** Lengths back in the shorthand: repeated neighbours as "3×6000". */
-export function formatLengths(values: readonly number[]): string {
+/**
+ * Lengths [mm] back in the shorthand: repeated neighbours as "3×6000"; in `unit` ft rounded to
+ * the half foot ("3×20, 14.5").
+ */
+export function formatLengths(values: readonly number[], unit: 'mm' | 'ft' = 'mm'): string {
+	const shown = unit === 'ft' ? values.map(v => String(Math.round(v / 304.8 * 2) / 2)) : values.map(v => String(v));
 	const parts: string[] = [];
-	for (let i = 0; i < values.length;) {
+	for (let i = 0; i < shown.length;) {
 		let j = i;
-		while (j < values.length && values[j] === values[i]) {
+		while (j < shown.length && shown[j] === shown[i]) {
 			j++;
 		}
-		parts.push(j - i > 1 ? `${j - i}×${values[i]}` : String(values[i]));
+		parts.push(j - i > 1 ? `${j - i}×${shown[i]}` : shown[i]);
 		i = j;
 	}
 	return parts.join(', ');
@@ -381,23 +447,24 @@ function positiveInteger(text: string): number | undefined {
 }
 
 /** Storey heights from the list, or from the count, the ground storey's and the typical storey's height. */
-export function storyHeights(form: Pick<INewBuildingForm, 'storyCount' | 'groundHeight' | 'typicalHeight' | 'heights'>): ParseResult {
+export function storyHeights(form: Pick<INewBuildingForm, 'storyCount' | 'groundHeight' | 'typicalHeight' | 'heights' | 'units'>): ParseResult {
 	const limits = { min: MIN_HEIGHT, max: MAX_HEIGHT, maxCount: MAX_STORIES };
+	const unit = lengthUnit(form);
 	if (form.heights.trim()) {
-		return parseLengths(form.heights, limits);
+		return parseLengths(form.heights, limits, unit);
 	}
 	const count = positiveInteger(form.storyCount);
 	if (count === undefined || count > MAX_STORIES) {
 		return { ok: false, error: localize('stories.count', "Enter the number of storeys (1–{0}).", MAX_STORIES) };
 	}
-	const ground = parseLengths(form.groundHeight, { ...limits, maxCount: 1 });
+	const ground = parseLengths(form.groundHeight, { ...limits, maxCount: 1 }, unit);
 	if (!ground.ok) {
 		return ground;
 	}
 	if (count === 1) {
 		return ground;
 	}
-	const typical = parseLengths(form.typicalHeight, { ...limits, maxCount: 1 });
+	const typical = parseLengths(form.typicalHeight, { ...limits, maxCount: 1 }, unit);
 	return typical.ok ? { ok: true, values: [ground.values[0], ...Array(count - 1).fill(typical.values[0])] } : typical;
 }
 
@@ -429,8 +496,8 @@ export function buildSpec(form: INewBuildingForm, validateName: (name: string) =
 	if (nameError) {
 		errors.name = nameError;
 	}
-	const x = parseSpacings(form.gridX);
-	const y = parseSpacings(form.gridY);
+	const x = parseSpacings(form.gridX, lengthUnit(form));
+	const y = parseSpacings(form.gridY, lengthUnit(form));
 	const heights = storyHeights(form);
 	if (!x.ok) {
 		errors.gridX = x.error;
@@ -459,6 +526,7 @@ export function buildSpec(form: INewBuildingForm, validateName: (name: string) =
 			site: { location: form.location, siteClass: form.siteClass, siteClassSource: 'assumed' },
 			occupancy: { use: form.use, category: form.category },
 			...otherPackSite(form),
+			...(form.units ? { units: form.units } : {}),
 		},
 	};
 }
@@ -473,7 +541,8 @@ function otherPackSite(form: INewBuildingForm): { designCode: string; site?: INe
 		return { designCode: code };
 	}
 	const z = Number(form.zoneCoefficient);
-	const v = Number(form.windSpeed);
+	// W4A-6: a wind speed typed in mph (US customary units) goes to the project in m/s.
+	const v = Number(form.windSpeed) * (form.units === 'USCustomary' ? MPH : 1);
 	if (form.packTowns) {
 		// C7: a pack with towns (IS): the town sets Z and V, the site class is one of the pack's.
 		return {
@@ -521,7 +590,12 @@ export function summarize(x: readonly number[], y: readonly number[], heights: r
 	};
 }
 
-export function formatSummary(summary: IBuildingSummary): string {
+export function formatSummary(summary: IBuildingSummary, units: UnitSystem = 'SI'): string {
+	if (units === 'USCustomary') {
+		const ft = (mm: number) => (mm / 304.8).toFixed(1);
+		return localize('summaryFt', "{0} × {1} bays · {2} ft × {3} ft · {4} storeys, {5} ft · {6} columns a floor",
+			summary.baysX, summary.baysY, ft(summary.lengthX), ft(summary.lengthY), summary.storeys, ft(summary.height), summary.columnsPerFloor);
+	}
 	const m = (mm: number) => (mm / 1000).toFixed(1);
 	return localize('summary', "{0} × {1} bays · {2} m × {3} m · {4} storeys, {5} m · {6} columns a floor",
 		summary.baysX, summary.baysY, m(summary.lengthX), m(summary.lengthY), summary.storeys, m(summary.height), summary.columnsPerFloor);

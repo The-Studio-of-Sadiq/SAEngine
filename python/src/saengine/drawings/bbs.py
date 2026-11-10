@@ -848,8 +848,20 @@ def _cells(row: BbsRow) -> dict[str, str]:
         "cutting_length": fmt(row.cutting_length),
         "total_length": _shown(row.total_length, "m"),
         "mass": _shown(row.mass, "kg"),
-        "remarks": row.remarks,
+        "remarks": _remarks(row.remarks),
     }
+
+
+_LAP = re.compile(r"\blap (\d+(?:\.\d+)?)\b")
+
+
+def _remarks(text: str) -> str:
+    """W4A-16: a row's remarks with the lap length [mm] it gives ("lap 800") in the display
+    units (``lap 2'-7 1/2"``); as they are in SI."""
+    if _DISPLAY.get() is None or not text:
+        return text
+    _, fmt = length_display()
+    return _LAP.sub(lambda m: f"lap {fmt(float(m.group(1)))}", text)
 
 
 def _kind_label(kind: str) -> str:

@@ -5,6 +5,14 @@
   "edition": "ASCE 7-22",
   "country": "US",
   "units": "USCustomary",
+  "sheetSize": "ARCH D",
+  "unitChoices": {"volume": "yd³"},
+  "hiddenSettings": ["site.airRaidShelter", "site.flood.surgeRegion", "site.flood.waterLevelStation", "site.spectral.sourceType", "site.spectral.sourceDistance", "site.spectral.na", "site.spectral.nv"],
+  "estimating": {
+    "cementBag": 42.637683,
+    "mixSource": "a nominal volume mix of common practice by strength with a water/cement ratio of 0.68 to 0.60 (SAEngine practice, not a US standard: ACI 211.1 proportions a mix by mass)",
+    "sampleRates": false
+  },
   "version": "0.6.0",
   "extends": "bnbc2020",
   "notApplicable": [

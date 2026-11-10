@@ -60,6 +60,33 @@
       "title": "Basis",
       "type": "object"
     },
+    "Estimating": {
+      "additionalProperties": false,
+      "description": "Walk 4 (W4A-18): how the bill of quantities takes off the materials under a pack: the\ncement bag, where the nominal mixes it assumes come from, and whether the shipped sample\nschedule of rates (made-up rates in its currency) prices a project without its own.",
+      "properties": {
+        "cementBag": {
+          "default": 50.0,
+          "description": "Mass of a bag of cement [kg].",
+          "exclusiveMinimum": 0,
+          "title": "Cementbag",
+          "type": "number"
+        },
+        "mixSource": {
+          "default": "a nominal mix of IS 456:2000 Table 9 by strength with that table's water",
+          "description": "The nominal mixes assumed for a concrete with no mix, as the bill's note names them.",
+          "title": "Mixsource",
+          "type": "string"
+        },
+        "sampleRates": {
+          "default": true,
+          "description": "Whether the sample schedule of rates prices a project without its own; false: no rates for the pack's region are shipped, the bill is unpriced until the project's rates are entered.",
+          "title": "Samplerates",
+          "type": "boolean"
+        }
+      },
+      "title": "Estimating",
+      "type": "object"
+    },
     "Requires": {
       "additionalProperties": false,
       "description": "What a package needs: the SAEngine versions that understand it and other packages.",
@@ -353,6 +380,55 @@
       "default": null,
       "description": "The display units a new project with this pack starts in (Project Settings › Units); a project keeps its own choice when the pack changes. Default SI.",
       "title": "Units"
+    },
+    "unitChoices": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Walk 4 (W4A-18): per-quantity units a new project in the pack's units starts with (Project Settings › Units), e.g. {'volume': 'yd³'}.",
+      "title": "Unitchoices",
+      "type": "object"
+    },
+    "sheetSize": {
+      "anyOf": [
+        {
+          "enum": [
+            "A0",
+            "A1",
+            "A2",
+            "A3",
+            "ANSI D",
+            "ARCH D"
+          ],
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Walk 4 (W4A-17): the drawing sheet a new project with this pack starts with (Project Settings › Drawings); default A1.",
+      "title": "Sheetsize"
+    },
+    "hiddenSettings": {
+      "description": "Walk 4 (W4A-19): Project Settings fields (paths such as 'site.airRaidShelter') the pack's code has no use for: the settings editor leaves them out. A table the pack declares notApplicable hides its own fields too.",
+      "items": {
+        "type": "string"
+      },
+      "title": "Hiddensettings",
+      "type": "array"
+    },
+    "estimating": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Estimating"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Walk 4 (W4A-18): the bill of quantities' cement bag, mix source and sample rates; default 50 kg bags, IS 456 nominal mixes, the sample rates."
     },
     "author": {
       "anyOf": [
