@@ -26,6 +26,7 @@
     "25": 3.973, "29": 5.060, "32": 6.404, "36": 7.907
   },
   "slabStrainMin": 0.005,
+  "spacingStep": 25.4,
   "cover": {
     "lintel": 40.0,
     "stair": 20.0,
@@ -106,7 +107,7 @@
     "barMasses": "ASTM A615/A615M Table 1: nominal masses of bars No. 10-36 (No. 3-11), 0.560-7.907 kg/m (alpha 9 C26; the soft-metric number is not the nominal diameter: No. 10 is 9.5 mm)",
     "barNames": "ASTM A615/A615M Table 1: inch-pound bar designations No. 3-11 of the soft-metric sizes No. 10-36 (C13, printed in US customary units)",
     "barDiameters": "ASTM A615/A706 bar sizes as soft-metric diameters (No. 10, 13, 16, 19, 22, 25, 29, 32, 36): SAEngine practice for US projects",
-    "spacingStep": "SAEngine practice",
+    "spacingStep": "SAEngine practice for US projects: bar and hoop spacings in whole inches (1 in = 25.4 mm), rounded down",
     "minSlabSpacing": "SAEngine practice (site), not a code limit",
     "columnRho": "ACI 318-19 10.6.1.1",
     "beamRatioMax": "SAEngine practice (congestion), not a code clause",

@@ -594,7 +594,8 @@ def settlement_controlled(
             layers = ", ".join(f"layer {i + 1}" for i in result["estimated"])
             notes.append(
                 f"{layers}: no consolidation test, so the consolidation settlement behind this "
-                "qa is estimated by the code pack's modulus number method; give Cc and e0 "
+                "qa is estimated (mv from the SPT N60, Stroud & Butler 1975, else the code "
+                "pack's modulus number method); give Cc and e0 "
                 "(consolidation tests) or LL and moisture to compute it"
             )
         still = clays(q)

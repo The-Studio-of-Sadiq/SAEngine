@@ -258,7 +258,13 @@ def estimated_consolidation_notes(profile: Profile) -> list[str]:
     """A note per clay layer without Cc and e0 (from tests, or LL and moisture): its
     consolidation settlement, and a qa it governs, are estimated by the code pack's modulus
     numbers (:mod:`saengine.soil.settlement`), or cannot be computed at all."""
-    from saengine.soil.settlement import is_stiff, modulus_row, modulus_rules
+    from saengine.soil.settlement import (
+        is_stiff,
+        modulus_row,
+        modulus_rules,
+        stroud_mv,
+        stroud_text,
+    )
 
     found = modulus_rules()
     estimated, unknown = [], []
@@ -269,7 +275,9 @@ def estimated_consolidation_notes(profile: Profile) -> list[str]:
             continue  # a stiff clay: its elastic settlement only (soil.settlement)
         name = f"layer {layer.index + 1} ({layer.soil_type}, {layer.top:g}-{layer.bottom:g} m)"
         row = modulus_row(layer, found) if found is not None else None
-        if row is None:
+        if stroud_mv(layer) is not None:  # walk 4 W4B-10: from the SPT first
+            estimated.append(f"{name}: {stroud_text(layer)}")
+        elif row is None:
             unknown.append(name)
         else:
             estimated.append(f"{name}: {row.name}, M = {row.M[1]:g}, j = {row.j:g}")
@@ -278,8 +286,9 @@ def estimated_consolidation_notes(profile: Profile) -> list[str]:
         notes.append(
             "No Cc and e0 (consolidation tests) or LL and moisture for "
             + "; ".join(estimated)
-            + ": the consolidation settlement, and a qa it governs, are estimated by the code "
-            "pack's modulus numbers; give consolidation tests to compute them"
+            + ": the consolidation settlement, and a qa it governs, are estimated (from the "
+            "SPT, else by the code pack's modulus numbers); give consolidation tests to compute "
+            "them"
         )
     if unknown:
         notes.append(

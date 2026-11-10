@@ -120,6 +120,7 @@ def design(
     accidental_share: float,
     has_time_histories: bool = False,
     spectrum: Callable[[float], float] | None = None,
+    fixed_source: str = "",
 ) -> dict[str, Any]:
     """The single-level isolation design of ``units`` (module notes), the same summary as
     :func:`saengine.fem.isolation.design` with ``"procedure": "singleLevel"``; "design" and
@@ -330,7 +331,7 @@ def design(
         {"id": "3", "label": f"T = {period_m:.2f} s at most {lim.maxPeriodM:g} s",
          "ok": max(found["lower"]["T"], found["upper"]["T"]) <= lim.maxPeriodM + 1e-9},
         {"id": "4", "label": f"T = {found['upper']['T']:.2f} s more than {lim.periodRatio:g} × "
-         f"the fixed-base period {t_fixed:.2f} s",
+         f"the fixed-base period {t_fixed:.2f} s{f' ({fixed_source})' if fixed_source else ''}",
          "ok": found["upper"]["T"] > lim.periodRatio * t_fixed if t_fixed > 0 else None},
         {"id": "5", "label": "Regular configuration above the isolation system (checked with "
          "the irregularities of the response spectrum design)", "ok": None},

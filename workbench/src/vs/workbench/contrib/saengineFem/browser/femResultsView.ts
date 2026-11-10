@@ -1161,6 +1161,20 @@ export class FemResultsEditor extends EditorPane {
 				? localize('femResults.isolationStatic', "The equivalent lateral force procedure is permitted (if the structure above is regular).")
 				: localize('femResults.isolationNoStatic', "The equivalent lateral force procedure is not permitted: use the response spectrum or a time history.")],
 		});
+		// Walk 4 W4B-5: the same conditions and requirements as the report, not only its verdict.
+		const okText = (ok: boolean | null) => ok === null ? localize('femResults.isolationByEngineer', "engineer to confirm") : ok ? yes : no;
+		renderSheet(section, {
+			name: localize('femResults.isolationStaticConditions', "Where the equivalent lateral force procedure is permitted"),
+			columns: [localize('femResults.isolationConditionId', "Condition"), localize('femResults.isolationConditionText', "Requirement"), localize('femResults.okCol', "OK")],
+			rows: found.staticAnalysis.conditions.map(c => [c.id, c.label, okText(c.ok)]),
+		});
+		if (found.requirements?.length) {
+			renderSheet(section, {
+				name: localize('femResults.isolationRequirements', "Requirements of the isolation system"),
+				columns: [localize('femResults.isolationRequirementId', "Item"), localize('femResults.isolationRequirementText', "Requirement"), localize('femResults.isolationRequirementCheck', "Checked by"), localize('femResults.okCol', "OK")],
+				rows: found.requirements.map(r => [r.id, r.text, r.check, okText(r.ok)]),
+			});
+		}
 		renderSheet(section, {
 			name: localize('femResults.isolationUnits', "Isolators"),
 			columns: [

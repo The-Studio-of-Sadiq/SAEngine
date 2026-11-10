@@ -3602,16 +3602,37 @@ def _derive_fem(
     # period and every case exist ──
     isolation_json = None
     if heights and values["Z"] and not special:
-        from saengine.fem.isolation import apply_isolation
+        from saengine.fem.isolation import apply_isolation, isolated_types
 
         fixed = summary.get("seismic") or {}
+        fixed_period = {
+            a: float((fixed.get(f"E{a}") or {}).get("period_s") or 0.0) for a in ("X", "Y")
+        }
+        fixed_source = "the approximate period Ta"
+        # Walk 4 W4B-5: the fixed-base period of the isolation checks (TD > 3 × it, the
+        # single-level procedure's distribution exponent) from the fixed-base model's modal
+        # analysis, as the codes ask (a rational modal analysis assuming a fixed base), not Ta:
+        # the period method's modal run when it ran, else one run here (isolated buildings
+        # only); Ta when the modal run fails.
+        modal = summary.get("periodModal")
+        if not modal and isolated_types(types):
+            from saengine.fem.seismic_design import fundamental_periods
+
+            try:
+                modal = fundamental_periods(project)
+            except Exception as error:  # noqa: BLE001 - Ta stays, and the note says why
+                b.notes.append(
+                    f"seismic isolators: the fixed-base modal analysis failed ({error}); the "
+                    "approximate period Ta is taken as the fixed-base period"
+                )
+                modal = None
+        if modal:
+            fixed_period = {
+                a: float((modal.get(a) or {}).get("period") or fixed_period[a]) for a in ("X", "Y")
+            }
+            fixed_source = "fixed-base modal analysis"
         iso = apply_isolation(
-            project,
-            building,
-            types,
-            settings,
-            values,
-            {a: float((fixed.get(f"E{a}") or {}).get("period_s") or 0.0) for a in ("X", "Y")},
+            project, building, types, settings, values, fixed_period, fixed_source
         )
         if iso is not None:
             project = iso.project

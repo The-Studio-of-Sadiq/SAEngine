@@ -148,13 +148,18 @@ def floor_transfer(
     omega: np.ndarray,
     omegas: Sequence[float],
     gammas_phis: Sequence[float],
-    zeta: float,
+    zeta: float | Sequence[float],
 ) -> np.ndarray:
     """|H(ω)|² of a floor's absolute acceleration in one direction: ``gammas_phis`` the modes'
-    Γi φi at the floor in that direction."""
+    Γi φi at the floor in that direction; ``zeta`` one damping ratio for every mode or one per
+    mode (an isolated building's isolated modes at the isolation damping)."""
+    if isinstance(zeta, (int, float)):
+        zetas = [float(zeta)] * len(omegas)
+    else:
+        zetas = [float(z) for z in zeta]
     h = np.ones_like(omega, dtype=complex)
-    for wi, gp in zip(omegas, gammas_phis, strict=True):
-        h += gp * omega**2 / (wi * wi - omega**2 + 2j * zeta * wi * omega)
+    for wi, gp, zi in zip(omegas, gammas_phis, zetas, strict=True):
+        h += gp * omega**2 / (wi * wi - omega**2 + 2j * zi * wi * omega)
     return np.abs(h) ** 2
 
 
@@ -167,16 +172,21 @@ def direct_floor_spectrum(
     damping: float,
     duration: float,
     iterations: int,
+    mode_damping: Sequence[float] | None = None,
 ) -> np.ndarray:
     """The floor spectrum [g] at ``periods`` and component ``damping`` by the direct method;
-    ``ground_sa`` the ground spectrum at ``periods`` and the structure's damping."""
+    ``ground_sa`` the ground spectrum at ``periods`` and the structure's damping (the ground
+    motion's density is fitted at it). ``mode_damping``: each mode's own damping in the floor's
+    transfer function (walk 4 W4B-9: an isolated building's isolated modes at the isolation
+    damping, as its response spectrum takes them); none: ``structure_damping`` for all."""
     omega = np.sort(2 * math.pi / np.asarray(periods, dtype=float))
     sa_w = np.interp(omega, 2 * math.pi / periods[::-1], ground_sa[::-1])
     density = psd_from_spectrum(omega, sa_w, structure_damping, duration, iterations)
     # A finer grid for the floor's response, the density interpolated onto it.
     fine = np.geomspace(omega[0], omega[-1] * 1.5, 1200)
     g_fine = np.interp(fine, omega, density, right=0.0)
-    floor = floor_transfer(fine, omegas, gammas_phis, structure_damping) * g_fine
+    modes = structure_damping if mode_damping is None else mode_damping
+    floor = floor_transfer(fine, omegas, gammas_phis, modes) * g_fine
     out = []
     for t in periods:
         wn = 2 * math.pi / float(t)
@@ -389,9 +399,12 @@ def evaluate(
         settings, _ = resolve_site_class(settings, read_soil_text(root))
         ground = _ground_spectrum(settings, periods, zeta_s)
         omegas, terms = _modal_terms(project, modal, floors)
+        mode_damping, damped_note = _isolation_damping(project_path, omegas, zeta_s)
         notes.append(
-            f"{len(omegas)} modes, structure damping {zeta_s:g}, strong motion {direct.duration:g} s; "
-            "the site's elastic spectrum (R = I = 1)"
+            f"{len(omegas)} modes, structure damping {zeta_s:g}{damped_note}, strong motion "
+            f"{direct.duration:g} s; the site's elastic spectrum (R = I = 1), ground "
+            f"{float(ground[0]):.3g} g at {float(periods[0]):g} s; a floor's zero-period "
+            "acceleration is its own peak acceleration (the ground's amplified by the modes)"
         )
         for k in range(len(floors)):
             for d in (0, 1):
@@ -407,6 +420,7 @@ def evaluate(
                         z,
                         direct.duration,
                         direct.iterations,
+                        mode_damping,
                     )
     out_floors = []
     for (k, d, z), raw in sorted(curves.items()):
@@ -439,6 +453,32 @@ def evaluate(
     result["sheet"] = _sheet(result)
     _save(project_path.parent / FILE, result)
     return result
+
+
+def _isolation_damping(
+    project_path: Path, omegas: Sequence[float], zeta_s: float
+) -> tuple[list[float] | None, str]:
+    """Walk 4 W4B-9: each mode's damping in an isolated building (``08 FEM/isolation.json``
+    beside the model, :mod:`saengine.fem.isolation`): the modes of periods from the isolation
+    design's ``dampedFrom`` up at its ``modalDamping`` (the lesser of the system's effective
+    damping and the pack's largest), the others at ``zeta_s``, as the isolated response
+    spectrum takes them (÷ B from ``dampedFrom`` up); (None, "") without an isolation design."""
+    from saengine.fem import isolation
+
+    design = isolation.load(project_path.parent) or {}
+    spectrum = design.get("spectrum") if design.get("available", True) else None
+    if not isinstance(spectrum, dict) or not spectrum.get("modalDamping"):
+        return None, ""
+    zeta_i = float(spectrum["modalDamping"]) / 100
+    start = float(spectrum.get("dampedFrom") or 0.0)
+    out = [zeta_i if 2 * math.pi / w >= start - 1e-9 else zeta_s for w in omegas]
+    damped = sum(1 for w in omegas if 2 * math.pi / w >= start - 1e-9)
+    if not damped:
+        return None, ""
+    return out, (
+        f"; {damped} isolated mode{'s' if damped > 1 else ''} (T ≥ {start:.2f} s) at the "
+        f"isolation damping {zeta_i:.3g}"
+    )
 
 
 def _spectrum_damping(project: dict[str, Any]) -> float | None:

@@ -263,12 +263,13 @@ def evaluate(
                 steel_beams.append((round(element.elevation), mid))
     rows: list[dict[str, Any]] = []
     notes: list[str] = []
+    unmeshed: list[str] = []
     for element in building.elements:
         if not isinstance(element, SlabElement):
             continue
         nodes = shells.get(element.id)
         slab_type = types.get(element.type)
-        if not nodes or slab_type is None:
+        if slab_type is None:
             continue
         roof = round(element.elevation) == top
         load_id = element.areaLoad or (settings.roofLoad if roof else settings.floorLoad)
@@ -278,6 +279,9 @@ def evaluate(
             occupancy_id = rules.areaUses.get("roof", occupancy_id)
         occupancy = rules.occupancies[occupancy_id]
         if not occupancy.checked:
+            continue
+        if not nodes:
+            unmeshed.append(element.id)
             continue
         material = mats.get(slab_type.material)
         density = (material.mechanical.density or 0.0) if material else 0.0
@@ -331,23 +335,48 @@ def evaluate(
                 **found,
             }
         )
+    if unmeshed:
+        # Walk 4 W4B-13: said where the engineer looks (the Charts table and the step), not
+        # only in the report.
+        shown = ", ".join(unmeshed[:6]) + (
+            f" and {len(unmeshed) - 6} more" if len(unmeshed) > 6 else ""
+        )
+        notes.append(
+            f"{len(unmeshed)} slab{'s' if len(unmeshed) > 1 else ''} not checked ({shown}): "
+            "floor vibration needs the slabs analysed as shells; with Project Settings > "
+            "Analysis model > Slabs 'Loads to beams' they hand their loads to the beams and have "
+            "no deflection of their own: choose 'Shells' and run the analysis again"
+        )
     if not rows:
         notes.append("no slab analysed as shells with an occupancy that has a criterion")
     clauses = rules.clauses or {}
+    all_notes = notes + [
+        (
+            f"fn = {rules.frequencyConstant:g} √(g/Δ), Δ the panel's deflection under D + SD + "
+            "the service live load relative to its supported nodes, from the analysis"
+        )
+    ]
     return {
         "available": True,
         "rows": rows,
-        "notes": notes
-        + [
-            (
-                f"fn = {rules.frequencyConstant:g} √(g/Δ), Δ the panel's deflection under D + SD + "
-                "the service live load relative to its supported nodes, from the analysis"
-            )
-        ],
+        "notes": all_notes,
+        "unmeshed": unmeshed,
         "clause": rules.source,
         "clauses": [str(v) for v in clauses.values()],
-        "sheet": sheet(rows, rules.source),
+        "sheet": sheet(rows, rules.source, notes),
     }
+
+
+#: Walk 4 W4B-13: the methods' names in the tables (the pack's method ids are keys).
+METHOD_LABELS = {
+    "responseFactor": "response factor R",
+    "walkingAcceleration": "peak acceleration ap/g",
+}
+
+
+def method_label(method: str) -> str:
+    """A method id as the tables print it (``responseFactor`` → "response factor R")."""
+    return METHOD_LABELS.get(method, method)
 
 
 def _inside(point: np.ndarray, polygon: list[tuple[float, float]]) -> bool:
@@ -359,8 +388,11 @@ def _inside(point: np.ndarray, polygon: list[tuple[float, float]]) -> bool:
     return inside
 
 
-def sheet(rows: list[dict[str, Any]], source: str) -> dict[str, Any]:
-    """The rows as a table of the results view (name, columns, rows, notes)."""
+def sheet(
+    rows: list[dict[str, Any]], source: str, notes: list[str] | None = None
+) -> dict[str, Any]:
+    """The rows as a table of the results view (name, columns, rows, notes): ``notes`` (what
+    was not checked and why) before the source."""
     return {
         "name": "Floor vibration",
         "columns": [
@@ -369,14 +401,14 @@ def sheet(rows: list[dict[str, Any]], source: str) -> dict[str, Any]:
         ],
         "rows": [
             [
-                r["slab"], r["story"], r["occupancy"], r["floor"], r["method"],
+                r["slab"], r["story"], r["occupancy"], r["floor"], method_label(r["method"]),
                 round(r["deflection"], 2), round(r["fn"], 2), round(r["w"], 2),
                 f"{r['bay'][0]:.2f} × {r['bay'][1]:.2f}", round(r["value"], 3),
                 round(r["limit"], 3), r["unit"], "OK" if r["ok"] else "FAIL",
             ]
             for r in rows
         ],
-        "notes": [source],
+        "notes": [*(notes or []), source],
     }  # fmt: skip
 
 
@@ -400,6 +432,7 @@ def report_rows(found: dict[str, Any] | None) -> dict[str, Any] | None:
 __all__ = [
     "check_panel",
     "evaluate",
+    "method_label",
     "natural_frequency",
     "report_rows",
     "response_factor",
