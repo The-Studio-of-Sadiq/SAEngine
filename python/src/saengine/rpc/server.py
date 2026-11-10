@@ -1902,6 +1902,12 @@ def main() -> int:
     import numpy  # noqa: F401
     import shapely  # noqa: F401 - the same for shapely, which the warm-ups import too
 
+    # And the project settings (and the code packs behind them), which every request reads to
+    # put its project's pack in force and the warm-ups import too: a request racing the
+    # warm-up thread got "cannot import name 'ProjectSettings' from partially initialized
+    # module".
+    import saengine.library.settings  # noqa: F401
+
     def warm() -> None:
         # WNTR's first import takes a second or two: done ahead of the editor's first request.
         handlers.warm_plumbing()

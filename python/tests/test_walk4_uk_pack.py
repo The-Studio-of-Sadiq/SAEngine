@@ -65,8 +65,8 @@ def test_uk_wizard_creates_the_building_with_the_uk_combinations(tmp_path: Path)
     assert settings["codePack"] == "eurocodes-uk"
     names = [c["name"] for c in settings["combinations"]]
     # UK NA Table NA.A1.2(B): Eqs 6.10a/b with ξ 0.925 (1.25G) and ψ0 of the wind 0.5 (0.75W).
-    assert "1.35G + 1.05Q + 0.75S + 0.75WX" in names
-    assert "1.25G + 1.5Q + 0.75S" in names
+    assert "1.35G + 1.05Q + 0.75Lr + 0.75WX" in names
+    assert "1.25G + 1.5Q + 0.75Lr" in names
     assert not any("0.9W" in n for n in names)
 
 
@@ -99,7 +99,7 @@ def test_codes_combinations_generates_the_active_pack() -> None:
     assert answer["id"] == "eurocodes-uk"
     assert answer["fromPack"] is False  # still the recommended values (0.9W)
     names = [c["name"] for c in answer["combinations"]]
-    assert "1.25G + 1.5Q + 0.75S + 0.75WX" in names
+    assert "1.25G + 1.5Q + 0.75Lr + 0.75WX" in names
     assert not any("1.2D" in n or "0.9W" in n for n in names)  # not BNBC, not EN recommended
     fresh = _uk_settings()
     again = codes_combinations(json.dumps(fresh.model_dump(mode="json", by_alias=True)))
@@ -123,7 +123,7 @@ def test_report_text_matches_the_combinations_table() -> None:
     assert fresh["fromPack"] is True and fresh["source"] == uk.source
     assert "ξ 0.925" in fresh["source"]
     rows = [r[0] for r in fresh["rows"]]
-    assert "1.25G + 1.5Q + 0.75S + 0.75WX" in rows
+    assert "1.25G + 1.5Q + 0.75Lr + 0.75WX" in rows
     # Kept from the recommended values: the UK basis is not claimed for 0.9W rows.
     kept = _basis(_uk_settings("eurocodes"), _Parts(Path("."), []), {}, {})["combinations"]
     assert kept["fromPack"] is False
