@@ -211,7 +211,13 @@
       ],
       "compressionConfined": 0.75,
       "hookCover": 0.7,
-      "hookConfined": 0.8
+      "hookConfined": 0.8,
+      "hookQualify": {
+        "maxDb": 36.0,
+        "sideCover": 65.0,
+        "tailCover": 50.0,
+        "tieSpacingDb": 3.0
+      }
     },
     "laps": {
       "min": 300.0,

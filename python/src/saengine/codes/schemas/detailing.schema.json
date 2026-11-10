@@ -224,6 +224,18 @@
           "title": "Hookconfined",
           "type": "number"
         },
+        "hookQualify": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/HookQualify"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "When the detailing earns the hook's cover and confinement credits (None: never)."
+        },
         "hookMethod": {
           "default": "linear",
           "description": "ldh: 'linear' (0.24 ψe fy db / (λ √f'c) × hookCover, hookConfined) or 'powerDiameter' (fy ψe ψr ψo ψc db^exponent / (coefficient λ √f'c), ``hook``).",
@@ -850,6 +862,112 @@
         "psiCBase"
       ],
       "title": "HookDevelopment",
+      "type": "object"
+    },
+    "HookQualify": {
+      "additionalProperties": false,
+      "description": "2026-11-10 (column-top anchorage): when the detailing of a hooked bar earns the pack's\nreductions of ldh: the side and end cover one (``hookCover``, or ψo = 1.0 of the power form)\nand the confinement one (``hookConfined``, or ψr = 1.0). A value left out (None) is no\ncondition of that kind; a credit with no condition given is never earned.",
+      "properties": {
+        "maxDb": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Bars up to this db only [mm].",
+          "title": "Maxdb"
+        },
+        "sideCover": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Cover: the side cover normal to the hook's plane >= this [mm] ...",
+          "title": "Sidecover"
+        },
+        "sideCoverDb": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "... or >= this × db.",
+          "title": "Sidecoverdb"
+        },
+        "tailCover": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Cover: and the cover beyond a 90° hook's tail >= this [mm].",
+          "title": "Tailcover"
+        },
+        "tieSpacingDb": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Confined: ties perpendicular to the bar at most this × db apart along ldh ...",
+          "title": "Tiespacingdb"
+        },
+        "barSpacingDb": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "... or the hooked bars at least this × db apart (centres) ...",
+          "title": "Barspacingdb"
+        },
+        "tieAreaRatio": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "... or the ties' area along ldh Ath >= this × the bars' Ahs.",
+          "title": "Tiearearatio"
+        }
+      },
+      "title": "HookQualify",
       "type": "object"
     },
     "Joints": {

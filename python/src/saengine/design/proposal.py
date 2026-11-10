@@ -950,6 +950,71 @@ def _column_short(
     return db, short, fitting
 
 
+def _column_tops(gathered: Any) -> dict[str, tuple[float, float]]:
+    """RC4-9: the columns that end in the beams at their top, with the deepest beam there
+    (:func:`saengine.design.ductile_joints.column_top_rooms`); empty when not found."""
+    from saengine.design import ductile_joints as dj
+
+    try:
+        types = {o.id: o for o in gathered.objects.objects}
+        return dj.column_top_rooms(gathered.building, types)
+    except (DesignError, ValueError, AttributeError, TypeError):
+        return {}
+
+
+def _column_top_short(
+    entry: dict[str, Any] | None, tops: dict[str, tuple[float, float]], gathered: Any, opts: Options
+) -> tuple[float, tuple[str, float, float], list[float]] | None:
+    """RC4-9: the proposed column bars of ``entry`` whose 90° hooks do not fit the beams at
+    the top of a member (the check of :func:`saengine.design.ductile_joints.column_top_anchorage`
+    with the credits of the proposed layout): ``(largest bar, (member, ldh, available), the
+    smaller column bar sizes that fit at every such top)``; None when they all fit."""
+    from saengine.design import ductile_joints as dj
+
+    proposed = (entry or {}).get("proposed") if (entry or {}).get("kind") == "column" else None
+    groups = (proposed or {}).get("longitudinal") or []
+    if not tops or not groups or entry is None:
+        return None
+    members = {m["id"]: m for m in gathered.collect.get("members", []) if m.get("kind") == "column"}
+    db = max(float(g["dia"]) for g in groups)
+    worst: tuple[str, float, float] | None = None
+    places = []
+    for member_id in entry.get("members", []):
+        found, member = tops.get(member_id), members.get(member_id)
+        if found is None or member is None:
+            continue
+        top = getattr(member.get("element"), "top", None)
+        if top is not None and abs(found[0] - float(top)) > 50.0:
+            continue
+        obj = member["object"]
+        current = obj.reinforcement.model_dump(mode="json") if obj.reinforcement else {}
+        try:
+            bars = LinearReinforcement.model_validate({**current, **reinforcement_of(proposed)})
+        except ValueError:
+            continue
+        fc, fy = float(member["fc"]), float(member["fy"])
+        detail = dj.column_top_detail(obj.profile, bars, fc, fy)
+        places.append((fc, fy, found[1], detail))
+        rule, available = dj.column_top_anchorage(db, fy, fc, found[1], detail=detail)
+        if rule.value > available + 1e-6 and (
+            worst is None or rule.value - available > worst[1] - worst[2]
+        ):
+            worst = (member_id, rule.value, available)
+    if worst is None:
+        return None
+    fitting = [
+        d
+        for d in sorted(opts.column_diameters)
+        if d < db
+        and all(
+            dj.column_top_anchorage(d, fy, fc, depth, detail=detail)[0].value
+            <= dj.column_top_anchorage(d, fy, fc, depth)[1] + 1e-6
+            for fc, fy, depth, detail in places
+        )
+    ]
+    return db, worst, fitting
+
+
 def _column_anchorage(
     types: list[dict[str, Any]], rooms: dict[str, Any], gathered: Any, opts: Options
 ) -> list[str]:
@@ -2160,6 +2225,55 @@ def propose(
                     f"bars of at most Ø{max(short[2]):g}, so they anchor in the foundation "
                     f"(Ø{short[0]:g} needs {_hook_term()} {need:.0f} mm in {room['foundation']} under "
                     f"{worst}): checked as the others"
+                ),
+            ]
+            column_results[type_id] = again
+            results[results.index(first)] = again
+        else:
+            column_searches[type_id] = kept_search
+            taken.difference_update(t["type"] for t in again.new_types)
+            taken.update(t["type"] for t in first.new_types)
+
+    # RC4-9 (owner decision 2026-11-10): column bars whose top hooks do not fit the roof
+    # beams: the type proposed again with the bar sizes that do (as the beams are limited by
+    # the column depth), kept when it still passes (else the check says so).
+    tops = _column_tops(gathered)
+    for type_id in list(column_searches):
+        first = column_results[type_id]
+        short_top = _column_top_short(first.entry, tops, gathered, opts)
+        if short_top is None or not short_top[2]:
+            continue
+        kept_search = column_searches[type_id]
+        search, members = kept_search
+        allowed = set(getattr(search.options, "column_diameters", opts.column_diameters))
+        sizes = tuple(d for d in short_top[2] if d in allowed)
+        member = next(
+            (m for m in gathered.collect.get("members", []) if m["type"] == type_id), None
+        )
+        if member is None or not sizes:
+            continue
+        smaller = dataclasses.replace(search.options, column_diameters=sizes)
+        alt = ColumnSearch(
+            member["object"], member["fc"], member["fy"], member["es"], member["aggregate"], smaller
+        )
+        column_searches[type_id] = (
+            alt,
+            {mid: (alt.smallest(points), points) for mid, (_, points) in members.items()},
+        )
+        taken.difference_update(t["type"] for t in first.new_types)
+        again = column_type(type_id)
+        if (
+            again.entry is not None
+            and again.entry.get("proposed")
+            and again.entry["status"] in ("ok", "unchanged")
+        ):
+            worst, need, available = short_top[1]
+            again.entry["notes"] = [
+                *again.entry["notes"],
+                (
+                    f"bars of at most Ø{max(sizes):g}, so their 90° hooks fit the beams at the "
+                    f"top (Ø{short_top[0]:g} needs {_hook_term()} {need:.0f} mm, {available:.0f} "
+                    f"mm at {worst}): checked as the others"
                 ),
             ]
             column_results[type_id] = again
