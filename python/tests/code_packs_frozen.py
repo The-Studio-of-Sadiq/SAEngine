@@ -73,6 +73,8 @@ def same(a: Any, b: Any, path: str = "") -> list[str]:
         if len(a) != len(b):
             return [f"{path}: length {len(a)} != {len(b)}"]
         return [d for i, (x, y) in enumerate(zip(a, b)) for d in same(x, y, f"{path}[{i}]")]
+    if isinstance(a, float) and math.isclose(a, b, rel_tol=1e-12, abs_tol=0.0):
+        return []  # the last bit of a float differs between platforms' maths libraries
     return [] if a == b else [f"{path}: {a!r} != {b!r}"]
 
 
