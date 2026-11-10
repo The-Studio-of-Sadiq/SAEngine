@@ -213,7 +213,7 @@ def test_silt_without_pi_or_cu_is_granular_with_a_note() -> None:
     assert "soft clay (cu 30 kPa" in notes[1]
     # The clays have no Cc and e0: their consolidation is the pack's modulus number estimate,
     # said in one note (walkthrough 3, SO-1).
-    assert len(notes) == 3 and "estimated by the code pack's modulus numbers" in notes[2]
+    assert len(notes) == 3 and "the code pack's modulus numbers" in notes[2]
 
 
 # ─────────────────────────────── site class ───────────────────────────────
@@ -914,7 +914,7 @@ def test_no_qa_without_the_strength_or_the_compressibility() -> None:
     r = bearing.allowable(p, 2.0, 2.0, 1.0)
     assert r["qa"] is not None and r["governs"] == "settlement"
     assert "consolidation estimated" in r["settlement"]
-    assert any("estimated by the code pack's modulus number method" in n for n in r["notes"])
+    assert any("the code pack's modulus number method" in n for n in r["notes"])
 
 
 def test_meyerhof_bowles_takes_the_sand_test_not_the_clay_above() -> None:
@@ -959,9 +959,9 @@ def test_no_qa_when_the_clay_consolidation_cannot_be_estimated(monkeypatch) -> N
 def test_very_soft_clay_without_lab_data_is_estimated_not_zero() -> None:
     # Walkthrough 3, SO-1: very soft clay (N 1-3) to 5.5 m over sand, no lab data. The
     # consolidation was 0 mm (only the Eu = 500 cu elastic settlement), so qa came out at 36 kPa
-    # (shear) against 16 kPa at a borehole of the same clay with LL and moisture. Now the
-    # default pack's modulus numbers (Table 6.3.14, soft silty clay: lower M = 5, j = 0.5, the
-    # larger of the power and log forms) estimate it, and settlement governs.
+    # (shear) against 16 kPa at a borehole of the same clay with LL and moisture. Now it is
+    # estimated and settlement governs: from the SPTs (walk 4 W4B-10, mv = 1/(f2 N60), Stroud &
+    # Butler 1975; the pack's modulus numbers gave qa 8 kPa, too low for N 3-5).
     hole = {
         "id": "BH",
         "waterTable": 2000,
@@ -974,13 +974,12 @@ def test_very_soft_clay_without_lab_data_is_estimated_not_zero() -> None:
     p = profile(hole)
     s = settlement(p, 2.0, 2.0, 1.5, 36.0)
     assert s["estimated"] == [0] and s["consolidation"] > 25
-    # by hand, the first 0.25 m slice below the base: σ0' = 18 x 1.5 + (19 - 9.81) x 0.125
-    s0 = 18 * 1.5 + (19 - 9.81) * 0.125
-    s1 = s0 + 36 * 4 / (2 + 0.125) ** 2
-    strain = max(math.log(s1 / s0) / 5, 2 / 5 * (math.sqrt(s1 / 100) - math.sqrt(s0 / 100)))
+    # by hand, the first 0.25 m slice below the base: mv Δσ h, N60 the layer's mean
+    mv = 1 / (450 * p.layers[0].n60)
+    strain = mv * 36 * 4 / (2 + 0.125) ** 2
     assert s["layers"][0]["consolidation"] > strain * 250  # the slices below add to it
     r = bearing.allowable(p, 2.0, 2.0, 1.5)
-    assert r["governs"] == "settlement" and r["qa"] < 10
+    assert r["governs"] == "settlement" and 20 < r["qa"] < r["qa_shear"]
     assert "consolidation estimated" in r["settlement"]
 
 

@@ -2507,6 +2507,12 @@ def seismic_transverse(
     section = section_of(
         obj.profile, LinearReinforcement.model_validate(reinforcement), fc, fy, es, aggregate
     )
+    # Walk 4 W4A-10: the limits that scale with d (d/4 over the splices and in the zones) take
+    # the d the checks take, that of the top bars passing the joints in the second layer
+    # (``topDrop``, T33); with the full d the hoops over the splices came out 100 mm against a
+    # checked min(d/4, ...) = 99.5 mm.
+    drop = max((float(m.get("topDrop") or 0.0) for m in members), default=0.0)
+    need_section = with_top_drop(section, drop) if kind == "beam" else section
     t = dict(reinforcement["transverse"])
     circle = isinstance(obj.profile, CircleProfile)
     b, h = (obj.profile.xDim, obj.profile.yDim) if not circle else (2 * obj.profile.radius,) * 2
@@ -2588,7 +2594,7 @@ def seismic_transverse(
         zones = dm.Zones(t["type"], dia, float(t["spacing"]), ly, lx if kind == "column" else None)
         for c in contexts:
             if kind == "beam":
-                need = dm.beam_need(section, c["level"], dia, c["lateral"])
+                need = dm.beam_need(need_section, c["level"], dia, c["lateral"])
             else:
                 need = dm.column_need(
                     section,
@@ -3029,7 +3035,15 @@ def _apply_punching(
 
 
 def _dump(data: Any, like: str) -> str:
-    """JSON in the indentation of the text it replaces (tabs or spaces)."""
+    """JSON in the indentation of the text it replaces (tabs or spaces); ``like`` itself when
+    ``data`` is what it holds (walk 4 W4A-11: a floor plan written in another layout came back
+    re-indented with no member moved, so the page read it as edited and said the analysis was
+    out of date, while Run All found it current)."""
+    try:
+        if json.loads(like) == data:
+            return like
+    except ValueError:
+        pass
     indent: str | int = 2
     for line in like.splitlines()[1:3]:
         stripped = line.lstrip(" \t")

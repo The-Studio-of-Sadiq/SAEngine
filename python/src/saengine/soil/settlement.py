@@ -29,7 +29,9 @@ A footing B × L [m] founded Df [m] below the borehole's ground, under a net pre
     log10((σ'v0 + Δσ)/σ'p)``.
 - Soft and medium stiff cohesive layers (cu below the code pack's ``piles.soilClasses.stiffCu``)
   without Cc and e0 (no consolidation test, no LL and moisture), by an estimate (a stiff clay
-  takes its elastic settlement only, as its consolidation is small): the modulus number method (Janbu) with the code pack's lower M of the layer's row
+  takes its elastic settlement only, as its consolidation is small). With SPTs in the layer
+  (walk 4 W4B-10): ``s = Σ mv Δσ h`` with ``mv = 1/(f2 N60)`` (Stroud & Butler 1975,
+  :data:`STROUD_F2`). Without: the modulus number method (Janbu) with the code pack's lower M of the layer's row
   (``foundations.piles.settlement.modulus``; the default pack's Table 6.3.14, the same method
   the long-term settlement of a pile group uses), the same 0.25 m slices and 2:1 spread:
   ``j = 0``: ``ε = ln(σ1'/σ0')/M``; ``j > 0``: ``ε = [(σ1'/σr)^j - (σ0'/σr)^j]/(M j)``, for a
@@ -63,6 +65,8 @@ from __future__ import annotations
 
 import math
 from typing import Any
+
+import numpy as np
 
 from saengine.soil.profile import Profile, SoilLayer
 
@@ -475,10 +479,12 @@ def janbu_strain(layer: SoilLayer, s0: float, s1: float, found: Any) -> tuple[fl
 
 def can_consolidate(layer: SoilLayer) -> bool:
     """Whether the consolidation of a cohesive layer can be worked out: with Cc and e0, else
-    estimated by the code pack's modulus numbers."""
+    estimated from its SPTs (:func:`stroud_mv`) or by the code pack's modulus numbers."""
     if layer.cc is not None and layer.e0 is not None:
         return True
     if is_stiff(layer) and layer.E:
+        return True
+    if stroud_mv(layer) is not None:
         return True
     found = modulus_rules()
     return found is not None and modulus_row(layer, found) is not None
@@ -491,7 +497,70 @@ def is_stiff(layer: SoilLayer) -> bool:
     return soil_piles.density_class(layer) == "dense"
 
 
+#: Walk 4 W4B-10: Stroud & Butler (1975), "The standard penetration test and the engineering
+#: properties of glacial materials", Proc. Symp. Engineering Behaviour of Glacial Materials,
+#: Birmingham: mv = 1/(f2 N60), f2 [kPa per blow] about 450 for clays of PI 30 and more, rising
+#: to about 600 at PI 20 (their Fig.; Clayton 1995, CIRIA Report 143, Fig. 31). Unknown PI:
+#: 450, the more compressible end. A soft clay of N 4-6 takes mv 0.37-0.56 m²/MN, inside the
+#: 0.3-1.0 m²/MN of soft-to-firm clays (Tomlinson, Foundation Design and Construction, Table
+#: 2.8 type ranges); the code pack's Janbu modulus numbers (lower M 5 of a soft silty clay with
+#: the log form) gave about 2-7 m²/MN at the stresses below a footing (allowable 8 kPa).
+STROUD_F2 = ((20.0, 600.0), (30.0, 450.0))
+
+
+def stroud_mv(layer: SoilLayer) -> float | None:
+    """mv [1/kPa] of a clay from its mean N60 (Stroud & Butler 1975, :data:`STROUD_F2`);
+    None without an N60."""
+    if not layer.n60 or layer.n60 <= 0:
+        return None
+    (pi_low, f_low), (pi_high, f_high) = STROUD_F2
+    pi = layer.pi
+    f2 = f_high if pi is None else float(np.interp(pi, [pi_low, pi_high], [f_low, f_high]))
+    return 1.0 / (f2 * float(layer.n60))
+
+
+def stroud_text(layer: SoilLayer) -> str:
+    mv = stroud_mv(layer)
+    assert mv is not None
+    return (
+        f"mv = 1/(f2 N60) = {mv * 1e3:.2f} m²/MN, N60 = {layer.n60:.1f}, f2 = "
+        f"{1 / (mv * float(layer.n60)):.0f} kPa (Stroud & Butler 1975)"
+    )
+
+
 def _estimated_consolidation(
+    profile: Profile,
+    layer: SoilLayer,
+    top: float,
+    bottom: float,
+    df: float,
+    q: float,
+    b: float,
+    l_: float,
+    row: dict[str, Any],
+    notes: list[str],
+) -> float | None:
+    mv = stroud_mv(layer)
+    if mv is not None:
+        # Walk 4 W4B-10: a clay with SPTs and no tests: mv from N60 (Stroud & Butler 1975),
+        # s = Σ mv Δσ h over the same slices and 2:1 spread.
+        n = max(1, math.ceil((bottom - top) / CONSOLIDATION_SLICE))
+        h = (bottom - top) / n
+        total = sum(
+            mv * stress_increase(q, b, l_, top + (k + 0.5) * h - df) * h * 1e3 for k in range(n)
+        )
+        row["consolidation"] += total
+        row["method"].append(f"consolidation estimated: {stroud_text(layer)}")
+        notes.append(
+            f"layer {layer.index + 1} ({layer.soil_type}): no Cc and e0 from tests, so its "
+            f"consolidation ({total:.1f} mm) is an estimate from the SPT: {stroud_text(layer)}; "
+            "give consolidation tests (or LL and moisture) to compute it"
+        )
+        return total
+    return _janbu_consolidation(profile, layer, top, bottom, df, q, b, l_, row, notes)
+
+
+def _janbu_consolidation(
     profile: Profile,
     layer: SoilLayer,
     top: float,

@@ -329,6 +329,8 @@ export interface IFemIsolationDesign {
 	readonly forces: { readonly X: IFemIsolationForces; readonly Y: IFemIsolationForces };
 	readonly checks: readonly { readonly id: string; readonly label: string; readonly value: number | null; readonly limit: number | null; readonly ok: boolean | null; readonly clause?: string }[];
 	readonly staticAnalysis: { readonly permitted: boolean; readonly conditions: readonly { readonly id: string; readonly label: string; readonly ok: boolean | null }[] };
+	/** The code's requirements of the isolation system ("computed": checked here; else the engineer's), as the report lists them. */
+	readonly requirements?: readonly { readonly id: string; readonly text: string; readonly check: string; readonly ok: boolean | null }[];
 	readonly units: readonly { readonly column: string; readonly kind: string; readonly kDmax_kNm: number; readonly DTD_mm: number; readonly DTM_mm: number; readonly capacity_mm: number | null }[];
 	readonly notes?: readonly string[];
 	readonly clauses?: { readonly [key: string]: string };

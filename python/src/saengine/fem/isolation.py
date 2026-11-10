@@ -475,6 +475,7 @@ def design(
     storeys: int,
     accidental_share: float,
     has_time_histories: bool = False,
+    fixed_source: str = "",
 ) -> dict[str, Any]:
     """The isolation design of ``units`` under a building of ``levels`` [(height above the
     isolation interface m, weight N)] with its centre of mass ``centre`` [m]. ``r``: the
@@ -500,6 +501,7 @@ def design(
             storeys=storeys,
             accidental_share=accidental_share,
             has_time_histories=has_time_histories,
+            fixed_source=fixed_source,
         )
     cl = clauses()
     weight = sum(w for _, w in levels)
@@ -634,7 +636,7 @@ def design(
         {"id": "3", "label": f"TM = {mce['T']:.2f} s at most {lim.maxPeriodM:g} s",
          "ok": mce["T"] <= lim.maxPeriodM + 1e-9},
         {"id": "4", "label": f"TD = {dbe['T']:.2f} s more than {lim.periodRatio:g} × the "
-         f"fixed-base period {t_fixed:.2f} s",
+         f"fixed-base period {t_fixed:.2f} s{f' ({fixed_source})' if fixed_source else ''}",
          "ok": dbe["T"] > lim.periodRatio * t_fixed if t_fixed > 0 else None},
         {"id": "5", "label": "Regular configuration above the isolation system (checked with "
          "the irregularities of the response spectrum design)", "ok": None},
@@ -828,6 +830,7 @@ def apply_isolation(
     settings: Any,
     values: dict[str, Any],
     fixed_period: dict[str, float],
+    fixed_source: str = "",
 ) -> IsolationResult | None:
     """The derived ``project`` (a modified copy) with the isolated column bases on their
     isolators, the static earthquake cases and the response spectrum of the isolated building
@@ -953,6 +956,7 @@ def apply_isolation(
         storeys=storeys,
         accidental_share=float(getattr(seismic, "accidentalEccentricity", 0.05) or 0.05),
         has_time_histories=bool(getattr(settings.analysis, "timeHistories", None)),
+        fixed_source=fixed_source,
     )
     dd = summary["design"]["D_mm"] / 1e3
 

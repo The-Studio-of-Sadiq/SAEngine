@@ -863,7 +863,20 @@ export interface IDesignProposalTexts {
 /** The part files an apply changes, by part id, with their new text. */
 export type DesignProposalEdits = Partial<Record<'objects' | 'bim' | 'floorPlan', string>>;
 
-/** The text edits an apply result makes: only of files it was given and whose text differs. */
+/** Whether two JSON texts hold the same data (only the layout differs); false when either does not parse. */
+function sameJson(a: string, b: string): boolean {
+	try {
+		return JSON.stringify(JSON.parse(a)) === JSON.stringify(JSON.parse(b));
+	} catch {
+		return false;
+	}
+}
+
+/**
+ * The text edits an apply result makes: only of files it was given and whose data differs (walk 4
+ * W4A-11: a floor plan the backend wrote back in its own layout, nothing moved, was taken as
+ * edited and the page said the analysis was out of date where Run All found it current).
+ */
 export function proposalEdits(current: IDesignProposalTexts, result: IFemDesignApplyResult): DesignProposalEdits {
 	const edits: DesignProposalEdits = {};
 	const pairs = [
@@ -872,7 +885,7 @@ export function proposalEdits(current: IDesignProposalTexts, result: IFemDesignA
 		['floorPlan', current.floorPlanText, result.floorPlanText],
 	] as const;
 	for (const [part, now, next] of pairs) {
-		if (now !== undefined && typeof next === 'string' && next !== now) {
+		if (now !== undefined && typeof next === 'string' && next !== now && !sameJson(now, next)) {
 			edits[part] = next;
 		}
 	}
