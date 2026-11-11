@@ -18,6 +18,7 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
@@ -32,6 +33,9 @@ import { StartEditorInput } from './startEditorInput.js';
 import { IMPORT_STRUCTURAL_UI_COMMAND } from './structuralImportModel.js';
 import { formatDate } from '../../../services/saengineProject/common/formatting.js';
 import { renderBrandMark, renderBrandWordmark } from './saengineBrand.js';
+
+/** The public source repository of SAEngine. */
+const SOURCE_URL = 'https://github.com/The-Studio-of-Sadiq/SAEngine';
 
 function formatOpened(time: number): string {
 	const date = new Date(time);
@@ -66,6 +70,7 @@ export class StartEditor extends EditorPane {
 		@INotificationService private readonly notificationService: INotificationService,
 		@IPathService private readonly pathService: IPathService,
 		@ICommandService private readonly commandService: ICommandService,
+		@IOpenerService private readonly openerService: IOpenerService,
 	) {
 		super(StartEditorInput.EDITOR_ID, group, telemetryService, themeService, storageService);
 		this.opener = instantiationService.createInstance(ProjectOpener);
@@ -130,6 +135,18 @@ export class StartEditor extends EditorPane {
 		action(Codicon.cloudDownload, localize('start.import', "Import from ETABS, STAAD or SAP2000..."), () => this.run(async () => { await this.commandService.executeCommand(IMPORT_STRUCTURAL_UI_COMMAND); }));
 
 		this.main = append(shell, $('main.main'));
+
+		// Who makes SAEngine and under which licence, at the foot of the page.
+		const credits = append(this.container, $('footer.credits'));
+		append(credits, $('p', undefined, localize('start.developer', "Developed by The Studio of Sadiq")));
+		const source = append(credits, $('p'));
+		append(source, document.createTextNode(localize('start.openSource', "This is an open source project.") + ' '));
+		const more = append(source, $('a.see-more', { href: SOURCE_URL, role: 'link' }, localize('start.seeMore', "See More")));
+		this.sideDisposables.add(addDisposableListener(more, EventType.CLICK, e => {
+			e.preventDefault();
+			this.openerService.open(SOURCE_URL, { openExternal: true });
+		}));
+		append(credits, $('p', undefined, localize('start.copyright', "Copyright © 2026 The Studio of Sadiq. Free software under the GNU Affero General Public License v3.0 (AGPL-3.0-only), with no warranty.")));
 	}
 
 	private resetMain(): HTMLElement {

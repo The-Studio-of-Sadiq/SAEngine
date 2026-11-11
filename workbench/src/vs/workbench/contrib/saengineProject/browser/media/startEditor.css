@@ -10,6 +10,8 @@
 
 .saengine-start {
 	box-sizing: border-box;
+	display: flex;
+	flex-direction: column;
 	overflow: hidden; /* scrolled by the workbench's scrollbar (DomScrollableElement) */
 	background-color: var(--sa-surface, var(--vscode-editor-background));
 	color: var(--vscode-foreground);
@@ -18,8 +20,10 @@
 
 .saengine-start .shell {
 	box-sizing: border-box;
+	flex: none;
+	width: 100%;
 	display: grid;
-	grid-template-columns: 240px minmax(0, 1fr);
+	grid-template-columns: 264px minmax(0, 1fr);
 	gap: 56px;
 	max-width: 920px;
 	margin: 0 auto;
@@ -74,6 +78,7 @@
 	font-family: var(--sa-font-brand);
 	font-size: var(--sa-font-s, 12px);
 	letter-spacing: 0.02em;
+	white-space: nowrap;
 }
 
 .saengine-start .actions {
@@ -179,4 +184,33 @@
 	/* cut in the middle (.sa-path): the folders that tell projects apart stay visible */
 	color: var(--sa-muted, var(--vscode-descriptionForeground));
 	font-size: var(--sa-font-s, 12px);
+}
+
+/* --- foot: developer, source and licence, at the bottom of the window --- */
+
+.saengine-start .credits {
+	flex: none;
+	margin-top: auto;
+	padding: var(--sa-space-6, 24px);
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+	font-size: var(--sa-font-s, 12px);
+	text-align: center;
+}
+
+.saengine-start .credits p {
+	margin: 2px 0;
+}
+
+.saengine-start .credits .see-more {
+	color: var(--vscode-textLink-foreground);
+	cursor: pointer;
+}
+
+.saengine-start .credits .see-more:hover {
+	text-decoration: underline;
+}
+
+.saengine-start .credits .see-more:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: 1px;
 }
