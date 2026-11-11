@@ -153,6 +153,10 @@ const DEVELOPER_VIEW_CONTAINERS = new Set([
 	'~remote.forwardedPortsContainer',
 	// Problems: the parts list and the editors say what is wrong with a part (its checks).
 	'workbench.panel.markers',
+	// The chat extension's own debugging views (Chat Debug, Language Context Inspector) in the
+	// activity bar; the chat itself stays beside Sign In in the title bar.
+	'workbench.view.extension.copilot-chat',
+	'workbench.view.extension.context-inspector',
 ]);
 
 /**
