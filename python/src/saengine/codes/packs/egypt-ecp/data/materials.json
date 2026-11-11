@@ -1,0 +1,12 @@
+{
+  "$schema": "../../../schemas/materials.schema.json",
+  "$sources": [
+    "ECP 203 (verify)"
+  ],
+  "structuralFcMin": 25.0,
+  "rebarFyMax": 500.0,
+  "sources": {
+    "structuralFcMin": "Not checked (verify): ECP 203's least fcu of reinforced concrete; the parent's BS 8110-1:1997 3.1.7.4 value (C25) kept until checked",
+    "rebarFyMax": "Not checked (verify): ECP 203's greatest fy of reinforcement (the ES 262 grades); the parent's BS 8110-1:1997 Table 3.1 value (500 MPa) kept until checked"
+  }
+}

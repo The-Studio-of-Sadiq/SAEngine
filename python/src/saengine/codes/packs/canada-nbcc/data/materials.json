@@ -1,10 +1,30 @@
 {
   "$schema": "../../../schemas/materials.schema.json",
   "$sources": [
-    "CSA A23.3-19 10.1.3 (the maximum usable strain at the extreme concrete compression fibre)"
+    "CSA A23.3-19 10.1.3 (the maximum usable strain at the extreme concrete compression fibre)",
+    "CSA A23.3-19 8.6.1.1, 8.5.1 (verify)"
   ],
   "concreteStrain": 0.0035,
+  "structuralFcMin": 20.0,
+  "rebarFyMax": 500.0,
+  "rebarGrades": [
+    {
+      "id": "G30.18-400W",
+      "name": "CSA G30.18 Grade 400W",
+      "fy": 400.0,
+      "standard": "CSA G30.18"
+    },
+    {
+      "id": "G30.18-500W",
+      "name": "CSA G30.18 Grade 500W",
+      "fy": 500.0,
+      "standard": "CSA G30.18"
+    }
+  ],
   "sources": {
-    "concreteStrain": "CSA A23.3-19 10.1.3: 0.0035 (the other limits of this table, the seismic rebar grades among them, are the parent's ACI 318-19 values: CSA 400W is not listed separately, see VERIFY.md)"
+    "concreteStrain": "CSA A23.3-19 10.1.3: 0.0035 (the other limits of this table, the seismic rebar grades among them, are the parent's ACI 318-19 values: CSA 400W is not listed separately, see VERIFY.md)",
+    "structuralFcMin": "CSA A23.3-19 8.6.1.1: f'c used in design not less than 20 MPa (nor more than 80 MPa)",
+    "rebarFyMax": "CSA A23.3-19 8.5.1: fy used in design at most 500 MPa (CSA G30.18 Grade 500W) (verify: a higher grade the 2019 edition may permit for some uses would be refused)",
+    "rebarGrades": "CSA G30.18 weldable grades 400W and 500W (fy 400 and 500 MPa), in place of the parent's ASTM grades, Grade 80 of which is above CSA A23.3-19 8.5.1 (the seismic grades of the table are still the parent's: see VERIFY.md)"
   }
 }

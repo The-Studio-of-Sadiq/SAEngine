@@ -1,0 +1,21 @@
+{
+  "$schema": "../../../schemas/materials.schema.json",
+  "$sources": [
+    "BS 8110-1:1997 3.1.7.4, Table 3.1 (verify)"
+  ],
+  "source": "BS 8110-1:1997 (the project's concrete fc read as the cube strength fcu); the other limits of the table SAEngine practice",
+  "structuralFcMin": 25.0,
+  "rebarFyMax": 500.0,
+  "sources": {
+    "concreteStrain": "SAEngine practice: the value of the pack this one extends, kept where BS 8110-1:1997 gives no value or the pack does not enter one yet (verify)",
+    "steelShearModulus": "SAEngine practice: the value of the pack this one extends, kept where BS 8110-1:1997 gives no value or the pack does not enter one yet (verify)",
+    "seismicFcMin": "SAEngine practice: the value of the pack this one extends, kept where BS 8110-1:1997 gives no value or the pack does not enter one yet (verify)",
+    "lightweightFcMax": "SAEngine practice: the value of the pack this one extends, kept where BS 8110-1:1997 gives no value or the pack does not enter one yet (verify)",
+    "lightweightDensity": "SAEngine practice: the value of the pack this one extends, kept where BS 8110-1:1997 gives no value or the pack does not enter one yet (verify)",
+    "seismicRebarFy": "SAEngine practice: the value of the pack this one extends, kept where BS 8110-1:1997 gives no value or the pack does not enter one yet (verify)",
+    "fyActualMargin": "SAEngine practice: the value of the pack this one extends, kept where BS 8110-1:1997 gives no value or the pack does not enter one yet (verify)",
+    "fuFyMin": "SAEngine practice: the value of the pack this one extends, kept where BS 8110-1:1997 gives no value or the pack does not enter one yet (verify)",
+    "structuralFcMin": "BS 8110-1:1997 3.1.7.4: the lowest grade of reinforced concrete with normal-weight aggregate C25 (fcu 25 MPa, the project's fc read as fcu) (verify)",
+    "rebarFyMax": "BS 8110-1:1997 Table 3.1 as amended for BS 4449:2005 grade 500 reinforcement: fy 500 MPa (250 MPa plain bars), the highest the code gives (verify: 460 MPa before the amendment)"
+  }
+}

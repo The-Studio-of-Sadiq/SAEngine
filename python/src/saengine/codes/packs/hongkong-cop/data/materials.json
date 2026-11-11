@@ -1,0 +1,12 @@
+{
+  "$schema": "../../../schemas/materials.schema.json",
+  "$sources": [
+    "HK Code of Practice for Structural Use of Concrete 2013 Section 3 (verify)"
+  ],
+  "structuralFcMin": 25.0,
+  "rebarFyMax": 500.0,
+  "sources": {
+    "structuralFcMin": "Not checked (verify): the HK CoP Concrete 2013's least grade of reinforced concrete; the parent's BS 8110-1:1997 3.1.7.4 value (C25) kept until checked",
+    "rebarFyMax": "HK CoP Concrete 2013 3.2 and CS2:2012: grade 500 ribbed bars (fy 500 MPa) and grade 250 plain bars, the highest 500 MPa (verify the clause)"
+  }
+}

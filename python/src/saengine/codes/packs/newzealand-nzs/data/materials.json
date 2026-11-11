@@ -1,7 +1,8 @@
 {
   "$schema": "../../../schemas/materials.schema.json",
   "$sources": [
-    "NZS 3101:2006 (A3) 5.2, 7.4.2.7, 10.3.4.2; AS/NZS 4671 (300E, 500E)"
+    "NZS 3101:2006 (A3) 5.2, 7.4.2.7, 10.3.4.2; AS/NZS 4671 (300E, 500E)",
+    "NZS 3101:2006 (A3) 5.2.1, 5.3.3 (verify)"
   ],
   "source": "NZS 3101:2006 Amendment 3",
   "stressBlock": {
@@ -31,8 +32,12 @@
     500.0
   ],
   "seismicRebarFyMax": 500.0,
+  "structuralFcMin": 20.0,
+  "rebarFyMax": 500.0,
   "sources": {
     "stressBlock": "NZS 3101:2006 7.4.2.7: α1 = 0.85 for f'c <= 55 MPa, 0.85 - 0.004 (f'c - 55) >= 0.75 above; β1 = 0.85 for f'c <= 30 MPa, 0.85 - 0.008 (f'c - 30) >= 0.65 above; 10.3.4.2: N0 = α1 f'c (Ag - Ast) + fy Ast",
-    "seismicRebarFy": "AS/NZS 4671 Grades 300E and 500E (seismic ductility class E)"
+    "seismicRebarFy": "AS/NZS 4671 Grades 300E and 500E (seismic ductility class E)",
+    "structuralFcMin": "NZS 3101:2006 (A3) 5.2.1: the least specified compressive strength of structural concrete (verify: 20 or 25 MPa; the parent's AS 3600:2018 1.1.2 value, 20 MPa, kept until checked)",
+    "rebarFyMax": "NZS 3101:2006 (A3) 5.3.3: the lower characteristic yield strength of reinforcement used in design at most 500 MPa (Grade 500E of AS/NZS 4671) (verify the clause)"
   }
 }

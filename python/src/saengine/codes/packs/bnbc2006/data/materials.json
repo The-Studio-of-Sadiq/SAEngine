@@ -1,0 +1,12 @@
+{
+  "$schema": "../../../schemas/materials.schema.json",
+  "$sources": [
+    "BNBC 1993 / 2006 Part 6 (verify)"
+  ],
+  "structuralFcMin": 17.0,
+  "rebarFyMax": 550.0,
+  "sources": {
+    "structuralFcMin": "Not checked (verify): the least f'c of BNBC 1993 / 2006 Part 6; the value of BNBC 2020 (the pack this one extends) kept until checked",
+    "rebarFyMax": "Not checked (verify): the greatest fy of BNBC 1993 / 2006 Part 6; the value of BNBC 2020 (the pack this one extends) kept until checked"
+  }
+}
