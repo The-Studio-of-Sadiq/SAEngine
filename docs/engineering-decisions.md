@@ -2477,3 +2477,10 @@ Each is a pack value or method id, overridable in Code Values; the default pack 
   (bold "SA", regular "Engine") replaces every earlier mark: app and installer icons, splash
   and welcome pages, side bar, reports and drawings title blocks, documents and the website.
   Its colours and type set the UI's brand tokens.
+- **Raised bottom bars stay straight along the whole beam (2026-11-11).** The secondary
+  direction's raised bottom bars are not cranked up only at the beam ends: they stay straight
+  in the second layer for the full length, as the dropped top bars do, and the beam is checked
+  for sagging with the smaller effective depth all along. Cranking at the ends would win back
+  only a few percent of midspan capacity (B5 of the Sample Frame: 121.5 to 126.4 kN·m), not
+  at the column faces, where seismic sagging usually governs, and it would add bending work,
+  longer bars and cranks in the congested zone beside the joint.
