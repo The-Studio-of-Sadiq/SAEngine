@@ -26,6 +26,10 @@ INK = RGBColor(0x14, 0x14, 0x14)
 MUTED = RGBColor(0x5F, 0x5F, 0x5F)
 FAIL_INK = RGBColor(0xA1, 0x15, 0x0C)
 PASS_INK = RGBColor(0x1F, 0x4D, 0x21)
+#: The brand navy of the headings and the footer mark (workbench/resources/brand/README.md). Word
+#: keeps Cambria: a reader without the brand typeface (Saira) would get a substitute.
+BRAND_INK = RGBColor(0x0A, 0x1F, 0x3D)
+BRAND_MARK = Path(__file__).parent / "templates" / "saengine-mark.png"
 HEAD_FILL = "E8E8E8"
 FAIL_FILL = "F9D9D6"
 WARN_FILL = "FDF1D6"
@@ -88,7 +92,7 @@ class _Writer:
             style.font.name = "Cambria"
             style.font.size = Pt(size)
             style.font.bold = True
-            style.font.color.rgb = INK
+            style.font.color.rgb = BRAND_INK
             style.paragraph_format.space_before = Pt(14 if level > 1 else 0)
             style.paragraph_format.space_after = Pt(6)
             style.paragraph_format.keep_with_next = True
@@ -118,6 +122,9 @@ class _Writer:
         footer = section.footer
         footer.is_linked_to_previous = False
         line = footer.paragraphs[0]
+        if BRAND_MARK.is_file():
+            line.add_run().add_picture(str(BRAND_MARK), height=Mm(2.4))
+            line.add_run(" ")
         _font(line.add_run(f"SAEngine {meta['version']}, {meta['isoDate']}\t\t"), 8, MUTED)
         _field(line, "PAGE", 8)
         _font(line.add_run(" / "), 8, MUTED)
@@ -160,7 +167,7 @@ class _Writer:
         self._header_footer(section)
         if self.data.get("contents"):
             heading = self.doc.add_paragraph()
-            _font(heading.add_run(self.labels["contents"]), 15, INK, bold=True)
+            _font(heading.add_run(self.labels["contents"]), 15, BRAND_INK, bold=True)
             _field(self.doc.add_paragraph(), 'TOC \\o "1-2" \\h \\z \\u', 10)
         first = True
         for s in self.data["sections"]:
@@ -184,7 +191,7 @@ class _Writer:
             for _ in range(3):
                 doc.add_paragraph()
         _font(doc.add_paragraph().add_run(cover["title"].upper()), 10, MUTED)
-        _font(doc.add_paragraph().add_run(meta["project"]), 24, INK, bold=True)
+        _font(doc.add_paragraph().add_run(meta["project"]), 24, BRAND_INK, bold=True)
         if cover.get("subtitle"):
             _font(doc.add_paragraph().add_run(cover["subtitle"]), 13, MUTED)
         _bottom_rule(doc.add_paragraph(), size=8)

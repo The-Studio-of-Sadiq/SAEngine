@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+	<title>SAEngine</title>
+	<g transform="translate(-48.75 -240.96) scale(1.03)">
+		<defs>
+			<mask id="sa-cut" maskUnits="userSpaceOnUse" x="290" y="315" width="185" height="305">
+				<rect x="290" y="315" width="185" height="305" fill="#FFFFFF"/>
+				<path d="M358,359.09 L358,596.36" fill="none" stroke="#000000" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+				<path d="M416,457 L416,605.26" fill="none" stroke="#000000" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+				<path d="M358,425 L416,457 L462,482.38" fill="none" stroke="#000000" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+				<path d="M302,462.07 L358,492 L416,523 L462,547.59" fill="none" stroke="#000000" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+				<path d="M302,530.07 L358,560" fill="none" stroke="#000000" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+				<path d="M358,492 L416,601.26" fill="none" stroke="#000000" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+				<path d="M358,560 L395,557" fill="none" stroke="#000000" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+				<path d="M416,523 L430,553 L462,550" fill="none" stroke="#000000" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+				<path d="M358,362.09 L387,412 L358,425" fill="none" stroke="#000000" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+				<path d="M387,412 L413,391.24 L438,437 L416,457 L387,412" fill="none" stroke="#000000" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+				<path d="M462,415.62 L438,437 L461,481.83" fill="none" stroke="#000000" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+				<path d="M302,391 L358,419 L358,431 L302,445 Z" fill="#000000"/>
+				<circle cx="358" cy="425" r="6.5" fill="#000000"/>
+				<circle cx="358" cy="492" r="6.5" fill="#000000"/>
+				<circle cx="358" cy="560" r="6.5" fill="#000000"/>
+				<circle cx="358" cy="593.36" r="5.5" fill="#000000"/>
+				<circle cx="416" cy="457" r="6.5" fill="#000000"/>
+				<circle cx="416" cy="523" r="6.5" fill="#000000"/>
+				<circle cx="416" cy="601.26" r="6" fill="#000000"/>
+				<circle cx="387" cy="412" r="6" fill="#000000"/>
+				<circle cx="438" cy="437" r="4.5" fill="#000000"/>
+				<circle cx="413" cy="391.24" r="4" fill="#000000"/>
+				<circle cx="358" cy="362.09" r="3.5" fill="#000000"/>
+				<circle cx="305" cy="531.67" r="5" fill="#000000"/>
+				<circle cx="395" cy="557" r="4" fill="#000000"/>
+			</mask>
+			<linearGradient id="sa-facade" gradientUnits="userSpaceOnUse" x1="459" y1="334" x2="318" y2="612">
+				<stop offset="0" stop-color="#1C6EC1"/>
+				<stop offset="1" stop-color="#0B3C84"/>
+			</linearGradient>
+		</defs>
+		<path d="M144,404 L296,323 L296,591 L284,591 L284,510 L241,520 L241,593.9 L229,593.9 L229,523 L189,531.5 L189,601.3 L176,601.3 L176,535 L155,538 L155,608.2 L144,608.2 L144,517 L183,507.6 L183,446 L144,454 Z M195,420 L284,376 L284,459 Z M194,463 L253,490 L194,505 Z" fill-rule="evenodd" fill="#0A1F3D"/>
+		<path d="M232,480.4 L242,485 L242,493 L232,495.3 Z" fill="#939AA3"/>
+		<path d="M63,642 Q297,553 530,644 Q297,577 63,642 Z" fill="#0A1F3D"/>
+		<g mask="url(#sa-cut)">
+			<path d="M305,334 L459,415.62 L459,612.46 Q382.05,591.47 305,590.09 Z" fill="url(#sa-facade)"/>
+			<path d="M303,391 L358,362.09 L358,419 Z" fill="#000000" opacity="0.1"/>
+			<path d="M305,463.67 L358,431 L358,492 Z" fill="#000000" opacity="0.1"/>
+			<path d="M305,531.67 L358,492 L358,560 Z" fill="#000000" opacity="0.1"/>
+			<path d="M305,592.09 L358,560 L358,595.36 Z" fill="#000000" opacity="0.1"/>
+			<path d="M358,492 L416,457 L416,523 Z" fill="#000000" opacity="0.1"/>
+			<path d="M416,523 L459,480.72 L459,545.98 Z" fill="#000000" opacity="0.1"/>
+			<path d="M303,391 L358,362.09" fill="none" stroke="#FFFFFF" stroke-width="1.2" opacity="0.22"/>
+			<path d="M305,463.67 L358,431" fill="none" stroke="#FFFFFF" stroke-width="1.2" opacity="0.22"/>
+			<path d="M305,531.67 L358,492" fill="none" stroke="#FFFFFF" stroke-width="1.2" opacity="0.22"/>
+			<path d="M305,592.09 L358,560" fill="none" stroke="#FFFFFF" stroke-width="1.2" opacity="0.22"/>
+			<path d="M358,492 L416,457" fill="none" stroke="#FFFFFF" stroke-width="1.2" opacity="0.22"/>
+			<path d="M416,523 L459,480.72" fill="none" stroke="#FFFFFF" stroke-width="1.2" opacity="0.22"/>
+		</g>
+	</g>
+</svg>

@@ -66,8 +66,10 @@
 	display: none;
 }
 
+/* Page titles are brand headings (the logo's typeface, saengineTokens.css). */
 .saengine-editor-frame .sa-frame-title-text {
-	font-weight: 600;
+	font-family: var(--sa-font-brand, inherit);
+	font-weight: var(--sa-font-brand-heading-weight, 600);
 	overflow: hidden;
 	text-overflow: ellipsis;
 }

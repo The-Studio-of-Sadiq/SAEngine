@@ -78,6 +78,22 @@ Other licence terms to note:
 {rule}
 """
 
+#: The brand typeface (workbench/resources/brand/README.md).
+SAIRA = """\
+Saira (the SAEngine brand typeface)
+{rule}
+
+Saira 1.101, Copyright 2020 The Saira Project Authors (https://github.com/Omnibus-Type/Saira),
+under the SIL Open Font License 1.1 (OFL-1.1). Downloaded from Google Fonts' repository
+(https://github.com/google/fonts/tree/main/ofl/saira, source commit
+1916f2a575479b626238d9842126e63aa208eebf of github.com/Omnibus-Type/Saira). The workbench ships
+the variable font unmodified (saengineProject/browser/media/fonts/Saira-Variable.ttf); the
+report backend ships static instances made from it with fontTools
+(resources/python/Lib/site-packages/saengine/report/templates/fonts: Saira Regular, Saira
+SemiBold, Saira Expanded ExtraBold). The licence text follows.
+
+"""
+
 #: FreeCAD's profile table, copied into the backend by bundle-python.ps1 from
 #: third_party/freecad-profiles (its README.md gives the source, commit and SHA-256).
 FREECAD_COMMIT = "68f4a30a1b4be46176b883fcdab55a9de8c2433d"
@@ -366,6 +382,22 @@ def freecad_section() -> list[str]:
     return out
 
 
+def fonts_section() -> list[str]:
+    """The brand typeface's notice and OFL text, when the bundled backend ships it."""
+    import importlib.util
+
+    spec = importlib.util.find_spec("saengine")
+    if spec is None or not spec.submodule_search_locations:
+        return []
+    licence = Path(next(iter(spec.submodule_search_locations))) / "report/templates/fonts/OFL.txt"
+    if not licence.is_file():
+        return []
+    out = [SAIRA.format(rule=RULE), f"[{licence.name}]\n"]
+    out.append(licence.read_text(encoding="utf-8", errors="replace").rstrip() + "\n")
+    out.append(f"\n{RULE}\n\n")
+    return out
+
+
 def npm_package_root(path: Path) -> Path | None:
     """The package folder of a file inside node_modules (scoped names included)."""
     parts = path.parts
@@ -550,6 +582,7 @@ def main() -> int:
     if libredwg is not None:
         out.extend(libredwg_section(args.libredwg, libredwg, args.sources_name))
     out.extend(freecad_section())
+    out.extend(fonts_section())
     js_out, js_count = js_section(args.js_package)
     out.extend(js_out)
     out.append("Bundled Python packages\n\n")

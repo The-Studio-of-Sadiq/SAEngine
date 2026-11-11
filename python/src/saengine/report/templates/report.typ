@@ -30,6 +30,10 @@
 #let fail-fill = rgb("#f9d9d6")
 #let fail-ink = rgb("#a1150c")
 #let warn-fill = rgb("#fdf1d6")
+// The brand (workbench/resources/brand/README.md): navy headings in the logo's typeface, Saira
+// (bundled in fonts/, OFL-1.1); the body stays in a book face for long reading.
+#let brand-ink = rgb("#0A1F3D")
+#let brand-font = ("Saira", "Libertinus Serif") + if lang == "bn" { ("Nirmala UI",) } else { () }
 
 #set document(title: meta.title + " - " + meta.project, author: "SAEngine")
 // Bangla glyphs come from Nirmala UI, which Windows 10 and later ship.
@@ -38,15 +42,15 @@
 #set heading(numbering: "1.1")
 #show heading.where(level: 1): it => {
   pagebreak(weak: true)
-  set text(size: 15pt, weight: "bold")
+  set text(font: brand-font, size: 15pt, weight: "semibold", fill: brand-ink)
   block(above: 0pt, below: 1em, it)
 }
 #show heading.where(level: 2): it => {
-  set text(size: 11.5pt, weight: "bold")
+  set text(font: brand-font, size: 11.5pt, weight: "semibold", fill: brand-ink)
   block(above: 1.4em, below: 0.7em, it)
 }
 #show heading.where(level: 3): it => {
-  set text(size: 10pt, weight: "bold")
+  set text(font: brand-font, size: 10pt, weight: "semibold", fill: brand-ink)
   block(above: 1.1em, below: 0.6em, it)
 }
 
@@ -95,7 +99,7 @@
       v(-0.4em)
       grid(
         columns: (1fr, auto),
-        [SAEngine #meta.version, #meta.isoDate], counter(page).display((..n) => bn-digits(n.pos().map(str).join(" / ")), both: true),
+        [#box(image("saengine-mark.svg", height: 2.4mm), baseline: 0.4mm) SAEngine #meta.version, #meta.isoDate], counter(page).display((..n) => bn-digits(n.pos().map(str).join(" / ")), both: true),
       )
     }
   },
@@ -258,7 +262,7 @@
     }
     #text(size: 10pt, fill: muted, tracking: 0.08em, upper(cover.title))
     #v(6mm)
-    #text(size: 24pt, weight: "bold", meta.project)
+    #text(font: brand-font, size: 24pt, weight: "semibold", fill: brand-ink, meta.project)
     #if cover.subtitle != "" {
       v(2mm)
       text(size: 13pt, fill: muted, cover.subtitle)
