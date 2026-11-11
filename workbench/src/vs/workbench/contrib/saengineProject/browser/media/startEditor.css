@@ -43,23 +43,37 @@
 	margin-bottom: 32px;
 }
 
+/* The lockup of the brand (mark, divider, wordmark) at the logo's proportions. */
 .saengine-start .brand .mark {
-	width: 40px;
-	height: 40px;
+	width: 64px;
+	height: 44px;
+	flex: none;
+}
+
+.saengine-start .brand .divider {
+	align-self: center;
+	width: 1px;
+	height: 30px;
+	background: var(--sa-brand-grey);
 	flex: none;
 }
 
 .saengine-start .brand h1 {
 	margin: 0;
-	font-size: var(--sa-font-xl, 20px);
-	font-weight: 600;
-	line-height: 1.2;
+	line-height: 0;
+}
+
+.saengine-start .brand h1 .wordmark {
+	width: 117px;
+	height: 24px;
 }
 
 .saengine-start .brand .subtitle {
-	margin: 2px 0 0;
+	margin: 4px 0 0;
 	color: var(--sa-muted, var(--vscode-descriptionForeground));
+	font-family: var(--sa-font-brand);
 	font-size: var(--sa-font-s, 12px);
+	letter-spacing: 0.02em;
 }
 
 .saengine-start .actions {
@@ -103,8 +117,9 @@
 
 .saengine-start h2 {
 	margin: 0 0 var(--sa-space-3, 12px);
+	font-family: var(--sa-font-brand);
 	font-size: var(--sa-font-s, 12px);
-	font-weight: 600;
+	font-weight: var(--sa-font-brand-heading-weight, 600);
 	color: var(--sa-muted, var(--vscode-descriptionForeground));
 }
 

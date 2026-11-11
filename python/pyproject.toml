@@ -46,7 +46,7 @@ where = ["src"]
 version = { attr = "saengine.__version__" }
 
 [tool.setuptools.package-data]
-"saengine.report" = ["templates/*.typ"]
+"saengine.report" = ["templates/*.typ", "templates/*.svg", "templates/*.png", "templates/fonts/*"]
 "saengine.verification" = ["templates/*.typ"]
 "saengine.codes" = [
     "packs/*/pack.json",

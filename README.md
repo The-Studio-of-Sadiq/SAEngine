@@ -1,3 +1,5 @@
+<p align="center"><img src="workbench/resources/brand/saengine-lockup.svg" alt="SAEngine" width="560"></p>
+
 # SAEngine
 
 SAEngine is an open-source engineering IDE for civil and structural engineers,

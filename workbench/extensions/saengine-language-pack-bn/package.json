@@ -5,6 +5,7 @@
   "version": "1.0.0",
   "publisher": "vscode",
   "license": "AGPL-3.0-only",
+  "icon": "media/icon.png",
   "categories": [
     "Language Packs"
   ],

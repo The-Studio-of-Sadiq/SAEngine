@@ -42,35 +42,7 @@ import { appendProjectPath } from './projectParts.js';
 import { StartEditorInput } from './startEditorInput.js';
 import { IMPORT_STRUCTURAL_UI_COMMAND } from './structuralImportModel.js';
 import { formatDate } from '../../../services/saengineProject/common/formatting.js';
-
-const SVG = 'http://www.w3.org/2000/svg';
-
-/** The SAEngine mark (resources/saengine-mark.svg): a two-bay frame with its nodes. */
-function renderMark(parent: HTMLElement): void {
-	const document = parent.ownerDocument;
-	const svg = parent.appendChild(document.createElementNS(SVG, 'svg'));
-	svg.setAttribute('viewBox', '0 0 512 512');
-	svg.setAttribute('class', 'mark');
-	svg.setAttribute('aria-hidden', 'true');
-	const add = (name: string, attributes: { [name: string]: string }, into: Element = svg) => {
-		const element = into.appendChild(document.createElementNS(SVG, name));
-		for (const [key, value] of Object.entries(attributes)) {
-			element.setAttribute(key, value);
-		}
-		return element;
-	};
-	add('rect', { x: '12', y: '12', width: '488', height: '488', rx: '112', fill: '#111d2a' });
-	const lines = add('g', { fill: 'none', stroke: '#54d7c6', 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'stroke-width': '25' });
-	for (const d of ['M132 379V145h248v234', 'M132 258h248', 'M256 145v234', 'M104 379h304']) {
-		add('path', { d }, lines);
-	}
-	const nodes = add('g', { fill: '#ffbf73', stroke: '#111d2a', 'stroke-width': '10' });
-	for (const cx of [132, 256, 380]) {
-		for (const cy of [145, 258, 379]) {
-			add('circle', { cx: String(cx), cy: String(cy), r: '18' }, nodes);
-		}
-	}
-}
+import { renderBrandMark, renderBrandWordmark } from './saengineBrand.js';
 
 /** The building uses Project Settings offers (`occupancy.use`), from the settings schema. */
 function occupancyUses(): { readonly value: string; readonly label: string }[] {
@@ -168,9 +140,10 @@ export class StartEditor extends EditorPane {
 		const side = append(shell, $('aside.side'));
 
 		const brand = append(side, $('.brand'));
-		renderMark(brand);
+		renderBrandMark(brand);
+		append(brand, $('span.divider'));
 		const title = append(brand, $('.brand-text'));
-		append(title, $('h1', undefined, localize('start.title', "SAEngine")));
+		renderBrandWordmark(append(title, $('h1')), localize('start.title', "SAEngine"));
 		append(title, $('p.subtitle', undefined, localize('start.subtitle', "Structural analysis and design")));
 
 		const actions = append(side, $('nav.actions', { 'aria-label': localize('start.actions', "Start") }));

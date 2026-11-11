@@ -42,6 +42,40 @@
 	--sa-idle: color-mix(in srgb, var(--vscode-descriptionForeground, #8a9099) 75%, var(--sa-surface-alt));
 }
 
+/*
+ * The brand (workbench/resources/brand/README.md): the logo's colours and typography. Saira is the
+ * logo's typeface (bundled, OFL-1.1): "SA" is Saira Expanded ExtraBold, "Engine" Saira Regular.
+ * Brand type is for SAEngine's own titles and headings only; body text, tables and the editor keep
+ * the workbench font for readability.
+ */
+@font-face {
+	font-family: 'Saira';
+	src: url('./fonts/Saira-Variable.ttf') format('truetype');
+	font-weight: 100 900;
+	font-stretch: 50% 125%;
+	font-style: normal;
+	font-display: swap;
+}
+
+.monaco-workbench {
+	--sa-brand-ink: var(--vscode-saengine-brandInk, #0A1F3D);
+	--sa-brand-blue: var(--vscode-saengine-brandBlue, #1A5FB4);
+	--sa-brand-facade-top: var(--vscode-saengine-brandFacadeTop, #1C6EC1);
+	--sa-brand-facade-bottom: var(--vscode-saengine-brandFacadeBottom, #0B3C84);
+	--sa-brand-grey: var(--vscode-saengine-brandGrey, #939AA3);
+	/* Bahnschrift (Windows 10+) is the closest system face while Saira loads or is missing. */
+	--sa-font-brand: 'Saira', 'Bahnschrift', 'Segoe UI Variable Display', 'Segoe UI', system-ui, sans-serif;
+	--sa-font-brand-display-weight: 800;
+	--sa-font-brand-display-stretch: 125%;
+	--sa-font-brand-heading-weight: 600;
+}
+
+/* The logo drawn inline (saengineBrand.ts): the classes take the brand tokens. */
+.monaco-workbench .sa-brand-art .sa-brand-ink { fill: var(--sa-brand-ink); }
+.monaco-workbench .sa-brand-art .sa-brand-grey { fill: var(--sa-brand-grey); }
+.monaco-workbench .sa-brand-art .sa-brand-facade-top { stop-color: var(--sa-brand-facade-top); }
+.monaco-workbench .sa-brand-art .sa-brand-facade-bottom { stop-color: var(--sa-brand-facade-bottom); }
+
 /* High contrast themes: status colours at full strength, borders from the contrast border. */
 .monaco-workbench.hc-black,
 .monaco-workbench.hc-light {
