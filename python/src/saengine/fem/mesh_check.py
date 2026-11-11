@@ -153,6 +153,9 @@ def mesh_convergence(
                 model_dir=model_dir,
                 mep=mep,
                 member_loads=member_loads,
+                # Gravity cases only: the wind's gust factor (a modal run of its own on a
+                # flexible building) changes the wind cases alone, which are not run.
+                wind_gust=not set(cases) <= set(GRAVITY_CASES),
             )
             model, out = _run_gravity(derivation, Path(tmp) / f"mesh{k}", cases)
             moments.append(_beam_end_moments(model, out, beams, derivation.faces, cases))

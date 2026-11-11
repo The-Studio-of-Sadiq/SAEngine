@@ -354,6 +354,12 @@ def _ensure_seismic_design(out_dir: str | Path, project_path: str | Path) -> Non
         ensure_seismic_design(out_dir, project_path, settings)
 
 
+def seismic_design_run(out_dir: str | Path, project_path: str | Path) -> None:
+    """The response spectrum design run of :func:`required` and :func:`report_stamp`, ahead
+    of them (Run All starts it as soon as the analysis results stand; they then find it kept)."""
+    _ensure_seismic_design(out_dir, project_path)
+
+
 def required(
     out_dir: str | Path,
     project_path: str | Path,

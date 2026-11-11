@@ -52,10 +52,12 @@ keeps the file's line endings: :func:`_write_like_text_model` does the same.
 from __future__ import annotations
 
 import contextlib
+import contextvars
 import json
 import os
 import subprocess
 import sys
+import threading
 import time
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
@@ -683,7 +685,14 @@ def keep_analysis_inputs(model: Path) -> None:
     )
 
 
-def _analysis(project: Project, step: StepResult, report: Callable[[str], None]) -> None:
+def _analysis(
+    project: Project,
+    step: StepResult,
+    report: Callable[[str], None],
+    analysed: Callable[[], None] | None = None,
+) -> None:
+    """The analysis step; ``analysed`` is called once the results stand (computed or kept),
+    before the mesh check."""
     model = project.file("fem")
     if results_current(model):
         # X28/X19: the model was derived again from a change the analysis does not take (bars,
@@ -703,6 +712,8 @@ def _analysis(project: Project, step: StepResult, report: Callable[[str], None])
         step.status = "skipped"
         step.message = "The analysis results are current: the analysis model did not change."
         step.outputs.append(_relative(project, results_folder(model)))
+        if analysed:
+            analysed()
         return
     outcome = run_analysis(model, report)
     if outcome["status"] != "done":
@@ -718,6 +729,8 @@ def _analysis(project: Project, step: StepResult, report: Callable[[str], None])
     step.counts = {"cases": outcome["cases"]}
     step.message = f"Analysis complete: {outcome['cases']} case(s)."
     step.outputs.append(_relative(project, results_folder(model)))
+    if analysed:
+        analysed()
     # The mesh convergence check (``analysis.meshCheck``, saengine.fem.mesh_check): a warning,
     # never a stop, as the app's Run All.
     report("mesh check")
@@ -1408,7 +1421,52 @@ def run_all(
 def _run_all(
     project: Project, steps: Iterable[str] | None, progress: Progress | None
 ) -> RunAllResult:
+    ahead: list[threading.Thread] = []
+    try:
+        return _run_steps(project, steps, progress, ahead)
+    finally:
+        # Never left running past Run All (a step that failed before the design, say).
+        for thread in ahead:
+            thread.join()
+
+
+def _seismic_design_ahead(project: Project, ahead: list[threading.Thread]) -> Callable[[], None]:
+    """What the analysis step calls once its results stand: starts the design step's response
+    spectrum run (:func:`saengine.pipeline.design_mode.seismic_design_run`: its modal-force
+    cases run in OpenSees Studio's runner, a process of its own) on a thread, so it runs
+    alongside the mesh check and the foundations instead of after them. The design step waits
+    for the thread and then finds the run kept, as it would its own (the same files, the same
+    run); a failure here is ignored, the design step runs it again and reports it."""
+    model = project.file("fem")
+
+    def run() -> None:
+        from saengine.pipeline import design_mode
+
+        try:
+            design_mode.seismic_design_run(results_folder(model), model)
+        except Exception:  # noqa: BLE001, S110 - the design step runs it again and reports it
+            pass
+
+    def start() -> None:
+        if ahead:
+            return
+        # The thread runs in a copy of this context: the project's code packs (code_context).
+        context = contextvars.copy_context()
+        thread = threading.Thread(target=context.run, args=(run,), name="seismic-design")
+        ahead.append(thread)
+        thread.start()
+
+    return start
+
+
+def _run_steps(
+    project: Project,
+    steps: Iterable[str] | None,
+    progress: Progress | None,
+    ahead: list[threading.Thread],
+) -> RunAllResult:
     wanted = normalise_steps(steps)
+    analysed = _seismic_design_ahead(project, ahead) if "design" in wanted else None
     # The drawings are drawn when asked for by name, else only to keep a generated set current.
     drawings_asked = steps is not None and "drawings" in wanted
     # The minimum foundation bars are written only by the whole Run All (not by ``check``).
@@ -1438,10 +1496,12 @@ def _run_all(
                 case "derive":
                     _derive(project, step)
                 case "analysis":
-                    _analysis(project, step, report)
+                    _analysis(project, step, report, analysed)
                 case "ssi":
                     _ssi(project, step)
                 case "design":
+                    for thread in ahead:
+                        thread.join()
                     design_report = _design(project, step)
                 case "pushover":
                     _pushover(project, step, report)
