@@ -566,12 +566,12 @@
 			"code": "R.03",
 			"group": "reinforcement",
 			"description": "Reinforcement B420DWR, 16 mm bars",
-			"quantity": 442.825,
+			"quantity": 443.141,
 			"unit": "kg",
 			"material": "B420DWR",
 			"diameter": 16.0,
 			"byStory": {
-				"L1": 442.825
+				"L1": 443.141
 			},
 			"breakdown": [
 				{
@@ -590,13 +590,13 @@
 					"element": "B1",
 					"story": "L1",
 					"detail": "bar mark B1-T2 (bar bending schedule)",
-					"quantity": 15.827
+					"quantity": 15.863
 				},
 				{
 					"element": "B2",
 					"story": "L1",
 					"detail": "bar mark B1-T2 (bar bending schedule)",
-					"quantity": 18.465
+					"quantity": 18.507
 				},
 				{
 					"element": "B1",
@@ -649,38 +649,62 @@
 				{
 					"element": "B1",
 					"story": "L1",
-					"detail": "bar mark B1-B1 (bar bending schedule)",
-					"quantity": 34.936
+					"detail": "bar mark B1-B3 (bar bending schedule)",
+					"quantity": 17.468
 				},
 				{
 					"element": "B2",
 					"story": "L1",
-					"detail": "bar mark B1-B1 (bar bending schedule)",
-					"quantity": 40.758
+					"detail": "bar mark B1-B3 (bar bending schedule)",
+					"quantity": 20.379
 				},
 				{
 					"element": "B1",
 					"story": "L1",
-					"detail": "bar mark B1-B4 (bar bending schedule)",
-					"quantity": 7.22
+					"detail": "bar mark B1-B2 (bar bending schedule)",
+					"quantity": 17.468
 				},
 				{
 					"element": "B2",
 					"story": "L1",
-					"detail": "bar mark B1-B4 (bar bending schedule)",
-					"quantity": 8.424
+					"detail": "bar mark B1-B2 (bar bending schedule)",
+					"quantity": 20.379
+				},
+				{
+					"element": "B1",
+					"story": "L1",
+					"detail": "bar mark B1-B9 (bar bending schedule)",
+					"quantity": 3.61
+				},
+				{
+					"element": "B2",
+					"story": "L1",
+					"detail": "bar mark B1-B9 (bar bending schedule)",
+					"quantity": 4.212
+				},
+				{
+					"element": "B1",
+					"story": "L1",
+					"detail": "bar mark B1-B8 (bar bending schedule)",
+					"quantity": 3.647
+				},
+				{
+					"element": "B2",
+					"story": "L1",
+					"detail": "bar mark B1-B8 (bar bending schedule)",
+					"quantity": 4.255
 				},
 				{
 					"element": "B3",
 					"story": "L1",
 					"detail": "bar mark B1-T1 (bar bending schedule)",
-					"quantity": 16.009
+					"quantity": 16.046
 				},
 				{
 					"element": "B4",
 					"story": "L1",
 					"detail": "bar mark B1-T1 (bar bending schedule)",
-					"quantity": 18.677
+					"quantity": 18.72
 				},
 				{
 					"element": "B3",
@@ -733,26 +757,50 @@
 				{
 					"element": "B3",
 					"story": "L1",
-					"detail": "bar mark B1-B1 (bar bending schedule)",
-					"quantity": 34.936
+					"detail": "bar mark B1-B2 (bar bending schedule)",
+					"quantity": 17.468
 				},
 				{
 					"element": "B4",
 					"story": "L1",
-					"detail": "bar mark B1-B1 (bar bending schedule)",
-					"quantity": 40.758
+					"detail": "bar mark B1-B2 (bar bending schedule)",
+					"quantity": 20.379
 				},
 				{
 					"element": "B3",
 					"story": "L1",
-					"detail": "bar mark B1-B3 (bar bending schedule)",
-					"quantity": 7.658
+					"detail": "bar mark B1-B1 (bar bending schedule)",
+					"quantity": 17.468
 				},
 				{
 					"element": "B4",
 					"story": "L1",
-					"detail": "bar mark B1-B3 (bar bending schedule)",
-					"quantity": 8.934
+					"detail": "bar mark B1-B1 (bar bending schedule)",
+					"quantity": 20.379
+				},
+				{
+					"element": "B3",
+					"story": "L1",
+					"detail": "bar mark B1-B7 (bar bending schedule)",
+					"quantity": 3.829
+				},
+				{
+					"element": "B4",
+					"story": "L1",
+					"detail": "bar mark B1-B7 (bar bending schedule)",
+					"quantity": 4.467
+				},
+				{
+					"element": "B3",
+					"story": "L1",
+					"detail": "bar mark B1-B6 (bar bending schedule)",
+					"quantity": 3.866
+				},
+				{
+					"element": "B4",
+					"story": "L1",
+					"detail": "bar mark B1-B6 (bar bending schedule)",
+					"quantity": 4.51
 				},
 				{
 					"element": "B5",
@@ -775,8 +823,14 @@
 				{
 					"element": "B5",
 					"story": "L1",
-					"detail": "bar mark B1-B2 (bar bending schedule)",
-					"quantity": 36.978
+					"detail": "bar mark B1-B5 (bar bending schedule)",
+					"quantity": 18.489
+				},
+				{
+					"element": "B5",
+					"story": "L1",
+					"detail": "bar mark B1-B4 (bar bending schedule)",
+					"quantity": 18.489
 				}
 			]
 		},
