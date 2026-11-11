@@ -61,6 +61,10 @@
 	left: 0px;
 	opacity: 1;
 	z-index: 2000;
+	/* SAEngine: the compact (≡) menu sits in the title bar and opens beside its button, over the
+	   window's drag region; without this, Windows takes clicks on the items there (File) as a
+	   window drag and the item never opens. */
+	-webkit-app-region: no-drag;
 }
 
 .menubar.compact .menubar-menu-items-holder {
