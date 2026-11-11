@@ -121,7 +121,7 @@ export class ProjectStageBar extends Disposable implements IWorkbenchContributio
 	}
 
 	private renderStage(project: ISaengineProject, stage: IProjectStage, isNext: boolean): HTMLElement {
-		const button = append(this.element, $(`button.sa-stage.sa-stage-${stage.state}`));
+		const button = append(this.element, $<HTMLButtonElement>(`button.sa-stage.sa-stage-${stage.state}`));
 		button.type = 'button';
 		button.classList.toggle('sa-stage-next', isNext);
 		append(button, $(`span.sa-stage-icon${ThemeIcon.asCSSSelector(stateIcon(stage.state))}`)).setAttribute('aria-hidden', 'true');

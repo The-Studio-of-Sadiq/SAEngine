@@ -162,14 +162,15 @@ export class SaengineJobs extends Disposable {
 					if (job.state !== 'running' || !value.message) {
 						return;
 					}
+					const label = value.message.toString();
 					const current = running();
-					if (current >= 0 && job.steps[current].label === value.message) {
+					if (current >= 0 && job.steps[current].label === label) {
 						return;
 					}
 					if (current >= 0) {
 						job.steps[current] = { ...job.steps[current], state: 'done' };
 					}
-					job.steps.push({ label: value.message, state: 'running' });
+					job.steps.push({ label, state: 'running' });
 					this._onDidChange.fire();
 				},
 			},

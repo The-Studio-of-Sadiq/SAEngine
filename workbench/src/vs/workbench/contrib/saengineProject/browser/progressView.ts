@@ -312,8 +312,9 @@ export class ProgressView extends ViewPane {
 				}
 			}));
 		}
-		if (job.message ?? job.detail) {
-			append(item, $('.sa-progress-message', undefined, job.message ?? job.detail));
+		const message = job.message ?? job.detail;
+		if (message) {
+			append(item, $('.sa-progress-message', undefined, message));
 		}
 		if (job.actions.length) {
 			const actions = append(item, $('.sa-progress-actions'));
