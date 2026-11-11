@@ -583,15 +583,38 @@ def _elastic_modulus(fc: float) -> float:
     return concrete_modulus(fc)[0]
 
 
+#: The concreteproperties sections built (alpha 10, performance), by everything they are built
+#: from (see :func:`_concrete_section`): the design mode's searches, the checks and the report
+#: of one process ask for the same sections again (Run All, Design Reinforcement, Run All
+#: again), and each costs a shapely union per bar. A section is not changed once built.
+_SECTIONS: dict[tuple, Any] = {}
+_SECTIONS_KEPT = 512
+
+
 def _concrete_section(section: RcSection):
-    from concreteproperties.material import Concrete, SteelBar
-    from concreteproperties.pre import add_bar
-    from concreteproperties.stress_strain_profile import (
-        ConcreteLinear,
-        RectangularStressBlock,
-        SteelElasticPlastic,
-    )
-    from sectionproperties.pre.library import circular_section_by_area, rectangular_section
+    """The concreteproperties section of ``section`` under the pack in force (its stress block,
+    the bars' yield stress and Ec): the one built before for the same values."""
+    key, fy, ec, ultimate = _section_inputs(section)
+    found = _SECTIONS.get(key)
+    if found is None:
+        found = _SECTIONS[key] = _build_section(section, fy, ec, ultimate)
+        _bound(_SECTIONS, _SECTIONS_KEPT)
+    return found
+
+
+def _bound(kept: dict, size: int) -> None:
+    """Forget the oldest entries of ``kept`` beyond ``size``."""
+    while len(kept) > size:
+        try:
+            del kept[next(iter(kept))]
+        except (KeyError, RuntimeError, StopIteration):  # another thread trimmed it
+            return
+
+
+def _section_inputs(section: RcSection) -> tuple[tuple, float, float, Any]:
+    """(key, fy, Ec, ultimate profile) of the concreteproperties section of ``section`` under
+    the pack in force: the key holds everything the section is built from."""
+    from concreteproperties.stress_strain_profile import RectangularStressBlock
 
     fy = section.fy
     if _partial_factors():
@@ -607,10 +630,35 @@ def _concrete_section(section: RcSection):
             gamma=beta1(section.fc),
             ultimate_strain=value("EPS_CU"),
         )
+    ec = _elastic_modulus(section.fc)
+    p = section.profile
+    shape = (
+        ("rectangle", p.xDim, p.yDim) if isinstance(p, RectangleProfile) else ("circle", p.radius)
+    )
+    key = (
+        shape,
+        tuple((bar.x, bar.y, bar.area) for bar in section.bars),
+        section.fc,
+        fy,
+        section.es,
+        ec,
+        repr(ultimate),
+    )
+    return key, fy, ec, ultimate
+
+
+def _build_section(section: RcSection, fy: float, ec: float, ultimate: Any):
+    """The concreteproperties section of ``section``: concrete of the ``ultimate`` profile and
+    Ec ``ec``, bars of yield stress ``fy``."""
+    from concreteproperties.material import Concrete, SteelBar
+    from concreteproperties.pre import add_bar
+    from concreteproperties.stress_strain_profile import ConcreteLinear, SteelElasticPlastic
+    from sectionproperties.pre.library import circular_section_by_area, rectangular_section
+
     concrete = Concrete(
         name="concrete",
         density=2.4e-6,
-        stress_strain_profile=ConcreteLinear(elastic_modulus=_elastic_modulus(section.fc)),
+        stress_strain_profile=ConcreteLinear(elastic_modulus=ec),
         ultimate_stress_strain_profile=ultimate,
         flexural_tensile_strength=0.62 * math.sqrt(section.fc),
         colour="lightgrey",
@@ -945,6 +993,9 @@ class InteractionSurface:
         pts = np.asarray(points, dtype=float).reshape(-1, 3)
         if not len(pts):
             return 0.0
+        # Each distinct (Pu, |Mux|, |Muy|) once, as in utilisations() (the signs of the moments
+        # do not change a utilisation).
+        pts = np.unique(np.column_stack([pts[:, 0], np.abs(pts[:, 1:])]), axis=0)
         s = self.section
         pu, mu = pts[:, 0], np.hypot(pts[:, 1], pts[:, 2])
         worst = 0.0
@@ -1119,6 +1170,53 @@ class InteractionSurface:
         if capacity <= 0:
             return ColumnCheck(math.inf, 0.0, mu, "no moment capacity at this axial force")
         return ColumnCheck(mu / capacity, capacity, mu, "")
+
+
+#: Alpha 10 (performance): the interaction surfaces built, by :func:`surface_key`, for the
+#: design mode's searches of one process (Run All, Design Reinforcement and Run All again
+#: search the same layouts). A surface is not changed once built.
+_SURFACES: dict[tuple, InteractionSurface] = {}
+_SURFACES_KEPT = 256
+
+
+def surface_key(section: RcSection, coarse: bool = False) -> tuple:
+    """Everything the :class:`InteractionSurface` of ``section`` depends on: the section, its
+    concrete section's inputs, ``coarse`` and the packs the code values come from (the pack in
+    force and the default pack, by their fingerprints)."""
+    from saengine.codes import context as code_context
+
+    p = section.profile
+    shape = (
+        ("rectangle", p.xDim, p.yDim) if isinstance(p, RectangleProfile) else ("circle", p.radius)
+    )
+    return (
+        shape,
+        section.bars,
+        section.fc,
+        section.fy,
+        section.es,
+        section.spiral,
+        section.transverse_dia,
+        section.notes,
+        _section_inputs(section)[0],
+        bool(coarse),
+        code_context.current().fingerprint,
+        code_context.default_pack().fingerprint,
+    )
+
+
+def surface_of(
+    section: RcSection, coarse: bool = False, key: tuple | None = None
+) -> InteractionSurface:
+    """The :class:`InteractionSurface` of ``section`` (``key``: its :func:`surface_key`), the
+    one built before for the same section and code values."""
+    if key is None:
+        key = surface_key(section, coarse)
+    found = _SURFACES.get(key)
+    if found is None:
+        found = _SURFACES[key] = InteractionSurface(section, coarse)
+        _bound(_SURFACES, _SURFACES_KEPT)
+    return found
 
 
 def slenderness(section: RcSection, length: float, k: float = 1.0) -> float:

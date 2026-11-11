@@ -39,6 +39,7 @@ import dataclasses
 import hashlib
 import importlib
 import json
+import os
 import shutil
 import stat
 import tempfile
@@ -171,17 +172,59 @@ def known_tables() -> list[str]:
 # ---------------------------------------------------------------- packs on disk
 
 
-def _signature(pack_dir: Path) -> tuple:
-    """(relative path, mtime, size) of the pack's files: changes when any file changes."""
-    entries = []
-    for path in sorted(pack_dir.rglob("*")):
-        if "__pycache__" in path.parts or not path.is_file():
-            continue
+def _files(folder: str) -> Iterator[tuple[tuple[str, ...], os.DirEntry]]:
+    """(relative parts, entry) of every file below ``folder`` (symbolic links to files
+    included, linked folders and ``__pycache__`` not entered), in no particular order."""
+    stack: list[tuple[str, tuple[str, ...]]] = [(folder, ())]
+    while stack:
+        current, rel = stack.pop()
         try:
-            st = path.stat()
+            listing = os.scandir(current)
         except OSError:
             continue
-        entries.append((path.relative_to(pack_dir).as_posix(), st.st_mtime_ns, st.st_size))
+        with listing:
+            for entry in listing:
+                if entry.name == "__pycache__":
+                    continue
+                try:
+                    if entry.is_dir(follow_symlinks=False):
+                        stack.append((entry.path, (*rel, entry.name)))
+                    elif entry.is_file():
+                        yield (*rel, entry.name), entry
+                except OSError:
+                    continue
+
+
+def _signature(pack_dir: Path) -> tuple:
+    """(relative path, mtime, size) of the pack's files: changes when any file changes. The
+    files are in the order of ``sorted(pack_dir.rglob("*"))`` (the value is part of
+    :attr:`CodePack.fingerprint`, kept in the stamps of results)."""
+    entries = []
+    for parts, entry in _files(str(pack_dir)):
+        try:
+            st = os.stat(entry.path)
+        except OSError:
+            continue
+        entries.append((parts, st.st_mtime_ns, st.st_size))
+    entries.sort(key=lambda e: [os.path.normcase(part) for part in e[0]])
+    return tuple(("/".join(parts), mtime, size) for parts, mtime, size in entries)
+
+
+def _folder_stamp(folder: Path) -> tuple | None:
+    """A cheap stamp of every file below ``folder`` (None: no such folder): changes when a
+    file is added, removed, renamed or written. The times and sizes come with the folder
+    listing (no call per file on Windows), so the stamp of every pack folder costs a few
+    milliseconds where the packs' signatures cost about 0.1 s."""
+    if not folder.is_dir():
+        return None
+    entries = []
+    for parts, entry in _files(str(folder)):
+        try:
+            st = entry.stat()
+        except OSError:
+            continue
+        entries.append(("/".join(parts), st.st_mtime_ns, st.st_size))
+    entries.sort()
     return tuple(entries)
 
 
@@ -996,6 +1039,10 @@ class Registry:
         # broke every design check with a raw CodePackError).
         self._sound_builtin: dict[tuple, _Resolved] = {}
         self._hooks_cache: dict[tuple[Path, str], types.ModuleType] = {}
+        # load()'s answers by (id, project root, kind), with the stamp of the pack folders they
+        # were found under (see _load_stamp): a lookup that finds nothing changed on disk skips
+        # the discovery (every pack's signature) and the resolution.
+        self._load_cache: dict[tuple, tuple[tuple, CodePack]] = {}
         self._in_progress: set[Path] = set()  # packs being resolved (guards against cycles)
         # Bumped whenever the installed packs or their trust change through this registry
         # (integration glue: saengine.codes.context's memo of the default pack follows it).
@@ -1051,6 +1098,7 @@ class Registry:
             self._read_cache.clear()
             self._resolved_cache.clear()
             self._sound_builtin.clear()
+            self._load_cache.clear()
             self.generation += 1
 
     # discovery
@@ -1423,6 +1471,11 @@ class Registry:
         """The effective pack of ``kind`` with this id, resolved and validated (cached by file
         times)."""
         with self._lock:
+            key = (pack_id, None if project_root is None else str(project_root), kind)
+            stamp = self._load_stamp(project_root)
+            cached = self._load_cache.get(key)
+            if cached is not None and cached[0] == stamp:
+                return cached[1]
             candidates = self._discover(project_root)
             found = self._effective(candidates, kind).get(pack_id)
             if found is None:
@@ -1442,7 +1495,24 @@ class Registry:
                     and c.kind == found.kind
                     for c in candidates
                 )
-        return _checked(resolved, partial=True)
+            pack = _checked(resolved, partial=True)
+            if len(self._load_cache) >= 64:
+                self._load_cache.clear()
+            self._load_cache[key] = (stamp, pack)
+        return pack
+
+    def _load_stamp(self, project_root: Path | None) -> tuple:
+        """What :meth:`load` depends on besides its arguments: this registry's and the table
+        models' generations and the stamps of every folder packs are found in (any file of any
+        pack added, removed or written changes it)."""
+        folders = [
+            base for scope in SCOPE_ORDER for base, _ in self._scope_dirs(scope, project_root)
+        ]
+        return (
+            self.generation,
+            _GENERATION[0],
+            tuple((str(base), _folder_stamp(base)) for base in folders),
+        )
 
     def validate(self, path: Path, project_root: Path | None = None) -> PackInfo:
         """The pack in ``path`` (any folder with a pack.json), resolved against the installed
