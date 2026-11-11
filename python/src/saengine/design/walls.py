@@ -118,7 +118,9 @@ Units: mm, MPa, N, N·mm (kN, kN·m, %, mm in the check rows).
 from __future__ import annotations
 
 import math
-from collections.abc import Iterable, Mapping
+from collections.abc import Iterable, Iterator, Mapping
+from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass, field, replace
 from typing import Any
 
@@ -142,6 +144,7 @@ from saengine.design.rc import (
     DesignError,
     InteractionSurface,
     RcSection,
+    StressBlock,
     alpha1,
     bar_area,
     beta1,
@@ -531,6 +534,12 @@ class PierInteraction:
         if not isinstance(section.profile, RectangleProfile):
             raise DesignError("wall piers are rectangular")
         self.section = section
+        # Alpha 10: the bars' geometry per (axis, sense), the stress block and the nominal
+        # moments already found, worked out once per section (the pack is fixed while a
+        # section is checked).
+        self._geometries: dict[tuple[str, int], tuple[float, float, np.ndarray, np.ndarray]] = {}
+        self._block: StressBlock | None = None
+        self._nominals: dict[tuple[str, int], dict[float, tuple[float, float]]] = {}
         self._diagrams: dict[tuple[str, int], tuple[np.ndarray, np.ndarray, np.ndarray]] = {}
         for axis in ("M3", "M2"):
             for sense in (1, -1):
@@ -538,21 +547,30 @@ class PierInteraction:
 
     def _geometry(self, axis: str, sense: int) -> tuple[float, float, np.ndarray, np.ndarray]:
         """(depth, width, bar distances from the compression fibre, bar areas)."""
-        s = self.section
-        p = s.profile
-        coord = np.array([b.y if axis == "M3" else b.x for b in s.bars])
-        depth = p.yDim if axis == "M3" else p.xDim
-        width = p.xDim if axis == "M3" else p.yDim
-        dist = depth / 2 - sense * coord
-        return depth, width, dist, np.array([b.area for b in s.bars])
+        found = self._geometries.get((axis, sense))
+        if found is None:
+            s = self.section
+            p = s.profile
+            coord = np.array([b.y if axis == "M3" else b.x for b in s.bars])
+            depth = p.yDim if axis == "M3" else p.xDim
+            width = p.xDim if axis == "M3" else p.yDim
+            dist = depth / 2 - sense * coord
+            found = depth, width, dist, np.array([b.area for b in s.bars])
+            self._geometries[(axis, sense)] = found
+        return found
+
+    def _stress_block(self) -> StressBlock:
+        if self._block is None:
+            # Alpha 9 C5b: the pack's block (η fcd, λ, εcu3, fyd with partial factors).
+            self._block = stress_block(self.section.fc, self.section.fy)
+        return self._block
 
     def actions(self, axis: str, sense: int, c: np.ndarray | float) -> tuple[Any, Any, Any]:
         """Nominal (Pn [N], Mn [N·mm] about the centroid, εt) at neutral-axis depths ``c``."""
         s = self.section
         depth, width, dist, area = self._geometry(axis, sense)
         c = np.atleast_1d(np.asarray(c, dtype=float))[:, None]
-        # Alpha 9 C5b: the pack's block (η fcd, λ, εcu3, fyd with partial factors).
-        bk = stress_block(s.fc, s.fy)
+        bk = self._stress_block()
         a = np.minimum(bk.beta * c, depth)
         strain = bk.eps_cu * (c - dist[None, :]) / c
         stress = np.clip(s.es * strain, -bk.fy, bk.fy)
@@ -610,22 +628,46 @@ class PierInteraction:
     def nominal(self, pu: float, axis: str = "M3", sense: int = 1) -> tuple[float, float]:
         """Nominal Mn [N·mm] and c [mm] at the factored axial force ``pu`` [N] (Pn = Pu), by
         bisection on c; (0, 0) when Pu is outside the nominal range."""
-        s = self.section
+        mn, c = self.nominals([pu], axis, sense)
+        return float(mn[0]), float(c[0])
+
+    def nominals(
+        self, pus: Iterable[float], axis: str = "M3", sense: int = 1
+    ) -> tuple[np.ndarray, np.ndarray]:
+        """:meth:`nominal` at each of ``pus`` [N]: (Mn [N·mm], c [mm]) arrays. The bisections of
+        all the forces run together, each with its own bracket and the same 80 halvings, and
+        the answers are kept for the next call."""
+        pus = [float(pu) for pu in pus]
+        known = self._nominals.setdefault((axis, sense), {})
+        todo = sorted({pu for pu in pus if pu not in known and not math.isnan(pu)})
+        if todo:
+            known.update(zip(todo, self._bisect(np.array(todo), axis, sense), strict=True))
+        out = [known.get(pu, (0.0, 0.0)) for pu in pus]
+        return np.array([m for m, _ in out]), np.array([c for _, c in out])
+
+    def _bisect(self, pus: np.ndarray, axis: str, sense: int) -> list[tuple[float, float]]:
+        """(Mn, c) at each of ``pus``: the bisection of :meth:`nominal`, element by element."""
         _, _, dist, _ = self._geometry(axis, sense)
-        lo, hi = 1e-6 * float(dist.max()), 50.0 * float(dist.max())
-        p_lo = float(self.actions(axis, sense, lo)[0][0])
-        p_hi = float(self.actions(axis, sense, hi)[0][0])
-        if not p_lo <= pu <= p_hi:
-            return 0.0, 0.0
+        lo0, hi0 = 1e-6 * float(dist.max()), 50.0 * float(dist.max())
+        p_lo = float(self.actions(axis, sense, lo0)[0][0])
+        p_hi = float(self.actions(axis, sense, hi0)[0][0])
+        inside = [k for k, pu in enumerate(pus.tolist()) if p_lo <= pu <= p_hi]
+        found = [(0.0, 0.0)] * len(pus)
+        if not inside:
+            return found
+        target = pus[inside]
+        lo = np.full(len(target), lo0)
+        hi = np.full(len(target), hi0)
         for _ in range(80):
             mid = (lo + hi) / 2
-            if float(self.actions(axis, sense, mid)[0][0]) < pu:
-                lo = mid
-            else:
-                hi = mid
+            below = self.actions(axis, sense, mid)[0] < target
+            lo = np.where(below, mid, lo)
+            hi = np.where(below, hi, mid)
         c = (lo + hi) / 2
-        del s
-        return abs(float(self.actions(axis, sense, c)[1][0])), c
+        mn = np.abs(self.actions(axis, sense, c)[1])
+        for k, m, depth in zip(inside, mn.tolist(), c.tolist(), strict=True):
+            found[k] = (m, depth)
+        return found
 
     def check(self, pu: float, m3: float, m2: float) -> ColumnCheck:
         """Utilisation of (Pu, M3, M2) on the linear load contour (see the class notes)."""
@@ -649,6 +691,55 @@ class PierInteraction:
         cap = mu / u if u > 0 and math.isfinite(u) else 0.0
         note = "" if abs(m2) <= 0 or abs(m3) <= 0 else "biaxial: M3/φMn3 + M2/φMn2"
         return ColumnCheck(u, cap, mu, note)
+
+
+#: Alpha 10: the interactions of the sections already met while :func:`shared_interactions`
+#: is open, by section, with the pack they were worked out under.
+_SHARED: ContextVar[dict[tuple[Any, ...], tuple[Any, PierInteraction]] | None] = ContextVar(
+    "pier_interactions", default=None
+)
+
+
+@contextmanager
+def shared_interactions() -> Iterator[None]:
+    """While open, :func:`pier_interaction` hands out one :class:`PierInteraction` per section
+    (its diagrams and the nominal moments it found), for the trials of a proposal that check
+    the same piers with the same bars again."""
+    if _SHARED.get() is not None:
+        yield
+        return
+    token = _SHARED.set({})
+    try:
+        yield
+    finally:
+        _SHARED.reset(token)
+
+
+def pier_interaction(section: RcSection) -> PierInteraction:
+    """The :class:`PierInteraction` of ``section``: the one already made for the same section
+    under the same pack while :func:`shared_interactions` is open, else a new one."""
+    shared = _SHARED.get()
+    if shared is None:
+        return PierInteraction(section)
+    p = section.profile
+    key = (
+        type(p).__name__,
+        getattr(p, "xDim", None),
+        getattr(p, "yDim", None),
+        section.bars,
+        section.fc,
+        section.fy,
+        section.es,
+        section.spiral,
+        section.transverse_dia,
+        section.notes,
+    )
+    pack = code_context.in_force()
+    found = shared.get(key)
+    if found is None or found[0] is not pack:
+        found = (pack, PierInteraction(section))
+        shared[key] = found
+    return found[1]
 
 
 def _first_crossing(p: np.ndarray, pu: float) -> int:
@@ -991,7 +1082,7 @@ def wall_checks(
     fyt = fy if fyt is None else fyt
     rho_l, rho_t = bars.rho_l(t), bars.rho_t(t)
     section = pier_section(geometry, bars, fc, fy, es)
-    pier = PierInteraction(section)
+    pier = pier_interaction(section)
     surface = surface or pier
     vu_case = _largest(forces, lambda f: abs(f.V2))
     vu = abs(vu_case.V2) if vu_case else 0.0
@@ -1165,7 +1256,10 @@ def wall_checks(
             # is below the shear at the nominal moment Vu Mn/Mu of any of them (a moment of 0
             # never develops Mn: that shear is unbounded).
             v_at_mn, phi_case = 0.0, None
-            for g in [g for g in forces if g.earthquake] or list(forces):
+            rows = [g for g in forces if g.earthquake] or list(forces)
+            for sense in (1, -1):  # every force's bisection at once (kept by ``pier``)
+                pier.nominals([g.P for g in rows if g.M3 * sense >= 0], "M3", sense)
+            for g in rows:
                 if abs(g.V2) <= 0:
                     continue
                 mu = abs(g.M3)
@@ -1509,10 +1603,12 @@ def boundary_need(
     lw, t = geometry.length, geometry.thickness
     method = "displacement" if drift is not None and geometry.continuous else "stress"
     seismic = [f for f in forces if f.earthquake] or list(forces)
-    pier = pier or PierInteraction(section)
+    pier = pier or pier_interaction(section)
     c_max, stress, height, trigger = 0.0, 0.0, None, None
     governing: tuple[float, float, PierForces] | None = None  # (c, |Vu|, row) at the base
     critical = _critical_section(seismic)
+    for sense in (1, -1):  # every force's bisection at once (kept by ``pier``)
+        pier.nominals([f.P for f in seismic], "M3", sense)
     for f in seismic:
         c_f = max(pier.nominal(f.P, "M3", 1 if top else -1)[1] for top in (True, False))
         c_max = max(c_max, c_f)
@@ -1992,7 +2088,7 @@ def _search_end_bars(
             section = pier_section(geometry, b, fc, fy, es)
         except DesignError:
             return False
-        s = PierInteraction(section)
+        s = pier_interaction(section)
         return all(s.check(f.P, f.M3, f.M2).utilisation <= 1.0 for f in forces)
 
     required = bool(boundary and boundary.required)
@@ -2133,10 +2229,13 @@ def pier_design_shear(
     hc = max(pier.clear_height, 1.0)
     seismic = [f for f in forces if f.earthquake] or list(forces)
     factor = float(code_context.table("detailing").lintels["probable"])  # 1.25 fy (8.3.8.1)
-    probable = PierInteraction(pier_section(geometry, bars, fc, factor * fy, es))
-    nominal = PierInteraction(pier_section(geometry, bars, fc, fy, es))
+    probable = pier_interaction(pier_section(geometry, bars, fc, factor * fy, es))
+    nominal = pier_interaction(pier_section(geometry, bars, fc, fy, es))
     mpr = mn = 0.0
     case = None
+    for sense in (1, -1):  # every force's bisection at once (kept by the interactions)
+        probable.nominals([f.P for f in seismic], "M3", sense)
+        nominal.nominals([f.P for f in seismic], "M3", sense)
     for f in seismic:
         for sense in (1, -1):
             m = probable.nominal(f.P, "M3", sense)[0]

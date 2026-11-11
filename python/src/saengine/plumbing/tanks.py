@@ -1229,6 +1229,9 @@ def design_panels(
         # Bars per face and direction.
         tank_dias = bar_diameters("tank")
         chosen: dict[tuple[str, str], Bars] = {}
+        # Alpha 10: the strength demand of a layer by (d, d_other), for the candidates that
+        # share them (every spacing of a diameter).
+        demands: dict[tuple[tuple[str, str], str], dict[tuple[float, float], Any]] = {}
         given: dict[tuple[str, str], Bars | None] = {
             (face, direction): _layer_bars(spec, panel, face, direction)
             for face in (plus, minus)
@@ -1277,6 +1280,7 @@ def design_panels(
                             es,
                             ec,
                             face,
+                            demands.setdefault((key, other), {}),
                         )
                         record.update({"cover": cover})
                         limit = max_spacing(h)
@@ -1404,6 +1408,31 @@ def _shear_demands(
     return out
 
 
+def _strength_demand(
+    spec: TankSpec,
+    h: float,
+    d: float,
+    d_other: float,
+    rows: list[tuple[float, float, str, int]],
+    other_rows: list[tuple[float, float, str, int]],
+) -> tuple[float, Any, bool]:
+    """(bars needed for strength [mm²/m], the governing row, whether every row can be taken)
+    of one layer from its rows and the other face's."""
+    required, governing = 0.0, None
+    ok = True
+    for m, n, cname, node in rows:
+        found = tension_flexure(m, n, h, d, d_other, spec.fc, spec.fy)
+        if not found.ok:
+            ok = False
+        if found.this > required:
+            required, governing = found.this, (m, n, cname, node, found)
+    # This face's share of the tension when the other face's moment governs.
+    for m, n, _cname, _node in other_rows:
+        found = tension_flexure(m, n, h, d_other, d, spec.fc, spec.fy)
+        required = max(required, found.other)
+    return required, governing, ok
+
+
 def _check_layer(
     spec: TankSpec,
     panel: str,
@@ -1423,21 +1452,17 @@ def _check_layer(
     es: float,
     ec: float,
     face: str = "",
+    known: dict[tuple[float, float], Any] | None = None,
 ) -> dict[str, Any]:
     """Strength, minimum and crack width (or the pack's service steel stress) of one layer with
-    the given bars."""
-    required, governing = 0.0, None
-    ok = True
-    for m, n, cname, node in rows:
-        found = tension_flexure(m, n, h, d, d_other, spec.fc, spec.fy)
-        if not found.ok:
-            ok = False
-        if found.this > required:
-            required, governing = found.this, (m, n, cname, node, found)
-    # This face's share of the tension when the other face's moment governs.
-    for m, n, _cname, _node in other_rows:
-        found = tension_flexure(m, n, h, d_other, d, spec.fc, spec.fy)
-        required = max(required, found.other)
+    the given bars. ``known``: the strength demands already found for these rows, by (d,
+    d_other), kept between the calls."""
+    kept = known.get((d, d_other)) if known is not None else None
+    if kept is None:
+        kept = _strength_demand(spec, h, d, d_other, rows, other_rows)
+        if known is not None:
+            known[(d, d_other)] = kept
+    required, governing, ok = kept
     min_en = min_area(h, spec.fc, spec.fy, options.crackingAge)
     min_code = code_min_area(panel, direction, h, spec.fy, bars.dia)
     a_min = max(min_en, min_code, surface_zone_area(h))
