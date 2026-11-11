@@ -10,17 +10,16 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { createDecorator, IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ISharedProcessService } from '../../../../platform/ipc/electron-browser/services.js';
-import { Severity } from '../../../../platform/notification/common/notification.js';
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
 import { ISaengineAiHttpRequest, ISaengineAiHttpResponse, SAENGINE_AI_CHANNEL } from '../../../../platform/saengine/common/saengineAi.js';
 import { ISecretStorageService } from '../../../../platform/secrets/common/secrets.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IOutputService } from '../../../services/output/common/output.js';
 import { TIME, formatDate } from '../../../services/saengineProject/common/formatting.js';
-import { CONSENT_STORAGE_KEY, consentKey, readScopes, runAssistant, SCOPES_STORAGE_KEY, systemPrompt } from '../common/aiAssistant.js';
+import { consentKey, readScopes, runAssistant, SCOPES_STORAGE_KEY, systemPrompt } from '../common/aiAssistant.js';
+import { IAiDataDestination, ISaengineAiDataConsentService } from '../browser/aiDataConsent.js';
 import { AiEffort, AiProviderId, AiTurn, ANTHROPIC_MODEL_SETTING, buildRequest, DEFAULT_ANTHROPIC_MODEL, EFFORT_SETTING, errorMessage, IAiToolCall, IAiToolResult, IProviderAnswer, IProviderConfig, OPENAI_ENDPOINT_SETTING, OPENAI_MODEL_SETTING, parseAnswer, PROVIDER_SETTING, providerHost, secretKey } from '../common/aiProviders.js';
 import { AI_TOOLS, assistantTools, ContextScope, OptionalScope } from '../common/aiTools.js';
 import { AI_ACTIVITY_CHANNEL_ID } from './aiController.js';
@@ -57,7 +56,7 @@ export interface ISaengineAiAssistantService {
 	setScope(scope: OptionalScope, allowed: boolean): void;
 	setKey(): Promise<void>;
 	removeKey(): Promise<void>;
-	/** Forgets "always allow" for every address. */
+	/** Withdraws the open project's consent to send its data to an AI provider. */
 	resetConsent(): void;
 }
 
@@ -75,8 +74,6 @@ export class SaengineAiAssistantService extends Disposable implements ISaengineA
 	private _scopes: Set<OptionalScope>;
 	get scopes(): ReadonlySet<OptionalScope> { return this._scopes; }
 
-	/** Addresses the engineer agreed to for this window's session. */
-	private readonly sessionConsent = new Set<string>();
 	private readonly runner: AiToolRunner;
 
 	private readonly _onDidChange = this._register(new Emitter<void>());
@@ -87,9 +84,9 @@ export class SaengineAiAssistantService extends Disposable implements ISaengineA
 		@ISecretStorageService private readonly secretStorageService: ISecretStorageService,
 		@ISharedProcessService private readonly sharedProcessService: ISharedProcessService,
 		@IStorageService private readonly storageService: IStorageService,
-		@IDialogService private readonly dialogService: IDialogService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IOutputService private readonly outputService: IOutputService,
+		@ISaengineAiDataConsentService private readonly dataConsent: ISaengineAiDataConsentService,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
@@ -166,9 +163,8 @@ export class SaengineAiAssistantService extends Disposable implements ISaengineA
 	}
 
 	resetConsent(): void {
-		this.storageService.remove(CONSENT_STORAGE_KEY, StorageScope.APPLICATION);
-		this.sessionConsent.clear();
-		this._onDidChange.fire();
+		// U2: the consent is the project's (aiDataConsent.ts); this withdraws it for the open project.
+		void this.dataConsent.revoke().then(() => this._onDidChange.fire());
 	}
 
 	clear(): void {
@@ -198,7 +194,7 @@ export class SaengineAiAssistantService extends Disposable implements ISaengineA
 			this.push({ kind: 'error', text: localize('assistant.noKey', "Set your Anthropic API key first. It is kept in the operating system's secret store."), action: 'setKey' });
 			return;
 		}
-		if (!await this.consent(base.provider, host, base.model)) {
+		if (!await this.dataConsent.ensure(this.destinationOf(base.provider, host, base.model))) {
 			this.notice(localize('assistant.notSent', "Not sent."));
 			return;
 		}
@@ -244,47 +240,27 @@ export class SaengineAiAssistantService extends Disposable implements ISaengineA
 		}
 	}
 
-	/** Asks before the first question to an address (once a session, or always). */
-	private async consent(provider: AiProviderId, host: string, model: string): Promise<boolean> {
-		const key = consentKey(provider, host);
-		const always = this.alwaysAllowed();
-		if (this.sessionConsent.has(key) || always.includes(key)) {
-			return true;
-		}
-		const scopes = [
+	/**
+	 * U2: what the built-in assistant sends and to whom, for the project's consent dialog
+	 * (asked before the first question of a project to a provider, remembered per project).
+	 */
+	private destinationOf(provider: AiProviderId, host: string, model: string): IAiDataDestination {
+		const sends = [
+			localize('consent.questions', "your questions and the conversation so far"),
 			localize('consent.code', "passages of the code pack and the SAEngine manual the assistant looks up"),
 			...(this._scopes.has('project') ? [localize('consent.project', "the project overview (name, parts and their status, open editors)")] : []),
 			...(this._scopes.has('document') ? [localize('consent.document', "the document open in the editor, when the assistant reads it")] : []),
 			...(this._scopes.has('results') ? [localize('consent.results', "analysis and design results, when the assistant reads them")] : []),
 		];
-		const { result } = await this.dialogService.prompt<'session' | 'always' | undefined>({
-			type: Severity.Info,
-			message: localize('consent.title', "Send to {0}?", host),
-			detail: localize('consent.detail', "The AI assistant sends your questions and the conversation so far to {0} (model {1}), and with them:\n\n• {2}\n\nNothing else leaves this computer, and nothing is sent before you agree. Change what may be read with the switches in the AI Assistant view. The API key stays in the operating system's secret store; each request is listed in AI Activity.", host, model, scopes.join('\n• ')),
-			buttons: [
-				{ label: localize({ key: 'consent.session', comment: ['&& denotes a mnemonic'] }, "&&Allow for This Session"), run: () => 'session' as const },
-				{ label: localize({ key: 'consent.always', comment: ['&& denotes a mnemonic'] }, "Always Allow {0}", host), run: () => 'always' as const },
-			],
-			cancelButton: { label: localize('consent.cancel', "Don't Send"), run: () => undefined },
-		});
-		if (result === 'always') {
-			this.storageService.store(CONSENT_STORAGE_KEY, JSON.stringify([...always, key]), StorageScope.APPLICATION, StorageTarget.USER);
-		}
-		if (result) {
-			this.sessionConsent.add(key);
-			this.log(localize('activity.consent', "Assistant: you allowed sending to {0} ({1}).", host, result === 'always' ? localize('consent.alwaysShort', "always") : localize('consent.sessionShort', "this session")));
-			return true;
-		}
-		return false;
-	}
-
-	private alwaysAllowed(): string[] {
-		try {
-			const value = JSON.parse(this.storageService.get(CONSENT_STORAGE_KEY, StorageScope.APPLICATION) ?? '[]');
-			return Array.isArray(value) ? value.filter((v): v is string => typeof v === 'string') : [];
-		} catch {
-			return [];
-		}
+		const anthropic = provider === 'anthropic';
+		return {
+			id: consentKey(provider, host),
+			receiver: anthropic
+				? localize('consent.receiverAnthropic', "Anthropic ({0}), model {1}, with your API key", host, model)
+				: localize('consent.receiverOpenAi', "the OpenAI-compatible endpoint {0}, model {1}", host, model),
+			sends,
+			terms: anthropic ? localize('consent.termsAnthropic', "Anthropic's") : localize('consent.termsEndpoint', "that endpoint's"),
+		};
 	}
 
 	private async send(config: IProviderConfig, system: string, turns: readonly AiTurn[], tools: Parameters<typeof buildRequest>[3], token: CancellationToken): Promise<IProviderAnswer> {

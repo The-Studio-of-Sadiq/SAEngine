@@ -6,6 +6,7 @@
 import { localize } from '../../../../nls.js';
 import { gridLabel, IGridLine } from '../../../services/saengineProject/common/gridLabels.js';
 import { DEFAULT_CODE_PACK_ID } from '../../../services/saengineProject/common/activeCodePack.js';
+import { blockRange, guardrailRule } from '../../../services/saengineProject/common/guardrails.js';
 
 /*
  * The New Project wizard's model: the grid spacings and storey heights as engineers type them
@@ -299,13 +300,19 @@ export function formFromSpec(spec: SpecRaw, form: INewBuildingForm): INewBuildin
 	};
 }
 
-/** Limits the wizard checks, so a typo does not create a 600 m bay [mm]. */
-const MIN_SPACING = 1000;
-const MAX_SPACING = 30000;
-const MIN_HEIGHT = 2000;
-const MAX_HEIGHT = 12000;
-const MAX_BAYS = 60;
-const MAX_STORIES = 80;
+/**
+ * Limits the wizard checks, so a typo does not create a 600 m bay [mm]: the floor plan's input
+ * guardrails (U2; `saengine.library.guardrails`, the same rules as the floor plan editor, the
+ * full check and the generator), their blocked ranges.
+ */
+const SPACING_RANGE = blockRange('gridSpacing');
+const HEIGHT_RANGE = blockRange('storeyHeight');
+const MIN_SPACING = SPACING_RANGE.min ?? 100;
+const MAX_SPACING = SPACING_RANGE.max ?? 100000;
+const MIN_HEIGHT = HEIGHT_RANGE.min ?? 1000;
+const MAX_HEIGHT = HEIGHT_RANGE.max ?? 30000;
+const MAX_BAYS = blockRange('spanCount').max ?? 200;
+const MAX_STORIES = blockRange('storeyCount').max ?? 200;
 
 export type ParseResult = { readonly ok: true; readonly values: readonly number[] } | { readonly ok: false; readonly error: string };
 
@@ -378,6 +385,9 @@ export function formatLengths(values: readonly number[], unit: 'mm' | 'ft' = 'mm
 /** Bay spacings fitted to a plot are rounded to this [mm]. */
 export const FIT_STEP = 50;
 
+/** A fitted bay is never shorter than the least usual span (the grid spacing's warning limit) [mm]. */
+const FIT_MIN_SPACING = guardrailRule('gridSpacing')?.warn?.find(l => l.min !== undefined)?.min ?? 1000;
+
 /**
  * `spacings` scaled to fill `room` [mm] with the same number of bays in the same proportions,
  * each a multiple of {@link FIT_STEP} and their sum the most that fits (the largest bays take
@@ -386,17 +396,17 @@ export const FIT_STEP = 50;
 export function fitSpacings(spacings: readonly number[], room: number): number[] | undefined {
 	const total = Math.floor(room / FIT_STEP) * FIT_STEP;
 	const sum = spacings.reduce((a, b) => a + b, 0);
-	if (!spacings.length || sum <= 0 || total < spacings.length * MIN_SPACING) {
+	if (!spacings.length || sum <= 0 || total < spacings.length * FIT_MIN_SPACING) {
 		return undefined;
 	}
-	const fitted = spacings.map(s => Math.max(MIN_SPACING, Math.round(s * total / sum / FIT_STEP) * FIT_STEP));
+	const fitted = spacings.map(s => Math.max(FIT_MIN_SPACING, Math.round(s * total / sum / FIT_STEP) * FIT_STEP));
 	let rest = total - fitted.reduce((a, b) => a + b, 0);
 	// The rounding goes to (or comes from) the largest bays first, a step at a time.
 	const order = fitted.map((_, i) => i).sort((a, b) => spacings[b] - spacings[a] || a - b);
 	for (let k = 0; rest !== 0 && k < 10 * fitted.length; k++) {
 		const i = order[k % order.length];
 		const step = rest > 0 ? FIT_STEP : -FIT_STEP;
-		if (fitted[i] + step >= MIN_SPACING && fitted[i] + step <= MAX_SPACING) {
+		if (fitted[i] + step >= FIT_MIN_SPACING && fitted[i] + step <= MAX_SPACING) {
 			fitted[i] += step;
 			rest -= step;
 		}

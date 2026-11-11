@@ -185,7 +185,7 @@ class BuildingSpec(_Spec):
     stories: list[StorySpec] | None = Field(
         default=None, description="The storeys from the bottom; or storyCount and heights."
     )
-    storyCount: int | None = Field(default=None, ge=1, le=100)
+    storyCount: int | None = Field(default=None, ge=1)
     typicalHeight: Spacing = 3000
     groundHeight: float | None = Field(
         default=None, gt=0, description="Height of the ground storey [mm]; none: typical."
@@ -302,8 +302,24 @@ class BuildingSpec(_Spec):
     def _stories(self) -> BuildingSpec:
         if self.stories is None and self.storyCount is None:
             raise ValueError("give the stories, or storyCount with the heights")
-        if len(self.gridsX) > 60 or len(self.gridsY) > 60:
-            raise ValueError("at most 60 bays each way")
+        # U2: the spans, storey heights and their counts by the floor plan's guardrails (the
+        # same rules as the wizard and the floor plan editor).
+        from saengine.library.guardrails import building_problems
+
+        if self.stories is not None:
+            heights, count = [s.height for s in self.stories], None
+        else:  # the count alone, so a slip (10000 storeys) is refused before it is built
+            heights = [self.groundHeight or self.typicalHeight, self.typicalHeight]
+            count = self.storyCount
+        blocked = [
+            message
+            for _field, severity, message in building_problems(
+                list(self.gridsX), list(self.gridsY), heights, storeys=count
+            )
+            if severity == "error"
+        ]
+        if blocked:
+            raise ValueError(" ".join(blocked))
         return self
 
     def story_list(self) -> list[StorySpec]:

@@ -24,7 +24,9 @@ import { ISaengineAiClientEvent, ISaengineAiServerInfo, ISaengineAiStartOptions,
 import { INativeWorkbenchEnvironmentService } from '../../../services/environment/electron-browser/environmentService.js';
 import { IOutputService } from '../../../services/output/common/output.js';
 import { IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from '../../../services/statusbar/browser/statusbar.js';
-import { ALLOW_CONTROL_SETTING, PORT_SETTING, toMcpTool, visibleTools } from '../common/aiTools.js';
+import { AI_TOOLS, ALLOW_CONTROL_SETTING, PORT_SETTING, toMcpTool, visibleTools } from '../common/aiTools.js';
+import { IAiDataDestination, ISaengineAiDataConsentService } from '../browser/aiDataConsent.js';
+import { ISaengineProjectService } from '../../../services/saengineProject/common/saengineProject.js';
 import { AiToolRunner } from './aiToolRunner.js';
 import { TIME, formatDate } from '../../../services/saengineProject/common/formatting.js';
 
@@ -94,6 +96,8 @@ export class SaengineAiService extends Disposable implements ISaengineAiService 
 		@INativeHostService private readonly nativeHostService: INativeHostService,
 		@ILogService private readonly logService: ILogService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@ISaengineAiDataConsentService private readonly dataConsent: ISaengineAiDataConsentService,
+		@ISaengineProjectService private readonly projectService: ISaengineProjectService,
 	) {
 		super();
 		this.runner = instantiationService.createInstance(AiToolRunner, () => this._editsAllowed);
@@ -138,6 +142,12 @@ export class SaengineAiService extends Disposable implements ISaengineAiService 
 			// The server was stopped while the request was on its way.
 			return { content: [{ type: 'text', text: 'AI access to this window was turned off.' }], isError: true };
 		}
+		// U2: nothing of the project goes to a connected assistant (and its model provider)
+		// before the engineer allows it for this project.
+		if (sendsProjectData(name) && this.projectService.project && !await this.dataConsent.ensure(this.mcpDestination())) {
+			this.log(localize('activity.notAllowed', "{0} refused: sending this project's data to AI assistants is not allowed.", name));
+			return { content: [{ type: 'text', text: 'The engineer has not allowed sending this project\'s data to AI assistants (SAEngine: AI Data Sharing for This Project). Ask them to allow it.' }], isError: true };
+		}
 		const started = Date.now();
 		const result = await this.runner.call(name, args);
 		const summary = result.isError
@@ -145,6 +155,20 @@ export class SaengineAiService extends Disposable implements ISaengineAiService 
 			: localize('activity.ok', "ok");
 		this.log(localize('activity.tool', "{0}({1}) {2} [{3} ms]", name, shorten(JSON.stringify(args)), summary, Date.now() - started));
 		return result;
+	}
+
+	/** The consent dialog's destination for an MCP client (it passes the data on to its own model provider). */
+	private mcpDestination(): IAiDataDestination {
+		const client = this.client ?? localize('consent.mcpClient', "the AI assistant connected to this window");
+		return {
+			id: 'mcp',
+			receiver: localize('consent.mcpReceiver', "{0} (connected over this window's local AI server), and the model provider that assistant uses", client),
+			sends: [
+				localize('consent.mcpProject', "the project overview, the documents and results it reads, and screenshots of the window when it asks for them"),
+				localize('consent.mcpLog', "every request is listed in AI Activity"),
+			],
+			terms: localize('consent.mcpTerms', "that assistant's and its provider's"),
+		};
 	}
 
 	private onClientEvent(event: ISaengineAiClientEvent): void {
@@ -328,4 +352,13 @@ function textOf(result: MCP.CallToolResult): string {
 
 function shorten(text: string, length = 300): string {
 	return text.length > length ? `${text.slice(0, length)}…` : text;
+}
+
+/**
+ * Whether a tool's result carries project data to the assistant: what it reads of the project,
+ * the open document or the results (its `assistant` scope), and screenshots of the window.
+ */
+function sendsProjectData(name: string): boolean {
+	const tool = AI_TOOLS.find(t => t.name === name);
+	return name === 'screenshot' || tool?.assistant === 'project' || tool?.assistant === 'document' || tool?.assistant === 'results';
 }

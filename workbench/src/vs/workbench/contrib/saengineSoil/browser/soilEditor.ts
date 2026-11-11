@@ -38,6 +38,7 @@ import { DEFAULT_EDITOR_ASSOCIATION, IEditorOpenContext } from '../../../common/
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { DEVELOPER_MODE_SETTING } from '../../../services/saengineProject/common/developerMode.js';
+import { confirmDelete } from '../../../services/saengineProject/common/confirmDelete.js';
 import { DEFAULT_CODE_TABLES } from '../../../services/saengineProject/common/projectLibraries.generated.js';
 import { partById } from '../../../services/saengineProject/common/saengineProject.js';
 import { appendPropertyHeading, appendPropertyNote, appendPropertyRow, EditorFrame, IEditorFrameStatus } from '../../saengineProject/browser/editorFrame.js';
@@ -664,12 +665,11 @@ export class SoilEditor extends EditorPane {
 		}
 		this.flush();
 		if (borehole.layers.length + borehole.spt.length + borehole.samples.length) {
-			const { confirmed } = await this.dialogService.confirm({
-				type: Severity.Warning,
+			const confirmed = await confirmDelete(this.dialogService, {
 				message: localize('soil.deleteConfirm', "Delete borehole {0}?", borehole.id),
 				// The same counts as its properties: an SPT row's split-spoon sample is not a lab sample.
-				detail: localize('soil.deleteConfirmDetailLab', "It has {0} layer(s), {1} SPT record(s) and {2} lab sample(s). Ctrl+Z brings it back.", borehole.layers.length, borehole.spt.length, borehole.samples.filter(hasLabData).length),
-				primaryButton: localize({ key: 'soil.deleteButton', comment: ['&& denotes a mnemonic'] }, "&&Delete"),
+				consequences: localize('soil.deleteConfirmDetailLab', "It has {0} layer(s), {1} SPT record(s) and {2} lab sample(s).", borehole.layers.length, borehole.spt.length, borehole.samples.filter(hasLabData).length),
+				recovery: 'undo',
 			});
 			if (!confirmed || this.report !== report) {
 				return;

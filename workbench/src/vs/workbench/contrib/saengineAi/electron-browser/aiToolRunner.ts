@@ -5,7 +5,7 @@
 
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { JSONPath } from '../../../../base/common/json.js';
-import { removeProperty, setProperty } from '../../../../base/common/jsonEdit.js';
+import { applyEdits, removeProperty, setProperty } from '../../../../base/common/jsonEdit.js';
 import { extUriBiasedIgnorePathCase, joinPath } from '../../../../base/common/resources.js';
 import { timeout } from '../../../../base/common/async.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -29,7 +29,7 @@ import { generateArgs } from '../../saengineProject/browser/drawingsModel.js';
 import { openPart, partName } from '../../saengineProject/browser/projectParts.js';
 import { AI_TOOLS, ALLOWED_COMMANDS, checkCommand, IAiTool, ResultKind, safeRelativePath, validateArguments } from '../common/aiTools.js';
 import { readProposal } from '../common/aiChangeSet.js';
-import { ChangeSetSource, IAiChangeSet, ISaengineAiChangeSetService } from '../browser/aiChangeSets.js';
+import { ChangeSetSource, IAiChangeSet, ISaengineAiChangeSetService, refusedValues } from '../browser/aiChangeSets.js';
 import { ASSISTANT_VIEW_ID } from '../common/aiAssistant.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { IFemSolverService } from '../../../../platform/saengine/common/femSolver.js';
@@ -388,6 +388,11 @@ export class AiToolRunner {
 			const edits = remove ? removeProperty(text, path, formatting) : setProperty(text, path, value, formatting);
 			if (!edits.length) {
 				return textResult('No change.');
+			}
+			// U2: refused like the engineer's entry when it breaks the input guardrails.
+			const refused = await refusedValues(this.commandService, file, text, applyEdits(text, edits));
+			if (refused.length) {
+				throw new ToolError(`SAEngine refuses these values (the same rules as for the engineer): ${refused.slice(0, 10).join('; ')}`);
 			}
 			model.pushStackElement();
 			model.pushEditOperations([], edits.map(edit => ({

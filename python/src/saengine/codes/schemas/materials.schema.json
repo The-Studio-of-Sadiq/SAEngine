@@ -195,6 +195,34 @@
       "title": "Fufymin",
       "type": "number"
     },
+    "structuralFcMin": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Least f'c of structural concrete [MPa]; a lower f'c is warned about (lean concrete); none: no code limit.",
+      "title": "Structuralfcmin"
+    },
+    "rebarFyMax": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Most fy of reinforcement the design may use [MPa]; a higher fy is refused; none: no code limit.",
+      "title": "Rebarfymax"
+    },
     "rebarGrades": {
       "description": "Walk 4 (W4A-6): the reinforcement grades of the pack's standards a new project offers (the New Building wizard) and adds to its materials; empty: the default materials' grades.",
       "items": {

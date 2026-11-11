@@ -129,6 +129,22 @@ def _plot_warnings(project: Project, floor_plan_text: str) -> list[dict[str, Any
     return [_problem(w["message"], "warning", w["id"]) for w in found["warnings"]]
 
 
+def _load_guardrails(project: Project) -> list[dict[str, Any]]:
+    """The line and point loads of ``05 Floor Plan/loads.json`` against the input guardrails
+    (a gravity load entered upward): reported with the floor plan, whose part they belong to."""
+    from saengine.library import guardrails
+
+    text = project.text("loads")
+    try:
+        data = json.loads(text) if text else None
+    except ValueError:
+        return []
+    return [
+        _problem(f"loads.json: {p['message']}", p["severity"], path=p["path"])
+        for p in guardrails.check("memberLoads", data)
+    ]
+
+
 def validate_part(project: Project, part: str) -> PartValidation:
     """The problems of part ``part`` of ``project``."""
     from saengine.codes import context as code_context
@@ -168,6 +184,8 @@ def validate_part(project: Project, part: str) -> PartValidation:
             )
             for p in found
         ]
+        if part == "floorPlan":
+            problems += _load_guardrails(project)
         if part == "floorPlan" and not problems:
             problems = _plot_warnings(project, text)
     elif part == "soil":

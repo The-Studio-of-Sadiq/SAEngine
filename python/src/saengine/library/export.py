@@ -31,6 +31,7 @@ from saengine.library.defaults import (
     default_object_library,
 )
 from saengine.library.floorplan import FloorPlan
+from saengine.library.guardrails import rules_document
 from saengine.library.importers import ImportInput
 from saengine.library.materials import (
     DEVIATION_LIMIT,
@@ -62,6 +63,38 @@ HEADER = """/*------------------------------------------------------------------
 // python/src/saengine/library. Do not edit by hand.
 
 import { IJSONSchema } from '../../../../base/common/jsonSchema.js';
+
+/** One limit of an input guardrail (saengine.library.guardrails): a range, or the values allowed. */
+export interface IGuardrailLimit {
+	readonly min?: number;
+	readonly max?: number;
+	readonly oneOf?: readonly number[];
+	/** A limit of the code pack, by `table.key`, that the backend fills in (unresolved here). */
+	readonly fromPack?: { readonly [bound: string]: string };
+	readonly reason: string;
+	/** "SAEngine practice", or the code and clause the limit comes from. */
+	readonly source?: string;
+}
+
+/** An input guardrail: impossible values (`block`) and unusual ones (`warn`) of some fields. */
+export interface IGuardrailRule {
+	readonly id: string;
+	readonly kind: string;
+	readonly paths: readonly string[];
+	readonly when?: { readonly [field: string]: readonly string[] };
+	/** A value computed from several fields (storey heights, grid spacings, counts, cover in the section). */
+	readonly derived?: string;
+	readonly what: string;
+	readonly unit?: string;
+	readonly block?: readonly IGuardrailLimit[];
+	readonly warn?: readonly IGuardrailLimit[];
+}
+
+export interface IGuardrailDocument {
+	readonly about: string;
+	readonly source: string;
+	readonly rules: readonly IGuardrailRule[];
+}
 
 /** Reference tables of the default code pack (see saengine.library.code_data); the clause numbers below are the default pack's. */
 export interface IDefaultCodeTables {
@@ -255,6 +288,8 @@ def generate_typescript() -> str:
         ),
         ("REDUCED_LIVE", "object", reduced_live()),
         ("DEFAULT_CODE_TABLES", "IDefaultCodeTables", default_code_tables()),
+        # U2: the input guardrails (pack limits still as fromPack names: the backend fills them).
+        ("GUARDRAIL_RULES", "IGuardrailDocument", rules_document()),
         ("FLOOR_PLAN_SCHEMA", "IJSONSchema", json_schema(FloorPlan, "SAEngine floor plan")),
         ("DEFAULT_FLOOR_PLAN", "object", library_json(default_floor_plan())),
         (

@@ -14,7 +14,8 @@ import { localize } from '../../../../nls.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IUndoRedoService, UndoRedoGroup } from '../../../../platform/undoRedo/common/undoRedo.js';
-import { ISaengineProjectService } from '../../../services/saengineProject/common/saengineProject.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { ISaengineProjectService, PROJECT_PARTS } from '../../../services/saengineProject/common/saengineProject.js';
 import { changesByFile, IAiChangeSetProposal, IPlannedFile, planFile } from '../common/aiChangeSet.js';
 
 /*
@@ -71,6 +72,30 @@ interface IChangeSetEntry {
 	applied?: { readonly resource: URI; readonly version: number }[];
 }
 
+/** The full check of the editors (`saengine.library.check`). */
+const LIBRARY_CHECK_COMMAND = 'saengine.library.check';
+
+/** The parts whose files the full check (and so the input guardrails) knows. */
+const CHECKED_KINDS = new Set(['materials', 'objects', 'settings', 'floorPlan', 'structure', 'bim']);
+
+/**
+ * The errors the full check finds in `after` that `before` did not have, for a project file
+ * (`file`, project-relative) of a part the check knows; empty for any other file, and when the
+ * backend is not there (web).
+ */
+export async function refusedValues(commandService: ICommandService, file: string, before: string, after: string): Promise<string[]> {
+	const part = PROJECT_PARTS.find(p => p.mainFile && `${p.folder}/${p.mainFile}` === file && CHECKED_KINDS.has(p.id));
+	if (!part) {
+		return [];
+	}
+	const errors = async (text: string) => {
+		const problems = await commandService.executeCommand<readonly { message: string; path?: string; severity?: string }[]>(LIBRARY_CHECK_COMMAND, part.id, text).catch(() => undefined);
+		return (problems ?? []).filter(p => (p.severity ?? 'error') === 'error').map(p => p.path ? `${p.path}: ${p.message}` : p.message);
+	};
+	const old = new Set(await errors(before));
+	return (await errors(after)).filter(e => !old.has(e)).map(e => `${file}: ${e}`);
+}
+
 /** Most change sets kept in the list. */
 const MAX_KEPT = 20;
 
@@ -89,6 +114,7 @@ export class SaengineAiChangeSetService extends Disposable implements ISaengineA
 		@ITextModelService private readonly textModelService: ITextModelService,
 		@IFileService private readonly fileService: IFileService,
 		@IUndoRedoService private readonly undoRedoService: IUndoRedoService,
+		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super();
 		this._register(this.projectService.onDidChangeProject(() => {
@@ -126,6 +152,7 @@ export class SaengineAiChangeSetService extends Disposable implements ISaengineA
 		if (files.every(file => file.changes.every(change => change.noop))) {
 			throw new Error(localize('changeSet.noop', "Every change already holds: nothing to propose."));
 		}
+		await this.checkGuardrails(files);
 		const deferred = new DeferredPromise<ChangeSetState>();
 		const entry: IChangeSetEntry = { id: generateUuid(), title: proposal.title, source, files, state: 'pending', deferred, decision: deferred.p };
 		this.entries.unshift(entry);
@@ -137,6 +164,23 @@ export class SaengineAiChangeSetService extends Disposable implements ISaengineA
 		}
 		this._onDidChange.fire(entry);
 		return entry;
+	}
+
+	/**
+	 * U2: the assistant's values meet the same rules as the engineer's. Each project file the set
+	 * changes is checked as the editors check it (`saengine.library.check`, the input guardrails
+	 * among its rules); an error the file did not have before refuses the whole set, with the
+	 * reason, so the assistant can correct it ({@link refusedValues}).
+	 */
+	private async checkGuardrails(files: readonly (IPlannedFile & { readonly resource: URI })[]): Promise<void> {
+		const refused: string[] = [];
+		for (const file of files) {
+			const before = (await this.model(file.resource)).textEditorModel.getValue();
+			refused.push(...await refusedValues(this.commandService, file.file, before, file.newText));
+		}
+		if (refused.length) {
+			throw new Error(localize('changeSet.guardrails', "SAEngine refuses these values (the same rules as for the engineer): {0}", refused.slice(0, 10).join('; ')));
+		}
 	}
 
 	async accept(id: string): Promise<void> {

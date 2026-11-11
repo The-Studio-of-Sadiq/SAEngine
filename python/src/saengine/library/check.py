@@ -14,6 +14,7 @@ from typing import Any, Literal
 
 from pydantic import ValidationError
 
+from saengine.library import guardrails
 from saengine.library.bim import BuildingModel
 from saengine.library.floorplan import FloorPlan
 from saengine.library.materials import MaterialLibrary, plausibility
@@ -86,7 +87,7 @@ def check_library(kind: Kind, text: str, materials_text: str | None = None) -> l
     if kind in ("rates", "carbon"):
         return _check_schedule(kind, data)
     if kind == "floorPlan":
-        return _check_layout(FloorPlan, data, materials_text)
+        return _check_layout(FloorPlan, data, materials_text) + guardrails.check(kind, data)
     if kind == "bim":
         return _check_layout(BuildingModel, data, materials_text)
     if kind == "structure":
@@ -106,9 +107,11 @@ def check_library(kind: Kind, text: str, materials_text: str | None = None) -> l
             problems.append(_problem(index, path, _clean(error["msg"])))
         return problems
 
+    # U2 guardrails: impossible values are errors, unusual ones (plausibility) warnings.
+    blocked = [p for p in guardrails.check(kind, data) if p["severity"] == "error"]
     if isinstance(library, MaterialLibrary):
-        return [
-            _problem(index, path, message)
+        return blocked + [
+            {**_problem(index, path, message), "severity": "warning"}
             for index, material in enumerate(library.materials)
             for path, message in plausibility(material)
         ]
@@ -129,6 +132,7 @@ def check_library(kind: Kind, text: str, materials_text: str | None = None) -> l
                 _problem(ids.index(object_id) if object_id in ids else None, "material", detail)
             )
         problems += coverage_warnings(library, materials)
+        problems += guardrails.check(kind, data)
         from saengine.codes.context import project_root
         from saengine.library.section_designer import list_sections
 
@@ -149,7 +153,7 @@ def check_library(kind: Kind, text: str, materials_text: str | None = None) -> l
                         )
                     )
         return problems
-    return []
+    return guardrails.check(kind, data) if kind == "objects" else blocked
 
 
 def coverage_warnings(library: ObjectLibrary, materials: MaterialLibrary) -> list[dict[str, Any]]:

@@ -1,0 +1,197 @@
+{
+  "about": "Input guardrails: values that are impossible or nonsense are blocked where they are entered (block), values that are unusual but possible are warned about (warn). Every entry path uses these rules: the visual editors, the New Project wizard, imports, the command line (saengine validate) and the AI assistant. A limit with 'fromPack' takes its value from the code pack in force (the code's own limit); every other number here is an SAEngine practice sanity limit, not a code requirement. Zero and negative sizes are refused by the schemas themselves (gt=0). Lengths are in mm, stresses in MPa.",
+  "source": "SAEngine practice",
+  "rules": [
+    {
+      "id": "concreteStrength",
+      "kind": "materials",
+      "paths": ["concrete.fc"],
+      "when": {"category": ["concrete"]},
+      "what": "f'c",
+      "unit": "MPa",
+      "block": [
+        {"min": 5, "max": 150, "reason": "no concrete is that weak or that strong; check the value is in MPa"}
+      ],
+      "warn": [
+        {"fromPack": {"min": "materials.structuralFcMin"}, "reason": "below the design code's least f'c for structural concrete; right for blinding or lean concrete only"},
+        {"min": 10, "max": 100, "reason": "outside the usual range of concrete; keep it only if tests give it"}
+      ]
+    },
+    {
+      "id": "reinforcementStrength",
+      "kind": "materials",
+      "paths": ["steel.fy"],
+      "when": {"category": ["rebar"]},
+      "what": "fy of reinforcement",
+      "unit": "MPa",
+      "block": [
+        {"min": 150, "max": 1000, "reason": "no reinforcing bar has that yield strength; check the value is in MPa"},
+        {"fromPack": {"max": "materials.rebarFyMax"}, "reason": "above the yield strength the design code lets the design use"}
+      ],
+      "warn": [
+        {"min": 200, "max": 700, "reason": "outside the usual range of reinforcement"}
+      ]
+    },
+    {
+      "id": "steelStrength",
+      "kind": "materials",
+      "paths": ["steel.fy"],
+      "when": {"category": ["steel"]},
+      "what": "fy of structural steel",
+      "unit": "MPa",
+      "block": [
+        {"min": 100, "max": 1100, "reason": "no structural steel has that yield strength; check the value is in MPa"}
+      ],
+      "warn": [
+        {"min": 200, "max": 700, "reason": "outside the usual range of structural steel"}
+      ]
+    },
+    {
+      "id": "concreteDensity",
+      "kind": "materials",
+      "paths": ["mechanical.density"],
+      "when": {"category": ["concrete"]},
+      "what": "density of concrete",
+      "unit": "kg/m³",
+      "warn": [{"min": 1400, "max": 2600, "reason": "outside the usual range of concrete; check the value is in kg/m³"}]
+    },
+    {
+      "id": "concretePoisson",
+      "kind": "materials",
+      "paths": ["mechanical.nu"],
+      "when": {"category": ["concrete"]},
+      "what": "Poisson's ratio of concrete",
+      "warn": [{"min": 0.1, "max": 0.25, "reason": "outside the usual range of concrete"}]
+    },
+    {
+      "id": "steelDensity",
+      "kind": "materials",
+      "paths": ["mechanical.density"],
+      "when": {"category": ["rebar", "steel"]},
+      "what": "density of steel",
+      "unit": "kg/m³",
+      "warn": [{"min": 7700, "max": 8000, "reason": "outside the usual range of steel; check the value is in kg/m³"}]
+    },
+    {
+      "id": "masonryDensity",
+      "kind": "materials",
+      "paths": ["mechanical.density"],
+      "when": {"category": ["masonry"]},
+      "what": "density of masonry",
+      "unit": "kg/m³",
+      "warn": [{"min": 1000, "max": 2400, "reason": "outside the usual range of masonry; check the value is in kg/m³"}]
+    },
+    {
+      "id": "sectionDimension",
+      "kind": "objects",
+      "paths": ["profile.*", "thickness"],
+      "what": "a section dimension",
+      "unit": "mm",
+      "block": [
+        {"max": 30000, "reason": "no member section is that large; check the value is in mm"}
+      ],
+      "warn": [
+        {"max": 5000, "reason": "an unusually large section; check the value is in mm"}
+      ]
+    },
+    {
+      "id": "cover",
+      "kind": "objects",
+      "paths": ["reinforcement.cover"],
+      "what": "the cover",
+      "unit": "mm",
+      "block": [
+        {"max": 300, "reason": "no member has that much cover; check the value is in mm"}
+      ],
+      "warn": [
+        {"min": 15, "max": 100, "reason": "outside the usual cover of reinforced concrete"}
+      ]
+    },
+    {
+      "id": "coverInMember",
+      "kind": "objects",
+      "derived": "coverInMember",
+      "paths": ["reinforcement.cover"],
+      "what": "the cover",
+      "unit": "mm",
+      "block": [
+        {"reason": "the cover on both faces leaves no concrete inside the bars"}
+      ]
+    },
+    {
+      "id": "barSize",
+      "kind": "objects",
+      "paths": [
+        "reinforcement.longitudinal.*.dia",
+        "reinforcement.transverse.dia",
+        "reinforcement.bottomX.dia",
+        "reinforcement.bottomY.dia",
+        "reinforcement.topX.dia",
+        "reinforcement.topY.dia",
+        "reinforcement.chordBars.dia",
+        "reinforcement.vertical.dia",
+        "reinforcement.horizontal.dia"
+      ],
+      "what": "bar size",
+      "unit": "mm",
+      "block": [
+        {"fromPack": {"oneOf": "concrete.barDiameters"}, "reason": "not one of the bar sizes of the design code"}
+      ]
+    },
+    {
+      "id": "storeyHeight",
+      "kind": "floorPlan",
+      "derived": "storeyHeight",
+      "paths": ["stories.*.elevation"],
+      "what": "a storey height",
+      "unit": "mm",
+      "block": [
+        {"min": 1000, "max": 30000, "reason": "no storey is that low or that high; check the levels are in mm"}
+      ],
+      "warn": [
+        {"min": 2200, "max": 8000, "reason": "an unusual storey height"}
+      ]
+    },
+    {
+      "id": "storeyCount",
+      "kind": "floorPlan",
+      "derived": "count",
+      "paths": ["stories"],
+      "what": "storeys",
+      "block": [{"max": 200, "reason": "more storeys than any building has"}],
+      "warn": [{"max": 80, "reason": "a very tall building; check the number of storeys"}]
+    },
+    {
+      "id": "gridSpacing",
+      "kind": "floorPlan",
+      "derived": "gridSpacing",
+      "paths": ["grids.x.*.position", "grids.y.*.position"],
+      "what": "a grid spacing",
+      "unit": "mm",
+      "block": [
+        {"min": 100, "max": 100000, "reason": "grid lines that close or that far apart are a slip; check the positions are in mm"}
+      ],
+      "warn": [
+        {"min": 1000, "max": 15000, "reason": "an unusual span for a building grid"}
+      ]
+    },
+    {
+      "id": "spanCount",
+      "kind": "floorPlan",
+      "derived": "spans",
+      "paths": ["grids.x", "grids.y"],
+      "what": "spans in one direction",
+      "block": [{"max": 200, "reason": "more spans than any building has"}],
+      "warn": [{"max": 60, "reason": "a very long building; check the grid"}]
+    },
+    {
+      "id": "gravityLoadSign",
+      "kind": "memberLoads",
+      "paths": ["loads.*.value"],
+      "what": "a load",
+      "block": [
+        {"min": 0, "reason": "dead, superimposed dead, live and roof live loads act downward: enter them as positive values"}
+      ]
+    }
+  ]
+}

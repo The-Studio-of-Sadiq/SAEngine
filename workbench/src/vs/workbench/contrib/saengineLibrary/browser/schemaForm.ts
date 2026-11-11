@@ -69,6 +69,11 @@ export interface ISchemaFormContext {
 	 * keystrokes of one field as one undo step.
 	 */
 	editing?(active: boolean): void;
+	/**
+	 * U2: asked before entry `index` of the list at `path` is removed (a storey, a grid line):
+	 * false keeps it. Undefined: entries are removed at once (a small edit).
+	 */
+	confirmRemove?(path: string, index: number, entry: JsonValue): Promise<boolean>;
 }
 
 /** How {@link SchemaForm.render} lays the form out. */
@@ -424,8 +429,11 @@ export class SchemaForm {
 			const fields = append(row, $('.form-array-fields'));
 			const name = entry && typeof entry === 'object' && !Array.isArray(entry) && typeof entry.id === 'string' ? entry.id : String(i + 1);
 			this.renderUnion(fields, name, union, entries, String(i), `${path}.${i}`, false);
-			this.iconButton(row, Codicon.trash, localize('schemaForm.remove', "Remove"), () => {
-				list.splice(i, 1);
+			this.iconButton(row, Codicon.trash, localize('schemaForm.remove', "Remove"), async () => {
+				if ((this.ctx.confirmRemove && !await this.ctx.confirmRemove(path, i, entry)) || !list.includes(entry)) {
+					return;
+				}
+				list.splice(list.indexOf(entry), 1);
 				owner[key] = list;
 				this.ctx.changed(path, true);
 			}, list.length > (schema.minItems ?? 0));
@@ -451,8 +459,17 @@ export class SchemaForm {
 		const list = Array.isArray(owner[key]) ? owner[key] as JsonValue[] : [];
 		const min = schema.minItems ?? 0;
 		const remove = (parent: HTMLElement, i: number) => {
-			this.iconButton(parent, Codicon.trash, localize('schemaForm.remove', "Remove"), () => {
-				list.splice(i, 1);
+			this.iconButton(parent, Codicon.trash, localize('schemaForm.remove', "Remove"), async () => {
+				const entry = list[i];
+				if (this.ctx.confirmRemove && !await this.ctx.confirmRemove(path, i, entry)) {
+					return;
+				}
+				// The list may have changed while the dialog was open: remove this entry, if still there.
+				const at = list.indexOf(entry);
+				if (at < 0) {
+					return;
+				}
+				list.splice(at, 1);
 				owner[key] = list;
 				this.ctx.changed(path, true);
 			}, list.length > min);
@@ -847,7 +864,7 @@ export class SchemaForm {
 	}
 
 	/** A small borderless icon button (remove a row, add a part), with a hover. */
-	private iconButton(container: HTMLElement, icon: ThemeIcon, title: string, run: () => void, enabled = true): void {
+	private iconButton(container: HTMLElement, icon: ThemeIcon, title: string, run: () => void | Promise<void>, enabled = true): void {
 		const button = append(container, $<HTMLButtonElement>('button.form-icon-button', { type: 'button', 'aria-label': title }));
 		append(button, $(ThemeIcon.asCSSSelector(icon)));
 		button.disabled = !enabled;

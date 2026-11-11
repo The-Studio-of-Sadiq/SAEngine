@@ -163,7 +163,7 @@ registerAction2(class extends Action2 {
 
 registerAction2(class extends Action2 {
 	constructor() {
-		super({ id: 'saengine.ai.assistant.resetConsent', title: localize2('assistant.resetConsentCommand', "Ask Again Before the AI Assistant Sends"), category, f1: true });
+		super({ id: 'saengine.ai.assistant.resetConsent', title: localize2('assistant.resetConsentCommand', "Ask Again Before the AI Assistant Sends This Project's Data"), category, f1: true });
 	}
 	override run(accessor: ServicesAccessor): void {
 		accessor.get(ISaengineAiAssistantService).resetConsent();

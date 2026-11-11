@@ -3411,6 +3411,19 @@ class MaterialsTable(TableModel):
     fyActualMargin: float
     fyRetestMargin: float
     fuFyMin: float
+    # U2 guardrails (saengine.library.guardrails): the code's input limits on materials.
+    structuralFcMin: float | None = Field(
+        default=None,
+        gt=0,
+        description="Least f'c of structural concrete [MPa]; a lower f'c is warned about (lean "
+        "concrete); none: no code limit.",
+    )
+    rebarFyMax: float | None = Field(
+        default=None,
+        gt=0,
+        description="Most fy of reinforcement the design may use [MPa]; a higher fy is refused; "
+        "none: no code limit.",
+    )
     rebarGrades: list[RebarGrade] = Field(
         default_factory=list,
         description="Walk 4 (W4A-6): the reinforcement grades of the pack's standards a new "

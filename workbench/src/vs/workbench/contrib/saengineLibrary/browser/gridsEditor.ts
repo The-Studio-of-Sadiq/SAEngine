@@ -31,6 +31,9 @@ import { EditorFrame } from '../../saengineProject/browser/editorFrame.js';
 import { clone, IDocumentFrameActions, IShapeError, isObject, JsonDocumentEditor } from './jsonDocumentEditor.js';
 import { LibraryEditorInput } from './libraryEditorInput.js';
 import { JsonObject, JsonValue, SchemaForm } from './schemaForm.js';
+import { guardrailError } from '../../../services/saengineProject/common/guardrails.js';
+import { confirmDelete } from '../../../services/saengineProject/common/confirmDelete.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 
 const FLOOR_PLAN_SCHEMA_ID = 'saengine.floorPlan/1';
 
@@ -134,6 +137,7 @@ export class GridsEditor extends JsonDocumentEditor {
 		@IConfigurationService configurationService: IConfigurationService,
 		@ITextFileService private readonly textFiles: ITextFileService,
 		@IUndoRedoService private readonly undoRedoService: IUndoRedoService,
+		@IDialogService private readonly dialogService: IDialogService,
 	) {
 		super(GridsEditor.ID, group, telemetryService, themeService, storageService, commandService, editors, textModelService, projectService);
 		this.trackDeveloperMode(configurationService);
@@ -160,6 +164,7 @@ export class GridsEditor extends JsonDocumentEditor {
 			},
 			mode: () => undefined,
 			newItem: (path, list) => this.newItem(path, list),
+			confirmRemove: (path, _index, entry) => this.confirmRemove(path, entry),
 		});
 		this._register({ dispose: () => this.form.dispose() });
 	}
@@ -415,6 +420,37 @@ export class GridsEditor extends JsonDocumentEditor {
 		return undefined;
 	}
 
+	/**
+	 * U2: removing a storey or a grid line asks first, naming it and the members placed on it
+	 * (they would refer to something that is gone). Other rows (towers, underlays) go at once.
+	 */
+	private async confirmRemove(path: string, entry: JsonValue): Promise<boolean> {
+		if (!isObject(entry) || (path !== 'stories' && path !== 'grids.x' && path !== 'grids.y')) {
+			return true;
+		}
+		const story = path === 'stories';
+		const id = String(story ? entry.id : entry.label);
+		const axis = path === 'grids.x' ? 'x' : 'y';
+		// A member names a storey by id (story, base, top) and a grid line by label (a point's x or y).
+		const refers = (value: JsonValue): boolean => Array.isArray(value) ? value.some(refers)
+			: isObject(value) && ((story ? ['story', 'base', 'top'].some(k => value[k] === id) : value[axis] === id)
+				|| Object.values(value).some(v => typeof v === 'object' && v !== null && refers(v)));
+		const members = MEMBER_LISTS.flatMap(key => Array.isArray(this.document?.[key]) ? this.document[key] as JsonValue[] : [])
+			.filter(m => isObject(m) && refers(m))
+			.map(m => isObject(m) ? String(m.id) : '');
+		const name = story ? String(entry.name ?? id) : id;
+		return confirmDelete(this.dialogService, {
+			message: story
+				? localize('grids.removeStory', "Delete storey {0}?", name)
+				: localize('grids.removeGrid', "Delete grid line {0}?", id),
+			items: members,
+			consequences: members.length
+				? localize('grids.removeMembers', "{0} member(s) above are placed on it and will be in error until they are moved or deleted in the floor plan.", members.length)
+				: undefined,
+			recovery: 'undo',
+		});
+	}
+
 	/** Unique grid labels (across both axes) and story ids, checked as they are typed. */
 	private validate(path: string, value: string): string | undefined {
 		const grid = /^grids\.(x|y)\.(\d+)\.label$/.exec(path);
@@ -431,7 +467,9 @@ export class GridsEditor extends JsonDocumentEditor {
 				return localize('building.duplicateStory', "Another story already uses the ID {0}.", value);
 			}
 		}
-		return undefined;
+		// U2: storey heights and grid spacings outside physical sense are refused as typed (the
+		// floor plan's guardrails, the same rules as the full check and the New Project wizard).
+		return guardrailError('floorPlan', this.document, path, value);
 	}
 
 	// ───────────────────────────── rendering ─────────────────────────────
