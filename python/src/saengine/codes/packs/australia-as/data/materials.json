@@ -1,7 +1,8 @@
 {
   "$schema": "../../../schemas/materials.schema.json",
   "$sources": [
-    "AS 3600:2018 3.1, 3.2, 8.1.3, 10.6.2.2; AS 4100:2020 2.2.4 (G)"
+    "AS 3600:2018 3.1, 3.2, 8.1.3, 10.6.2.2; AS 4100:2020 2.2.4 (G)",
+    "AS 3600:2018 1.1.2 (f'c and fsy of the Standard's scope)"
   ],
   "source": "AS 3600:2018 and AS/NZS 4671 (D500N bars)",
   "stressBlock": {
@@ -32,11 +33,20 @@
     500.0
   ],
   "seismicRebarFyMax": 500.0,
+  "structuralFcMin": 20.0,
+  "rebarFyMax": 500.0,
   "sources": {
     "stressBlock": "AS 3600:2018 8.1.3: the rectangular block α2 f'c over γ ku d with α2 = 0.85 - 0.0015 f'c >= 0.67 and γ = 0.97 - 0.0025 f'c >= 0.67 (at most 0.85, as below 48 MPa); 10.6.2.2: the squash load Nuo = α1 f'c Ag + As fsy with α1 = 1.0 - 0.003 f'c within 0.72-0.85",
     "concreteStrain": "AS 3600:2018 8.1.3: εcu = 0.003",
     "steelE": "AS 3600:2018 3.2.2: Es = 200 000 MPa",
     "steelShearModulus": "AS 4100:2020 2.2.4: G = 80 000 MPa",
-    "seismicRebarFy": "AS/NZS 4671: D500N (Class N, fsy 500 MPa); Class L bars not offered"
+    "seismicRebarFy": "AS/NZS 4671: D500N (Class N, fsy 500 MPa); Class L bars not offered",
+    "seismicFcMin": "SAEngine practice: the value of the pack this one extends, kept where AS 3600:2018 gives no value or the pack does not enter one yet (verify)",
+    "lightweightFcMax": "SAEngine practice: the value of the pack this one extends, kept where AS 3600:2018 gives no value or the pack does not enter one yet (verify)",
+    "lightweightDensity": "SAEngine practice: the value of the pack this one extends, kept where AS 3600:2018 gives no value or the pack does not enter one yet (verify)",
+    "fyActualMargin": "SAEngine practice: the value of the pack this one extends, kept where AS 3600:2018 gives no value or the pack does not enter one yet (verify)",
+    "fuFyMin": "SAEngine practice: the value of the pack this one extends, kept where AS 3600:2018 gives no value or the pack does not enter one yet (verify)",
+    "structuralFcMin": "AS 3600:2018 1.1.2: the Standard applies to concrete with f'c from 20 to 100 MPa (the standard grades of 3.1.1.1 start at 20 MPa)",
+    "rebarFyMax": "AS 3600:2018 1.1.2: the Standard applies to reinforcement with fsy not exceeding 500 MPa (D500N / D500L of AS/NZS 4671)"
   }
 }

@@ -1,0 +1,21 @@
+{
+  "$schema": "../../../schemas/materials.schema.json",
+  "$sources": [
+    "SP 63.13330.2018 6.1, 6.2 (verify)"
+  ],
+  "source": "SP 63.13330.2018 Chapter 6 (the project's concrete fc read as the normative prism strength Rbn of the class); the other limits of the table SAEngine practice",
+  "structuralFcMin": 11.0,
+  "rebarFyMax": 600.0,
+  "sources": {
+    "concreteStrain": "SAEngine practice: the value of the pack this one extends, kept where SP 63.13330.2018 gives no value or the pack does not enter one yet (verify)",
+    "steelShearModulus": "SAEngine practice: the value of the pack this one extends, kept where SP 63.13330.2018 gives no value or the pack does not enter one yet (verify)",
+    "seismicFcMin": "SAEngine practice: the value of the pack this one extends, kept where SP 63.13330.2018 gives no value or the pack does not enter one yet (verify)",
+    "lightweightFcMax": "SAEngine practice: the value of the pack this one extends, kept where SP 63.13330.2018 gives no value or the pack does not enter one yet (verify)",
+    "lightweightDensity": "SAEngine practice: the value of the pack this one extends, kept where SP 63.13330.2018 gives no value or the pack does not enter one yet (verify)",
+    "seismicRebarFy": "SAEngine practice: the value of the pack this one extends, kept where SP 63.13330.2018 gives no value or the pack does not enter one yet (verify)",
+    "fyActualMargin": "SAEngine practice: the value of the pack this one extends, kept where SP 63.13330.2018 gives no value or the pack does not enter one yet (verify)",
+    "fuFyMin": "SAEngine practice: the value of the pack this one extends, kept where SP 63.13330.2018 gives no value or the pack does not enter one yet (verify)",
+    "structuralFcMin": "SP 63.13330.2018 6.1: reinforced concrete of class B15 or higher, Rbn 11.0 MPa (the project's fc being Rbn) (verify the clause and the class)",
+    "rebarFyMax": "SP 63.13330.2018 6.2 and Table 6.13: non-prestressed bars up to class A600 (Rsn 600 MPa); the pack offers A240, A400 and A500C (verify)"
+  }
+}

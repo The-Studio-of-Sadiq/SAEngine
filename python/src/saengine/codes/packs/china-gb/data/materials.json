@@ -1,0 +1,21 @@
+{
+  "$schema": "../../../schemas/materials.schema.json",
+  "$sources": [
+    "GB 50010-2010 4.1.2, 4.2.1, Table 4.1.3-1"
+  ],
+  "source": "GB 50010-2010 Chapter 4 (the project's concrete fc read as the prism strength fck); the other limits of the table SAEngine practice",
+  "structuralFcMin": 13.4,
+  "rebarFyMax": 500.0,
+  "sources": {
+    "concreteStrain": "SAEngine practice: the value of the pack this one extends, kept where GB 50010-2010 gives no value or the pack does not enter one yet (verify)",
+    "steelShearModulus": "SAEngine practice: the value of the pack this one extends, kept where GB 50010-2010 gives no value or the pack does not enter one yet (verify)",
+    "seismicFcMin": "SAEngine practice: the value of the pack this one extends, kept where GB 50010-2010 gives no value or the pack does not enter one yet (verify)",
+    "lightweightFcMax": "SAEngine practice: the value of the pack this one extends, kept where GB 50010-2010 gives no value or the pack does not enter one yet (verify)",
+    "lightweightDensity": "SAEngine practice: the value of the pack this one extends, kept where GB 50010-2010 gives no value or the pack does not enter one yet (verify)",
+    "seismicRebarFy": "SAEngine practice: the value of the pack this one extends, kept where GB 50010-2010 gives no value or the pack does not enter one yet (verify)",
+    "fyActualMargin": "SAEngine practice: the value of the pack this one extends, kept where GB 50010-2010 gives no value or the pack does not enter one yet (verify)",
+    "fuFyMin": "SAEngine practice: the value of the pack this one extends, kept where GB 50010-2010 gives no value or the pack does not enter one yet (verify)",
+    "structuralFcMin": "GB 50010-2010 4.1.2: reinforced concrete not below C20 (C25 with bars of 400 MPa and over); C20's fck 13.4 MPa of Table 4.1.3-1, the project's fc being fck (GB 55008-2021 2.0.2 raises the least grade to C25: verify)",
+    "rebarFyMax": "GB 50010-2010 4.2.1 and Table 4.2.3-1: HPB300 to HRB500, the highest fyk 500 MPa (HRB600 of GB/T 1499.2-2018 has no design strength in GB 50010-2010)"
+  }
+}

@@ -21,6 +21,8 @@
   "fyActualMargin": 125.0,
   "fyRetestMargin": 20.0,
   "fuFyMin": 1.25,
+  "structuralFcMin": 17.0,
+  "rebarFyMax": 690.0,
   "rebarGrades": [
     {"id": "A615-60", "name": "ASTM A615 Grade 60", "fy": 413.7, "standard": "ASTM A615/A615M"},
     {"id": "A706-60", "name": "ASTM A706 Grade 60", "fy": 413.7, "standard": "ASTM A706/A706M"},
@@ -39,6 +41,8 @@
     "fyActualMargin": "ACI 318-19 20.2.2.5(b)(i) and ASTM A706: actual yield at most 125 MPa above the specified",
     "fyRetestMargin": "ACI 318-08 21.1.5.2(a) retest margin, kept: ACI 318-19 relies on ASTM A706 (SAEngine practice)",
     "fuFyMin": "ACI 318-19 20.2.2.5(b)(ii) and ASTM A706: actual tensile / actual yield at least 1.25",
+    "structuralFcMin": "ACI 318-19 Table 19.2.1.1: f'c at least 17 MPa (2500 psi) for concrete in general (higher for special frames and walls and for foundations of SDC D-F)",
+    "rebarFyMax": "ACI 318-19 Table 20.2.2.4(a): fy at most 100 ksi (690 MPa in ACI 318M-19), the highest the table permits for any use (flexure, axial force and shrinkage of nonprestressed bars, confinement, special structural walls); the lower limits of the table for other uses (shear, torsion, special moment frames) are not checked by this limit",
     "rebarGrades": "ASTM A615/A615M and A706/A706M specified yield strengths: Grade 40 (40 ksi, 275.8 MPa), 60 (60 ksi, 413.7 MPa), 80 (80 ksi, 551.6 MPa), the inch-pound grades exactly; ACI 318-19 20.2.2.4 (walk 4 W4A-6, re-walk 4 R4AC-4)"
   }
 }

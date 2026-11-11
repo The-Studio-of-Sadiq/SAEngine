@@ -1,0 +1,12 @@
+{
+  "$schema": "../../../schemas/materials.schema.json",
+  "$sources": [
+    "SBC 304-2018 Table 19.2.1.1, Table 20.2.2.4(a) (the ACI 318-14 form) (verify)"
+  ],
+  "structuralFcMin": 17.0,
+  "rebarFyMax": 551.6,
+  "sources": {
+    "structuralFcMin": "SBC 304-2018 Table 19.2.1.1: f'c at least 17 MPa for concrete in general (verify)",
+    "rebarFyMax": "SBC 304-2018 Table 20.2.2.4(a): fy at most 80 ksi (ACI 318-14: 550 MPa in the SI edition, 551.6 MPa the inch-pound grade exactly, so that ASTM Grade 80 is not refused), the highest the table permits for any use (verify)"
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "$schema": "../../../schemas/materials.schema.json",
+  "$sources": [
+    "NCh 430 Of.2008 (ACI 318-05 adopted with Chilean changes) (verify)"
+  ],
+  "structuralFcMin": 17.0,
+  "rebarFyMax": 551.6,
+  "sources": {
+    "structuralFcMin": "NCh 430 Of.2008 as ACI 318-05 1.1.1: f'c at least 17 MPa (verify the adopted edition and any Chilean change)",
+    "rebarFyMax": "NCh 430 Of.2008 as ACI 318-05 9.4: fy at most 80 ksi (ACI 318-05: 550 MPa in the SI edition, 551.6 MPa the inch-pound grade exactly, so that ASTM Grade 80 is not refused) (verify the adopted edition; the A630-420H bars of NCh 204 are well below)"
+  }
+}
