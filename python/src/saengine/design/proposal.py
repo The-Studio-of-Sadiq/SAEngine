@@ -1300,8 +1300,9 @@ class SlabLoads:
     combos: dict[str, str | None] = field(default_factory=dict)
 
     def envelope(self, other: SlabLoads) -> SlabLoads:
-        names = set(self.moments) | set(other.moments)
-        shear_names = set(self.shear) | set(other.shear)
+        # In a stable order (a set's order changed between runs, and with it the proposal file).
+        names = dict.fromkeys([*self.moments, *other.moments])
+        shear_names = dict.fromkeys([*self.shear, *other.shear])
         return SlabLoads(
             {n: max(self.moments.get(n, 0.0), other.moments.get(n, 0.0)) for n in names},
             {n: max(self.shear.get(n, 0.0), other.shear.get(n, 0.0)) for n in shear_names},
