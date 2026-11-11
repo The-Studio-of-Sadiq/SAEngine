@@ -351,7 +351,7 @@ def test_settings_lists_follow_the_pack():
     assert [c["id"] for c in choices["locations"]] == ["custom"]  # no towns: values entered
     assert choices["designSpectrum"] == [{"id": "mappedSpectral", "label": "mappedSpectral"}]
     base = default_project_settings("x").model_dump(mode="json", by_alias=True)
-    with pytest.raises(ValueError, match="wind.exposure 'A'"):
+    with pytest.raises(ValueError, match="Exposure 'A'"):
         ProjectSettings.model_validate({**base, "codePack": PACK_ID})
 
 
@@ -363,7 +363,7 @@ def test_generated_building_derives_seismic_and_wind(tmp_path: Path):
     result = create_building(WIZARD, tmp_path)
     root = Path(result["root"])
     raw = json.loads((root / SETTINGS).read_text(encoding="utf-8"))
-    assert raw["codePack"] == PACK_ID and raw["wind"]["exposure"] == "B"
+    assert raw["codePack"] == PACK_ID and raw["wind"]["exposure"] == "C"  # pack default
     assert raw["site"]["location"] == "custom" and raw["site"]["spectral"]["sds"] == 1.0
     with code_context.project(root):
         settings = ProjectSettings.model_validate(raw)
