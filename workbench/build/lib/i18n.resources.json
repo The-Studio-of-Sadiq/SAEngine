@@ -683,6 +683,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/contrib/saengineFeedback",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/contrib/saengineFem",
 			"project": "vscode-workbench"
 		},
