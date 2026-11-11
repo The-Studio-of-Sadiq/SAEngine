@@ -2495,3 +2495,6 @@ Each is a pack value or method id, overridable in Code Values; the default pack 
 - **The chat and Sign In stay in the title bar (2026-11-11).** They are the start of the AI
   assistant, which is to work on the project itself (build and change the model, settings and
   design), not only answer questions. They are kept, not hidden.
+- **The AI assistant is planned next (2026-11-11).** It moves up from the last item: the next
+  round plans an assistant that builds and changes the project, with the engineer approving
+  every change.
