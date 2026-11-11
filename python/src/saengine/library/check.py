@@ -18,7 +18,7 @@ from saengine.library.bim import BuildingModel
 from saengine.library.floorplan import FloorPlan
 from saengine.library.materials import MaterialLibrary, plausibility
 from saengine.library.objects import ObjectLibrary
-from saengine.library.settings import ProjectSettings
+from saengine.library.settings import PackListError, ProjectSettings
 from saengine.library.settings import problems as settings_problems
 from saengine.library.structure import StructuralModel
 
@@ -195,6 +195,26 @@ def coverage_warnings(library: ObjectLibrary, materials: MaterialLibrary) -> lis
                     f"{o.id} as not checked (choose a pack that covers them in 02 Project "
                     "Settings, or check by hand)",
                 )
+        precast = getattr(o, "precast", None)
+        # W4C-38: said before Run All, not only in the piece's calculations.
+        if (
+            precast is not None
+            and getattr(precast, "element", None) == "hollowCore"
+            and not getattr(precast, "cores", None)
+        ):
+            warn(
+                index,
+                "precast.cores",
+                f"{o.id}: a hollow-core unit with no cores entered is designed as a solid "
+                "unit (its weight and section): enter the cores and their diameter",
+            )
+        if precast is not None and not getattr(precast, "inserts", None):
+            warn(
+                index,
+                "precast.inserts",
+                f"{o.id}: no lifting inserts entered, so the inserts are not checked for "
+                "handling (enter them with their working load)",
+            )
         connection = getattr(o, "connection", None)
         if getattr(o, "joist", None) is not None and (
             connection is None or getattr(connection, "type", "") not in SIMPLE_KINDS
@@ -334,12 +354,19 @@ def _check_settings(data: Any) -> list[dict[str, Any]]:
     try:
         settings = ProjectSettings.model_validate(data)
     except ValidationError as exc:
-        return [
-            _problem(
-                None,
-                ".".join(str(p) for p in error["loc"] if p not in _union_tags()),
-                _clean(error["msg"]),
+        problems = []
+        for error in exc.errors():
+            cause = (error.get("ctx") or {}).get("error")
+            if isinstance(cause, PackListError):
+                # W4C-28: each choice not in the pack's lists on its own page, in words.
+                problems += [_problem(None, path, message) for path, message in cause.problems()]
+                continue
+            problems.append(
+                _problem(
+                    None,
+                    ".".join(str(p) for p in error["loc"] if p not in _union_tags()),
+                    _clean(error["msg"]),
+                )
             )
-            for error in exc.errors()
-        ]
+        return problems
     return [_problem(None, path, message) for path, message in settings_problems(settings)]

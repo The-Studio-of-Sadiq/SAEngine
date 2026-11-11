@@ -462,7 +462,7 @@ def cap_checks(
                 hog_capacity = plain_flexure(spec.thickness, spec.fc) * width / 1000
                 hog_note = (
                     f"no top {bars} bars: plain concrete, φMn = 0.60 × 0.42 √f'c Sm with "
-                    f"h - 50 = {spec.thickness - 50:.0f} mm (ACI 14.5.2.1, 14.5.1.7)"
+                    f"h - 50 mm = {spec.thickness - 50:.0f} mm (ACI 14.5.2.1, 14.5.1.7)"
                 )
                 uplift_clause = shallow_rules.cite("pileCap.upliftTopBars")
                 if "E" in (hog[1] or "") and uplift_clause:

@@ -105,6 +105,26 @@ registerAction2(class extends Action2 {
 	}
 });
 
+// W4A-32: the last run's steps after its notification has gone.
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'saengine.runAll.showSteps',
+			title: localize2('runAll.showLastSteps', "Show Run All Steps"),
+			category,
+			f1: true,
+			precondition: projectOpen,
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const notificationService = accessor.get(INotificationService);
+		if (!await accessor.get(IRunAllService).showLastSteps()) {
+			notificationService.info(localize('runAll.noSteps', "Run All has not run in this window yet."));
+		}
+	}
+});
+
 /** The model of the active editor, or the one given. */
 function modelOf(accessor: ServicesAccessor, resource: unknown): URI | undefined {
 	const model = URI.isUri(resource) ? resource : EditorResourceAccessor.getOriginalUri(accessor.get(IEditorService).activeEditor);

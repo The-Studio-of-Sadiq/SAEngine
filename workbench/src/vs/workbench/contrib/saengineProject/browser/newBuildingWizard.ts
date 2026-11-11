@@ -55,7 +55,7 @@ import { CODES_CHOICES_COMMAND, CODES_LIST_COMMAND, ICodePackInfo, readCodePacks
 import { CODES_TEMPLATES_COMMAND, DEFAULT_BUILDING_TEMPLATE, IBuildingTemplate, NEW_FROM_TEMPLATE_COMMAND, readBuildingTemplates } from '../../saengineLibrary/common/packageTemplates.js';
 import { sameFolder } from './structuralImportModel.js';
 import { lookUpHazardValues } from '../../saengineLibrary/browser/hazardLookup.js';
-import { activeCodeName, DEFAULT_CODE_PACK_ID, defaultCodeName } from '../../../services/saengineProject/common/activeCodePack.js';
+import { DEFAULT_CODE_PACK_ID, defaultCodeName } from '../../../services/saengineProject/common/activeCodePack.js';
 
 const SVG = 'http://www.w3.org/2000/svg';
 
@@ -126,10 +126,13 @@ interface IChoice<T extends string> {
  */
 function designCodeChoices(packs: readonly ICodePackInfo[]): IChoice<string>[] {
 	const installed = packs.filter(p => p.kind === 'designCode' && p.effective && p.id !== DEFAULT_CODE_PACK_ID && p.usable !== false);
+	// W4A-26 / W4B-22: a planned entry whose built-in pack is installed is not listed again.
+	const ids = new Set(installed.map(p => p.id));
 	return [
 		{ value: DEFAULT_CODE_PACK_ID, label: defaultCodeName() },
 		...installed.map(pack => ({ value: pack.id, label: pack.name })),
-		...plannedCodePacks().map(pack => ({ value: pack.feature, label: localize('newBuilding.codePlanned', "{0} (Planned)", pack.name), disabled: true })),
+		...plannedCodePacks().filter(pack => !pack.coveredBy || !ids.has(pack.coveredBy.packId))
+			.map(pack => ({ value: pack.feature, label: localize('newBuilding.codePlanned', "{0} (Planned)", pack.name), disabled: true })),
 	];
 }
 
@@ -179,6 +182,8 @@ export class NewBuildingWizard extends EditorPane {
 	private codePacks: ICodePackInfo[] = [];
 	/** The exposures (terrain categories) of the chosen pack other than the default. */
 	private packExposures: { id: string; label: string }[] = [];
+	/** W4A-27: the exposure a new project under the chosen pack starts in ('' for none given). */
+	private defaultExposure = '';
 	/** C7: the towns and site classes of the chosen pack other than the default (empty: none). */
 	private packTowns: { id: string; label: string }[] = [];
 	private packSiteClasses: { id: string; label: string }[] = [];
@@ -335,6 +340,7 @@ export class NewBuildingWizard extends EditorPane {
 	/** The exposures of the pack ``id`` (its wind table), for a pack other than the default. */
 	private async loadPackExposures(id: string): Promise<void> {
 		this.packExposures = [];
+		this.defaultExposure = '';
 		this.packTowns = [];
 		this.packSiteClasses = [];
 		this.packSpectrum = '';
@@ -350,6 +356,7 @@ export class NewBuildingWizard extends EditorPane {
 		try {
 			const lists = readPackLists(await this.commandService.executeCommand<unknown>(CODES_CHOICES_COMMAND, { id, root: this.projectService.project?.root.fsPath }));
 			this.packExposures = lists?.exposures ?? [];
+			this.defaultExposure = lists?.defaultExposure?.[0]?.id ?? '';
 			this.packTowns = (lists?.locations ?? []).filter(l => l.id !== 'custom');
 			this.packSiteClasses = lists?.siteClasses ?? [];
 			this.packSpectrum = lists?.designSpectrum?.[0]?.id ?? '';
@@ -361,6 +368,11 @@ export class NewBuildingWizard extends EditorPane {
 			this.packExposures = [];
 		}
 		this.useUnitsAndRebars(units, hadRebars);
+		// W4A-27: the exposure shown is the one sent: the pack's start (the generator's rule).
+		if (!this.packExposures.some(e => e.id === this.form.exposure)) {
+			const start = this.defaultExposure;
+			this.form.exposure = this.packExposures.some(e => e.id === start) ? start : (this.packExposures[0]?.id ?? '');
+		}
 		// C7: a pack with towns of its own is chosen from them; its site class from its classes.
 		this.form.packTowns = this.packTowns.length > 0;
 		if (this.packTowns.length && !this.packTowns.some(t => t.id === this.form.location)) {
@@ -677,7 +689,8 @@ export class NewBuildingWizard extends EditorPane {
 			}
 		});
 		if ((this.form.designCode || DEFAULT_CODE_PACK_ID) === DEFAULT_CODE_PACK_ID) {
-			append(form, $('p.hint.indented', undefined, localize('newBuilding.siteHint', "{0}: the location sets the seismic zone and basic wind speed; the occupancy category the importance factors (Table 6.1.1).", activeCodeName())));
+			// W4C-34: the default pack is the one chosen here, whatever pack the open project uses.
+			append(form, $('p.hint.indented', undefined, localize('newBuilding.siteHint', "{0}: the location sets the seismic zone and basic wind speed; the occupancy category the importance factors (Table 6.1.1).", defaultCodeName())));
 			this.select(form, localize('newBuilding.location', "Location"), locationChoices(), this.form.location, value => this.form.location = value);
 		} else if (this.packTowns.length) {
 			// C7: a pack with towns of its own (Indian Standards): the town sets the zone and wind speed.
@@ -685,7 +698,7 @@ export class NewBuildingWizard extends EditorPane {
 			this.select(form, localize('newBuilding.location', "Location"), this.packTowns.map(t => ({ value: t.id, label: t.label })), this.form.location, value => this.form.location = value);
 			if (this.packExposures.length) {
 				const exposures = this.packExposures.map(e => ({ value: e.id, label: e.label }));
-				this.select(form, localize('newBuilding.exposure', "Exposure"), exposures, this.form.exposure || exposures[Math.min(1, exposures.length - 1)].value, value => this.form.exposure = value);
+				this.select(form, localize('newBuilding.exposure', "Exposure"), exposures, this.form.exposure, value => this.form.exposure = value);
 			}
 		} else {
 			// C4: a pack without the default pack's towns (the Eurocodes: the National Annex maps).
@@ -708,7 +721,7 @@ export class NewBuildingWizard extends EditorPane {
 			}
 			if (this.packExposures.length) {
 				const exposures = this.packExposures.map(e => ({ value: e.id, label: e.label }));
-				this.select(form, localize('newBuilding.exposure', "Exposure"), exposures, this.form.exposure || exposures[Math.min(2, exposures.length - 1)].value, value => this.form.exposure = value);
+				this.select(form, localize('newBuilding.exposure', "Exposure"), exposures, this.form.exposure, value => this.form.exposure = value);
 			}
 		}
 		const siteClasses = this.packSiteClasses.length ? this.packSiteClasses.map(c => ({ value: c.id, label: c.label })) : settingsEnum('Site', 'siteClass');

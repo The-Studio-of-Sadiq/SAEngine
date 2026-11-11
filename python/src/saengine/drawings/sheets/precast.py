@@ -52,6 +52,14 @@ class PrecastPieceDetail:
     data: list[str] = field(default_factory=list)  # the data lines beside the drawing
 
 
+#: How a piece is lifted, in words (PrecastData.rigging).
+_RIGGING = {
+    "twoPoint": "two points",
+    "fourPointEqualised": "four points, equalised",
+    "fourPointRigid": "four points, not equalised",
+}
+
+
 def _outline(obj: Any, section: Any) -> tuple[list[tuple[float, float]], list[tuple]]:
     """The section outline (centred on x) and the hollow-core cores."""
     p = obj.precast
@@ -132,15 +140,20 @@ def precast_pieces(building: Any, objects: Any, materials: Any) -> list[PrecastP
         volume = (section.area + section.weight_area) * piece.length * 1e-9
         concrete = getattr(material, "concrete", None)
         strip = p.stripStrength
+        # W4C-36: the material's name as it is ("Concrete f'c 27.6 MPa"), not "Concrete Concrete
+        # ..., f'c 27.6 MPa"; the rigging in words, not its id.
+        name = material.name if material else obj.material
+        label = name if name.lower().startswith("concrete") else f"Concrete {name}"
+        if concrete and "f'c" not in name:
+            label += f", f'c {concrete.fc:g} MPa"
         data = [
             f"{piece.count} No. {section.label}",
-            f"Concrete {material.name if material else obj.material}"
-            + (f", f'c {concrete.fc:g} MPa" if concrete else ""),
+            label,
             f"Stripping strength {strip:g} MPa"
             if strip
             else "Stripping strength: per the code pack's share of f'c (see the calculations)",
             f"Volume {volume:.3f} m³, weight {weight:.1f} kN each",
-            f"Lifting: {p.rigging}, slings at {p.slingAngle:g}°",
+            f"Lifting: {_RIGGING.get(p.rigging, p.rigging)}, slings at {p.slingAngle:g}°",
         ]
         if p.topping:
             data.append(f"Cast-in-place topping {p.topping:g} mm (not on the piece)")

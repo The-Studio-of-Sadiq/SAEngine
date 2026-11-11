@@ -74,6 +74,10 @@
 
 .saengine-fem-model-editor .fem-results-time-label {
 	min-width: 80px;
+	/* W4B-24: a stage or pushover step text is cut, never overlapping Scale and Play */
+	max-width: 220px;
+	flex: 0 1 auto;
+	white-space: nowrap;
 	font-size: var(--sa-font-s, 12px);
 	font-variant-numeric: tabular-nums;
 	overflow: hidden;

@@ -331,7 +331,7 @@ def evaluate(
         )
     notes += [
         (
-            f"comfort wind: {rules.returnPeriod:g}-year, V = {float(speed):g} × {ratio:.3f} = "
+            f"comfort wind: {rules.returnPeriod:g}-year, V = {float(speed):g} m/s × {ratio:.3f} = "
             f"{v_t:.1f} m/s; damping {damping:g} ({material}); occupancy {occupancy}"
         ),
         (

@@ -166,7 +166,7 @@ suite('SAEngine - Section Designer model', () => {
 		assert.ok(!rows.some(r => r.label === 'Zx'), 'no plastic moduli for composite sections');
 	});
 
-	test('interaction curves are closed, in kNÂ·m and kN', () => {
+	test('interaction curves are closed, in kN·m and kN', () => {
 		const diagram: IUniaxial = {
 			axis: 'x', phiPnMax: 3.7e6, phiTension: 1.1e6, p0: 7.1e6, points: [
 				{ P: -1.2e6, M: 0, phiP: -1.1e6, phiM: 0, phi: 0.9, epsT: null },

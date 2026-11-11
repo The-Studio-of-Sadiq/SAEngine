@@ -775,12 +775,13 @@ def to_text(report: Any, producer: str = "SAEngine") -> tuple[str, list[str]]:
     )
     loca, geol, ispt, samp, wstg = [], [], [], [], []
     lnmc, llpl, lden, grag, grat, trig, trit, treg, shbg = ([] for _ in range(9))
+    methods: dict[str, str] = {}  # W4B-20: the boring methods as LOCA_TYPE codes (in ABBR)
     for hole in report.boreholes:
         gl = report.ground_level(hole)
         loca.append(
             [
                 hole.id,
-                "",
+                _method_code(hole.method, methods),
                 _m(gl),
                 _m(hole.depth or hole.bottom),
                 hole.date or "",
@@ -1059,6 +1060,7 @@ def to_text(report: Any, producer: str = "SAEngine") -> tuple[str, list[str]]:
             ("CD", "Consolidated drained"),
         )
     ]
+    abbr += [["LOCA_TYPE", code, method] for method, code in methods.items()]
     blocks.append(
         _group(
             "UNIT",
@@ -1081,6 +1083,23 @@ def to_text(report: Any, producer: str = "SAEngine") -> tuple[str, list[str]]:
     blocks += groups
     text = "\r\n\r\n".join("\r\n".join(lines) for lines in blocks) + "\r\n"
     return text, sorted(set(notes))
+
+
+def _method_code(method: str | None, codes: dict[str, str]) -> str:
+    """The LOCA_TYPE code of a borehole's boring method ("" without one): the method's
+    initials ("Wash boring": WB), numbered where two methods share them; ``codes`` keeps
+    method -> code for the ABBR group, which describes each code by its method."""
+    text = (method or "").strip()
+    if not text:
+        return ""
+    if text not in codes:
+        initials = "".join(w[0] for w in re.findall(r"[A-Za-z0-9]+", text)).upper()[:6] or "X"
+        code, n = initials, 1
+        while code in codes.values():
+            n += 1
+            code = f"{initials}{n}"
+        codes[text] = code
+    return codes[text]
 
 
 _UNIT_TEXT = {

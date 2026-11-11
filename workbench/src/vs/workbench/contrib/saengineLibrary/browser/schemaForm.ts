@@ -577,6 +577,31 @@ export class SchemaForm {
 		const row = this.fieldRow(container, title, description);
 		const list = Array.isArray(owner[key]) ? owner[key] as JsonValue[] : [];
 		const parts = append(row.control, $('.form-inline-array'));
+		// W4B-14: a list of choices (pushover directions X, Y) is a set of check boxes, not values
+		// in a row with ":" between them (which reads like a ratio). Short lists only: a long one
+		// (the seismic systems) keeps its pickers.
+		const choices = this.enumValues(item);
+		if (choices?.length && choices.length <= 6 && choices.every(choice => typeof choice === 'string')) {
+			const labels = item.enumDescriptions ?? this.resolve(item).schema.enumDescriptions;
+			const min = schema.minItems ?? 0;
+			choices.forEach((choice, i) => {
+				const name = labels?.[i] || (/^[a-z][a-zA-Z]*$/.test(String(choice)) ? humanize(String(choice)) : String(choice));
+				const box = this.disposables.add(new Checkbox(name, list.includes(choice), defaultCheckboxStyles));
+				const cell = append(parts, $('label.form-inline-choice'));
+				cell.appendChild(box.domNode);
+				append(cell, $('span', undefined, name));
+				this.disposables.add(box.onChange(() => {
+					const next = choices.filter(c => c === choice ? box.checked : list.includes(c));
+					if (next.length < min) {
+						box.checked = true; // at least the schema's least number stays chosen
+						return;
+					}
+					owner[key] = next;
+					this.ctx.changed(path, true);
+				}));
+			});
+			return;
+		}
 		// C13b: numbers with a unit (the list's or its items') are shown and typed in the display units
 		const unit = fieldUnit(description, schema) ?? fieldUnit(item.description, item);
 		const numericUnit = unit && (item.type === 'number' || item.type === 'integer') && kindOfUnit(unit) ? unit : undefined;

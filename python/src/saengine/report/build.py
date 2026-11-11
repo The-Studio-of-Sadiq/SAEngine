@@ -3574,6 +3574,13 @@ def _drifts(
 
 
 def _governing(element: dict[str, Any]) -> dict[str, Any] | None:
+    # W4A-29: the check that sets the element's utilisation (seismic_detailing.rate: a passing
+    # detailing equality such as lo 47.2 / 47.2 in never governs), when the design names it.
+    named = element.get("governingCheck") or {}
+    if named.get("name"):
+        for c in element.get("checks", []):
+            if c.get("name") == named["name"] and c.get("combination") == named.get("combination"):
+                return c
     checks = [c for c in element.get("checks", []) if not c.get("flag")]
     if not checks:
         checks = list(element.get("checks", []))

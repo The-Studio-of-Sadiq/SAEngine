@@ -1154,6 +1154,8 @@ export class FemResultsBar extends Disposable {
 					: entry.kind === 'static'
 						? localize('femResults.stageOf', "{0} ({1} of {2})", frame?.stage ?? '', this.mode, frames.length)
 						: localize('femResults.timeOf', "{0} of {1} s", (frame?.time ?? 0).toFixed(2), (frames[frames.length - 1].time ?? 0).toFixed(2));
+				// W4B-24: a long stage name is cut with "..." (in full on hover), not run under Scale.
+				this.timeLabel.title = this.timeLabel.textContent ?? '';
 				this.playButton.setIcon(this.playing ? Codicon.debugPause : Codicon.play);
 				this.playButton.setTitle(this.playing ? localize('femResults.pause', "Pause") : localize('femResults.play', "Play"));
 			}

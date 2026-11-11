@@ -206,6 +206,15 @@ const PRECAST_ELEMENTS: { readonly [kind: string]: readonly string[] } = {
 	wall: ['wallPanel'],
 };
 
+/** W4C-23: a wall type's fields that a glass wall does not use (shown only once set). */
+const GLASS_WALL_HIDDEN: readonly string[] = ['basement', 'gradeBeam', 'masonryMethod', 'confinement', 'anchorBolts', 'plateWall', 'filledPlate', 'reinforcement', 'braced', 'restrainedEnds'];
+
+/** W4B-15: the isolator kinds each kind-specific field applies to (`SLIDING_ISOLATORS` of saengine.library.objects). */
+const ISOLATOR_FIELDS: { readonly [field: string]: readonly string[] } = {
+	frictionCoefficient: ['slidingPendulum', 'tripleFrictionPendulum', 'flatSlider'],
+	radius: ['slidingPendulum', 'tripleFrictionPendulum'],
+};
+
 /** W4C-15: the precast elements each element-specific field of a piece applies to. */
 const PRECAST_FIELDS: { readonly [field: string]: readonly string[] } = {
 	unitWidth: ['hollowCore', 'doubleTee', 'wallPanel'],
@@ -446,8 +455,9 @@ export class LibraryEditor extends JsonDocumentEditor {
 			this.markDerived(item);
 		}
 		const renamed = !!item && this.config?.listKey === 'objects' && path !== 'name' && this.followName(item);
-		// W4C-15: another precast element shows its own fields.
-		this.changed(structural || path === 'precast.element');
+		// W4C-15: another precast element shows its own fields; W4C-23 / W4B-15: another material
+		// (a glass type's Glass panel) or isolator kind shows its own at once.
+		this.changed(structural || path === 'precast.element' || path === 'material' || path === 'isolator.kind');
 		if (!structural && (path === 'id' || path === 'name' || renamed)) {
 			this.renderList();
 			this.renderDetailTitle();
@@ -738,7 +748,8 @@ export class LibraryEditor extends JsonDocumentEditor {
 		const materials = this.config.listKey === 'materials';
 		this.formItem = { [this.config.discriminator]: variant.value };
 		const item = this.template(variant.template);
-		const base = materials ? NEW_MATERIAL_ID[variant.value] ?? 'MAT' : String(item.id ?? variant.value.toUpperCase());
+		// W4C-22: a template numbered 1 ("MEM1") gives MEM1, MEM2, ..., not MEM11.
+		const base = materials ? NEW_MATERIAL_ID[variant.value] ?? 'MAT' : String(item.id ?? variant.value.toUpperCase()).replace(/^([A-Za-z]+)1$/, '$1');
 		let n = 1;
 		while (this.items.some(i => i.id === `${base}${n}`)) {
 			n++;
@@ -939,6 +950,19 @@ export class LibraryEditor extends JsonDocumentEditor {
 				return 'hidden';
 			}
 		}
+		if (this.config?.listKey === 'objects' && item?.kind === 'wall' && GLASS_WALL_HIDDEN.includes(path) && (item[path] === undefined || item[path] === false)
+			&& this.materialIds.members.find(m => m.id === item.material)?.category === 'glass') {
+			// W4C-23: a glass wall has no masonry, basement or grade-beam options.
+			return 'hidden';
+		}
+		if (this.config?.listKey === 'objects' && item && isObject(item.isolator) && path.startsWith('isolator.')) {
+			// W4B-15: the friction coefficient of sliding isolators only, the radius of pendulums only.
+			const field = path.slice('isolator.'.length);
+			const kinds = ISOLATOR_FIELDS[field];
+			if (kinds && !kinds.includes(String(item.isolator.kind ?? 'leadRubber')) && item.isolator[field] === undefined) {
+				return 'hidden';
+			}
+		}
 		if (this.config?.listKey === 'objects' && item && (path === 'connection' || path === 'splice' || path === 'basePlate' || path === 'capPlate' || path === 'serviceability') && item[path] === undefined) {
 			// Connections, splices, base plates and the deflection limits' member use are steel members'.
 			const material = this.materialIds.members.find(m => m.id === item.material);
@@ -1102,8 +1126,16 @@ export class LibraryEditor extends JsonDocumentEditor {
 		if (config.listKey === 'objects' && isObject(item.profile) && item.profile.shape === 'designed') {
 			void this.renderDesignedSection(form, item);
 		}
+		if (config.listKey === 'materials' && item.category === 'other') {
+			// W4C-37: what an "Other" material is for.
+			append(typeRow, $('.form-note', undefined, localize('library.categoryOtherHelp', "Other: a material with its mechanical properties only and no design rules of its own, e.g. a membrane fabric, bearings or fillers. A tensile membrane type is made of it: its fabric and cable strengths are entered on the type itself.")));
+		}
 		if (config.listKey === 'objects') {
-			const help = KIND_HELP[String(item.kind)];
+			// W4C-21: a steel column has no bars round its perimeter (nor a ρ).
+			const steel = this.materialIds.members.find(m => m.id === item.material)?.category === 'steel';
+			const help = steel && item.kind === 'column'
+				? localize('library.kindColumnSteel', "A column: a vertical member rising between storeys, a steel section of the steel sections table.")
+				: KIND_HELP[String(item.kind)];
 			if (help) {
 				append(typeRow, $('.form-note', undefined, help));
 			}

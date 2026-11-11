@@ -7,6 +7,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
 import { polygonArea } from '../../../../platform/saengine/common/geometry.js';
+import { formatLength, isConverted } from '../../../services/saengineProject/common/displayUnits.js';
 import { formatPoint, IFloorPlanStory, location, onPlanOf, storiesOf } from '../../../services/saengineProject/common/floorPlanMembers.js';
 import { MemberGroup, ModelSelection } from '../../../services/saengineProject/common/modelSelection.js';
 import { recordedStamp, upstreamCurrent } from '../../../services/saengineProject/common/partSources.js';
@@ -101,7 +102,11 @@ function num(value: unknown): number | undefined {
 }
 
 function mm(value: number | undefined): string {
-	return value === undefined ? '—' : localize('mm', "{0} mm", Number(value.toFixed(1)));
+	if (value === undefined) {
+		return '—';
+	}
+	// W4A-30: in the project's units (a US project's elevations in feet and inches).
+	return isConverted('mm') ? formatLength(value) : localize('mm', "{0} mm", Number(value.toFixed(1)));
 }
 
 function str(value: unknown): string {
