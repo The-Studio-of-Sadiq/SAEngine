@@ -897,7 +897,7 @@ def joint_top_layers(
     (crossing bars touch; their clear spacing is not a parallel-layer rule), summed over the
     directions above when more than two cross.
 
-    ``mode`` (Project Settings > Construction > Crossing top bars, SAEngine practice):
+    ``mode`` (Project Settings > Construction > Crossing beam bars at joints, SAEngine practice):
     "auto" takes the deeper beam as the main one (its hogging d is the larger and it usually
     carries the larger hogging moment), beams of equal depth the plan direction of
     :func:`main_direction` (the longer spans), the same everywhere so a continuous beam stays
@@ -988,7 +988,7 @@ def beam_top_drops(layers: dict[str, dict[str, float]]) -> dict[str, float]:
 
 def building_top_drops(building: Any, types: dict[str, Any], settings: Any) -> dict[str, float]:
     """:func:`beam_top_drops` of a building model's joints with the project's mode
-    (``construction.jointTopBars``, "auto" when not set)."""
+    (``construction.jointBars``, "auto" when not set)."""
     from saengine.design.ductile_joints import frame_joints
 
     joints = frame_joints(building, types)
@@ -996,11 +996,11 @@ def building_top_drops(building: Any, types: dict[str, Any], settings: Any) -> d
 
 
 def joint_mode(settings: Any) -> str:
-    """The project's crossing-bars mode (``construction.jointTopBars``, "auto" when not set):
+    """The project's crossing-bars mode (``construction.jointBars``, "auto" when not set):
     it orders the top bars (:func:`joint_top_layers`) and the bottom bars
     (:func:`joint_bottom_layers`) alike."""
     construction = getattr(settings, "construction", None)
-    return str(getattr(construction, "jointTopBars", None) or "auto")
+    return str(getattr(construction, "jointBars", None) or "auto")
 
 
 def building_bottom_rises(building: Any, types: dict[str, Any], settings: Any) -> dict[str, float]:

@@ -11733,12 +11733,12 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 					title: 'Concrete aggregate',
 					type: 'string',
 				},
-				jointTopBars: {
+				jointBars: {
 					default: 'auto',
-					description: 'Where the top bars of beams from two directions cross at a joint, one direction\'s go in the second layer, under the other\'s, and its hogging d is that bar diameter less (SAEngine practice; the code gives no rule). Auto: the deeper beam is the main (outer layer) one; beams of equal depth: the plan direction with the longer mean span. X or Y: that direction is the main one everywhere. Same layer: both in the outer layer (flagged as a clash in the drawings).',
+					description: 'Where beams from two directions cross at a beam-column joint, which direction is the main one (SAEngine practice; the code gives no rule). Top bars: the secondary direction\'s go in the second layer, under the main one\'s, and its hogging d is that bar diameter less. Bottom bars: the secondary direction\'s pass one main bar diameter higher, over the main one\'s, and its sagging d is that much less. Auto: the deeper beam is the main one; beams of equal depth: the plan direction with the longer mean span. X or Y: that direction is the main one everywhere. Same layer: both at the same level, top and bottom (flagged as a clash in the drawings).',
 					enum: ['auto', 'x', 'y', 'sameLayer'],
-					enumDescriptions: ['Auto (deeper beam, then longer spans)', 'X beams outer', 'Y beams outer', 'Same layer (flagged)'],
-					title: 'Crossing top bars at beam-column joints',
+					enumDescriptions: ['Auto (deeper beam, then longer spans)', 'X beams main', 'Y beams main', 'Same layer (flagged)'],
+					title: 'Crossing beam bars at joints',
 					type: 'string',
 				},
 				fireSeparation: {
@@ -16670,7 +16670,7 @@ export const DEFAULT_SETTINGS: object = {
 	construction: {
 		constructionType: '',
 		aggregate: 'siliceous',
-		jointTopBars: 'auto',
+		jointBars: 'auto',
 	},
 	site: {
 		location: 'dhaka',
