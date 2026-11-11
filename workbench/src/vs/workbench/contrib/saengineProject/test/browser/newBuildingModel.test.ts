@@ -30,7 +30,7 @@ suite('SAEngine - New Building wizard model', () => {
 			feet: values('20ft'),
 			spacedUnits: values('6 m, 2×5000, 20 ft, 450 cm'),
 			bad: typeof values('6000, abc'),
-			small: typeof values('600'),
+			small: typeof values('50'), // below the guardrail's 100 mm (600 mm is only unusual)
 			empty: typeof values('  '),
 			format: formatLengths([6000, 6000, 6000, 4500, 6000]),
 		}, {
@@ -69,7 +69,7 @@ suite('SAEngine - New Building wizard model', () => {
 			one: heights({ storyCount: '1' }),
 			listed: heights({ heights: '4000, 2×3200' }),
 			badCount: heights({ storyCount: '0' }),
-			tooLow: heights({ typicalHeight: '1500' }),
+			tooLow: heights({ typicalHeight: '800' }), // below the guardrail's 1 m (1.5 m is only unusual)
 		}, {
 			counted: [3600, 3000, 3000, 3000],
 			one: [3600],
