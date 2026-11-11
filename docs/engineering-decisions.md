@@ -2498,3 +2498,15 @@ Each is a pack value or method id, overridable in Code Values; the default pack 
 - **The AI assistant is planned next (2026-11-11).** It moves up from the last item: the next
   round plans an assistant that builds and changes the project, with the engineer approving
   every change.
+- **AI assistant scope, privacy and order (2026-11-11).** The UI/UX round comes first, then the
+  AI assistant. The assistant uses VS Code's own chat (Copilot sign-in, or the engineer's own
+  key for another provider) and must be able to do a whole project from one prompt, with the
+  engineer approving its changes. Before any project data goes to an AI provider the engineer
+  is asked in a clear dialog that says who receives it and that SAEngine never sells it.
+  Sending usage or diagnostic data to the SAEngine developers is optional and off by default,
+  and the app gets a bug report and feedback form.
+- **Guardrails on input (2026-11-11).** Impossible or nonsense values (negative or zero sizes,
+  out-of-range strengths, storeys or spans beyond physical sense) are blocked where they are
+  entered, by the engineer or the assistant, with the reason in words. Deleting important data
+  (a part, storeys, grids, members in bulk, results, versions) asks for confirmation; small
+  edits do not.
