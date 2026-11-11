@@ -13,6 +13,9 @@ Methods:
 - ``results/list`` ``{outDir, projectPath}`` -> the results that can be shown in 3D
 - ``results/view`` ``{outDir, projectPath, key, mode?}`` -> one result's shape and diagrams
 - ``library/check`` ``{kind, text, materialsText?}`` -> rule violations in a library file
+- ``library/limits`` ``{kind?, projectRoot?}`` -> ``{rules}``: the input guardrails with the
+  limits of the project's code pack filled in (``saengine.library.guardrails.resolved_rules``),
+  which the editors and the New Project wizard check each field against as it is typed
 - ``section/analyse`` ``{text, materialsText?, projectRoot?, capacity?, surface?,
   momentCurvature?, contourAt?}`` -> a designed section's properties, interaction diagrams,
   P-Mx-My surface, moment-curvature curve and M-M contour (Section Designer)
@@ -544,6 +547,10 @@ def create_server() -> JsonRPCServer:
     def _check_library(params: Any) -> dict[str, Any]:
         args = _plain(params)
         return handlers.check_library(args["kind"], args["text"], args.get("materialsText"))
+
+    @server.feature("library/limits")
+    def _library_limits(params: Any) -> dict[str, Any]:
+        return handlers.library_limits((_plain(params) or {}).get("kind"))
 
     @_in_worker
     def _section_analyse_worker(params: Any) -> dict[str, Any]:

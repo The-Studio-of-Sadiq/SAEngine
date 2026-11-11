@@ -37,6 +37,7 @@ import { DEFAULT_EDITOR_ASSOCIATION, IEditorOpenContext } from '../../../common/
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { ISaengineProjectService } from '../../../services/saengineProject/common/saengineProject.js';
+import { confirmDelete } from '../../../services/saengineProject/common/confirmDelete.js';
 import { appendPropertyHeading, appendPropertyNote, appendPropertyRow, EditorFrame } from '../../saengineProject/browser/editorFrame.js';
 import { runningVersion } from '../../saengineUpdate/common/updateCheck.js';
 import { COMPONENTS_SHOW_COMMAND } from '../../saengineUpdate/common/components.js';
@@ -659,15 +660,16 @@ export class CodePacksEditor extends EditorPane {
 			return;
 		}
 		const chosen = pack.kind === 'designCode' && this.projectService.project && pack.effective;
-		const { confirmed } = await this.dialogService.confirm({
-			type: 'warning',
+		// U2's one delete confirmation: what goes, and that it comes back only by installing it again.
+		const confirmed = await confirmDelete(this.dialogService, {
 			message: localize('packages.removeMessage', "Remove {0} ({1}, {2})?", pack.name, kindLabel(pack.kind), scopeLabel(pack.scope)),
-			detail: pack.scope === 'project'
+			consequences: pack.scope === 'project'
 				? localize('packages.removeProjectDetail', "Its folder is deleted from {0}. A project whose settings choose it cannot be analysed until another design code is chosen or it is installed again.", PROJECT_PACKS_FOLDER)
 				: chosen
 					? localize('packages.removeUserCodeDetail', "Its folder is deleted from this computer. Projects that choose it cannot be analysed until another design code is chosen or it is installed again. Projects already made from a template keep what the template gave them.")
 					: localize('packages.removeUserDetail', "Its folder is deleted from this computer. Projects already made from a template keep what the template gave them."),
-			primaryButton: localize('packages.removeButton', "&&Remove"),
+			recovery: 'reinstall',
+			button: localize('packages.removeButton', "&&Remove"),
 		});
 		if (!confirmed) {
 			return;

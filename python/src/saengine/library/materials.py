@@ -536,32 +536,6 @@ def modulus_of_rupture(fc: float) -> float:
     return round(FR_COEFFICIENT * math.sqrt(fc), 2)
 
 
-#: Plausible ranges of entered values by category: (path, low, high, what).
-_RANGES: dict[Category, tuple[tuple[str, float, float, str], ...]] = {
-    Category.CONCRETE: (
-        ("concrete.fc", 10.0, 100.0, "f'c"),
-        ("mechanical.density", 1400.0, 2600.0, "density of concrete"),
-        ("mechanical.nu", 0.1, 0.25, "Poisson's ratio of concrete"),
-    ),
-    Category.REBAR: (
-        ("steel.fy", 200.0, 700.0, "fy of reinforcement"),
-        ("mechanical.density", 7700.0, 8000.0, "density of steel"),
-    ),
-    Category.STEEL: (
-        ("steel.fy", 200.0, 700.0, "fy of structural steel"),
-        ("mechanical.density", 7700.0, 8000.0, "density of steel"),
-    ),
-    Category.MASONRY: (("mechanical.density", 1000.0, 2400.0, "density of masonry"),),
-}
-
-
-def _value(material: Material, path: str) -> float | None:
-    group, _, key = path.partition(".")
-    owner = getattr(material, group, None)
-    value = getattr(owner, key, None) if owner is not None else None
-    return float(value) if isinstance(value, int | float) else None
-
-
 def plausibility(material: Material, aggregate: str | None = None) -> list[tuple[str, str]]:
     """Values that pass the schema but are unlikely for the category (a typing slip, a value in
     the wrong unit), as (path, message): E and fr of concrete more than 10 % from the code
@@ -570,12 +544,18 @@ def plausibility(material: Material, aggregate: str | None = None) -> list[tuple
     may justify a value; the message says what to check."""
     from saengine.design.rc_detailing import concrete_modulus as code_modulus
     from saengine.design.rc_detailing import current_aggregate
+    from saengine.library import guardrails
 
-    out: list[tuple[str, str]] = []
-    for path, low, high, what in _RANGES.get(material.category, ()):
-        value = _value(material, path)
-        if value is not None and not low <= value <= high:
-            out.append((path, f"{what} {value:g} is outside the usual {low:g} to {high:g}"))
+    # The usual ranges of the category are the guardrails' warnings (one rule file for every
+    # entry path); its blocks are errors, reported by saengine.library.check.
+    out: list[tuple[str, str]] = [
+        (p["path"], p["message"])
+        for p in guardrails.item_problems(
+            guardrails.resolved_rules(kind="materials"),
+            material.model_dump(mode="json", by_alias=True, exclude_none=True),
+        )
+        if p["severity"] == "warning"
+    ]
     if material.category == Category.CONCRETE and material.concrete is not None:
         fc = material.concrete.fc
         agg = aggregate or current_aggregate()

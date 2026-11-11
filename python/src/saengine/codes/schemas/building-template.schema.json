@@ -371,7 +371,6 @@
     "storyCount": {
       "anyOf": [
         {
-          "maximum": 100,
           "minimum": 1,
           "type": "integer"
         },

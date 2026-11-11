@@ -12,6 +12,8 @@ import { IFileService } from '../../../../platform/files/common/files.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { DEFAULT_CODE_PACK_ID, setActiveCodePack } from '../../../services/saengineProject/common/activeCodePack.js';
 import { setActiveBarNames, setActiveDisplayUnits } from '../../../services/saengineProject/common/displayUnits.js';
+import { IGuardrailRule } from '../../../services/saengineProject/common/projectLibraries.generated.js';
+import { LIBRARY_LIMITS_COMMAND, setResolvedGuardrails } from '../../../services/saengineProject/common/guardrails.js';
 import { ISaengineProjectService } from '../../../services/saengineProject/common/saengineProject.js';
 import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
 import { flushModifierFields } from './modifiersPanel.js';
@@ -75,6 +77,7 @@ export class ProjectCodeStiffnessContribution extends Disposable implements IWor
 			setProjectCode({});
 			setActiveCodePack(undefined, undefined);
 			setActiveDisplayUnits(undefined);
+			setResolvedGuardrails(undefined);
 			return;
 		}
 		const settings = await this.json(partFile(root, 'settings'));
@@ -111,6 +114,17 @@ export class ProjectCodeStiffnessContribution extends Disposable implements IWor
 			// The editors name the project's code pack in their text (activeCodePack.ts).
 			setActiveCodePack(packId, packName);
 			setActiveBarNames(barNames);
+		}
+		// U2: the input guardrails with this pack's limits (least f'c, most fy, bar sizes).
+		let rules: readonly IGuardrailRule[] | undefined;
+		try {
+			const answer = await this.commandService.executeCommand<{ rules?: IGuardrailRule[] }>(LIBRARY_LIMITS_COMMAND, root.fsPath);
+			rules = Array.isArray(answer?.rules) ? answer.rules : undefined;
+		} catch {
+			// No backend (web): the practice limits of the generated rules apply.
+		}
+		if (generation === this.generation) {
+			setResolvedGuardrails(rules);
 		}
 	}
 

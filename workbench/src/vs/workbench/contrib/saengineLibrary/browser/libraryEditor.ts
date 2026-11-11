@@ -41,6 +41,8 @@ import { parseSection, SECTIONS_FOLDER } from './sectionDesignerModel.js';
 import { modifiersView, objectTypeTarget, pruneForKind, readCodeStiffness, resetObjectTypeGroup, setObjectTypeField } from '../../saengineModel/browser/modifiersModel.js';
 import { renderModifiers } from '../../saengineModel/browser/modifiersPanel.js';
 import { defaultCodeName } from '../../../services/saengineProject/common/activeCodePack.js';
+import { guardrailError } from '../../../services/saengineProject/common/guardrails.js';
+import { confirmDelete } from '../../../services/saengineProject/common/confirmDelete.js';
 
 interface IVariant {
 	/** Value of the item's discriminator field (material category, object kind). */
@@ -845,24 +847,13 @@ export class LibraryEditor extends JsonDocumentEditor {
 			: materials
 				? localize('library.deleteUsedConfirm', "'{0}' is used by {1} object type(s). Delete it anyway?", name, users.length)
 				: localize('library.deleteTypeUsedConfirm', "'{0}' is placed in the floor plan. Delete it anyway?", name);
-		const detail = !users.length
-			? localize('library.deleteDetail', "Anything that refers to {0} will show it as not defined. You can undo this with Ctrl+Z.", String(item.id))
+		const consequences = !users.length
+			? localize('library.deleteDetail', "Anything that refers to {0} will show it as not defined.", String(item.id))
 			: materials
-				? localize('library.deleteUsedDetail', "Used by: {0}. They will show {1} as not defined, and the analysis and design cannot run until each gets another material in 04 Objects. You can undo this with Ctrl+Z.", users.join(', '), String(item.id))
-				: localize('library.deleteTypeUsedDetail', "Placed as {0} in 05 Floor Plan. They will show {1} as not defined, and the building model cannot be built until each gets another type. You can undo this with Ctrl+Z.", users.join(', '), String(item.id));
-		// Something in use is kept unless Delete is chosen: Keep is the default (Enter) button.
-		const { result: confirmed } = users.length
-			? await this.dialogService.prompt<boolean>({
-				type: 'warning',
-				message,
-				detail,
-				buttons: [
-					{ label: localize('library.keep', "&&Keep"), run: () => false },
-					{ label: localize('library.deleteAnyway', "&&Delete Anyway"), run: () => true },
-				],
-				cancelButton: { label: localize('library.cancel', "Cancel"), run: () => false },
-			})
-			: { result: (await this.dialogService.confirm({ message, detail, primaryButton: localize('library.delete', "&&Delete") })).confirmed };
+				? localize('library.deleteUsedDetail', "Used by: {0}. They will show {1} as not defined, and the analysis and design cannot run until each gets another material in 04 Objects.", users.join(', '), String(item.id))
+				: localize('library.deleteTypeUsedDetail', "Placed as {0} in 05 Floor Plan. They will show {1} as not defined, and the building model cannot be built until each gets another type.", users.join(', '), String(item.id));
+		// U2's one confirmation; something in use is kept unless Delete is chosen (Keep is the default).
+		const confirmed = await confirmDelete(this.dialogService, { message, consequences, recovery: 'undo', inUse: users.length > 0 });
 		if (!confirmed || this.selected !== item || !this.document) {
 			return;
 		}
@@ -999,7 +990,9 @@ export class LibraryEditor extends JsonDocumentEditor {
 		if (path === 'id' && this.items.some(i => i !== this.selected && i.id === value)) {
 			return localize('library.duplicateId', "Another entry already uses the ID {0}.", value);
 		}
-		return undefined;
+		// U2: impossible values (f'c 3 MPa, a cover deeper than the member, a bar size the code
+		// pack does not have) are refused at the field, by the same rules as the full check.
+		return this.config ? guardrailError(this.config.listKey, this.selected, path, value) : undefined;
 	}
 
 	// ───────────────────────────── rendering ─────────────────────────────

@@ -231,6 +231,13 @@ def check_library(kind: str, text: str, materials_text: str | None = None) -> di
     return {"problems": check(kind, text, materials_text)}  # type: ignore[arg-type]
 
 
+def library_limits(kind: str | None = None) -> dict[str, Any]:
+    """The input guardrails with the code pack in force's limits (U2): ``{rules}``."""
+    from saengine.library.guardrails import resolved_rules
+
+    return {"rules": resolved_rules(kind=kind)}
+
+
 def generate_building(floor_plan_text: str, bim_text: str | None) -> dict[str, Any]:
     """The building model generated from the floor plan, keeping the model's own elements.
 

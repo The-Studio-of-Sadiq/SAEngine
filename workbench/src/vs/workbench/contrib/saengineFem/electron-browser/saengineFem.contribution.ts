@@ -150,6 +150,16 @@ CommandsRegistry.registerCommand('saengine.library.check', async (accessor, kind
 });
 
 /**
+ * U2: the input guardrails with the code pack limits of the project at `projectRoot` (default:
+ * the open one) filled in, `{rules}` (`saengine.library.guardrails.resolved_rules`). Internal:
+ * the project code contribution asks it when a project opens or its settings change.
+ */
+CommandsRegistry.registerCommand('saengine.library.limits', async (accessor, projectRoot?: string) => {
+	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
+	return accessor.get(IFemSolverService).engine(python, 'library/limits', { projectRoot: projectRoot ?? accessor.get(ISaengineProjectService).project?.root.fsPath });
+});
+
+/**
  * Properties, interaction diagrams, moment-curvature and M-M contour of a designed section (the
  * Section Designer's text) with the Python models; the project's materials and code pack apply. Internal: the Section
  * Designer calls it by id.

@@ -41,6 +41,7 @@ import { feetInches, isConverted, parseList } from '../../../services/saenginePr
 import { ISaengineModelSelectionService, ModelSelection } from '../../../services/saengineProject/common/modelSelection.js';
 import { newFloorPlan } from '../../../services/saengineProject/common/partSources.js';
 import { PROJECT_PARTS } from '../../../services/saengineProject/common/saengineProject.js';
+import { confirmDelete, needsBulkConfirmation } from '../../../services/saengineProject/common/confirmDelete.js';
 import { ISaenginePartStatusService } from '../../../services/saengineProject/common/partStatus.js';
 import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
 import { IPlotCheckRequest, IPlotCheckResult, IPlotWarning, SOIL_PLOT_CHECK_COMMAND } from '../../saengineSoil/browser/soilDocument.js';
@@ -1574,9 +1575,29 @@ export class FloorPlanEditor extends EditorPane {
 				}
 				break;
 			case 'delete':
-				this.applyBulk(deleteMembers(layout, refs), undefined, false, localize('floorPlan.deletedMany', "Deleted {0} member(s).", refs.length));
+				void this.deleteSelection(refs);
 				break;
 		}
+	}
+
+	/**
+	 * Deletes the selected members; many at once (U2: {@link needsBulkConfirmation}) ask first,
+	 * naming them. One member or a few are a small edit and go at once.
+	 */
+	private async deleteSelection(refs: readonly IMemberRef[]): Promise<void> {
+		if (needsBulkConfirmation(refs.length)) {
+			const story = this.story;
+			const confirmed = await confirmDelete(this.dialogService, {
+				message: localize('floorPlan.confirmDeleteMany', "Delete {0} members?", refs.length),
+				items: refs.map(r => r.id),
+				consequences: localize('floorPlan.confirmDeleteTypical', "They go from this storey and from the storeys that repeat it (typical floors)."),
+				recovery: 'undo',
+			});
+			if (!confirmed || this.story !== story) {
+				return;
+			}
+		}
+		this.applyBulk(deleteMembers(parse(this.planModel), refs), undefined, false, localize('floorPlan.deletedMany', "Deleted {0} member(s).", refs.length));
 	}
 
 	/** Copies the selection to `stories` (and their typical floors). */

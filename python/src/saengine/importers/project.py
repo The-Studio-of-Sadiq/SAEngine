@@ -119,12 +119,19 @@ def import_structural(
             from saengine.project.new_building import starting_file
 
             (root / folder / main[0]).write_text(starting_file(main[1]), encoding="utf-8")
+    # U2: what the import brought in that the guardrails block (a value in the wrong unit, a
+    # bar size the code pack does not have) is a problem to fix before the analysis.
+    from saengine.library.guardrails import project_problems
+
+    blocked = [
+        f"{p['file']}: {p['message']}" for p in project_problems(root) if p["severity"] == "error"
+    ]
     return {
         "root": str(root),
         "name": imported.name,
         "format": kind,
         "report": imported.report.to_dict(),
-        "problems": imported.problems(),
+        "problems": imported.problems() + blocked,
         "files": [str(p) for p in files],
     }
 

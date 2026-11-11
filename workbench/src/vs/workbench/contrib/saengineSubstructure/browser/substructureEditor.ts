@@ -36,6 +36,7 @@ import { IEditorGroup } from '../../../services/editor/common/editorGroupsServic
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { DEVELOPER_MODE_SETTING } from '../../../services/saengineProject/common/developerMode.js';
 import { partById } from '../../../services/saengineProject/common/saengineProject.js';
+import { confirmDelete } from '../../../services/saengineProject/common/confirmDelete.js';
 import { appendPropertyHeading, appendPropertyNote, appendPropertyRow, EditorFrame, IEditorFrameStatus } from '../../saengineProject/browser/editorFrame.js';
 import { convertTableCells, convertTextNodes } from '../../saengineProject/browser/displayUnitsTable.js';
 import { displayUnit } from '../../../services/saengineProject/common/displayUnits.js';
@@ -1088,30 +1089,21 @@ export class SubstructureEditor extends EditorPane {
 		} else if (this.selectedFoundations.length) {
 			const removed = new Set(this.selectedFoundations.map(i => document.foundations[i]?.id));
 			const ties = document.tieBeams.filter(t => removed.has(t.from) || removed.has(t.to));
-			if (ties.length) {
-				// A tie beam needs both its foundations: it goes with them. Say so first.
-				const { confirmed } = await this.dialogService.confirm({
-					type: 'warning',
-					message: removed.size === 1
-						? localize('sub.deleteTiesOne', "Delete {0} and its tie beams?", [...removed][0])
-						: localize('sub.deleteTiesMany', "Delete {0} and their tie beams?", [...removed].join(', ')),
-					detail: localize('sub.deleteTiesDetail', "These tie beams join a deleted foundation and are deleted with it: {0}. Undo (Ctrl+Z) brings all back.", ties.map(t => `${t.id} (${t.from} – ${t.to})`).join(', ')),
-					primaryButton: localize({ key: 'sub.deleteTiesButton', comment: ['&& denotes a mnemonic'] }, "&&Delete"),
-				});
-				if (!confirmed || this.document !== document) {
-					return;
-				}
-			} else if (removed.size > 1) {
-				// Several at once (a box over the plan) are asked about first (N-U6).
-				const { confirmed } = await this.dialogService.confirm({
-					type: 'warning',
-					message: localize('sub.deleteMany', "Delete {0} foundations?", removed.size),
-					detail: localize('sub.deleteManyDetail', "{0}. Undo (Ctrl+Z) brings them back.", [...removed].join(', ')),
-					primaryButton: localize({ key: 'sub.deleteManyButton', comment: ['&& denotes a mnemonic'] }, "&&Delete"),
-				});
-				if (!confirmed || this.document !== document) {
-					return;
-				}
+			// U2: foundations are important data: deleting any asks first (N-U6 asked for several),
+			// and a tie beam, which needs both its foundations, goes with them.
+			const ids = [...removed];
+			const confirmed = await confirmDelete(this.dialogService, {
+				message: ids.length === 1
+					? (ties.length ? localize('sub.deleteTiesOne', "Delete {0} and its tie beams?", ids[0]) : localize('sub.deleteOne', "Delete foundation {0}?", ids[0]))
+					: (ties.length ? localize('sub.deleteTiesMany', "Delete {0} foundations and their tie beams?", ids.length) : localize('sub.deleteMany', "Delete {0} foundations?", ids.length)),
+				items: ids.length > 1 ? ids : undefined,
+				consequences: ties.length
+					? localize('sub.deleteTiesDetail', "These tie beams join a deleted foundation and are deleted with it: {0}.", ties.map(t => `${t.id} (${t.from} – ${t.to})`).join(', '))
+					: undefined,
+				recovery: 'undo',
+			});
+			if (!confirmed || this.document !== document) {
+				return;
 			}
 			document.foundations = document.foundations.filter((_, i) => !this.selectedFoundations.includes(i));
 			document.tieBeams = document.tieBeams.filter(t => !removed.has(t.from) && !removed.has(t.to));

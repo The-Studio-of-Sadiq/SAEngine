@@ -710,6 +710,8 @@ export type EngineMethod =
 	| 'soil/location' | 'soil/plotCheck' | 'soil/gisExport' | 'soil/gisImport' | 'soil/qgisProgram'
 	| 'drawings/generate' | 'drawings/list' | 'drawings/progress' | 'drawings/issue' | 'drawings/dwg'
 	| 'import/structural' | 'export/e2k' | 'library/steelSections' | 'library/generateBuilding'
+	// U2: `library/limits` `{projectRoot?}` -> `{rules}`, the input guardrails with the project's code pack limits.
+	| 'library/limits'
 	// The Revit link's exchange file (`saengine.exporters.revit_link`, in a worker thread):
 	// `revit/export` `{projectRoot, outPath?}`, `revit/preview` `{projectRoot, path}` and
 	// `revit/apply` `{projectRoot, path, changes}`.
