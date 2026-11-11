@@ -65,6 +65,7 @@ from saengine.design.rc import (
     flexure,
     section_of,
     shear,
+    surface_of,
     with_top_drop,
 )
 from saengine.design.steel import SteelDesignError
@@ -478,10 +479,16 @@ def _design_run(
     assumed: set[str] | None,
 ) -> dict[str, Any]:
     """The body of :func:`design`."""
-    from saengine.design import seismic_detailing
+    from saengine.design import member_pool, seismic_detailing
     from saengine.fem import second_order, seismic_design
     from saengine.fem.combinations import set_flood_kind
 
+    # Alpha 10: the workers that check a large model's concrete beams and columns started now,
+    # while the forces are worked out (saengine.design.member_pool).
+    member_pool.warm(
+        sum(isinstance(e, (BeamElement, ColumnElement)) for e in building.elements)
+        + len(building.additions.members)
+    )
     # B16: the flood zone's allowable stress combinations for the timber and masonry members.
     set_flood_kind(settings)
     # Integrator glue: which provisions of the default pack's BNBC Sec 8.3 apply (saengine.design.seismic_rules),
@@ -874,7 +881,7 @@ def _design_run(
     # Alpha 9 C20b (seismic_grades): the seismic grade's force factors and γRE on the
     # earthquake combinations (the pack's seismic.gradeDesign; nothing without it), before
     # every member check, so Design Reinforcement sizes from the same forces.
-    from saengine.design import face_forces, seismic_grades
+    from saengine.design import seismic_grades
 
     seismic_grades.set_context(settings, project)
     notes += seismic_grades.apply(pieces, combinations, extra, members, types, mats)
@@ -900,19 +907,15 @@ def _design_run(
 
     timber_todo: list[tuple[str, Any, Any, list[_Piece], bool]] = []
     b39_todo: dict[str, list[tuple[str, Any, Any, list[_Piece], bool]]] = {}  # B39
-    beam_sections: dict[str, tuple[RcSection, dict[bool, Any]]] = {}
     # T33: beams whose top bars pass their joints in the second layer, under the crossing
     # beams' (saengine.design.rc_detailing.joint_top_layers): their hogging d is less.
     top_drops = rc_detailing.building_top_drops(building, types, settings)
-    dropped_sections: dict[tuple[str, float], tuple[RcSection, dict[bool, Any]]] = {}
     second_layer: list[str] = []
-    framing: _BeamFraming | None = None
     live_scope = live_reduction.LiveScope.of(settings)
-    column_sections: dict[str, tuple[RcSection, InteractionSurface]] = {}
     # Alpha 9 C5: a pack with partial-factor concrete methods adds its member rules
     # (saengine.design.bar_rules) and, for DCM / DCH systems, the curvature-ductility detailing
     # (saengine.design.curvature_ductility). Without them (the default pack) nothing changes.
-    from saengine.design import bar_rules, curvature_ductility, strut_shear
+    from saengine.design import bar_rules
     from saengine.rpc import jobs as rpc_jobs
 
     member_rules = bar_rules.covered()
@@ -926,8 +929,27 @@ def _design_run(
     # W4C-10 of usability walk 4: the beams that carry a floor slab on their top flange, its
     # bracing for lateral-torsional buckling also when the slab is not analysed as shells.
     under_slabs = slab_carried_beams(building, types)
+    # The concrete beams and columns (_rc_member), with the sections they keep per object type.
+    rc_run = _RcRun(
+        project, building, types, mats, pieces, members, combinations, service, settings,
+        live_scope, resolved_overwrites, context, exact, face_data, face_offsets,
+        static_factors, top_drops, member_rules, ductility, mu_phi, limit_rules,
+    )  # fmt: skip
+    beam_sections, dropped_sections = rc_run.beam_sections, rc_run.dropped_sections
+    column_sections = rc_run.column_sections
+    # Alpha 10: a large model's concrete members checked ahead in other processes, taken below
+    # in member order (saengine.design.member_pool; None: all here).
+    prepared = member_pool.prepare(
+        rc_run,
+        [
+            index
+            for index, (member_id, type_id, _) in enumerate(members)
+            if _rc_candidate(types.get(type_id), mats, pieces.get(member_id), combinations)
+        ],
+        code_context.project_root() or code_context.find_project_root(out_dir),
+    )
 
-    for member_id, type_id, element in members:
+    for index, (member_id, type_id, element) in enumerate(members):
         # A cancelled request (Stop Waiting on Design Reinforcement) stops here.
         rpc_jobs.check()
         object_type = types.get(type_id)
@@ -1136,347 +1158,33 @@ def _design_run(
         if bars is None or bars.steel is None:
             skip(f"unknown reinforcement material '{object_type.reinforcement.material}'")
             continue
-        es = bars.mechanical.E or 200_000.0
-        # Integrator glue (T9): the floor live load reduced by the member's influence area
-        # (saengine.design.live_reduction, the code pack's liveReduction), or by its overwrite.
-        live_row = roof_row = None
-        live_factor = 1.0  # Alpha 9 C19: for the allowable stress combinations
-        given_factor = (resolved_overwrites.get(member_id) or design_overwrites.Resolved()).get(
-            "liveLoadReduction"
-        )
-        if given_factor is not None or settings.analysis.liveLoadReduction:
-            if given_factor is not None:
-                found_factor = (float(given_factor), f"given ({live_reduction.CLAUSE})")
-            else:
-                if isinstance(element, BeamElement):
-                    framing = framing or _BeamFraming(building, types)
-                found_factor = live_reduction.member_factor(
-                    element,
-                    "beam" if isinstance(object_type, Beam) else "column",
-                    own,
-                    service,
-                    building,
-                    live_scope,
-                    framing if isinstance(element, BeamElement) else None,
-                    float(getattr(object_type.profile, "xDim", 0.0) or 0.0),
-                )
-            if found_factor is not None:
-                own = live_reduction.reduced(own, found_factor[0])
-                live_factor = min(float(found_factor[0]), 1.0)
-                live_row = _check(
-                    "Live load reduction L / L0",
-                    found_factor[0],
-                    1.0,
-                    "",
-                    None,
-                    found_factor[1],
-                    flag=True,
-                )
-            # The roof live load Lr by the pack's roof rule (tributary area and slope).
-            roof_factor = (
-                live_reduction.roof_member_factor(
-                    "beam" if isinstance(object_type, Beam) else "column",
-                    own,
-                    service,
-                    live_scope,
-                    float(getattr(settings.analysis, "roofSlope", 0.0) or 0.0),
-                )
-                if given_factor is None
-                else None
-            )
-            if roof_factor is not None and roof_factor[0] < 1.0:
-                own = live_reduction.reduced(own, roof_factor[0], "roof")
-                roof_row = _check(
-                    "Roof live load reduction Lr / L0",
-                    roof_factor[0],
-                    1.0,
-                    "",
-                    None,
-                    roof_factor[1],
-                    flag=True,
-                )
-        joints_own = own
-        torsion_found = None
-        try:
+        # The checks of a concrete beam or column (_rc_member), run ahead in other processes
+        # for a large model (saengine.design.member_pool) or here, taken in member order.
+        done = prepared.take(index) if prepared is not None else None
+        if done is None:
+            done = _rc_member(rc_run, member_id, type_id, element, object_type, concrete, bars, own)
+        if done.base is not None:
             if isinstance(object_type, Beam):
-                if type_id not in beam_sections:
-                    section = section_of(
-                        object_type.profile,
-                        object_type.reinforcement,
-                        concrete.concrete.fc,
-                        bars.steel.fy,
-                        es,
-                        concrete.concrete.maxAggregate,
-                    )
-                    if section.profile.shape != "rectangle":
-                        raise DesignError("beams are checked with rectangular profiles only")
-                    beam_sections[type_id] = (
-                        section,
-                        {hog: flexure(section, hog) for hog in (False, True)},
-                    )
-                section, capacities = beam_sections[type_id]
-                drop = top_drops.get(element.id, 0.0) if isinstance(element, BeamElement) else 0.0
-                if drop > 0:
-                    if (type_id, drop) not in dropped_sections:
-                        lower = with_top_drop(section, drop)
-                        dropped_sections[(type_id, drop)] = (
-                            lower,
-                            {hog: flexure(lower, hog) for hog in (False, True)},
-                        )
-                    section, capacities = dropped_sections[(type_id, drop)]
-                    second_layer.append(member_id)
-                faced = face_forces.at_faces(
-                    own,
-                    project,
-                    shear_depth=face_forces.shear_depth(section),
-                    # Alpha 9 C20b: with the seismic grade's factors (unchanged without them).
-                    face_rows=seismic_grades.face_rows(face_data, static_factors, own, member_id)
-                    if static_factors
-                    else None,
-                    face_offsets=face_offsets,
-                )
-                own = faced.pieces
-                checks = _beam_checks(
-                    section, capacities, object_type, own, combinations, _turned(element, exact)
-                )
-                if faced.at_faces:
-                    face_forces.annotate(checks, faced)
-                faced_any = faced_any or faced.at_faces
-                if member_rules:  # Alpha 9 C5 (see above)
-                    beam_transverse = getattr(object_type.reinforcement, "transverse", None)
-                    checks += bar_rules.beam_rows(section, beam_transverse)
-                    if ductility:
-                        checks += curvature_ductility.beam_rows(section, beam_transverse, ductility)
-                if limit_rules:  # Alpha 9 C8: the ratio limits, cover, grade and bond rows
-                    reinforcement = object_type.reinforcement
-                    checks += member_limits.beam_rows(
-                        section,
-                        getattr(reinforcement, "transverse", None),
-                        capacities,
-                        getattr(reinforcement, "cover", None),
-                    )
-                # Alpha 9 C20b: the seismic grade's detailing (none without the pack's rule).
-                checks += seismic_grades.beam_rows(
-                    section, getattr(object_type.reinforcement, "transverse", None), capacities
-                )
-                # Integrator glue (0.0.45): torsion (saengine.design.torsion) and deflection
-                # (saengine.design.deflection) of beams of the building model.
-                if isinstance(element, BeamElement):
-                    framing = framing or _BeamFraming(building, types)
-                    if method_selection.uses("torsion", "thinWalledVariableStrut"):
-                        # Alpha 9 C5b: the pack's torsion method (limit_state_rows).
-                        torsion_rows, torsion_found = _pack_torsion(
-                            element,
-                            section,
-                            object_type.reinforcement.transverse,
-                            own,
-                            combinations,
-                            _turned(element, exact),
-                            framing,
-                        )
-                    else:
-                        torsion_rows, torsion_found = _beam_torsion_checks(
-                            element,
-                            object_type,
-                            section,
-                            own,
-                            combinations,
-                            _turned(element, exact),
-                            framing,
-                            bars.steel.fy,
-                            drop,
-                        )
-                    checks += torsion_rows
-                    deflection_rows = _beam_deflection_checks(
-                        element,
-                        section,
-                        joints_own,
-                        _turned(element, exact),
-                        framing,
-                        project,
-                        service,
-                        settings,
-                        slenderness_design.concrete_modulus(concrete),
-                        bars.steel.fy,
-                        notes,
-                    )
-                    if method_selection.uses("deflection", "spanDepthK"):
-                        # Alpha 9 C5b: the pack's span/depth ratios (limit_state_rows).
-                        deflection_rows = _pack_deflection(
-                            element, section, framing, deflection_rows, settings
-                        )
-                    checks += deflection_rows
-                    # Integrator glue (T3): deep spans and transfer girders by the strut-and-tie
-                    # model (saengine.design.deep_beams, the default pack's BNBC 2020 Part 6 Sec 6.4.6), and the corbels
-                    # under the beam's ends (saengine.design.corbels, Sec 6.4.7).
-                    deep_rows, deep_notes = deep_beams.member_checks(
-                        element,
-                        object_type,
-                        section,
-                        own,
-                        combinations,
-                        _turned(element, exact),
-                        framing,
-                    )
-                    checks += corbel_design.member_checks(
-                        element,
-                        own,
-                        combinations,
-                        _turned(element, exact),
-                        concrete.concrete.fc,
-                        bars.steel.fy,
-                    )
-                    # B21: crack control, skin steel, flange tension steel and structural
-                    # integrity (saengine.design.rc_detailing); a beam with a slab on one side
-                    # only is a perimeter beam.
-                    hf, sides = framing.slab_beside(element, section.width)
-                    detail_rows = []
-                    if not limit_rules:  # C8: the pack's crack width and side face rows instead
-                        detail_rows = rc_detailing.beam_checks(
-                            section,
-                            checks,
-                            perimeter=sides == 1,
-                            span=_longest_span(element, framing),
-                            flange=(hf, sides),
-                        )
-                    if method_selection.uses("cracking", "directWidth") or method_selection.uses(
-                        "serviceStress", "stressLimits"
-                    ):
-                        # Alpha 9 C5b: crack widths and stresses by the pack's methods take the
-                        # place of the bar-spacing crack control.
-                        detail_rows = [
-                            r for r in detail_rows if not r["name"].startswith("Crack control")
-                        ]
-                        detail_rows += _pack_service_rows(
-                            section,
-                            joints_own,
-                            service,
-                            _turned(element, exact),
-                            float(object_type.reinforcement.cover or 0.0),
-                        )
-                    checks += detail_rows
-                    if deep_rows and deep_beams.lever_rules() is None:
-                        # The strut-and-tie model governs (the lever arm method of alpha 9 C9b
-                        # keeps the sectional shear as the shear check).
-                        for row in checks:
-                            if row["name"] == "Shear" or row["name"].startswith("Minimum stirrups"):
-                                row["flag"] = True
-                                row["note"] += f"; {deep_beams.REFERENCE_NOTE}"
-                    if deep_rows:
-                        checks += deep_rows
-                    notes.extend(deep_notes)
+                beam_sections.setdefault(type_id, done.base)
+                if done.dropped is not None:
+                    dropped_sections.setdefault((type_id, done.dropped[0]), done.dropped[1:])
             else:
-                if type_id not in column_sections:
-                    section = section_of(
-                        object_type.profile,
-                        object_type.reinforcement,
-                        concrete.concrete.fc,
-                        bars.steel.fy,
-                        es,
-                        concrete.concrete.maxAggregate,
-                    )
-                    column_sections[type_id] = (section, InteractionSurface(section))
-                section, surface = column_sections[type_id]
-                # Slenderness from the joint forces (M1, M2 at the joints, conservative); the
-                # strength checks at the beam soffit and the top of the slab.
-                slender = context.column(
-                    member_id,
-                    section,
-                    joints_own,
-                    _turned(element, exact),
-                    slenderness_design.concrete_modulus(concrete),
-                )
-                faced = face_forces.at_faces(
-                    own,
-                    project,
-                    # Alpha 9 C20b: with the seismic grade's factors (unchanged without them).
-                    face_rows=seismic_grades.face_rows(face_data, static_factors, own, member_id)
-                    if static_factors
-                    else None,
-                    face_offsets=face_offsets,
-                )
-                own = faced.pieces
-                checks = _column_checks(
-                    section, surface, own, combinations, _turned(element, exact), slender
-                )
-                if faced.at_faces:
-                    face_forces.annotate(checks, faced)
-                # Integrator glue (0.0.45): the shear of every column from the analysis forces
-                # with the axial force's effect on Vc (saengine.design.column_shear).
-                points = _shear_points(own, combinations, _turned(element, exact))
-                if member_rules and strut_shear.rules() is not None:
-                    # Alpha 9 C5: the pack's shear method (variable strut inclination).
-                    checks += strut_shear.column_rows(
-                        section, object_type.reinforcement.transverse, points
-                    )
-                elif tabulated_shear.rules() is not None:
-                    # Alpha 9 C9b: τc with the axial force's δ (IS 456 40.2.2 type).
-                    checks += tabulated_shear.column_rows(
-                        section, object_type.reinforcement.transverse, points
-                    )
-                else:
-                    checks += column_shear.column_shear_checks(
-                        section, object_type.reinforcement.transverse, points
-                    )
-                # B21: shear friction across the construction joint at the floor.
-                joint = rc_detailing.column_joint_check(section, points, bars.steel.fy)
-                if joint is not None:
-                    checks.append(joint)
-                faced_any = faced_any or faced.at_faces
-                if member_rules:  # Alpha 9 C5 (see above)
-                    column_transverse = object_type.reinforcement.transverse
-                    ned_max = float(points.pu.max()) if len(points.pu) else 0.0
-                    checks += bar_rules.column_rows(section, ned_max, column_transverse)
-                    if ductility:
-                        checks += curvature_ductility.column_rows(
-                            section, column_transverse, ned_max, ductility
-                        )
-                        if mu_phi is not None:  # Alpha 9 C5c
-                            checks += curvature_ductility.confinement_rows(
-                                section, column_transverse, ned_max, ductility, mu_phi
-                            )
-                if limit_rules:  # Alpha 9 C8 (see the beams)
-                    checks += member_limits.column_rows(
-                        section,
-                        object_type.reinforcement.transverse,
-                        object_type.reinforcement.cover,
-                    )
-                # Alpha 9 C20b: the seismic grade's μN, hoops and least steel (none without
-                # the pack's rule).
-                checks += seismic_grades.column_rows(
-                    member_id,
-                    section,
-                    object_type.reinforcement.transverse,
-                    object_type.reinforcement.cover,
-                    own,
-                    combinations,
-                    _turned(element, exact),
-                )
-            # Alpha 9 C19: the pack's allowable stress design (allowableStress) and the member's
-            # rank for Ds (horizontalCapacity.memberRanks), from the per-case forces.
-            if allowable_stress.table() is not None or member_rank.tables() is not None:
-                kind_name = "beam" if isinstance(object_type, Beam) else "column"
-                checks += allowable_stress.rc_rows(
-                    section, object_type, joints_own, service, _turned(element, exact),
-                    kind_name, live_factor,
-                )  # fmt: skip
-                rank_row = member_rank.rc_row(
-                    section, object_type, joints_own, service, _turned(element, exact), kind_name
-                )
-                if rank_row is not None:
-                    checks.append(rank_row)
-            if live_row is not None:
-                checks.append(live_row)
-            if roof_row is not None:
-                checks.append(roof_row)
-            given = resolved_overwrites.get(member_id)
-            if given:
-                notes.extend(f"{member_id}: {note}" for note in given.notes())
-        except DesignError as error:
-            skip(str(error))
+                column_sections.setdefault(type_id, done.base)
+        if done.second_layer:
+            second_layer.append(member_id)
+        faced_any = faced_any or done.faced
+        notes.extend(done.notes)
+        if done.skip is not None:
+            skip(done.skip)
             continue
+        if not isinstance(object_type, Beam):
+            section, capacities = column_sections[type_id][0], None
+        elif done.dropped is not None:
+            section, capacities = dropped_sections[(type_id, done.dropped[0])]
+        else:
+            section, capacities = beam_sections[type_id]
+        own, checks, entry = done.own, done.checks, done.entry
         if collect is not None:
-            column_points = slender.points if isinstance(object_type, Column) else None
             collect["members"].append(
                 {
                     "id": member_id,
@@ -1488,27 +1196,19 @@ def _design_run(
                     "turned": _turned(element, exact),
                     "fc": concrete.concrete.fc,
                     "fy": bars.steel.fy,
-                    "es": es,
+                    "es": bars.mechanical.E or 200_000.0,
                     "aggregate": concrete.concrete.maxAggregate,
                     # T33: the top bars' drop to the second layer at the joints [mm].
                     "topDrop": top_drops.get(element.id, 0.0)
                     if isinstance(element, BeamElement)
                     else 0.0,
                     "checks": checks,
-                    "points": column_points,
+                    "points": done.points,
                     # The torsion design at the governing station (saengine.design.torsion), for
                     # the required steel and the proposal; None below the threshold.
-                    "torsion": torsion_found,
+                    "torsion": done.torsion,
                 }
             )
-        entry = {
-            "id": member_id,
-            "kind": "beam" if isinstance(object_type, Beam) else "column",
-            "type": type_id,
-            "members": [p.id for p in own],
-            "checks": checks,
-        }
-        seismic_detailing.rate(entry)
         checked.append(entry)
         designed.append(
             seismic_detailing.Designed(
@@ -1520,9 +1220,11 @@ def _design_run(
                 own,
                 _turned(element, exact),
                 entry,
-                capacities if isinstance(object_type, Beam) else None,
+                capacities,
             )
         )
+    if prepared is not None:
+        prepared.close()
 
     # B35: the steel seismic provisions (saengine.design.steel.seismic): member, joint and
     # connection checks on the steel entries, the project's own checks with the seismic ones.
@@ -1870,6 +1572,506 @@ def _design_run(
     result = assemble(checked, skipped, notes, slabs_seen)
     result["takedown"] = column_takedown
     return result
+
+
+def _rc_candidate(
+    object_type: Any, mats: dict[str, Any], own: list[_Piece] | None, combinations: list[str]
+) -> bool:
+    """Whether :func:`_design_run`'s loop is to check the member with :func:`_rc_member`: a
+    concrete beam or column with bars, in the analysis results, with combinations. Only to check
+    members ahead in other processes (saengine.design.member_pool): the loop decides."""
+    from saengine.design import aluminium as aluminium_design
+    from saengine.design import timber as timber_design
+
+    if not isinstance(object_type, (Beam, Column)) or not own or not combinations:
+        return False
+    material = mats.get(object_type.material)
+    if (
+        material is None
+        or steel_design.is_steel(material)
+        or timber_design.is_timber(material)
+        or aluminium_design.is_aluminium(material)
+        or _b39_kind(object_type, material) is not None
+        or material.category != Category.CONCRETE
+        or not material.concrete
+        or object_type.reinforcement is None
+    ):
+        return False
+    bars = mats.get(object_type.reinforcement.material)
+    return bars is not None and bars.steel is not None
+
+
+@dataclass
+class _RcRun:
+    """What the checks of the concrete beams and columns of one design run work from
+    (:func:`_rc_member`), and what they keep from one member to the next (the sections per
+    object type, the beams' framing). Picklable: the members can be checked in other processes
+    (:mod:`saengine.design.member_pool`), each with its own copy."""
+
+    project: dict[str, Any]
+    building: BuildingModel
+    types: dict[str, Any]
+    mats: dict[str, Any]
+    pieces: dict[str, list[_Piece]]
+    #: (id, object type id, element or addition) of every member, in the run's order.
+    members: list[tuple[str, str, Any]]
+    combinations: list[str]
+    service: dict[str, Any]
+    settings: ProjectSettings
+    live_scope: Any
+    overwrites: dict[str, Any]
+    context: Any
+    exact: bool
+    face_data: dict[str, Any] | None
+    face_offsets: Any
+    static_factors: Any
+    top_drops: dict[str, float]
+    member_rules: Any
+    ductility: str | None
+    mu_phi: Any
+    limit_rules: Any
+    beam_sections: dict[str, tuple[RcSection, dict[bool, Any]]] = field(default_factory=dict)
+    dropped_sections: dict[tuple[str, float], tuple[RcSection, dict[bool, Any]]] = field(
+        default_factory=dict
+    )
+    #: The column sections and their surfaces (None: a section kept without its surface).
+    column_sections: dict[str, tuple[RcSection, InteractionSurface | None]] = field(
+        default_factory=dict
+    )
+    framing: Any = None
+
+    def shipped(self) -> _RcRun:
+        """A copy for other processes: what it works from, without what it has kept."""
+        return dataclasses.replace(
+            self, beam_sections={}, dropped_sections={}, column_sections={}, framing=None
+        )
+
+
+@dataclass
+class _RcDone:
+    """What the checks of one concrete beam or column found (:func:`_rc_member`), for the run to
+    take in member order (:func:`_design_run`)."""
+
+    #: Why the member could not be checked (a DesignError), else None.
+    skip: str | None = None
+    #: The notes it adds to the report, in order.
+    notes: list[str] = field(default_factory=list)
+    #: It takes its top bars in the second layer at its joints (T33).
+    second_layer: bool = False
+    #: Its checks took the forces at the support faces.
+    faced: bool = False
+    #: (section, capacities) of its object type once worked out (capacities None: a column).
+    base: tuple[Any, Any] | None = None
+    #: (drop, section, capacities) with the top bars dropped to the second layer.
+    dropped: tuple[float, Any, Any] | None = None
+    section: Any = None
+    capacities: Any = None
+    own: list[_Piece] | None = None
+    checks: list[dict[str, Any]] | None = None
+    points: Any = None
+    torsion: Any = None
+    entry: dict[str, Any] | None = None
+
+
+def _rc_member(
+    run: _RcRun,
+    member_id: str,
+    type_id: str,
+    element: Any,
+    object_type: Any,
+    concrete: Any,
+    bars: Any,
+    own: list[_Piece],
+) -> _RcDone:
+    """The checks of the concrete beam or column ``member_id`` of the run (the part of
+    :func:`_design_run`'s loop past its concrete, bars and forces being found): the same in this
+    process or in another (:mod:`saengine.design.member_pool`)."""
+    from saengine.design import (
+        bar_rules,
+        curvature_ductility,
+        face_forces,
+        member_limits,
+        seismic_detailing,
+        seismic_grades,
+        strut_shear,
+    )
+    from saengine.design import overwrites as design_overwrites
+
+    project, building, types, settings = run.project, run.building, run.types, run.settings
+    service, live_scope, resolved_overwrites = run.service, run.live_scope, run.overwrites
+    context, combinations, exact = run.context, run.combinations, run.exact
+    face_data, face_offsets, static_factors = run.face_data, run.face_offsets, run.static_factors
+    top_drops, member_rules, ductility = run.top_drops, run.member_rules, run.ductility
+    mu_phi, limit_rules = run.mu_phi, run.limit_rules
+    beam_sections, dropped_sections = run.beam_sections, run.dropped_sections
+    column_sections = run.column_sections
+    framing = run.framing
+    out = _RcDone()
+    notes = out.notes
+    es = bars.mechanical.E or 200_000.0
+    # Integrator glue (T9): the floor live load reduced by the member's influence area
+    # (saengine.design.live_reduction, the code pack's liveReduction), or by its overwrite.
+    live_row = roof_row = None
+    live_factor = 1.0  # Alpha 9 C19: for the allowable stress combinations
+    given_factor = (resolved_overwrites.get(member_id) or design_overwrites.Resolved()).get(
+        "liveLoadReduction"
+    )
+    if given_factor is not None or settings.analysis.liveLoadReduction:
+        if given_factor is not None:
+            found_factor = (float(given_factor), f"given ({live_reduction.CLAUSE})")
+        else:
+            if isinstance(element, BeamElement):
+                framing = run.framing = run.framing or _BeamFraming(building, types)
+            found_factor = live_reduction.member_factor(
+                element,
+                "beam" if isinstance(object_type, Beam) else "column",
+                own,
+                service,
+                building,
+                live_scope,
+                framing if isinstance(element, BeamElement) else None,
+                float(getattr(object_type.profile, "xDim", 0.0) or 0.0),
+            )
+        if found_factor is not None:
+            own = live_reduction.reduced(own, found_factor[0])
+            live_factor = min(float(found_factor[0]), 1.0)
+            live_row = _check(
+                "Live load reduction L / L0",
+                found_factor[0],
+                1.0,
+                "",
+                None,
+                found_factor[1],
+                flag=True,
+            )
+        # The roof live load Lr by the pack's roof rule (tributary area and slope).
+        roof_factor = (
+            live_reduction.roof_member_factor(
+                "beam" if isinstance(object_type, Beam) else "column",
+                own,
+                service,
+                live_scope,
+                float(getattr(settings.analysis, "roofSlope", 0.0) or 0.0),
+            )
+            if given_factor is None
+            else None
+        )
+        if roof_factor is not None and roof_factor[0] < 1.0:
+            own = live_reduction.reduced(own, roof_factor[0], "roof")
+            roof_row = _check(
+                "Roof live load reduction Lr / L0",
+                roof_factor[0],
+                1.0,
+                "",
+                None,
+                roof_factor[1],
+                flag=True,
+            )
+    joints_own = own
+    torsion_found = None
+    try:
+        if isinstance(object_type, Beam):
+            if type_id not in beam_sections:
+                section = section_of(
+                    object_type.profile,
+                    object_type.reinforcement,
+                    concrete.concrete.fc,
+                    bars.steel.fy,
+                    es,
+                    concrete.concrete.maxAggregate,
+                )
+                if section.profile.shape != "rectangle":
+                    raise DesignError("beams are checked with rectangular profiles only")
+                beam_sections[type_id] = (
+                    section,
+                    {hog: flexure(section, hog) for hog in (False, True)},
+                )
+            section, capacities = beam_sections[type_id]
+            out.base = (section, capacities)
+            drop = top_drops.get(element.id, 0.0) if isinstance(element, BeamElement) else 0.0
+            if drop > 0:
+                if (type_id, drop) not in dropped_sections:
+                    lower = with_top_drop(section, drop)
+                    dropped_sections[(type_id, drop)] = (
+                        lower,
+                        {hog: flexure(lower, hog) for hog in (False, True)},
+                    )
+                section, capacities = dropped_sections[(type_id, drop)]
+                out.dropped = (drop, section, capacities)
+                out.second_layer = True
+            faced = face_forces.at_faces(
+                own,
+                project,
+                shear_depth=face_forces.shear_depth(section),
+                # Alpha 9 C20b: with the seismic grade's factors (unchanged without them).
+                face_rows=seismic_grades.face_rows(face_data, static_factors, own, member_id)
+                if static_factors
+                else None,
+                face_offsets=face_offsets,
+            )
+            own = faced.pieces
+            checks = _beam_checks(
+                section, capacities, object_type, own, combinations, _turned(element, exact)
+            )
+            if faced.at_faces:
+                face_forces.annotate(checks, faced)
+            out.faced = out.faced or faced.at_faces
+            if member_rules:  # Alpha 9 C5 (see above)
+                beam_transverse = getattr(object_type.reinforcement, "transverse", None)
+                checks += bar_rules.beam_rows(section, beam_transverse)
+                if ductility:
+                    checks += curvature_ductility.beam_rows(section, beam_transverse, ductility)
+            if limit_rules:  # Alpha 9 C8: the ratio limits, cover, grade and bond rows
+                reinforcement = object_type.reinforcement
+                checks += member_limits.beam_rows(
+                    section,
+                    getattr(reinforcement, "transverse", None),
+                    capacities,
+                    getattr(reinforcement, "cover", None),
+                )
+            # Alpha 9 C20b: the seismic grade's detailing (none without the pack's rule).
+            checks += seismic_grades.beam_rows(
+                section, getattr(object_type.reinforcement, "transverse", None), capacities
+            )
+            # Integrator glue (0.0.45): torsion (saengine.design.torsion) and deflection
+            # (saengine.design.deflection) of beams of the building model.
+            if isinstance(element, BeamElement):
+                framing = run.framing = run.framing or _BeamFraming(building, types)
+                if method_selection.uses("torsion", "thinWalledVariableStrut"):
+                    # Alpha 9 C5b: the pack's torsion method (limit_state_rows).
+                    torsion_rows, torsion_found = _pack_torsion(
+                        element,
+                        section,
+                        object_type.reinforcement.transverse,
+                        own,
+                        combinations,
+                        _turned(element, exact),
+                        framing,
+                    )
+                else:
+                    torsion_rows, torsion_found = _beam_torsion_checks(
+                        element,
+                        object_type,
+                        section,
+                        own,
+                        combinations,
+                        _turned(element, exact),
+                        framing,
+                        bars.steel.fy,
+                        drop,
+                    )
+                checks += torsion_rows
+                deflection_rows = _beam_deflection_checks(
+                    element,
+                    section,
+                    joints_own,
+                    _turned(element, exact),
+                    framing,
+                    project,
+                    service,
+                    settings,
+                    slenderness_design.concrete_modulus(concrete),
+                    bars.steel.fy,
+                    notes,
+                )
+                if method_selection.uses("deflection", "spanDepthK"):
+                    # Alpha 9 C5b: the pack's span/depth ratios (limit_state_rows).
+                    deflection_rows = _pack_deflection(
+                        element, section, framing, deflection_rows, settings
+                    )
+                checks += deflection_rows
+                # Integrator glue (T3): deep spans and transfer girders by the strut-and-tie
+                # model (saengine.design.deep_beams, the default pack's BNBC 2020 Part 6 Sec 6.4.6), and the corbels
+                # under the beam's ends (saengine.design.corbels, Sec 6.4.7).
+                deep_rows, deep_notes = deep_beams.member_checks(
+                    element,
+                    object_type,
+                    section,
+                    own,
+                    combinations,
+                    _turned(element, exact),
+                    framing,
+                )
+                checks += corbel_design.member_checks(
+                    element,
+                    own,
+                    combinations,
+                    _turned(element, exact),
+                    concrete.concrete.fc,
+                    bars.steel.fy,
+                )
+                # B21: crack control, skin steel, flange tension steel and structural
+                # integrity (saengine.design.rc_detailing); a beam with a slab on one side
+                # only is a perimeter beam.
+                hf, sides = framing.slab_beside(element, section.width)
+                detail_rows = []
+                if not limit_rules:  # C8: the pack's crack width and side face rows instead
+                    detail_rows = rc_detailing.beam_checks(
+                        section,
+                        checks,
+                        perimeter=sides == 1,
+                        span=_longest_span(element, framing),
+                        flange=(hf, sides),
+                    )
+                if method_selection.uses("cracking", "directWidth") or method_selection.uses(
+                    "serviceStress", "stressLimits"
+                ):
+                    # Alpha 9 C5b: crack widths and stresses by the pack's methods take the
+                    # place of the bar-spacing crack control.
+                    detail_rows = [
+                        r for r in detail_rows if not r["name"].startswith("Crack control")
+                    ]
+                    detail_rows += _pack_service_rows(
+                        section,
+                        joints_own,
+                        service,
+                        _turned(element, exact),
+                        float(object_type.reinforcement.cover or 0.0),
+                    )
+                checks += detail_rows
+                if deep_rows and deep_beams.lever_rules() is None:
+                    # The strut-and-tie model governs (the lever arm method of alpha 9 C9b
+                    # keeps the sectional shear as the shear check).
+                    for row in checks:
+                        if row["name"] == "Shear" or row["name"].startswith("Minimum stirrups"):
+                            row["flag"] = True
+                            row["note"] += f"; {deep_beams.REFERENCE_NOTE}"
+                if deep_rows:
+                    checks += deep_rows
+                notes.extend(deep_notes)
+        else:
+            cached = column_sections.get(type_id)
+            if cached is None or cached[1] is None:
+                # (A section kept without its surface: one whose checks ran in another process.)
+                section = (
+                    cached[0]
+                    if cached is not None
+                    else section_of(
+                        object_type.profile,
+                        object_type.reinforcement,
+                        concrete.concrete.fc,
+                        bars.steel.fy,
+                        es,
+                        concrete.concrete.maxAggregate,
+                    )
+                )
+                column_sections[type_id] = (section, surface_of(section))
+            section, surface = column_sections[type_id]
+            out.base = (section, None)
+            # Slenderness from the joint forces (M1, M2 at the joints, conservative); the
+            # strength checks at the beam soffit and the top of the slab.
+            slender = context.column(
+                member_id,
+                section,
+                joints_own,
+                _turned(element, exact),
+                slenderness_design.concrete_modulus(concrete),
+            )
+            faced = face_forces.at_faces(
+                own,
+                project,
+                # Alpha 9 C20b: with the seismic grade's factors (unchanged without them).
+                face_rows=seismic_grades.face_rows(face_data, static_factors, own, member_id)
+                if static_factors
+                else None,
+                face_offsets=face_offsets,
+            )
+            own = faced.pieces
+            checks = _column_checks(
+                section, surface, own, combinations, _turned(element, exact), slender
+            )
+            if faced.at_faces:
+                face_forces.annotate(checks, faced)
+            # Integrator glue (0.0.45): the shear of every column from the analysis forces
+            # with the axial force's effect on Vc (saengine.design.column_shear).
+            points = _shear_points(own, combinations, _turned(element, exact))
+            if member_rules and strut_shear.rules() is not None:
+                # Alpha 9 C5: the pack's shear method (variable strut inclination).
+                checks += strut_shear.column_rows(
+                    section, object_type.reinforcement.transverse, points
+                )
+            elif tabulated_shear.rules() is not None:
+                # Alpha 9 C9b: τc with the axial force's δ (IS 456 40.2.2 type).
+                checks += tabulated_shear.column_rows(
+                    section, object_type.reinforcement.transverse, points
+                )
+            else:
+                checks += column_shear.column_shear_checks(
+                    section, object_type.reinforcement.transverse, points
+                )
+            # B21: shear friction across the construction joint at the floor.
+            joint = rc_detailing.column_joint_check(section, points, bars.steel.fy)
+            if joint is not None:
+                checks.append(joint)
+            out.faced = out.faced or faced.at_faces
+            if member_rules:  # Alpha 9 C5 (see above)
+                column_transverse = object_type.reinforcement.transverse
+                ned_max = float(points.pu.max()) if len(points.pu) else 0.0
+                checks += bar_rules.column_rows(section, ned_max, column_transverse)
+                if ductility:
+                    checks += curvature_ductility.column_rows(
+                        section, column_transverse, ned_max, ductility
+                    )
+                    if mu_phi is not None:  # Alpha 9 C5c
+                        checks += curvature_ductility.confinement_rows(
+                            section, column_transverse, ned_max, ductility, mu_phi
+                        )
+            if limit_rules:  # Alpha 9 C8 (see the beams)
+                checks += member_limits.column_rows(
+                    section,
+                    object_type.reinforcement.transverse,
+                    object_type.reinforcement.cover,
+                )
+            # Alpha 9 C20b: the seismic grade's μN, hoops and least steel (none without
+            # the pack's rule).
+            checks += seismic_grades.column_rows(
+                member_id,
+                section,
+                object_type.reinforcement.transverse,
+                object_type.reinforcement.cover,
+                own,
+                combinations,
+                _turned(element, exact),
+            )
+        # Alpha 9 C19: the pack's allowable stress design (allowableStress) and the member's
+        # rank for Ds (horizontalCapacity.memberRanks), from the per-case forces.
+        if allowable_stress.table() is not None or member_rank.tables() is not None:
+            kind_name = "beam" if isinstance(object_type, Beam) else "column"
+            checks += allowable_stress.rc_rows(
+                section, object_type, joints_own, service, _turned(element, exact),
+                kind_name, live_factor,
+            )  # fmt: skip
+            rank_row = member_rank.rc_row(
+                section, object_type, joints_own, service, _turned(element, exact), kind_name
+            )
+            if rank_row is not None:
+                checks.append(rank_row)
+        if live_row is not None:
+            checks.append(live_row)
+        if roof_row is not None:
+            checks.append(roof_row)
+        given = resolved_overwrites.get(member_id)
+        if given:
+            notes.extend(f"{member_id}: {note}" for note in given.notes())
+    except DesignError as error:
+        out.skip = str(error)
+        return out
+    out.section = section
+    out.capacities = capacities if isinstance(object_type, Beam) else None
+    out.own = own
+    out.checks = checks
+    out.points = slender.points if isinstance(object_type, Column) else None
+    out.torsion = torsion_found
+    entry = {
+        "id": member_id,
+        "kind": "beam" if isinstance(object_type, Beam) else "column",
+        "type": type_id,
+        "members": [p.id for p in own],
+        "checks": checks,
+    }
+    seismic_detailing.rate(entry)
+    out.entry = entry
+    return out
 
 
 def _design_timber(
