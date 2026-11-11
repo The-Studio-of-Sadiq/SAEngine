@@ -492,7 +492,7 @@ export class AiToolRunner {
 
 	private async proposeBuilding(args: Record<string, unknown>): Promise<MCP.CallToolResult> {
 		await this.commandService.executeCommand(NEW_BUILDING_COMMAND, { spec: args });
-		return textResult('The New Building wizard is open with this building filled in. The engineer checks the plan, changes any field and clicks Generate to create the project; nothing is created before that.');
+		return textResult('The New Project wizard is open with this building filled in. The engineer checks the plan, changes any field and clicks Generate to create the project; nothing is created before that.');
 	}
 }
 

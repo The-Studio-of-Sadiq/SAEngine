@@ -2484,3 +2484,11 @@ Each is a pack value or method id, overridable in Code Values; the default pack 
   only a few percent of midspan capacity (B5 of the Sample Frame: 121.5 to 126.4 kN·m), not
   at the column faces, where seismic sagging usually governs, and it would add bending work,
   longer bars and cranks in the congested zone beside the joint.
+- **One way to start a project: New Project... (2026-11-11).** The start page, the File menu,
+  the sidebar's ≡ menu and the command palette offer only *New Project...*; *New Building from
+  Grid...* and *New Project from Template...* are gone as entries (their command ids stay and
+  open the same wizard). The wizard asks the project (name, folder, *Start from*, design code,
+  units), then the site and use, then the grid, storeys and structure, and creates it. *Start
+  from* holds the grid (default), the building specifications and full templates of the
+  installed packages, an empty building and a special structure; a full template skips the site
+  and grid pages (it has its own model and settings), an empty project the grid page.

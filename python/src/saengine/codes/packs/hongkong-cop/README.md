@@ -4,7 +4,7 @@ A thin built-in pack (alpha 9 track C23). The Hong Kong Codes of Practice of the
 Department grew out of the British Standards, so the pack `extends` the legacy pack `bs8110`
 (BS 8110, BS 6399, BS 5950) and sets only what the Hong Kong codes change; every other table
 is the parent's (see its README), named BS 8110 / BS 6399 / BS 5950 in the report. Choose it in
-**02 Project Settings → Design code** or in the **New Building** wizard; its places are in
+**02 Project Settings → Design code** or in the **New Project** wizard; its places are in
 **Site → Location**. Any value can be overridden per project under **Code Values**.
 
 Every value, with its clause and how sure it is, is in [`VERIFY.md`](VERIFY.md). No copy of the

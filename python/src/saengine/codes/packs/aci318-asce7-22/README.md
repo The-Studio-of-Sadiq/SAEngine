@@ -98,14 +98,14 @@ The protection of the steel (thickness, conductivity, density, specific heat; de
 
 Values: VERIFY.md rows U1-U20.
 
-The New Building wizard's "Steel moment frame" and "Steel braced frame" generate steel columns
+The New Project wizard's "Steel moment frame" and "Steel braced frame" generate steel columns
 (HEB), beams (IPE), X braces (SHS, BIM inclined members) and RC slabs, with the first system of
 `generatorSystems` the Seismic Design Category and height permit (steel not specifically
 detailed in B and C, else OMF, IMF, SMF or OCBF, SCBF), every member within that system's
 width-thickness limits; Design mode then checks them under the pack (LRFD, or ASD by
 `steel.designMethod`).
 
-Choose it in Project Settings (Design code) or in the New Building wizard. The site's values
+Choose it in Project Settings (Design code) or in the New Project wizard. The site's values
 come from the ASCE Hazard Tool, not from a table of towns: enter SDS, SD1 (or SMS, SM1, or the
 multi-period MCER spectrum), S1 and TL under Site > Mapped spectral values, the basic wind
 speed V of the risk category under Site, and a ground snow load under Site > Snow.

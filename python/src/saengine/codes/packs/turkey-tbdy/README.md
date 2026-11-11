@@ -2,7 +2,7 @@
 
 A pack for the Turkish codes: it `extends` the US pack `aci318-asce7-22` (ASCE 7-22, ACI 318-19,
 AISC 360-22, AISC 341-22) and sets what TBDY 2018, TS 500 and TS 498 change. Choose it in
-**02 Project Settings → Design code** or in the **New Building** wizard. Any value can be
+**02 Project Settings → Design code** or in the **New Project** wizard. Any value can be
 overridden per project under **Code Values**; switching the pack applies on the next run. A new
 project starts in SI units.
 

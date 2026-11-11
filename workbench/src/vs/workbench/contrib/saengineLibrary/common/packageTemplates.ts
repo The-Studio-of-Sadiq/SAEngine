@@ -7,8 +7,8 @@
  * The templates of the installed packages as the app applies them (docs/marketplace-plan.md,
  * round M4), read from the backend's `codes/templates` (saengine.codes.catalogue):
  *  - structure presets fill the modeller's Generate panel (grouped by package);
- *  - building specifications prefill the New Building wizard;
- *  - full building templates (an inputs-only `.civil`) open through New Project from Template...
+ *  - building specifications prefill the New Project wizard;
+ *  - full building templates (an inputs-only `.civil`) open through New Project's Start from
  * Installing and removing them stays on the Packages page.
  */
 
@@ -16,9 +16,9 @@
 export const CODES_TEMPLATES_COMMAND = 'saengine.codes.templates';
 /** `{ path, author? }` -> `{ ok, problems }`: may the archive be opened as a full template (backend). */
 export const CODES_CHECK_TEMPLATE_COMMAND = 'saengine.codes.checkTemplate';
-/** `{ path? }`: New Project from Template... (picks an installed full template when no path). */
+/** `{ path, author?, name?, destParent? }`: a full template opened as a new project (without a path: New Project, the template chosen in Start from). */
 export const NEW_FROM_TEMPLATE_COMMAND = 'saengine.project.newFromTemplate';
-/** The building template the New Building wizard starts from. */
+/** The building template New Project's grid starts from. */
 export const DEFAULT_BUILDING_TEMPLATE = 'saengine-default-building';
 /** `{ package, file, values, root? }` -> a coded structure template's geometry, or `{ problems, untrusted? }` (backend). */
 export const CODES_CODED_GEOMETRY_COMMAND = 'saengine.codes.codedGeometry';

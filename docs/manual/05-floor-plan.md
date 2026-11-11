@@ -210,16 +210,18 @@ the member's fields): factors on A, J, I22, I33, mass and weight (shells: membra
 k, unbraced lengths and framing for the design. An empty field inherits the object type's value,
 then the code's cracked factor. Each change is one undoable edit.
 
-## New Building from Grid
+## New Project from the grid
 
-**New Building from Grid...** (start page, ≡ menu, or File menu) creates a complete new RC
-building project in one step, with preliminary member sizes you edit afterwards.
+**New Project...** (start page, ≡ menu, or File menu) with *Start from: Grid and storeys* (the
+default) creates a complete new RC building project in one go, with preliminary member sizes you
+edit afterwards. Page 1 (Project) and page 2 (Site and Use) are described in
+[Getting started](00-getting-started.md#new-project); page 3, **Grid and Storeys**, asks:
 
-![The New Building wizard](images/new-building.png)
+![The New Project wizard](images/new-building.png)
 
 | Input | Default | Notes |
 | --- | --- | --- |
-| Name, Folder | | the new project folder |
+| Name, Folder | | the new project folder (page 1) |
 | X (A, B, C ...) | `3×6000` | bay widths; shorthand like `3×6000, 4500`; units mm, cm, m, ft; 1 to 30 m per bay, at most 60 bays |
 | Y (1, 2, 3 ...) | `2×5000` | |
 | Number of storeys | 6 | at most 80 |
@@ -229,11 +231,12 @@ building project in one step, with preliminary member sizes you edit afterwards.
 | Concrete | C27.6 | |
 | Reinforcement | B500DWR | |
 | Footings | Isolated | *Isolated*, *Mat (raft)*, *None (add in 09 Substructure)* |
-| Location | Dhaka | with zone and wind speed |
-| Building use, Occupancy category | Residential, II | |
+| Location | Dhaka | with zone and wind speed (page 2) |
+| Building use, Occupancy category | Residential, II | (page 2) |
 
 A live plan and elevation preview shows the bays, storeys and the number of columns per floor.
-**Create Building** writes the project: default materials; column, beam, slab, wall and footing
+**Create Project** writes the project: default materials; column, beam, slab, wall and footing
+
 types **without bars**; the floor plan with typical-floor families; the building model; footings
 (or a mat) in 9 Substructure; and Project Settings with the occupancy, live load, site and the
 structural system the seismic design category requires. A page *<name> Is Ready* shows the

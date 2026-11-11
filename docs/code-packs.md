@@ -69,7 +69,7 @@ wind), say so: `"notCovered": ["seismic"]` in `pack.json`.
 pass: the tables in `covers` are the ones it gives, every table it gives has sources, no text of
 its own speaks for another code, earthquake and wind combinations exist (or are declared not
 covered), the bar names and masses are of its bar sizes, and its verification is stated. Then
-install it, make a one-bay building with it in the New Building wizard, run the analysis and
+install it, make a one-bay building with it in the New Project wizard, run the analysis and
 Design Reinforcement, and read the report's design basis. The test suite runs the same checks
 over every installed pack (`tests/test_codes_conformance.py`; with `-m slow` it also derives
 and designs a generated building under each).
@@ -78,7 +78,7 @@ and designs a generated building under each).
 one row each. A second engineer checks each row against the printed code and writes `Verified
 <date>` (or ✓) in its last column. Until every row is ticked, or `pack.json` says
 `"verified": "<date>"`, SAEngine shows **values not yet verified against the printed code**
-beside the pack in Project Settings, in the New Building wizard, on the Packages page and in the
+beside the pack in Project Settings, in the New Project wizard, on the Packages page and in the
 report's design basis. Built-in packs follow the same rule: their `VERIFY.md` lists what their
 authors entered without the printed code at hand.
 
@@ -689,7 +689,7 @@ shear, Qi by hi², scaling to VB, drift 0.004, irregularities). It extends BNBC 
 materials, as `eurocodes` does. Its README and `VERIFY.md` (every value, its clause and how sure
 it is) are in `python/src/saengine/codes/packs/is-codes/`.
 
-It has towns: choosing it in **New Project** or the **New Building** wizard lists its 67 cities
+It has towns: choosing it in **New Project** or the **New Project** wizard lists its 67 cities
 (zone and basic wind speed), soil types and terrain categories, and a new project starts from
 the pack's defaults (Delhi, soil type II, RC SMRF, terrain category 2, its live loads and
 combinations), every one changeable in Project Settings. k3 is the topographic factor of Project
@@ -991,7 +991,7 @@ The same `pack.json` and the same registry hold the other packages of the market
 
 Templates are installed for the user only (applying one copies it into the project), take no
 `extends`, and share the built-in folder and the trust of hooks with design codes. Ids are one
-namespace across kinds. Applying templates (the Generate panel, the New Building wizard) comes in
+namespace across kinds. Applying templates (the Generate panel, the New Project wizard) comes in
 a later round; for now they are listed, validated and installed:
 `saengine codepack list --kind all`, `saengine codepack validate <folder> --kind structureTemplate`.
 

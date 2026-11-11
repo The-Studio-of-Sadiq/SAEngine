@@ -62,7 +62,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			default: false,
 			// The user's own choice: never from a project's .vscode/settings.json.
 			scope: ConfigurationScope.APPLICATION,
-			markdownDescription: localize('saengine.hazard.allowOnlineLookups', "Allow Project Settings > Site and the New Building wizard to look up the site's seismic hazard values online by its coordinates, from the service the project's code pack names (for ASCE 7-22, the USGS Seismic Design Web Services). SAEngine asks before every lookup and shows the request; only the site's latitude and longitude and the code parameters (risk category, site class) are sent. Off: the values are entered by hand."),
+			markdownDescription: localize('saengine.hazard.allowOnlineLookups', "Allow Project Settings > Site and the New Project wizard to look up the site's seismic hazard values online by its coordinates, from the service the project's code pack names (for ASCE 7-22, the USGS Seismic Design Web Services). SAEngine asks before every lookup and shows the request; only the site's latitude and longitude and the code parameters (risk category, site class) are sent. Off: the values are entered by hand."),
 		},
 	},
 });

@@ -372,7 +372,7 @@ function describeTool(result: IAiToolResult): string {
 		case 'open_file': return localize('tool.openFile', "Opened a project file") + failed;
 		case 'reveal_element': return localize('tool.reveal', "Showed a member") + failed;
 		case 'propose_changes': return localize('tool.proposeChanges', "Proposed a change set") + failed;
-		case 'propose_building': return localize('tool.proposeBuilding', "Filled the New Building wizard") + failed;
+		case 'propose_building': return localize('tool.proposeBuilding', "Filled the New Project wizard") + failed;
 		default: return result.name + failed;
 	}
 }

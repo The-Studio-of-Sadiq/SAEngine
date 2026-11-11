@@ -1040,7 +1040,7 @@ CommandsRegistry.registerCommand('saengine.revit.apply', async (accessor, args: 
 });
 
 /**
- * Integrator glue: the backend of the New Building wizard (newBuildingWizard.ts calls it by id,
+ * Integrator glue: the backend of the New Project wizard (newBuildingWizard.ts calls it by id,
  * `saengine.library.generateBuilding` `{spec, destParent, name, site?}`): `library/generateBuilding`
  * generates the building from its grids and storeys into `<destParent>/<name>`
  * (saengine.project.new_building, saengine.library.generator), with the soil report's `site`

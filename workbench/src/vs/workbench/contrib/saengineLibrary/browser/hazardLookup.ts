@@ -17,7 +17,7 @@ import { IProgressService, ProgressLocation } from '../../../../platform/progres
  * (`hazard/offers`, `hazard/lookup`), so this side only asks: the global setting first (off by
  * default), then the engineer's yes to the exact request shown, then the values shown before
  * they are applied. Only the coordinates and the code parameters leave the machine. Used by
- * Project Settings > Site and by the New Building wizard.
+ * Project Settings > Site and by the New Project wizard.
  */
 
 /** The global opt-in (application scope: a project's settings cannot turn it on). */

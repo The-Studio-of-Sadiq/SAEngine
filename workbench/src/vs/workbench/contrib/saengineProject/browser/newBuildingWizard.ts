@@ -13,7 +13,7 @@ import { SelectBox } from '../../../../base/browser/ui/selectBox/selectBox.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
-import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { isWindows } from '../../../../base/common/platform.js';
 import { dirname, joinPath } from '../../../../base/common/resources.js';
 import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
@@ -42,14 +42,16 @@ import { IEditorGroup } from '../../../services/editor/common/editorGroupsServic
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { gridLabel } from '../../../services/saengineProject/common/gridLabels.js';
 import { DEFAULT_CODE_TABLES, DEFAULT_MATERIALS, SETTINGS_SCHEMA } from '../../../services/saengineProject/common/projectLibraries.generated.js';
-import { ISaengineProject, ISaengineProjectService, partById } from '../../../services/saengineProject/common/saengineProject.js';
+import { ISaengineProject, ISaengineProjectService, partById, PROJECT_TYPES, ProjectType } from '../../../services/saengineProject/common/saengineProject.js';
 import {
 	BLANK_FORM, buildSpec, centralBay, fitSpacings, folderError, FOOTING_CHOICES, FormField, formatLengths, formatSummary, formFromSpec, formInUnits, GENERATE_BUILDING_COMMAND, IGenerateOutcome, IGenerateSummary, INewBuildingForm, IPendingBuilding, IWizardPlot, lengthUnit, OccupancyCategory,
 	parseSpacings, PENDING_BUILDING_STORAGE_KEY, plotFitWarning, readGenerateResult, readPendingBuilding, SiteClass, storyHeights, summarize, SYSTEM_CHOICES,
 } from './newBuildingModel.js';
 import { ISoilLocationRequest, ISoilLocationResult, SOIL_LOCATION_COMMAND } from '../../saengineSoil/browser/soilDocument.js';
 import { ProjectOverviewInput } from './projectOverviewInput.js';
-import { ProjectOpener } from './projectOpener.js';
+import { ProjectOpener, projectFolderName } from './projectOpener.js';
+import { INewFromTemplateArgs } from './projectArchiveFlows.js';
+
 import { plannedCodePacks } from '../../saengineLibrary/common/plannedCodePacks.js';
 import { CODES_CHOICES_COMMAND, CODES_LIST_COMMAND, ICodePackInfo, readCodePacks, readPackLists } from '../../saengineLibrary/browser/codePacksModel.js';
 import { CODES_TEMPLATES_COMMAND, DEFAULT_BUILDING_TEMPLATE, IBuildingTemplate, NEW_FROM_TEMPLATE_COMMAND, readBuildingTemplates } from '../../saengineLibrary/common/packageTemplates.js';
@@ -62,9 +64,12 @@ const SVG = 'http://www.w3.org/2000/svg';
 /** Application storage: the folder the last building was created in, offered next time. */
 const LAST_FOLDER_STORAGE_KEY = 'saengine.newBuilding.lastFolder';
 
-const wizardIcon = registerIcon('saengine-new-building-icon', Codicon.symbolStructure, localize('newBuildingIcon', "Icon of the New Building wizard."));
+const wizardIcon = registerIcon('saengine-new-building-icon', Codicon.symbolStructure, localize('newBuildingIcon', "Icon of the New Project wizard."));
 
-/** The New Building wizard: one page, opened from the start page and ≡ File. */
+/** What a command asks the wizard to start from: the grid or the first full template. */
+export type NewProjectStart = 'grid' | 'template';
+
+/** The New Project wizard (start page, ≡ File, the sidebar's ≡ menu, the command palette). */
 export class NewBuildingWizardInput extends EditorInput {
 
 	static readonly ID = 'workbench.input.saengine.newBuilding';
@@ -93,7 +98,7 @@ export class NewBuildingWizardInput extends EditorInput {
 	}
 
 	override getName(): string {
-		return localize('newBuilding.tab', "New Building");
+		return localize('newProject.tab', "New Project");
 	}
 
 	override getIcon(): ThemeIcon {
@@ -110,6 +115,43 @@ export class NewBuildingWizardInput extends EditorInput {
 	 * engineer still reviews it and clicks Generate.
 	 */
 	prefill: { readonly [key: string]: unknown } | undefined;
+
+	/** What to start from when the wizard shows next (the former New Project from Template...), then cleared. */
+	startFrom: NewProjectStart | undefined;
+}
+
+/** The pages of the wizard: the project, its site and use, the building's grid and storeys. */
+type WizardStep = 'project' | 'site' | 'building';
+
+/**
+ * What the new project starts from: the grid (a building specification fills the form, the
+ * default one first), a full template (a whole project of an installed package), or an empty
+ * project of a type (a building drawn by hand, a special structure).
+ */
+type StartFrom =
+	| { readonly kind: 'spec'; readonly template?: IBuildingTemplate }
+	| { readonly kind: 'archive'; readonly template: IBuildingTemplate }
+	| { readonly kind: 'empty'; readonly type: ProjectType };
+
+interface IStartOption {
+	readonly text: string;
+	readonly description?: string;
+	readonly start: StartFrom;
+}
+
+/** Tells the starts apart (the option of "Start from" that is chosen). */
+function startKey(start: StartFrom): string {
+	return start.kind === 'empty' ? `empty:${start.type}` : `${start.kind}:${start.template?.package ?? ''}:${start.template?.file ?? ''}:${start.template?.path ?? ''}`;
+}
+
+/** A template's name, with its package's where they differ. */
+function templateLabel(t: IBuildingTemplate): string {
+	return t.packageName === t.name || !t.packageName ? t.name : localize('newBuilding.templateIn', "{0} ({1})", t.name, t.packageName);
+}
+
+/** Lets a page's fields enable or disable Next and Create as they change. */
+interface IPageActions {
+	refresh(): void;
 }
 
 interface IChoice<T extends string> {
@@ -157,11 +199,16 @@ function settingsEnum(def: string, property: string): IChoice<string>[] {
 }
 
 /**
- * The New Building wizard (one page): the project's name and folder, the grids as spacings with
- * a live plan and elevation, the storeys, the structural system, the materials, the footings,
- * the location and the occupancy. Create asks the generator (`saengine.library.generateBuilding`)
- * for the project and its floor plan, shows its notes and opens it.
+ * The New Project wizard, the one way to start a project: page 1 the name, folder, what it
+ * starts from (the grid, a building specification or full template of a package, an empty
+ * building or special structure), the design code and units; page 2 the site and use; page 3
+ * (from the grid) the grids as spacings with a live plan and elevation, the storeys, the
+ * structural system, the materials and the footings. A full template skips pages 2 and 3, an
+ * empty project page 3. Create asks the generator (`saengine.library.generateBuilding`) for the
+ * project and its floor plan, shows its notes and opens it; an empty project is created and
+ * opened; a full template goes through the template check and the archive path (`saengine.project.newFromTemplate` with its path).
  */
+
 export class NewBuildingWizard extends EditorPane {
 
 	static readonly ID = NewBuildingWizardInput.EDITOR_ID;
@@ -196,8 +243,14 @@ export class NewBuildingWizard extends EditorPane {
 	/** C22: the site's coordinates typed for the hazard lookup (without an open project's site point). */
 	private hazardLatitude = '';
 	private hazardLongitude = '';
-	/** The package of the specification that filled the form last; undefined before any. */
-	private templateApplied: string | undefined;
+	/** What the project starts from ("Start from" on page 1); the grid until the templates are read. */
+	private start: StartFrom = { kind: 'spec' };
+	/** Whether the starting values (a specification's) were applied once. */
+	private started = false;
+	/** B10-3: the grids, storeys or system were edited after a specification filled them. */
+	private templateCustom = false;
+	/** The page shown. */
+	private step: WizardStep = 'project';
 
 	constructor(
 		group: IEditorGroup,
@@ -235,29 +288,39 @@ export class NewBuildingWizard extends EditorPane {
 		// B10-2: the engine may still be starting; say so instead of a blank page meanwhile.
 		if (!this.templates.length) {
 			const page = this.resetPage();
-			append(page, $('h1', undefined, localize('newBuilding.title', "New Building from Grid")));
+			append(page, $('h1', undefined, localize('newProject.title', "New Project")));
 			append(page, $('p.hint', { role: 'status' }, localize('newBuilding.loading', "Reading the building templates (the engine starts the first time, a few seconds)...")));
 		}
 		await this.loadTemplates();
 		await this.loadCodePacks();
-		if (!this.templateApplied) {
-			const start = this.templates.find(t => t.type === 'spec' && t.package === DEFAULT_BUILDING_TEMPLATE) ?? this.templates.find(t => t.type === 'spec');
-			if (start?.spec) {
-				this.form = { ...formFromSpec(start.spec, this.form) };
-				this.templateApplied = start.package;
-			}
+		if (!this.started) {
+			// The grid: the default specification (the first option of "Start from").
+			this.chooseStart(this.startOptions()[0].start);
+			this.started = true;
+		}
+		// Opened again: from the first page, with what was typed before kept.
+		this.step = 'project';
+		const startFrom = input.startFrom;
+		if (startFrom) {
+			input.startFrom = undefined;
+			this.applyStartRequest(startFrom);
 		}
 		const prefill = input.prefill;
 		if (prefill) {
+			// The AI assistant's building: the grid, filled with it.
 			input.prefill = undefined;
+			this.chooseStart(this.startOptions()[0].start);
 			this.form = { ...formFromSpec(prefill, this.form), ...(typeof prefill.name === 'string' && prefill.name.trim() ? { name: prefill.name.trim() } : {}) };
+			this.templateCustom = true;
 		}
-		this.renderForm();
+		this.renderPage();
 		// The plot needs the backend (a second or two): the form shows at once, then again with it.
 		const plot = await this.loadPlot();
 		if (plot && this.input === input && !token.isCancellationRequested) {
 			this.plot = plot;
-			this.renderForm();
+			if (this.showsGrid()) {
+				this.renderPage(); // the plot is drawn on the grid's page only
+			}
 		}
 	}
 
@@ -397,6 +460,23 @@ export class NewBuildingWizard extends EditorPane {
 		}
 	}
 
+	/**
+	 * A start asked for by a command: `template` the first full template installed (or, with none,
+	 * a note that leads to the Packages page; the grid stays), `grid` the grid.
+	 */
+	private applyStartRequest(request: NewProjectStart): void {
+		const options = this.startOptions();
+		const wanted = request === 'template' ? options.find(o => o.start.kind === 'archive') : options[0];
+		this.step = 'project';
+		if (wanted) {
+			this.chooseStart(wanted.start);
+			return;
+		}
+		this.notificationService.prompt(Severity.Info,
+			localize('template.none', "No full building templates are installed. A full template is a whole project (floor plan, model, settings) to start from; building specifications are offered under Start from in New Project."),
+			[{ label: localize('template.getMore', "Get Building Templates..."), run: () => this.commandService.executeCommand('saengine.packages.show', { tab: 'browse', kind: 'buildingTemplate' }) }]);
+	}
+
 	/** The building templates of the installed packages (empty without the backend). */
 	private async loadTemplates(): Promise<void> {
 		if (!CommandsRegistry.getCommand(CODES_TEMPLATES_COMMAND)) {
@@ -409,59 +489,128 @@ export class NewBuildingWizard extends EditorPane {
 		}
 	}
 
-	/** Marks "Start from" as Custom after an edit (set while the form shows a template's values). */
-	private templateEdited: (() => void) | undefined;
-
-	/** "Start from": the specifications fill the form; a full template opens as a new project. */
-	private renderTemplates(form: HTMLElement): void {
-		const control = this.row(form, localize('newBuilding.template', "Start from"));
+	/** The choices of "Start from" (page 1), the current one marked; Custom once a specification was edited. */
+	private startOptions(): IStartOption[] {
 		const specs = this.templates.filter(t => t.type === 'spec');
 		const archives = this.templates.filter(t => t.type === 'archive');
-		const label = (t: IBuildingTemplate) => t.packageName === t.name || !t.packageName ? t.name : localize('newBuilding.templateIn', "{0} ({1})", t.name, t.packageName);
-		const options = [
-			...specs.map(t => ({ text: label(t), description: t.description })),
-			...archives.map(t => ({ text: localize('newBuilding.templateFull', "{0}: full project...", label(t)), description: t.description })),
+		const label = templateLabel;
+		// The default specification is "the grid": its values are the form's starting values.
+		const grid = specs.find(t => t.package === DEFAULT_BUILDING_TEMPLATE) ?? specs[0];
+		const typeDescription = (type: ProjectType) => PROJECT_TYPES.find(t => t.type === type)?.description;
+		return [
+			{ text: localize('newProject.startGrid', "Grid and storeys (the whole building, defined next)"), description: grid?.description, start: { kind: 'spec', template: grid } },
+			...specs.filter(t => t !== grid).map((t): IStartOption => ({ text: localize('newProject.startSpec', "{0}: grid and storeys to adjust", label(t)), description: t.description, start: { kind: 'spec', template: t } })),
+			...archives.map((t): IStartOption => ({ text: localize('newProject.startArchive', "{0}: full project with its own model", label(t)), description: t.description, start: { kind: 'archive', template: t } })),
+			{ text: localize('newProject.startEmpty', "Empty building (draw the grids and members yourself)"), description: typeDescription('building'), start: { kind: 'empty', type: 'building' } },
+			{ text: localize('newProject.startStructure', "Special structure (a 3D model, no grid)"), description: typeDescription('structure'), start: { kind: 'empty', type: 'structure' } },
 		];
-		if (!options.length) {
-			append(control, $('span.hint', undefined, localize('newBuilding.noTemplates', "No building templates installed.")));
-			return;
-		}
-		const index = Math.max(0, specs.findIndex(t => t.package === this.templateApplied));
-		const box = this.pageDisposables.add(new SelectBox(options, index, this.contextViewService, defaultSelectBoxStyles, { ariaLabel: localize('newBuilding.template', "Start from") }));
+	}
+
+	/** "Start from": the grid (a building specification fills the form), a full template, or an empty project. */
+	private renderStartFrom(form: HTMLElement): void {
+		const control = this.row(form, localize('newBuilding.template', "Start from"));
+		const options = this.startOptions();
+		const index = Math.max(0, options.findIndex(o => startKey(o.start) === startKey(this.start)));
+		const from = this.start.kind === 'spec' ? this.start.template : undefined;
+		// B10-3: edited after a specification filled it, the form is no longer that specification.
+		const custom = this.templateCustom && from
+			? [{ text: index === 0 ? localize('newProject.startGridEdited', "Grid and storeys (edited)") : localize('newBuilding.templateCustom', "Custom (started from {0})", templateLabel(from)), description: undefined }] : [];
+		const items = [...options.map(o => ({ text: o.text, description: o.description })), ...custom];
+		const box = this.pageDisposables.add(new SelectBox(items, custom.length ? options.length : index, this.contextViewService, defaultSelectBoxStyles, { ariaLabel: localize('newBuilding.template', "Start from") }));
 		box.render(control);
-		// B10-3: edited after a template filled it, the form is no longer that template.
-		let custom = false;
-		this.templateEdited = () => {
-			const from = specs[index];
-			if (custom || !from) {
-				return;
-			}
-			custom = true;
-			box.setOptions([...options, { text: localize('newBuilding.templateCustom', "Custom (started from {0})", label(from)), description: undefined }], options.length);
-		};
-		this.pageDisposables.add(toDisposable(() => this.templateEdited = undefined));
+		const hint = append(form, $('p.hint.indented.plot-hint'));
+		hint.textContent = this.startHint();
+		// Building templates are installed on the Packages page; the wizard only links to it.
+		const more = append(form, $('p.hint.indented'));
+		const link = append(more, $('a.packages-link', { href: '#', role: 'button' }, localize('newBuilding.moreTemplates', "Get more building templates...")));
+		this.pageDisposables.add(addDisposableListener(link, EventType.CLICK, e => {
+			e.preventDefault();
+			void this.commandService.executeCommand('saengine.packages.show', { tab: 'browse', kind: 'buildingTemplate' });
+		}));
 		this.pageDisposables.add(box.onDidSelect(({ index: picked }) => {
-			if (picked >= options.length) {
+			const option = options[picked];
+			if (!option) {
 				return; // the custom entry: nothing to apply
 			}
-			const spec = specs[picked];
-			if (spec?.spec) {
-				this.form = { ...formFromSpec(spec.spec, this.form) };
-				this.templateApplied = spec.package;
-				this.renderForm();
-				return;
-			}
-			const archive = archives[picked - specs.length];
-			if (archive?.path) {
-				box.select(index);
-				void this.commandService.executeCommand(NEW_FROM_TEMPLATE_COMMAND, { path: archive.path, author: archive.author, name: this.form.name.trim() || undefined });
-			}
+			this.chooseStart(option.start);
+			this.renderPage();
 		}));
 	}
 
-	/** Whether the backend can generate a building in this build. */
+	/** What the chosen start makes, under "Start from". */
+	private startHint(): string {
+		switch (this.start.kind) {
+			case 'spec':
+				return localize('newBuilding.subtitle', "Columns, beams, walls, slabs and footings on every storey in one step, with preliminary sizes. Edit them afterwards in the floor plan.");
+			case 'archive':
+				return localize('newProject.archiveHint', "A whole project (floor plan, model, settings) from an installed template. It keeps its own design code and settings: change them in 02 Project Settings once it opens.");
+			case 'empty':
+				return this.start.type === 'building'
+					? localize('newProject.emptyHint', "A project with no grids or members yet: draw them in 05 Floor Plan, or generate members from the grid there.")
+					: localize('newProject.structureHint', "A project modelled in 3D (roofs, stadiums, towers, bridges): no floor grid is asked.");
+		}
+	}
+
+	/** The start chosen in "Start from": a specification fills the form with its values. */
+	private chooseStart(start: StartFrom): void {
+		this.start = start;
+		this.templateCustom = false;
+		if (start.kind === 'spec' && start.template?.spec) {
+			this.form = { ...formFromSpec(start.template.spec, this.form) };
+		}
+	}
+
+	/** The pages of the chosen start: the grid's three, an empty project's two, a full template's one. */
+	private steps(): readonly WizardStep[] {
+		switch (this.start.kind) {
+			case 'spec': return ['project', 'site', 'building'];
+			case 'empty': return ['project', 'site'];
+			case 'archive': return ['project'];
+		}
+	}
+
+	private stepTitle(step: WizardStep): string {
+		switch (step) {
+			case 'project': return localize('newProject.stepProject', "Project");
+			case 'site': return localize('newBuilding.site', "Site and Use");
+			case 'building': return localize('newProject.stepBuilding', "Grid and Storeys");
+		}
+	}
+
+	/** Why the name cannot be used, or undefined (an empty project's folder name is made from any name). */
+	private nameError(text: string): string | undefined {
+		return this.start.kind === 'empty' ? this.opener.validateDisplayName(text) : this.opener.validateName(text);
+	}
+
+	/** The folder the project will be in, or undefined while the name or the folder is not valid. */
+	private targetFolder(): URI | undefined {
+		if (folderError(this.folder, isWindows) || !this.form.name.trim() || this.nameError(this.form.name)) {
+			return undefined;
+		}
+		const folder = this.start.kind === 'empty' ? projectFolderName(this.form.name) : this.form.name.trim();
+		return joinPath(URI.file(this.folder.trim()), folder);
+	}
+
+	/** Whether the grid's page is shown (the engineer may have gone on while the plot was read). */
+	private showsGrid(): boolean {
+		return this.step === 'building';
+	}
+
+	/** Whether the page `step` is complete (its fields read). */
+	private stepValid(step: WizardStep): boolean {
+		switch (step) {
+			case 'project': return !!this.targetFolder();
+			case 'site': return true;
+			case 'building': return buildSpec(this.form, value => this.opener.validateName(value)).ok;
+		}
+	}
+
+	/** Whether this build can create the chosen start (the generator, the template check). */
 	private get available(): boolean {
-		return !!CommandsRegistry.getCommand(GENERATE_BUILDING_COMMAND);
+		switch (this.start.kind) {
+			case 'spec': return !!CommandsRegistry.getCommand(GENERATE_BUILDING_COMMAND);
+			default: return true; // a full template's check and an empty project need no generator
+		}
 	}
 
 	private resetPage(): HTMLElement {
@@ -471,19 +620,52 @@ export class NewBuildingWizard extends EditorPane {
 		return append(this.container, $('.page'));
 	}
 
-	// ───────────────────────────── the form ─────────────────────────────
+	/** To page `step`: forward only past complete pages (the first incomplete one shows instead). */
+	private goTo(step: WizardStep): void {
+		const steps = this.steps();
+		const target = steps.indexOf(step);
+		if (target < 0) {
+			return;
+		}
+		for (let i = steps.indexOf(this.step); i >= 0 && i < target; i++) {
+			if (!this.stepValid(steps[i])) {
+				this.step = steps[i];
+				this.renderPage(true);
+				return;
+			}
+		}
+		this.step = step;
+		this.renderPage();
+	}
 
-	private renderForm(): void {
+	// ───────────────────────────── the pages ─────────────────────────────
+
+	/**
+	 * The page of {@link step}: the steps above it, its fields, and Back, Next (or Create on the
+	 * last page) and Cancel. `showErrors`: the page's fields say what is wrong at once.
+	 */
+	private renderPage(showErrors = false): void {
+		const steps = this.steps();
+		if (!steps.includes(this.step)) {
+			this.step = steps[0];
+		}
 		const page = this.resetPage();
 		const header = append(page, $('header.header'));
-		append(header, $('h1', undefined, localize('newBuilding.title', "New Building from Grid")));
-		append(header, $('p.subtitle', undefined, localize('newBuilding.subtitle', "Columns, beams, walls, slabs and footings on every storey in one step, with preliminary sizes. Edit them afterwards in the floor plan.")));
-		// Building templates are installed on the Packages page; the wizard only links to it.
-		const more = append(header, $('a.packages-link', { href: '#', role: 'button' }, localize('newBuilding.moreTemplates', "Get more building templates...")));
-		this.pageDisposables.add(addDisposableListener(more, EventType.CLICK, e => {
-			e.preventDefault();
-			void this.commandService.executeCommand('saengine.packages.show', { tab: 'browse', kind: 'buildingTemplate' });
-		}));
+		append(header, $('h1', undefined, localize('newProject.title', "New Project")));
+		const current = steps.indexOf(this.step);
+		if (steps.length > 1) {
+			const list = append(header, $('ol.steps', { 'aria-label': localize('newProject.stepsAria', "Steps") }));
+			for (const [i, step] of steps.entries()) {
+				const item = append(list, $('li'));
+				const button = append(item, $('button.step', { type: 'button' }, localize('newProject.stepLabel', "{0}. {1}", i + 1, this.stepTitle(step))));
+				button.classList.toggle('current', i === current);
+				button.classList.toggle('done', i < current);
+				if (i === current) {
+					button.setAttribute('aria-current', 'step');
+				}
+				this.pageDisposables.add(addDisposableListener(button, EventType.CLICK, () => this.goTo(step)));
+			}
+		}
 		if (!this.available) {
 			const note = append(page, $('.unavailable', { role: 'status' }));
 			append(note, $(`span${ThemeIcon.asCSSSelector(Codicon.info)}`));
@@ -492,19 +674,206 @@ export class NewBuildingWizard extends EditorPane {
 
 		const body = append(page, $('.body'));
 		const form = append(body, $('.form'));
-		const side = append(body, $('aside.preview', { 'aria-label': localize('newBuilding.previewAria', "Preview") }));
+		const last = current === steps.length - 1;
+		const actions: IPageActions = { refresh: () => { } };
+		switch (this.step) {
+			case 'project': this.renderProjectStep(form, actions, showErrors); break;
+			case 'site': this.renderSiteStep(form); break;
+			case 'building': this.renderBuildingStep(form, append(body, $('aside.preview', { 'aria-label': localize('newBuilding.previewAria', "Preview") })), actions, showErrors); break;
+		}
+		body.classList.toggle('single', this.step !== 'building');
+
+		// ── actions ──
+		const row = append(form, $('.form-actions'));
+		if (current > 0) {
+			const back = this.pageDisposables.add(new Button(row, { ...defaultButtonStyles, secondary: true }));
+			back.label = localize('newProject.back', "Back");
+			this.pageDisposables.add(back.onDidClick(() => this.goTo(steps[current - 1])));
+		}
+		const primary = this.pageDisposables.add(new Button(row, defaultButtonStyles));
+		primary.label = last ? localize('newProject.create', "Create Project") : localize('newProject.next', "Next");
+		const cancel = this.pageDisposables.add(new Button(row, { ...defaultButtonStyles, secondary: true }));
+		cancel.label = localize('newBuilding.cancel', "Cancel");
+		this.pageDisposables.add(cancel.onDidClick(() => this.close()));
+		const status = append(row, $('span.status', { 'aria-live': 'polite' }));
+		// W4A-1: a failure stays on the form (the notification may be closed or time out) until the next try.
+		const failure = append(form, $('p.error.create-failure', { role: 'alert' }));
+		// Create stays off while a page is not complete; Next shows what is missing instead.
+		const update = () => {
+			primary.enabled = !this.busy && (!last || (this.available && steps.every(step => this.stepValid(step))));
+		};
+		actions.refresh = update;
+		const next = () => {
+			if (!primary.enabled) {
+				return;
+			}
+			if (!last) {
+				this.goTo(steps[current + 1]);
+			} else if (!steps.every(step => this.stepValid(step))) {
+				this.goTo(steps[steps.length - 1]); // to the first incomplete page
+			} else {
+				void this.createProject(failure, status, update);
+			}
+		};
+		this.pageDisposables.add(primary.onDidClick(next));
+		this.pageDisposables.add(addDisposableListener(form, EventType.KEY_DOWN, e => {
+			// Enter in a field goes on (Next, or Create on the last page) when the button could.
+			if (e.key === 'Enter' && !isHTMLButtonElement(e.target)) {
+				next();
+			} else if (e.key === 'Escape') {
+				this.close();
+			}
+		}));
+		update();
+		this.scrollable.scanDomNode();
+		this.focusTarget?.focus();
+	}
+
+	/** Page 1: the name and folder, what the project starts from, its design code and units. */
+	private renderProjectStep(form: HTMLElement, actions: IPageActions, showErrors: boolean): void {
+		const name = this.textInput(form, localize('newBuilding.name', "Name"), this.form.name, value => this.form.name = value, localize('newBuilding.namePlaceholder', "e.g. Office Building"), text => this.nameError(text));
+		const folderRow = this.row(form, localize('newBuilding.folder', "Folder"));
+		const location = this.pageDisposables.add(new InputBox(folderRow, this.contextViewService, { inputBoxStyles: defaultInputBoxStyles, ariaLabel: localize('newBuilding.folder', "Folder") }));
+		location.value = this.folder;
+		this.pageDisposables.add(location.onDidChange(value => this.folder = value));
+		const browse = this.pageDisposables.add(new Button(folderRow, { ...defaultButtonStyles, secondary: true }));
+		browse.label = localize('newBuilding.browse', "Browse...");
+		this.pageDisposables.add(browse.onDidClick(async () => {
+			const picked = await this.opener.browseForLocation(URI.file(location.value), localize('newProject.folderTitle', "Choose Where to Create the Project"));
+			if (picked) {
+				location.value = picked.fsPath;
+			}
+		}));
+		const folderMessage = append(form, $('p.error', { 'aria-live': 'polite' }));
+		const target = append(form, $('p.target'));
+		const project = this.projectService.project;
+		if (project) {
+			append(form, $('p.hint.indented', undefined, localize('newProject.separate', "The new project is separate: {0}, open now, is not changed.", project.name)));
+		}
+		const updateTarget = () => {
+			const error = folderError(this.folder, isWindows);
+			folderMessage.textContent = error ?? '';
+			const folder = this.targetFolder();
+			target.textContent = folder ? localize('newBuilding.target', "Will be created in {0}", folder.fsPath) : '';
+			actions.refresh();
+		};
+		this.pageDisposables.add(name.onDidChange(() => {
+			name.validate();
+			updateTarget();
+		}));
+		this.pageDisposables.add(location.onDidChange(updateTarget));
+
+		this.renderStartFrom(form);
+
+		if (this.start.kind === 'archive') {
+			// The template keeps its own design code and units: nothing more is asked.
+		} else {
+			// The installed design-code packs, then the planned ones as disabled options of the list
+			// (B10-4: no second set of chips).
+			this.select(form, localize('newBuilding.designCode', "Design code"), designCodeChoices(this.codePacks), this.form.designCode || DEFAULT_CODE_PACK_ID, value => {
+				if (value === this.form.designCode) {
+					return;
+				}
+				this.form.designCode = value;
+				this.form.hazard = undefined; // C22: another code's values are not this one's
+				void this.loadPackExposures(value).then(() => this.renderPage());
+			});
+			if (this.start.kind === 'spec') {
+				// W4A-6: the units the project shows (the pack's suggestion: US customary for the US pack);
+				// the grid, the storeys and the wind speed are typed in them.
+				const unitChoices: IChoice<string>[] = [
+					{ value: 'SI', label: localize('newBuilding.unitsSi', "SI (mm, m, kN, MPa)") },
+					{ value: 'USCustomary', label: localize('newBuilding.unitsUs', "US customary (ft, in, kip, ksi, psf)") },
+				];
+				this.select(form, localize('newBuilding.units', "Units"), unitChoices, this.form.units ?? 'SI', value => {
+					const units = value === 'USCustomary' ? 'USCustomary' : 'SI';
+					if (units !== (this.form.units ?? 'SI')) {
+						this.form = formInUnits(this.form, units);
+						this.renderPage();
+					}
+				});
+			} else {
+				append(form, $('p.hint.indented', undefined, localize('newProject.unitsLater', "The project's units follow the design code; change them in 02 Project Settings.")));
+			}
+		}
+		updateTarget();
+		if (showErrors) {
+			name.validate();
+		}
+		this.focusTarget = showErrors && !this.nameError(this.form.name) ? location : name;
+	}
+
+	/**
+	 * Page 2: where the building stands and what it is for. An empty project takes the location
+	 * and the use (the rest is set in Project Settings > Site); a building from the grid all of it.
+	 */
+	private renderSiteStep(form: HTMLElement): void {
+		const full = this.start.kind === 'spec';
+		const inFeet = lengthUnit(this.form) === 'ft';
+		const isDefault = (this.form.designCode || DEFAULT_CODE_PACK_ID) === DEFAULT_CODE_PACK_ID;
+		let first: { focus(): void } | undefined;
+		if (isDefault) {
+			// W4C-34: the default pack is the one chosen here, whatever pack the open project uses.
+			append(form, $('p.hint', undefined, localize('newBuilding.siteHint', "{0}: the location sets the seismic zone and basic wind speed; the occupancy category the importance factors (Table 6.1.1).", defaultCodeName())));
+			first = this.select(form, localize('newBuilding.location', "Location"), locationChoices(), this.form.location, value => this.form.location = value);
+		} else if (this.packTowns.length) {
+			// C7: a pack with towns of its own (Indian Standards): the town sets the zone and wind speed.
+			append(form, $('p.hint', undefined, localize('newBuilding.packTownsHint', "The location sets the seismic zone and basic wind speed of this design code. Check them, and the exposure, in Project Settings.")));
+			first = this.select(form, localize('newBuilding.location', "Location"), this.packTowns.map(t => ({ value: t.id, label: t.label })), this.form.location, value => this.form.location = value);
+			if (full && this.packExposures.length) {
+				const exposures = this.packExposures.map(e => ({ value: e.id, label: e.label }));
+				this.select(form, localize('newBuilding.exposure', "Exposure"), exposures, this.form.exposure, value => this.form.exposure = value);
+			}
+		} else if (full) {
+			// C4: a pack without the default pack's towns (the Eurocodes: the National Annex maps).
+			append(form, $('p.hint', undefined, localize('newBuilding.otherPackHint', "This design code has no towns of its own: enter the site's peak ground acceleration and basic wind speed from the national maps (the project's Location is Custom). Check them, and the exposure, in Project Settings.")));
+			if (this.packSpectrum === 'mappedSpectral') {
+				// C1: a pack whose design spectrum comes from the site's mapped values (ASCE 7-22).
+				append(form, $('p.hint', undefined, localize('newBuilding.mappedHint', "This design code takes the seismic hazard from the site's mapped values (for ASCE 7-22, the ASCE Hazard Tool): SDS and SD1, with S1 and the long-period transition TL. They can be changed later in Project Settings > Site.")));
+				first = this.textInput(form, localize('newBuilding.sds', "SDS (g)"), this.form.sds, value => this.form.sds = value, localize('newBuilding.sdsPlaceholder', "e.g. 1.0"));
+				this.textInput(form, localize('newBuilding.sd1', "SD1 (g)"), this.form.sd1, value => this.form.sd1 = value, localize('newBuilding.sd1Placeholder', "e.g. 0.6"));
+				this.textInput(form, localize('newBuilding.s1', "S1 (g)"), this.form.s1, value => this.form.s1 = value, localize('newBuilding.s1Placeholder', "optional"));
+				this.textInput(form, localize('newBuilding.tl', "TL (s)"), this.form.tl, value => this.form.tl = value, localize('newBuilding.tlPlaceholder', "optional, e.g. 8"));
+				this.renderHazardLookup(form);
+			} else {
+				first = this.textInput(form, localize('newBuilding.zoneCoefficient', "Peak ground acceleration (g)"), this.form.zoneCoefficient, value => this.form.zoneCoefficient = value, localize('newBuilding.zonePlaceholder', "e.g. 0.16 (agR)"));
+			}
+			if (inFeet) {
+				this.textInput(form, localize('newBuilding.windSpeedMph', "Basic wind speed (mph)"), this.form.windSpeed, value => this.form.windSpeed = value, localize('newBuilding.windPlaceholderMph', "e.g. 105 (V)"));
+			} else {
+				this.textInput(form, localize('newBuilding.windSpeed', "Basic wind speed (m/s)"), this.form.windSpeed, value => this.form.windSpeed = value, localize('newBuilding.windPlaceholder', "e.g. 27 (vb,0)"));
+			}
+			if (this.packExposures.length) {
+				const exposures = this.packExposures.map(e => ({ value: e.id, label: e.label }));
+				this.select(form, localize('newBuilding.exposure', "Exposure"), exposures, this.form.exposure, value => this.form.exposure = value);
+			}
+		}
+		if (full) {
+			const siteClasses = this.packSiteClasses.length ? this.packSiteClasses.map(c => ({ value: c.id, label: c.label })) : settingsEnum('Site', 'siteClass');
+			this.select(form, localize('newBuilding.siteClass', "Site class"), siteClasses, this.form.siteClass, value => this.form.siteClass = value as SiteClass);
+			// Walk 4: the clause of the chosen pack (its own), never the default pack's under another code.
+			const siteClassHint = isDefault
+				? localize('newBuilding.siteClassHint', "Assumed until a soil report gives it ({0} Part 6, Table 6.2.13): add boreholes in 01 Soil Report and their class replaces it.", defaultCodeName())
+				: this.packSiteClassClause
+					? localize('newBuilding.siteClassHintPack', "Assumed until a soil report gives it ({0}): add boreholes in 01 Soil Report and their class replaces it.", this.packSiteClassClause)
+					: localize('newBuilding.siteClassHintNone', "Assumed until a soil report gives it: add boreholes in 01 Soil Report and their class replaces it.");
+			append(form, $('p.hint.indented', undefined, siteClassHint));
+		}
+		const use = this.select(form, localize('newBuilding.use', "Building use"), settingsEnum('Occupancy', 'use'), this.form.use, value => this.form.use = value);
+		if (full) {
+			this.select(form, localize('newBuilding.category', "Occupancy category"), settingsEnum('Occupancy', 'category'), this.form.category, value => this.form.category = value as OccupancyCategory);
+		} else {
+			append(form, $('p.hint.indented', undefined, localize('newProject.siteLater', "The site class, the occupancy category and the hazard values are set in 02 Project Settings > Site once the project opens.")));
+		}
+		this.focusTarget = first ?? use;
+	}
+
+	/** Page 3 (from the grid): the grids, the storeys and the structure, with a live plan and elevation. */
+	private renderBuildingStep(form: HTMLElement, side: HTMLElement, actions: IPageActions, showErrors: boolean): void {
 		const planHost = append(side, $('.preview-plan'));
 		const elevationHost = append(side, $('.preview-elevation'));
 		const summary = append(side, $('p.summary'));
 		const systemHint = append(side, $('p.hint'));
-
-		// Create stays off while the form or the folder is not valid.
-		const created: { button?: Button } = {};
-		const updateCreate = () => {
-			if (created.button) {
-				created.button.enabled = this.available && !this.busy && buildSpec(this.form, value => this.opener.validateName(value)).ok && !folderError(this.folder, isWindows);
-			}
-		};
 		const inputs = new Map<FormField, InputBox>();
 		const errors = new Map<FormField, HTMLElement>();
 		const plotWarning: { element?: HTMLElement } = {};
@@ -512,7 +881,7 @@ export class NewBuildingWizard extends EditorPane {
 		let ready = false;
 		const updatePreview = () => {
 			if (ready) {
-				this.templateEdited?.();
+				this.templateCustom = true;
 			}
 			const x = parseSpacings(this.form.gridX, lengthUnit(this.form));
 			const y = parseSpacings(this.form.gridY, lengthUnit(this.form));
@@ -533,46 +902,12 @@ export class NewBuildingWizard extends EditorPane {
 			for (const [field, message] of [['gridX', x], ['gridY', y], ['stories', heights]] as const) {
 				const element = errors.get(field);
 				if (element) {
-					element.textContent = message.ok ? '' : message.error;
+					element.textContent = message.ok || (!ready && !showErrors) ? '' : message.error;
 				}
 			}
 			this.scrollable.scanDomNode();
-			updateCreate();
+			actions.refresh();
 		};
-
-		// ── project ──
-		this.section(form, localize('newBuilding.project', "Project"));
-		this.renderTemplates(form);
-		const name = this.textInput(form, localize('newBuilding.name', "Name"), this.form.name, value => this.form.name = value, localize('newBuilding.namePlaceholder', "e.g. Office Building"), text => this.opener.validateName(text));
-		inputs.set('name', name);
-		this.pageDisposables.add(name.onDidChange(() => name.validate()));
-		const folderRow = this.row(form, localize('newBuilding.folder', "Folder"));
-		const location = this.pageDisposables.add(new InputBox(folderRow, this.contextViewService, { inputBoxStyles: defaultInputBoxStyles, ariaLabel: localize('newBuilding.folder', "Folder") }));
-		location.value = this.folder;
-		this.pageDisposables.add(location.onDidChange(value => this.folder = value));
-		const browse = this.pageDisposables.add(new Button(folderRow, { ...defaultButtonStyles, secondary: true }));
-		browse.label = localize('newBuilding.browse', "Browse...");
-		this.pageDisposables.add(browse.onDidClick(async () => {
-			const picked = await this.opener.browseForLocation(URI.file(location.value), localize('newBuilding.folderTitle', "Choose Where to Create the Building"));
-			if (picked) {
-				location.value = picked.fsPath;
-			}
-		}));
-		const folderMessage = append(form, $('p.error', { 'aria-live': 'polite' }));
-		const target = append(form, $('p.target'));
-		const project = this.projectService.project;
-		if (project) {
-			append(form, $('p.hint.indented', undefined, localize('newBuilding.separate', "The building is a new project: {0}, open now, is not changed.", project.name)));
-		}
-		const updateTarget = () => {
-			const error = folderError(this.folder, isWindows);
-			folderMessage.textContent = error ?? '';
-			target.textContent = !error && this.form.name.trim() && !this.opener.validateName(this.form.name)
-				? localize('newBuilding.target', "Will be created in {0}", joinPath(URI.file(this.folder.trim()), this.form.name.trim()).fsPath) : '';
-			updateCreate();
-		};
-		this.pageDisposables.add(name.onDidChange(updateTarget));
-		this.pageDisposables.add(location.onDidChange(updateTarget));
 
 		// ── grids ──
 		const inFeet = lengthUnit(this.form) === 'ft';
@@ -663,152 +998,75 @@ export class NewBuildingWizard extends EditorPane {
 		this.select(form, localize('newBuilding.rebar', "Reinforcement"), rebars, this.form.rebar, value => this.form.rebar = value);
 		this.select(form, localize('newBuilding.footing', "Footings"), FOOTING_CHOICES, this.form.footing, value => this.form.footing = value);
 
-		// ── site and use ──
-		this.section(form, localize('newBuilding.site', "Site and Use"));
-		// The installed design-code packs, then the planned ones as disabled options of the list
-		// (B10-4: no second set of chips). The pack's words come after its picker (B10-5).
-		this.select(form, localize('newBuilding.designCode', "Design code"), designCodeChoices(this.codePacks), this.form.designCode || DEFAULT_CODE_PACK_ID, value => {
-			if (value === this.form.designCode) {
-				return;
-			}
-			this.form.designCode = value;
-			this.form.hazard = undefined; // C22: another code's values are not this one's
-			void this.loadPackExposures(value).then(() => this.renderForm());
-		});
-		// W4A-6: the units the project shows (the pack's suggestion: US customary for the US pack);
-		// the lengths and the wind speed above are typed in them.
-		const unitChoices: IChoice<string>[] = [
-			{ value: 'SI', label: localize('newBuilding.unitsSi', "SI (mm, m, kN, MPa)") },
-			{ value: 'USCustomary', label: localize('newBuilding.unitsUs', "US customary (ft, in, kip, ksi, psf)") },
-		];
-		this.select(form, localize('newBuilding.units', "Units"), unitChoices, this.form.units ?? 'SI', value => {
-			const units = value === 'USCustomary' ? 'USCustomary' : 'SI';
-			if (units !== (this.form.units ?? 'SI')) {
-				this.form = formInUnits(this.form, units);
-				this.renderForm();
-			}
-		});
-		if ((this.form.designCode || DEFAULT_CODE_PACK_ID) === DEFAULT_CODE_PACK_ID) {
-			// W4C-34: the default pack is the one chosen here, whatever pack the open project uses.
-			append(form, $('p.hint.indented', undefined, localize('newBuilding.siteHint', "{0}: the location sets the seismic zone and basic wind speed; the occupancy category the importance factors (Table 6.1.1).", defaultCodeName())));
-			this.select(form, localize('newBuilding.location', "Location"), locationChoices(), this.form.location, value => this.form.location = value);
-		} else if (this.packTowns.length) {
-			// C7: a pack with towns of its own (Indian Standards): the town sets the zone and wind speed.
-			append(form, $('p.hint.indented', undefined, localize('newBuilding.packTownsHint', "The location sets the seismic zone and basic wind speed of this design code. Check them, and the exposure, in Project Settings.")));
-			this.select(form, localize('newBuilding.location', "Location"), this.packTowns.map(t => ({ value: t.id, label: t.label })), this.form.location, value => this.form.location = value);
-			if (this.packExposures.length) {
-				const exposures = this.packExposures.map(e => ({ value: e.id, label: e.label }));
-				this.select(form, localize('newBuilding.exposure', "Exposure"), exposures, this.form.exposure, value => this.form.exposure = value);
-			}
-		} else {
-			// C4: a pack without the default pack's towns (the Eurocodes: the National Annex maps).
-			append(form, $('p.hint.indented', undefined, localize('newBuilding.otherPackHint', "This design code has no towns of its own: enter the site's peak ground acceleration and basic wind speed from the national maps (the project's Location is Custom). Check them, and the exposure, in Project Settings.")));
-			if (this.packSpectrum === 'mappedSpectral') {
-				// C1: a pack whose design spectrum comes from the site's mapped values (ASCE 7-22).
-				append(form, $('p.hint.indented', undefined, localize('newBuilding.mappedHint', "This design code takes the seismic hazard from the site's mapped values (for ASCE 7-22, the ASCE Hazard Tool): SDS and SD1, with S1 and the long-period transition TL. They can be changed later in Project Settings > Site.")));
-				this.textInput(form, localize('newBuilding.sds', "SDS (g)"), this.form.sds, value => this.form.sds = value, localize('newBuilding.sdsPlaceholder', "e.g. 1.0"));
-				this.textInput(form, localize('newBuilding.sd1', "SD1 (g)"), this.form.sd1, value => this.form.sd1 = value, localize('newBuilding.sd1Placeholder', "e.g. 0.6"));
-				this.textInput(form, localize('newBuilding.s1', "S1 (g)"), this.form.s1, value => this.form.s1 = value, localize('newBuilding.s1Placeholder', "optional"));
-				this.textInput(form, localize('newBuilding.tl', "TL (s)"), this.form.tl, value => this.form.tl = value, localize('newBuilding.tlPlaceholder', "optional, e.g. 8"));
-				this.renderHazardLookup(form);
-			} else {
-				this.textInput(form, localize('newBuilding.zoneCoefficient', "Peak ground acceleration (g)"), this.form.zoneCoefficient, value => this.form.zoneCoefficient = value, localize('newBuilding.zonePlaceholder', "e.g. 0.16 (agR)"));
-			}
-			if (inFeet) {
-				this.textInput(form, localize('newBuilding.windSpeedMph', "Basic wind speed (mph)"), this.form.windSpeed, value => this.form.windSpeed = value, localize('newBuilding.windPlaceholderMph', "e.g. 105 (V)"));
-			} else {
-				this.textInput(form, localize('newBuilding.windSpeed', "Basic wind speed (m/s)"), this.form.windSpeed, value => this.form.windSpeed = value, localize('newBuilding.windPlaceholder', "e.g. 27 (vb,0)"));
-			}
-			if (this.packExposures.length) {
-				const exposures = this.packExposures.map(e => ({ value: e.id, label: e.label }));
-				this.select(form, localize('newBuilding.exposure', "Exposure"), exposures, this.form.exposure, value => this.form.exposure = value);
-			}
-		}
-		const siteClasses = this.packSiteClasses.length ? this.packSiteClasses.map(c => ({ value: c.id, label: c.label })) : settingsEnum('Site', 'siteClass');
-		this.select(form, localize('newBuilding.siteClass', "Site class"), siteClasses, this.form.siteClass, value => this.form.siteClass = value as SiteClass);
-		// Walk 4: the clause of the chosen pack (its own), never the default pack's under another code.
-		const siteClassHint = (this.form.designCode || DEFAULT_CODE_PACK_ID) === DEFAULT_CODE_PACK_ID
-			? localize('newBuilding.siteClassHint', "Assumed until a soil report gives it ({0} Part 6, Table 6.2.13): add boreholes in 01 Soil Report and their class replaces it.", defaultCodeName())
-			: this.packSiteClassClause
-				? localize('newBuilding.siteClassHintPack', "Assumed until a soil report gives it ({0}): add boreholes in 01 Soil Report and their class replaces it.", this.packSiteClassClause)
-				: localize('newBuilding.siteClassHintNone', "Assumed until a soil report gives it: add boreholes in 01 Soil Report and their class replaces it.");
-		append(form, $('p.hint.indented', undefined, siteClassHint));
-		this.select(form, localize('newBuilding.use', "Building use"), settingsEnum('Occupancy', 'use'), this.form.use, value => this.form.use = value);
-		this.select(form, localize('newBuilding.category', "Occupancy category"), settingsEnum('Occupancy', 'category'), this.form.category, value => this.form.category = value as OccupancyCategory);
-
-		// ── actions ──
-		const actions = append(form, $('.form-actions'));
-		const create = created.button = this.pageDisposables.add(new Button(actions, defaultButtonStyles));
-		create.label = localize('newBuilding.create', "Create Building");
-		const cancel = this.pageDisposables.add(new Button(actions, { ...defaultButtonStyles, secondary: true }));
-		cancel.label = localize('newBuilding.cancel', "Cancel");
-		this.pageDisposables.add(cancel.onDidClick(() => this.close()));
-		const status = append(actions, $('span.status', { 'aria-live': 'polite' }));
-		// W4A-1: a failure stays on the form (the notification may be closed or time out) until the next try.
-		const failure = append(form, $('p.error.create-failure', { role: 'alert' }));
-
-		const submit = async () => {
-			if (this.busy || !this.available) {
-				return;
-			}
-			const result = buildSpec(this.form, value => this.opener.validateName(value));
-			if (!result.ok) {
-				name.validate();
-				const first = (['name', 'gridX', 'gridY', 'stories'] as const).find(f => result.errors[f]);
-				if (first) {
-					inputs.get(first)?.focus();
-				}
-				return;
-			}
-			if (folderError(this.folder, isWindows)) {
-				updateTarget();
-				location.focus();
-				return;
-			}
-			this.busy = true;
-			updateCreate();
-			failure.textContent = '';
-			status.textContent = localize('newBuilding.creating', "Creating the building...");
-			let outcome: IGenerateOutcome;
-			const parent = this.folder.trim();
-			try {
-				const missing = await this.prepareFolder(parent);
-				outcome = missing
-					? { notes: [], error: missing }
-					: readGenerateResult(await this.commandService.executeCommand(GENERATE_BUILDING_COMMAND, { spec: result.spec, destParent: parent, name: result.spec.name, ...this.siteArgument() }));
-			} catch (error) {
-				outcome = { notes: [], error: toErrorMessage(error) };
-			} finally {
-				this.busy = false;
-			}
-			if (outcome.error || !outcome.root) {
-				updateCreate();
-				status.textContent = '';
-				// Nothing was created: the form says so instead of where it would have gone.
-				target.textContent = '';
-				const message = localize('newBuilding.failed', "The building could not be created: {0}", outcome.error ?? '');
-				failure.textContent = message;
-				this.notificationService.notify({ severity: Severity.Error, message, sticky: true });
-				return;
-			}
-			this.wizardStorage.store(LAST_FOLDER_STORAGE_KEY, parent, StorageScope.APPLICATION, StorageTarget.MACHINE);
-			this.renderResult(result.spec.name, outcome.root, outcome.notes, outcome.summary, parent);
-		};
-		this.pageDisposables.add(create.onDidClick(() => void submit()));
-		this.pageDisposables.add(addDisposableListener(form, EventType.KEY_DOWN, e => {
-			// Enter in a field creates the building only when Create could (the form is valid).
-			if (e.key === 'Enter' && !isHTMLButtonElement(e.target) && create.enabled) {
-				void submit();
-			} else if (e.key === 'Escape') {
-				this.close();
-			}
-		}));
-
 		updatePreview();
 		ready = true;
-		updateTarget();
-		this.focusTarget = name;
-		name.focus();
+		const result = buildSpec(this.form, value => this.opener.validateName(value));
+		const wrong = result.ok ? undefined : (['gridX', 'gridY', 'stories'] as const).find(f => result.errors[f]);
+		this.focusTarget = (wrong && inputs.get(wrong)) ?? inputs.get('gridX');
+	}
+
+	/** Create on the last page: generates the building, creates the empty project or opens the template. */
+	private async createProject(failure: HTMLElement, status: HTMLElement, update: () => void): Promise<void> {
+		if (this.busy || !this.available) {
+			return;
+		}
+		const parent = this.folder.trim();
+		const name = this.form.name.trim();
+		this.busy = true;
+		update();
+		failure.textContent = '';
+		status.textContent = this.start.kind === 'spec' ? localize('newBuilding.creating', "Creating the building...") : localize('newProject.creating', "Creating the project...");
+		try {
+			const missing = await this.prepareFolder(parent);
+			if (missing) {
+				throw new Error(missing);
+			}
+			switch (this.start.kind) {
+				case 'spec': {
+					const result = buildSpec(this.form, value => this.opener.validateName(value));
+					if (!result.ok) {
+						return;
+					}
+					const outcome = readGenerateResult(await this.commandService.executeCommand(GENERATE_BUILDING_COMMAND, { spec: result.spec, destParent: parent, name: result.spec.name, ...this.siteArgument() }));
+					if (outcome.error || !outcome.root) {
+						throw new Error(outcome.error ?? '');
+					}
+					this.wizardStorage.store(LAST_FOLDER_STORAGE_KEY, parent, StorageScope.APPLICATION, StorageTarget.MACHINE);
+					this.busy = false;
+					this.renderResult(result.spec.name, outcome.root, outcome.notes, outcome.summary, parent);
+					return;
+				}
+				case 'empty': {
+					// The location where the chosen code has towns (the default pack's, or its own).
+					const towns = (this.form.designCode || DEFAULT_CODE_PACK_ID) === DEFAULT_CODE_PACK_ID || this.packTowns.length > 0;
+					this.wizardStorage.store(LAST_FOLDER_STORAGE_KEY, parent, StorageScope.APPLICATION, StorageTarget.MACHINE);
+					await this.opener.createAndOpen(URI.file(parent), name, this.start.type, { codePack: this.form.designCode || DEFAULT_CODE_PACK_ID, location: towns ? this.form.location || undefined : undefined, use: this.form.use || undefined });
+					break;
+				}
+				case 'archive': {
+					const template = this.start.template;
+					const root = await this.commandService.executeCommand<URI | undefined>(NEW_FROM_TEMPLATE_COMMAND, { path: template.path, author: template.author, name, destParent: parent } satisfies INewFromTemplateArgs);
+					if (root) {
+						this.wizardStorage.store(LAST_FOLDER_STORAGE_KEY, parent, StorageScope.APPLICATION, StorageTarget.MACHINE);
+						this.close();
+					}
+					break;
+				}
+			}
+		} catch (error) {
+			// Nothing was created: the form says so.
+			const message = this.start.kind === 'spec'
+				? localize('newBuilding.failed', "The building could not be created: {0}", toErrorMessage(error))
+				: localize('newProject.failed', "The project could not be created: {0}", toErrorMessage(error));
+			failure.textContent = message;
+			this.notificationService.notify({ severity: Severity.Error, message, sticky: true });
+		} finally {
+			if (this.busy) {
+				this.busy = false;
+				status.textContent = '';
+				update();
+			}
+		}
 	}
 
 	/**
@@ -916,7 +1174,7 @@ export class NewBuildingWizard extends EditorPane {
 			}
 		}
 		this.form.hazard = { spectral, source: applied.source };
-		this.renderForm();
+		this.renderPage();
 	}
 
 	private row(parent: HTMLElement, label: string): HTMLElement {
@@ -943,7 +1201,7 @@ export class NewBuildingWizard extends EditorPane {
 		return box;
 	}
 
-	private select<T extends string>(parent: HTMLElement, label: string, options: readonly IChoice<T>[], initial: T, onChange: (value: T) => void): void {
+	private select<T extends string>(parent: HTMLElement, label: string, options: readonly IChoice<T>[], initial: T, onChange: (value: T) => void): SelectBox {
 		const control = this.row(parent, label);
 		const index = Math.max(0, options.findIndex(o => o.value === initial));
 		const box = this.pageDisposables.add(new SelectBox(options.map(o => ({ text: o.label, isDisabled: o.disabled })), index, this.contextViewService, defaultSelectBoxStyles, { ariaLabel: label }));
@@ -952,6 +1210,7 @@ export class NewBuildingWizard extends EditorPane {
 			onChange(options[index].value);
 		}
 		this.pageDisposables.add(box.onDidSelect(({ index: picked }) => onChange(options[picked].value)));
+		return box;
 	}
 
 	/** Mutually exclusive choices as a segmented row of radio buttons (as on the start page). */
@@ -1125,7 +1384,8 @@ export class NewBuildingWizard extends EditorPane {
 		another.label = localize('newBuilding.another', "Create Another");
 		this.pageDisposables.add(another.onDidClick(() => {
 			this.form = { ...this.form, name: '' };
-			this.renderForm();
+			this.step = 'project';
+			this.renderPage();
 		}));
 		this.focusTarget = open;
 		open.focus();

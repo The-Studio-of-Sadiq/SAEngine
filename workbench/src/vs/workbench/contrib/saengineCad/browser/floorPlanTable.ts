@@ -435,7 +435,7 @@ export class MembersTableEditor extends EditorPane {
 			}));
 		}
 		if (!this.shown.length) {
-			append(this.body, $('p.members-empty', undefined, all.length ? localize('membersTable.noneShown', "No members match the filters.") : localize('membersTable.none', "No members are placed yet. Place them in the floor plan, or create a building from its grids (File > New Building from Grid).")));
+			append(this.body, $('p.members-empty', undefined, all.length ? localize('membersTable.noneShown', "No members match the filters.") : localize('membersTable.none', "No members are placed yet. Place them in the floor plan, or start a new project from its grids and storeys (File > New Project...).")));
 		}
 		this.frame.setStatus({
 			text: this.selected.size

@@ -3,7 +3,7 @@
 A pack that `extends` the US pack `aci318-asce7-22` and sets the Chilean seismic standard
 NCh 433 Of.1996 Mod.2009 with the decree DS 61 (2011), the concrete standard NCh 430:2008 with
 the decree DS 60 (2011) and the combinations of NCh 3171. Choose it in **02 Project Settings →
-Design code** or in the **New Building** wizard; the wizard then offers the towns below. Any
+Design code** or in the **New Project** wizard; the wizard then offers the towns below. Any
 value can be overridden per project under **Code Values**; switching the pack applies on the
 next run. A new project starts in SI units.
 

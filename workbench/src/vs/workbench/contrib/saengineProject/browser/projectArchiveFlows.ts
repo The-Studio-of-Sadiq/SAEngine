@@ -22,17 +22,22 @@ import {
 	formatSize, IArchiveExportOptions, IExportArchiveCommandArgs, importArgs, IOpenArchiveCommandArgs, projectNameForArchive, readArchiveManifest, readProblems, uniqueFolderName,
 } from './projectArchiveModel.js';
 import { COMPONENTS_ADD_COMMAND } from '../../saengineUpdate/common/components.js';
-import { CODES_CHECK_TEMPLATE_COMMAND, CODES_TEMPLATES_COMMAND, IBuildingTemplate, readBuildingTemplates } from '../../saengineLibrary/common/packageTemplates.js';
+import { CODES_CHECK_TEMPLATE_COMMAND } from '../../saengineLibrary/common/packageTemplates.js';
 import { ProjectOpener } from './projectOpener.js';
 
-/** Arguments of New Project from Template... (all optional). */
+/**
+ * Arguments of a full template opened as a new project (`saengine.project.newFromTemplate` with
+ * a `path`; without one, the command opens New Project with the template chosen in Start from).
+ */
 export interface INewFromTemplateArgs {
-	/** The template's `.civil`; without it an installed full template is picked. */
+	/** The template's `.civil`. */
 	readonly path?: string;
 	/** The template package's author: the only name its drawings may carry. */
 	readonly author?: string;
-	/** The new project's name (asked, with this as the suggestion). */
+	/** The new project's name (asked, with this as the suggestion, unless `destParent` is given too). */
 	readonly name?: string;
+	/** The folder the project goes in (New Project's Folder); without it the folder is asked. */
+	readonly destParent?: string;
 }
 import { saveProjectEdits } from './projectEdits.js';
 import { IWorkingCopyService } from '../../../services/workingCopy/common/workingCopyService.js';
@@ -301,46 +306,19 @@ export class ProjectArchiveFlows {
 	}
 
 	/**
-	 * New Project from Template...: a full building template (an inputs-only `.civil` of an
-	 * installed building-template package) is checked again (inputs only, no site more precise
-	 * than a town, no names but the template's author) and opened as a new project through the
-	 * archive path. Without `path` the engineer picks one of the installed full templates.
+	 * A full building template (an inputs-only `.civil` of an installed building-template
+	 * package, chosen in New Project's Start from) is checked again (inputs only, no site more
+	 * precise than a town, no names but the template's author) and opened as a new project
+	 * through the archive path, named `name` in `destParent` (each asked when not given).
 	 */
-	async newFromTemplate(args: INewFromTemplateArgs = {}): Promise<URI | undefined> {
+	async newFromTemplate(args: INewFromTemplateArgs & { readonly path: string }): Promise<URI | undefined> {
 		if (!hasCommand(CODES_CHECK_TEMPLATE_COMMAND) || !hasCommand(ARCHIVE_IMPORT_COMMAND)) {
 			this.notAvailable();
 			return undefined;
 		}
-		let path = args.path;
-		let author = args.author ?? '';
-		let name = args.name;
-		if (!path) {
-			let templates: IBuildingTemplate[] = [];
-			try {
-				templates = readBuildingTemplates(await this.commandService.executeCommand<unknown>(CODES_TEMPLATES_COMMAND, { kind: 'buildingTemplate' })).filter(t => t.type === 'archive');
-			} catch {
-				templates = [];
-			}
-			if (!templates.length) {
-				this.notificationService.prompt(Severity.Info,
-					localize('template.none', "No full building templates are installed. A full template is a whole project (floor plan, BIM, settings) to start from; building specifications are offered in New Building from Grid."),
-					[{ label: localize('template.getMore', "Get Building Templates..."), run: () => this.commandService.executeCommand('saengine.packages.show', { tab: 'browse', kind: 'buildingTemplate' }) }]);
-				return undefined;
-			}
-			const items: (IQuickPickItem & { template: IBuildingTemplate })[] = templates.map(template => ({
-				template,
-				label: template.name,
-				description: template.packageName !== template.name ? template.packageName : undefined,
-				detail: template.description || undefined,
-			}));
-			const picked = await this.quickInputService.pick(items, { title: localize('template.pickTitle', "New Project from Template"), placeHolder: localize('template.pickPlaceholder', "The full building templates installed (Packages page)") });
-			if (!picked?.template.path) {
-				return undefined;
-			}
-			path = picked.template.path;
-			author = picked.template.author;
-			name ??= picked.template.name;
-		}
+		const path = args.path;
+		const author = args.author ?? '';
+		const name = args.name;
 		try {
 			const check = (await this.commandService.executeCommand<{ ok?: boolean; problems?: unknown }>(CODES_CHECK_TEMPLATE_COMMAND, { path, author })) ?? {};
 			if (check.ok === false) {
@@ -353,8 +331,11 @@ export class ProjectArchiveFlows {
 			this.notificationService.error(localize('template.checkFailed', "The template could not be checked: {0}", toErrorMessage(error)));
 			return undefined;
 		}
+		if (name?.trim() && args.destParent) {
+			return this.openArchive({ path, name: name.trim(), destParent: args.destParent });
+		}
 		const chosen = await this.quickInputService.input({
-			title: localize('template.nameTitle', "New Project from Template"),
+			title: localize('template.nameTitle', "New Project from a Full Template"),
 			prompt: localize('template.namePrompt', "The new project's name (its folder is chosen next)."),
 			value: name ?? projectNameForArchive(basename(URI.file(path)), undefined),
 			validateInput: async value => value.trim() ? undefined : localize('template.nameEmpty', "Give the project a name."),
@@ -362,7 +343,8 @@ export class ProjectArchiveFlows {
 		if (!chosen?.trim()) {
 			return undefined;
 		}
-		return this.openArchive({ path, name: chosen.trim() });
+		return this.openArchive({ path, name: chosen.trim(), destParent: args.destParent });
+
 	}
 
 	/**

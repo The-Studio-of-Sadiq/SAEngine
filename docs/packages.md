@@ -14,7 +14,7 @@ in [sdk/README.md](sdk/README.md). Authors of packages: see
 | --- | --- | --- |
 | `designCode` (the default) | `data/<table>.json`, optional `hooks.py` | Project Settings › Design code |
 | `structureTemplate` | `templates/*.json`: presets of a built-in shape, or coded templates; optional `hooks.py` | the Generate panel |
-| `buildingTemplate` | `spec.json` (a building specification) or `template.civil` (a whole project, inputs only) | the New Building wizard; New Project from Template... |
+| `buildingTemplate` | `spec.json` (a building specification) or `template.civil` (a whole project, inputs only) | New Project... › Start from (a specification fills the grid; a full template opens as the project) |
 | `languagePack` | `messages/*.json` (report and drawing labels), `ui/*.i18n.json` (screens) | Project Settings › Project › Language |
 
 Every package may have `requires` (`{"saengine": ">=0.0.50", "packages": {"bnbc2020": ">=1.0.0"}}`),

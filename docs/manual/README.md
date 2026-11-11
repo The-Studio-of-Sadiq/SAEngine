@@ -26,7 +26,7 @@ The same content is compiled into one PDF, **SAEngine User Manual**
 3. [Materials](03-materials.md)
 4. [Objects](04-objects.md) — object types (sections) and reinforcement
 5. [Floor Plan](05-floor-plan.md) — grids, storeys, members, selection, fill, typical floors,
-   New Building from Grid
+   New Project from the grid
 6. [BIM](06-bim.md) — the building model in 3D
 7. [MEP](07-mep.md) — equipment, sleeves, plumbing, HVAC, electrical
 8. [FEM](08-fem.md) — analysis, results, design checks, the design proposal

@@ -40,7 +40,7 @@ Python API version **1.0.0** (`saengine.api.API_VERSION`). The guide, the versio
 
 ### `building_templates(project_root: 'Path | None' = None, registry: 'Registry | None' = None) -> 'dict[str, Any]'`
 
-`saengine.codes.catalogue.building_templates`: ``{templates: [{package, packageName, version, scope, file, name, description, type: 'spec' | 'archive', spec?, path?, author?}], problems: [...]}``. A spec template carries its building specification (as written in ``spec.json``, validated); an archive template its absolute path, opened through *New Project from Template...*.
+`saengine.codes.catalogue.building_templates`: ``{templates: [{package, packageName, version, scope, file, name, description, type: 'spec' | 'archive', spec?, path?, author?}], problems: [...]}``. A spec template carries its building specification (as written in ``spec.json``, validated); an archive template its absolute path, opened through *New Project...* > *Start from*.
 
 ### `coded_geometry(package: 'str', file: 'str', values: 'dict[str, Any] | None' = None, project_root: 'Path | None' = None, registry: 'Registry | None' = None, member_type: 'str | None' = None) -> 'dict[str, Any]'`
 

@@ -278,7 +278,7 @@ export const AI_TOOLS: readonly IAiTool[] = [
 		name: 'propose_building',
 		assistant: 'local',
 		title: 'Propose a new building',
-		description: 'Opens the New Building wizard filled with a building described in words: grids, storeys, structural system, materials, footings, site and occupancy. The engineer sees the plan and the summary, may change any field, and clicks Generate to create the project (a new folder; nothing else changes). Lengths in mm.',
+		description: 'Opens the New Project wizard filled with a building described in words: grids, storeys, structural system, materials, footings, site and occupancy. The engineer sees the plan and the summary, may change any field, and clicks Generate to create the project (a new folder; nothing else changes). Lengths in mm.',
 		inputSchema: {
 			type: 'object',
 			properties: {
@@ -363,7 +363,7 @@ export const ALLOWED_COMMANDS: readonly IAllowedCommand[] = [
 	{ id: 'saengine.project.showImportReport', description: 'Opens the last structural import report.' },
 	{ id: 'saengine.project.saveVersion', description: 'Saves a version of the project (asks for a message).' },
 	{ id: 'saengine.project.exportArchive', description: 'Exports the project as a .civil archive (asks where).' },
-	{ id: 'saengine.project.newBuilding', description: 'Opens the New Building wizard (generate a building); the engineer completes it.' },
+	{ id: 'saengine.project.new', description: 'Opens the New Project wizard (the project, its site and use, the grid and storeys of the building); the engineer completes it.' },
 	{ id: 'saengine.floorPlan.openMembersTable', description: 'Opens the members table of the floor plan.' },
 	{ id: 'saengine.checkPythonRuntime', description: 'Checks the Python runtime the analysis uses.' },
 	{ id: 'saengine.substructure.sizeAll', description: 'Sizes every footing in the Substructure editor.', edits: true },

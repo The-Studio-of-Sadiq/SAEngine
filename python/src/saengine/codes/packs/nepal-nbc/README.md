@@ -2,7 +2,7 @@
 
 A pack for Nepal's National Building Code: it `extends` the built-in pack `is-codes` (IS 875
 loads and wind, IS 456 and IS 13920 concrete, IS 800 steel) and sets what NBC 105:2020 changes.
-Choose it in **02 Project Settings → Design code** or in the **New Building** wizard; the wizard
+Choose it in **02 Project Settings → Design code** or in the **New Project** wizard; the wizard
 then offers the municipalities below. Any value can be overridden per project under **Code
 Values**; switching the pack applies on the next run.
 

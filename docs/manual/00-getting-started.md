@@ -22,8 +22,7 @@ When SAEngine starts without a project, the start page fills the window.
 
 | Button | What it does |
 | --- | --- |
-| **New Project...** | Shows the New Project form on the right (below). |
-| **New Building from Grid...** | Opens the New Building wizard: a whole RC building from a grid in one step ([Part 5](05-floor-plan.md#new-building-from-grid)). |
+| **New Project...** | Opens the New Project wizard (below): the one way to start a project, from a grid, a template or empty. |
 | **Open Project...** | Picks a project folder (default `Documents\SAEngine Projects`). If the folder is not a project, SAEngine offers **Create Project Structure**; existing files are kept. |
 | **Open Sample Project...** | Copies the *Sample Frame* project to a folder you choose and opens the copy. If a copy is already there, it offers to open that copy. |
 | **Import from ETABS, STAAD or SAP2000...** | Creates a project from a text export of another program ([Importing models](12-importing.md)). |
@@ -32,14 +31,35 @@ When SAEngine starts without a project, the start page fills the window.
 
 ### New Project
 
+**New Project...** (start page, **File** menu, the sidebar's **≡** menu, or *SAEngine: New
+Project...* in the command palette) opens one wizard for every new project. The steps are shown
+at the top; **Next** (or Enter) goes on, **Back** or a step's name goes back, **Escape** cancels.
+Nothing is asked twice, and the defaults make a working building at once.
+
+**1. Project**
+
 | Field | Meaning |
 | --- | --- |
-| Name | The project name; it becomes the folder name and cannot contain `\ / : * ? " < > \|`. |
-| Location | The parent folder (default `Documents\SAEngine Projects`), with **Browse...**. |
-| Type | **Building**: floors on grids, storey by storey; Part 5 is a floor plan. **Special Structure**: drawn in 3D (roofs, stadiums, towers, bridges); Part 5 is a 3D structural model. |
-| Design code | **BNBC 2020** (default) or **ACI 318-19**. BNBC 2020 sets concrete to *BNBC 2020 Part 6 Chapter 6* and steel to *Part 6 Chapter 10*; ACI 318-19 sets ACI 318-19 and AISC 360-22. Both can be changed later in Project Settings. |
+| Name | The project name; it becomes the folder name. |
+| Folder | The parent folder (beside the open project, else the last one used, else `Documents\SAEngine Projects`), with **Browse...**. The line below says where the project will be created. |
+| Start from | **Grid and storeys** (default): the whole building, defined on the next pages. A **building specification** of an installed package: the same pages, filled with its grid and storeys. A **full template** of an installed package: a whole project with its own model and settings, created at once (no more pages). **Empty building**: no grids or members yet, drawn in 05 Floor Plan. **Special structure**: drawn in 3D (roofs, stadiums, towers, bridges), no grid. **Get more building templates...** opens the Packages page. |
+| Design code | The design-code packs installed (the default first; planned ones are listed but not choosable). The site fields of the next page follow the pack. Not asked for a full template, which keeps its own. |
+| Units | SI or US customary (the pack suggests one); the grid, storeys and wind speed are typed in them. For an empty project the units follow the design code and are changed in Project Settings. |
 
-**Create Project** creates the folder and opens it in the same window.
+**2. Site and Use** (not for a full template): the location (the pack's towns: seismic zone and
+wind speed), or the hazard values for a pack without towns, the exposure, the assumed site class
+and the building use and occupancy category. An empty project takes the location and the use; the
+rest is set in Project Settings > Site.
+
+**3. Grid and Storeys** (from the grid or a specification only): see
+[New Project from the grid](05-floor-plan.md#new-project-from-the-grid).
+
+**Create Project** on the last page creates the project and opens it: a building from the grid
+shows its preliminary sizes first (**Open Building**), an empty project opens at once, and a full
+template is checked and unpacked into the folder.
+
+The former entries *New Building from Grid...* and *New Project from Template...* open this
+wizard (on the grid, and with the first full template chosen).
 
 ## What a project is
 
@@ -90,7 +110,8 @@ Below the parts, a line summarises the [versions](#versions) (for example *No ve
 or *2 parts changed since v3*); click it to open Versions.
 
 The sidebar's **≡** menu holds **Project Overview**, **Project Settings**, **Versions**,
-**Save Version...**, **New Building from Grid...**, **Open Folder in File Explorer**,
+**Save Version...**, **New Project...**, **Open Folder in File Explorer**,
+
 **Export Project...** and **Open Project Archive...**.
 
 The second sidebar, **Model**, holds the **Model Explorer**: the members of the model in a

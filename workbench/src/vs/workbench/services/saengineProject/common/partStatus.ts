@@ -992,7 +992,7 @@ function object(value: unknown): JsonObject {
  * Whether a settings, materials or object types file still holds what a new project starts with. The
  * settings are compared apart from what the new-project dialog fills in: the project name, the
  * code pack, the site's location and the building's use. The deprecated `codes` of old files is not
- * compared. Projects whose settings were written with other values (New Building from Grid, the
+ * compared. Projects whose settings were written with other values (New Project from the grid, the
  * importers) or with older defaults count as changed.
  */
 export function holdsDefaults(document: JsonObject, part: string): boolean {

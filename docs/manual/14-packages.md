@@ -6,7 +6,7 @@ Packages add to SAEngine without changing the program. There are three kinds:
 | --- | --- | --- |
 | Design code | a code as data: locations and hazards, loads, combinations, coefficients, materials, factors, detailing limits, MEP tables, each with its clauses | 02 Project Settings › Design code |
 | Structure template | presets of the parametric shapes (trusses, arches, domes, vaults, cable nets), and new shape kinds made by the package's own code | the modeller's Generate panel |
-| Building template | a building specification, or a whole project to start from | New Building from Grid, New Project from Template... |
+| Building template | a building specification, or a whole project to start from | New Project... › Start from |
 
 BNBC 2020, the shape presets (*SAEngine shapes*) and the default building (*Dhaka 6-storey
 residential, 3 × 2 bays*) are built in. The file formats, the command line and the safety rules
@@ -53,12 +53,11 @@ runs with your permissions. Changing any `.py` file of the package withdraws the
   structure template...* shows the presets of every structure template installed, grouped by
   package. A preset fills the form; change the values, check the preview and **Insert**. A coded
   template shows its own form; it makes geometry only when its package is trusted.
-- **New Building from Grid**: the row *Start from* lists the building specifications installed.
-  The wizard opens with the built-in *Dhaka 6-storey residential* and you can switch at any time;
-  the name you typed is kept.
-- **New Project from Template...** (start page, File menu, ≡): opens a whole project from an
-  installed full building template, as a new project in a folder you choose. SAEngine checks it
-  first: a template holds inputs only (no results, no soil report, no exported deliverables, no
+- **New Project...** (start page, File menu, ≡): the row *Start from* on its first page lists the
+  building specifications installed (they fill the grid and storeys; the wizard starts with the
+  built-in *Dhaka 6-storey residential*, and the name you typed is kept when you switch) and the
+  full building templates installed. A full template opens as a whole new project in the folder
+  of the first page, with no more pages. SAEngine checks it first: a template holds inputs only (no results, no soil report, no exported deliverables, no
   version history), places the site no more precisely than a town and names no one but its
   author.
 

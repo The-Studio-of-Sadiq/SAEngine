@@ -101,14 +101,14 @@ unauthenticated control of the window, so SAEngine does not open it.
 | `search_code` | Passages of the code pack in force (BNBC 2020 unless the project chooses another) and of this manual that answer a question, each with its clauses, tables and pages. |
 | `explain_results` | The design checks of the last run per element, governing check first (demand, capacity, utilisation, combination), for one member or the failing ones. |
 | `propose_changes` | A change set to the project's JSON files that you preview (each value before and after) and accept or reject in the AI Assistant view; accepted, it is one undoable step. Works without the edits switch, because nothing changes until you accept. |
-| `propose_building` | Fills the New Building wizard with a building described in words; you check it and click Generate. |
+| `propose_building` | Fills the New Project wizard with a building described in words; you check it and click Generate. |
 
 ### Commands the assistant may run
 
 Run All (and cancel, log), Run Analysis, Run Selected Cases, analysis log and charts, member details,
 Design Reinforcement (the design proposal preview — applying it stays your click), Print Design
 Report, Generate Drawings, Export DXF / IFC / BOQ CSV, project overview / exports / start / versions /
-import report, Save Version, Export Project (.civil), the New Building wizard, the members table and
+import report, Save Version, Export Project (.civil), the New Project wizard, the members table and
 the Python runtime check. With edits allowed also: Size Footings, Import Footings, Add Borehole, Undo
 and Redo.
 
@@ -161,7 +161,7 @@ What it does:
 - **Changes** in words ("make the typical storey 3.2 m", "use C28 for the columns") come as a change
   set in the view with every value before and after. **Accept** applies it as one undoable step
   (Undo in the view, or Ctrl+Z); it stays unsaved until you save. **Reject** changes nothing.
-  A new building comes as the New Building wizard filled in.
+  A new building comes as the New Project wizard filled in.
 
 ### Provider and key
 

@@ -130,7 +130,7 @@ def building_templates(
     """``{templates: [{package, packageName, version, scope, file, name, description, type:
     'spec' | 'archive', spec?, path?, author?}], problems: [...]}``. A spec template carries its
     building specification (as written in ``spec.json``, validated); an archive template its
-    absolute path, opened through *New Project from Template...*."""
+    absolute path, opened through *New Project...* > *Start from*."""
     from saengine.codes.manifest import MANIFEST_FILE, PackManifest
 
     spec_model = building_spec_model()

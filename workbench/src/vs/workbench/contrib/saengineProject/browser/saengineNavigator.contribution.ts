@@ -540,7 +540,7 @@ class StartLayoutContribution extends Disposable implements IWorkbenchContributi
 	/**
 	 * W4A-34 / W4B-27 / W4C-20: without a project the Project side bar has nothing to show, so
 	 * the side bar would come back on Search or Explorer ("You have not opened a folder") beside
-	 * the New Building wizard; it stays hidden until a project opens its parts (developer mode
+	 * the New Project wizard; it stays hidden until a project opens its parts (developer mode
 	 * keeps it).
 	 */
 	private sideBarWanted(): boolean {
