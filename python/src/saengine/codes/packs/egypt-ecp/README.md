@@ -2,7 +2,7 @@
 
 A pack that `extends` the legacy British Standards pack `bs8110` and sets the Egyptian Code of
 Practice for loads and seismic actions (ECP 201-2012) and for concrete (ECP 203-2018). Choose it
-in **02 Project Settings → Design code** or in the **New Building** wizard; the wizard then offers
+in **02 Project Settings → Design code** or in the **New Project** wizard; the wizard then offers
 the towns below. Any value can be overridden per project under **Code Values**; switching the
 pack applies on the next run. A new project starts in SI units.
 

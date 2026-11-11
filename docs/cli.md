@@ -300,7 +300,7 @@ Generated Office Block into D:\Projects\Office Block.
 
 `<spec.json>` is the generator's spec (`{"name", "gridsX", "gridsY", "storyCount",
 "typicalHeight", "groundHeight", "system", "footing", "location", "occupancy", ...}`, lengths in
-mm) or the document the app's *New Building from Grid* wizard sends (`schema:
+mm) or the document the app's *New Project* wizard sends from the grid (`schema:
 "saengine.newBuilding/1"`). The project is written into `<dest>/<name>` (a relative `<dest>`
 is taken from the current folder, and a missing one is created); a folder that holds files
 already is refused (exit 3) unless `--overwrite`. Every note says how a size was chosen: the

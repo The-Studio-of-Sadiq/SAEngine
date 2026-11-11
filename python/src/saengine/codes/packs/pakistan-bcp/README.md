@@ -3,7 +3,7 @@
 A pack that adopts the US codes with local values: it `extends` the US pack `aci318-asce7-22`
 (ASCE 7-22, ACI 318-19, AISC 360-22) and sets the seismic provisions of BCP SP-2007; every other
 table and value is the base pack's (see its README). Choose it in **02 Project Settings → Design
-code** or in the **New Building** wizard's design code list; the wizard then offers the towns
+code** or in the **New Project** wizard's design code list; the wizard then offers the towns
 below. Any single value can be overridden per project under **Code Values**, and switching the
 pack applies on the next run. A new project starts in SI units.
 

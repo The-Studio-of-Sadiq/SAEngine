@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 /*
- * The New Building wizard: one calm page, the form on the left and the live plan and
- * elevation on the right. Colours only from the theme's tokens, as on the start page.
+ * The New Project wizard: calm pages with the steps above them; on the grid's page the form on
+ * the left and the live plan and elevation on the right. Colours only from the theme's tokens,
+ * as on the start page.
  */
 
 .saengine-new-building {
@@ -20,7 +21,42 @@
 	box-sizing: border-box;
 	max-width: 960px;
 	margin: 0 auto;
-	padding: 40px var(--sa-space-6, 24px) var(--sa-space-6, 24px);
+	padding: var(--sa-space-6, 24px) var(--sa-space-6, 24px);
+}
+
+/* The steps: done ones lead back, the current one is marked. */
+.saengine-new-building ol.steps {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--sa-space-1, 4px) var(--sa-space-4, 16px);
+	margin: var(--sa-space-3, 12px) 0 0;
+	padding: 0;
+	list-style: none;
+}
+
+.saengine-new-building .step {
+	padding: 2px 0;
+	border: none;
+	border-bottom: 2px solid transparent;
+	background: none;
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+	font: inherit;
+	cursor: pointer;
+}
+
+.saengine-new-building .step.done {
+	color: var(--vscode-textLink-foreground);
+}
+
+.saengine-new-building .step.current {
+	border-bottom-color: var(--vscode-focusBorder);
+	color: var(--vscode-foreground);
+	font-weight: 600;
+}
+
+.saengine-new-building .step:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: 1px;
 }
 
 .saengine-new-building .header h1 {
@@ -35,7 +71,7 @@
 	color: var(--sa-muted, var(--vscode-descriptionForeground));
 }
 
-.saengine-new-building .header .packages-link {
+.saengine-new-building .packages-link {
 	display: inline-block;
 	margin-top: var(--sa-space-1, 4px);
 	color: var(--vscode-textLink-foreground);
@@ -58,6 +94,11 @@
 	grid-template-columns: minmax(0, 1fr) 360px;
 	gap: 40px;
 	margin-top: var(--sa-space-4, 16px);
+}
+
+/* The pages without the preview. */
+.saengine-new-building .body.single {
+	grid-template-columns: minmax(0, 1fr);
 }
 
 @media (max-width: 820px) {

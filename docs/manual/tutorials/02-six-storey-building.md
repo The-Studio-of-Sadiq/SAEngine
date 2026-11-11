@@ -11,27 +11,29 @@ ground storey 3.6 m, five typical storeys of 3.2 m, concrete C27.6 and rebar B50
 
 ## 1. Generate the building
 
-1. On the start page (or ≡ → **New Building from Grid...**) open the **New Building** wizard.
-2. Fill in:
+1. On the start page (or **File** or ≡ → **New Project...**) open the **New Project** wizard.
+   *Start from* stays at **Grid and storeys**.
+2. Fill in, page by page (**Next** goes on):
 
 | Field | Value |
 | --- | --- |
 | Name | *Six Storey Demo* |
 | Folder | your projects folder |
+| Design code / Units | BNBC 2020 / SI (page 1) |
+| Location | Dhaka (zone 2, 65.7 m/s) (page 2) |
+| Building use / Occupancy category | Residential / II (page 2) |
 | X (A, B, C ...) | `3×6000` |
 | Y (1, 2, 3 ...) | `2×5000` |
 | Number / ground, mm / typical, mm | `6` / `3600` / `3200` |
 | System | RC frame |
 | Concrete / Reinforcement | C27.6 / B500DWR |
 | Footings | Isolated |
-| Location | Dhaka (zone 2, 65.7 m/s) |
-| Building use / Occupancy category | Residential / II |
 
-   The preview draws the plan and the elevation and sums up the bays, storeys and columns.
+   On page 3 (Grid and Storeys) the preview draws the plan and the elevation and sums up the bays, storeys and columns.
 
-   ![The New Building wizard](../images/new-building.png)
+   ![The New Project wizard](../images/new-building.png)
 
-3. Click **Create Building**. The page *Six Storey Demo Is Ready* lists the **Generator Notes**:
+3. Click **Create Project**. The page *Six Storey Demo Is Ready* lists the **Generator Notes**:
    how each preliminary size was chosen. Read them, then click **Open Building**.
 
    The first note is a warning worth reading:
@@ -242,7 +244,7 @@ on four sheets, foundation details and the bar bending schedule. Fill in **Firm*
 
 ## What you learned
 
-- New Building from Grid gives a complete model with preliminary sizes in one step.
+- New Project from the grid gives a complete model with preliminary sizes in one step.
 - Window (left to right) and crossing (right to left) selection, Fill, and Copy to Stories.
 - Floor loads are area loads in Project Settings.
 - *Section too small* is fixed in 4 Objects (a bigger section), followed by Run All and Design

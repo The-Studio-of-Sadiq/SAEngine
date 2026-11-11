@@ -83,23 +83,7 @@ registerAction2(class extends Action2 {
 	}
 });
 
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: 'saengine.project.new',
-			title: localize2('saengine.newProject', "New Project..."),
-			category,
-			f1: true,
-			menu: { id: MenuId.MenubarFileMenu, group: '1_new', order: 0 },
-		});
-	}
-
-	override run(accessor: ServicesAccessor): Promise<unknown> {
-		// The form lives in the start window: it opens on the form (N-N8).
-		StartEditorInput.instance.requestNewProject();
-		return openStart(accessor.get(IEditorService));
-	}
-});
+// New Project... (the one way to start a project) is the wizard's: newBuildingWizard.contribution.ts.
 
 registerAction2(class extends Action2 {
 	constructor() {

@@ -5,7 +5,7 @@ city's building regulations, with the CFE wind manual where the NTC refer to it.
 the US pack `aci318-asce7-22` (NTC-Concreto follows ACI 318's form) and sets what the NTC
 change; every other table is the US pack's (see its README) and the report names those ACI
 318-19, AISC 360-22 or ASCE 7-22. Choose it in **02 Project Settings → Design code** or in the
-**New Building** wizard; the city is in **Site → Location** and its zone (I, II, IIIa-IIId) is
+**New Project** wizard; the city is in **Site → Location** and its zone (I, II, IIIa-IIId) is
 the **site class**. Any value can be overridden per project under **Code Values**; switching the
 pack applies on the next run. New projects start in SI units. Clause names are given in short
 Spanish form only.

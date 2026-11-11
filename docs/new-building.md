@@ -1,4 +1,4 @@
-# New Building from Grid, and modelling fast
+# New Project from the grid, and modelling fast
 
 A whole RC building in one step: give the grid spacings and the storeys, pick the structural
 system and a few choices, and SAEngine writes the project (materials, object types, the floor plan
@@ -16,9 +16,11 @@ bars.
 
 ## The wizard
 
-Open it from the start page (**New Building from Grid...**), from **≡ File → New Building from
-Grid...**, from the sidebar's ≡ menu, or with *SAEngine: New Building from Grid...* in the command
-palette.
+Open it with **New Project...** from the start page, the **File** menu, the sidebar's ≡ menu, or
+*SAEngine: New Project...* in the command palette, and keep *Start from: Grid and storeys*. Page 1
+asks the name, folder, design code and units, page 2 the site and use, page 3 the grid, storeys and
+structure (with the preview); **Create Project** on page 3 generates it. (*New Building from
+Grid...* was the former entry; its command id opens the same wizard.)
 
 | Field | What to type |
 | --- | --- |

@@ -2,7 +2,7 @@
 
 A pack that `extends` the US pack `aci318-asce7-22` and sets the Peruvian seismic standard E.030
 (2018) and the E.060 concrete factors and combinations. Choose it in **02 Project Settings →
-Design code** or in the **New Building** wizard; the wizard then offers the towns below. Any
+Design code** or in the **New Project** wizard; the wizard then offers the towns below. Any
 value can be overridden per project under **Code Values**; switching the pack applies on the
 next run. A new project starts in SI units.
 

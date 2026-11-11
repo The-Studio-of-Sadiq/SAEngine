@@ -8,7 +8,7 @@ import { gridLabel, IGridLine } from '../../../services/saengineProject/common/g
 import { DEFAULT_CODE_PACK_ID } from '../../../services/saengineProject/common/activeCodePack.js';
 
 /*
- * The New Building wizard's model: the grid spacings and storey heights as engineers type them
+ * The New Project wizard's model: the grid spacings and storey heights as engineers type them
  * ("3×6000, 4500"), and the building specification the generator (`saengine.library.generateBuilding`)
  * turns into a project with its floor plan. No UI here, so it is tested on its own.
  */
@@ -16,7 +16,10 @@ import { DEFAULT_CODE_PACK_ID } from '../../../services/saengineProject/common/a
 /** The backend command that writes the new project (wired by the integrator). */
 export const GENERATE_BUILDING_COMMAND = 'saengine.library.generateBuilding';
 
-/** The UI command that opens the wizard. */
+/** The UI command that opens the New Project wizard: the one way to start a project. */
+export const NEW_PROJECT_COMMAND = 'saengine.project.new';
+
+/** Former "New Building from Grid...": kept as an id that opens New Project on the grid (`{spec}` fills it). */
 export const NEW_BUILDING_COMMAND = 'saengine.project.newBuilding';
 
 /** Application storage: the building just generated, so its window opens the floor plan and shows the notes. */

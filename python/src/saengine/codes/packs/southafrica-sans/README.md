@@ -3,7 +3,7 @@
 A pack that `extends` the built-in `eurocodes` pack: SANS 10160:2011 (basis of design and
 actions) follows EN 1990, EN 1991 and EN 1998 with South African values, so the parent's methods
 apply with this pack's numbers. Choose it in **02 Project Settings → Design code** or in the
-**New Building** wizard; the wizard then offers the towns below. Any value can be overridden per
+**New Project** wizard; the wizard then offers the towns below. Any value can be overridden per
 project under **Code Values**; switching the pack applies on the next run. A new project starts
 in SI units.
 

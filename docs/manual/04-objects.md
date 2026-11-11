@@ -68,7 +68,7 @@ deformation).
 ## Rules
 
 IDs are unique; the material must exist; reinforcement must be a rebar material; a pile cap's
-pile type must exist. A new project starts with no object types (New Building from Grid and the
+pile type must exist. A new project starts with no object types (New Project from the grid and the
 importers create them).
 
 ## Not confirmed

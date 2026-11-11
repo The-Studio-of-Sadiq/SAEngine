@@ -169,7 +169,7 @@ export class CodePacksEditor extends EditorPane {
 		}));
 		this.frame.element.classList.add('saengine-code-packs-editor');
 		this.frame.setTitle(localize('packages.title', "Packages"));
-		this.frame.setHelp(localize('packages.help', "Packages add to SAEngine without changing the program: design codes (a code as data: locations and hazard tables, loads, combinations, coefficients, materials, factors, detailing limits and the MEP tables, each with its clauses), structure templates (presets of the special-structure shapes) and building templates (a building specification for the New Building wizard). Browse lists the packages published for SAEngine: the list is signed, and every download is checked against its SHA-256 before it is installed. A package holds data only; Python hooks in a design code run only when you trust them. The project chooses its design code in 02 Project Settings."));
+		this.frame.setHelp(localize('packages.help', "Packages add to SAEngine without changing the program: design codes (a code as data: locations and hazard tables, loads, combinations, coefficients, materials, factors, detailing limits and the MEP tables, each with its clauses), structure templates (presets of the special-structure shapes) and building templates (a building specification for the New Project wizard). Browse lists the packages published for SAEngine: the list is signed, and every download is checked against its SHA-256 before it is installed. A package holds data only; Python hooks in a design code run only when you trust them. The project chooses its design code in 02 Project Settings."));
 		this.frame.setActions([this.installAction, this.newAction, this.validateAction, this.removeAction, this.refreshAction, this.frame.togglePropertiesAction], [this.openManifestAction, this.componentsAction]);
 		this.tabsElement = append(this.frame.controlsSlot, $('.packages-tabs', { role: 'tablist', 'aria-label': localize('packages.tabs', "Packages views") }));
 		this.list = $('.code-packs-list', { role: 'listbox', tabIndex: 0, 'aria-label': localize('packages.listLabel', "Packages") });
@@ -1131,7 +1131,7 @@ export class CodePacksEditor extends EditorPane {
 				? localize('packages.structureUse', "Its presets are offered in the modeller's Generate panel.")
 				: pack.kind === 'languagePack'
 					? localize('packages.languageUse', "Its messages are used by the reports and drawings of projects in its language (Project Settings > Project > Language).")
-					: localize('packages.buildingUse', "It is offered in the New Building wizard's Start from list; a full template opens with New Project from Template..."));
+					: localize('packages.buildingUse', "It is offered under Start from in New Project... (File menu or start page): a building specification fills the grid and storeys, a full template opens as the whole project."));
 			if (pack.trust !== 'none') {
 				// Coded templates (round M5): the package's code makes the geometry, only when trusted.
 				appendPropertyHeading(panel, localize('codePacks.hooks', "Hooks"));

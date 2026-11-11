@@ -4,7 +4,7 @@ A thin built-in pack (alpha 9 track C23). MNBC 2020 Part 3 (structural design) f
 IBC / ASCE 7 form for loads and ACI 318 for concrete, so the pack `extends` the US pack
 `aci318-asce7-22` and sets only what MNBC changes; every other table is the US pack's (see its
 README), and the report names those ASCE 7-22, ACI 318-19 or AISC 360-22. Choose it in
-**02 Project Settings → Design code** or in the **New Building** wizard; its towns are in
+**02 Project Settings → Design code** or in the **New Project** wizard; its towns are in
 **Site → Location**. Any value can be overridden per project under **Code Values**; switching
 the pack applies on the next run. New projects start in SI units.
 

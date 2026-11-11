@@ -4,7 +4,7 @@ A built-in pack for Canada (alpha 9 track C17). It `extends` the US pack `aci318
 sets what the National Building Code of Canada 2020 (Part 4), CSA A23.3-19 (concrete) and CSA
 S16-19 (steel) change; every other table is the US pack's (see its README) and the report names
 those ACI 318-19, AISC 360-22, NDS 2018 or ASCE 7-22. Choose it in **02 Project Settings →
-Design code** or in the **New Building** wizard; its towns are in **Site → Location** and on the
+Design code** or in the **New Project** wizard; its towns are in **Site → Location** and on the
 site map. Any value can be overridden per project under **Code Values**; switching the pack
 applies on the next run. New projects start in SI units.
 

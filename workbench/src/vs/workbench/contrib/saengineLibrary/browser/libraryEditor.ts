@@ -702,7 +702,7 @@ export class LibraryEditor extends JsonDocumentEditor {
 			}
 			const allowed = this.references(entryPath);
 			// A new type's bars and concrete are the project's (`defaults` of 03 Materials, as the
-			// New Building wizard chose them), else the template's when the project has it.
+			// New Project wizard chose them), else the template's when the project has it.
 			const preferred = this.projectChoice(entryPath, entry);
 			if (allowed && preferred !== undefined && allowed.includes(preferred)) {
 				value[key] = preferred;

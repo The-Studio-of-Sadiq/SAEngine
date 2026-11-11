@@ -8,10 +8,9 @@ SAEngine commands are in the category **SAEngine**; floor-plan commands in **Flo
 | Command | Where else |
 | --- | --- |
 | Show Start Window | |
-| New Project... | File menu |
+| New Project... | start page, File, ≡ (from the grid, a template or empty) |
 | Open Project... | File menu |
 | Open Sample Project... | start page |
-| New Building from Grid... | start page, File, ≡ |
 | Import from ETABS, STAAD or SAP2000... | start page, File, ≡ |
 | Show Import Report | |
 | Project Overview, Project Settings, Exports | ≡ |
@@ -45,7 +44,7 @@ without the window, for scripts and checking. Full description: [docs/cli.md](..
 | `saengine check <project>` | exits with 1 when a check fails |
 | `saengine export <project> --format ifc\|dxf\|csv\|pdf\|drawings\|civil` | the exports |
 | `saengine import <file> <dest> [--name NAME]` | `.civil`, `.e2k`, `.std`, `.s2k` |
-| `saengine new-building <spec.json> <dest>` | New Building from Grid from a JSON spec |
+| `saengine new-building <spec.json> <dest>` | a building from the grid (as New Project) from a JSON spec |
 | `saengine versions status\|list\|save\|diff\|restore\|issue` | versions |
 | `saengine verify [--pdf]` | runs the verification benchmarks against closed-form and published references |
 

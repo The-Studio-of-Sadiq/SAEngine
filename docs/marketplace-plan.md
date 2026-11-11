@@ -480,11 +480,11 @@ templates), leaving out a file that does not validate. The modeller's **Generate
 *Start from a structure template...* picker grouped by package (the built-in `saengine-shapes`
 first); a preset fills the form, keeps where the shape is placed and goes through the same
 `shape_geometry` and `insert`. The **New Building wizard** has a *Start from* row: a
-specification prefills the form (`formFromSpec`), a full template opens *New Project from
-Template...*; the wizard's own `DEFAULT_FORM` is gone: it starts from the built-in building
+specification prefills the form (`formFromSpec`), a full template is created from the
+wizard's first page (the former *New Project from Template...*); the wizard's own `DEFAULT_FORM` is gone: it starts from the built-in building
 template **`saengine-default-building`** (now in `codes/packs/`; the package repository should
-mirror it from here). **New Project from Template...** (File menu, ≡ menu, start page) picks an
-installed full template, checks it again with `codes/checkTemplate` and opens it through the
+mirror it from here). Since 2026-11-11 a full template is one of the choices of *Start from* in **New Project...**
+(File menu, ≡ menu, start page: the one way to start a project); it is checked again with `codes/checkTemplate` and opens it through the
 `.civil` import as a new project. The checks of a full template
 (`project.archive.template_problems`, also run by `codepack validate`): inputs only (M2), no
 latitude or longitude with more than two decimals (finer than a town) and no plot outline, and no

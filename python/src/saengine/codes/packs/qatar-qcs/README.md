@@ -5,7 +5,7 @@ structural design to the British Standards (BS 8110 concrete, BS 6399 loads, BS 
 the pack `extends` the legacy pack `bs8110` and sets Qatar's towns, a coastal default terrain and
 the 'severe' exposure of new concrete members. Everything else is the parent's (see its README).
 Projects that follow the Eurocodes in Qatar choose `eurocodes` instead and enter vb,0. Choose the
-pack in **02 Project Settings → Design code** or in the **New Building** wizard; the towns are in
+pack in **02 Project Settings → Design code** or in the **New Project** wizard; the towns are in
 **Site → Location**. Any value can be overridden per project under **Code Values**.
 
 Every value, with how sure it is, is in [`VERIFY.md`](VERIFY.md): the basic wind speed (Q1) is

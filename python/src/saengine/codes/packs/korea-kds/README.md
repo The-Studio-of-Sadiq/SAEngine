@@ -3,7 +3,7 @@
 A pack that `extends` the US pack `aci318-asce7-22` (ASCE 7-22, ACI 318-19, AISC 360-22) and sets
 what the Korean Design Standards change: KDS 41 17 00:2019 (seismic design of buildings, the
 successor of KBC 2016), KDS 41 12 00 (wind) and KDS 14 20 (concrete). Choose it in **02 Project
-Settings → Design code** or in the **New Building** wizard; the wizard then offers the towns
+Settings → Design code** or in the **New Project** wizard; the wizard then offers the towns
 below. Any value can be overridden per project under **Code Values**; switching the pack applies
 on the next run. A new project starts in SI units.
 
