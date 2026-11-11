@@ -13,7 +13,7 @@
 	--fem-stm-strut: color-mix(in srgb, var(--vscode-charts-blue, #2c6fbe) 30%, transparent);
 	--fem-stm-tie: var(--vscode-charts-red, #c62f2f);
 	--fem-stm-grid: color-mix(in srgb, var(--vscode-foreground) 7%, transparent);
-	--fem-stm-selected: var(--vscode-focusBorder);
+	--fem-stm-selected: var(--sa-accent);
 }
 
 .saengine-fem-stm-editor .fem-stm-select,

@@ -70,6 +70,22 @@
 	--sa-font-brand-heading-weight: 600;
 }
 
+/*
+ * Brand headings, in one place: the titles of SAEngine pages, of the property sheets and of the
+ * empty states take the logo's typeface; their muted details and all body text keep the
+ * workbench font.
+ */
+.monaco-workbench :is(.saengine-overview, .saengine-new-building, .saengine-placeholder, .saengine-planned, .saengine-import-report) :is(h1, h2),
+.monaco-workbench .sa-props-heading,
+.monaco-workbench .sa-frame-empty-title {
+	font-family: var(--sa-font-brand);
+	font-weight: var(--sa-font-brand-heading-weight);
+}
+
+.monaco-workbench .sa-props-heading .sa-props-detail {
+	font-family: var(--vscode-font-family);
+}
+
 /* The logo drawn inline (saengineBrand.ts): the classes take the brand tokens. */
 .monaco-workbench .sa-brand-art .sa-brand-ink { fill: var(--sa-brand-ink); }
 .monaco-workbench .sa-brand-art .sa-brand-grey { fill: var(--sa-brand-grey); }

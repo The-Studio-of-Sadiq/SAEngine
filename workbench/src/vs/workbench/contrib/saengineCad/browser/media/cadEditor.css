@@ -96,7 +96,7 @@
 	--ml-ui-bg: var(--vscode-editorWidget-background) !important;
 	--ml-ui-border: var(--vscode-editorWidget-border, var(--vscode-widget-border)) !important;
 	--ml-ui-shadow: 0 2px 8px var(--vscode-widget-shadow, transparent) !important;
-	--ml-ui-accent: var(--vscode-focusBorder) !important;
+	--ml-ui-accent: var(--sa-accent) !important;
 	--ml-ui-accent-alt: var(--vscode-descriptionForeground) !important;
 	--ml-ui-danger: var(--vscode-errorForeground) !important;
 	color-scheme: inherit !important;

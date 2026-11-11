@@ -10,7 +10,7 @@ import { headingWithUnit, isConverted, significantText, toDisplay } from '../../
 import { location, onPlanOf, rises, storiesOf } from '../../../services/saengineProject/common/floorPlanMembers.js';
 import { MemberGroup, sectionLabel } from './floorPlanDrawing.js';
 import { footingsOwnedMessage, resolvePoint, setMembersType, TOOL_GROUP, TOOL_KINDS } from './floorPlanEdits.js';
-import { familyDiffersMessage, placedEdit, placeKey, repeatOnFamilies } from './floorPlanTypical.js';
+import { familyDiffersMessage, masterOf, placedEdit, placeKey, repeatOnFamilies } from './floorPlanTypical.js';
 
 /*
  * The Members Table's model: a row for every member placed on the floor plan
@@ -297,4 +297,40 @@ export function rowRange(rows: readonly IMemberRow[], anchor: string | undefined
 
 export function rowKey(row: IRowRef): string {
 	return `${row.group}/${row.id}`;
+}
+
+/** A row of the Storeys table. */
+export interface IStoreyRow {
+	readonly id: string;
+	readonly name: string;
+	/** [mm] */
+	readonly elevation: number;
+	/** Up to the storey above [mm]; undefined for the top one. */
+	readonly height: number | undefined;
+	/** The name of the master storey a typical floor repeats, if it is one. */
+	readonly typicalOf: string | undefined;
+	/** Members whose plan is this storey's (a column or wall counts at its top). */
+	readonly members: number;
+}
+
+/** The storeys of the floor plan, top first (as a section reads), with their members. */
+export function storeyRows(layout: unknown): IStoreyRow[] {
+	const stories = storiesOf(layout);
+	const names = new Map(stories.map(s => [s.id, s.name]));
+	const counts = new Map<string, number>();
+	for (const row of memberRows(layout)) {
+		counts.set(row.story, (counts.get(row.story) ?? 0) + 1);
+	}
+	return stories.map((story, index) => {
+		const master = masterOf(layout, story.id);
+		const above = stories[index + 1];
+		return {
+			id: story.id,
+			name: story.name,
+			elevation: story.elevation,
+			height: above ? above.elevation - story.elevation : undefined,
+			typicalOf: master ? names.get(master) ?? master : undefined,
+			members: counts.get(story.id) ?? 0,
+		};
+	}).reverse();
 }

@@ -49,7 +49,7 @@
 }
 
 .saengine-new-building .step.current {
-	border-bottom-color: var(--vscode-focusBorder);
+	border-bottom-color: var(--sa-accent);
 	color: var(--vscode-foreground);
 	font-weight: 600;
 }

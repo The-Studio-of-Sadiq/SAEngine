@@ -43,6 +43,7 @@ import { EditorPane } from '../../../browser/parts/editor/editorPane.js';
 import { IEditorOpenContext } from '../../../common/editor.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
 import { appendPropertyHeading, appendPropertyNote, appendPropertyRow, EditorFrame, IEditorFrameStatus } from '../../saengineProject/browser/editorFrame.js';
+import { appendModelViewSwitch } from '../../saengineProject/browser/modelView.js';
 import { FemDerivation, IFemDeriveOutcome, IFemWindSummary } from './femDerivationBar.js';
 import { DESIGN_REINFORCEMENT_COMMAND, designKindLabel, IFemDesignReport, sortedChecks } from './femDesign.js';
 import { FemModelEditorInput } from './femModelEditorInput.js';
@@ -55,10 +56,26 @@ import { chartUnits } from './femResultsView.js';
 import { cameraOf, FemViewChoice, formatPlanPath, freeTopColumns, gridLines, IFilterModel, parsePlanPath, perimeterPath, viewChoices, visibleElements } from './femViewFilter.js';
 import { loadViewerModule } from './viewerModule.js';
 import { defaultClause } from '../../../services/saengineProject/common/activeCodePack.js';
+import { memberGroupOf } from '../../../services/saengineProject/common/floorPlanMembers.js';
+import { ISaengineModelSelectionService, ModelSelection } from '../../../services/saengineProject/common/modelSelection.js';
+import { partById } from '../../../services/saengineProject/common/saengineProject.js';
+import { ITextModel } from '../../../../editor/common/model.js';
+import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
 
 /** The building member an analysis element belongs to (`C3#2` -> `C3`). */
 export function memberOf(name: string): string {
 	return name.split('#')[0];
+}
+
+/** The selection service's name for this editor (modelSelection.ts). */
+const MODEL_SELECTION_SOURCE = 'analysisModel';
+
+function parseJson(model: ITextModel | undefined): unknown {
+	try {
+		return model && !model.isDisposed() ? JSON.parse(model.getValue()) : undefined;
+	} catch {
+		return undefined;
+	}
 }
 
 /** Rows of a result table drawn at once; the export has them all. */
@@ -764,6 +781,11 @@ export class FemModelEditor extends EditorPane {
 	private views: { readonly choice: FemViewChoice; readonly label: string }[] = [];
 	private view: FemViewChoice = { kind: 'all' };
 
+	/** The floor plan, to name the building model member of an element picked here. */
+	private floorPlanModel: ITextModel | undefined;
+	/** True while a member selected elsewhere is being shown here (it is not published back). */
+	private applyingModelSelection = false;
+
 	private readonly _onDidChangeSelection = this._register(new Emitter<FemSelection | undefined>());
 	readonly onDidChangeSelection: Event<FemSelection | undefined> = this._onDidChangeSelection.event;
 
@@ -781,8 +803,15 @@ export class FemModelEditor extends EditorPane {
 		@IContextViewService private readonly contextViewService: IContextViewService,
 		@IProgressService private readonly progressService: IProgressService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
+		@ISaengineModelSelectionService private readonly modelSelectionService: ISaengineModelSelectionService,
+		@ITextModelService private readonly textModelService: ITextModelService,
 	) {
 		super(FemModelEditorInput.EDITOR_ID, group, telemetryService, themeService, storageService);
+		this._register(modelSelectionService.onDidChangeSelection(({ selection, source }) => {
+			if (source !== MODEL_SELECTION_SOURCE) {
+				this.showModelSelection(selection);
+			}
+		}));
 	}
 
 	/** The run of this model going, wherever it was started (here, the palette, Run All). */
@@ -799,6 +828,8 @@ export class FemModelEditor extends EditorPane {
 		}));
 		frame.element.classList.add('saengine-fem-model-editor');
 		this.titleText = append(frame.titleSlot, $('span.sa-frame-title-text', undefined, localize('femEditor.title', "Analysis Model")));
+		// The model view's Plan | 3D | Analysis switch; the View picker shows the analysis model's plans and elevations.
+		this._register(this.instantiationService.invokeFunction(accessor => appendModelViewSwitch(accessor, frame.titleSlot, 'analysis')));
 
 		const view = append(frame.main, $('.fem-view'));
 		this.viewport = append(view, $('.viewport', { tabIndex: 0 }));
@@ -827,6 +858,9 @@ export class FemModelEditor extends EditorPane {
 		this._register(this.onDidChangeSelection(selection => {
 			this.selection = selection;
 			this.results?.setSelection(selection);
+			if (!this.applyingModelSelection) {
+				this.publishModelSelection(selection);
+			}
 		}));
 		this._register(frame.onDidLayoutMain(() => {
 			this.viewer?.layout();
@@ -847,6 +881,7 @@ export class FemModelEditor extends EditorPane {
 		this.modelRead = false;
 		this.updateChrome(); // a run of this model may already be going
 		void this.derivation?.setResource(input.resource);
+		void this.trackFloorPlan(input.resource);
 
 		const viewer = await this.ensureViewer();
 		if (token.isCancellationRequested || !viewer) {
@@ -1372,6 +1407,57 @@ export class FemModelEditor extends EditorPane {
 	}
 
 	/**
+	 * An element picked here selects its building model member everywhere (the Floor Plan, the
+	 * 3D view, the Tables, the Properties panel); a node or nothing picked clears it.
+	 */
+	private publishModelSelection(selection: FemSelection | undefined): void {
+		const element = selection?.kind === 'element' ? this.femModel?.elements.find(e => e.id === selection.id) : undefined;
+		const member = element?.name ? memberOf(element.name) : undefined;
+		const layout = parseJson(this.floorPlanModel);
+		const group = member ? memberGroupOf(layout, member) : undefined;
+		this.modelSelectionService.setSelection(member && group ? { kind: 'member', group, id: member } : undefined, MODEL_SELECTION_SOURCE);
+	}
+
+	/** Shows a member selected elsewhere: its first element of the analysis model, if it has one. */
+	private showModelSelection(selection: ModelSelection | undefined): void {
+		if (!this.viewer || !this.femModel) {
+			return;
+		}
+		const id = selection?.kind === 'member' ? this.femModel.elements.find(e => memberOf(e.name ?? '') === selection.id)?.id : undefined;
+		const next: FemSelection | undefined = id === undefined ? undefined : { kind: 'element', id };
+		if (JSON.stringify(next) === JSON.stringify(this.selection)) {
+			return;
+		}
+		this.applyingModelSelection = true;
+		try {
+			this.viewer.setSelection(next);
+			this._onDidChangeSelection.fire(next);
+		} finally {
+			this.applyingModelSelection = false;
+		}
+	}
+
+	/** Keeps the project's floor plan open beside an analysis model of `08 FEM`. */
+	private async trackFloorPlan(resource: URI): Promise<void> {
+		this.floorPlanModel = undefined;
+		const part = partById('floorPlan');
+		if (!part?.mainFile) {
+			return;
+		}
+		try {
+			const reference = await this.textModelService.createModelReference(joinPath(dirname(dirname(resource)), part.folder, part.mainFile));
+			if (this.resource?.toString() !== resource.toString()) {
+				reference.dispose();
+				return;
+			}
+			this.inputDisposables.add(reference);
+			this.floorPlanModel = reference.object.textEditorModel;
+		} catch {
+			// A special structure, or a model outside a project: its elements select nothing elsewhere.
+		}
+	}
+
+	/**
 	 * A frame member picked in the view, with results: a button to its details (forces and
 	 * deflection along it, a column's interaction diagram, a beam's steel).
 	 */
@@ -1471,6 +1557,9 @@ export class FemModelEditor extends EditorPane {
 		if (wasEmpty && this.nodeCount) {
 			// A model derived into an empty file: frame it (the first fit framed nothing).
 			void this.viewer?.fit();
+		}
+		if (!this.selection) {
+			this.showModelSelection(this.modelSelectionService.selection); // selected in the plan or the Tables before
 		}
 		this.updateChrome();
 	}

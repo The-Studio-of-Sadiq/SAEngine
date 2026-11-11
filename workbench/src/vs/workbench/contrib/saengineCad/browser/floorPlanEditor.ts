@@ -51,6 +51,7 @@ import { propertyLink, renderPropertySheet } from '../../saengineModel/browser/p
 import { editNotice, IMemberRef as IModifierMemberRef, memberTargets, modifiersView, readCodeStiffness, resetMembersGroup, setMembersField } from '../../saengineModel/browser/modifiersModel.js';
 import { renderModifiers } from '../../saengineModel/browser/modifiersPanel.js';
 import { appendPropertyHeading, appendPropertyNote, appendPropertyRow, EditorFrame, IEditorFrameIconButton } from '../../saengineProject/browser/editorFrame.js';
+import { appendModelViewSwitch } from '../../saengineProject/browser/modelView.js';
 import { CLEAN_DXF_COMMAND, DWG_TO_DXF_COMMAND, OPEN_DXF_IN_CAD_UI_COMMAND, PDF_TO_DXF_COMMAND, POINT_CLOUD_TO_DXF_COMMAND, WORKBOOK_EXPORT_COMMAND, WORKBOOK_IMPORT_COMMAND } from '../../saengineProject/browser/projectArchiveModel.js';
 import { COMPONENTS_ADD_COMMAND } from '../../saengineUpdate/common/components.js';
 import { acquireCadEditor, cadBackground, forCanvas, isLightCanvas, releaseCadEditor } from './cadHost.js';
@@ -408,6 +409,8 @@ export class FloorPlanEditor extends EditorPane {
 		frame.element.classList.add('saengine-floor-plan');
 		frame.element.tabIndex = -1;
 
+		// The model view's Plan | 3D | Analysis switch, before the story.
+		this._register(this.instantiationService.invokeFunction(accessor => appendModelViewSwitch(accessor, frame.titleSlot, 'plan')));
 		this.storyPicker = this._register(new SelectBox([], 0, this.contextViewService, defaultSelectBoxStyles, { ariaLabel: localize('floorPlan.storyAria', "Story shown in the floor plan") }));
 		this.storyPicker.render(append(frame.titleSlot, $('.floor-plan-select.story')));
 		this._register(this.storyPicker.onDidSelect(({ index }) => {
@@ -481,6 +484,8 @@ export class FloorPlanEditor extends EditorPane {
 			return;
 		}
 		references.forEach(r => this.inputDisposables.add(r));
+		// The storey shown is the model view's: the Tables show its rows.
+		this.inputDisposables.add(input.onDidChangeStory(story => this.selectionService.setActiveStory(story, SELECTION_SOURCE)));
 		[this.planModel, this.objects] = references.map(r => r.object.textEditorModel);
 		for (const model of [this.planModel, this.objects]) {
 			this.inputDisposables.add(model.onDidChangeContent(() => {
@@ -520,6 +525,7 @@ export class FloorPlanEditor extends EditorPane {
 		this.userView = false;
 		this.followSelection();
 		this.renderPlan();
+		this.selectionService.setActiveStory(input.story, SELECTION_SOURCE);
 	}
 
 	/** The materials and the building model, for the properties panel; neither is required. */

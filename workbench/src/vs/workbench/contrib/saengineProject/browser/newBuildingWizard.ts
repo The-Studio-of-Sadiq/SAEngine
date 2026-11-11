@@ -48,6 +48,7 @@ import {
 	parseSpacings, PENDING_BUILDING_STORAGE_KEY, plotFitWarning, readGenerateResult, readPendingBuilding, SiteClass, storyHeights, summarize, SYSTEM_CHOICES,
 } from './newBuildingModel.js';
 import { ISoilLocationRequest, ISoilLocationResult, SOIL_LOCATION_COMMAND } from '../../saengineSoil/browser/soilDocument.js';
+import { SHOW_MODEL_VIEW_COMMAND } from './modelView.js';
 import { ProjectOverviewInput } from './projectOverviewInput.js';
 import { ProjectOpener, projectFolderName } from './projectOpener.js';
 import { INewFromTemplateArgs } from './projectArchiveFlows.js';
@@ -1453,6 +1454,7 @@ export class NewBuildingOpener extends Disposable {
 		@IEditorService private readonly editorService: IEditorService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IDialogService private readonly dialogService: IDialogService,
+		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super();
 		void this.check(projectService.project);
@@ -1465,8 +1467,12 @@ export class NewBuildingOpener extends Disposable {
 			return;
 		}
 		this.storageService.remove(PENDING_BUILDING_STORAGE_KEY, StorageScope.APPLICATION);
-		// N-N1: the new building opens on its Overview (the parts, their status, what to do next).
-		await this.editorService.openEditor(ProjectOverviewInput.instance, { pinned: true });
+		// U3: the new building opens on its model view, the Overview (N-N1: the parts, their
+		// status, what to do next) a tab behind it; the Properties panel shows the next step too.
+		await this.editorService.openEditor(ProjectOverviewInput.instance, { pinned: true, inactive: true, preserveFocus: true });
+		if (!await this.commandService.executeCommand<boolean>(SHOW_MODEL_VIEW_COMMAND, 'plan')) {
+			await this.editorService.openEditor(ProjectOverviewInput.instance, { pinned: true });
+		}
 		if (pending.notes.length) {
 			this.notificationService.prompt(Severity.Info,
 				localize('newBuilding.openedNotes', "{0} was generated from the grid with preliminary member sizes ({1} notes).", project.name, pending.notes.length),
