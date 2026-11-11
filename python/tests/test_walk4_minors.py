@@ -145,7 +145,7 @@ def test_precast_warnings_before_run_all():
 
 def test_cbfem_texts_are_not_double_encoded():
     import saengine.design.connection_fe as cfe
-    import saengine.fem.cables as cables
+    from saengine.fem import cables
 
     for module in (cfe, cables):
         text = Path(module.__file__).read_text(encoding="utf-8")
