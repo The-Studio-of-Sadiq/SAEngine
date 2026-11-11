@@ -1272,6 +1272,9 @@ class _Ctx:
     # T33: {joint id: {beam id: drop mm}} of the top bars in the second layer at the joints
     # (saengine.design.rc_detailing.joint_top_layers)
     top_layers: dict[str, dict[str, float]] = field(default_factory=dict)
+    # {joint id: {beam id: rise mm}} of the bottom bars a main bar diameter higher at the
+    # joints (saengine.design.rc_detailing.joint_bottom_layers)
+    bottom_layers: dict[str, dict[str, float]] = field(default_factory=dict)
 
     def fc(self, material_id: str) -> float:
         m = self.materials.get(material_id) if self.materials is not None else None
@@ -1462,6 +1465,7 @@ def _precast_beam(ctx: _Ctx, element: dict[str, Any], line: dict[str, Any]) -> N
     tdia = float(r.transverse.dia) if r.transverse else 0.0
     inset = float(r.cover) + tdia
     drop = float(at.get("topDrop") or 0.0)
+    rise = float(at.get("bottomRise") or 0.0)
     origin, u = line["origin"], line["u"]
     grade = ctx.grade(r.material)
     kept = [b for b in element["bars"] if b["role"] in ("stirrup", "crosstie")]
@@ -1488,7 +1492,7 @@ def _precast_beam(ctx: _Ctx, element: dict[str, Any], line: dict[str, Any]) -> N
         if role == "top":
             z = elev - inset - db / 2 - drop
         elif role == "bottom":
-            z = elev - h + inset + db / 2
+            z = elev - h + inset + db / 2 + rise
         else:
             z = elev - h / 2
         p0, p1 = s0 + float(row["from"]), s0 + float(row["to"])
@@ -1505,7 +1509,7 @@ def _precast_beam(ctx: _Ctx, element: dict[str, Any], line: dict[str, Any]) -> N
                     "from": round(p0, 1),
                     "to": round(p1, 1),
                     "face": role,
-                    "layer": 2 if role == "top" and drop else 1,
+                    "layer": 2 if (role == "top" and drop) or (role == "bottom" and rise) else 1,
                     "members": list(line["members"]),
                     "start": _point(origin, u, p0, z),
                     "end": _point(origin, u, p1, z),
@@ -1774,6 +1778,16 @@ def _detail_beam_line(ctx: _Ctx, line: dict[str, Any]) -> dict[str, Any]:
         if beam_id in members_set
     }
     top_drop = max(second.values(), default=0.0)
+    # The mirror at the bottom (owner decision 2026-11-11): the line's bottom bars a main bar
+    # diameter higher, over the crossing beams' at its joints (the design's sagging d allows it)
+    raised = {
+        joint.below: rise
+        for joint in ctx.joints
+        if abs(joint.level - elev) <= TOL
+        for beam_id, rise in ctx.bottom_layers.get(joint.id, {}).items()
+        if beam_id in members_set
+    }
+    bottom_rise = max(raised.values(), default=0.0)
     level, lateral = None, False
     for mid in line["members"]:
         lv, lat = _frame_of(ctx, mid)
@@ -1819,9 +1833,11 @@ def _detail_beam_line(ctx: _Ctx, line: dict[str, Any]) -> dict[str, Any]:
         "supports": [
             {"s": round(x.s, 1), "width": x.width, "kind": x.kind, "ref": x.ref}
             | ({"topLayer": 2} if x.ref in second else {})
+            | ({"bottomLayer": 2} if x.ref in raised else {})
             for x in supports
         ],
         "topDrop": top_drop,
+        "bottomRise": bottom_rise,
         "spans": [{"from": round(a, 1), "to": round(c, 1)} for a, c in spans],
     }
     if top_drop:
@@ -1829,9 +1845,16 @@ def _detail_beam_line(ctx: _Ctx, line: dict[str, Any]) -> dict[str, Any]:
             f"top bars in the second layer, {top_drop:g} mm under the crossing beams' at "
             f"{', '.join(sorted(second))} (SAEngine practice; the design's hogging d allows it)"
         )
+    if bottom_rise:
+        element["notes"].append(
+            f"bottom bars {bottom_rise:g} mm higher, over the crossing beams' at "
+            f"{', '.join(sorted(raised))} (SAEngine practice; the design's sagging d allows it)"
+        )
 
     def z_of(face: str, db: float) -> float:
-        return elev - inset - db / 2 - top_drop if face == "top" else elev - h + inset + db / 2
+        if face == "top":
+            return elev - inset - db / 2 - top_drop
+        return elev - h + inset + db / 2 + bottom_rise
 
     tops = _groups(r, "top")
     bottoms = _groups(r, "bottom")
@@ -1996,7 +2019,9 @@ def _detail_beam_line(ctx: _Ctx, line: dict[str, Any]) -> dict[str, Any]:
                     "from": round(p0, 1),
                     "to": round(p1, 1),
                     "face": face,
-                    "layer": 2 if face == "top" and top_drop else 1,
+                    "layer": 2
+                    if (face == "top" and top_drop) or (face == "bottom" and bottom_rise)
+                    else 1,
                     "members": covered,
                     "start": _point(origin, u, p0, z),
                     "end": _point(origin, u, p1, z),
@@ -4307,12 +4332,11 @@ def detailing_model(
         ctx.joints = dj.frame_joints(building, types)
     except (ValueError, AttributeError) as error:
         ctx.notes.append(f"the beam-column joints could not be found: {error}")
-    from saengine.design.rc_detailing import joint_top_layers
+    from saengine.design.rc_detailing import joint_bottom_layers, joint_mode, joint_top_layers
 
-    construction = getattr(settings, "construction", None)
-    ctx.top_layers = joint_top_layers(
-        ctx.joints, types, str(getattr(construction, "jointTopBars", None) or "auto")
-    )
+    mode = joint_mode(settings)
+    ctx.top_layers = joint_top_layers(ctx.joints, types, mode)
+    ctx.bottom_layers = joint_bottom_layers(ctx.joints, types, mode)
     elements: list[dict[str, Any]] = []
     stacks = _stacks(ctx)
     # a member that cannot be detailed is left out with a note (10 BOQ measures it by its own

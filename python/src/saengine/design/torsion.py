@@ -118,7 +118,10 @@ class TorsionSection:
     ``top_drop``: how much lower the top bars run because they pass the joints in the second
     layer (T33, :func:`saengine.design.rc_detailing.joint_top_layers`) [mm]; the closed
     stirrups are lowered with them at the top (their top leg on the bars, as such a beam's
-    cage is bent), so the core is that much shallower and its centre half of it lower."""
+    cage is bent), so the core is that much shallower and its centre half of it lower.
+    ``bottom_rise``: the mirror at the bottom, the bottom bars passing the joints a main bar
+    diameter higher (:func:`saengine.design.rc_detailing.joint_bottom_layers`) [mm]: the core
+    shallower by it and its centre half of it higher."""
 
     b: float
     h: float
@@ -128,6 +131,7 @@ class TorsionSection:
     slab: float = 0.0
     slab_sides: int = 0
     top_drop: float = 0.0
+    bottom_rise: float = 0.0
 
     @classmethod
     def of(
@@ -137,10 +141,12 @@ class TorsionSection:
         slab: float = 0.0,
         slab_sides: int = 0,
         top_drop: float = 0.0,
+        bottom_rise: float = 0.0,
     ) -> TorsionSection:
         """From an :class:`RcSection` (rectangular), with ``d`` to the bottom bars (or the top
         bars when there are none at the bottom); ``top_drop``: the top bars' drop (the
-        section's bars already dropped, :func:`saengine.design.rc.with_top_drop`)."""
+        section's bars already dropped, :func:`saengine.design.rc.with_top_drop`); ``bottom_rise``
+        the bottom bars' rise (:func:`saengine.design.rc.with_bottom_rise`)."""
         if not isinstance(section.profile, RectangleProfile):
             raise DesignError("torsion is designed for rectangular beams only")
         try:
@@ -156,6 +162,7 @@ class TorsionSection:
             slab,
             slab_sides,
             max(float(top_drop), 0.0),
+            max(float(bottom_rise), 0.0),
         )
 
     @property
@@ -186,7 +193,7 @@ class TorsionSection:
     def core(self) -> tuple[float, float]:
         """(x1, y1): the centreline dimensions of the closed stirrup [mm]."""
         inset = 2 * self.cover + self.stirrup_dia
-        x1, y1 = self.b - inset, self.h - inset - self.top_drop
+        x1, y1 = self.b - inset, self.h - inset - self.top_drop - self.bottom_rise
         if x1 <= 0 or y1 <= 0:
             raise ValueError("the cover leaves no room for closed stirrups")
         return x1, y1
@@ -498,12 +505,13 @@ def perimeter_bars(bars: Sequence[Bar], sec: TorsionSection) -> tuple[list[Bar],
 
     Bar coordinates are from the section's centre (as :attr:`RcSection.bars`). The inner face
     of the stirrups is at ±(x1 - ds)/2, ±(y1 - ds)/2 (x1, y1: :attr:`TorsionSection.core`)
-    from the cage's centre (half the top drop below the section's); a bar is against a face
+    from the cage's centre (half the top drop below the section's, half the bottom rise above); a bar is against a face
     when its centre is within its own diameter of it, and holds a corner when it is against
     both faces there. Neighbours are taken in order around the perimeter."""
     x1, y1 = sec.core
     ax, ay = (x1 - sec.stirrup_dia) / 2, (y1 - sec.stirrup_dia) / 2
-    bars = [Bar(b.x, b.y + sec.top_drop / 2, b.area, b.dia) for b in bars]
+    shift = (sec.top_drop - sec.bottom_rise) / 2
+    bars = [Bar(b.x, b.y + shift, b.area, b.dia) for b in bars]
 
     def faces(b: Bar) -> tuple[bool, bool]:
         return abs(b.x) >= ax - b.dia, abs(b.y) >= ay - b.dia

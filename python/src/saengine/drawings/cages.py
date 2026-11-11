@@ -30,8 +30,12 @@ p. 1068, in the default pack):
   bottom bars of beams from two directions at the same level (they cannot both be in the outer
   layer). The top bars of the secondary direction already pass in the second layer, a main bar
   diameter lower (the detailing model's ``at.topDrop``, T33:
-  :func:`saengine.design.rc_detailing.joint_top_layers`; the design's hogging d allows it), so
-  only crossings the layering does not resolve are flagged.
+  :func:`saengine.design.rc_detailing.joint_top_layers`; the design's hogging d allows it), and
+  its bottom bars a main bar diameter higher (``at.bottomRise``, the mirror:
+  :func:`saengine.design.rc_detailing.joint_bottom_layers`; the design's sagging d allows it;
+  the bars stay straight, set at that level along the beam as the top bars are), so only
+  crossings the layering does not resolve are flagged (a secondary bar larger than the main
+  one, or more directions than the layering covers).
 
 Beam bars pass inside the column bars (:func:`joint_cranks`, run by the detailing model before
 the marks): at each joint the bars of a beam layer that would cross a column bar closer than the
@@ -323,6 +327,7 @@ def _beam_cage(element: dict[str, Any], type_: Any, materials: dict[str, Any], o
     elev, h = float(at["elevation"]), float(at["depth"])
     b, cover = float(at["width"]), float(at["cover"])
     top_drop = float(at.get("topDrop") or 0.0)  # T33: top bars in the second layer
+    bottom_rise = float(at.get("bottomRise") or 0.0)  # bottom bars over the crossing beams'
     slots, placed = _beam_layout(element, type_, materials)
     members = list(element.get("members") or [element["id"]])
 
@@ -347,7 +352,7 @@ def _beam_cage(element: dict[str, Any], type_: Any, materials: dict[str, Any], o
             mine = cranks[k] if k < len(cranks) else []
             for crank in mine:
                 slot.shift[str(crank["at"])] = float(crank["offset"])
-            z = elev - h / 2 + slot.y - (top_drop if face == "top" else 0.0)
+            z = elev - h / 2 + slot.y + _joint_shift(face, top_drop, bottom_rise)
             path = _path(a, c, slot.x, mine)
             line = [point(s, x, z) for s, x in path]
             sign = -1.0 if face == "top" else 1.0
@@ -376,7 +381,15 @@ def _beam_cage(element: dict[str, Any], type_: Any, materials: dict[str, Any], o
             corners = [(-hx, -hz), (hx, -hz), (hx, hz), (-hx, hz), (-hx, -hz)]
             cage.lines.append([point(s, x, zc + z) for x, z in corners])
         out["bars"].append(cage)
-    out["slots"][element["id"]] = (slots, (ox, oy), (ux, uy), elev, h, b, top_drop)
+    out["slots"][element["id"]] = (slots, (ox, oy), (ux, uy), elev, h, b, top_drop, bottom_rise)
+
+
+def _joint_shift(face: str, top_drop: float, bottom_rise: float) -> float:
+    """How far a ``face`` bar is moved from its section position [mm]: the top bars down by
+    the detailing's ``topDrop``, the bottom bars up by its ``bottomRise``."""
+    if face == "top":
+        return -top_drop
+    return bottom_rise if face == "bottom" else 0.0
 
 
 def _column_cage(element: dict[str, Any], type_: Any, materials: dict[str, Any], out: dict) -> None:
@@ -761,6 +774,7 @@ def joint_cranks(elements: list[dict[str, Any]], types: dict[str, Any], material
                 out["slots"][element["id"]] = (
                     slots, tuple(at["origin"]), tuple(at["direction"]), float(at["elevation"]),
                     float(at["depth"]), float(at["width"]), float(at.get("topDrop") or 0.0),
+                    float(at.get("bottomRise") or 0.0),
                 )  # fmt: skip
                 layouts[element["id"]] = placed
                 beams.append(element)
@@ -855,13 +869,13 @@ def _joint_checks(
     where = f"joint {element['id']} at {element.get('story') or round(top)}"
     passing: list[tuple[str, tuple[float, float], str, float, float, float, float]] = []
     for beam, geometry, s0, half in _framing(element, beams, out):
-        slots_b, (ox, oy), (ux, uy), elev, h, _, top_drop = geometry
+        slots_b, (ox, oy), (ux, uy), elev, h, _, top_drop, bottom_rise = geometry
         nx, ny = -uy, ux
         for slot in _through(slots_b, s0, half):
             across = slot.x + slot.shift.get(element["id"], 0.0)  # cranked at this joint
             x0 = ox + ux * s0 + nx * across
             y0 = oy + uy * s0 + ny * across
-            z = elev - h / 2 + slot.y - (top_drop if slot.face == "top" else 0.0)
+            z = elev - h / 2 + slot.y + _joint_shift(slot.face, top_drop, bottom_rise)
             passing.append((beam["id"], (ux, uy), slot.face, slot.dia, x0, y0, z))
     if not passing:
         return []
@@ -919,8 +933,8 @@ def _joint_checks(
                             "; Project Settings > Construction > Crossing top bars puts one "
                             "direction in the second layer"
                             if face == "top"
-                            else "; one direction goes a bar diameter higher, which the design's "
-                            "effective depth must allow"
+                            else "; the secondary direction goes a main bar diameter higher "
+                            "over the main direction's (chosen as for the crossing top bars)"
                         ),
                     )
                 )

@@ -70,7 +70,7 @@ from saengine.design.rc import (
     flexure,
     section_of,
     shear,
-    with_top_drop,
+    with_joint_layers,
 )
 from saengine.design.required import (
     BeamGeometry,
@@ -216,9 +216,12 @@ class BeamDesigner:
         aggregate: float | None,
         options: Options,
         top_drop: float = 0.0,
+        bottom_rise: float = 0.0,
     ) -> None:
         """``top_drop``: how much lower its top bars pass the joints where they go in the
-        second layer (T33, :func:`saengine.design.rc_detailing.joint_top_layers`) [mm]."""
+        second layer (T33, :func:`saengine.design.rc_detailing.joint_top_layers`) [mm];
+        ``bottom_rise``: how much higher its bottom bars pass the joints, over the crossing
+        beams' (:func:`saengine.design.rc_detailing.joint_bottom_layers`) [mm]."""
         if not isinstance(obj.profile, RectangleProfile):
             raise DesignError("beams are proposed for rectangular profiles only")
         self.obj = obj
@@ -234,6 +237,7 @@ class BeamDesigner:
         self.fc, self.fy, self.es, self.aggregate = fc, fy, es, aggregate
         self.options = options
         self.top_drop = top_drop
+        self.bottom_rise = bottom_rise
         #: OI-1 of walk 3: where the type's bars must fit (:class:`BarRoom`), or None.
         self.anchorage: BarRoom | None = None
         self._cache: dict[str, tuple[Any, Any, Any, Any]] = {}
@@ -310,12 +314,14 @@ class BeamDesigner:
 
     def geometry(self, h: float, stirrup: float) -> BeamGeometry:
         d = h - self.cover - stirrup - 10.0  # one row of Ø20 assumed
-        return BeamGeometry(self.b, h, d, d - self.top_drop, self.fc, self.fy, self.es, self.fy)
+        return BeamGeometry(
+            self.b, h, d - self.bottom_rise, d - self.top_drop, self.fc, self.fy, self.es, self.fy
+        )
 
     def _analyse(self, reinforcement: dict[str, Any]):
         key = json.dumps(reinforcement, sort_keys=True)
         if key not in self._cache:
-            section = with_top_drop(
+            section = with_joint_layers(
                 section_of(
                     self.obj.profile,
                     LinearReinforcement.model_validate(reinforcement),
@@ -325,6 +331,7 @@ class BeamDesigner:
                     self.aggregate,
                 ),
                 self.top_drop,
+                self.bottom_rise,
             )
             t = reinforcement["transverse"]
             self._cache[key] = (
@@ -395,10 +402,14 @@ class BeamDesigner:
             # Alpha 9 C18c: the torsion need carries the pack's spacing (loads.torsion_s_max).
             return math.inf
         rules = torsion_design.TorsionRules.from_pack()
-        drop = self.top_drop
+        drop, rise = self.top_drop, self.bottom_rise
         if drop > 0:
             drop = max(drop, max(self.options.diameters, default=drop))
-        cage = torsion_design.TorsionSection(self.b, self.h, self.cover, dia, 0.0, top_drop=drop)
+        if rise > 0:
+            rise = max(rise, max(self.options.diameters, default=rise))
+        cage = torsion_design.TorsionSection(
+            self.b, self.h, self.cover, dia, 0.0, top_drop=drop, bottom_rise=rise
+        )
         try:
             return min(cage.ph / rules.perimeter_divisor, rules.spacing_max)
         except ValueError:
@@ -412,7 +423,9 @@ class BeamDesigner:
 
         section = self.section(reinforcement)
         try:
-            ts = torsion_design.TorsionSection.of(section, self.cover, top_drop=self.top_drop)
+            ts = torsion_design.TorsionSection.of(
+                section, self.cover, top_drop=self.top_drop, bottom_rise=self.bottom_rise
+            )
             return torsion_design.perimeter_bars(section.bars, ts)[1] == 4
         except (DesignError, ValueError):
             return False
@@ -2137,6 +2150,7 @@ def propose(
             designer = BeamDesigner(
                 first["object"], first["fc"], first["fy"], first["es"], first["aggregate"], opts,
                 max(float(m.get("topDrop") or 0.0) for m in members),
+                max(float(m.get("bottomRise") or 0.0) for m in members),
             )  # fmt: skip
         except DesignError as error:
             results.append(_TypeResult(warnings=[f"{type_id}: {error}"]))
@@ -2676,7 +2690,8 @@ def seismic_transverse(
     # (``topDrop``, T33); with the full d the hoops over the splices came out 100 mm against a
     # checked min(d/4, ...) = 99.5 mm.
     drop = max((float(m.get("topDrop") or 0.0) for m in members), default=0.0)
-    need_section = with_top_drop(section, drop) if kind == "beam" else section
+    rise = max((float(m.get("bottomRise") or 0.0) for m in members), default=0.0)
+    need_section = with_joint_layers(section, drop, rise) if kind == "beam" else section
     t = dict(reinforcement["transverse"])
     circle = isinstance(obj.profile, CircleProfile)
     b, h = (obj.profile.xDim, obj.profile.yDim) if not circle else (2 * obj.profile.radius,) * 2

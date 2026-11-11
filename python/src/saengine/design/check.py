@@ -66,7 +66,7 @@ from saengine.design.rc import (
     section_of,
     shear,
     surface_of,
-    with_top_drop,
+    with_joint_layers,
 )
 from saengine.design.steel import SteelDesignError
 from saengine.fem import irregularity
@@ -910,7 +910,11 @@ def _design_run(
     # T33: beams whose top bars pass their joints in the second layer, under the crossing
     # beams' (saengine.design.rc_detailing.joint_top_layers): their hogging d is less.
     top_drops = rc_detailing.building_top_drops(building, types, settings)
+    # The mirror at the bottom (owner decision 2026-11-11): the secondary direction's bottom
+    # bars pass a main bar diameter higher (joint_bottom_layers): their sagging d is less.
+    bottom_rises = rc_detailing.building_bottom_rises(building, types, settings)
     second_layer: list[str] = []
+    raised: list[str] = []
     live_scope = live_reduction.LiveScope.of(settings)
     # Alpha 9 C5: a pack with partial-factor concrete methods adds its member rules
     # (saengine.design.bar_rules) and, for DCM / DCH systems, the curvature-ductility detailing
@@ -934,6 +938,7 @@ def _design_run(
         project, building, types, mats, pieces, members, combinations, service, settings,
         live_scope, resolved_overwrites, context, exact, face_data, face_offsets,
         static_factors, top_drops, member_rules, ductility, mu_phi, limit_rules,
+        bottom_rises,
     )  # fmt: skip
     beam_sections, dropped_sections = rc_run.beam_sections, rc_run.dropped_sections
     column_sections = rc_run.column_sections
@@ -1172,6 +1177,8 @@ def _design_run(
                 column_sections.setdefault(type_id, done.base)
         if done.second_layer:
             second_layer.append(member_id)
+        if done.raised:
+            raised.append(member_id)
         faced_any = faced_any or done.faced
         notes.extend(done.notes)
         if done.skip is not None:
@@ -1200,6 +1207,10 @@ def _design_run(
                     "aggregate": concrete.concrete.maxAggregate,
                     # T33: the top bars' drop to the second layer at the joints [mm].
                     "topDrop": top_drops.get(element.id, 0.0)
+                    if isinstance(element, BeamElement)
+                    else 0.0,
+                    # The bottom bars' rise over the crossing beams' at the joints [mm].
+                    "bottomRise": bottom_rises.get(element.id, 0.0)
                     if isinstance(element, BeamElement)
                     else 0.0,
                     "checks": checks,
@@ -1373,6 +1384,13 @@ def _design_run(
             "joints, under the crossing beams' (hogging d less by those bars' diameter; "
             f"e.g. {', '.join(second_layer[:3])}; Project Settings > Construction > Crossing "
             "top bars, SAEngine practice)"
+        )
+    if raised:
+        notes.append(
+            f"{len(raised)} beam(s) take their bottom bars a main bar diameter higher at their "
+            "joints, over the crossing beams' (sagging d less by that diameter; "
+            f"e.g. {', '.join(raised[:3])}; the main direction as for the crossing top bars, "
+            "SAEngine practice)"
         )
     # The report without the assumed bars (see ``assumed``): the same up to the slabs.
     default_rebar = _default_rebar_id(objects, materials)
@@ -1630,9 +1648,11 @@ class _RcRun:
     ductility: str | None
     mu_phi: Any
     limit_rules: Any
+    bottom_rises: dict[str, float]
     beam_sections: dict[str, tuple[RcSection, dict[bool, Any]]] = field(default_factory=dict)
-    dropped_sections: dict[tuple[str, float], tuple[RcSection, dict[bool, Any]]] = field(
-        default_factory=dict
+    #: The beam sections with their bars at the joint levels, by (type, (drop, rise)).
+    dropped_sections: dict[tuple[str, tuple[float, float]], tuple[RcSection, dict[bool, Any]]] = (
+        field(default_factory=dict)
     )
     #: The column sections and their surfaces (None: a section kept without its surface).
     column_sections: dict[str, tuple[RcSection, InteractionSurface | None]] = field(
@@ -1674,12 +1694,15 @@ class _RcDone:
     notes: list[str] = field(default_factory=list)
     #: It takes its top bars in the second layer at its joints (T33).
     second_layer: bool = False
+    #: It takes its bottom bars a main bar diameter higher at its joints.
+    raised: bool = False
     #: Its checks took the forces at the support faces.
     faced: bool = False
     #: (section, capacities) of its object type once worked out (capacities None: a column).
     base: tuple[Any, Any] | None = None
-    #: (drop, section, capacities) with the top bars dropped to the second layer.
-    dropped: tuple[float, Any, Any] | None = None
+    #: ((drop, rise), section, capacities) with the top bars dropped to the second layer and
+    #: the bottom bars raised over the crossing beams' at the joints.
+    dropped: tuple[tuple[float, float], Any, Any] | None = None
     section: Any = None
     capacities: Any = None
     own: list[_Piece] | None = None
@@ -1718,7 +1741,7 @@ def _rc_member(
     context, combinations, exact = run.context, run.combinations, run.exact
     face_data, face_offsets, static_factors = run.face_data, run.face_offsets, run.static_factors
     top_drops, member_rules, ductility = run.top_drops, run.member_rules, run.ductility
-    mu_phi, limit_rules = run.mu_phi, run.limit_rules
+    mu_phi, limit_rules, bottom_rises = run.mu_phi, run.limit_rules, run.bottom_rises
     beam_sections, dropped_sections = run.beam_sections, run.dropped_sections
     column_sections = run.column_sections
     framing = run.framing
@@ -1804,17 +1827,21 @@ def _rc_member(
                 )
             section, capacities = beam_sections[type_id]
             out.base = (section, capacities)
-            drop = top_drops.get(element.id, 0.0) if isinstance(element, BeamElement) else 0.0
-            if drop > 0:
-                if (type_id, drop) not in dropped_sections:
-                    lower = with_top_drop(section, drop)
-                    dropped_sections[(type_id, drop)] = (
+            is_beam = isinstance(element, BeamElement)
+            drop = top_drops.get(element.id, 0.0) if is_beam else 0.0
+            rise = bottom_rises.get(element.id, 0.0) if is_beam else 0.0
+            if drop > 0 or rise > 0:
+                levels = (drop, rise)
+                if (type_id, levels) not in dropped_sections:
+                    lower = with_joint_layers(section, drop, rise)
+                    dropped_sections[(type_id, levels)] = (
                         lower,
                         {hog: flexure(lower, hog) for hog in (False, True)},
                     )
-                section, capacities = dropped_sections[(type_id, drop)]
-                out.dropped = (drop, section, capacities)
-                out.second_layer = True
+                section, capacities = dropped_sections[(type_id, levels)]
+                out.dropped = (levels, section, capacities)
+                out.second_layer = drop > 0
+                out.raised = rise > 0
             faced = face_forces.at_faces(
                 own,
                 project,
@@ -1875,6 +1902,7 @@ def _rc_member(
                         framing,
                         bars.steel.fy,
                         drop,
+                        rise,
                     )
                 checks += torsion_rows
                 deflection_rows = _beam_deflection_checks(
@@ -5318,6 +5346,7 @@ def _beam_torsion_checks(
     framing: _BeamFraming,
     fy: float,
     top_drop: float = 0.0,
+    bottom_rise: float = 0.0,
 ) -> tuple[list[dict[str, Any]], Any]:
     """The torsion rows of a beam (default pack BNBC 2020 Part 6 Sec 6.4.4, :mod:`saengine.design.torsion`)
     at its governing station (below the threshold one reported-only row), and the torsion
@@ -5397,7 +5426,7 @@ def _beam_torsion_checks(
     thickness, sides = framing.slab_beside(element, width)
     try:
         ts = torsion_design.TorsionSection.of(
-            section, reinforcement.cover, thickness, sides, top_drop
+            section, reinforcement.cover, thickness, sides, top_drop, bottom_rise
         )
         ts.core  # noqa: B018 - raises when the cover leaves no room
     except (DesignError, ValueError) as error:
