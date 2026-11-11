@@ -930,11 +930,11 @@ def _joint_checks(
                         gap,
                         "practice: crossing bars cannot share a level"
                         + (
-                            "; Project Settings > Construction > Crossing top bars puts one "
-                            "direction in the second layer"
+                            "; Project Settings > Construction > Crossing beam bars at joints "
+                            "puts one direction in the second layer"
                             if face == "top"
-                            else "; the secondary direction goes a main bar diameter higher "
-                            "over the main direction's (chosen as for the crossing top bars)"
+                            else "; Project Settings > Construction > Crossing beam bars at "
+                            "joints puts the secondary direction a main bar diameter higher"
                         ),
                     )
                 )

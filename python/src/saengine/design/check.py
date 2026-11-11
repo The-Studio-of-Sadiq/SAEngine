@@ -1383,14 +1383,14 @@ def _design_run(
             f"T33: {len(second_layer)} beam(s) take their top bars in the second layer at their "
             "joints, under the crossing beams' (hogging d less by those bars' diameter; "
             f"e.g. {', '.join(second_layer[:3])}; Project Settings > Construction > Crossing "
-            "top bars, SAEngine practice)"
+            "beam bars at joints, SAEngine practice)"
         )
     if raised:
         notes.append(
             f"{len(raised)} beam(s) take their bottom bars a main bar diameter higher at their "
             "joints, over the crossing beams' (sagging d less by that diameter; "
-            f"e.g. {', '.join(raised[:3])}; the main direction as for the crossing top bars, "
-            "SAEngine practice)"
+            f"e.g. {', '.join(raised[:3])}; Project Settings > Construction > Crossing beam bars "
+            "at joints, SAEngine practice)"
         )
     # The report without the assumed bars (see ``assumed``): the same up to the slabs.
     default_rebar = _default_rebar_id(objects, materials)

@@ -134,3 +134,18 @@ def test_the_raised_bottom_bars_sit_in_the_raised_cage() -> None:
     assert both.core == (plain.core[0], plain.core[1] - 36)
     bars = [Bar(x, y, 201.0, 16) for x in (-92, 92) for y in (192 - 16, -192 + 20)]
     assert perimeter_bars(bars, both)[1] == 4
+
+
+def test_the_former_joint_top_bars_key_is_read_as_joint_bars() -> None:
+    """Owner decision 2026-11-11: the setting covers the top and the bottom bars, so it is
+    ``construction.jointBars`` now; projects saved with ``jointTopBars`` keep their choice."""
+    from saengine.design.rc_detailing import joint_mode
+    from saengine.library.settings import Construction
+
+    old = Construction.model_validate({"jointTopBars": "y"})
+    assert old.jointBars == "y"
+    assert "jointTopBars" not in old.model_dump()
+    assert joint_mode(SimpleNamespace(construction=old)) == "y"
+    both = Construction.model_validate({"jointTopBars": "y", "jointBars": "x"})
+    assert both.jointBars == "x"
+    assert Construction().jointBars == "auto"

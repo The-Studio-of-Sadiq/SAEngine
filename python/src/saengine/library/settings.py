@@ -1537,24 +1537,38 @@ class Construction(_Model):
             ["Siliceous", "Carbonate", "Sand-lightweight", "Lightweight", "Brick chips"]
         ),
     )
-    jointTopBars: Literal["auto", "x", "y", "sameLayer"] = Field(
+    jointBars: Literal["auto", "x", "y", "sameLayer"] = Field(
         default="auto",
-        title="Crossing top bars at beam-column joints",
-        description="Where the top bars of beams from two directions cross at a joint, one "
-        "direction's go in the second layer, under the other's, and its hogging d is that "
-        "bar diameter less (SAEngine practice; the code gives no rule). Auto: the deeper beam "
-        "is the main (outer layer) one; beams of equal depth: the plan direction with the "
-        "longer mean span. X or Y: that direction is the main one everywhere. Same layer: both "
-        "in the outer layer (flagged as a clash in the drawings).",
+        title="Crossing beam bars at joints",
+        description="Where beams from two directions cross at a beam-column joint, which "
+        "direction is the main one (SAEngine practice; the code gives no rule). Top bars: the "
+        "secondary direction's go in the second layer, under the main one's, and its hogging d "
+        "is that bar diameter less. Bottom bars: the secondary direction's pass one main bar "
+        "diameter higher, over the main one's, and its sagging d is that much less. Auto: the "
+        "deeper beam is the main one; beams of equal depth: the plan direction with the longer "
+        "mean span. X or Y: that direction is the main one everywhere. Same layer: both at the "
+        "same level, top and bottom (flagged as a clash in the drawings).",
         json_schema_extra=_labels(
             [
                 "Auto (deeper beam, then longer spans)",
-                "X beams outer",
-                "Y beams outer",
+                "X beams main",
+                "Y beams main",
                 "Same layer (flagged)",
             ]
         ),
     )
+
+    @model_validator(mode="before")
+    @classmethod
+    def _former_joint_top_bars(cls, data: Any) -> Any:
+        """The setting's former key 'jointTopBars' (named when it ordered only the top bars;
+        it now orders the bottom bars too) is read as 'jointBars'."""
+        if isinstance(data, dict) and "jointTopBars" in data:
+            former = data["jointTopBars"]
+            data = {k: v for k, v in data.items() if k != "jointTopBars"}
+            data.setdefault("jointBars", former)
+        return data
+
     fireSeparation: float | None = Field(
         default=None,
         ge=0,
