@@ -185,6 +185,7 @@ def _rc_beam_group(
         envelope = loads if envelope is None else envelope.envelope(loads)
     bar_material = obj.reinforcement.material
     top_drop = max(float(m.get("topDrop") or 0.0) for m in members)
+    bottom_rise = max(float(m.get("bottomRise") or 0.0) for m in members)
 
     options: list[dict[str, Any]] = []
     for concrete in concretes:
@@ -229,7 +230,7 @@ def _rc_beam_group(
         try:
             designer = BeamDesigner(
                 candidate, option["fc"], first["fy"], first["es"], option["aggregate"], opts,
-                top_drop,
+                top_drop, bottom_rise,
             )  # fmt: skip
             pick = designer.propose(envelope, lightest=True)
         except DesignError as error:

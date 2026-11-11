@@ -416,6 +416,23 @@ def with_top_drop(section: RcSection, drop: float) -> RcSection:
     return replace(section, bars=bars)
 
 
+def with_bottom_rise(section: RcSection, rise: float) -> RcSection:
+    """``section`` with its bottom bars (below the centre) ``rise`` [mm] higher: a beam whose
+    bottom bars pass a joint over the crossing beam's (the mirror of :func:`with_top_drop`,
+    :func:`saengine.design.rc_detailing.joint_bottom_layers`), so its sagging d is that much
+    less. The section itself when ``rise`` is 0."""
+    if rise <= 0:
+        return section
+    bars = tuple(Bar(b.x, b.y + rise, b.area, b.dia) if b.y < 0 else b for b in section.bars)
+    return replace(section, bars=bars)
+
+
+def with_joint_layers(section: RcSection, drop: float, rise: float = 0.0) -> RcSection:
+    """``section`` with its top bars ``drop`` lower (:func:`with_top_drop`) and its bottom bars
+    ``rise`` higher (:func:`with_bottom_rise`): the levels its bars pass the joints at."""
+    return with_bottom_rise(with_top_drop(section, drop), rise)
+
+
 def _arrange(dias: list[float]) -> list[float]:
     """Bars of one row or face in order, symmetric where the counts allow: equal bars in pairs
     from the ends inwards, the largest outermost, the unpaired ones in the middle."""

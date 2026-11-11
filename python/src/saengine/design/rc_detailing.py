@@ -65,6 +65,7 @@ __all__ = [
     "aggregate_rules",
     "beam_checks",
     "beam_top_drops",
+    "building_bottom_rises",
     "building_top_drops",
     "clause",
     "column_joint_check",
@@ -75,6 +76,8 @@ __all__ = [
     "flange_note",
     "follows_default",
     "integrity_check",
+    "joint_bottom_layers",
+    "joint_mode",
     "joint_top_layers",
     "lambda_factor",
     "main_direction",
@@ -843,11 +846,26 @@ def wall_joint_check(
 _SAME_DIRECTION = 10.0
 
 
-def _top_dia(beam_type: Any) -> float:
-    """The largest top bar of a beam type [mm]; 0 without top bars."""
+def _face_dia(beam_type: Any, face: str = "top") -> float:
+    """The largest ``face`` ("top" / "bottom") bar of a beam type [mm]; 0 without such bars."""
     reinforcement = getattr(beam_type, "reinforcement", None)
     groups = getattr(reinforcement, "longitudinal", None) or []
-    return max((float(g.dia) for g in groups if g.position == "top"), default=0.0)
+    return max((float(g.dia) for g in groups if g.position == face), default=0.0)
+
+
+def _top_dia(beam_type: Any) -> float:
+    """The largest top bar of a beam type [mm]; 0 without top bars."""
+    return _face_dia(beam_type, "top")
+
+
+def _bottom_level(beam_type: Any) -> float:
+    """How far under the beam's top its outer bottom bars' centre is [mm] (the beams of a joint
+    have their tops at its level): depth - cover - stirrup - half the largest bottom bar."""
+    reinforcement = getattr(beam_type, "reinforcement", None)
+    transverse = getattr(reinforcement, "transverse", None)
+    cover = float(getattr(reinforcement, "cover", 0.0) or 0.0)
+    tdia = float(getattr(transverse, "dia", 0.0) or 0.0) if transverse is not None else 0.0
+    return _depth(beam_type) - cover - tdia - _face_dia(beam_type, "bottom") / 2
 
 
 def _depth(beam_type: Any) -> float:
@@ -885,6 +903,28 @@ def joint_top_layers(
     :func:`main_direction` (the longer spans), the same everywhere so a continuous beam stays
     in one layer; "x" / "y" that plan direction; "sameLayer" none (the drawings flag the
     clash). ``joints``: :func:`saengine.design.ductile_joints.frame_joints`."""
+    return _joint_layers(joints, types, mode, "top")
+
+
+def joint_bottom_layers(
+    joints: Sequence[Any], types: dict[str, Any], mode: str = "auto"
+) -> dict[str, dict[str, float]]:
+    """The mirror of :func:`joint_top_layers` for the bottom bars (owner decision 2026-11-11,
+    SAEngine practice): where the bottom bars of beams from two directions meet at a joint at
+    the same level, the secondary direction's pass one main bar diameter higher (summed over
+    the directions below when more than two meet). ``{joint id: {beam id: rise [mm]}}``. The
+    main direction is chosen as for the top bars, with the same ``mode``, so a secondary
+    beam's bars sit inside the main beam's at both faces. A direction whose outer bottom bars
+    are already clear of the main direction's (a shallower beam, its bottom bars at least
+    half the two diameters higher) is not raised."""
+    return _joint_layers(joints, types, mode, "bottom")
+
+
+def _joint_layers(
+    joints: Sequence[Any], types: dict[str, Any], mode: str, face: str
+) -> dict[str, dict[str, float]]:
+    """:func:`joint_top_layers` (``face`` "top": the drops) and :func:`joint_bottom_layers`
+    ("bottom": the rises)."""
     if mode == "sameLayer":
         return {}
     preferred = mode if mode in ("x", "y") else main_direction(joints)
@@ -893,7 +933,7 @@ def joint_top_layers(
     for joint in joints:
         groups: list[tuple[tuple[float, float], list[Any]]] = []
         for beam in joint.beams:
-            if _top_dia(types.get(beam.type)) <= 0:
+            if _face_dia(types.get(beam.type), face) <= 0:
                 continue
             u = beam.direction
             for axis, members in groups:
@@ -913,13 +953,22 @@ def joint_top_layers(
             return (-round(depth) if mode == "auto" else 0, first)
 
         ordered = sorted(groups, key=rank)
-        drop = 0.0
+        main = ordered[0][1]
+        main_level = max(_bottom_level(types.get(b.type)) for b in main)
+        main_dia = max(_face_dia(types.get(b.type), face) for b in main)
+        shift = 0.0
         found: dict[str, float] = {}
-        for _axis, members in ordered:
-            if drop > 0:
+        for k, (_axis, members) in enumerate(ordered):
+            dia = max(_face_dia(types.get(b.type), face) for b in members)
+            if k and face == "bottom":
+                # bottom bars meet only where the beams' bottoms are at about one level
+                level = max(_bottom_level(types.get(b.type)) for b in members)
+                if main_level - level >= (main_dia + dia) / 2 - 1e-6:
+                    continue
+            if shift > 0:
                 for beam in members:
-                    found[beam.id] = max(found.get(beam.id, 0.0), drop)
-            drop += max(_top_dia(types.get(b.type)) for b in members)
+                    found[beam.id] = max(found.get(beam.id, 0.0), shift)
+            shift += dia
         if found:
             out[joint.id] = found
     return out
@@ -928,7 +977,8 @@ def joint_top_layers(
 def beam_top_drops(layers: dict[str, dict[str, float]]) -> dict[str, float]:
     """``{beam id: drop [mm]}``: the largest drop of each beam's top bars over its joints
     (:func:`joint_top_layers`); its hogging design takes it all along (the top bars of a beam
-    type run its length)."""
+    type run its length). The same for the rises of :func:`joint_bottom_layers`: the bottom
+    bars run the beam's length too, and its sagging design takes the rise all along."""
     out: dict[str, float] = {}
     for found in layers.values():
         for beam_id, drop in found.items():
@@ -941,6 +991,22 @@ def building_top_drops(building: Any, types: dict[str, Any], settings: Any) -> d
     (``construction.jointTopBars``, "auto" when not set)."""
     from saengine.design.ductile_joints import frame_joints
 
+    joints = frame_joints(building, types)
+    return beam_top_drops(joint_top_layers(joints, types, joint_mode(settings)))
+
+
+def joint_mode(settings: Any) -> str:
+    """The project's crossing-bars mode (``construction.jointTopBars``, "auto" when not set):
+    it orders the top bars (:func:`joint_top_layers`) and the bottom bars
+    (:func:`joint_bottom_layers`) alike."""
     construction = getattr(settings, "construction", None)
-    mode = str(getattr(construction, "jointTopBars", None) or "auto")
-    return beam_top_drops(joint_top_layers(frame_joints(building, types), types, mode))
+    return str(getattr(construction, "jointTopBars", None) or "auto")
+
+
+def building_bottom_rises(building: Any, types: dict[str, Any], settings: Any) -> dict[str, float]:
+    """``{beam id: rise [mm]}`` of a building model's beams whose bottom bars pass their joints
+    one main bar diameter higher (:func:`joint_bottom_layers`, the project's mode)."""
+    from saengine.design.ductile_joints import frame_joints
+
+    joints = frame_joints(building, types)
+    return beam_top_drops(joint_bottom_layers(joints, types, joint_mode(settings)))
