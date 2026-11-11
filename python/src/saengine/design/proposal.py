@@ -81,6 +81,10 @@ from saengine.design.required import (
     beam_demand,
     beam_need,
     column_requirements,
+    demand_points,
+    demand_rows,
+    search_cost,
+    searches_ahead,
     slab_envelope,
     slab_layer_need,
     slab_layer_rules,
@@ -695,6 +699,40 @@ def _column_pick(
     return Pick(
         reinforcement, _column_label(reinforcement), layout.area, utilisation, notes, index=index
     )
+
+
+def _pick_ahead(search: ColumnSearch, data: tuple[int, Any]) -> None:
+    """In a worker: the full surfaces' checks of :func:`_column_pick` for a column type's
+    layout ``index`` and all its members' demands (``data``: (index, rows))."""
+    index, rows = data
+    _column_pick(search, index, demand_points(rows))
+
+
+def _picks_ahead(
+    gathered: Gathered,
+    opts: Options,
+    column_searches: dict[str, tuple[ColumnSearch, dict[str, tuple[int | None, list[Point]]]]],
+) -> None:
+    """Alpha 10 (performance): :func:`_column_pick` of each column type's shared bars (the
+    layout its members need, checked on the full surface for all their demands) worked out
+    ahead in worker processes for a large model (:func:`saengine.design.required.
+    searches_ahead`): the proposal below finds those results kept, the same as if worked out
+    here."""
+    first_of: dict[str, dict[str, Any]] = {}
+    for member in gathered.collect.get("members", []):
+        if member["kind"] == "column":
+            first_of.setdefault(member["type"], member)
+    types = []
+    columns = 0
+    for type_id, (_, members) in column_searches.items():
+        indices = [index for index, _ in members.values()]
+        first = first_of.get(type_id)
+        if first is None or not indices or any(index is None for index in indices):
+            continue
+        rows = demand_rows([p for _, points in members.values() for p in points])
+        types.append((first, (max(indices), rows), search_cost(first, len(rows))))
+        columns += len(members)
+    searches_ahead(gathered, opts, types, _pick_ahead, columns)
 
 
 #: Steel a column layout with fewer, larger bars may add over the lightest one (a share).
@@ -2182,6 +2220,7 @@ def propose(
         found.entry = entry
         return found
 
+    _picks_ahead(gathered, opts, column_searches)
     for type_id in column_searches:
         column_results[type_id] = column_type(type_id)
         results.append(column_results[type_id])

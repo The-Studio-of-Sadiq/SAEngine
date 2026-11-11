@@ -1219,6 +1219,19 @@ def surface_of(
     return found
 
 
+def kept_surface(key: tuple) -> InteractionSurface | None:
+    """The surface :func:`surface_of` keeps under ``key``, if any."""
+    return _SURFACES.get(key)
+
+
+def keep_surface(key: tuple, surface: InteractionSurface) -> None:
+    """Keeps ``surface`` (built in another process, :mod:`saengine.design.member_pool`) as
+    :func:`surface_of` keeps the surfaces it builds; one kept already stays."""
+    if key not in _SURFACES:
+        _SURFACES[key] = surface
+        _bound(_SURFACES, _SURFACES_KEPT)
+
+
 def slenderness(section: RcSection, length: float, k: float = 1.0) -> float:
     """The larger k lu / r of the two section axes, r = 0.3 h (rectangle) or 0.25 D (circle)."""
     p = section.profile
