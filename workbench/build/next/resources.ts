@@ -24,6 +24,7 @@ const commonResourcePatterns = [
 
 	// SVGs referenced from CSS (needed for transpile/dev builds where CSS is copied as-is)
 	'vs/workbench/browser/media/code-icon.svg',
+	'vs/workbench/browser/media/titlebar-icon*.svg',
 	'vs/workbench/browser/parts/editor/media/letterpress*.svg',
 	// SAEngine brand typeface (Saira, OFL-1.1), referenced from saengineTokens.css
 	'vs/workbench/contrib/saengineProject/browser/media/fonts/*.{ttf,txt}',
