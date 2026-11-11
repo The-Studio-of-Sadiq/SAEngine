@@ -2510,3 +2510,6 @@ Each is a pack value or method id, overridable in Code Values; the default pack 
   entered, by the engineer or the assistant, with the reason in words. Deleting important data
   (a part, storeys, grids, members in bulk, results, versions) asks for confirmation; small
   edits do not.
+- **Order after alpha 10 (2026-11-11):** UI/UX round, then live co-editing (Yjs over the
+  office's own relay), then the shared editing actions with the missing terminal commands,
+  then the AI assistant built on those actions.
