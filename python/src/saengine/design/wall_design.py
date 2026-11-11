@@ -2210,17 +2210,20 @@ def proposal_entries(
             layers = int(held)
 
         beams = beams_of.get(type_id, [])
-        reinforcement, utilisation, notes, too_small = _attempt(
-            group, current, material, cover, layers, beams
-        )
-        if reinforcement is None and layers == 1 and any(k in too_small for k in _TWO_CURTAINS):
-            # R3-1: a second curtain (bars at both faces) where one at mid-thickness leaves
-            # the web too weak out of its plane, or the joint short of bars.
-            two = _attempt(group, current, material, cover, 2, beams)
-            if two[0] is not None:
-                reinforcement, utilisation, notes, _ = two
-                notes = notes + [f"two curtains: with one, {too_small}"]
-                too_small, layers = "", 2
+        # Alpha 10: one P-M interaction per pier section over the trials of the type.
+        with W.shared_interactions():
+            reinforcement, utilisation, notes, too_small = _attempt(
+                group, current, material, cover, layers, beams
+            )
+            two = None
+            if reinforcement is None and layers == 1 and any(k in too_small for k in _TWO_CURTAINS):
+                # R3-1: a second curtain (bars at both faces) where one at mid-thickness leaves
+                # the web too weak out of its plane, or the joint short of bars.
+                two = _attempt(group, current, material, cover, 2, beams)
+        if two is not None and two[0] is not None:
+            reinforcement, utilisation, notes, _ = two
+            notes = notes + [f"two curtains: with one, {too_small}"]
+            too_small, layers = "", 2
         status = "tooSmall" if reinforcement is None else "ok"
         if status == "ok" and current is not None and _same(current, reinforcement):
             status = "unchanged"
