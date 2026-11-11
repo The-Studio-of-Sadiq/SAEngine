@@ -597,7 +597,7 @@
 
 .saengine-mep-editor .mep-input:focus,
 .saengine-mep-editor .mep-select:focus {
-	border-color: var(--vscode-focusBorder);
+	border-color: var(--sa-accent);
 	background: var(--vscode-input-background);
 }
 
@@ -612,7 +612,7 @@
 
 .saengine-mep-editor .mep-checkbox {
 	margin: 0;
-	accent-color: var(--vscode-focusBorder);
+	accent-color: var(--sa-accent);
 	cursor: pointer;
 }
 
@@ -1769,7 +1769,7 @@
 
 .saengine-mep-editor .mep-tile.mep-tile-link:hover,
 .saengine-mep-editor .mep-tile.mep-tile-link:focus-visible {
-	border-color: var(--vscode-focusBorder);
+	border-color: var(--sa-accent);
 }
 
 /* The discipline's main actions, labelled, beside the icon toolbar. */

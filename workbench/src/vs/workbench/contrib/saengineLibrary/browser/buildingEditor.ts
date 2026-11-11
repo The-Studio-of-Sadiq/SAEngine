@@ -44,6 +44,7 @@ import { propertySheet } from '../../saengineModel/browser/modelData.js';
 import { openOwner } from '../../saengineModel/browser/projectDocuments.js';
 import { formatPropertyValue, propertyLink, renderPropertySheet, schemaUnit } from '../../saengineModel/browser/propertySheetView.js';
 import { appendPropertyHeading, appendPropertyNote, appendPropertyRow, EditorFrame, IEditorFrameStatus } from '../../saengineProject/browser/editorFrame.js';
+import { appendModelViewSwitch } from '../../saengineProject/browser/modelView.js';
 import { clone, IDocumentFrameActions, IShapeError, isObject, JsonDocumentEditor } from './jsonDocumentEditor.js';
 import { LibraryEditorInput } from './libraryEditorInput.js';
 import { BimStudies } from '../../saengineOffice/browser/bimStudies.js';
@@ -321,6 +322,8 @@ export class BuildingEditor extends JsonDocumentEditor implements IPartSectionPa
 			}));
 			this.viewButtons.set(view, button);
 		}
+		// The model view's Plan | 3D | Analysis switch, before the building model's own views.
+		this._register(this.instantiation.invokeFunction(accessor => appendModelViewSwitch(accessor, frame.titleSlot, '3d')));
 
 
 		const container = append(body, $('.building-editor.building-3d'));

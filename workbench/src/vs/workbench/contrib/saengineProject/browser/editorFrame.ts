@@ -23,6 +23,7 @@ import { IContextMenuService } from '../../../../platform/contextview/browser/co
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { defaultButtonStyles, defaultProgressBarStyles } from '../../../../platform/theme/browser/defaultStyles.js';
+import { ISaenginePropertiesDockService } from './propertiesDock.js';
 
 /*
  * The shared frame of the SAEngine editors: one slim toolbar, the editor's own canvas or table,
@@ -53,6 +54,10 @@ import { defaultButtonStyles, defaultProgressBarStyles } from '../../../../platf
  * overflow menu. The properties panel's width and visibility are remembered per `id`; fill it
  * with `appendPropertyHeading` / `appendPropertyRow` / `appendPropertyNote`. Append to `main`
  * rather than clearing it: the empty state lives there too.
+ *
+ * By default (`saengine.properties.location`) the properties do not take a column of the editor:
+ * the Properties panel on the right of the window shows the active editor's `properties` element
+ * itself (propertiesDock.ts), with the same listeners, so editors fill it as before.
  */
 
 /** Options of the properties panel on the right of the frame. */
@@ -249,6 +254,8 @@ export class EditorFrame extends Disposable {
 	private readonly emptyStore = this._register(new DisposableStore());
 	private readonly storageKey: string;
 	private state: IEditorFrameState;
+	/** The Properties panel's element holding `properties` while it shows this editor's. */
+	private dockHost: HTMLElement | undefined;
 	private width = 0;
 	private height = 0;
 
@@ -263,6 +270,7 @@ export class EditorFrame extends Disposable {
 		@IStorageService private readonly storageService: IStorageService,
 		@IHoverService private readonly hoverService: IHoverService,
 		@ICommandService private readonly commandService: ICommandService,
+		@ISaenginePropertiesDockService private readonly dockService: ISaenginePropertiesDockService,
 	) {
 		super();
 		this.storageKey = `saengine.editorFrame.${options.id}`;
@@ -295,7 +303,7 @@ export class EditorFrame extends Disposable {
 
 		this.togglePropertiesAction = this._register(new Action('saengine.editorFrame.toggleProperties',
 			panelOptions ? localize('editorFrame.toggleProperties', "Toggle {0}", panelOptions.title) : '',
-			ThemeIcon.asClassName(Codicon.layoutSidebarRightOff), !!panelOptions, async () => this.setPropertiesVisible(!this.state.visible)));
+			ThemeIcon.asClassName(Codicon.layoutSidebarRightOff), !!panelOptions, async () => this.toggleProperties()));
 
 		if (panelOptions) {
 			this.panel = append(this.body, $('.sa-frame-panel'));
@@ -314,6 +322,15 @@ export class EditorFrame extends Disposable {
 			this._register(sash.onDidChange(e => this.resizePanel(start + e.startX - e.currentX, false)));
 			this._register(sash.onDidEnd(() => this.save()));
 			this._register(sash.onDidReset(() => this.resizePanel(panelOptions.defaultWidth ?? DEFAULT_PANEL_WIDTH, true)));
+
+			const content = this.properties;
+			this._register(this.dockService.register({ element: this.element, dock: host => this.setDockHost(host) }));
+			this._register(toDisposable(() => {
+				if (this.dockHost) {
+					content.remove(); // closed while the Properties panel showed it
+				}
+			}));
+			this._register(this.dockService.onDidChangeEnabled(() => this.applyPanel()));
 		}
 
 		this.status = append(this.element, $('.sa-frame-status', { role: 'status', 'aria-live': 'polite' }));
@@ -505,17 +522,66 @@ export class EditorFrame extends Disposable {
 		this.progress.stop().hide();
 	}
 
+	/** Whether the properties show: in the Properties panel, or in the editor's own column. */
 	get isPropertiesVisible(): boolean {
-		return !!this.panel && this.state.visible;
+		if (!this.panel) {
+			return false;
+		}
+		return !!this.dockHost || this.showsOwnColumn;
 	}
 
+	/**
+	 * Shows or hides the properties. With the Properties panel, showing opens it and hiding does
+	 * nothing: it takes no room from the editor, so an editor making room (a narrow window) or
+	 * hiding them for a while leaves it as the engineer has it.
+	 */
 	setPropertiesVisible(visible: boolean): void {
-		if (!this.panel || visible === this.state.visible) {
+		if (!this.panel) {
+			return;
+		}
+		if (this.dockService.enabled) {
+			if (visible) {
+				void this.dockService.reveal();
+			}
+			return;
+		}
+		if (visible === this.state.visible) {
 			return;
 		}
 		this.state = { ...this.state, visible };
 		this.applyPanel();
 		this.save();
+	}
+
+	/** The toolbar's toggle: opens or closes the Properties panel, or the editor's own column. */
+	private toggleProperties(): void {
+		if (!this.panel) {
+			return;
+		}
+		if (this.dockService.enabled) {
+			if (this.dockHost) {
+				this.dockService.hide();
+			} else {
+				void this.dockService.reveal();
+			}
+			return;
+		}
+		this.setPropertiesVisible(!this.state.visible);
+	}
+
+	/** Moves the properties into the Properties panel's `host`, or back into the editor. */
+	private setDockHost(host: HTMLElement | undefined): void {
+		const content = this.properties;
+		if (!this.panel || !content || host === this.dockHost) {
+			return;
+		}
+		this.dockHost = host;
+		if (host) {
+			host.appendChild(content);
+		} else {
+			this.panel.appendChild(content);
+		}
+		this.applyPanel();
 	}
 
 	/** Lays the frame out in `width` x `height` (from `EditorPane.layout`). */
@@ -527,8 +593,13 @@ export class EditorFrame extends Disposable {
 		this.applyPanel();
 	}
 
+	/** Whether the editor's own column shows the properties (not the Properties panel). */
+	private get showsOwnColumn(): boolean {
+		return !!this.panel && !this.dockHost && !this.dockService.enabled && this.state.visible;
+	}
+
 	private mainWidth(): number {
-		return this.isPropertiesVisible ? Math.max(0, this.width - this.panelWidth()) : this.width;
+		return this.showsOwnColumn ? Math.max(0, this.width - this.panelWidth()) : this.width;
 	}
 
 	private panelWidth(): number {
@@ -546,8 +617,8 @@ export class EditorFrame extends Disposable {
 	}
 
 	private applyPanel(): void {
-		const visible = this.isPropertiesVisible;
-		this.togglePropertiesAction.checked = visible;
+		this.togglePropertiesAction.checked = this.isPropertiesVisible;
+		const visible = this.showsOwnColumn;
 		if (this.panel) {
 			this.panel.classList.toggle('hidden', !visible);
 			this.panel.style.width = `${this.panelWidth()}px`;

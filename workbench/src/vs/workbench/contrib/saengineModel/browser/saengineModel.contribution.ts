@@ -17,6 +17,7 @@ import { ISaengineProjectService } from '../../../services/saengineProject/commo
 import { ModelExplorerView } from './modelExplorerView.js';
 import { ModifierProblemsContribution } from './modifierProblemsContribution.js';
 import { ProjectCodeStiffnessContribution } from './projectCodeStiffness.js';
+import './propertiesView.js';
 
 /** True while a SAEngine project is open. */
 const ProjectOpenContext = new RawContextKey<boolean>('saengineProjectOpen', false, localize('saengineProjectOpen', "Whether a SAEngine project is open"));
@@ -34,9 +35,10 @@ const viewsRegistry = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry);
 
 /*
  * The model tree lives in the project sidebar, under the parts, collapsed until opened: it
- * selects members for the Floor Plan, BIM and the analysis wherever they are open. The editors
- * show the selection's properties in their own properties panel (the one place for them); the
- * "Model" container only holds the tree when the project sidebar is missing.
+ * selects members for the Floor Plan, BIM and the analysis wherever they are open. The selection's
+ * properties show in the Properties panel on the right (propertiesView.ts: the active editor's
+ * own properties, the one place for them); the "Model" container only holds the tree when the
+ * project sidebar is missing.
  */
 const modelContainer = viewContainers.registerViewContainer({
 	id: VIEW_CONTAINER_ID,

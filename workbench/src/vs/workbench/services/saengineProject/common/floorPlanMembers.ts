@@ -88,3 +88,16 @@ export function onPlanOf(group: MemberGroup, member: Json, story: IFloorPlanStor
 	}
 	return member.story === story.id;
 }
+
+const MEMBER_GROUP_ORDER: readonly MemberGroup[] = ['columns', 'beams', 'walls', 'slabs', 'footings'];
+
+/**
+ * The member list of the floor plan holding a member with `id` (what an analysis element or a
+ * result row names by its building model id, `B5`), or undefined when no list has it.
+ */
+export function memberGroupOf(layout: unknown, id: string): MemberGroup | undefined {
+	if (!isObject(layout) || !id) {
+		return undefined;
+	}
+	return MEMBER_GROUP_ORDER.find(group => list(layout[group]).some(member => member.id === id));
+}

@@ -489,7 +489,7 @@
 
 .saengine-substructure-editor .sub-input:focus,
 .saengine-substructure-editor .sub-select:focus {
-	border-color: var(--vscode-focusBorder);
+	border-color: var(--sa-accent);
 	background: var(--vscode-input-background);
 }
 

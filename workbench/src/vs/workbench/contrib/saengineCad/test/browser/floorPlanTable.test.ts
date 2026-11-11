@@ -5,8 +5,8 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { formatPoint } from '../../../../services/saengineProject/common/floorPlanMembers.js';
-import { filterRows, memberRows, membersCsv, rowKey, rowRange, setRowsStory, setRowsType, sortRows, storyOptions, typeOptions } from '../../browser/floorPlanTableModel.js';
+import { formatPoint, memberGroupOf } from '../../../../services/saengineProject/common/floorPlanMembers.js';
+import { filterRows, memberRows, membersCsv, rowKey, rowRange, setRowsStory, setRowsType, sortRows, storeyRows, storyOptions, typeOptions } from '../../browser/floorPlanTableModel.js';
 
 suite('SAEngine - Members table', () => {
 
@@ -40,6 +40,24 @@ suite('SAEngine - Members table', () => {
 		],
 	};
 	const ids = (rows: readonly { readonly id: string }[]) => rows.map(r => r.id);
+
+	test('storeys: top first, height to the storey above, typical master and members', () => {
+		const typical = { ...layout, stories: [...layout.stories.slice(0, 2), { ...layout.stories[2], similarTo: 'L1' }] };
+		assert.deepStrictEqual(storeyRows(typical).map(r => [r.id, r.elevation, r.height, r.typicalOf, r.members]), [
+			['L2', 6400, undefined, 'Level 1', 2], // C2 (its top) and B2
+			['L1', 3200, 3200, undefined, 3], // C10, B1, S1
+			['BASE', 0, 3200, undefined, 1], // F1
+		]);
+		assert.deepStrictEqual(storeyRows(undefined), []);
+	});
+
+	test('the member list of an id (an analysis element names its member by id)', () => {
+		assert.strictEqual(memberGroupOf(layout, 'B2'), 'beams');
+		assert.strictEqual(memberGroupOf(layout, 'C10'), 'columns');
+		assert.strictEqual(memberGroupOf(layout, 'F1'), 'footings');
+		assert.strictEqual(memberGroupOf(layout, 'X9'), undefined);
+		assert.strictEqual(memberGroupOf(undefined, 'B2'), undefined);
+	});
 
 	test('rows: every member with its story or span and its grid location', () => {
 		assert.deepStrictEqual(memberRows(layout).map(r => [r.id, r.group, r.type, r.storyLabel, r.location]), [

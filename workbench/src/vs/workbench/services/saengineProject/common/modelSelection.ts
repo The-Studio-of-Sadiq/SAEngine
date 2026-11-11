@@ -29,8 +29,9 @@ export function sameSelection(a: ModelSelection | undefined, b: ModelSelection |
 export const ISaengineModelSelectionService = createDecorator<ISaengineModelSelectionService>('saengineModelSelectionService');
 
 /**
- * The project item selected in the Floor Plan or the Model Explorer, shared so the other views
- * follow it and the Properties view shows it. Selection never edits anything.
+ * The project item selected anywhere (the model views: Floor Plan, 3D, Analysis Model; the
+ * Tables; the Model Explorer; a result list), shared so the others follow it and reveal it, and
+ * the Properties panel shows it. Selection never edits anything.
  */
 export interface ISaengineModelSelectionService {
 	readonly _serviceBrand: undefined;
@@ -39,4 +40,18 @@ export interface ISaengineModelSelectionService {
 	readonly onDidChangeSelection: Event<IModelSelectionChange>;
 
 	setSelection(selection: ModelSelection | undefined, source: string): void;
+
+	/**
+	 * The storey the model view shows (the Floor Plan's storey), so the Tables can show that
+	 * storey's rows. Changing storey is no selection: the selected item stays selected.
+	 */
+	readonly activeStory: string | undefined;
+	readonly onDidChangeActiveStory: Event<IActiveStoryChange>;
+
+	setActiveStory(story: string | undefined, source: string): void;
+}
+
+export interface IActiveStoryChange {
+	readonly story: string | undefined;
+	readonly source: string;
 }

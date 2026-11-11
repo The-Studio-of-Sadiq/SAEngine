@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/floorPlanTable.css';
-import { $, addDisposableListener, append, clearNode, Dimension, EventType, getActiveElement, isEditableElement } from '../../../../base/browser/dom.js';
+import { $, addDisposableListener, append, clearNode, Dimension, EventType, getActiveElement, isEditableElement, trackFocus } from '../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { InputBox } from '../../../../base/browser/ui/inputbox/inputBox.js';
 import { DomScrollableElement } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
@@ -15,7 +15,7 @@ import { VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
-import { Disposable, DisposableStore, IReference } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
 import { basename, dirname, isEqual, joinPath } from '../../../../base/common/resources.js';
 import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
@@ -181,18 +181,29 @@ const COLUMNS: readonly IColumn[] = [
 	{ key: 'location', label: localize('column.location', "Location"), className: 'location' },
 ];
 
+export interface IMembersTableOptions {
+	/**
+	 * Shows the storey the model view shows (the Tables panel): the story filter follows the
+	 * Floor Plan's storey and a storey selected elsewhere, until the engineer turns it off.
+	 */
+	readonly followStory?: boolean;
+}
+
 /**
  * The Members Table: every member placed on the floor plan, a row each, to filter by story,
  * kind and type, sort, select (click, Ctrl+click, Shift+click, Ctrl+A) and edit in place. Changing
  * a row's object type or story changes every selected row with it, as one undoable edit of the
  * floor plan's text model (the same model, and undo stack, as the Floor Plan editor's). The
- * selected member is shared with the Floor Plan and the Properties view.
+ * selected member is shared with the model views, the Properties panel and the Model Explorer.
+ *
+ * One table in an editor frame, shown by the Members Table editor and by the Members tab of the
+ * Tables panel below the model view.
  */
-export class MembersTableEditor extends EditorPane {
+export class MembersTable extends Disposable {
 
-	static readonly ID = MembersTableInput.EDITOR_ID;
+	/** The table with the keyboard focus, for Undo and Redo outside an editor (the Tables panel). */
+	static focused: MembersTable | undefined;
 
-	private frame!: EditorFrame;
 	private body!: HTMLElement;
 	private scrollable!: DomScrollableElement;
 	private storyFilter!: SelectBox;
@@ -216,17 +227,18 @@ export class MembersTableEditor extends EditorPane {
 	/** The object type cell of each row shown, by row key (for F2). */
 	private readonly typeCells = new Map<string, HTMLElement>();
 
+	private floorPlan: URI | undefined;
+	private loading = 0;
+
 	private readonly undoAction = this._register(new Action('saengine.membersTable.undo', localize('membersTable.undo', "Undo"), ThemeIcon.asClassName(Codicon.discard), false, () => this.undoRedo(false)));
 	private readonly redoAction = this._register(new Action('saengine.membersTable.redo', localize('membersTable.redo', "Redo"), ThemeIcon.asClassName(Codicon.redo), false, () => this.undoRedo(true)));
 	private readonly exportAction = this._register(new Action('saengine.membersTable.export', localize('membersTable.exportCsv', "Export CSV..."), ThemeIcon.asClassName(Codicon.export), true, () => this.exportCsv()));
 	private readonly floorPlanAction = this._register(new Action('saengine.membersTable.floorPlan', localize('membersTable.openFloorPlan', "Open Floor Plan"), ThemeIcon.asClassName(Codicon.symbolArray), true, () => this.openFloorPlan()));
+	private readonly followAction: Action = this._register(new Action('saengine.membersTable.followStory', localize('membersTable.followStory', "Show the Model View's Storey"), undefined, true, async () => this.setFollowStory(!this.followAction.checked)));
 
 	constructor(
-		group: IEditorGroup,
-		@ITelemetryService telemetryService: ITelemetryService,
-		@IThemeService themeService: IThemeService,
-		@IStorageService storageService: IStorageService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		private readonly frame: EditorFrame,
+		private readonly options: IMembersTableOptions,
 		@ITextModelService private readonly textModelService: ITextModelService,
 		@IContextViewService private readonly contextViewService: IContextViewService,
 		@IUndoRedoService private readonly undoRedoService: IUndoRedoService,
@@ -236,25 +248,39 @@ export class MembersTableEditor extends EditorPane {
 		@INotificationService private readonly notificationService: INotificationService,
 		@IEditorService private readonly editorService: IEditorService,
 	) {
-		super(MembersTableEditor.ID, group, telemetryService, themeService, storageService);
+		super();
+		this.followAction.checked = !!options.followStory;
 		this._register(this.selectionService.onDidChangeSelection(({ selection, source }) => {
-			if (source !== SELECTION_SOURCE && selection?.kind === 'member') {
+			if (source === SELECTION_SOURCE) {
+				return;
+			}
+			if (selection?.kind === 'member') {
+				// Selected elsewhere: that member alone, scrolled to (a filter hiding it is cleared).
 				const key = rowKey(selection);
 				this.selected.clear();
 				this.selected.add(key);
 				this.anchor = this.focused = key;
-				this.renderRows(true);
+				this.revealMember(key);
+			} else if (selection?.kind === 'story' && this.followAction.checked) {
+				this.filter = { ...this.filter, story: selection.id };
+				this.render();
 			}
 		}));
+		this._register(this.selectionService.onDidChangeActiveStory(({ story }) => {
+			if (this.followAction.checked && story !== this.filter.story) {
+				this.filter = { ...this.filter, story };
+				this.render();
+			}
+		}));
+		this.createTable();
 	}
 
 	/** The floor plan this table shows (for undo and redo). */
 	get resource(): URI | undefined {
-		return (this.input as MembersTableInput | undefined)?.floorPlan;
+		return this.floorPlan;
 	}
 
-	protected createEditor(parent: HTMLElement): void {
-		this.frame = this._register(this.instantiationService.createInstance(EditorFrame, parent, { id: MembersTableEditor.ID, ariaLabel: localize('membersTable.toolbar', "Members Table") }));
+	private createTable(): void {
 		this.frame.element.classList.add('saengine-members-table');
 		this.frame.setTitle(localize('membersTable.title', "Members"));
 		this.frame.setHelp(localize('membersTable.help', "Every member placed on the floor plan. Filter, sort by a column heading, select rows (Ctrl+click, Shift+click, Ctrl+A) and click a row's object type or story to change it for all selected rows. Edits go to the floor plan and undo there too; typical floors follow their master."));
@@ -276,26 +302,46 @@ export class MembersTableEditor extends EditorPane {
 		}));
 		this._register(this.search.onDidChange(text => this.setFilter({ text })));
 
-		this.frame.setActions([this.undoAction, this.redoAction, this.exportAction], [this.floorPlanAction]);
+		this.frame.setActions([this.undoAction, this.redoAction, this.exportAction], this.options.followStory ? [this.followAction, this.floorPlanAction] : [this.floorPlanAction]);
 		this.body = $('.members-body', { tabIndex: 0, role: 'grid', 'aria-multiselectable': 'true', 'aria-label': localize('membersTable.aria', "Members") });
 		this.scrollable = this._register(new DomScrollableElement(this.body, { horizontal: ScrollbarVisibility.Auto, vertical: ScrollbarVisibility.Auto }));
 		append(this.frame.main, this.scrollable.getDomNode()).classList.add('members-scroll');
 		this._register(this.frame.onDidLayoutMain(() => this.scrollable.scanDomNode()));
 		this._register(addDisposableListener(this.body, EventType.KEY_DOWN, e => this.onKey(new StandardKeyboardEvent(e))));
+		const focus = this._register(trackFocus(this.frame.element));
+		this._register(focus.onDidFocus(() => MembersTable.focused = this));
+		this._register(focus.onDidBlur(() => this.forgetFocus()));
+		this._register(toDisposable(() => this.forgetFocus()));
+		if (this.options.followStory) {
+			this.filter = { story: this.selectionService.activeStory };
+		}
 	}
 
-	override async setInput(input: MembersTableInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
-		await super.setInput(input, options, context, token);
-		this.inputDisposables.clear();
-		this.planModel = this.objectsModel = undefined;
+	private forgetFocus(): void {
+		if (MembersTable.focused === this) {
+			MembersTable.focused = undefined;
+		}
+	}
+
+	/** Shows the members of `floorPlan` (`floor-plan.json`), or none. */
+	async setFloorPlan(floorPlan: URI | undefined, token: CancellationToken = CancellationToken.None): Promise<void> {
+		if (floorPlan && this.floorPlan && isEqual(floorPlan, this.floorPlan) && this.planModel) {
+			return;
+		}
+		const loading = ++this.loading;
+		this.clear();
+		this.floorPlan = floorPlan;
+		if (!floorPlan) {
+			return;
+		}
 		let references: IReference<IResolvedTextEditorModel>[];
 		try {
-			references = await Promise.all([input.floorPlan, siblingPartFile(input.floorPlan, 'objects')].map(r => this.textModelService.createModelReference(r)));
+			references = await Promise.all([floorPlan, siblingPartFile(floorPlan, 'objects')].map(r => this.textModelService.createModelReference(r)));
 		} catch (error) {
 			this.frame.setEmpty({ icon: Codicon.warning, title: localize('membersTable.noModel', "The floor plan could not be read"), text: String(error) });
 			return;
 		}
-		if (token.isCancellationRequested || this.input !== input) {
+		if (token.isCancellationRequested || loading !== this.loading) {
 			references.forEach(r => r.dispose());
 			return;
 		}
@@ -312,20 +358,44 @@ export class MembersTableEditor extends EditorPane {
 		this.render();
 	}
 
-	override clearInput(): void {
+	/** Lets go of the floor plan's models (the editor's input closed, the project changed). */
+	clear(): void {
 		this.inputDisposables.clear();
 		this.cellEditor.clear();
 		this.planModel = this.objectsModel = undefined;
-		super.clearInput();
+		this.floorPlan = undefined;
 	}
 
-	override layout(dimension: Dimension): void {
-		this.frame.layout(dimension.width, dimension.height);
+	layout(width: number, height: number): void {
+		this.frame.layout(width, height);
 	}
 
-	override focus(): void {
-		super.focus();
+	focus(): void {
 		this.body.focus();
+	}
+
+	private setFollowStory(follow: boolean): void {
+		this.followAction.checked = follow;
+		if (follow) {
+			this.filter = { ...this.filter, story: this.selectionService.activeStory };
+			this.render();
+		}
+	}
+
+	/** Shows row `key` and scrolls to it; the filters hiding it are cleared, so it shows. */
+	private revealMember(key: string): void {
+		if (this.planModel && !this.shown.some(r => rowKey(r) === key)) {
+			const layout = this.layoutJson;
+			const row = memberRows(layout, parse(this.objectsModel)).find(r => rowKey(r) === key);
+			if (row) {
+				const onStory = !this.filter.story || filterRows(layout, [row], { story: this.filter.story }).length > 0;
+				this.filter = { story: onStory ? this.filter.story : undefined };
+				this.search.value = '';
+				this.kindFilter.select(0);
+				this.render();
+			}
+		}
+		this.renderRows(true);
 	}
 
 	private get layoutJson(): unknown {
@@ -605,12 +675,12 @@ export class MembersTableEditor extends EditorPane {
 	}
 
 	private async exportCsv(): Promise<void> {
-		const input = this.input as MembersTableInput | undefined;
+		const floorPlan = this.floorPlan;
 		const exportsPart = partById('exports');
-		if (!input) {
+		if (!floorPlan) {
 			return;
 		}
-		const root = dirname(dirname(input.floorPlan));
+		const root = dirname(dirname(floorPlan));
 		const target = await this.fileDialogService.showSaveDialog({
 			title: localize('membersTable.exportTitle', "Export Members Table"),
 			defaultUri: exportsPart ? joinPath(root, exportsPart.folder, 'members.csv') : undefined,
@@ -633,6 +703,53 @@ export class MembersTableEditor extends EditorPane {
 		if (resource) {
 			await this.editorService.openEditor({ resource, options: { pinned: true } });
 		}
+	}
+}
+
+/** The Members Table as an editor of its own (a tab beside the Floor Plan). */
+export class MembersTableEditor extends EditorPane {
+
+	static readonly ID = MembersTableInput.EDITOR_ID;
+
+	private table!: MembersTable;
+
+	constructor(
+		group: IEditorGroup,
+		@ITelemetryService telemetryService: ITelemetryService,
+		@IThemeService themeService: IThemeService,
+		@IStorageService storageService: IStorageService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+	) {
+		super(MembersTableEditor.ID, group, telemetryService, themeService, storageService);
+	}
+
+	/** The table shown, for Undo and Redo. */
+	get membersTable(): MembersTable {
+		return this.table;
+	}
+
+	protected createEditor(parent: HTMLElement): void {
+		const frame = this._register(this.instantiationService.createInstance(EditorFrame, parent, { id: MembersTableEditor.ID, ariaLabel: localize('membersTable.toolbar', "Members Table") }));
+		this.table = this._register(this.instantiationService.createInstance(MembersTable, frame, {}));
+	}
+
+	override async setInput(input: MembersTableInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+		await super.setInput(input, options, context, token);
+		await this.table.setFloorPlan(input.floorPlan, token);
+	}
+
+	override clearInput(): void {
+		this.table.clear();
+		super.clearInput();
+	}
+
+	override layout(dimension: Dimension): void {
+		this.table.layout(dimension.width, dimension.height);
+	}
+
+	override focus(): void {
+		super.focus();
+		this.table.focus();
 	}
 }
 
@@ -683,10 +800,12 @@ registerAction2(class extends Action2 {
 /** Ctrl+Z / Ctrl+Y in the Members Table undo and redo its edits to the floor plan. */
 function undoRedo(accessor: ServicesAccessor, redo: boolean): boolean | Promise<void> {
 	const pane = accessor.get(IEditorService).activeEditorPane;
-	if (!(pane instanceof MembersTableEditor) || isEditableElement(getActiveElement() as HTMLElement)) {
+	// The Members tab of the Tables panel when it has the focus, else the Members Table editor.
+	const table = MembersTable.focused ?? (pane instanceof MembersTableEditor ? pane.membersTable : undefined);
+	if (!table || isEditableElement(getActiveElement() as HTMLElement)) {
 		return false;
 	}
-	return pane.undoRedo(redo);
+	return table.undoRedo(redo);
 }
 
 UndoCommand.addImplementation(110, 'saengine-members-table', accessor => undoRedo(accessor, false));

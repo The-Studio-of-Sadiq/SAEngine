@@ -40,6 +40,7 @@ import { DrawingPreviewEditor } from './drawingPreviewEditor.js';
 import { DrawingPreviewInput, DrawingPreviewInputSerializer } from './drawingPreviewInput.js';
 import { ExportsEditor } from './exportsEditor.js';
 import { ExportsEditorInput, ExportsEditorInputSerializer } from './exportsEditorInput.js';
+import { SHOW_MODEL_VIEW_COMMAND } from './modelView.js';
 import { PLACEHOLDER_PARTS, PlaceholderEditor, placeholderPartOf } from './placeholderEditor.js';
 import { PlaceholderEditorInput, PlaceholderEditorInputSerializer } from './placeholderEditorInput.js';
 import { OPEN_PLANNED_FEATURE_COMMAND, PlannedFeatureEditor } from './plannedFeatureEditor.js';
@@ -245,6 +246,18 @@ function openOverview(editorService: IEditorService): Promise<unknown> {
 	return editorService.openEditor(ProjectOverviewInput.instance, { pinned: true });
 }
 
+/**
+ * Opens the project on its model view (the plan) with the Overview a tab behind it; on the
+ * Overview alone when the project has no model view yet.
+ */
+export async function openModelOnOverview(editorService: IEditorService, commandService: ICommandService): Promise<void> {
+	await editorService.openEditor(ProjectOverviewInput.instance, { pinned: true, inactive: true, preserveFocus: true });
+	const shown = await commandService.executeCommand<boolean>(SHOW_MODEL_VIEW_COMMAND, 'plan');
+	if (!shown) {
+		await openOverview(editorService);
+	}
+}
+
 // --- The sidebar header's ≡ menu and the commands in it -------------------------------------
 
 const projectMenu = PROJECT_MENU;
@@ -392,6 +405,7 @@ class ProjectWindowContribution extends Disposable implements IWorkbenchContribu
 		@IPaneCompositePartService private readonly paneCompositeService: IPaneCompositePartService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super();
 		this._register(this.projectService.onDidChangeProject(project => void this.onProject(project)));
@@ -413,9 +427,10 @@ class ProjectWindowContribution extends Disposable implements IWorkbenchContribu
 			await this.paneCompositeService.openPaneComposite(PROJECT_VIEW_CONTAINER_ID, ViewContainerLocation.Sidebar, false);
 		}
 
+		// The model view in the centre (the Floor Plan), the Overview a tab behind it.
 		const editors = this.editorService.editors.filter(editor => !(editor instanceof StartEditorInput));
 		if (!editors.length) {
-			await openOverview(this.editorService);
+			await openModelOnOverview(this.editorService, this.commandService);
 		}
 	}
 }

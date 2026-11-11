@@ -303,7 +303,7 @@
 
 .saengine-code-packs-editor .packages-tab.active,
 .saengine-code-packs-editor .packages-kind.active {
-	border-color: var(--vscode-focusBorder);
+	border-color: var(--sa-accent);
 	color: var(--vscode-foreground);
 }
 

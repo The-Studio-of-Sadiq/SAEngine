@@ -287,6 +287,64 @@
 	margin: var(--sa-space-1, 4px) 0;
 }
 
+/* ── a segmented control (a view, a discipline, the model view's Plan | 3D | Analysis) ─────────── */
+
+.saengine-editor-frame .sa-segmented {
+	display: inline-flex;
+	align-items: center;
+	padding: 2px;
+	gap: 2px;
+	border-radius: var(--sa-radius, 4px);
+	background: var(--sa-surface-alt, var(--vscode-sideBar-background));
+	border: 1px solid var(--sa-border, var(--vscode-panel-border));
+}
+
+.saengine-editor-frame .sa-segment {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--sa-space-1, 4px);
+	height: 22px;
+	padding: 0 var(--sa-space-2, 8px);
+	border: none;
+	border-radius: calc(var(--sa-radius, 4px) - 1px);
+	background: transparent;
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+	font-family: inherit;
+	font-size: var(--sa-font-s, 12px);
+	cursor: pointer;
+	white-space: nowrap;
+}
+
+.saengine-editor-frame .sa-segment .codicon {
+	font-size: 14px;
+}
+
+.saengine-editor-frame .sa-segment:hover:not(:disabled) {
+	color: var(--vscode-foreground);
+	background: var(--vscode-toolbar-hoverBackground);
+}
+
+.saengine-editor-frame .sa-segment.active {
+	color: var(--vscode-foreground);
+	background: var(--sa-surface, var(--vscode-editor-background));
+	box-shadow: 0 0 0 1px var(--sa-border, var(--vscode-panel-border));
+}
+
+.saengine-editor-frame .sa-segment:disabled {
+	opacity: 0.5;
+	cursor: default;
+}
+
+.saengine-editor-frame .sa-segment:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+/* The model view's Plan | 3D | Analysis switch (modelView.ts) keeps its size before the editor's own title. */
+.saengine-editor-frame .sa-view-switch {
+	flex: none;
+}
+
 /* empty state: a calm message centred over the main area (setEmpty) */
 .saengine-editor-frame .sa-frame-empty {
 	display: none;

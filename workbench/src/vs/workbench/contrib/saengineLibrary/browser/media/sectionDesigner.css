@@ -13,7 +13,7 @@
 	--section-line: color-mix(in srgb, var(--vscode-foreground) 70%, transparent);
 	--section-grid: color-mix(in srgb, var(--vscode-foreground) 7%, transparent);
 	--section-grid-major: color-mix(in srgb, var(--vscode-foreground) 14%, transparent);
-	--section-selected: var(--vscode-focusBorder);
+	--section-selected: var(--sa-accent);
 }
 
 .saengine-section-designer .section-select,

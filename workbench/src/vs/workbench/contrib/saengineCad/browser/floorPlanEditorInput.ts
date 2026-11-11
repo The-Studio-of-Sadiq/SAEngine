@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../base/common/codicons.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { dirname, isEqual, joinPath } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -33,8 +34,23 @@ export class FloorPlanEditorInput extends EditorInput {
 	static readonly ID = 'workbench.input.saengine.floorPlan';
 	static readonly EDITOR_ID = 'workbench.editor.saengine.floorPlan';
 
+	private _story: string | undefined;
+
+	private readonly _onDidChangeStory = this._register(new Emitter<string | undefined>());
+	/** The story shown changed (the Tables follow it). */
+	readonly onDidChangeStory: Event<string | undefined> = this._onDidChangeStory.event;
+
 	/** Story shown, kept while the input lives so switching tabs returns to it. */
-	story: string | undefined;
+	get story(): string | undefined {
+		return this._story;
+	}
+
+	set story(story: string | undefined) {
+		if (story !== this._story) {
+			this._story = story;
+			this._onDidChangeStory.fire(story);
+		}
+	}
 
 	constructor(
 		readonly resource: URI,

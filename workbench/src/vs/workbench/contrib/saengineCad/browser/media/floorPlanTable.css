@@ -167,5 +167,5 @@
 
 /* The members selected on the plan stand out even while the table is not focused. */
 .saengine-members-table tr.member.selected td:first-child {
-	box-shadow: inset 3px 0 var(--vscode-focusBorder);
+	box-shadow: inset 3px 0 var(--sa-accent);
 }

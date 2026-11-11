@@ -29,7 +29,7 @@
 
 .saengine-graph-wires .wire {
 	fill: none;
-	stroke: var(--vscode-focusBorder);
+	stroke: var(--sa-accent);
 	stroke-width: 2;
 }
 
@@ -45,8 +45,8 @@
 }
 
 .saengine-graph-node.selected {
-	border-color: var(--vscode-focusBorder);
-	box-shadow: 0 0 0 1px var(--vscode-focusBorder);
+	border-color: var(--sa-accent);
+	box-shadow: 0 0 0 1px var(--sa-accent);
 }
 
 .saengine-graph-node.failed {
@@ -98,7 +98,7 @@
 	width: 10px;
 	height: 10px;
 	border-radius: 50%;
-	border: 1px solid var(--vscode-focusBorder);
+	border: 1px solid var(--sa-accent);
 	background: var(--vscode-editor-background);
 	cursor: pointer;
 	flex: none;
@@ -106,7 +106,7 @@
 
 .saengine-graph-node .dot.wired,
 .saengine-graph-node .dot.pending {
-	background: var(--vscode-focusBorder);
+	background: var(--sa-accent);
 }
 
 .saengine-graph-node .result {
