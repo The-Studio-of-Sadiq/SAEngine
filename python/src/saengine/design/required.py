@@ -40,6 +40,8 @@ from saengine.design.rc import (
     RcSection,
     _bound,
     bar_area,
+    keep_surface,
+    kept_surface,
     section_of,
     surface_key,
     surface_of,
@@ -291,6 +293,20 @@ def _ordered(pieces: list[Any]) -> list[Any]:
     return sorted(pieces, key=key)
 
 
+def _alike(parts: list[Any]) -> bool:
+    """Whether the forces of every combination are arrays of one kind and shape (stations, 6),
+    with stations."""
+    if not parts or not all(type(f) is np.ndarray for f in parts):
+        return False
+    shape, dtype = parts[0].shape, parts[0].dtype
+    return (
+        len(shape) == 2
+        and shape[0] > 0
+        and shape[1] == 6
+        and all(f.shape == shape and f.dtype == dtype for f in parts)
+    )
+
+
 def beam_demand(member: dict[str, Any], combinations: list[str]) -> BeamDemand:
     """The envelope of a collected beam member (the checks' forces, :func:`check.
     _profile_forces`) in its :data:`ZONES`."""
@@ -301,24 +317,51 @@ def beam_demand(member: dict[str, Any], combinations: list[str]) -> BeamDemand:
     total = sum(p.length for p in pieces) or 1.0
     start = 0.0
     for piece in pieces:
-        at_station: dict[int, list[dict[str, Peak]]] = {}  # stations -> zone of each
-        for c, forces in enumerate(piece.forces):
-            values = _profile_forces(piece, member["turned"], forces)
-            count = len(forces)
-            if count not in at_station:
-                at_station[count] = []
-                for k in range(count):
-                    at = (start + piece.length * k / max(count - 1, 1)) / total
-                    zone = next(n for n, lo, hi in ZONES if at <= hi + 1e-9 or hi == 1.0)
-                    at_station[count].append(zones[zone])
-            for k, z in enumerate(at_station[count]):
-                moment, v = float(values["Mx"][k]), abs(float(values["Vy"][k]))
-                # Where the station is said only when it governs (the slow part otherwise).
-                if -moment > z["sag"].value or moment > z["hog"].value or v > z["shear"].value:
-                    where = _where(piece, k, count)
-                    z["sag"].take(-moment, combinations[c], where)
-                    z["hog"].take(moment, combinations[c], where)
-                    z["shear"].take(v, combinations[c], where)
+        # Alpha 10 (performance): each zone's peaks found on arrays, the combinations with the
+        # same stations together. A peak is the first largest value in the order of a scan
+        # (combination by combination, station by station) that is above the one before.
+        by_count: dict[int, tuple[list[int], Any, Any]] = {}
+        parts = piece.forces
+        if _alike(parts):
+            # All the combinations at once (the same values: element by element).
+            values = _profile_forces(piece, member["turned"], np.stack(parts))
+            by_count[len(parts[0])] = (list(range(len(parts))), values["Mx"], values["Vy"])
+        else:
+            for c, forces in enumerate(parts):
+                values = _profile_forces(piece, member["turned"], forces)
+                count = len(forces)
+                if not count:
+                    continue
+                group = by_count.setdefault(count, ([], [], []))
+                group[0].append(c)
+                group[1].append(values["Mx"])
+                group[2].append(values["Vy"])
+        # Per zone and peak, the candidates of each group of combinations: (value, combination,
+        # station, stations).
+        found: dict[tuple[str, str], list[tuple[float, int, int, int]]] = {}
+        for count, (cs, mx, vy) in by_count.items():
+            moments = mx if isinstance(mx, np.ndarray) else np.stack(mx)
+            shears = np.abs(vy if isinstance(vy, np.ndarray) else np.stack(vy))
+            stations: dict[str, list[int]] = {}
+            for k in range(count):
+                at = (start + piece.length * k / max(count - 1, 1)) / total
+                zone = next(n for n, lo, hi in ZONES if at <= hi + 1e-9 or hi == 1.0)
+                stations.setdefault(zone, []).append(k)
+            for zone, ks in stations.items():
+                for what, rows in (("sag", -moments), ("hog", moments), ("shear", shears)):
+                    part = rows[:, ks]
+                    flat = np.where(np.isnan(part), -np.inf, part).ravel()
+                    first = int(np.argmax(flat))
+                    row, col = divmod(first, len(ks))
+                    found.setdefault((zone, what), []).append(
+                        (float(flat[first]), cs[row], ks[col], count)
+                    )
+        for (zone, what), candidates in found.items():
+            # The largest; of equals, the earliest combination (a scan meets it first).
+            value, c, k, count = min(candidates, key=lambda f: (-f[0], f[1]))
+            peak = zones[zone][what]
+            if value > peak.value:
+                peak.take(value, combinations[c], _where(piece, k, count))
         start += piece.length
     return BeamDemand(zones)
 
@@ -691,6 +734,9 @@ def column_points(member: dict[str, Any], combinations: list[str]) -> list[Point
 #: a layout's section, so applying the proposal changes nothing here).
 _WORST: dict[tuple, float] = {}
 _FAILS: dict[tuple, bool] = {}
+#: The same for which demand governs on a layout's coarse surface (:meth:`ColumnSearch.
+#: governing`), by (the layout's :func:`surface_key`, a digest of the demands in order).
+_GOVERNING: dict[tuple, int] = {}
 _RESULTS_KEPT = 20000
 
 
@@ -737,6 +783,9 @@ class ColumnSearch:
         self._worst: dict[tuple[int, bool, int], tuple[list[Point], float]] = {}
         self._rows: dict[int, tuple[list[Point], np.ndarray, bytes]] = {}
         self._keys: dict[tuple[int, bool], tuple] = {}
+        #: The keys of :data:`_WORST`, :data:`_FAILS` and :data:`_GOVERNING` this search asked
+        #: for (:meth:`learnt`).
+        self._memos: set[tuple] = set()
 
     def reinforcement(self, layout: B.ColumnLayout, ties: B.Ties | None = None) -> dict[str, Any]:
         current = self.obj.reinforcement
@@ -807,6 +856,7 @@ class ColumnSearch:
             return found[1]
         _, rows, digest = self._rows_of(points)
         memo = (self._key(index, coarse), digest)
+        self._memos.add(memo)
         worst = _WORST.get(memo)
         if worst is None:
             worst = _WORST[memo] = self.surface(index, coarse).max_utilisation(rows)
@@ -822,6 +872,7 @@ class ColumnSearch:
             return found[1] <= 1.0
         _, rows, digest = self._rows_of(points)
         memo = (self._key(index, coarse), digest)
+        self._memos.add(memo)
         worst = _WORST.get(memo)
         if worst is None:
             if memo in _FAILS:
@@ -879,6 +930,194 @@ class ColumnSearch:
         share = (u_lo - 1.0) / (u_lo - u_hi)
         return max(minimum, a_lo + min(max(share, 0.0), 1.0) * (a_hi - a_lo))
 
+    def governing(self, index: int, points: list[Point]) -> int:
+        """The position in ``points`` of the demand with the largest utilisation on the coarse
+        surface of layout ``index`` (the first of equals)."""
+        rows = demand_rows(points)
+        digest = hashlib.blake2b(rows.tobytes(), digest_size=20).digest()
+        memo = (self._key(index, True), digest + str(rows.shape).encode())
+        self._memos.add(memo)
+        found = _GOVERNING.get(memo)
+        if found is None:
+            found = int(np.argmax(self.surface(index, True).utilisations(rows)))
+            _GOVERNING[memo] = found
+            _bound(_GOVERNING, _RESULTS_KEPT)
+        return found
+
+    def learnt(self) -> dict[str, Any]:
+        """What this search worked out and this process keeps, for another process to keep too
+        (:func:`_keep_learnt`): the results by their keys and the surfaces built."""
+        surfaces = []
+        for at, key in self._keys.items():
+            surface = self._surfaces.get(at) or kept_surface(key)
+            if surface is not None:
+                surfaces.append((key, surface))
+        memos = self._memos
+        return {
+            "worst": {m: _WORST[m] for m in memos if m in _WORST},
+            "fails": [m for m in memos if m in _FAILS],
+            "governing": {m: _GOVERNING[m] for m in memos if m in _GOVERNING},
+            "surfaces": surfaces,
+        }
+
+
+def _keep_learnt(learnt: dict[str, Any]) -> None:
+    """Keeps what a search in another process worked out (:meth:`ColumnSearch.learnt`) as if
+    worked out here; what this process keeps already stays."""
+    for memo, worst in learnt["worst"].items():
+        _WORST.setdefault(memo, worst)
+    for memo in learnt["fails"]:
+        _FAILS.setdefault(memo, True)
+    for memo, found in learnt["governing"].items():
+        _GOVERNING.setdefault(memo, found)
+    for kept in (_WORST, _FAILS, _GOVERNING):
+        _bound(kept, _RESULTS_KEPT)
+    for key, surface in learnt["surfaces"]:
+        keep_surface(key, surface)
+
+
+def demand_rows(points: list[Point]) -> np.ndarray:
+    """The demands (Pu, Mux, Muy) of ``points`` as rows, to send to a worker."""
+    return np.array([p[:3] for p in points], dtype=float).reshape(-1, 3)
+
+
+def demand_points(rows: np.ndarray) -> list[Point]:
+    """:func:`demand_rows` back as points (without the combinations and places)."""
+    return [(p, mx, my, "", "") for p, mx, my in rows.tolist()]
+
+
+def _requirements_ahead(search: ColumnSearch, demands: list[np.ndarray]) -> None:
+    """In a worker: what :func:`column_requirements` and :func:`column_rows` ask of the search
+    of a column type for its members' demands (:func:`demand_rows`, each member's)."""
+    for rows in demands:
+        points = demand_points(rows)
+        index = search.smallest(points)
+        search.required_area(index, points)
+        if points and search.layouts:
+            search.governing(len(search.layouts) - 1 if index is None else index, points)
+
+
+@dataclass
+class _SearchesAhead:
+    """Column types' searches to work out in the workers (:func:`searches_ahead`): per type
+    (object type, f'c, fy, Es, aggregate, what ``work`` works from); ``work(search, that)``
+    asks the search (a module-level function: it is sent by name)."""
+
+    settings: ProjectSettings
+    options: Options
+    types: list[tuple[Any, ...]]
+    work: Any
+
+    def shipped(self) -> _SearchesAhead:
+        return self
+
+    def pool_item(self, index: int) -> dict[str, Any]:
+        obj, fc, fy, es, aggregate, data = self.types[index]
+        search = ColumnSearch(obj, fc, fy, es, aggregate, self.options)
+        self.work(search, data)
+        return search.learnt()
+
+
+def searches_ahead(
+    gathered: Gathered,
+    options: Options,
+    types: list[tuple[dict[str, Any], Any, float]],
+    work: Any,
+    members: int,
+) -> None:
+    """Alpha 10 (performance): column types' searches worked out in worker processes
+    (:mod:`saengine.design.member_pool`, one type each) and what they found kept in this
+    process (:func:`_keep_learnt`), so that the searches here then find their results kept,
+    the same as if worked out here. ``types``: per type its first collected member (the search
+    is made from it, as here), what ``work`` works from and about how long it takes (the
+    longest go first); ``members``: the columns they stand for. Nothing for a small model; what
+    a worker could not do is worked out here."""
+    from saengine.design import member_pool
+
+    if not types or member_pool.worker_count(members) == 0:
+        return
+    sent = [
+        (first["object"], first["fc"], first["fy"], first["es"], first["aggregate"], data)
+        for first, data, _ in types
+    ]
+    # What was worked out ahead before (Run All again, the proposal after the required bars)
+    # is kept here already.
+    marks = [_ahead_mark(item, options, work) for item in sent]
+    order = sorted(
+        (t for t in range(len(types)) if marks[t] not in _AHEAD), key=lambda t: -types[t][2]
+    )
+    if not order:
+        return
+    run = _SearchesAhead(gathered.settings, options, sent, work)
+    prepared = member_pool.prepare(
+        run, order, gathered.root, chunks=[[t] for t in order], members=members
+    )
+    if prepared is None:
+        return
+    try:
+        for t in order:
+            learnt = prepared.take(t)
+            if learnt is not None:
+                _keep_learnt(learnt)
+                _AHEAD[marks[t]] = None
+                _bound(_AHEAD, _AHEAD_KEPT)
+    finally:
+        prepared.close()
+
+
+#: The searches :func:`searches_ahead` had worked out, by :func:`_ahead_mark`.
+_AHEAD: dict[bytes, None] = {}
+_AHEAD_KEPT = 1024
+
+
+def _ahead_mark(item: tuple[Any, ...], options: Options, work: Any) -> bytes:
+    """A digest of everything a search worked out ahead depends on: the work, the column type,
+    its materials, the options, the demands and the packs in force."""
+    import pickle
+
+    from saengine.codes import context as code_context
+
+    obj, fc, fy, es, aggregate, data = item
+    digest = hashlib.blake2b(digest_size=20)
+    for part in (
+        f"{work.__module__}.{work.__qualname__}",
+        obj.model_dump_json(),
+        repr((fc, fy, es, aggregate, dataclasses.astuple(options))),
+        code_context.current().fingerprint,
+        code_context.default_pack().fingerprint,
+    ):
+        digest.update(str(part).encode() + b"\0")
+    digest.update(pickle.dumps(data, protocol=pickle.HIGHEST_PROTOCOL))
+    return digest.digest()
+
+
+def search_cost(member: dict[str, Any], demands: int) -> float:
+    """About how long the search of a column type takes, for :func:`searches_ahead`'s order:
+    its surfaces grow with the section [mm²], the utilisations with the demands (fitted on a
+    10-storey frame: a demand about as long as 7 mm² of section)."""
+    profile = member["object"].profile
+    if isinstance(profile, CircleProfile):
+        area = math.pi * profile.radius**2
+    else:
+        area = profile.xDim * profile.yDim
+    return area + 7.0 * demands
+
+
+def _searches_ahead(
+    gathered: Gathered, options: Options, columns: list[dict[str, Any]], points: list[list[Point]]
+) -> None:
+    """The searches of :func:`column_requirements` worked out ahead in the workers
+    (:func:`searches_ahead`)."""
+    by_type: dict[str, list[int]] = {}
+    for k, member in enumerate(columns):
+        by_type.setdefault(member["type"], []).append(k)
+    types = []
+    for ks in by_type.values():
+        demands = [demand_rows(points[k]) for k in ks]
+        cost = search_cost(columns[ks[0]], sum(len(d) for d in demands))
+        types.append((columns[ks[0]], demands, cost))
+    searches_ahead(gathered, options, types, _requirements_ahead, len(columns))
+
 
 def column_rows(
     member: dict[str, Any],
@@ -892,8 +1131,8 @@ def column_rows(
     required = search.required_area(index, points)
     governing: Point | None = None
     if points and search.layouts:
-        surface = search.surface(len(search.layouts) - 1 if index is None else index, True)
-        governing = points[int(np.argmax(surface.utilisations([p[:3] for p in points])))]
+        layout = len(search.layouts) - 1 if index is None else index
+        governing = points[search.governing(layout, points)]
     elif points:
         governing = max(points, key=lambda p: p[0])
     notes = []
@@ -1557,10 +1796,11 @@ def column_requirements(
     if kept is not None and key in kept:
         return kept[key]
     combinations = gathered.collect.get("combinations", [])
+    columns = [m for m in gathered.collect.get("members", []) if m["kind"] == "column"]
+    every = [column_points(member, combinations) for member in columns]
+    _searches_ahead(gathered, options, columns, every)
     by_type: dict[str, tuple[ColumnSearch, dict[str, tuple[int | None, list[Point]]]]] = {}
-    for member in gathered.collect.get("members", []):
-        if member["kind"] != "column":
-            continue
+    for member, points in zip(columns, every, strict=True):
         type_id = member["type"]
         if type_id not in by_type:
             search = ColumnSearch(
@@ -1573,7 +1813,6 @@ def column_requirements(
             )
             by_type[type_id] = (search, {})
         search, members = by_type[type_id]
-        points = column_points(member, combinations)
         members[member["id"]] = (search.smallest(points), points)
     if kept is not None:
         kept[key] = by_type

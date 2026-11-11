@@ -1646,6 +1646,22 @@ class _RcRun:
             self, beam_sections={}, dropped_sections={}, column_sections={}, framing=None
         )
 
+    def pool_item(self, index: int) -> _RcDone:
+        """The checks of member ``index`` (:func:`_rc_member`), in a worker
+        (:mod:`saengine.design.member_pool`)."""
+        member_id, type_id, element = self.members[index]
+        object_type = self.types[type_id]
+        return _rc_member(
+            self,
+            member_id,
+            type_id,
+            element,
+            object_type,
+            self.mats[object_type.material],
+            self.mats[object_type.reinforcement.material],
+            self.pieces.get(member_id, []),
+        )
+
 
 @dataclass
 class _RcDone:

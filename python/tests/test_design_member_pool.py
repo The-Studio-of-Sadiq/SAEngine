@@ -105,3 +105,59 @@ def test_checks_across_processes_give_the_same_report(
         member_pool.shutdown()
     assert taken and all(taken)  # every concrete member was checked in a worker
     assert parallel == serial
+
+
+def _forget_searches() -> None:
+    """The column searches' results kept in this process forgotten (worked out again)."""
+    from saengine.design import rc, required
+
+    for kept in (
+        required._WORST,
+        required._FAILS,
+        required._GOVERNING,
+        required._AHEAD,
+        rc._SURFACES,
+    ):
+        kept.clear()
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="the workers run on Windows only")
+def test_column_searches_across_processes_give_the_same_required_bars_and_proposal(
+    frame: Path,  # noqa: F811 - the fixture imported above
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from saengine.design import design_proposal, design_required, required
+
+    results, model = frame / "08 FEM" / "model.results", frame / "08 FEM" / "model.osmodel"
+
+    def both() -> str:
+        _forget_searches()
+        found = design_required(results, model)
+        # The proposal from checks of its own (its column searches made again).
+        proposal = design_proposal(
+            results, model, {"mode": "byType"}, required.gather(results, model)
+        )
+        return json.dumps([found, proposal], sort_keys=True, default=str)
+
+    monkeypatch.setenv(member_pool.ENV_SERIAL, "1")
+    serial = both()
+    monkeypatch.setenv(member_pool.ENV_SERIAL, "0")
+    monkeypatch.setattr(member_pool, "MIN_MEMBERS", 2)
+    monkeypatch.setattr(member_pool, "MEMBERS_PER_WORKER", 1)
+    learnt = []
+    original = required._keep_learnt
+
+    def keep(found: dict) -> None:
+        learnt.append(found)
+        original(found)
+
+    monkeypatch.setattr(required, "_keep_learnt", keep)
+    try:
+        parallel = both()
+    finally:
+        member_pool.shutdown()
+        _forget_searches()
+    # The column types were searched in the workers (the required bars, the proposal's full
+    # surfaces); the searches here took what they found.
+    assert len(learnt) >= 2 and all(found["worst"] and found["surfaces"] for found in learnt)
+    assert parallel == serial

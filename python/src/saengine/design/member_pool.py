@@ -26,6 +26,11 @@ same, byte for byte, as when the loop checks every member itself.
 
 ``SAENGINE_CHECK_WORKERS``: at most this many workers (never more than the cores less one, nor
 :data:`MAX_WORKERS`).
+
+The same workers work out the required bars of a large model's column types
+(:func:`saengine.design.required.column_requirements`, alpha 10): any picklable run with
+``shipped()``, ``pool_item(index)`` and ``settings`` goes through :func:`prepare` alike, under
+the same rules (serial switch, members, failures).
 """
 
 from __future__ import annotations
@@ -424,7 +429,12 @@ class _Taker(pickle.Unpickler):
 
 
 def _refs(run: Any) -> dict[int, tuple[Any, ...]]:
+    """The objects of ``run`` that findings send as references (see :class:`_Shipper`): the
+    pieces, object types, materials and elements of a run of the checks; none for a run of
+    other work (the required bars, :func:`saengine.design.required.column_requirements`)."""
     refs: dict[int, tuple[Any, ...]] = {}
+    if not all(hasattr(run, name) for name in ("pieces", "types", "mats", "members")):
+        return refs
     for member_id, own in run.pieces.items():
         for k, piece in enumerate(own):
             refs[id(piece)] = ("piece", member_id, k)
@@ -481,25 +491,13 @@ def _chunk(
     run: Any, values: dict, root: Path | None, refs: dict, indices: list[int], record: bool
 ) -> tuple[bytes, list[str] | None]:
     from saengine.codes import registry
-    from saengine.design import check
 
     _enter(values, run.settings, root)
     found: list[Any] = []
     with registry.recording_tables() if record else nullcontext() as read:
         for index in indices:
-            member_id, type_id, element = run.members[index]
-            object_type = run.types[type_id]
             try:
-                done = check._rc_member(
-                    run,
-                    member_id,
-                    type_id,
-                    element,
-                    object_type,
-                    run.mats[object_type.material],
-                    run.mats[object_type.reinforcement.material],
-                    run.pieces.get(member_id, []),
-                )
+                done = run.pool_item(index)
             except Exception as error:  # noqa: BLE001 - checked again in the run's process
                 done = _Failed(f"{type(error).__name__}: {error}")
             found.append(done)
@@ -629,12 +627,28 @@ def _warm() -> None:
     import saengine.design.check  # noqa: F401
 
 
-def prepare(run: Any, indices: list[int], root: Path | None = None) -> Prepared | None:
+def prepare(
+    run: Any,
+    indices: list[int],
+    root: Path | None = None,
+    *,
+    chunks: list[list[int]] | None = None,
+    members: int | None = None,
+) -> Prepared | None:
     """Starts checking the members ``indices`` of ``run`` (the run's concrete beams and columns,
     :class:`saengine.design.check._RcRun`) in the workers; None when they are all to be checked
     in this process (see the module notes). ``root``: the project whose own code packs the run
-    reads (for a pack in force that cannot be sent)."""
-    workers = worker_count(len(indices))
+    reads (for a pack in force that cannot be sent).
+
+    ``run`` (picklable): ``run.shipped()`` the copy sent to the workers, ``run.pool_item(index)``
+    the work of one index there, ``run.settings`` the project settings (:func:`_enter`). Other
+    work than the checks goes the same way (the required bars of the column types,
+    :func:`saengine.design.required.column_requirements`): ``chunks`` the indices as they are
+    to be sent, in that order (else ``indices`` in even chunks), ``members`` how many members
+    they stand for (sets the number of workers; else one per index)."""
+    if chunks is not None:
+        indices = [index for chunk in chunks for index in chunk]
+    workers = worker_count(len(indices) if members is None else members)
     if workers == 0:
         return None
     values = _context_values()
@@ -647,8 +661,9 @@ def prepare(run: Any, indices: list[int], root: Path | None = None) -> Prepared 
         block = _share((run.shipped(), values, root))
     except Exception:  # noqa: BLE001 - anything that cannot be sent: all checked here
         return None
-    size = max(1, math.ceil(len(indices) / (workers * CHUNKS_PER_WORKER)))
-    chunks = [indices[k : k + size] for k in range(0, len(indices), size)]
+    if chunks is None:
+        size = max(1, math.ceil(len(indices) / (workers * CHUNKS_PER_WORKER)))
+        chunks = [indices[k : k + size] for k in range(0, len(indices), size)]
     pool = _acquire(workers)
     futures: list[concurrent.futures.Future] = []
     try:
