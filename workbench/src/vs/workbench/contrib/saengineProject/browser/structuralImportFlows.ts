@@ -12,7 +12,7 @@ import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
-import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
+import { ISaengineJobsService } from '../../../services/saengineProject/common/saengineJobs.js';
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
@@ -43,7 +43,7 @@ export class StructuralImportFlows {
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@INotificationService private readonly notificationService: INotificationService,
-		@IProgressService private readonly progressService: IProgressService,
+		@ISaengineJobsService private readonly jobsService: ISaengineJobsService,
 		@IFileService private readonly fileService: IFileService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IEditorService private readonly editorService: IEditorService,
@@ -147,10 +147,7 @@ export class StructuralImportFlows {
 		const request: IStructuralImportArgs = { path: file.fsPath, destParent: destParent.fsPath, name };
 		let result;
 		try {
-			result = readImportResult(await this.progressService.withProgress({
-				location: ProgressLocation.Notification,
-				title: localize('import.importing', "Importing {0}...", basename(file)),
-			}, () => this.commandService.executeCommand(STRUCTURAL_IMPORT_COMMAND, request)));
+			result = readImportResult(await this.jobsService.run({ title: localize('import.importing', "Importing {0}...", basename(file)) }, () => this.commandService.executeCommand(STRUCTURAL_IMPORT_COMMAND, request)));
 		} catch (error) {
 			this.notificationService.error(localize('import.failed', "{0} could not be imported: {1}", basename(file), toErrorMessage(error)));
 			return undefined;

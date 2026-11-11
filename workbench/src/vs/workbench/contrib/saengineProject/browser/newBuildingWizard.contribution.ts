@@ -23,7 +23,7 @@ import { NEW_BUILDING_COMMAND, NEW_PROJECT_COMMAND } from './newBuildingModel.js
 import { NewBuildingOpener, NewBuildingWizard, NewBuildingWizardInput, NewProjectStart } from './newBuildingWizard.js';
 import { INewFromTemplateArgs, ProjectArchiveFlows } from './projectArchiveFlows.js';
 import { PROJECT_MENU } from './projectMenu.js';
-import { DEVELOPER_MODE_SETTING } from './projectNavigatorView.js';
+import { DEVELOPER_MODE_SETTING } from '../../../services/saengineProject/common/developerMode.js';
 import { PROJECT_VIEW_CONTAINER_ID } from './saengineNavigator.contribution.js';
 
 /*

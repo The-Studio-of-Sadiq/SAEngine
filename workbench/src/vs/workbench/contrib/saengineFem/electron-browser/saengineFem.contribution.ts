@@ -19,12 +19,12 @@ import { Extensions as ConfigurationExtensions, ConfigurationScope, IConfigurati
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
-import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { EditorResourceAccessor } from '../../../common/editor.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { Extensions as OutputExtensions, IOutputChannelRegistry } from '../../../services/output/common/output.js';
+import { ISaengineJobsService } from '../../../services/saengineProject/common/saengineJobs.js';
 import { ISaengineProjectService, partById } from '../../../services/saengineProject/common/saengineProject.js';
 import { resultsFolder } from '../browser/femResultsBar.js';
 import { CFD_CANCEL_COMMAND, CFD_DETECT_COMMAND, CFD_OPENFOAM_SETTING, CFD_RESULTS_COMMAND, CFD_START_COMMAND, CFD_STATUS_COMMAND, CFD_WRITE_COMMAND, CFD_WSL_SETTING } from '../browser/femCfdWind.js';
@@ -956,13 +956,13 @@ CommandsRegistry.registerCommand('saengine.drawings.generate', async (accessor, 
 		...(args.size ? { size: args.size } : {}),
 		...(args.designReportText ? { designReportText: args.designReportText } : {}),
 	};
-	return accessor.get(IProgressService).withProgress({ location: ProgressLocation.Window, title: localize('drawings.generating', "Generating drawings") }, async progress => {
+	return accessor.get(ISaengineJobsService).run({ title: localize('drawings.generating', "Generating drawings") }, async (_progress, job) => {
 		const poll = new IntervalTimer();
 		poll.cancelAndSet(() => {
 			solver.engine(python, 'drawings/progress', { projectRoot: args.projectRoot }).then(raw => {
 				const state = raw as IDrawingsProgress | undefined;
 				if (state?.running && state.message && state.index && state.count) {
-					progress.report({ message: localize('drawings.generatingStep', "{0} ({1} of {2})", state.message, state.index, state.count) });
+					job.report(localize('drawings.generatingStep', "{0} ({1} of {2})", state.message, state.index, state.count));
 				}
 			}, () => { /* the generation's own answer reports failures */ });
 		}, 700);
@@ -1072,13 +1072,13 @@ CommandsRegistry.registerCommand('saengine.drawings.list', async (accessor, args
 CommandsRegistry.registerCommand('saengine.drawings.issue', async (accessor, args: { readonly projectRoot: string;[key: string]: unknown }) => {
 	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
 	const solver = accessor.get(IFemSolverService);
-	return accessor.get(IProgressService).withProgress({ location: ProgressLocation.Window, title: localize('drawings.issuing', "Issuing drawings") }, async progress => {
+	return accessor.get(ISaengineJobsService).run({ title: localize('drawings.issuing', "Issuing drawings") }, async (_progress, job) => {
 		const poll = new IntervalTimer();
 		poll.cancelAndSet(() => {
 			solver.engine(python, 'drawings/progress', { projectRoot: args.projectRoot }).then(raw => {
 				const state = raw as IDrawingsProgress | undefined;
 				if (state?.running && state.message && state.index && state.count) {
-					progress.report({ message: localize('drawings.generatingStep', "{0} ({1} of {2})", state.message, state.index, state.count) });
+					job.report(localize('drawings.generatingStep', "{0} ({1} of {2})", state.message, state.index, state.count));
 				}
 			}, () => { /* the issue's own answer reports failures */ });
 		}, 700);
@@ -1097,6 +1097,6 @@ CommandsRegistry.registerCommand('saengine.drawings.issue', async (accessor, arg
 CommandsRegistry.registerCommand('saengine.drawings.dwg', async (accessor, args: { readonly projectRoot: string; readonly sheets?: readonly string[] }) => {
 	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
 	const solver = accessor.get(IFemSolverService);
-	return accessor.get(IProgressService).withProgress({ location: ProgressLocation.Window, title: localize('drawings.writingDwg', "Writing DWG drawings") }, () =>
+	return accessor.get(ISaengineJobsService).run({ title: localize('drawings.writingDwg', "Writing DWG drawings") }, () =>
 		solver.engine(python, 'drawings/dwg', { projectRoot: args.projectRoot, ...(args.sheets?.length ? { sheets: args.sheets } : {}) }));
 });

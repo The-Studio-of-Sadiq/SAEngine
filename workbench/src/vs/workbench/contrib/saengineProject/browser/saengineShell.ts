@@ -7,6 +7,7 @@ import { Disposable, DisposableStore, IDisposable } from '../../../../base/commo
 import { isISubmenuItem, MenuId, MenuRegistry } from '../../../../platform/actions/common/actions.js';
 import { IConfigurationDefaults, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { ContextKeyExpr, ContextKeyExpression } from '../../../../platform/contextkey/common/contextkey.js';
+import { IKeybindingsRegistry } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IViewContainersRegistry, IViewDescriptor, IViewsRegistry, ViewContainer } from '../../../common/views.js';
 import { IProjectPart } from '../../../services/saengineProject/common/saengineProject.js';
 
@@ -186,6 +187,25 @@ export function gateCommandPalette(keep: (id: string) => boolean, condition: Con
 		}
 	}));
 	return store;
+}
+
+/**
+ * Adds `condition` to the default keybindings of the commands `gated` accepts (Ctrl+Shift+F of
+ * Find in Files, Ctrl+` of the terminal, ...), so that outside developer mode the keys do nothing
+ * instead of opening a view that is out of sight. Like {@link gateMenuItems} it changes the
+ * registered items themselves; run it before the first key is dispatched. Removals ("-id") and
+ * extension keybindings are left alone.
+ */
+export function gateKeybindings(registry: IKeybindingsRegistry, gated: (command: string) => boolean, condition: ContextKeyExpression): number {
+	let count = 0;
+	for (const item of registry.getDefaultKeybindings()) {
+		if (!item.command || item.command.startsWith('-') || item.extensionId || !gated(item.command)) {
+			continue;
+		}
+		item.when = ContextKeyExpr.and(item.when ?? undefined, condition);
+		count++;
+	}
+	return count;
 }
 
 /** What the user had chosen for the developer items before simple mode hid them. */

@@ -13,7 +13,7 @@ import { IFileService } from '../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService, NeverShowAgainScope, Severity } from '../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
-import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
+import { ISaengineJobsService } from '../../../services/saengineProject/common/saengineJobs.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ISaengineProjectService, partById } from '../../../services/saengineProject/common/saengineProject.js';
@@ -81,7 +81,7 @@ export class ProjectArchiveFlows {
 		@IDialogService private readonly dialogService: IDialogService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@INotificationService private readonly notificationService: INotificationService,
-		@IProgressService private readonly progressService: IProgressService,
+		@ISaengineJobsService private readonly jobsService: ISaengineJobsService,
 		@IFileService private readonly fileService: IFileService,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IStorageService private readonly storageService: IStorageService,
@@ -187,10 +187,7 @@ export class ProjectArchiveFlows {
 		}
 		const request = exportArgs(project.root.fsPath, target.fsPath, options);
 		try {
-			const result = await this.progressService.withProgress({
-				location: ProgressLocation.Notification,
-				title: localize('archive.exporting', "Exporting {0}...", project.name),
-			}, () => this.commandService.executeCommand(ARCHIVE_EXPORT_COMMAND, request));
+			const result = await this.jobsService.run({ title: localize('archive.exporting', "Exporting {0}...", project.name) }, () => this.commandService.executeCommand(ARCHIVE_EXPORT_COMMAND, request));
 			const bag = (typeof result === 'object' && result !== null ? result : {}) as { readonly path?: unknown; readonly size?: unknown };
 			const problems = readProblems(result);
 			if (typeof bag.path !== 'string') {
@@ -282,10 +279,7 @@ export class ProjectArchiveFlows {
 		}
 		const name = args.name ?? uniqueFolderName(wanted, candidate => existing.has(candidate.toLowerCase()));
 		try {
-			const result = await this.progressService.withProgress({
-				location: ProgressLocation.Notification,
-				title: localize('archive.importing', "Unpacking {0}...", basename(file)),
-			}, () => this.commandService.executeCommand(ARCHIVE_IMPORT_COMMAND, importArgs(file.fsPath, destParent.fsPath, name)));
+			const result = await this.jobsService.run({ title: localize('archive.importing', "Unpacking {0}...", basename(file)) }, () => this.commandService.executeCommand(ARCHIVE_IMPORT_COMMAND, importArgs(file.fsPath, destParent.fsPath, name)));
 			const bag = (typeof result === 'object' && result !== null ? result : {}) as { readonly root?: unknown };
 			const problems = readProblems(result);
 			if (typeof bag.root !== 'string') {

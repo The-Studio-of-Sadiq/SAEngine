@@ -9,13 +9,14 @@ import { localize2 } from '../../../../../nls.js';
 import { MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { Extensions as ConfigurationExtensions, IConfigurationNode, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IKeybindingItem, IKeybindingsRegistry } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { ViewPane } from '../../../../browser/parts/views/viewPane.js';
 import { ViewPaneContainer } from '../../../../browser/parts/views/viewPaneContainer.js';
 import { Extensions as ViewExtensions, IViewContainersRegistry, IViewDescriptor, IViewsRegistry, ViewContainerLocation } from '../../../../common/views.js';
 import { PROJECT_PARTS, STRUCTURE_PART } from '../../../../services/saengineProject/common/saengineProject.js';
-import { applyDeveloperItems, ConfigurationDefaultsSwitch, gateMenuItems, gateSubmenus, IDeveloperItemsHost, IDeveloperItemsSnapshot, parseDeveloperItemsSnapshot, partEditorLabels, ViewsGate } from '../../browser/saengineShell.js';
+import { applyDeveloperItems, ConfigurationDefaultsSwitch, gateKeybindings, gateMenuItems, gateSubmenus, IDeveloperItemsHost, IDeveloperItemsSnapshot, parseDeveloperItemsSnapshot, partEditorLabels, ViewsGate } from '../../browser/saengineShell.js';
 
 const DEVELOPER = ContextKeyExpr.has('saengineDeveloperModeTest');
 
@@ -160,6 +161,29 @@ suite('SAEngine - window shell', () => {
 			{ hidden: ['status.editor.encoding'], accounts: true, remembered: false },
 			{ hidden: [...entries].sort(), accounts: false, remembered: true },
 			{ hidden: ['status.editor.encoding'], accounts: true, remembered: false },
+		]);
+	});
+
+	test('the shortcuts of code-editor commands get the condition, the others and removals stay', () => {
+		const item = (command: string, when?: string, extensionId: string | null = null): IKeybindingItem => ({
+			keybinding: null, command, when: when ? ContextKeyExpr.deserialize(when) : undefined, weight1: 0, weight2: 0, extensionId, isBuiltinExtension: false,
+		});
+		const items = [
+			item('workbench.action.findInFiles'),
+			item('workbench.action.terminal.toggleTerminal', 'terminalProcessSupported'),
+			item('-workbench.action.findInFiles'),
+			item('workbench.action.terminal.focus', undefined, 'some.extension'),
+			item('saengine.runAll'),
+		];
+		const registry = { getDefaultKeybindings: () => items } as unknown as IKeybindingsRegistry;
+		const gated = gateKeybindings(registry, id => id.startsWith('workbench.action.findInFiles') || id.startsWith('workbench.action.terminal.'), DEVELOPER);
+		assert.strictEqual(gated, 2);
+		assert.deepStrictEqual(items.map(i => i.when?.serialize()), [
+			'saengineDeveloperModeTest',
+			'saengineDeveloperModeTest && terminalProcessSupported',
+			undefined,
+			undefined,
+			undefined,
 		]);
 	});
 

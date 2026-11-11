@@ -8,6 +8,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILinkDescriptor } from '../../../../platform/opener/browser/link.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
+import { IDisposable } from '../../../../base/common/lifecycle.js';
 
 export interface IBannerItem {
 	readonly id: string;
@@ -32,4 +33,11 @@ export interface IBannerService {
 	focusPreviousAction(): void;
 	hide(id: string): void;
 	show(item: IBannerItem): void;
+
+	/**
+	 * SAEngine: shows `element`, `height` pixels high, as a strip of its own above the banner's
+	 * messages (the project stage bar) until the result is disposed. One strip at a time: a new
+	 * one replaces the last.
+	 */
+	showStrip(element: HTMLElement, height: number): IDisposable;
 }

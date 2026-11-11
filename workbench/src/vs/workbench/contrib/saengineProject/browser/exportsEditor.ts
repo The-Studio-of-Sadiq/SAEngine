@@ -26,7 +26,7 @@ import { IFileService } from '../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
-import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
+import { ISaengineJobsService } from '../../../services/saengineProject/common/saengineJobs.js';
 import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
@@ -297,7 +297,7 @@ export class ExportsEditor extends EditorPane {
 		@INotificationService private readonly notificationService: INotificationService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IProgressService private readonly progressService: IProgressService,
+		@ISaengineJobsService private readonly jobsService: ISaengineJobsService,
 	) {
 		super(ExportsEditor.ID, group, telemetryService, themeService, storage);
 		this._register(this.storage.onDidChangeValue(StorageScope.WORKSPACE, LAST_ARCHIVE_STORAGE_KEY, this._store)(() => this.scanScheduler.schedule(0)));
@@ -965,10 +965,7 @@ export class ExportsEditor extends EditorPane {
 
 	/** The ETABS export, with its progress, and a notice of what it wrote and left out. */
 	private async exportE2k(project: ISaengineProject): Promise<void> {
-		const answer = await this.progressService.withProgress({
-			location: ProgressLocation.Notification,
-			title: localize('exports.e2kProgress', "Exporting {0} to ETABS", project.name),
-		}, progress => {
+		const answer = await this.jobsService.run({ title: localize('exports.e2kProgress', "Exporting {0} to ETABS", project.name) }, progress => {
 			progress.report({ message: localize('exports.e2kDeriving', "deriving the analysis model for the wind and earthquake story forces...") });
 			return this.commandService.executeCommand(EXPORT_E2K_COMMAND, { projectRoot: project.root.fsPath });
 		});
@@ -994,10 +991,7 @@ export class ExportsEditor extends EditorPane {
 
 	/** An exchange export (alpha 9 L12), with its progress, and a notice of what it wrote and left out. */
 	private async exportExchange(project: ISaengineProject, kind: IExportKind, format: ExchangeKind): Promise<void> {
-		const answer = await this.progressService.withProgress({
-			location: ProgressLocation.Notification,
-			title: kind.runningLabel,
-		}, () => this.commandService.executeCommand(EXPORT_EXCHANGE_COMMAND, { projectRoot: project.root.fsPath, format }));
+		const answer = await this.jobsService.run({ title: kind.runningLabel }, () => this.commandService.executeCommand(EXPORT_EXCHANGE_COMMAND, { projectRoot: project.root.fsPath, format }));
 		const outcome = readE2kExport(answer);
 		if (outcome.error || !outcome.path) {
 			this.notificationService.error(localize('exports.exchangeFailed', "{0}: {1}", kind.title, outcome.error ?? ''));
@@ -1019,10 +1013,7 @@ export class ExportsEditor extends EditorPane {
 
 	/** A fabrication export (alpha 9 L10), with its progress, and a notice of what it wrote. */
 	private async exportFabrication(project: ISaengineProject, kind: IExportKind): Promise<void> {
-		const answer = await this.progressService.withProgress({
-			location: ProgressLocation.Notification,
-			title: kind.runningLabel,
-		}, () => this.commandService.executeCommand(kind.command, { projectRoot: project.root.fsPath }));
+		const answer = await this.jobsService.run({ title: kind.runningLabel }, () => this.commandService.executeCommand(kind.command, { projectRoot: project.root.fsPath }));
 		const outcome = readFabricationExport(answer);
 		if (outcome.error || !outcome.folder) {
 			this.notificationService.error(localize('exports.fabricationFailed', "{0}: {1}", kind.title, outcome.error ?? ''));

@@ -37,14 +37,13 @@ import { IPartEntry, IPartSection, isPartEditor, isSectionActive, openPart, open
 import { ProjectOverviewInput } from './projectOverviewInput.js';
 import { unsavedSummary } from './versionsModel.js';
 import { IProjectVersionsService } from './versionsService.js';
+import { DEVELOPER_MODE_SETTING } from '../../../services/saengineProject/common/developerMode.js';
 
 /** The UI command that opens the Versions editor (registered in projectPlatform.contribution.ts). */
 const SHOW_VERSIONS_COMMAND = 'saengine.project.showVersions';
 /** The height of the versions line under the parts. */
 const VERSIONS_LINE_HEIGHT = 28;
 
-/** Setting (registered with the developer mode) that shows the raw files under each part. */
-export const DEVELOPER_MODE_SETTING = 'saengine.developerMode';
 
 /** How deep the raw files of a part are listed in developer mode. */
 const FILE_DEPTH = 4;

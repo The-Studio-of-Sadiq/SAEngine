@@ -4,12 +4,28 @@
  *--------------------------------------------------------------------------------------------*/
 
 .monaco-workbench .part.banner {
+	box-sizing: border-box;
+	width: 100%;
+	height: 100%;
+	display: flex;
+	flex-direction: column;
+	overflow: visible;
+}
+
+/* SAEngine: a strip above the message (bannerService showStrip); its owner styles it. */
+.monaco-workbench .part.banner > .banner-strip {
+	flex-shrink: 0;
+	overflow: hidden;
+}
+
+.monaco-workbench .part.banner > .banner-message {
 	background-color: var(--vscode-banner-background);
 	color: var(--vscode-banner-foreground);
 	box-sizing: border-box;
 	cursor: default;
 	width: 100%;
-	height: 100%;
+	height: 26px;
+	flex-shrink: 0;
 	font-size: 12px;
 	display: flex;
 	overflow: visible;
@@ -79,14 +95,14 @@
 	color: var(--vscode-banner-foreground);
 }
 
-.monaco-workbench .part.banner.neutral {
+.monaco-workbench .part.banner .banner-message.neutral {
 	background-color: var(--vscode-sideBar-background);
 	color: var(--vscode-foreground);
 	border-bottom: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder);
 }
 
-.monaco-workbench .part.banner.neutral .message-actions-container a,
-.monaco-workbench .part.banner.neutral .action-container .codicon,
-.monaco-workbench .part.banner.neutral .icon-container .codicon {
+.monaco-workbench .part.banner .banner-message.neutral .message-actions-container a,
+.monaco-workbench .part.banner .banner-message.neutral .action-container .codicon,
+.monaco-workbench .part.banner .banner-message.neutral .icon-container .codicon {
 	color: var(--vscode-foreground);
 }

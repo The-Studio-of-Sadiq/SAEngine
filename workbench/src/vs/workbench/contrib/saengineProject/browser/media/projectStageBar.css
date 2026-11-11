@@ -1,0 +1,92 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) SAEngine contributors. All rights reserved.
+ *  Licensed under the AGPL-3.0-only license. See LICENSE in the repository root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* The project stage bar (projectStageBar.ts), in the banner's strip under the title bar. */
+.monaco-workbench .sa-stage-bar {
+	display: flex;
+	align-items: center;
+	gap: 2px;
+	height: 100%;
+	box-sizing: border-box;
+	padding: 0 var(--sa-space-2);
+	background-color: var(--sa-surface-alt);
+	color: var(--vscode-foreground);
+	border-bottom: 1px solid var(--sa-border);
+	font-size: var(--sa-font-s);
+	overflow: hidden;
+	white-space: nowrap;
+}
+
+.monaco-workbench .sa-stage-bar .sa-stage {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--sa-space-1);
+	min-width: 0;
+	height: 22px;
+	padding: 0 var(--sa-space-2);
+	border: 1px solid transparent;
+	border-radius: var(--sa-radius);
+	background: none;
+	color: inherit;
+	font: inherit;
+	cursor: pointer;
+	flex-shrink: 1;
+}
+
+.monaco-workbench .sa-stage-bar .sa-stage:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.monaco-workbench .sa-stage-bar .sa-stage:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.monaco-workbench .sa-stage-bar .sa-stage-label {
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+/* The stage that needs the engineer first: the brand's blue, as the title bar's Run All. */
+.monaco-workbench .sa-stage-bar .sa-stage.sa-stage-next {
+	border-color: var(--sa-brand-blue);
+}
+
+.monaco-workbench .sa-stage-bar .sa-stage.sa-stage-next .sa-stage-label {
+	font-weight: 600;
+}
+
+.monaco-workbench .sa-stage-bar .sa-stage-text {
+	color: var(--sa-muted);
+	max-width: 120px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+/* State icons: shape and colour, so the state does not rest on colour alone. */
+.monaco-workbench .sa-stage-bar .sa-stage-icon { font-size: 14px; flex-shrink: 0; }
+.monaco-workbench .sa-stage-bar .sa-stage-done .sa-stage-icon { color: var(--sa-ok); }
+.monaco-workbench .sa-stage-bar .sa-stage-inProgress .sa-stage-icon { color: var(--sa-info); }
+.monaco-workbench .sa-stage-bar .sa-stage-stale .sa-stage-icon { color: var(--sa-warn); }
+.monaco-workbench .sa-stage-bar .sa-stage-failed .sa-stage-icon { color: var(--sa-fail); }
+.monaco-workbench .sa-stage-bar .sa-stage-notStarted .sa-stage-icon { color: var(--sa-idle); }
+.monaco-workbench .sa-stage-bar .sa-stage-notStarted .sa-stage-label { color: var(--sa-muted); }
+
+.monaco-workbench .sa-stage-bar .sa-stage-sep {
+	flex-shrink: 0;
+	font-size: 12px;
+	color: var(--sa-idle);
+}
+
+/* High contrast: the stages keep a border, the icons their full colour. */
+.monaco-workbench.hc-black .sa-stage-bar .sa-stage,
+.monaco-workbench.hc-light .sa-stage-bar .sa-stage {
+	border-color: var(--vscode-contrastBorder);
+}
+
+.monaco-workbench.hc-black .sa-stage-bar .sa-stage.sa-stage-next,
+.monaco-workbench.hc-light .sa-stage-bar .sa-stage.sa-stage-next {
+	border-color: var(--vscode-contrastActiveBorder);
+}

@@ -29,7 +29,7 @@ import { IContextKeyService } from '../../../../platform/contextkey/common/conte
 import { URI } from '../../../../base/common/uri.js';
 import { widgetClose } from '../../../../platform/theme/common/iconRegistry.js';
 import { BannerFocused } from '../../../common/contextkeys.js';
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 
 // Banner Part
 
@@ -39,16 +39,22 @@ export class BannerPart extends Part implements IBannerService {
 
 	// #region IView
 
+	/** Height of the message row. */
 	readonly height: number = 26;
 	readonly minimumWidth: number = 0;
 	readonly maximumWidth: number = Number.POSITIVE_INFINITY;
 
+	/** SAEngine: the message row (when there is a message) and the strip above it (when one is shown). */
+	private get contentHeight(): number {
+		return (this.item ? this.height : 0) + (this.strip?.height ?? 0);
+	}
+
 	get minimumHeight(): number {
-		return this.visible ? this.height : 0;
+		return this.visible ? this.contentHeight : 0;
 	}
 
 	get maximumHeight(): number {
-		return this.visible ? this.height : 0;
+		return this.visible ? this.contentHeight : 0;
 	}
 
 	private _onDidChangeSize = this._register(new Emitter<{ width: number; height: number } | undefined>());
@@ -57,6 +63,10 @@ export class BannerPart extends Part implements IBannerService {
 	//#endregion
 
 	private item: IBannerItem | undefined;
+	private strip: { readonly element: HTMLElement; readonly height: number } | undefined;
+	private stripContainer!: HTMLElement;
+	/** The message row (the whole part before SAEngine's strip). */
+	private messageElement!: HTMLElement;
 	private readonly items = new Map<string, IBannerItem>();
 	private readonly itemDisposables = this._register(new DisposableStore());
 	private visible = false;
@@ -77,21 +87,55 @@ export class BannerPart extends Part implements IBannerService {
 	}
 
 	protected override createContentArea(parent: HTMLElement): HTMLElement {
+		// SAEngine: the part holds a strip (see showStrip) above the message row.
 		this.element = parent;
-		this.element.tabIndex = 0;
+		this.stripContainer = append(parent, $('div.banner-strip'));
+		this.stripContainer.style.display = 'none';
+		this.messageElement = append(parent, $('div.banner-message'));
+		this.messageElement.style.display = 'none';
+		this.messageElement.tabIndex = 0;
 
 		// Restore focused action if needed
-		this._register(addDisposableListener(this.element, EventType.FOCUS, () => {
+		this._register(addDisposableListener(this.messageElement, EventType.FOCUS, () => {
 			if (this.focusedActionIndex !== -1) {
 				this.focusActionLink();
 			}
 		}));
 
 		// Track focus
-		const scopedContextKeyService = this._register(this.contextKeyService.createScoped(this.element));
+		const scopedContextKeyService = this._register(this.contextKeyService.createScoped(this.messageElement));
 		BannerFocused.bindTo(scopedContextKeyService).set(true);
 
-		return this.element;
+		return parent;
+	}
+
+	showStrip(element: HTMLElement, height: number): IDisposable {
+		const strip = { element, height };
+		clearNode(this.stripContainer);
+		this.stripContainer.appendChild(element);
+		this.stripContainer.style.display = '';
+		this.stripContainer.style.height = `${height}px`;
+		this.strip = strip;
+		this.updateVisibility();
+		return toDisposable(() => {
+			if (this.strip === strip) {
+				this.strip = undefined;
+				clearNode(this.stripContainer);
+				this.stripContainer.style.display = 'none';
+				this.updateVisibility();
+			}
+		});
+	}
+
+	/** Shows the part while it has a message or a strip, at the height of both. */
+	private updateVisibility(): void {
+		this.messageElement.style.display = this.item ? '' : 'none';
+		const visible = !!this.item || !!this.strip;
+		if (visible !== this.visible) {
+			this.setVisibility(visible);
+		} else {
+			this._onDidChangeSize.fire(undefined);
+		}
 	}
 
 	private close(item: IBannerItem): void {
@@ -150,7 +194,7 @@ export class BannerPart extends Part implements IBannerService {
 
 	focus(): void {
 		this.focusedActionIndex = -1;
-		this.element.focus();
+		this.messageElement.focus();
 	}
 
 	focusNextAction(): void {
@@ -189,30 +233,30 @@ export class BannerPart extends Part implements IBannerService {
 			return;
 		}
 
-		const hadFocus = this.element.contains(this.element.ownerDocument.activeElement);
+		const hadFocus = this.messageElement.contains(this.messageElement.ownerDocument.activeElement);
 		this.itemDisposables.clear();
-		clearNode(this.element);
+		clearNode(this.messageElement);
 		this.item = item;
 		this.actionBar = undefined;
 		this.messageActionsContainer = undefined;
 		this.focusedActionIndex = -1;
 		if (!item) {
-			this.element.removeAttribute('aria-label');
-			this.setVisibility(false);
+			this.messageElement.removeAttribute('aria-label');
+			this.updateVisibility();
 			return;
 		}
-		this.element.classList.toggle('neutral', !!item.neutral);
+		this.messageElement.classList.toggle('neutral', !!item.neutral);
 
 		// Banner aria label
 		const ariaLabel = this.getAriaLabel(item);
 		if (ariaLabel) {
-			this.element.setAttribute('aria-label', ariaLabel);
+			this.messageElement.setAttribute('aria-label', ariaLabel);
 		} else {
-			this.element.removeAttribute('aria-label');
+			this.messageElement.removeAttribute('aria-label');
 		}
 
 		// Icon
-		const iconContainer = append(this.element, $('div.icon-container'));
+		const iconContainer = append(this.messageElement, $('div.icon-container'));
 		iconContainer.setAttribute('aria-hidden', 'true');
 
 		if (ThemeIcon.isThemeIcon(item.icon)) {
@@ -226,12 +270,12 @@ export class BannerPart extends Part implements IBannerService {
 		}
 
 		// Message
-		const messageContainer = append(this.element, $('div.message-container'));
+		const messageContainer = append(this.messageElement, $('div.message-container'));
 		messageContainer.setAttribute('aria-hidden', 'true');
 		messageContainer.appendChild(this.getBannerMessage(item.message));
 
 		// Message Actions
-		this.messageActionsContainer = append(this.element, $('div.message-actions-container'));
+		this.messageActionsContainer = append(this.messageElement, $('div.message-actions-container'));
 		if (item.actions) {
 			for (const action of item.actions) {
 				this.itemDisposables.add(this.instantiationService.createInstance(Link, this.messageActionsContainer, { ...action, tabIndex: -1 }, {}));
@@ -239,7 +283,7 @@ export class BannerPart extends Part implements IBannerService {
 		}
 
 		// Action
-		const actionBarContainer = append(this.element, $('div.action-container'));
+		const actionBarContainer = append(this.messageElement, $('div.action-container'));
 		this.actionBar = this.itemDisposables.add(new ActionBar(actionBarContainer));
 		const label = item.closeLabel ?? localize('closeBanner', "Close Banner");
 		const activeItem = item;
@@ -247,7 +291,7 @@ export class BannerPart extends Part implements IBannerService {
 		this.actionBar.push(closeAction, { icon: true, label: false });
 		this.actionBar.setFocusable(false);
 
-		this.setVisibility(true);
+		this.updateVisibility();
 		if (hadFocus) {
 			this.focus();
 		}
