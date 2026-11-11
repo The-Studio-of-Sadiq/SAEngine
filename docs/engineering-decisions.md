@@ -2466,3 +2466,14 @@ Each is a pack value or method id, overridable in Code Values; the default pack 
   cover >= 65 mm and tail cover >= 50 mm, x 0.8 with ties at <= 3 db along ldh, Ø36 and
   smaller. Eurocodes: α1 = 0.7 when cd = min(a/2, c1) > 3 φ (no confinement credit). A pack
   without these values takes no credit.
+- **Crossing bottom bars at a joint: the secondary direction is raised (2026-11-11).** Where the
+  bottom bars of beams from two directions meet at a column at the same level, the secondary
+  direction's bottom bars pass one main bar diameter higher, as the secondary top bars already
+  pass one diameter lower. The design uses the smaller effective depth of the raised bars for
+  sagging at those beam ends, so the drawing and the check agree; a crossing the raise cannot
+  resolve is still reported.
+- **Brand: the SAEngine logo and its typography are the design system (2026-11-11).** The
+  building mark (navy frame, blue meshed facade on a ground arc) with the "SAEngine" wordmark
+  (bold "SA", regular "Engine") replaces every earlier mark: app and installer icons, splash
+  and welcome pages, side bar, reports and drawings title blocks, documents and the website.
+  Its colours and type set the UI's brand tokens.
