@@ -20,6 +20,7 @@ the bars entered (None when there are none or they were assumed).
 from __future__ import annotations
 
 import dataclasses
+import hashlib
 import json
 import math
 import re
@@ -37,8 +38,11 @@ from saengine.design.rc import (
     DesignError,
     InteractionSurface,
     RcSection,
+    _bound,
     bar_area,
     section_of,
+    surface_key,
+    surface_of,
 )
 from saengine.library.bim import BuildingModel
 from saengine.library.materials import Category, MaterialLibrary, default_of
@@ -680,6 +684,16 @@ def column_points(member: dict[str, Any], combinations: list[str]) -> list[Point
     return points
 
 
+#: Alpha 10 (performance): what the searches worked out, for the whole process, by (the
+#: layout's :func:`surface_key`, a digest of the distinct demands): the largest utilisation of
+#: the demands, and the demands a layout was found not to carry. Run All, Design Reinforcement
+#: and Run All again ask the same of the same layouts (the bars a type has now are not part of
+#: a layout's section, so applying the proposal changes nothing here).
+_WORST: dict[tuple, float] = {}
+_FAILS: dict[tuple, bool] = {}
+_RESULTS_KEPT = 20000
+
+
 class ColumnSearch:
     """The practical layouts of one column type (:func:`bars.column_layouts`), sorted by steel
     area, and their interaction surfaces, built when first asked for: the coarse ones to
@@ -721,7 +735,8 @@ class ColumnSearch:
         #: Results per (layout, coarse, points list), the list kept so a reused id never
         #: returns another list's result.
         self._worst: dict[tuple[int, bool, int], tuple[list[Point], float]] = {}
-        self._rows: dict[int, tuple[list[Point], np.ndarray]] = {}
+        self._rows: dict[int, tuple[list[Point], np.ndarray, bytes]] = {}
+        self._keys: dict[tuple[int, bool], tuple] = {}
 
     def reinforcement(self, layout: B.ColumnLayout, ties: B.Ties | None = None) -> dict[str, Any]:
         current = self.obj.reinforcement
@@ -753,12 +768,25 @@ class ColumnSearch:
     def surface(self, index: int, coarse: bool) -> InteractionSurface:
         key = (index, coarse)
         if key not in self._surfaces:
-            self._surfaces[key] = InteractionSurface(self.section(index), coarse)
+            self._surfaces[key] = surface_of(self.section(index), coarse, self._key(index, coarse))
         return self._surfaces[key]
+
+    def _key(self, index: int, coarse: bool) -> tuple:
+        """The :func:`surface_key` of layout ``index``: what its surface and the utilisations
+        on it depend on (not the bars the type has now)."""
+        key = (index, coarse)
+        found = self._keys.get(key)
+        if found is None:
+            found = self._keys[key] = surface_key(self.section(index), coarse)
+        return found
 
     def _demands(self, points: list[Point]) -> np.ndarray:
         """The distinct (Pu, |Mux|, |Muy|) rows of ``points``, made once per list (the signs of
         the moments do not change a utilisation; a fifth of the rows repeat another)."""
+        return self._rows_of(points)[1]
+
+    def _rows_of(self, points: list[Point]) -> tuple[list[Point], np.ndarray, bytes]:
+        """(``points``, :meth:`_demands`, a digest of the demands)."""
         key = id(points)
         found = self._rows.get(key)
         if found is None or found[0] is not points:
@@ -766,16 +794,23 @@ class ColumnSearch:
                 self._rows.clear()
             rows = np.array([p[:3] for p in points], dtype=float).reshape(-1, 3)
             rows[:, 1:] = np.abs(rows[:, 1:])
-            found = (points, np.unique(rows, axis=0))
+            rows = np.unique(rows, axis=0)
+            digest = hashlib.blake2b(rows.tobytes(), digest_size=20).digest()
+            found = (points, rows, digest + str(rows.shape).encode())
             self._rows[key] = found
-        return found[1]
+        return found
 
     def utilisation(self, index: int, points: list[Point], coarse: bool = True) -> float:
         key = (index, coarse, id(points))
         found = self._worst.get(key)
         if found is not None and found[0] is points:
             return found[1]
-        worst = self.surface(index, coarse).max_utilisation(self._demands(points))
+        _, rows, digest = self._rows_of(points)
+        memo = (self._key(index, coarse), digest)
+        worst = _WORST.get(memo)
+        if worst is None:
+            worst = _WORST[memo] = self.surface(index, coarse).max_utilisation(rows)
+            _bound(_WORST, _RESULTS_KEPT)
         self._worst[key] = (points, worst)
         return worst
 
@@ -785,10 +820,21 @@ class ColumnSearch:
         found = self._worst.get(key)
         if found is not None and found[0] is points:
             return found[1] <= 1.0
-        surface = self.surface(index, coarse)
-        worst = surface.max_utilisation(self._demands(points), stop_above=1.0)
-        if worst <= 1.0:
+        _, rows, digest = self._rows_of(points)
+        memo = (self._key(index, coarse), digest)
+        worst = _WORST.get(memo)
+        if worst is None:
+            if memo in _FAILS:
+                return False
+            worst = self.surface(index, coarse).max_utilisation(rows, stop_above=1.0)
+            if worst > 1.0:
+                _FAILS[memo] = True
+                _bound(_FAILS, _RESULTS_KEPT)
+                return False
             # Every demand was worked out: the largest utilisation, kept for utilisation().
+            _WORST[memo] = worst
+            _bound(_WORST, _RESULTS_KEPT)
+        if worst <= 1.0:
             self._worst[key] = (points, worst)
         return worst <= 1.0
 
