@@ -351,6 +351,8 @@ export interface IRunAllService {
 	 * list shows the services' failures without a visit to Coordination). Quiet: a failure is logged.
 	 */
 	checkMepInBackground(): Promise<void>;
+	/** W4A-32: the steps of the last run (the toast's Show Steps, from the palette); false before the first run. */
+	showLastSteps(): Promise<boolean>;
 }
 
 export class RunAllService implements IRunAllService {
@@ -365,6 +367,7 @@ export class RunAllService implements IRunAllService {
 	private current: { index: number; started: number; detail?: string; backend: boolean } | undefined;
 	private runStarted = 0;
 	private _lastOutcomes: IStepOutcome[] = [];
+	private lastSeconds = 0;
 
 	constructor(
 		@ISaengineProjectService private readonly projectService: ISaengineProjectService,
@@ -388,6 +391,14 @@ export class RunAllService implements IRunAllService {
 
 	get running(): boolean {
 		return !!this.cancellation;
+	}
+
+	async showLastSteps(): Promise<boolean> {
+		if (!this._lastOutcomes.length) {
+			return false;
+		}
+		await this.showSteps(this._lastOutcomes, this.lastSeconds);
+		return true;
 	}
 
 	get lastOutcomes(): readonly IStepOutcome[] {
@@ -508,6 +519,7 @@ export class RunAllService implements IRunAllService {
 		}
 		this._lastOutcomes = outcomes;
 		const seconds = (Date.now() - this.runStarted) / 1000;
+		this.lastSeconds = seconds;
 		this.logService.info(`[saengine] Run All took ${seconds.toFixed(1)} s`);
 		this.showSummary(context, outcomes, seconds);
 	}
@@ -906,6 +918,17 @@ export class RunAllService implements IRunAllService {
 		// R1-5 of re-walk 1: the one count (foundationCounts), "n of N", as the part list and the report say it.
 		const counts = foundationCounts(summary, parsed.document.foundations.length);
 		const notChecked = counts.notChecked;
+		// W4C-41: the foundations the design skipped say why ("0 of 9 checked in full" alone does not).
+		const skipped = report.skipped.filter(s => s.type !== 'tieBeam' && s.reason);
+		if (skipped.length) {
+			const reasons = new Map<string, string[]>();
+			for (const s of skipped) {
+				reasons.set(s.reason, [...(reasons.get(s.reason) ?? []), s.id]);
+			}
+			for (const [reason, ids] of reasons) {
+				notes.push(localize('runAll.foundationsSkipped', "not checked: {0} ({1})", shortList(ids), reason));
+			}
+		}
 		if (summary.status === 'incomplete' && summary.unsupported.length) {
 			notes.push(localize('runAll.foundationsUnsupported', "no foundation under {0}", shortList(summary.unsupported)));
 		}

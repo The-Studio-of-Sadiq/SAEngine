@@ -901,7 +901,11 @@ export class SoilEditor extends EditorPane {
 		}
 		this.dataFolder = dirname(file);
 		try {
-			const result = await this.commandService.executeCommand<ISoilExportResult>(SOIL_EXPORT_COMMAND, { path: file.fsPath, soilText: serializeSoilReport(report) });
+			// W4B-20: a report without a title is exported under the project's name (AGS PROJ_NAME,
+			// DIGGS project name), not left empty or "SAEngine project".
+			const project = this.resource ? basename(dirname(dirname(this.resource))) : '';
+			const named = report.report?.title || !project ? report : { ...report, report: { ...report.report, title: project } };
+			const result = await this.commandService.executeCommand<ISoilExportResult>(SOIL_EXPORT_COMMAND, { path: file.fsPath, soilText: serializeSoilReport(named) });
 			if (result?.problems?.length) {
 				this.notificationService.warn(localize('soil.exportProblems', "The boreholes could not be exported: {0}", result.problems.join('; ')));
 				return;

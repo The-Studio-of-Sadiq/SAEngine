@@ -63,6 +63,60 @@ MIN_CONTACT = 0.25
 #: A service combination with wind or earthquake (its name names the case: WX, WTY, EX...).
 LATERAL = re.compile(r"\b[\d.]*(W|E)T?[XY]\b")
 
+#: The bearing check's method line (:func:`_bearing_method` puts its parts in order).
+_BEARING = "bearing"
+
+#: The bearing combinations of a pack without rules for shallow foundations.
+_BEARING_FALLBACK = (
+    "the allowable-stress combinations of ASCE 7-05 2.4.1 for nominal wind: "
+    "D, D + L + Lr (enveloping D + L, D + Lr and D + 0.75L + Lr), D + W, "
+    "D + 0.75L + 0.75Lr + 0.75W, 0.6D + W, D + 0.7E, D + 0.75L + 0.75Lr + 0.525E, "
+    "0.6D + 0.7E; W and E in ±X and ±Y (with strength-level wind, ASCE 7-16 2.4.1: "
+    "0.6W and 0.45W)"
+)
+
+_BEARING_PRESSURE = (
+    "Gross pressure q = P/A ± Mx/Sx ± My/Sy with the footing's weight "
+    "and the soil above it inside the kern; beyond it partial contact, "
+    "qmax = 2P / (3 B (L/2 - e)) for one eccentricity and the exact no-tension plane for "
+    "two. The net pressure (gross minus γ Df, Df from the ground level to the underside) "
+    "is compared with the net allowable bearing pressure qa."
+)
+
+_PACK_RULES = (
+    "increases qa with wind or earthquake by its lateral increase, and checks overturning "
+    "(FS = B / 2e) and sliding (μ V / H, no passive resistance; reported only for a footing "
+    "tied to others, the building's sliding counting) under its stability combinations with "
+    "the dead load resisting, the resultant within B/6 (reported only), the founding depth "
+    "(every footing, and exterior footings by the soil at the base), the depth above the "
+    "bottom bars, the distance to a slope face, the bearing at each column's base and the "
+    "bars across it, and the settlement of each footing (the settlement combination of the "
+    "soil at its base, at the nearest borehole) with the differential settlement and "
+    "angular distortion between neighbouring footings against its permissible values for "
+    "the type of structure."
+)
+
+
+def _bearing_method() -> str:
+    """The bearing check's method line: under a pack with rules for shallow foundations its
+    own combinations first (walk 4 W4B-25: a BNBC report does not lead with ASCE 7-05),
+    else the fallback combinations and the least contact."""
+    from saengine.substructure import shallow_rules
+
+    if shallow_rules.rules() is not None:
+        return (
+            f"Bearing under the combinations of the code pack {shallow_rules.code_name()} for "
+            "shallow foundations (the default pack: D + L, D + L + W, D + L + E and 0.9D + "
+            "buoyancy, L the normal live load reduced as in the column design when live load "
+            f"reduction is on). {_BEARING_PRESSURE} The pack's rules also {_PACK_RULES}"
+        )
+    return (
+        f"Bearing under {_BEARING_FALLBACK} (the code pack {shallow_rules.code_name()} has no "
+        f"rules for shallow foundations). {_BEARING_PRESSURE} A footing keeping less than "
+        "MIN_CONTACT of its base in contact fails as close to overturning (SAEngine practice)."
+    )
+
+
 _SHALLOW_METHOD = [
     (
         "Footings (isolated, combined and strip): the support reactions of the columns and "
@@ -70,31 +124,7 @@ _SHALLOW_METHOD = [
         "the depth from the column base to the footing's underside. Columns: rectangles as "
         "drawn, circles as the square of the same area (ACI R13.2.7.1)."
     ),
-    (
-        "Bearing under the allowable-stress combinations of ASCE 7-05 2.4.1 for nominal wind: "
-        "D, D + L + Lr (enveloping D + L, D + Lr and D + 0.75L + Lr), D + W, "
-        "D + 0.75L + 0.75Lr + 0.75W, 0.6D + W, D + 0.7E, D + 0.75L + 0.75Lr + 0.525E, "
-        "0.6D + 0.7E; W and E in ±X and ±Y (with strength-level wind, ASCE 7-16 2.4.1: "
-        "0.6W and 0.45W). Gross pressure q = P/A ± Mx/Sx ± My/Sy with the footing's weight "
-        "and the soil above it inside the kern; beyond it partial contact, "
-        "qmax = 2P / (3 B (L/2 - e)) for one eccentricity and the exact no-tension plane for "
-        "two. The net pressure (gross minus γ Df, Df from the ground level to the underside) "
-        "is compared with the net allowable bearing pressure qa. A code pack with rules for "
-        "shallow foundations replaces these combinations by its own for the bearing (the "
-        "default pack: D + L, D + L + W, D + L + E and 0.9D + buoyancy, L the normal live "
-        "load reduced as in the column design when live load reduction is on), increases qa "
-        "with wind or earthquake by its lateral increase, and checks overturning (FS = B / 2e) "
-        "and sliding (μ V / H, no passive resistance; reported only for a footing tied to "
-        "others, the building's sliding counting) under its stability combinations with the "
-        "dead load resisting, the resultant within B/6 (reported only), the founding depth "
-        "(every footing, and exterior footings by the soil at the base), the depth above the "
-        "bottom bars, the distance to a slope face, the bearing at each column's base and the "
-        "bars across it, and the settlement of each footing (the settlement combination of the "
-        "soil at its base, at the nearest borehole) with the differential settlement and "
-        "angular distortion between neighbouring footings against its permissible values for "
-        "the type of structure. Without such rules, a footing keeping less than "
-        "MIN_CONTACT of its base in contact fails as close to overturning (SAEngine practice)."
-    ),
+    _BEARING,
     (
         "qa of each footing: its own override in 9 Substructure, else the override of Project "
         "Settings → Foundation; otherwise, when 1 Soil Report has boreholes, its net allowable "
@@ -207,7 +237,10 @@ def _tie_beam_method() -> str:
 
 def shallow_method() -> list[str]:
     """The footings' method lines, with the pack in force's tie beam rules."""
-    return [*_SHALLOW_METHOD, _tie_beam_method()]
+    return [
+        *(_bearing_method() if line is _BEARING else line for line in _SHALLOW_METHOD),
+        _tie_beam_method(),
+    ]
 
 
 def __getattr__(name: str) -> Any:
@@ -1455,7 +1488,7 @@ def design_footing(
                 capacity = plain_flexure(h, fc)
                 note = (
                     f"no top bars: plain concrete, φMn = 0.60 x 0.42 √f'c Sm with "
-                    f"h - 50 = {h - 50:.0f} mm (ACI 14.5.2.1, 14.5.1.7); " + note
+                    f"h - 50 mm = {h - 50:.0f} mm (ACI 14.5.2.1, 14.5.1.7); " + note
                 )
                 if hogging > capacity:
                     note = "top reinforcement is needed; " + note

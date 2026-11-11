@@ -256,10 +256,14 @@
 
 .saengine-editor-frame .sa-props-row > .name {
 	color: var(--sa-muted, var(--vscode-descriptionForeground));
-	min-width: 0;
+	/* W4B-19: a long value wraps instead of squeezing the name under it ("Settleme24.4 mm"). */
+	flex-shrink: 0;
+	max-width: 45%;
+	overflow-wrap: break-word;
 }
 
 .saengine-editor-frame .sa-props-row > .value {
+	min-width: 0;
 	text-align: right;
 	font-variant-numeric: tabular-nums;
 	overflow-wrap: anywhere;

@@ -494,6 +494,7 @@ class StartLayoutContribution extends Disposable implements IWorkbenchContributi
 		@ISaengineProjectService private readonly projectService: ISaengineProjectService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IPaneCompositePartService private readonly paneCompositeService: IPaneCompositePartService,
 		@ILifecycleService lifecycleService: ILifecycleService,
 	) {
 		super();
@@ -528,9 +529,26 @@ class StartLayoutContribution extends Disposable implements IWorkbenchContributi
 				void this.configurationService.updateValue(key, undefined, ConfigurationTarget.MEMORY);
 			}
 			for (const part of hidden) {
+				if (part === Parts.SIDEBAR_PART && !this.sideBarWanted()) {
+					continue;
+				}
 				this.layoutService.setPartHidden(false, part);
 			}
 		});
+	}
+
+	/**
+	 * W4A-34 / W4B-27 / W4C-20: without a project the Project side bar has nothing to show, so
+	 * the side bar would come back on Search or Explorer ("You have not opened a folder") beside
+	 * the New Building wizard; it stays hidden until a project opens its parts (developer mode
+	 * keeps it).
+	 */
+	private sideBarWanted(): boolean {
+		if (this.projectService.project || this.configurationService.getValue<boolean>(DEVELOPER_MODE_SETTING) === true) {
+			return true;
+		}
+		const active = this.paneCompositeService.getActivePaneComposite(ViewContainerLocation.Sidebar)?.getId();
+		return !!active?.startsWith('workbench.view.saengine.');
 	}
 }
 

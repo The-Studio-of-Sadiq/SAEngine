@@ -1012,6 +1012,13 @@ def _substructure(project: Project, step: StepResult, add_bars: bool) -> dict[st
         f"foundations {file['checked']} of {file['total']} checked in full: "
         f"{file['passed']} pass, {file['failed']} fail"
     )
+    # W4C-41: the foundations the design skipped say why.
+    reasons: dict[str, list[str]] = {}
+    for s in raw.get("skipped") or []:
+        if s.get("type") != "tieBeam" and s.get("reason"):
+            reasons.setdefault(str(s["reason"]), []).append(str(s.get("id", "")))
+    for reason, ids in reasons.items():
+        step.message += f"; not checked: {_short_list(ids)} ({reason})"
     others = file.get("others")
     if others and (others["failed"] or others["actions"]):
         # W4B-6: the excavations, slopes and walls are said too, apart from the foundations.

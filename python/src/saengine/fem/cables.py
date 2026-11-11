@@ -5,10 +5,10 @@ truss chains in OpenSees (alpha 9 track L4).
 cable of unstressed length L0, weight w per unstressed length and axial stiffness EA hung
 between A = (0, 0) and B = (l, h). With H the horizontal component of its tension and V the
 vertical reaction at A (upward), the tension's vertical component at the Lagrangian coordinate
-s from A is Tv = w s - V, T = âˆš(HÂ² + TvÂ²), and
+s from A is Tv = w s - V, T = √(H² + Tv²), and
 
     x(s) = H s / EA + (H / w) [asinh((w s - V) / H) + asinh(V / H)]
-    z(s) = (w sÂ² / 2 - V s) / EA + (H / w) [âˆš(1 + ((w s - V) / H)Â²) - âˆš(1 + (V / H)Â²)]
+    z(s) = (w s² / 2 - V s) / EA + (H / w) [√(1 + ((w s - V) / H)²) - √(1 + (V / H)²)]
 
 The two conditions x(L0) = l and z(L0) = h are solved for H and V by Newton's method from the
 parabolic estimate. The sag is the largest vertical distance of the cable below its chord.
@@ -17,8 +17,8 @@ parabolic estimate. The sag is the largest vertical distance of the cable below 
 ``segments`` co-rotational trusses (``corotTruss``: large displacements and rotations, the
 geometric stiffness of the tension) on a tension-only elastic material (``Elastic`` with no
 stiffness in compression) wrapped in an initial strain (``InitStrainMaterial``): the
-pretension T0 is the lack of fit Îµ0 = T0 / (E A) of a cable whose stress-free length is the
-chord / (1 + Îµ0). A slack segment carries nothing. The interior nodes carry the cable's own
+pretension T0 is the lack of fit ε0 = T0 / (E A) of a cable whose stress-free length is the
+chord / (1 + ε0). A slack segment carries nothing. The interior nodes carry the cable's own
 weight (per unstressed length) and their rotations are fixed (a truss has none).
 
 What is not modelled: bending stiffness of strands, the cable's creep and the clamps' slip;
@@ -73,7 +73,7 @@ def _shape(s: np.ndarray | float, h_force: float, v: float, w: float, ea: float)
 
 
 def parabolic_sag(w: float, span: float, horizontal: float) -> float:
-    """The sag of a shallow cable at mid-span, f = w lÂ² / (8 H) (w per horizontal length)."""
+    """The sag of a shallow cable at mid-span, f = w l² / (8 H) (w per horizontal length)."""
     return w * span**2 / (8 * horizontal)
 
 
@@ -130,7 +130,7 @@ def elastic_catenary(
     )
 
 
-# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ cables in OpenSees â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ─────────────────────────────────── cables in OpenSees ───────────────────────────────────
 
 
 @dataclass

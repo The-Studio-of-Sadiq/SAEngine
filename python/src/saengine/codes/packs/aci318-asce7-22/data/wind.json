@@ -11,6 +11,7 @@
     "C": {"description": "Exposure C: open terrain with scattered obstructions, grasslands", "alpha": 9.8, "zg": 749.8, "c": 0.2, "l": 152.4, "epsilonBar": 0.2, "alphaBar": 0.1538, "bBar": 0.65, "zmin": 4.57},
     "D": {"description": "Exposure D: flat unobstructed areas and water surfaces (shorelines, mud flats, ice)", "alpha": 11.5, "zg": 589.8, "c": 0.15, "l": 198.12, "epsilonBar": 0.125, "alphaBar": 0.1111, "bBar": 0.8, "zmin": 2.13}
   },
+  "defaultExposure": "C",
   "kzFactor": 2.41,
   "kzMinHeight": 4.57,
   "directionality": 0.85,
@@ -29,6 +30,7 @@
     "minHeight": {"$replace": true, "B": 18.3, "C": 4.5, "D": 4.5}
   },
   "sources": {
+    "defaultExposure": "ASCE 7-22 Sec 26.7.3: Exposure C applies where Exposure B or D does not, so a new project starts in C (choose the site's own exposure in Project Settings > Wind)",
     "exposures": "ASCE 7-22 Sec 26.7 and Table 26.11-1: alpha 7.5, 9.8, 11.5 and zg 3280, 2460, 1935 ft (999.7, 749.8, 589.8 m); the gust constants c, l, epsilon-bar, alpha-bar, b-bar, zmin as the earlier editions",
     "kzFactor": "ASCE 7-22 Table 26.10-1 note: Kz = 2.41 (z/zg)^(2/alpha), z at least 15 ft (4.57 m)",
     "directionality": "ASCE 7-22 Table 26.6-1: buildings, MWFRS and C&C, Kd = 0.85 (applied in the pressures; the product is the same)",

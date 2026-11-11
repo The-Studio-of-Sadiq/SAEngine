@@ -70,6 +70,7 @@ from saengine.library.settings import (
     ProjectSettings,
     SpectralSite,
     default_project_settings,
+    new_project_exposure,
     partition_case,
     seismic_weight_rule,
 )
@@ -1567,12 +1568,11 @@ def _code_pack_patch(
         site["spectral"] = s.spectral.model_dump(mode="json", exclude_none=True)
     if s.hazardSource is not None:  # C22: where the looked-up values came from
         site["hazardSource"] = s.hazardSource.model_dump(mode="json")
-    exposures = list(pack.table("wind").exposures) if pack.has("wind") else []
     exposure = s.windExposure or base.wind.exposure
-    if exposures and exposure not in exposures:
-        chosen = getattr(pack.table("wind"), "defaultExposure", None)  # C7
-        exposure = chosen if chosen in exposures else "II" if "II" in exposures else exposures[0]
-    if exposures:
+    # C7 / W4A-27: the one rule the wizard's default shows (settings.pack_choices).
+    started = new_project_exposure(pack.table("wind"), exposure) if pack.has("wind") else None
+    if started is not None:
+        exposure = started
         patch["wind"] = {"exposure": exposure}
     # R4AC-7: the values of the location where none is entered (its town's Z and V).
     z_shown, v_shown = s.zoneCoefficient, s.windSpeed

@@ -73,7 +73,9 @@ export function connectionFeItems(found: IFemConnectionFe): FemDetailingItem[] {
 		});
 	}
 	if (found.loadShare !== undefined && found.loadShare < 1) {
-		items.push({ kind: 'note', text: localize('femConnectionFe.share', "The joint carried {0} % of the design forces before the analysis stopped converging.", (100 * found.loadShare).toFixed(0)) });
+		// W4C-27: a share just under 1 reads 99.6 %, never "carried 100 % ... before it stopped".
+		const share = Math.floor(1000 * found.loadShare) / 10;
+		items.push({ kind: 'note', text: localize('femConnectionFe.share', "The joint carried {0} % of the design forces before the analysis stopped converging.", share >= 99 ? share.toFixed(1) : share.toFixed(0)) });
 	}
 	const c = found.classification;
 	if (found.stiffness !== undefined && found.stiffness !== null && c?.ratio !== null && c?.ratio !== undefined) {
@@ -93,7 +95,8 @@ export function connectionFeItems(found: IFemConnectionFe): FemDetailingItem[] {
 		});
 	}
 	if (found.assumptions?.length) {
-		items.push({ kind: 'note', text: localize('femConnectionFe.assumes', "Assumes: {0}.", found.assumptions.join('; ')) });
+		// W4C-27: the pack's note ends with its own full stop (no "..").
+		items.push({ kind: 'note', text: localize('femConnectionFe.assumes', "Assumes: {0}.", found.assumptions.join('; ').replace(/\.+$/, '')) });
 	}
 	return items;
 }

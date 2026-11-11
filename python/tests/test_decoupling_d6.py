@@ -224,7 +224,7 @@ def test_the_default_pack_lists_are_checked_when_parsing() -> None:
 
     assert _settings_with("dhaka").site.location == "dhaka"
     assert _settings_with("custom").site.location == "custom"
-    with pytest.raises(ValidationError, match="site.location 'xtown'"):
+    with pytest.raises(ValidationError, match="Location 'xtown'"):
         _settings_with("xtown")
 
 

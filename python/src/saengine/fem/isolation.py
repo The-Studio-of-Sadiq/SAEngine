@@ -904,16 +904,14 @@ def apply_isolation(
     editor = _Editor(out)
     notes: list[str] = []
     units: list[Unit] = []
+    unsupported: list[str] = []
     for element in building.elements:
         if not isinstance(element, ColumnElement) or element.type not in isolators:
             continue
         key = (round(element.position[0]), round(element.position[1]), round(element.bottom))
         node_id = editor.by_position.get(key)
         if node_id is None or not all(editor.nodes[node_id].get("restraint") or [False]):
-            notes.append(
-                f"{element.id}: its base is not a fixed support (on soil springs, or on a member); "
-                "no isolator"
-            )
+            unsupported.append(element.id)
             continue
         xyz = editor.nodes[node_id]["coords"]
         units.append(
@@ -925,6 +923,17 @@ def apply_isolation(
                 float(xyz[1]),
                 isolators[element.type],
             )
+        )
+    if unsupported:
+        # W4B-15: one note, not one per column: the type's columns of the upper storeys stand
+        # on beams, so only the bases on a fixed support get isolators.
+        shown = ", ".join(unsupported[:8]) + (
+            f" and {len(unsupported) - 8} more" if len(unsupported) > 8 else ""
+        )
+        notes.append(
+            f"seismic isolators: {len(unsupported)} columns of an isolated type ({shown}) do not "
+            "stand on a fixed support (an upper storey's column on a member, or a base on soil "
+            "springs) and get no isolator"
         )
     if not units:
         notes.append("seismic isolators: no column with an isolator stands on a support")

@@ -6,15 +6,15 @@ between them:
 
 - **Plates** (:class:`Plate`): four-node shells (``ShellMITC4``) on a layered section of
   plate fibres (``LayeredShell`` of ``PlateFiber`` over ``J2Plasticity``): von Mises plasticity
-  with linear hardening, the design yield strength ``yieldFactor`` Ã— fy and the tangent
-  modulus ``hardeningRatio`` Ã— E of the pack (``connectionFe`` table,
+  with linear hardening, the design yield strength ``yieldFactor`` × fy and the tangent
+  modulus ``hardeningRatio`` × E of the pack (``connectionFe`` table,
   :mod:`saengine.codes.stability_tables`). Each plate is meshed on a structured grid whose
   lines pass through every bolt, weld line and edge of the plates it meets, so that the
   plates' nodes match where they are joined (a mapped quad mesh: the meshes must conform at
   the components, which an unstructured mesh would not give without interpolation links).
 - **Bolts**: a two-node link per bolt between the plates' mid-planes: tension only along the
   bolt, elastic in shear, with the pack's stiffness (``componentTable``: k10 = 1.6 As/Lb and
-  k11 = 16 dÂ² fub / (E dM16), the EN 1993-1-8 Table 6.11 form; ``elasticShank``: E As/Lb and
+  k11 = 16 d² fub / (E dM16), the EN 1993-1-8 Table 6.11 form; ``elasticShank``: E As/Lb and
   E Ab/d). Bolts pass through the plates without holes (the contact-free simplification).
 - **Contact**: compression-only links between the plates' coinciding nodes where they bear on
   each other (an end plate on the support), so that the plates can open but not overlap.
@@ -31,7 +31,7 @@ taken off), in ``loadSteps`` steps. It is checked by:
   rules (:mod:`saengine.design.steel_connections`: bolt_tension_capacity, bolt_shear_capacity,
   bearing_capacity);
 - the welds' force per length against the pack's fillet weld strength (fillet_capacity_per_mm,
-  Î¸ = 0: the conservative direction);
+  θ = 0: the conservative direction);
 - the joint's initial rotational stiffness Sj,ini (a small moment on the elastic joint, the
   stub's own flexibility taken off), classified rigid, semi-rigid or pinned by Sj,ini Lb /
   (E Ib) against the pack's bounds (``classification``: EN 1993-1-8 5.2.2.5 or the AISC 360
@@ -43,7 +43,7 @@ flange of ``supportThickness``) held along its web line (end plate) or as rigid 
 
 Not modelled: bolt holes and preloading, friction, plate buckling (the shells are
 geometrically linear: a separate buckling analysis), and the supporting member's own
-deformation beyond its flange. Units inside: N, m; inputs and results in mm, kN, kNÂ·m.
+deformation beyond its flange. Units inside: N, m; inputs and results in mm, kN, kN·m.
 """
 
 from __future__ import annotations
@@ -58,16 +58,16 @@ import numpy as np
 MM = 1e-3
 #: Layers through a plate's thickness.
 LAYERS = 5
-#: Weld links' stiffness = this Ã— E Ã— tributary length [N/m]; rotations Ã— tÂ².
+#: Weld links' stiffness = this × E × tributary length [N/m]; rotations × t².
 WELD_STIFFNESS = 10.0
-#: The stub of the connected member [Ã— the plate height, at least].
+#: The stub of the connected member [× the plate height, at least].
 STUB = 1.5
-#: The joint's zone of the stub [Ã— the plate height, from the joint]: plastic and checked;
+#: The joint's zone of the stub [× the plate height, from the joint]: plastic and checked;
 #: beyond it the stub is elastic and not checked. The stub is the beam's web alone (no
 #: flanges), and the moment that keeps the face's moment at the design M grows along it
-#: (V Ã— the stub at its far end): the member's own bending, checked by the member design.
+#: (V × the stub at its far end): the member's own bending, checked by the member design.
 JOINT_ZONE = 0.5
-#: Moment of the stiffness run [NÂ·m].
+#: Moment of the stiffness run [N·m].
 TEST_MOMENT = 1000.0
 #: dM16 of the bolt shear stiffness [m] (EN 1993-1-8 Table 6.11).
 D_M16 = 0.016
@@ -95,7 +95,7 @@ def table() -> Any:
         return builtin_table("connectionFe")
 
 
-# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ geometry â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ─────────────────────────────────────── geometry ───────────────────────────────────────
 
 
 @dataclass
@@ -152,7 +152,7 @@ def mesh_size(t: Any, plates: list[tuple[float, float]]) -> float:
     return min(t.elementSize * MM, across)
 
 
-# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ the model â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ─────────────────────────────────────── the model ───────────────────────────────────────
 
 
 @dataclass
@@ -318,7 +318,7 @@ def end_plate_model(
     """The shear end plate (:class:`saengine.library.objects.EndPlateConnection`) on a
     support flange: the end plate in the plane x = 0, the support's flange behind it (held
     along its web line, z axis), the beam's web stub along +x, welded to the plate on both
-    sides, bolts in two lines at Â± gauge / 2."""
+    sides, bolts in two lines at ± gauge / 2."""
     tp, ts = c.plateThickness * MM, (c.supportThickness or c.plateThickness) * MM
     d = c.boltDiameter * MM
     hp = (2 * c.endDistance + (c.rows - 1) * c.pitch) * MM
@@ -523,7 +523,7 @@ def _load_point(ops: Any, model: JointModel, web: Plate, stub: float) -> None:
     model.master = master
 
 
-# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ analysis â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ─────────────────────────────────────── analysis ───────────────────────────────────────
 
 
 def _analysis(ops: Any) -> None:
@@ -571,9 +571,9 @@ def _layer(ops: Any, element: int, point: int, layer: int, what: str) -> list[fl
 
 
 def plastic_strain(stress: list[float], strain: list[float], e: float, nu: float) -> float:
-    """The equivalent plastic strain of a plate fibre from its stresses (Ïƒ11, Ïƒ22, Ï„12, Ï„23,
-    Ï„31) and strains (Îµ11, Îµ22, Î³12, Î³23, Î³31): the plastic part Îµ - Câ»Â¹Ïƒ, incompressible,
-    Îµp,eq = (2/âˆš3) âˆš(Îµp11Â² + Îµp22Â² + Îµp11 Îµp22 + Îµp12Â² + Îµp23Â² + Îµp31Â²)."""
+    """The equivalent plastic strain of a plate fibre from its stresses (σ11, σ22, τ12, τ23,
+    τ31) and strains (ε11, ε22, γ12, γ23, γ31): the plastic part ε - C⁻¹σ, incompressible,
+    εp,eq = (2/√3) √(εp11² + εp22² + εp11 εp22 + εp12² + εp23² + εp31²)."""
     s11, s22, s12, s23, s31 = (stress + [0.0] * 5)[:5]
     e11, e22, g12, g23, g31 = (strain + [0.0] * 5)[:5]
     g = e / (2 * (1 + nu))
@@ -630,7 +630,7 @@ def _basic(ops: Any, tag: int) -> list[float]:
 
 
 def stiffness_run(ops: Any, build: Any, e: float) -> float | None:
-    """Sj,ini [NÂ·m/rad]: a small moment on the elastic joint, the stub's rotation less its own
+    """Sj,ini [N·m/rad]: a small moment on the elastic joint, the stub's rotation less its own
     flexibility M L / (E I)."""
     model = build()
     ops.timeSeries("Linear", 1)
@@ -648,7 +648,7 @@ def stiffness_run(ops: Any, build: Any, e: float) -> float | None:
     return TEST_MOMENT / joint if joint > 0 else None
 
 
-# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ the check â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ─────────────────────────────────────── the check ───────────────────────────────────────
 
 
 def _check(
@@ -695,7 +695,7 @@ def check_joint(
     """The CBFEM check of ``connection`` (an end plate or fin plate of 04 Objects) on the
     ``beam`` section (:class:`saengine.library.steel_sections.SteelSection`) of
     ``beam_material`` (:class:`saengine.design.steel_proposal.SteelMaterial`) for the design
-    ``forces`` ``{"V", "N", "M" [kN, kNÂ·m], "combination"}``; ``span`` [m] the beam's length
+    ``forces`` ``{"V", "N", "M" [kN, kN·m], "combination"}``; ``span`` [m] the beam's length
     for the stiffness classification. Returns ``{"connection", "checks", "utilisation", "ok",
     "plasticStrain", "loadShare", "stiffness", "classification", "mesh", "assumptions"}``."""
     from saengine.design import steel_connections as sc
@@ -748,7 +748,7 @@ def check_joint(
                 100 * worst,
                 100 * limit,
                 "%",
-                f"{clauses.get('strain', '')}: Îµp,max at most {100 * limit:g} %".strip(": "),
+                f"{clauses.get('strain', '')}: εp,max at most {100 * limit:g} %".strip(": "),
                 combination,
             )
         )
@@ -759,7 +759,9 @@ def check_joint(
                 1.0,
                 share,
                 "-",
-                f"the analysis stopped converging at {100 * share:.0f} % of the forces",
+                # W4C-27: never "100 %" for a share just short of it.
+                f"the analysis stopped converging at {math.floor(1000 * share) / 10:g} % of the "
+                "forces",
                 combination,
             )
         )
@@ -829,7 +831,7 @@ def check_joint(
                 worst_weld,
                 sides * weld_cap,
                 "N/mm",
-                f"{clauses.get('welds', '')}: two fillets of {connection.weldSize:g} mm, Î¸ = 0".strip(
+                f"{clauses.get('welds', '')}: two fillets of {connection.weldSize:g} mm, θ = 0".strip(
                     ": "
                 ),
                 combination,
@@ -865,7 +867,7 @@ def check_joint(
     }
 
 
-# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ a member's joint â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ─────────────────────────────────────── a member's joint ───────────────────────────────────────
 
 #: The cached checks beside the run's results, by member.
 RESULT_FILE = "connection-fe.json"
@@ -873,7 +875,7 @@ RESULT_FILE = "connection-fe.json"
 
 def member_forces_at_ends(out_dir: Any, project_path: Any, member: str) -> dict[str, Any]:
     """The design forces of the member's governing end: the combination and end with the
-    largest shear (with its axial force and moment), in kN and kNÂ·m; and the member's
+    largest shear (with its axial force and moment), in kN and kN·m; and the member's
     length [m]."""
     from saengine.fem.member_detail import member_forces
 

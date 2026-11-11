@@ -2082,12 +2082,18 @@ export class SubstructureEditor extends EditorPane {
 		return section;
 	}
 
-	private tableHead(table: HTMLElement, columns: readonly { label: string; unit?: string; numeric?: boolean; width?: number }[]): void {
+	private tableHead(table: HTMLElement, columns: readonly { label: string; unit?: string; numeric?: boolean; width?: number; title?: string }[]): void {
 		const colgroup = append(table, $('colgroup'));
 		const head = append(append(table, $('thead')), $('tr'));
+		// W4B-17: the columns keep their widths (the table scrolls sideways) rather than the
+		// inputs being squeezed at 1366 px ("E:", "Slop").
+		table.style.minWidth = `${columns.reduce((sum, column) => sum + (column.width ?? 72), 0)}px`;
 		for (const column of columns) {
 			append(colgroup, $('col', { style: `width: ${column.width ?? 72}px` }));
 			const th = append(head, $(column.numeric ? 'th.number' : 'th'));
+			if (column.title) {
+				th.title = column.title;
+			}
 			append(th, $('span', undefined, column.label));
 			if (column.unit) {
 				append(th, $('span.sub-unit', undefined, displayUnit(column.unit)));
@@ -2533,12 +2539,13 @@ export class SubstructureEditor extends EditorPane {
 			},
 		});
 		const table = append(append(section, $('.sub-table-scroll')), $('table.sub-table'));
-		const bottom: IFieldSpec = { key: 'bottomLevel', label: localize('sub.f.bottomLevel', "Bottom"), unit: M, kind: 'length' };
-		const slope: IFieldSpec = { key: 'sideSlope', label: localize('sub.f.sideSlope', "Slope H per V"), kind: 'number', min: 0 };
-		const step: IFieldSpec = { key: 'stepHeight', label: localize('sub.f.stepHeight', "Step"), unit: MM, kind: 'number', min: 0 };
-		const sheet: IFieldSpec = { key: 'sheetPileTop', label: localize('sub.f.sheetPileTop', "Sheet piles above ground"), unit: MM, kind: 'number', min: 0 };
-		const cutoff: IFieldSpec = { key: 'cutoffLevel', label: localize('sub.f.cutoffLevel', "Cut-off toe"), unit: M, kind: 'length' };
-		const water: IFieldSpec = { key: 'designWaterTable', label: localize('sub.f.exWater', "Water table depth"), unit: M, kind: 'number', min: 0 };
+		// W4B-16: each column says what it holds and from where (its header's tooltip).
+		const bottom: IFieldSpec = { key: 'bottomLevel', label: localize('sub.f.bottomLevel', "Bottom"), unit: M, kind: 'length', title: localize('sub.f.bottomLevelTitle', "Level of the excavation's bottom on the project datum") };
+		const slope: IFieldSpec = { key: 'sideSlope', label: localize('sub.f.sideSlope', "Slope H per V"), kind: 'number', min: 0, title: localize('sub.f.sideSlopeTitle', "Horizontal per vertical of a sloped side, or the average of a stepped one") };
+		const step: IFieldSpec = { key: 'stepHeight', label: localize('sub.f.stepHeight', "Step"), unit: MM, kind: 'number', min: 0, title: localize('sub.f.stepHeightTitle', "Highest step of a stepped side") };
+		const sheet: IFieldSpec = { key: 'sheetPileTop', label: localize('sub.f.sheetPileTop', "Sheet piles above ground"), unit: MM, kind: 'number', min: 0, title: localize('sub.f.sheetPileTopTitle', "Sheeted sides: height of the sheet piles above the natural ground") };
+		const cutoff: IFieldSpec = { key: 'cutoffLevel', label: localize('sub.f.cutoffLevel', "Cut-off toe"), unit: M, kind: 'length', title: localize('sub.f.cutoffLevelTitle', "Toe of the sheet piles or cut-off wall on the project datum (for the seepage check)") };
+		const water: IFieldSpec = { key: 'designWaterTable', label: localize('sub.f.exWater', "Water table depth"), unit: M, kind: 'number', min: 0, title: localize('sub.f.exWaterTitle', "Depth of the design ground water below the ground beside the excavation; empty: the nearest borehole's water table") };
 		const flags: { key: string; label: string }[] = [
 			{ key: 'guardRail', label: localize('sub.f.guardRail', "Guard rail") },
 			{ key: 'accessPrecluded', label: localize('sub.f.accessPrecluded', "Access precluded") },
@@ -2548,9 +2555,9 @@ export class SubstructureEditor extends EditorPane {
 			{ key: 'erraticSoil', label: localize('sub.f.erraticSoil', "Erratic soil") },
 		];
 		const columns = [
-			{ label: localize('sub.f.id', "ID"), width: 64 }, { label: bottom.label, unit: M, numeric: true }, { label: localize('sub.f.exSupport', "Sides"), width: 150 },
-			{ label: slope.label, numeric: true, width: 72 }, { label: step.label, unit: MM, numeric: true, width: 64 }, { label: sheet.label, unit: MM, numeric: true, width: 90 },
-			{ label: cutoff.label, unit: M, numeric: true, width: 72 }, { label: water.label, unit: M, numeric: true, width: 80 },
+			{ label: localize('sub.f.id', "ID"), width: 64 }, { label: bottom.label, unit: M, numeric: true, title: bottom.title }, { label: localize('sub.f.exSupport', "Sides"), width: 150, title: localize('sub.f.exSupportTitle', "How the sides are kept: sloped, stepped, sheeted or shored") },
+			{ label: slope.label, numeric: true, width: 72, title: slope.title }, { label: step.label, unit: MM, numeric: true, width: 64, title: step.title }, { label: sheet.label, unit: MM, numeric: true, width: 90, title: sheet.title },
+			{ label: cutoff.label, unit: M, numeric: true, width: 72, title: cutoff.title }, { label: water.label, unit: M, numeric: true, width: 80, title: water.title },
 			...flags.map(f => ({ label: f.label, width: 72 })),
 			{ label: localize('sub.f.utilisation', "Utilisation"), numeric: true, width: 120 }, { label: '', width: 28 },
 		];

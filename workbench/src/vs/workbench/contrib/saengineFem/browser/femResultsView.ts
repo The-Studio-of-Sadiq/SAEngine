@@ -1114,7 +1114,9 @@ export class FemResultsEditor extends EditorPane {
 		if (response.nonlinearHistory) {
 			this.renderNonlinearHistory(response.nonlinearHistory);
 		}
-		if (response.floorSpectra) {
+		// W4B-23: a model without a spectrum of its own (the pushover model) says nothing of the
+		// floor spectra; the building's analysis model says why it has none.
+		if (response.floorSpectra && (response.floorSpectra.available || !response.pushover.length)) {
 			this.renderFloorSpectra(response.floorSpectra);
 		}
 		if (response.isolation) {

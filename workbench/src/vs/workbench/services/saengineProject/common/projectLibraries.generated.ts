@@ -12076,6 +12076,7 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 					anyOf: [
 						{
 							enum: ['ft', 'in'],
+							enumDescriptions: ['ft', 'in'],
 							type: 'string',
 						},
 						{
@@ -12089,7 +12090,8 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 				dimension: {
 					anyOf: [
 						{
-							enum: ['ft', 'in'],
+							enum: ['in', 'ft'],
+							enumDescriptions: ['in', 'ft'],
 							type: 'string',
 						},
 						{
@@ -12104,6 +12106,7 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 					anyOf: [
 						{
 							enum: ['kip', 'lbf'],
+							enumDescriptions: ['kip', 'lbf'],
 							type: 'string',
 						},
 						{
@@ -12118,6 +12121,7 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 					anyOf: [
 						{
 							enum: ['ksi', 'psi'],
+							enumDescriptions: ['ksi', 'psi'],
 							type: 'string',
 						},
 						{
@@ -12132,6 +12136,7 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 					anyOf: [
 						{
 							enum: ['psf', 'ksf'],
+							enumDescriptions: ['psf', 'ksf'],
 							type: 'string',
 						},
 						{
@@ -12146,6 +12151,7 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 					anyOf: [
 						{
 							enum: ['kip·ft', 'kip·in'],
+							enumDescriptions: ['kip·ft', 'kip·in'],
 							type: 'string',
 						},
 						{
@@ -12160,6 +12166,7 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 					anyOf: [
 						{
 							enum: ['kip/ft', 'plf'],
+							enumDescriptions: ['kip/ft', 'plf'],
 							type: 'string',
 						},
 						{
@@ -12174,6 +12181,7 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 					anyOf: [
 						{
 							enum: ['pcf', 'kcf'],
+							enumDescriptions: ['pcf', 'kcf'],
 							type: 'string',
 						},
 						{
@@ -12188,6 +12196,7 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 					anyOf: [
 						{
 							enum: ['ft³', 'yd³'],
+							enumDescriptions: ['ft³', 'yd³'],
 							type: 'string',
 						},
 						{
@@ -12202,6 +12211,7 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 					anyOf: [
 						{
 							enum: ['mph', 'ft/s'],
+							enumDescriptions: ['mph', 'ft/s'],
 							type: 'string',
 						},
 						{

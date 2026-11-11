@@ -510,7 +510,7 @@ export function floorPlanDrawing(layout: unknown, objects: unknown, storyId: str
 		entities.push({ kind: 'polyline', layer: FLOOR_PLAN_LAYERS.slabs, points, closed: true });
 		shape('slabs', slab, { kind: 'polygon', points });
 		const thickness = num(type.thickness);
-		slabLabels.push({ center: centroid(points)!, name: thickness ? `${labelOf(slab)} (${thickness})` : labelOf(slab) });
+		slabLabels.push({ center: centroid(points)!, name: thickness ? `${labelOf(slab)} (${sizeText(thickness)})` : labelOf(slab) });
 		const checked = slabWarnings(labelOf(slab), points, supports, columnPoints);
 		warnings.push(...checked.warnings);
 		if (checked.across && typeof slab.id === 'string') {

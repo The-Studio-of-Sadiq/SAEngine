@@ -577,6 +577,14 @@
 	width: 56px;
 }
 
+/* W4B-14: one check box per choice of a list of choices */
+.saengine-library-editor .form-inline-choice {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--sa-space-1, 4px);
+	margin-right: var(--sa-space-2, 8px);
+}
+
 .saengine-library-editor .form-inline-separator {
 	color: var(--sa-muted, var(--vscode-descriptionForeground));
 }

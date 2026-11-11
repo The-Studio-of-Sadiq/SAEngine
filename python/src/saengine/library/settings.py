@@ -3268,8 +3268,13 @@ class Report(_Model):
 def _unit_choice(kind: str, title: str) -> Any:
     """A per-quantity unit choice: one of the kind's US customary units, or None (its first)."""
     options = units_lib.KINDS[kind].options
+    # W4A-31: the units' own symbols as their labels ("ft", "mph", "plf"), not "Ft", "Mph".
+    choice = Annotated[
+        Literal[options],  # type: ignore[valid-type]
+        Field(json_schema_extra={"enumDescriptions": list(options)}),
+    ]
     return Annotated[
-        Literal[options] | None,  # type: ignore[valid-type]
+        choice | None,  # type: ignore[valid-type]
         Field(title=title, description=f"US customary only; empty: {options[0]}."),
     ]
 
@@ -3415,25 +3420,45 @@ class ProjectSettings(_Model):
                 return self
         choices = {key: {c["id"] for c in rows} for key, rows in lists.items()}
         pack_name = code_data.EDITION if self.codePack == DEFAULT_PACK else self.codePack
-        wrong: list[str] = []
+        wrong: list[tuple[str, str]] = []
 
-        def need(where: str, key: str, value: str | None) -> None:
+        def need(where: str, label: str, key: str, value: str | None) -> None:
             if value is not None and key in choices and value not in choices[key]:
-                wrong.append(f"{where} '{value}'")
+                wrong.append((where, f"{label} '{value}'"))
 
-        need("site.location", "locations", self.site.location)
-        need("site.siteClass", "siteClasses", self.site.siteClass)
-        need("wind.exposure", "exposures", self.wind.exposure)
+        need("site.location", "Location", "locations", self.site.location)
+        need("site.siteClass", "Site class", "siteClasses", self.site.siteClass)
+        need("wind.exposure", "Exposure", "exposures", self.wind.exposure)
         seismic = self.seismic
-        need("seismic.system", "systems", seismic.system)
-        need("seismic.systemY", "systems", seismic.systemY)
+        need("seismic.system", "Structural system", "systems", seismic.system)
+        need("seismic.systemY", "Structural system in Y", "systems", seismic.systemY)
         for system in [*seismic.otherSystems, *seismic.otherSystemsY]:
-            need("seismic.otherSystems", "systems", system)
-        for load in self.areaLoads:
-            need(f"areaLoads {load.id} use", "areaUses", load.use)
+            need("seismic.otherSystems", "Other system", "systems", system)
+        for index, load in enumerate(self.areaLoads):
+            need(f"areaLoads.{index}.use", f"Area load {load.id} use", "areaUses", load.use)
         if wrong:
-            raise ValueError(f"not in the lists of the code pack {pack_name}: {', '.join(wrong)}")
+            raise PackListError(pack_name, wrong)
         return self
+
+
+class PackListError(ValueError):
+    """Settings choices that are not in the lists of the code pack in force: ``wrong`` holds
+    each one's settings path and its words ("Location 'dhaka'"), so the settings check puts
+    each problem on its own page (walk 4 W4C-28) rather than one message of internal keys."""
+
+    def __init__(self, pack_name: str, wrong: list[tuple[str, str]]) -> None:
+        self.pack_name = pack_name
+        self.wrong = wrong
+        super().__init__(
+            f"not in the lists of the code pack {pack_name}: {', '.join(w for _, w in wrong)}"
+        )
+
+    def problems(self) -> list[tuple[str, str]]:
+        """(path, message) of each choice: its words and what to do."""
+        return [
+            (path, f"{words} is not in the lists of the code pack {self.pack_name}: choose one")
+            for path, words in self.wrong
+        ]
 
 
 def pack_choices(pack: CodePack, units: Any = None) -> dict[str, list[dict[str, str]]]:
@@ -3455,6 +3480,12 @@ def pack_choices(pack: CodePack, units: Any = None) -> dict[str, list[dict[str, 
     # Walk 4 (W4A-6): the units a new project under the pack starts in and its bar grades.
     suggested = getattr(pack.info, "units", None) or "SI"
     out["units"] = [{"id": suggested, "label": suggested}]
+    # W4A-27: the exposure a new project under the pack starts in (the one the generator
+    # saves), so the wizard shows and sends the same.
+    if pack.has("wind"):
+        start = new_project_exposure(pack.table("wind"), Wind().exposure)
+        if start is not None:
+            out["defaultExposure"] = [{"id": start, "label": start}]
     grades = (
         getattr(pack.table("materials"), "rebarGrades", None) if pack.has("materials") else None
     )
@@ -3499,6 +3530,29 @@ def _builtin_choices() -> dict[str, list[dict[str, str]]]:
     return _choices(lambda name: builtin_table(name, DEFAULT_PACK))
 
 
+def keyed_label(key: str, description: str) -> str:
+    """A list entry's label "key: description", or the description alone where it already
+    names the entry before a colon ("Exposure C: open terrain ...", "Site class D: ...";
+    walk 4 W4A-28: not "C: Exposure C: ...")."""
+    head, sep, _ = description.partition(": ")
+    if sep and len(head) <= 30:
+        return description
+    return f"{key}: {description}"
+
+
+def new_project_exposure(wind: Any, wanted: str | None) -> str | None:
+    """The wind exposure a new project under a pack with the wind table ``wind`` starts in:
+    ``wanted`` when it is one of the pack's exposures, else the pack's ``defaultExposure``,
+    else terrain category "II", else the first (None: the table lists none)."""
+    exposures = list(getattr(wind, "exposures", None) or [])
+    if not exposures:
+        return None
+    if wanted in exposures:
+        return wanted
+    chosen = getattr(wind, "defaultExposure", None)  # C7
+    return chosen if chosen in exposures else "II" if "II" in exposures else exposures[0]
+
+
 def _choices(table: Any, units: Any = None) -> dict[str, list[dict[str, str]]]:
     """The lists of :func:`pack_choices` from ``table(name)`` (None: the pack has no such table)."""
     out: dict[str, list[dict[str, str]]] = {}
@@ -3515,7 +3569,7 @@ def _choices(table: Any, units: Any = None) -> dict[str, list[dict[str, str]]]:
     wind = table("wind")
     if wind is not None:
         out["exposures"] = [
-            {"id": k, "label": f"{k}: {v.description}"} for k, v in wind.exposures.items()
+            {"id": k, "label": keyed_label(k, v.description)} for k, v in wind.exposures.items()
         ]
     if locations is not None:
         zones = dict(zone_table.zones) if zone_table is not None else {}
@@ -3541,7 +3595,8 @@ def _choices(table: Any, units: Any = None) -> dict[str, list[dict[str, str]]]:
     if seismic is not None:
         out["systems"] = [{"id": k, "label": v.name} for k, v in seismic.systems.items()]
         out["siteClasses"] = [
-            {"id": k, "label": f"{k}: {v.description}"} for k, v in seismic.siteClasses.items()
+            {"id": k, "label": keyed_label(k, v.description)}
+            for k, v in seismic.siteClasses.items()
         ]
         # C1: the pack's design spectrum method, so the editors ask for the site values it
         # takes (mappedSpectral: SDS, SD1 instead of Z).

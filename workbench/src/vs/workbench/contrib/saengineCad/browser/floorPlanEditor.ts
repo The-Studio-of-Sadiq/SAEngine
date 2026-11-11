@@ -65,6 +65,12 @@ import { copyStory, familyDiffersMessage, familyNote, familyOf, inSync, masterOf
 import { BulkResult, bulkNotice, BulkVerb, COMMAND_HELP, copyMembers, copyToClipboard, copyToStories, deleteMembers, fill, FillDirection, FillKind, FloorPlanCommand, IFloorPlanClipboard, mirrorMembers, moveMembers, parseCommand, paste, rotateMembers } from './floorPlanBulk.js';
 import { combine, commonFields, countByGroup, groupCount, IMemberRef, IRect, prune, rectOf, sameMember, selectAll, selectByType, selectInWindow, selectionSummary, typesOnPlan, windowMode } from './floorPlanSelection.js';
 
+/** W4A-30: a story's level as the story lists show it: "+3658" (mm) in SI, `+12'-0"` in US units. */
+function storyLevel(elevation: number): string {
+	const sign = elevation >= 0 ? '+' : '-';
+	return isConverted('mm') ? `${sign}${feetInches(Math.abs(elevation))}` : `${elevation >= 0 ? '+' : ''}${elevation}`;
+}
+
 const FLOOR_PLAN_SCHEMA_ID = 'saengine.floorPlan/1';
 
 /** The grids and stories form for the same file (registered by the library editors). */
@@ -1609,7 +1615,7 @@ export class FloorPlanEditor extends EditorPane {
 			return {
 				story: s.id,
 				label: s.name,
-				description: `${s.elevation >= 0 ? '+' : ''}${s.elevation}${this.familyLabel(layout, s.id)}`,
+				description: `${storyLevel(s.elevation)}${this.familyLabel(layout, s.id)}`,
 				detail: family > 1 ? localize('floorPlan.copyFamily', "Typical floor: the copies go to all its {0} stories", family) : undefined,
 			};
 		});
@@ -1940,7 +1946,7 @@ export class FloorPlanEditor extends EditorPane {
 			return;
 		}
 		const name = new Map(stories.map(s => [s.id, s.name]));
-		const level = (elevation: number) => `${elevation >= 0 ? '+' : ''}${elevation}`;
+		const level = storyLevel;
 		type Item = IQuickPickItem & { readonly story: string };
 		const current = masterOf(layout, input.story ?? '') ?? input.story;
 		const masters: Item[] = stories.map(s => {
@@ -2033,7 +2039,7 @@ export class FloorPlanEditor extends EditorPane {
 			this.viewStorage.store(storyKey, input.story, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		}
 		this.storyPicker.setOptions(
-			stories.length ? stories.map(s => ({ text: `${s.name} (${s.elevation >= 0 ? '+' : ''}${s.elevation})${this.familyLabel(layout, s.id)}` })) : [{ text: localize('floorPlan.noStoriesOption', "(no stories)") }],
+			stories.length ? stories.map(s => ({ text: `${s.name} (${storyLevel(s.elevation)})${this.familyLabel(layout, s.id)}` })) : [{ text: localize('floorPlan.noStoriesOption', "(no stories)") }],
 			Math.max(0, this.storyIds.indexOf(input.story ?? '')),
 		);
 
