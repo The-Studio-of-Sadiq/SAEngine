@@ -18,7 +18,6 @@ import { SyncDescriptor } from '../../../../platform/instantiation/common/descri
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
-import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../browser/editor.js';
@@ -26,6 +25,7 @@ import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase 
 import { EditorExtensions } from '../../../common/editor.js';
 import { IEditorResolverService, RegisteredEditorPriority } from '../../../services/editor/common/editorResolverService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { ISaengineJobsService } from '../../../services/saengineProject/common/saengineJobs.js';
 import { ISaengineProjectService, partById } from '../../../services/saengineProject/common/saengineProject.js';
 import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
 import { LibraryEditorInput } from '../../saengineLibrary/browser/libraryEditorInput.js';
@@ -57,7 +57,7 @@ interface IReportCommandArgs {
 async function writeReport(accessor: ServicesAccessor, format: ReportFormat, template: string | undefined): Promise<void> {
 	const projectService = accessor.get(ISaengineProjectService);
 	const commandService = accessor.get(ICommandService);
-	const progressService = accessor.get(IProgressService);
+	const jobsService = accessor.get(ISaengineJobsService);
 	const notificationService = accessor.get(INotificationService);
 	const openerService = accessor.get(IOpenerService);
 
@@ -69,46 +69,49 @@ async function writeReport(accessor: ServicesAccessor, format: ReportFormat, tem
 
 	const request: IReportBuildRequest = { projectRoot: project.root.fsPath, format, template };
 	let result: IReportBuildResult | undefined;
+	// The one progress place: the job, its end and its follow-ups in the Progress view.
+	const job = jobsService.start({
+		title: format === 'docx'
+			? localize('report.progressWord', "Writing the design report of {0} as Word", project.name)
+			: localize('report.progress', "Printing the design report of {0}", project.name),
+	});
 	try {
-		result = await progressService.withProgress({
-			location: ProgressLocation.Notification,
-			title: format === 'docx'
-				? localize('report.progressWord', "Writing the design report of {0} as Word", project.name)
-				: localize('report.progress', "Printing the design report of {0}", project.name),
-		}, () => commandService.executeCommand<IReportBuildResult>(BUILD_REPORT_COMMAND_ID, request));
+		result = await commandService.executeCommand<IReportBuildResult>(BUILD_REPORT_COMMAND_ID, request);
 	} catch (error) {
-		notificationService.error(localize('report.failed', "The design report could not be printed: {0}", toErrorMessage(error)));
+		const message = localize('report.failed', "The design report could not be printed: {0}", toErrorMessage(error));
+		job.end('failed', message);
+		notificationService.error(message);
 		return;
 	}
 
 	const problems = reportProblems(result);
 	if (problems.length || !result?.path) {
-		notificationService.notify({
-			severity: Severity.Error,
-			message: problems.length === 1
-				? localize('report.problem', "The design report was not printed: {0}", problems[0])
-				: localize('report.problems', "The design report was not printed: {0}", problems.join(' ')),
-		});
+		const message = problems.length === 1
+			? localize('report.problem', "The design report was not printed: {0}", problems[0])
+			: localize('report.problems', "The design report was not printed: {0}", problems.join(' '));
+		job.end('failed', message);
+		notificationService.notify({ severity: Severity.Error, message });
 		return;
 	}
 
 	const file = URI.file(result.path);
+	const actions = [
+		{
+			label: localize('report.open', "Open Report"),
+			run: () => openerService.open(file, { openExternal: true }),
+		},
+		{
+			label: localize('report.reveal', "Reveal in File Explorer"),
+			run: () => commandService.executeCommand(REVEAL_IN_OS_COMMAND_ID, file),
+		},
+	];
 	// What was written is said first (OI-16: with no PDF viewer set, Windows's "pick an
 	// application" stood in for it), then the system's PDF viewer or word processor opens it.
-	notificationService.prompt(
-		result.warnings?.length ? Severity.Warning : Severity.Info,
-		reportWrittenMessage(result),
-		[
-			{
-				label: localize('report.open', "Open Report"),
-				run: () => openerService.open(file, { openExternal: true }),
-			},
-			{
-				label: localize('report.reveal', "Reveal in File Explorer"),
-				run: () => commandService.executeCommand(REVEAL_IN_OS_COMMAND_ID, file),
-			},
-		],
-	);
+	// Warnings need the engineer's eye: they notify too.
+	job.end(result.warnings?.length ? 'warning' : 'done', reportWrittenMessage(result), actions);
+	if (result.warnings?.length) {
+		notificationService.prompt(Severity.Warning, reportWrittenMessage(result), actions);
+	}
 	await openerService.open(file, { openExternal: true });
 }
 

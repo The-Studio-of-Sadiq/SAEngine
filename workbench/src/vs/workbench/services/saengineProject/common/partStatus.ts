@@ -31,7 +31,18 @@ export interface IPartStatus {
 	readonly hint?: string;
 	/** The part whose input this part waits for (foundations without qa: the soil report). */
 	readonly needs?: string;
+	/**
+	 * How far the analysis part (8 FEM, which holds the analysis model, its results and the
+	 * design checks) has got: deriving the model, analysing it, or checking the design. The
+	 * project stage bar shows Analysis and Design apart from it; other parts have none.
+	 */
+	readonly phase?: FemPhase;
+	/** The command kind that does the next step when it is not Run All (members without bars: Design Reinforcement). */
+	readonly action?: PartAction;
 }
+
+export type FemPhase = 'model' | 'analysis' | 'design';
+export type PartAction = 'designReinforcement';
 
 /** The design checks' summary, `08 FEM/model.results/design-summary.json`. */
 export interface IDesignSummary {
@@ -382,17 +393,18 @@ function parseDesignSummary(text: string | undefined): IDesignSummary | undefine
 }
 
 function femStatus(inputs: IPartStatusInputs): IPartStatus {
+	const inPhase = (phase: FemPhase, own: IPartStatus, action?: PartAction): IPartStatus => action ? { ...own, phase, action } : { ...own, phase };
 	const text = inputs.texts.get('fem');
 	const model = text !== undefined ? parse(text) : undefined;
 	if (text === undefined) {
-		return status('fem', 'notStarted', localize('partStatus.fem.notDerived', "not derived"), localize('partStatus.fem.derive', "derive the analysis model"));
+		return inPhase('model', status('fem', 'notStarted', localize('partStatus.fem.notDerived', "not derived"), localize('partStatus.fem.derive', "derive the analysis model")));
 	}
 	if (!model) {
-		return status('fem', 'error', localize('partStatus.invalid', "invalid file"), localize('partStatus.fem.deriveInvalid', "derive the analysis model again"));
+		return inPhase('model', status('fem', 'error', localize('partStatus.invalid', "invalid file"), localize('partStatus.fem.deriveInvalid', "derive the analysis model again")));
 	}
 	const recorded = femRecordedSources(model);
 	if (!recorded.size) {
-		return status('fem', 'notStarted', localize('partStatus.fem.notDerived', "not derived"), localize('partStatus.fem.derive', "derive the analysis model"));
+		return inPhase('model', status('fem', 'notStarted', localize('partStatus.fem.notDerived', "not derived"), localize('partStatus.fem.derive', "derive the analysis model")));
 	}
 	// The soil report counts as a source only when the model recorded it: the settings take the
 	// site class from it (also while it gives none yet, so boreholes added later count).
@@ -409,44 +421,44 @@ function femStatus(inputs: IPartStatusInputs): IPartStatus {
 		return sourceText === undefined || !femSourceCurrent(part, sourceText, recorded.get(part), femCodeTables(recorded));
 	};
 	if (soilChanged || recordedChanged || mepAdded || loadsAdded || architectureAdded || FEM_SOURCES.some(sourceChanged)) {
-		return status('fem', 'stale', STALE(), localize('partStatus.fem.deriveAgain', "derive the analysis model again"));
+		return inPhase('model', status('fem', 'stale', STALE(), localize('partStatus.fem.deriveAgain', "derive the analysis model again")));
 	}
 	if (inputs.femResultsTime === undefined) {
-		return status('fem', 'inProgress', localize('partStatus.fem.notAnalysed', "not analysed"), localize('partStatus.fem.run', "run the analysis"));
+		return inPhase('analysis', status('fem', 'inProgress', localize('partStatus.fem.notAnalysed', "not analysed"), localize('partStatus.fem.run', "run the analysis")));
 	}
 	if (inputs.femModelTime !== undefined && inputs.femModelTime > inputs.femResultsTime) {
-		return status('fem', 'stale', STALE(), localize('partStatus.fem.runAgain', "run the analysis again"));
+		return inPhase('analysis', status('fem', 'stale', STALE(), localize('partStatus.fem.runAgain', "run the analysis again")));
 	}
 	const summary = parseDesignSummary(inputs.designSummaryText);
 	// Done only once the design checks ran on these results, checked something and found no failure.
 	if (!summary) {
-		return status('fem', 'inProgress', localize('partStatus.fem.analysed', "analysed"), localize('partStatus.fem.design', "run the design checks"));
+		return inPhase('design', status('fem', 'inProgress', localize('partStatus.fem.analysed', "analysed"), localize('partStatus.fem.design', "run the design checks")));
 	}
 	if (inputs.designSummaryTime !== undefined && inputs.designSummaryTime < inputs.femResultsTime) {
 		// R3-4: the design state, not "analysed": there are checks, of earlier results.
-		return status('fem', 'stale', localize('partStatus.fem.designStale', "design stale"), localize('partStatus.fem.designAgain', "run the design checks again"));
+		return inPhase('design', status('fem', 'stale', localize('partStatus.fem.designStale', "design stale"), localize('partStatus.fem.designAgain', "run the design checks again")));
 	}
 	// The files the checks read changed since (bars, a code override the design reads): Run All
 	// checks the members again, so they are not current here either (R1-2).
 	if (!designSourcesCurrent(inputs.texts, summary)) {
-		return status('fem', 'stale', localize('partStatus.fem.designStale', "design stale"), localize('partStatus.fem.designAgain', "run the design checks again"));
+		return inPhase('design', status('fem', 'stale', localize('partStatus.fem.designStale', "design stale"), localize('partStatus.fem.designAgain', "run the design checks again")));
 	}
 	const counts = designCounts(summary);
 	if (summary.failed > 0) {
-		return status('fem', 'failed', counts?.failedText ?? localize('partStatus.fem.fail', "{0} fail", summary.failed), localize('partStatus.fem.review', "review the failing members"));
+		return inPhase('design', status('fem', 'failed', counts?.failedText ?? localize('partStatus.fem.fail', "{0} fail", summary.failed), localize('partStatus.fem.review', "review the failing members")));
 	}
 	if (summary.checked === 0 || counts?.members.checked === 0) {
-		return status('fem', 'inProgress', localize('partStatus.fem.noneChecked', "nothing checked"), localize('partStatus.fem.noneCheckedHint', "no member was design-checked: open the design results"));
+		return inPhase('design', status('fem', 'inProgress', localize('partStatus.fem.noneChecked', "nothing checked"), localize('partStatus.fem.noneCheckedHint', "no member was design-checked: open the design results")));
 	}
 	// Members left out (no bars, no results) keep the part from "done" (N-X8).
 	if (counts?.members.notChecked) {
-		return status('fem', 'inProgress', localize('partStatus.fem.notChecked', "{0} not checked", counts.members.notChecked), counts.noBars
+		return inPhase('design', status('fem', 'inProgress', localize('partStatus.fem.notChecked', "{0} not checked", counts.members.notChecked), counts.noBars
 			? localize('partStatus.fem.noBars', "{0} members have no bars: Design Reinforcement proposes them", counts.noBars)
 			: counts.notCovered
 				? localize('partStatus.fem.notCovered', "{0} not covered by the code pack: open the design results", counts.notCovered)
-				: localize('partStatus.fem.notCheckedHint', "open the design results for why"));
+				: localize('partStatus.fem.notCheckedHint', "open the design results for why")), counts.noBars ? 'designReinforcement' : undefined);
 	}
-	return status('fem', 'done', localize('partStatus.fem.pass', "{0} pass", counts?.members.passed ?? summary.passed));
+	return inPhase('design', status('fem', 'done', localize('partStatus.fem.pass', "{0} pass", counts?.members.passed ?? summary.passed)));
 }
 
 /**
@@ -1079,7 +1091,11 @@ export function computePartStatuses(parts: readonly IProjectPart[], inputs: IPar
 			default: return documentStatus(part.id, inputs);
 		}
 	};
-	const statuses = parts.map(part => applyPartChecks(own(part), currentPartChecks(part.id, inputs.checksTexts?.get(part.id), inputs.texts)));
+	const statuses = parts.map(part => {
+		const ownStatus = own(part);
+		const checked = applyPartChecks(ownStatus, currentPartChecks(part.id, inputs.checksTexts?.get(part.id), inputs.texts));
+		return ownStatus.phase && checked !== ownStatus ? { ...checked, phase: ownStatus.phase } : checked;
+	});
 	// The report says what the design checks found, so it is done only when they pass (R4).
 	const exports = statuses.findIndex(s => s.part === 'exports');
 	const fem = statuses.find(s => s.part === 'fem');

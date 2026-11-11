@@ -15,14 +15,13 @@ import { IResolvedTextEditorModel, ITextModelService } from '../../../../editor/
 import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
-import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { createDecorator, IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService, IPromptChoice, Severity } from '../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IFemSolverService } from '../../../../platform/saengine/common/femSolver.js';
-import { IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from '../../../services/statusbar/browser/statusbar.js';
+import { formatDuration, IJobAction, IJobHandle, ISaengineJobsService, JobStepState } from '../../../services/saengineProject/common/saengineJobs.js';
 import { ISaengineProject, ISaengineProjectService, partById } from '../../../services/saengineProject/common/saengineProject.js';
 import { recordedStamp, sourceStamp, upstreamCurrent, upstreamPart } from '../../../services/saengineProject/common/partSources.js';
 import { describeFoundationCounts, foundationCounts } from '../../../services/saengineProject/common/partStatus.js';
@@ -81,7 +80,6 @@ const RESULTS_MANIFEST = 'manifest.json';
 /** After this long on one backend step the status says the engine is busy, and how to stop it. */
 const ENGINE_BUSY_MS = 60_000;
 
-const STATUS_ENTRY_ID = 'saengine.runAll.status';
 
 type StepId = 'bim' | 'derive' | 'analysis' | 'ssi' | 'substructure' | 'design' | 'pushover' | 'mep' | 'boq' | 'report' | 'drawings';
 
@@ -262,15 +260,8 @@ export function analysisInputsStamp(modelText: string, sideTexts: readonly (read
 	return sourceStamp([femModelStamp(modelText), ...sideTexts.map(([name, text]) => `${name}=${text === undefined ? '' : sourceStamp(text)}`)].join('\n'));
 }
 
-/** "4:05" of seconds; "1:02:10" past an hour. */
-export function formatDuration(seconds: number): string {
-	const total = Math.max(0, Math.round(seconds));
-	const s = total % 60;
-	const m = Math.floor(total / 60) % 60;
-	const h = Math.floor(total / 3600);
-	const pad = (n: number) => String(n).padStart(2, '0');
-	return h ? `${h}:${pad(m)}:${pad(s)}` : `${m}:${pad(s)}`;
-}
+/** "4:05" of seconds (the Progress view's format, kept here for Run All's callers). */
+export { formatDuration };
 
 /** One line of the step summary: "✓ 3. analysis: up to date (0:01)". */
 export function outcomeLine(outcome: IStepOutcome, index: number): string {
@@ -328,9 +319,10 @@ export const IRunAllService = createDecorator<IRunAllService>('saengineRunAllSer
  * the design checks, checks MEP, measures the bill, builds the report and redraws a generated set
  * of drawings. Each step ends ok, with a warning, with nothing to do, failed, or not run (it
  * needs a step that failed); a failed step never leaves its previous summary looking current.
- * Progress is one status bar entry (the step, its detail, the time; click to stop); Run All in
- * the title bar becomes Stop. The end is one notification whose severity says how it went, with
- * the steps one click away.
+ * Progress is one job in the Progress view (its steps, how each ended and how long it took; the
+ * one status bar item of SAEngine's jobs shows the step going); Run All in the title bar becomes
+ * Stop. A run that went well ends there; one that failed or needs a decision (checks fail,
+ * members without bars) also says so in one notification.
  */
 export interface IRunAllService {
 	readonly _serviceBrand: undefined;
@@ -355,19 +347,25 @@ export interface IRunAllService {
 	showLastSteps(): Promise<boolean>;
 }
 
+/** How a step's outcome shows in the Progress view. */
+const JOB_STEP_STATES: Record<IStepOutcome['status'], JobStepState> = {
+	ok: 'done', warning: 'warning', skipped: 'done', failed: 'failed', notRun: 'skipped', cancelled: 'cancelled',
+};
+
 export class RunAllService implements IRunAllService {
 
 	declare readonly _serviceBrand: undefined;
 
 	private cancellation: CancellationTokenSource | undefined;
-	private status: IStatusbarEntryAccessor | undefined;
+	private job: IJobHandle | undefined;
+	/** The job of the last run, for Show Steps. */
+	private lastJob: number | undefined;
 	private readonly runningKey: IContextKey<boolean>;
 	private readonly ticker = new IntervalTimer();
 	/** The step going: its index, when it started, what it reports and whether the backend is doing it. */
 	private current: { index: number; started: number; detail?: string; backend: boolean } | undefined;
 	private runStarted = 0;
 	private _lastOutcomes: IStepOutcome[] = [];
-	private lastSeconds = 0;
 
 	constructor(
 		@ISaengineProjectService private readonly projectService: ISaengineProjectService,
@@ -377,10 +375,9 @@ export class RunAllService implements IRunAllService {
 		@ITextFileService private readonly textFileService: ITextFileService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IOpenerService private readonly openerService: IOpenerService,
-		@IStatusbarService private readonly statusbarService: IStatusbarService,
+		@ISaengineJobsService private readonly jobsService: ISaengineJobsService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IEditorService private readonly editorService: IEditorService,
-		@IDialogService private readonly dialogService: IDialogService,
 		@IFemSolverService private readonly solverService: IFemSolverService,
 		@IFemRunTracker private readonly runTracker: IFemRunTracker,
 		@ILogService private readonly logService: ILogService,
@@ -394,10 +391,10 @@ export class RunAllService implements IRunAllService {
 	}
 
 	async showLastSteps(): Promise<boolean> {
-		if (!this._lastOutcomes.length) {
+		if (this.lastJob === undefined) {
 			return false;
 		}
-		await this.showSteps(this._lastOutcomes, this.lastSeconds);
+		await this.jobsService.show(this.lastJob);
 		return true;
 	}
 
@@ -467,6 +464,12 @@ export class RunAllService implements IRunAllService {
 		this.runningKey.set(true);
 		this.runStarted = Date.now();
 		this.current = undefined;
+		this.job = this.jobsService.start({
+			title: localize('runAll.jobTitle', "Run All"),
+			steps: RUN_ALL_STEPS.map(step => step.label),
+			cancel: () => this.cancel(),
+		});
+		this.lastJob = this.job.id;
 		this.showStatus();
 		this.ticker.cancelAndSet(() => this.showStatus(), 1000);
 		const context: IRunContext = { project, model: partFile(project.root, 'fem'), token: cancellation.token };
@@ -478,15 +481,18 @@ export class RunAllService implements IRunAllService {
 				const waits = step.needs.map(n => blocked.get(n)).find(n => n !== undefined);
 				if (cancellation.token.isCancellationRequested) {
 					outcomes.push({ id: step.id, label: step.label, status: 'cancelled', message: localize('runAll.notRunStopped', "not run: Run All was stopped"), seconds: 0 });
+					this.job.endStep(index, 'cancelled', outcomes[outcomes.length - 1].message);
 					continue;
 				}
 				if (waits) {
 					blocked.set(step.id, waits);
 					outcomes.push({ id: step.id, label: step.label, status: 'notRun', message: localize('runAll.notRun', "not run: it needs the {0} step, which did not succeed", RUN_ALL_STEPS.find(s => s.id === waits)!.label), seconds: 0 });
+					this.job.endStep(index, 'skipped', outcomes[outcomes.length - 1].message);
 					continue;
 				}
 				const started = Date.now();
 				this.current = { index, started, backend: false };
+				this.job.startStep(index);
 				this.showStatus();
 				let outcome: IStepOutcome;
 				try {
@@ -503,6 +509,7 @@ export class RunAllService implements IRunAllService {
 					}
 				}
 				outcomes.push(outcome);
+				this.job.endStep(index, JOB_STEP_STATES[outcome.status], outcome.message, outcome.seconds);
 				this.logService.info(`[saengine] Run All step ${index + 1} ${step.id}: ${outcome.status} in ${outcome.seconds.toFixed(1)} s: ${outcome.message}`);
 			}
 		} catch (error) {
@@ -514,14 +521,12 @@ export class RunAllService implements IRunAllService {
 			this.cancellation = undefined;
 			this.current = undefined;
 			this.runningKey.set(false);
-			this.status?.dispose();
-			this.status = undefined;
 		}
 		this._lastOutcomes = outcomes;
 		const seconds = (Date.now() - this.runStarted) / 1000;
-		this.lastSeconds = seconds;
 		this.logService.info(`[saengine] Run All took ${seconds.toFixed(1)} s`);
 		this.showSummary(context, outcomes, seconds);
+		this.job = undefined;
 	}
 
 	private runStep(id: StepId, context: IRunContext): Promise<IStepResult> {
@@ -577,41 +582,27 @@ export class RunAllService implements IRunAllService {
 		}
 	}
 
-	/** One status bar entry: "Run All 6/10: design checks · 2:05", the detail and the steps so far in its tooltip. */
+	/**
+	 * What the step going is doing, for its line in the Progress view (the status bar item adds
+	 * the step and the time): the detail it reports, a stop under way, an engine busy for long.
+	 */
 	private showStatus(): void {
-		if (!this.cancellation) {
+		if (!this.cancellation || !this.job) {
 			return;
 		}
 		const now = Date.now();
-		const stopping = this.cancellation.token.isCancellationRequested;
-		const step = this.current ? RUN_ALL_STEPS[this.current.index] : undefined;
-		const elapsed = formatDuration((now - (this.current?.started ?? this.runStarted)) / 1000);
-		const text = stopping
-			? localize('runAll.statusStopping', "Run All: stopping…")
-			: step
-				? localize('runAll.status', "Run All {0}/{1}: {2} · {3}", this.current!.index + 1, RUN_ALL_STEPS.length, step.label, elapsed)
-				: localize('runAll.statusSaving', "Run All: saving the project");
-		const lines = [text];
-		if (this.current?.detail && !stopping) {
+		if (this.cancellation.token.isCancellationRequested) {
+			this.job.report(localize('runAll.statusStopping', "stopping…"));
+			return;
+		}
+		const lines: string[] = [];
+		if (this.current?.detail) {
 			lines.push(this.current.detail);
 		}
-		if (this.current?.backend && now - this.current.started > ENGINE_BUSY_MS && !stopping) {
-			lines.push(localize('runAll.engineBusy', "The engine has been working on this for {0}. Stop ends it (the engine restarts).", elapsed));
+		if (this.current?.backend && now - this.current.started > ENGINE_BUSY_MS) {
+			lines.push(localize('runAll.engineBusy', "The engine has been working on this for {0}. Stop ends it (the engine restarts).", formatDuration((now - this.current.started) / 1000)));
 		}
-		lines.push(localize('runAll.total', "Total {0}.", formatDuration((now - this.runStarted) / 1000)));
-		lines.push(localize('runAll.clickToStop', "Click to stop."));
-		const entry = {
-			name: localize('runAll.statusName', "Run All"),
-			text: `$(sync~spin) ${this.current?.detail && !stopping ? `${text} · ${this.current.detail}` : text}`,
-			ariaLabel: lines.join(' '),
-			tooltip: lines.join('\n'),
-			command: CANCEL_RUN_ALL_COMMAND_ID,
-		};
-		if (this.status) {
-			this.status.update(entry);
-		} else {
-			this.status = this.statusbarService.addEntry(entry, STATUS_ENTRY_ID, StatusbarAlignment.LEFT, -100);
-		}
+		this.job.report(lines.length ? lines.join(' · ') : undefined);
 	}
 
 	private report(detail: string | undefined): void {
@@ -1295,9 +1286,10 @@ export class RunAllService implements IRunAllService {
 			}
 			message = localize('runAll.done', "Run All done in {0}: {1}", time, counts.join(' · ') || localize('runAll.short.allCurrent', "everything up to date"));
 		}
+		const showStepsLabel = localize('runAll.showSteps', "Show Steps");
 		const choices: IPromptChoice[] = [{
-			label: localize('runAll.showSteps', "Show Steps"),
-			run: () => this.showSteps(outcomes, seconds),
+			label: showStepsLabel,
+			run: () => this.showLastSteps(),
 			// R1-13 of re-walk 1: the notification (and its Design Reinforcement) stays.
 			keepOpen: true,
 		}];
@@ -1315,19 +1307,16 @@ export class RunAllService implements IRunAllService {
 		if (pdf) {
 			choices.push({ label: localize('runAll.openReport', "Open Report"), run: () => this.openerService.open(pdf, { openExternal: true }) });
 		}
+		// One progress place: the job ends with the message and the follow-ups; only a run that
+		// failed or needs a decision (checks fail, members without bars) notifies as well.
+		const actions: IJobAction[] = choices.filter(choice => choice.label !== showStepsLabel).map(choice => ({ label: choice.label, run: () => choice.run() }));
+		this.job?.end(cancelled && !failed.length ? 'cancelled' : severity === Severity.Error ? 'failed' : severity === Severity.Warning ? 'warning' : 'done', message, actions);
+		if (severity === Severity.Info && !context.noBars) {
+			return;
+		}
 		// N-G6: the toast leaves after its time and the outcome stays in the notification center, so
 		// it never covers the forms for good (an error with actions would otherwise stay).
 		this.notificationService.prompt(severity, message, choices, { sticky: false });
-	}
-
-	/** Every step of the run, how it ended and how long it took, with the icon of how the run went (N-G7). */
-	private async showSteps(outcomes: readonly IStepOutcome[], seconds: number): Promise<void> {
-		const severity = runSeverity(outcomes);
-		await this.dialogService.prompt({
-			type: severity === Severity.Error ? 'error' : severity === Severity.Warning ? 'warning' : 'info',
-			message: localize('runAll.stepsTitle', "Run All: {0} in total", formatDuration(seconds)),
-			detail: outcomeLines(outcomes).join('\n'),
-		});
 	}
 
 	/** Opens the analysis model's results in the 3D view (the FEM editor picks a design combination). */

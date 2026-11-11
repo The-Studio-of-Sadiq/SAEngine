@@ -5,6 +5,8 @@
 
 import './media/projectFlow.css';
 import './saengineShell.contribution.js';
+import './projectStageBar.js';
+import './progressView.js';
 import './truncatedText.contribution.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { localize, localize2 } from '../../../../nls.js';

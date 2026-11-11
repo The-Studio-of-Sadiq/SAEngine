@@ -11,7 +11,7 @@ import { localize } from '../../../../nls.js';
 import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
-import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
+import { ISaengineJobsService } from '../../../services/saengineProject/common/saengineJobs.js';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { ISaengineProject, ISaengineProjectService, partById } from '../../../services/saengineProject/common/saengineProject.js';
@@ -119,7 +119,7 @@ export class RevitLinkFlows {
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@INotificationService private readonly notificationService: INotificationService,
-		@IProgressService private readonly progressService: IProgressService,
+		@ISaengineJobsService private readonly jobsService: ISaengineJobsService,
 		@IEditorService private readonly editorService: IEditorService,
 	) { }
 
@@ -149,10 +149,7 @@ export class RevitLinkFlows {
 			return;
 		}
 		try {
-			const answer = bag(await this.progressService.withProgress({
-				location: ProgressLocation.Notification,
-				title: localize('revit.exporting', "Exporting {0} for Revit", project.name),
-			}, () => this.commandService.executeCommand(REVIT_EXPORT_COMMAND, { projectRoot: project.root.fsPath })));
+			const answer = bag(await this.jobsService.run({ title: localize('revit.exporting', "Exporting {0} for Revit", project.name) }, () => this.commandService.executeCommand(REVIT_EXPORT_COMMAND, { projectRoot: project.root.fsPath })));
 			if (typeof answer.error === 'string' || typeof answer.path !== 'string') {
 				this.notificationService.error(localize('revit.exportFailed', "The export for Revit failed: {0}", typeof answer.error === 'string' ? answer.error : ''));
 				return;
@@ -193,10 +190,7 @@ export class RevitLinkFlows {
 				return;
 			}
 			const filePath = path;
-			const preview = readRevitPreview(await this.progressService.withProgress({
-				location: ProgressLocation.Notification,
-				title: localize('revit.reading', "Comparing {0} with the project", basename(URI.file(filePath))),
-			}, () => this.commandService.executeCommand(REVIT_PREVIEW_COMMAND, { projectRoot: project.root.fsPath, path: filePath })));
+			const preview = readRevitPreview(await this.jobsService.run({ title: localize('revit.reading', "Comparing {0} with the project", basename(URI.file(filePath))) }, () => this.commandService.executeCommand(REVIT_PREVIEW_COMMAND, { projectRoot: project.root.fsPath, path: filePath })));
 			if (preview.error) {
 				this.notificationService.error(localize('revit.previewFailed', "The file cannot be read: {0}", preview.error));
 				return;
@@ -209,10 +203,7 @@ export class RevitLinkFlows {
 			if (!chosen?.length) {
 				return;
 			}
-			const answer = bag(await this.progressService.withProgress({
-				location: ProgressLocation.Notification,
-				title: localize('revit.applying', "Applying {0} changes from Revit", chosen.length),
-			}, () => this.commandService.executeCommand(REVIT_APPLY_COMMAND, { projectRoot: project.root.fsPath, path: filePath, changes: chosen })));
+			const answer = bag(await this.jobsService.run({ title: localize('revit.applying', "Applying {0} changes from Revit", chosen.length) }, () => this.commandService.executeCommand(REVIT_APPLY_COMMAND, { projectRoot: project.root.fsPath, path: filePath, changes: chosen })));
 			if (typeof answer.error === 'string') {
 				this.notificationService.error(localize('revit.applyFailed', "The changes were not applied: {0}", answer.error));
 				return;

@@ -45,6 +45,7 @@ import { DESIGN_ANALYSIS_CHANGED_COMMAND, DESIGN_APPLY_COMMAND, DESIGN_CANCEL_PR
 import { HiddenPageMemo, countFailing, describeBeforeAfter, describeChange, describeCheckCounts, describeFailing, describeSteelProposal, describeWaitStep, DesignProposalMode, IDesignWaitStep, DesignProposalModel, IDesignProposalRow, IDesignProposalTexts, IFemDesignApplyResult, IFailingItem, IFemDesignProposal, failingItems, notFixedBy, proposalEdits } from './femDesignProposal.js';
 import { FemDesignProposalInput } from './femDesignProposalInput.js';
 import { errorSummary } from './femResultsBar.js';
+import { IJobHandle, ISaengineJobsService } from '../../../services/saengineProject/common/saengineJobs.js';
 
 const MODES: readonly { readonly mode: DesignProposalMode; readonly label: string }[] = [
 	{ mode: 'byType', label: localize('femProposal.byType', "Keep Shared Types") },
@@ -120,6 +121,8 @@ export class FemDesignProposalEditor extends EditorPane {
 	/** What the page waits for, step k of n, and since when (N-X4 of usability walk 2: minutes of a blank page). */
 	private step: IWaitStep | undefined;
 	private readonly ticker = this._register(new IntervalTimer());
+	/** The page's work in SAEngine's one progress place (the Progress view, the status bar item). */
+	private job: IJobHandle | undefined;
 
 	private readonly renderStore = this._register(new DisposableStore());
 	/** The text models of the files an apply edits, held while the page is open so their undo stays. */
@@ -147,6 +150,7 @@ export class FemDesignProposalEditor extends EditorPane {
 		@IUndoRedoService private readonly undoRedoService: IUndoRedoService,
 		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
 		@IEditorService private readonly editorService: IEditorService,
+		@ISaengineJobsService private readonly jobsService: ISaengineJobsService,
 	) {
 		super(FemDesignProposalEditor.ID, group, telemetryService, themeService, storageService);
 	}
@@ -233,6 +237,8 @@ export class FemDesignProposalEditor extends EditorPane {
 		this.request++;
 		this.step = undefined;
 		this.loading = this.applying = false;
+		this.job?.end('cancelled');
+		this.job = undefined;
 		this.ticker.cancel();
 		this.references.clear();
 		this.modelReferences.clear();
@@ -317,12 +323,27 @@ export class FemDesignProposalEditor extends EditorPane {
 	/** Shows `step` (undefined: none) and keeps its clock running while there is one. */
 	private setStep(step: IDesignWaitStep | undefined): void {
 		this.step = step && { ...step, since: Date.now() };
+		this.reportJob(step);
 		if (step) {
 			this.ticker.cancelAndSet(() => this.frame.setStatus(this.status()), 1000);
 		} else {
 			this.ticker.cancel();
 		}
 		this.render();
+	}
+
+	/** The page's steps as one job of the Progress view; it ends when the page stops waiting. */
+	private reportJob(step: IDesignWaitStep | undefined): void {
+		if (step) {
+			this.job ??= this.jobsService.start({
+				title: this.applying ? localize('femProposal.jobApply', "Applying the proposed bars") : localize('femProposal.jobTitle', "Design Reinforcement"),
+				cancel: () => this.stopWaiting(),
+			});
+			this.job.progress.report({ message: step.text });
+		} else if (this.job) {
+			this.job.end(this.stopped ? 'cancelled' : 'done', this.stopped ? this.problem : undefined);
+			this.job = undefined;
+		}
 	}
 
 	/**

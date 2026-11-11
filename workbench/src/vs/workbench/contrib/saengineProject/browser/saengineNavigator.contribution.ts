@@ -46,7 +46,8 @@ import { OPEN_PLANNED_FEATURE_COMMAND, PlannedFeatureEditor } from './plannedFea
 import { PlannedFeatureInput, PlannedFeatureInputSerializer } from './plannedFeatureInput.js';
 import { plannedFeature, plannedFeatures } from '../../../services/saengineProject/common/plannedFeatures.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
-import { DEVELOPER_MODE_SETTING, ProjectNavigatorView } from './projectNavigatorView.js';
+import { DEVELOPER_MODE_SETTING } from '../../../services/saengineProject/common/developerMode.js';
+import { ProjectNavigatorView } from './projectNavigatorView.js';
 import { ProjectOpener } from './projectOpener.js';
 import { ProjectOverviewEditor } from './projectOverviewEditor.js';
 import { ProjectOverviewInput } from './projectOverviewInput.js';

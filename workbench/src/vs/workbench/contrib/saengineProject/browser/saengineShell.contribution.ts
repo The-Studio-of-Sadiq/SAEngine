@@ -34,13 +34,18 @@ import { isAccountsActionVisible, setAccountsActionVisible } from '../../../brow
 import { ViewPane } from '../../../browser/parts/views/viewPane.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { ActiveViewletContext } from '../../../common/contextkeys.js';
-import { Extensions as ViewExtensions, IViewContainersRegistry, IViewsRegistry } from '../../../common/views.js';
+import { Extensions as ViewExtensions, IViewContainersRegistry, IViewsRegistry, ViewContainerLocation } from '../../../common/views.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { ILifecycleService, LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
-import { PROJECT_PARTS, STRUCTURE_PART } from '../../../services/saengineProject/common/saengineProject.js';
+import { DEVELOPER_MODE_CONTEXT, DEVELOPER_MODE_SETTING } from '../../../services/saengineProject/common/developerMode.js';
+import { ISaengineProjectService, PROJECT_PARTS, STRUCTURE_PART } from '../../../services/saengineProject/common/saengineProject.js';
 import { IStatusbarService } from '../../../services/statusbar/browser/statusbar.js';
-import { applyDeveloperItems, ConfigurationDefaultsSwitch, gateCommandPalette, gateMenuItems, gateSubmenus, parseDeveloperItemsSnapshot, partEditorLabels, ViewsGate } from './saengineShell.js';
+import { IOutputService } from '../../../services/output/common/output.js';
+import { IPaneCompositePartService } from '../../../services/panecomposite/browser/panecomposite.js';
+import { IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
+import { PROJECT_VIEW_CONTAINER_ID } from './saengineNavigator.contribution.js';
+import { applyDeveloperItems, ConfigurationDefaultsSwitch, gateCommandPalette, gateKeybindings, gateMenuItems, gateSubmenus, parseDeveloperItemsSnapshot, partEditorLabels, ViewsGate } from './saengineShell.js';
 
 /*
  * The SAEngine window: an engineering app first. The code-editor half of Code-OSS (source control,
@@ -48,8 +53,8 @@ import { applyDeveloperItems, ConfigurationDefaultsSwitch, gateCommandPalette, g
  * with the `saengine.developerMode` setting; without it the window shows only what an engineer uses.
  */
 
-export const DEVELOPER_MODE_SETTING = 'saengine.developerMode';
-export const DeveloperModeContext = new RawContextKey<boolean>('saengineDeveloperMode', false, localize('saengineDeveloperMode', "Whether SAEngine shows its code-editor features (developer mode)"));
+export { DEVELOPER_MODE_SETTING };
+export const DeveloperModeContext = new RawContextKey<boolean>(DEVELOPER_MODE_CONTEXT, false, localize('saengineDeveloperMode', "Whether SAEngine shows its code-editor features (developer mode)"));
 
 const RUN_ALL_COMMAND = 'saengine.runAll';
 /** Run All's Stop, and the key set while Run All runs (`saengineFem/electron-browser/runAll.ts`). */
@@ -66,7 +71,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			type: 'boolean',
 			default: false,
 			scope: ConfigurationScope.APPLICATION,
-			markdownDescription: localize('saengine.developerMode', "Shows the code-editor features of the workbench: source control, run and debug, extensions, testing, the terminal, the outline and timeline, breadcrumbs and the text editor status. Nothing is removed while this is off; it is only out of sight."),
+			markdownDescription: localize('saengine.developerMode', "Shows the code-editor features of the workbench: the file explorer, search across files, source control, run and debug, extensions, testing, the terminal, the Problems, Output and Debug Console panels, the outline and timeline, breadcrumbs and the text editor status, with their shortcuts and commands. Nothing is removed while this is off; it is only out of sight. Find inside a text or JSON editor (Ctrl+F) works in both modes."),
 		},
 	},
 });
@@ -106,11 +111,9 @@ const SIMPLE_DEFAULTS: IConfigurationDefaults = {
 		'workbench.editor.empty.hint': 'hidden',
 		// No "Start Debugging F5" style hints in an empty editor area.
 		'workbench.tips.enabled': false,
-		'chat.titleBar.signIn.enabled': false,
+		// The chat and its Sign In stay in the title bar (owner, 2026-11-11): they start the AI
+		// assistant. Only the agents window, a coding tool, stays out of sight.
 		'chat.titleBar.openInAgentsWindow.enabled': false,
-		// The coding-agent chat, Copilot and Codex are code-editor tools: out of sight until SAEngine's
-		// own chat panel ships (G10, G12). Developer mode brings them back.
-		'chat.disableAIFeatures': true,
 		'extensions.ignoreRecommendations': true,
 		'git.enabled': false,
 		'scm.diffDecorations': 'none',
@@ -130,11 +133,16 @@ simpleDefaults.set(true);
 //#region Views and menus
 
 const EXTENSIONS_VIEW_CONTAINER = 'workbench.view.extensions';
+const SEARCH_VIEW_CONTAINER = 'workbench.view.search';
 
 /** View containers that belong to code editing: every view in them is shown in developer mode only. */
 const DEVELOPER_VIEW_CONTAINERS = new Set([
 	// The file explorer: the project sidebar lists each part's files, so Files is a developer tool.
 	'workbench.view.explorer',
+	// Search across files: a text search of the project's JSON. Without it gated the side bar fell
+	// back to it (the first stock container left once the Explorer was gated) and Ctrl+Shift+F
+	// opened it; find inside a text editor (Ctrl+F) is the editor's own and stays.
+	SEARCH_VIEW_CONTAINER,
 	'workbench.view.scm',
 	'workbench.view.debug',
 	EXTENSIONS_VIEW_CONTAINER,
@@ -143,7 +151,16 @@ const DEVELOPER_VIEW_CONTAINERS = new Set([
 	'workbench.panel.repl',
 	'workbench.panel.testResults',
 	'~remote.forwardedPortsContainer',
+	// Problems: the parts list and the editors say what is wrong with a part (its checks).
+	'workbench.panel.markers',
 ]);
+
+/**
+ * The Output panel: a developer tool, except while it shows one of SAEngine's own logs (the
+ * analysis log, the AI activity), which the engineer opens with Show Log.
+ */
+const OUTPUT_VIEW_CONTAINER = 'workbench.panel.output';
+const SaengineLogShownContext = new RawContextKey<boolean>('saengineLogShown', false);
 
 /** Single code-editor views in otherwise kept containers. */
 const DEVELOPER_VIEWS = new Set(['outline', 'timeline']);
@@ -250,6 +267,31 @@ class DeveloperViewsGate extends ViewsGate {
 /** An empty view that is only ever active while its container is closed (see `anchorExtensions`). */
 class AnchorView extends ViewPane { }
 
+/**
+ * The commands of the code-editor views and tools whose shortcuts do nothing outside developer
+ * mode (see `gateKeybindings`): Ctrl+Shift+F and Ctrl+Shift+H (Find and Replace in Files),
+ * Ctrl+Shift+E, G, D, X, M, U and Y (Explorer, Source Control, Run and Debug, Extensions,
+ * Problems, Output, Debug Console), Ctrl+` (terminal), Ctrl+Shift+B (tasks) and the like. Their
+ * views are out of sight, so the keys would open an empty side bar or nothing useful.
+ */
+const DEVELOPER_COMMAND_PREFIXES: readonly string[] = [
+	'workbench.view.explorer', 'workbench.files.action.focusFilesExplorer', 'workbench.files.action.showActiveFileInExplorer',
+	'workbench.view.search', 'workbench.action.findInFiles', 'workbench.action.replaceInFiles', 'workbench.action.findInFolder',
+	'workbench.action.search.', 'search.',
+	'workbench.view.scm', 'workbench.scm.', 'scm.', 'git.',
+	'workbench.view.debug', 'workbench.action.debug.', 'workbench.debug.', 'debug.', 'editor.debug.',
+	'workbench.view.extensions', 'workbench.extensions.',
+	'workbench.view.testing', 'testing.',
+	'workbench.action.terminal.', 'workbench.action.createTerminalEditor', 'workbench.action.tasks.',
+	'workbench.actions.view.problems', 'workbench.action.problems.',
+	'workbench.action.output.toggleOutput',
+	'workbench.panel.repl.',
+];
+
+export function isDeveloperCommand(id: string): boolean {
+	return DEVELOPER_COMMAND_PREFIXES.some(prefix => id === prefix || (prefix.endsWith('.') && id.startsWith(prefix)));
+}
+
 //#endregion
 
 /** Status bar items of the text editor and of code tools; hidden unless in developer mode. */
@@ -302,6 +344,7 @@ class DeveloperModeContribution extends Disposable implements IWorkbenchContribu
 			this._register(gateMenuItems(menu, id => keptInSimpleMode(menu, id), DeveloperModeContext));
 		}
 		this._register(gateCommandPalette(id => id.startsWith('saengine.') || SIMPLE_PALETTE_COMMANDS.has(id), DeveloperModeContext));
+		gateKeybindings(KeybindingsRegistry, isDeveloperCommand, DeveloperModeContext);
 
 		this.apply();
 		void lifecycleService.when(LifecyclePhase.Restored).then(() => this.applyToParts());
@@ -348,6 +391,82 @@ class DeveloperModeContribution extends Disposable implements IWorkbenchContribu
 }
 
 registerWorkbenchContribution2(DeveloperModeContribution.ID, DeveloperModeContribution, WorkbenchPhase.BlockStartup);
+
+/**
+ * Keeps the code-editor views out of sight outside developer mode where gating their views is
+ * not enough:
+ *
+ * - the Output panel shows while it holds one of SAEngine's own logs (Show Log of the analysis,
+ *   the AI activity), and is a developer tool otherwise;
+ * - a side bar or panel restored on, or opened to, a container that is out of sight (the side
+ *   bar of a window last closed on Search, an extension's shortcut) goes back to the project's
+ *   parts, or closes: that restored, emptied side bar is what made Search look as if it opened
+ *   on its own.
+ */
+class DeveloperContainersGuard extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.saengine.developerContainersGuard';
+
+	private readonly logShown: IContextKey<boolean>;
+
+	constructor(
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IOutputService outputService: IOutputService,
+		@IPaneCompositePartService private readonly paneCompositeService: IPaneCompositePartService,
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
+		@ISaengineProjectService private readonly projectService: ISaengineProjectService,
+	) {
+		super();
+		this.logShown = SaengineLogShownContext.bindTo(contextKeyService);
+		const isSaengineLog = (id: string | undefined) => !!id?.startsWith('saengine.');
+		this.logShown.set(isSaengineLog(outputService.getActiveChannel()?.id));
+		// Fired before the Output view opens, so the view is there when Show Log asks for it.
+		this._register(outputService.onActiveOutputChannel(id => this.logShown.set(isSaengineLog(id))));
+		this._register(new ViewsGate(
+			ContextKeyExpr.or(DeveloperModeContext, SaengineLogShownContext)!,
+			new Set([OUTPUT_VIEW_CONTAINER]), new Set(),
+			Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry), Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry),
+		));
+
+		this._register(paneCompositeService.onDidPaneCompositeOpen(({ composite, viewContainerLocation }) => this.check(composite.getId(), viewContainerLocation)));
+		this._register(configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(DEVELOPER_MODE_SETTING)) {
+				this.checkActive();
+			}
+		}));
+		this.checkActive();
+	}
+
+	private outOfSight(id: string): boolean {
+		if (this.configurationService.getValue<boolean>(DEVELOPER_MODE_SETTING) === true) {
+			return false;
+		}
+		return DEVELOPER_VIEW_CONTAINERS.has(id) || (id === OUTPUT_VIEW_CONTAINER && !this.logShown.get());
+	}
+
+	private checkActive(): void {
+		for (const location of [ViewContainerLocation.Sidebar, ViewContainerLocation.Panel, ViewContainerLocation.AuxiliaryBar]) {
+			const active = this.paneCompositeService.getActivePaneComposite(location);
+			if (active) {
+				this.check(active.getId(), location);
+			}
+		}
+	}
+
+	private check(id: string, location: ViewContainerLocation): void {
+		if (!this.outOfSight(id)) {
+			return;
+		}
+		if (location === ViewContainerLocation.Sidebar && this.projectService.project) {
+			void this.paneCompositeService.openPaneComposite(PROJECT_VIEW_CONTAINER_ID, location, false);
+		} else {
+			this.layoutService.setPartHidden(true, this.paneCompositeService.getPartId(location));
+		}
+	}
+}
+
+registerWorkbenchContribution2(DeveloperContainersGuard.ID, DeveloperContainersGuard, WorkbenchPhase.AfterRestored);
 
 registerAction2(class extends Action2 {
 	constructor() {
