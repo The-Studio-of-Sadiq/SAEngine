@@ -637,7 +637,7 @@ def _elevation(
             el.line((x, -beam.cover), (x, -(d - beam.cover)), "S-REBAR-LINK")
     # bars
     lane_gap = el.real(1.4)
-    jobs: list[tuple[str, tuple[float, float], list]] = []
+    jobs: list[tuple[str, tuple[float, float], list, str | None]] = []
     for bars, lanes, top in ((top_bars, top_lanes, True), (bottom_bars, bottom_lanes, False)):
         for i, b in enumerate(bars):
             base = beam.cover + 10 + b.dia / 2 + (b.row - 1) * (b.dia + 25) + lanes[i] * lane_gap
@@ -667,14 +667,17 @@ def _elevation(
             for x in (b.start, b.end):
                 el.line((x, y - el.real(0.6)), (x, y + el.real(0.6)), "S-REBAR-MAIN")
             mid = ((b.start + b.end) / 2, y)
-            text = f"{b.mark} {b.text}" + (f" {b.note}" if b.note else "")
+            text = f"{b.label or b.mark} {b.text}" + (f" {b.note}" if b.note else "")
             reach = (base if top else d - base) / el.scale
             first = 4 + reach if top else -(4 + reach)
             cands = [
                 (0, first + s * 5 * (1 if top else -1), "BC" if top else "TC") for s in range(6)
             ]
             cands += [(dx, c[1], c[2]) for dx in (-25, 25, -50, 50) for c in cands[:3]]
-            jobs.append((text, mid, cands))
+            # the longer label of a run cranked at joints (B1-B9/8): its note below when the
+            # one line finds no place
+            alt = f"{b.label} {b.text}\n{b.note}" if b.label and b.note else None
+            jobs.append((text, mid, cands, alt))
     # dimensions: curtailed bars, then link zones, then spans; a bar's dimension text is kept
     # off the extension lines of the dimensions beside it (the support faces, zone ends)
     lines_x = sorted(
@@ -728,8 +731,9 @@ def _elevation(
     for s in supports:
         if s.label:
             el.label(s.label, (s.centre, -d - stub), [(0, -2, "TC"), (0, -6, "TC")])
-    for text, mid, cands in jobs:
-        el.label(text, mid, cands, leader=True)
+    for text, mid, cands, alt in jobs:
+        if alt is None or el.label(text, mid, cands, leader=True, force=False) is None:
+            el.label(alt or text, mid, cands, leader=True)
 
 
 # ─────────────────────────────────── helpers ───────────────────────────────────

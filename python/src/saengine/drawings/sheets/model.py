@@ -212,6 +212,7 @@ class BeamBar:
     note: str = ""  # "lap 800", "cut-off", ...
     cut_length: float | None = None  # the cutting length of the detailing model ("length")
     bbs_length: float | None = None  # the cutting length the BBS lists (rounded there)
+    label: str = ""  # the marks shown when not ``mark`` alone (a run cranked at joints: B1-B9/8)
 
     @property
     def length(self) -> float:

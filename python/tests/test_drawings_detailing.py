@@ -725,7 +725,8 @@ def test_an_18_m_special_beam_is_spliced_into_stock_bars() -> None:
     for lap in line["laps"]:
         assert lap["from"] - 6150 >= 1200 and 11850 - lap["to"] >= 1200
     pieces = [b for b in line["bars"] if b["role"] in ("top", "bottom") and not b.get("curtailed")]
-    assert sorted((b["role"], b["at"]["from"], b["at"]["to"]) for b in pieces) == [
+    # (a run whose bars are cranked at some joints is two entries: drawings.cages.joint_cranks)
+    assert sorted({(b["role"], b["at"]["from"], b["at"]["to"]) for b in pieces}) == [
         ("bottom", -100, 10650), ("bottom", 9325, 18100), ("top", -100, 9950),
         ("top", 8225, 18100),
     ]  # fmt: skip
@@ -756,7 +757,9 @@ def test_36_mm_beam_bars_are_not_lapped() -> None:
     assert not [x for x in line["laps"] if x["face"] == "bottom"]
     assert [x["face"] for x in line["laps"]] == ["top"]
     bottom = [b for b in line["bars"] if b["role"] == "bottom"]
-    assert len(bottom) == 1 and "lap" not in bottom[0]
+    # one run (its cranked bars a second entry: drawings.cages.joint_cranks), not lapped
+    assert len({(b["at"]["from"], b["at"]["to"]) for b in bottom}) == 1
+    assert not any("lap" in b for b in bottom)
     assert any("mechanical couplers" in n and "8.2.12.2(a)" in n for n in line["notes"])
 
 
@@ -853,9 +856,9 @@ def test_general_development_form_is_used_when_chosen() -> None:
     # bottom Ø16 of a 250 wide beam, 3 bars: cb = min(40 + 10 + 8, half the bar spacing)
     cb = min(58.0, (250 - 2 * 50 - 16) / 2 / 2)
     ld = up(development_tension(16, 420, 24.1, method="general", cb=cb).value)
-    assert f"Ø16 {ld:g} mm" in general["notes"][-1]
-    assert "general form" in general["notes"][-1]
-    assert general["notes"][-1] != simple["notes"][-1]
+    note = next(n for n in general["notes"] if "general form" in n)
+    assert f"Ø16 {ld:g} mm" in note
+    assert note not in simple["notes"]
     with pytest.raises(ValueError):
         _model(options={"method": "exact"})
 

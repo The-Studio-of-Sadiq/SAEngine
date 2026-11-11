@@ -4,6 +4,7 @@ Part 6 Sec 8.1.6.1-8.1.6.3 (p. 1068) from the code pack; the IFC carries IfcRein
 
 from __future__ import annotations
 
+import itertools
 import json
 import math
 
@@ -120,3 +121,117 @@ def test_rebar_in_the_ifc() -> None:
     text = ifc.to_string()
     assert "IFCSWEPTDISKSOLID" in text
     assert isinstance(ifcopenshell.file.from_string(text), ifcopenshell.file)
+
+
+def test_bars_placed_through_a_joint_keep_clear_of_the_column_bars() -> None:
+    lim = cages.limits()
+    assert lim is not None
+    # a 250 beam flush with the face of a 300 column: its outer bar (67 from the beam's centre
+    # line) on the column bars' line (at 67 and at 67 - 184 = -117 across the beam)
+    xs = [-67.0, 0.0, 67.0]
+    cols = [(67.0, 16.0), (-117.0, 16.0)]
+    moved = cages.place_through(xs, 16.0, cols, 67.0, lim)
+    assert moved is not None and moved != xs
+    assert max(moved) <= 67.0 + 1e-6 and min(moved) >= -67.0 - 1e-6  # never outward
+    for x in moved:
+        for xc, dc in cols:
+            assert abs(x - xc) - (16 + dc) / 2 >= lim.layer(16) - 1e-6
+    ordered = sorted(moved)
+    assert all(b - a - 16 >= lim.layer(16) - 1e-6 for a, b in itertools.pairwise(ordered))
+    # bars already clear do not move
+    assert cages.place_through([-30.0, 30.0], 16.0, [(120.0, 16.0)], 67.0, lim) == [-30.0, 30.0]
+    # no room for the full spacing: as much of it as fits (the check reports them tight)
+    tight = cages.place_through([-67.0, 0.0, 67.0], 16.0, [(0.0, 20.0)], 67.0, lim)
+    assert tight is not None
+    gaps = [abs(x) - 18 for x in tight]
+    assert 0 < min(gaps) < lim.layer(20)
+
+
+def test_crank_path_and_its_extra_length() -> None:
+    crank = {"at": "C1", "from": 1000.0, "to": 1300.0, "offset": -50.0}
+    path = cages._path(0.0, 3000.0, 67.0, [crank])
+    # 1 in 6: from 700 to 1000 across to 17, along the joint, back by 1600
+    assert path == [(0.0, 67.0), (700.0, 67.0), (1000.0, 17.0), (1300.0, 17.0), (1600.0, 67.0),
+                    (3000.0, 67.0)]  # fmt: skip
+    assert cages.path_extra(0.0, 3000.0, [crank]) == pytest.approx(2 * 50 * (math.sqrt(37) - 6))
+    # a bar ending in the joint (hooked into an end column) has one slope only
+    assert cages.path_extra(1100.0, 3000.0, [crank]) == pytest.approx(50 * (math.sqrt(37) - 6))
+
+
+def _flush_frame() -> str:
+    """The test frame with its beams flush with the columns' face (y = 25: the 250 beam's face
+    on the 300 column's): the beam's outer bars on the column bars' line."""
+    bim = json.loads(_frame())
+    for e in bim["elements"]:
+        if e["kind"] == "beam":
+            e["start"][1] = e["end"][1] = 25
+    return json.dumps(bim)
+
+
+def _three_bars() -> str:
+    """The test types with three top bars in the beam (four Ø16 do not fit past a flush
+    column's bars with the full clear spacing: they would be cranked and reported tight)."""
+    objects = json.loads(_objects())
+    beam = next(o for o in objects["objects"] if o["id"] == "B250")
+    beam["reinforcement"]["longitudinal"][0]["count"] = 3
+    return json.dumps(objects)
+
+
+def _counts(element: dict) -> dict[str, int]:
+    out: dict[str, int] = {}
+    for b in element["bars"]:
+        if b["role"] in ("top", "bottom"):
+            out[b["role"]] = out.get(b["role"], 0) + b["count"]
+    return out
+
+
+def test_beam_bars_cranked_inside_the_column_bars(monkeypatch: pytest.MonkeyPatch) -> None:
+    from saengine.drawings import bbs
+
+    def past_column(found: dict) -> list[dict]:
+        return [c for c in found["checks"] if "past the column bars" in c["name"]]
+
+    types, bim = _three_bars(), _flush_frame()
+    with monkeypatch.context() as m:  # as before: straight bars clash with the column bars
+        m.setattr(cages, "joint_cranks", lambda *a, **k: None)
+        straight = _cages(types, bim=bim)
+        plain = _model(objects=types, bim=bim)
+    assert any(c["severity"] == "error" for c in past_column(straight))
+    found = _cages(types, bim=bim)
+    checks = past_column(found)
+    assert checks and all(c["ok"] for c in checks)
+    model = _model(objects=types, bim=bim)
+    beam = next(e for e in model["elements"] if e["id"] == "B1+B2")
+    cranked = [b for b in beam["bars"] if b["at"].get("cranks")]
+    assert cranked and all(b["crank"] > 0 and "cranked" in b["remarks"] for b in cranked)
+    assert any("cranked" in n for n in beam["notes"])
+    # every bar is still there: the entries are split, not dropped
+    plain_beam = next(e for e in plain["elements"] if e["id"] == "B1+B2")
+    assert _counts(beam) == _counts(plain_beam)
+    # the developed length grows by the cranks
+    for bar in cranked:
+        base = next(
+            b for b in plain_beam["bars"] if b["role"] == bar["role"]
+            and b["at"]["from"] == bar["at"]["from"] and b["at"]["to"] == bar["at"]["to"]
+        )  # fmt: skip
+        extra = cages.path_extra(bar["at"]["from"], bar["at"]["to"], bar["at"]["cranks"][0])
+        assert extra > 0
+        assert bar["crank"] == math.ceil(extra)  # up to the whole mm
+        assert bar["length"] == pytest.approx(base["length"] + bar["crank"], abs=0.1)
+        assert bar["shape"] == base["shape"] and bar["dims"] == base["dims"]
+    # the BBS schedules them in their shape with the cranks' length added
+    schedule = bbs.bar_schedule(model)
+    straight_rows = {
+        (r.shape, tuple(sorted(r.dims.items()))): r for r in bbs.bar_schedule(plain).rows
+    }
+    for bar in cranked:
+        row = next(r for r in schedule.rows if r.mark == bar["mark"])
+        assert "cranked" in row.remarks
+        twin = straight_rows[(row.shape, tuple(sorted(row.dims.items())))]
+        assert row.cutting_length >= twin.cutting_length
+    # the 3D cage draws the crank: the bar moves across the beam (y here) at the joint
+    lines = [
+        line for b in found["bars"] if b["mark"] == cranked[0]["mark"] and b["element"] == "B1+B2"
+        for line in b["lines"]
+    ]  # fmt: skip
+    assert lines and all(len({round(p[1], 1) for p in line}) > 1 for line in lines)

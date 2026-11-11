@@ -4340,6 +4340,13 @@ def detailing_model(
     order = {"footing": 0, "pileCap": 0, "column": 1, "wall": 2, "beam": 3, "slab": 4,
              "staircase": 5}  # fmt: skip
     elements.sort(key=lambda e: (order.get(e["kind"], 9), e["id"]))
+    # beam bars cranked at the joints to pass inside the column bars (A10 track F)
+    from saengine.drawings.cages import joint_cranks
+
+    try:
+        joint_cranks(elements, types, materials)
+    except Exception as error:  # noqa: BLE001 - the bars stay straight, the cages check them
+        ctx.notes.append(f"the beam bars could not be fitted past the column bars: {error}")
     marks = assign_marks(elements, previous)
     _finish(elements)
     ctx.notes.append(

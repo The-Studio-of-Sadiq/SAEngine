@@ -50,7 +50,8 @@ standard such as ``"51"`` or a name: straight, L, U, link, stirrup, tie, hook, .
 model's least inside bend diameter: the radius is at least half of it), ``role``
 (longitudinal, top, bottom, stirrup, tie, mesh, ...), ``zone``, ``lap`` [mm] (lap length
 included in each bar), ``curtailed`` (true for a cut-off bar; "true"/"yes"/"1" texts too),
-``members`` (overrides the element's count), ``remarks``. A shape's ``radius`` letter (R of BS
+``members`` (overrides the element's count), ``remarks``, ``crank`` [mm] (the length cranks
+at joints add to the shape's cutting length, :func:`saengine.drawings.cages.joint_cranks`). A shape's ``radius`` letter (R of BS
 8666 shape 12) is an optional large bend radius in ``dims``; its ``counts`` letters (C of shape
 77) are counts (turns). A pile element (kind ``pile``) may name its ``cap``: the BOQ books pile
 bars under the cap's id. Numbers may be texts such as ``"12"`` or ``"Ø12"``; a bar with a value
@@ -717,6 +718,9 @@ def _scheduled(
     else:
         try:
             length = cutting_length(code, dims, dia, radius)
+            # a bar cranked across at joints (saengine.drawings.cages.joint_cranks): its shape
+            # with the length its cranks add
+            length += _num(_get(bar, "crank", 0.0), "the crank length")
         except ValueError as error:
             if given is None:
                 notes.append(f"{where}: {error}; not scheduled.")

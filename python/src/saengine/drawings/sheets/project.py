@@ -316,28 +316,41 @@ def _bar_marks(element: dict[str, Any]) -> dict[str, dict[str, Any]]:
 def beam_detail(e: dict[str, Any], level_name: str, slab: float = 0.0, legs: int = 2) -> BeamDetail:
     """A beam line of the detailing model as a :class:`BeamDetail`."""
     at = e.get("at", {})
-    bars = []
+    rows: dict[tuple[Any, ...], list[Any]] = {}
     for b in e.get("bars", []):
         face = _get(b.get("at", {}), "face") or b.get("role")
         if face not in ("top", "bottom") or b.get("at", {}).get("from") is None:
             continue
         ls, le = _legs(b)
         note = f"LAP {b['lap']:g}" if b.get("lap") else ""
-        bars.append(
-            BeamBar(
-                str(b["mark"]),
-                float(b["dia"]),
-                int(b["count"]),
-                float(b["at"]["from"]),
-                float(b["at"]["to"]),
-                face,
-                int(b["at"].get("layer") or 1),
-                ls,
-                le,
-                note,
-                float(b["length"]) if b.get("length") is not None else None,
-            )
-        )
+        key = (face, int(b["at"].get("layer") or 1), float(b["dia"]), float(b["at"]["from"]),
+               float(b["at"]["to"]), ls, le, note)  # fmt: skip
+        row = rows.get(key)
+        if row is not None:  # the bars of one run cranked at joints (drawings.cages): one label
+            # B1-B9/8: the type's code and the bar letter once
+            code, _, own = str(b["mark"]).rpartition("-")
+            letter = own.rstrip("0123456789")
+            label = row[12] or row[0]
+            same = code and letter and label.startswith(f"{code}-{letter}")
+            row[12] = label + f"/{own[len(letter) :] if same else b['mark']}"
+            row[2] += int(b["count"])
+            continue
+        rows[key] = [
+            str(b["mark"]),
+            float(b["dia"]),
+            int(b["count"]),
+            float(b["at"]["from"]),
+            float(b["at"]["to"]),
+            face,
+            int(b["at"].get("layer") or 1),
+            ls,
+            le,
+            note,
+            float(b["length"]) if b.get("length") is not None else None,
+            None,  # bbs_length
+            "",  # label
+        ]
+    bars = [BeamBar(*row) for row in rows.values()]
     marks = _bar_marks(e)
     links = []
     for row in e.get("transverse", []):
