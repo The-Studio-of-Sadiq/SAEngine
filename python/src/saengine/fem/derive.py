@@ -753,12 +753,16 @@ def derive_fem(
     column_supports: str | None = None,
     member_loads: Any = None,
     architecture: Any = None,
+    *,
+    wind_gust: bool = True,
 ) -> Derivation:
     """The OpenSees Studio project of ``building`` with the loads of ``settings``, under the
     project's code pack (``settings.codePack``; its project-local packs looked for in the
     project of :func:`saengine.codes.context.project`, else the one holding ``model_dir``).
     ``architecture``: the project's architecture (``05 Floor Plan/architecture.json``), read
-    beside ``model_dir`` (``08 FEM``) when not given; ``False`` for none. See
+    beside ``model_dir`` (``08 FEM``) when not given; ``False`` for none. ``wind_gust=False``:
+    the wind cases keep the rigid gust factor G, without the modal run of a flexible building's
+    Gf (a model whose wind cases are not run: the mesh check's coarse one). See
     :func:`_derive_fem`."""
     if architecture is None and model_dir is not None:
         architecture = read_architecture(Path(model_dir).parent)
@@ -786,6 +790,7 @@ def derive_fem(
             column_supports,
             member_loads,
             architecture or None,
+            wind_gust=wind_gust,
         )
         derivation.notes += state_notes
         return derivation
@@ -819,6 +824,8 @@ def _derive_fem(
     column_supports: str | None = None,
     member_loads: Any = None,
     architecture: Any = None,
+    *,
+    wind_gust: bool = True,
 ) -> Derivation:
     """The OpenSees Studio project of ``building`` with the loads of ``settings``.
 
@@ -3611,7 +3618,7 @@ def _derive_fem(
             upper_factor=fl.period_upper_factor(values["Z"]),
         )
     # ── the gust-effect factor of a flexible building (the default pack's Part 6 Sec 2.4.8.2) ──
-    if summary.get("wind"):
+    if summary.get("wind") and wind_gust:
         _wind_gust(
             project,
             summary,
