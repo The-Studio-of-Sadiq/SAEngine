@@ -1,0 +1,25 @@
+{
+	"steps": [
+		{"action": "project.create", "params": {"name": "Three Storey RC", "occupancy": "residential"}},
+		{"action": "settings.site", "params": {"location": "dhaka", "siteClass": "SD"}},
+		{"action": "material.concrete.add", "params": {"fc": 28, "makeDefault": true}},
+		{"action": "soil.allowable_bearing.set", "params": {"value": 150}},
+		{"action": "grid.set", "params": {"x": [5000, 5000, 5000], "y": [4000, 4000]}},
+		{"action": "storeys.set", "params": {"count": 3, "height": 3000, "typical": true}},
+		{"action": "type.column.add", "params": {"id": "C400", "width": 400, "depth": 400}},
+		{"action": "type.beam.add", "params": {"id": "B300x500", "width": 300, "depth": 500}},
+		{"action": "type.slab.add", "params": {"id": "S150", "thickness": 150}},
+		{"action": "columns.place", "params": {"type": "C400"}},
+		{"action": "beams.place", "params": {"type": "B300x500"}},
+		{"action": "slabs.place", "params": {"type": "S150"}},
+		{"action": "load.area.set", "params": {"id": "FL", "SD": 1.5}},
+		{"action": "load.wall.add", "params": {"storeys": ["L1"], "openings": 25}},
+		{"action": "run.step", "params": {"step": "analyse"}},
+		{"action": "foundations.generate", "params": {}},
+		{"action": "run.all", "params": {}},
+		{"action": "design.reinforcement.apply", "params": {"types": "all"}},
+		{"action": "run.all", "params": {}},
+		{"action": "results.summary", "params": {}},
+		{"action": "checks.list", "params": {"failing": true}}
+	]
+}
