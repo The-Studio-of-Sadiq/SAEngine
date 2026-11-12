@@ -1,0 +1,14 @@
+name: Feedback
+description: Anything else about SAEngine - what works, what is hard to use, ideas.
+title: "[Feedback] "
+labels: ["feedback"]
+body:
+  - type: markdown
+    attributes:
+      value: "**Issues are public.** For private feedback, e-mail publicrelations@thestudioofsadiq.tech."
+  - type: textarea
+    id: feedback
+    attributes:
+      label: Your feedback
+    validations:
+      required: true

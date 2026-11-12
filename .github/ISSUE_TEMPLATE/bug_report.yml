@@ -1,0 +1,71 @@
+name: Bug report
+description: Something in SAEngine does not work or gives a wrong result.
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. **Issues are public:** leave out client names, addresses and anything confidential about the project. For a private report, e-mail publicrelations@thestudioofsadiq.tech instead.
+
+        Easiest: in SAEngine, use **Help > Report a Bug**. It fills this in for you and can attach an anonymised diagnostics bundle.
+  - type: input
+    id: version
+    attributes:
+      label: SAEngine version
+      description: Help > About.
+      placeholder: e.g. 0.0.48-alpha.9
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Part of the program
+      options:
+        - Start page / New Project
+        - Site & Soil
+        - Model (floor plan, 3D)
+        - Loads
+        - Analysis
+        - Design
+        - Drawings
+        - BOQ
+        - Report
+        - MEP
+        - Code packs
+        - Import / export
+        - Install / update
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you saw, and what you expected instead. For a wrong result, give the value SAEngine gave and the value you expected, with the code clause or hand calculation.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open the sample project
+        2. ...
+    validations:
+      required: false
+  - type: input
+    id: code-pack
+    attributes:
+      label: Code pack
+      placeholder: e.g. BNBC 2020
+  - type: input
+    id: os
+    attributes:
+      label: Operating system
+      placeholder: e.g. Windows 11
+  - type: textarea
+    id: attachments
+    attributes:
+      label: Screenshots, diagnostics or project archive
+      description: Drag files here. A project archive (.civil) is public once attached.
