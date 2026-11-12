@@ -4,8 +4,17 @@ What changed in each release, for engineers. Each release's full notes and setup
 [Releases](https://github.com/The-Studio-of-Sadiq/SAEngine/releases). SAEngine is pre-alpha:
 check every result independently.
 
-## Unreleased (on `beta`)
+## Pre-Alpha 10 — 0.0.49 (13 Nov 2026)
 
+The last pre-alpha. From here on releases are alpha.
+
+- **The AI assistant builds and changes projects:** the SAEngine mode in the title-bar chat
+  (GitHub Copilot sign-in or your own API key) creates a whole building from one prompt, runs it,
+  designs it and writes the report, through the same 59 actions as the command line
+  (`saengine action`) and scripts. Every change shows as a change set to accept or undo, every run
+  asks first, and the AI is refused what the engineer would be refused. See the video in
+  [videos/](videos/).
+- **Shared actions:** `saengine action list|describe|run|batch`, the RPC and SDK 1.1.0.
 - **Speed:** a 10-storey Run All down from 7.2 to 2.7 minutes (alpha 10, wave 1).
 - **A clearer window:** the stage bar (Site & Soil › Model › Loads › Analysis › Design › Drawings ·
   BOQ · Report) showing done, out of date or failing; the model view in the centre, Properties on
