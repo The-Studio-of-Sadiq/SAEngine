@@ -1009,7 +1009,14 @@ function object(value: unknown): JsonObject {
  */
 export function holdsDefaults(document: JsonObject, part: string): boolean {
 	if (part === 'materials' || part === 'objects') {
-		return canonical(document) === canonical(part === 'materials' ? DEFAULT_MATERIALS : DEFAULT_OBJECTS);
+		let expected = (part === 'materials' ? DEFAULT_MATERIALS : DEFAULT_OBJECTS) as JsonObject;
+		// Projects started before the starting library named its concrete (#308) have no
+		// `defaults`: nobody chose one, so they still hold the defaults.
+		if (part === 'materials' && document.defaults === undefined) {
+			const { defaults: _defaults, ...rest } = expected;
+			expected = rest;
+		}
+		return canonical(document) === canonical(expected);
 	}
 	const defaults = DEFAULT_SETTINGS as JsonObject;
 	const { codes: _codes, ...current } = document;
