@@ -7,7 +7,7 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { formatJson, Json, jsonDocs } from '../../node/coEditingDoc.js';
 import { loadCoEditingLibs } from '../../node/coEditingLibs.js';
-import { CoEditingRelay } from '../../node/coEditingRelay.js';
+import { CoEditingRelay, validRoom } from '../../node/coEditingRelay.js';
 
 const plan = {
 	name: 'Ground floor',
@@ -81,6 +81,12 @@ suite('SAEngine live co-editing', () => {
 		b.destroy();
 	});
 
+	test('the relay takes part paths with spaces, and refuses ..', () => {
+		assert.deepStrictEqual(
+			['saengine/k/05 Floor Plan/floor-plan.json', 'saengine/k/../x', '', 'a\u0000b'].map(validRoom),
+			[true, false, false, false]);
+	});
+
 	test('the text keeps the file\'s indentation and final new line', () => {
 		assert.strictEqual(formatJson({ a: [1] }, '{\n  "a": []\n}\n'), '{\n  "a": [\n    1\n  ]\n}\n');
 		assert.strictEqual(formatJson({ a: 1 }, '{\r\n\t"a": 0\r\n}'), '{\r\n\t"a": 1\r\n}');
@@ -93,7 +99,8 @@ suite('SAEngine live co-editing', () => {
 		const relay = new CoEditingRelay(libs);
 		const port = await relay.start(0, '127.0.0.1');
 		const url = `ws://127.0.0.1:${port}`;
-		const room = 'saengine/test/05-floor-plan/floor-plan.json';
+		// Part folders have spaces in their names.
+		const room = 'saengine/test/05 Floor Plan/floor-plan.json';
 		const connect = () => {
 			const doc = new libs.Y.Doc();
 			const provider = new libs.WebsocketProvider(url, room, doc, { WebSocketPolyfill: libs.WebSocket as unknown as typeof globalThis.WebSocket, disableBc: true });

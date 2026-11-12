@@ -20,8 +20,13 @@ import { ICoEditingLibs } from './coEditingLibs.js';
 const MESSAGE_SYNC = 0;
 const MESSAGE_AWARENESS = 1;
 const PING_INTERVAL = 30_000;
-/** A room name: `saengine/<project key>/<part path>`, letters, digits and `-_./` only. */
-const ROOM_PATTERN = /^[\w\-./]{1,300}$/;
+/** The longest room name: `saengine/<project key>/<part path>` (part folders have spaces). */
+const MAX_ROOM_LENGTH = 300;
+
+/** A room name the relay accepts: printable, not too long, no `..` segment. */
+export function validRoom(name: string): boolean {
+	return name.length > 0 && name.length <= MAX_ROOM_LENGTH && !/[\u0000-\u001f\u007f]/.test(name) && !name.split('/').includes('..');
+}
 
 interface IRoom {
 	readonly doc: Yjs.Doc;
@@ -171,8 +176,13 @@ export class CoEditingRelay {
 	}
 
 	private connect(connection: WebSocket, request: IncomingMessage): void {
-		const name = decodeURIComponent((request.url ?? '/').split('?')[0].replace(/^\/+/, ''));
-		if (!ROOM_PATTERN.test(name) || name.includes('..')) {
+		let name: string;
+		try {
+			name = decodeURIComponent((request.url ?? '/').split('?')[0].replace(/^\/+/, ''));
+		} catch {
+			name = '';
+		}
+		if (!validRoom(name)) {
 			connection.close(1008, 'invalid room');
 			return;
 		}
