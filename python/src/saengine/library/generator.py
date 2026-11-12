@@ -3185,6 +3185,18 @@ def building_texts(result: dict[str, Any]) -> dict[str, str]:
     return texts
 
 
+def project_manifest(title: str) -> tuple[str, dict[str, Any]]:
+    """The file name and content of a new building project's manifest (``<title>.saengine``)."""
+    safe = re.sub(r'[<>:"/\\|?*]+', "-", title).strip() or "Building"
+    return f"{safe}.saengine", {
+        "schema": 1,
+        "name": title,
+        "created": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
+        "type": "building",
+        "parts": PARTS,
+    }
+
+
 def write_building(
     result: dict[str, Any], folder: str | Path, name: str | None = None
 ) -> list[Path]:
@@ -3194,20 +3206,8 @@ def write_building(
     texts = building_texts(result)
     if not any(root.glob("*.saengine")):
         title = name or result["settings"]["project"]["name"]
-        safe = re.sub(r'[<>:"/\\|?*]+', "-", title).strip() or "Building"
-        texts[f"{safe}.saengine"] = (
-            json.dumps(
-                {
-                    "schema": 1,
-                    "name": title,
-                    "created": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
-                    "type": "building",
-                    "parts": PARTS,
-                },
-                indent="\t",
-            )
-            + "\n"
-        )
+        file, manifest = project_manifest(title)
+        texts[file] = json.dumps(manifest, indent="\t") + "\n"
     written = []
     for relative, text in texts.items():
         path = root / relative
@@ -3217,4 +3217,10 @@ def write_building(
     return written
 
 
-__all__ = ["BuildingSpec", "building_texts", "generate_building", "write_building"]
+__all__ = [
+    "BuildingSpec",
+    "building_texts",
+    "generate_building",
+    "project_manifest",
+    "write_building",
+]
